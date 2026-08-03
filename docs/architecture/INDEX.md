@@ -1,0 +1,70 @@
+# docs/architecture/ — Architecture entry point
+
+This is the household-specific application of an inherited, implementation-neutral
+architecture. **Read the decisions before the descriptions**:
+[`../decisions/INDEX.md`](../decisions/INDEX.md) records *why*; this folder
+records *what the system therefore looks like*.
+
+This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
+every document referenced here must exist, and every document in this folder must
+be referenced here.
+
+## Adopted upstream contract — pinned
+
+This repository **adopts by reference and does not copy**
+([ADR-0001](../decisions/ADR-0001-adopt-security-first-architecture.md)):
+
+| Repository | Role | Pinned at |
+|---|---|---|
+| [`pulse-ops-ai/security-first-platform-architecture`](https://github.com/pulse-ops-ai/security-first-platform-architecture) | the contract — eight-layer control model, trust zones, identity/authorization separation, internal identity envelope, agent-as-client | tag **`v0.3.0`** (`07e65a07bb6f2eab57bfd6dd8619f2eac77098e9`) |
+| [`pulse-ops-ai/platform-edge`](https://github.com/pulse-ops-ai/platform-edge) | a **reference implementation** and the shared L1–L5 edge for the remote path only — **not** this product's runtime | `main` @ **`b70894a8a49b9433a5fca16bc5538b3bd8891a88`** (2026-07-13) |
+
+Changing either pin requires a pull request that records what the diff changed
+for this repository.
+
+**Inherited vocabulary** — used throughout this folder without redefining it:
+layers **L1** (network reachability) → **L8** (semantic / agent reasoning);
+trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
+
+## Documents
+
+| Document | What it answers |
+|---|---|
+| [`system-context.md`](system-context.md) | Who and what is in the system, and where each part lives |
+| [`trust-boundaries.md`](trust-boundaries.md) | Which boundaries exist, and what evidence each crossing requires |
+| [`runner-model.md`](runner-model.md) | How agents are executed: base image, derived image, profile, adapter, run, evidence |
+| [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) | How identity, delegation, authorization, the envelope, and safety policy compose |
+| [`local-remote-routing.md`](local-remote-routing.md) | Local, remote, and cloud call paths and their routing classes |
+| [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
+| [`unresolved-decisions.md`](unresolved-decisions.md) | Open questions that are deliberately **not** decided yet |
+
+## Reading order
+
+1. [`system-context.md`](system-context.md) — the map
+2. [`trust-boundaries.md`](trust-boundaries.md) — the rules that constrain the map
+3. [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) — how a request earns the right to act
+4. [`runner-model.md`](runner-model.md) — how agents run inside those rules
+5. [`local-remote-routing.md`](local-remote-routing.md) — where work executes
+6. [`degraded-mode.md`](degraded-mode.md) — what happens when parts are missing
+7. [`unresolved-decisions.md`](unresolved-decisions.md) — what is still open
+
+## Status
+
+**Nothing described here is implemented.** There is no runtime in this
+repository: no Home Assistant, no live services, no OpenFGA, no Keycloak, no
+runner image, no credentials. These documents describe the target the ADRs
+propose. Where a document describes something that does not exist, it says so.
+
+## Rules for this folder
+
+- Describe the **household application** of the inherited architecture. Do not
+  restate upstream content; link to it.
+- Every document must be reachable from this index, and every index entry must
+  point at a file that exists.
+- Do not silently resolve anything listed in
+  [`unresolved-decisions.md`](unresolved-decisions.md). Moving an item out of
+  that file requires an ADR.
+- Do not describe an unimplemented thing in the present tense without marking it
+  as unimplemented.
+- Governed by [`../../AGENTS.md`](../../AGENTS.md) and
+  [`../AGENTS.md`](../AGENTS.md).
