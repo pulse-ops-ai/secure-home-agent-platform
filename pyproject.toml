@@ -1,0 +1,100 @@
+# Root of the Python (uv) workspace.
+#
+# This is a VIRTUAL workspace root: it has no [project] table, so the root
+# itself is not a distributable package. It exists to declare the workspace
+# members and to hold the shared tooling configuration.
+#
+# Members are globbed, so adding a service or package directory with a valid
+# pyproject.toml is enough to join the workspace.
+#
+# Governed by AGENTS.md and docs/decisions/INDEX.md.
+
+[tool.uv.workspace]
+members = [
+    "services/*",
+    "packages/python/*",
+]
+
+[dependency-groups]
+# Shared development tooling. There are deliberately NO runtime dependencies
+# anywhere in this workspace: no web framework, no agent framework, no Home
+# Assistant client. Adding one is a reviewed decision (see AGENTS.md).
+dev = [
+    "mypy>=1.14",
+    "pytest>=8.3",
+    "ruff>=0.9",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — lint and format
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = [
+    "packages/python/contracts/src",
+    "packages/python/events/src",
+    "packages/python/tools/src",
+    "services/action-gateway/src",
+    "services/automation-service/src",
+    "services/pi-api/src",
+    "services/policy-engine/src",
+    "services/runner-control/src",
+    "tests",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import sorting
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "PTH",  # flake8-use-pathlib
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+    "S",    # flake8-bandit — this platform controls physical devices
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Assertions are the point of a test.
+"tests/**" = ["S101"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# mypy — types
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+# Explicit target list rather than a bare "." so mypy never wanders into
+# .venv/ or a generated directory. Update this when a member is added.
+files = [
+    "packages/python/contracts/src",
+    "packages/python/events/src",
+    "packages/python/tools/src",
+    "services/action-gateway/src",
+    "services/automation-service/src",
+    "services/pi-api/src",
+    "services/policy-engine/src",
+    "services/runner-control/src",
+    "tests",
+]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"

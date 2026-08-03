@@ -1,0 +1,19 @@
+{
+  "name": "secure-home-agent-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first, security-first household agent platform — TypeScript workspace root.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "bash scripts/check.sh",
+    "check:scaffold": "bash scripts/validate-scaffold.sh",
+    "check:ts": "pnpm -r --if-present run check",
+    "check:py": "uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest",
+    "install:frozen": "pnpm install --lockfile-only"
+  },
+  "devDependencies": {}
+}

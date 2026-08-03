@@ -1,0 +1,53 @@
+# knowledge/gridwise/
+
+**Gridwise tariff and telemetry semantics** — what the energy data *means*.
+
+> **Status: empty.** No bundle exists — the validator must come first.
+
+## The relationship
+
+Gridwise already provides energy intelligence: tariff modelling, consumption
+analysis, cost signals. **This repository does not reimplement any of it.**
+Gridwise is an upstream source consumed through its own interface.
+
+What lives here is the **semantic layer**: what a rate structure means, what a
+metric represents, what units it uses, and how to interpret it — so an agent can
+reason about an energy signal instead of pattern-matching a number.
+
+## What belongs here
+
+- **Tariff semantics**: what a time-of-use structure is, what defines a peak
+  window, how demand charges work, what a critical-peak event means.
+- **Metric semantics**: what each Gridwise metric represents, its unit, its
+  sampling interval, and its known caveats.
+- **Interpretation guidance**: what a signal implies for household behaviour —
+  as documented reasoning, never as an authority to act.
+- Known limitations of the data.
+- Owner, as-of date, limitations.
+
+## What does not belong here
+
+- **Current or historical rates, prices, or consumption readings.** All live or
+  time-series data is state.
+- **Credentials or endpoints** for the Gridwise interface.
+- **Household consumption telemetry** — raw personal telemetry is prohibited.
+- **Automations** that act on energy signals —
+  [`../../services/automation-service/`](../../services/automation-service/).
+- **Enforced policy.** "Do not pre-cool below 68 °F" is deterministic policy, not
+  knowledge.
+
+## A price signal is an input, not an authority
+
+An agent may use a peak-price signal to *propose* pre-cooling. The proposal is
+still subject to authorization and to the deterministic safety envelope. Cost
+never justifies leaving the envelope
+([ADR-0005](../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md)).
+
+## Governed by
+
+[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) ·
+[ADR-0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+
+## Validation
+
+Future: `validate` enforces the prohibited-content rules and required metadata.
