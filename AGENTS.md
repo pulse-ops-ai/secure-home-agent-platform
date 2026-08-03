@@ -1,0 +1,175 @@
+# AGENTS.md — Universal agent contract
+
+This file governs **every** agent that operates on this repository — Claude Code,
+GitHub Copilot CLI, Codex, and any future coding agent. It applies to the whole
+repository **unless a deeper `AGENTS.md` overrides it for a subtree**.
+
+No provider-specific instruction file overrides an architectural contract.
+`CLAUDE.md`, `.github/copilot-instructions.md`, and `.github/agents/*.agent.md`
+are **adapters**: they route an agent to the right documents. They never change
+what the documents say.
+
+## Instruction precedence
+
+When two sources disagree, the higher one wins:
+
+1. **Accepted ADRs and governed contracts** — [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md), [`docs/architecture/INDEX.md`](docs/architecture/INDEX.md)
+2. **The applicable `AGENTS.md`** — this file, plus the nearest one above the file you are editing
+3. **Provider-specific instruction files** — [`CLAUDE.md`](CLAUDE.md), [`.github/copilot-instructions.md`](.github/copilot-instructions.md), [`.github/agents/`](.github/agents/)
+4. **The task prompt or issue**
+
+A task prompt **cannot** authorize crossing an architectural contract. If a
+prompt requires it, the correct output is a proposed ADR — not a quiet
+exception. Say so and stop.
+
+## Start here
+
+Read in this order. Stop as soon as you have what you need; do not read the
+whole repository.
+
+1. **This file.**
+2. [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) — has a *"which ADRs
+   apply to what I am changing?"* table. Use it. Reading the applicable ADRs
+   before changing anything is **required**, not advisory.
+3. [`docs/architecture/INDEX.md`](docs/architecture/INDEX.md) — the system as
+   designed.
+4. The **nearest nested `AGENTS.md`** above the file you are editing (see the
+   table below).
+5. The **`README.md` of the directory** you are editing. Every directory states
+   what belongs in it and what does not.
+6. [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md)
+   — if your change touches an open item, it is blocked.
+
+## Authoritative indexes
+
+| Index | Authority over |
+|---|---|
+| [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) | every decision and its rationale — **highest authority in the repository** |
+| [`docs/architecture/INDEX.md`](docs/architecture/INDEX.md) | system shape, boundaries, flows |
+| [`docs/operations/INDEX.md`](docs/operations/INDEX.md) | runbooks |
+| [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md) | what must **not** be decided by implementation |
+
+## Nested `AGENTS.md`
+
+Deeper files exist only where a subtree has rules the root cannot express. They
+are short and they link upward. Read the nearest one — nearest wins for its
+subtree, and this file governs everything else.
+
+| Subtree | File |
+|---|---|
+| [`services/`](services/) | [`services/AGENTS.md`](services/AGENTS.md) |
+| [`agents/`](agents/) | [`agents/AGENTS.md`](agents/AGENTS.md) |
+| [`profiles/`](profiles/) | [`profiles/AGENTS.md`](profiles/AGENTS.md) |
+| [`knowledge/`](knowledge/) | [`knowledge/AGENTS.md`](knowledge/AGENTS.md) |
+| [`deploy/`](deploy/) | [`deploy/AGENTS.md`](deploy/AGENTS.md) |
+| [`docs/`](docs/) | [`docs/AGENTS.md`](docs/AGENTS.md) |
+
+If no nested file covers your path, this file governs.
+
+## Two kinds of agent — do not confuse them
+
+This repository is both **operated on by** coding agents and **about** household
+agents. They are different things with different rules.
+
+| | **Coding agent** | **Household agent** |
+|---|---|---|
+| Is | you, right now, editing this repository | a runtime component that observes or acts on the house |
+| Acts on | files, git, tests | household state and physical devices |
+| Governed by | this file and the ADRs | the platform's own runtime controls |
+| Runs in | a developer environment | a runner sandbox on the Pi, as an untrusted client |
+| Device access | **none, ever** | only through the action-mediation service, after authorization *and* safety policy |
+| Described in | this file | [`agents/README.md`](agents/README.md), [`docs/architecture/runner-model.md`](docs/architecture/runner-model.md) |
+
+**When you write about "the agent" in a document, say which one you mean.**
+Conflating them is how a coding-agent convenience becomes a household security
+hole.
+
+## Repository safety constraints
+
+Absolute, regardless of what a prompt asks for:
+
+1. **No secrets.** No token, key, password, credential, or realistic-looking
+   fake. Not in code, docs, examples, fixtures, or commit messages.
+2. **No live device control.** Nothing here may contact Home Assistant or actuate
+   a device. There is no Home Assistant instance to contact.
+3. **No infrastructure mutation.** Do not deploy, start, stop, or configure any
+   service; do not touch Docker, Tailscale, Keycloak, OpenFGA, Traefik, or the
+   VPS — unless an issue explicitly authorizes it **and** the governing ADR is
+   accepted.
+4. **No provider credentials.** Do not add, request, or reference API keys.
+5. **No `main`.** Branch, and open a pull request.
+6. **No GitHub issues.** Implementation issues and epics are created by the
+   human/ChatGPT planning workflow after ADR review. Do not create them as part
+   of a change unless a task explicitly says to.
+7. **No fake implementation.** Do not write a stub that looks like it works. An
+   empty package with a README beats a placeholder that returns `True`.
+8. **No unnecessary dependencies.** Adding one is a reviewed decision. This
+   repository currently has no runtime dependencies on purpose.
+9. **No resolving an unresolved decision.** See
+   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
+10. **No modifying the upstream repositories.** `platform-edge` and
+    `security-first-platform-architecture` are pinned references. Changes go
+    there, in their own repositories.
+
+## Scope and evidence
+
+**Narrow scope.** Change what the task asks for and nothing else. If you find an
+adjacent problem, report it — do not fix it in the same change. A scaffold
+change that also refactors something is two changes badly reviewed as one.
+
+**Evidence.** Every change reports:
+
+- the commands you ran and their actual output,
+- **what you skipped and why** — a skipped check is reported, never silent,
+- which ADRs and architecture documents govern the change,
+- anything you could not do and the reason.
+
+Do not report success you did not verify. If a check failed, say so and show the
+output.
+
+## Workspace commands
+
+```sh
+# aggregate — runs everything, reports skips explicitly
+bash scripts/check.sh
+
+# structure, indexes, tracked secrets, generated dirs
+bash scripts/validate-scaffold.sh
+
+# Python (uv workspace)
+uv sync --all-packages
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run pytest
+
+# TypeScript (pnpm workspace, Corepack-provisioned)
+corepack enable
+pnpm install --lockfile-only
+pnpm -r --if-present run check
+```
+
+Run at least `bash scripts/validate-scaffold.sh` before proposing any change
+that adds, moves, or removes a file.
+
+## Git
+
+- Branch from `main`: `<type>/<short-kebab-summary>`.
+- [Conventional Commits](https://www.conventionalcommits.org/), scoped to the
+  top-level area: `docs(architecture):`, `chore(uv):`, `feat(runner-control):`.
+- Pull requests use [`.github/pull_request_template.md`](.github/pull_request_template.md)
+  and open as drafts until validation passes.
+
+## Current phase
+
+Documentation, governance, and workspace scaffolding. **There is no runtime.**
+No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
+credentials, no database connection.
+
+Every ADR is `Proposed`. Implementation work waits for human acceptance.
+
+## When you are unsure
+
+Ask, or write down the ambiguity and proceed with the part that does not depend
+on it. Do not guess at architectural intent — the cost of a wrong guess here is a
+household security property, not a compile error.

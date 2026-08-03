@@ -1,0 +1,472 @@
+# secure-home-agent-platform
+
+A **local-first, security-first platform for household agents.**
+
+Agents that observe a house and act on it — adjusting climate, watching for
+problems, answering questions — running under controls strong enough that they
+can be trusted near a door lock, and local enough that the house keeps working
+when the internet does not.
+
+> ## Status: foundation only
+>
+> This repository currently contains **documentation, governance, and workspace
+> scaffolding**. There is **no runtime**: no Home Assistant, no services, no
+> OpenFGA, no Keycloak, no runner image, no credentials, no database connection.
+>
+> All eleven ADRs are **`Proposed`**. None has been accepted. Acceptance is a
+> human decision.
+>
+> [What has not been implemented →](#what-has-not-been-implemented)
+
+---
+
+## Why this exists
+
+Home automation platforms and agent frameworks each solve half the problem and
+assume the other half away.
+
+Home automation gives you device control with a coarse permission model: a token
+that can turn on a lamp can usually also unlock the front door. Agent frameworks
+give you capable reasoning with an implicit trust model: the agent runtime holds
+the credentials, so a confused or manipulated agent inherits everything the
+platform can do.
+
+Put an LLM-driven agent on top of a home automation system with a long-lived
+owner token and you have built something that can be talked into opening your
+garage.
+
+This project takes the opposite starting point:
+
+1. **Agents are clients, not insiders.** An agent authenticates, is authorized,
+   and is subject to policy — exactly like a browser. It gets no privileged
+   back-channel and no owner token.
+2. **Sensitive actions do not depend on model judgment.** A model may *propose*
+   an action. Whether it happens is decided by relationship authorization and a
+   deterministic, human-readable safety envelope — with no model in that path.
+3. **The house must work when the internet does not.** Household operation does
+   not require a WAN round trip, a cloud provider, or a GPU workstation.
+4. **The dangerous direction fails closed.** During an outage, closing a garage
+   continues; opening one does not. Nobody gains physical access by causing a
+   network failure.
+
+The security model is not invented here. It is
+[adopted by pinned reference](#security-model) from an existing,
+implementation-neutral platform architecture already in use across this
+workspace.
+
+## Relationship to Gridwise
+
+**Gridwise already provides energy intelligence** — tariff modelling,
+consumption analysis, cost signals. This project does **not** reimplement any of
+it and is not an energy product.
+
+Gridwise is an **upstream source**, consumed through its own interface:
+
+- Gridwise **semantics** (what a rate structure means, what a metric represents)
+  become knowledge-bundle content — [`knowledge/gridwise/`](knowledge/gridwise/).
+- Gridwise **signals** may inform a household proposal, such as pre-cooling
+  ahead of a peak window.
+- A price signal is an **input, never an authority**. Cost does not justify
+  leaving the safety envelope.
+
+---
+
+## Topology
+
+```mermaid
+flowchart TB
+    subgraph OUT["Public internet"]
+        BROWSER["Browser / mobile<br/>(remote)"]
+        CLOUD["Cloud model provider<br/><i>optional</i>"]
+    end
+
+    EDGE["<b>Shared platform edge</b><br/>L1–L5 · separate repository<br/><i>remote path only</i>"]
+    KC["<b>Keycloak</b><br/>identity · external"]
+
+    subgraph TN["Tailnet — private connectivity, never authority"]
+        subgraph PI["<b>Raspberry Pi 5</b> · Debian 13 ARM64 · household control plane"]
+            CTRL["L6 / L7 services<br/>pi-api · policy-engine<br/>action-gateway · automation-service<br/>runner-control"]
+            SBX["Agent runner sandbox<br/><i>untrusted</i>"]
+            HA["Home Assistant<br/>device / state substrate"]
+        end
+        VPS["<b>VPS</b><br/>TimescaleDB · durable data<br/>OpenFGA · decisions"]
+        EXX["<b>Exxact GPU workstation</b><br/><i>optional · may be off</i>"]
+    end
+
+    DEV["Household devices<br/>lights · HVAC · locks · garage<br/>alarm · smoke/CO · leak"]
+    VOICE["Home Assistant Voice"]
+    GW["<b>Gridwise</b><br/>energy intelligence"]
+
+    BROWSER -->|remote path| EDGE --> CTRL
+    VOICE -->|local path| CTRL
+    CTRL --> HA --> DEV
+    CTRL -.-> VPS
+    CTRL -.-> KC
+    CTRL --> SBX
+    SBX -->|re-enters as a client| CTRL
+    SBX -.->|optional| EXX
+    SBX -.->|only if permitted| CLOUD
+    CTRL -.-> GW
+
+    classDef untrusted fill:#ffe9e9,stroke:#b23,stroke-width:2px
+    classDef optional fill:#f2f2f2,stroke:#888,stroke-dasharray:4 3
+    classDef core fill:#e8f4ff,stroke:#26c,stroke-width:2px
+    class SBX untrusted
+    class EXX,CLOUD,EDGE optional
+    class CTRL core
+```
+
+| Component | Where | Role |
+|---|---|---|
+| **Raspberry Pi 5** (8 GB, 256 GB NVMe, Debian 13 ARM64, Docker Compose) | in the house | Household control plane. Owns L6/L7. |
+| **Home Assistant Container** | on the Pi *(not yet installed)* | Device and state substrate. Not an authorization boundary. |
+| **Shared platform edge** | remote | Shared L1–L5 for the **remote path only**. |
+| **Keycloak** | external | Identity for users, services, and agents. Consumed, not run here. |
+| **OpenFGA** | topology unresolved | Policy decision point. **Never a request proxy.** |
+| **PostgreSQL / TimescaleDB** | VPS | The only authoritative datastore. **Nothing authoritative is on the Pi.** |
+| **Exxact GPU workstation** | tailnet | Optional heavy private inference. **May be off.** |
+| **Tailscale** | everywhere | Private connectivity. **Never identity, never authorization.** |
+| **Gridwise** | existing product | Upstream energy intelligence. |
+
+---
+
+## The eight-layer control model, mapped
+
+This repository inherits an eight-layer control model. Layers are **roles**, not
+products — see [ADR-0001](docs/decisions/ADR-0001-adopt-security-first-architecture.md).
+
+```mermaid
+flowchart TB
+    L8["<b>L8</b> · Semantic / agent reasoning<br/>agent runners — <i>clients, not a privileged layer</i>"]
+    L7["<b>L7</b> · Service enforcement<br/><b>this repo</b> — envelope verification · safety policy · action mediation · audit"]
+    L6["<b>L6</b> · Orchestrator / BFF<br/><b>this repo</b> — mints the internal identity envelope <i>(issuer service unresolved)</i>"]
+    L5["<b>L5</b> · Operational guardrails<br/>shared edge (remote) + Pi-local (household)"]
+    L4["<b>L4</b> · Authorization<br/>coarse at the shared edge · <b>fine household model owned here</b>"]
+    L3["<b>L3</b> · Identity<br/>Keycloak — <i>consumed, not run here</i>"]
+    L2["<b>L2</b> · Edge gateway / routing<br/>shared edge (remote) · Traefik on the Pi (local)"]
+    L1["<b>L1</b> · Network reachability<br/>shared edge ingress (remote) · LAN + tailnet (local)"]
+
+    L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
+    L8 -.->|"re-enters at L1/L2"| L1
+
+    classDef owned fill:#e8f4ff,stroke:#26c,stroke-width:2px
+    classDef consumed fill:#f2f2f2,stroke:#888,stroke-dasharray:4 3
+    classDef agent fill:#ffe9e9,stroke:#b23,stroke-width:2px
+    class L6,L7 owned
+    class L1,L2,L3,L5 consumed
+    class L8 agent
+```
+
+| Layer | Owner |
+|---|---|
+| L1–L5 (remote path) | **shared** — the platform edge, a separate repository |
+| L1–L2, L5 (local path) | **this repository** |
+| L3 identity | **consumed** — external Keycloak |
+| L4 authorization | **shared** coarse + **household fine model owned here** |
+| L6, L7 | **this repository** |
+| L8 | agent runners — clients, never a privileged layer |
+
+**What the shared edge does not currently provide** — recorded honestly, because
+these gaps are this repository's obligations. As reviewed at
+`platform-edge` @ `b70894a8`: its authorization model is coarse (`user` and
+`api_surface` only — no agent type, no delegation, no household resources), its
+L4 runs **audit-only** so a `deny` does not block, principal classification is a
+heuristic with agent detection deferred, and it mints no internal identity
+envelope.
+
+---
+
+## Agent model
+
+Five concepts, deliberately kept separate
+([ADR-0006](docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)):
+
+| Concept | Is | Grants authority? |
+|---|---|---|
+| **implementation** | domain code — a climate observer | **no** |
+| **adapter** | a shim to a runtime — Claude Code, LangGraph, a plain loop | **no** |
+| **execution profile** | the reviewed, declarative grant of capability | **yes** |
+| **run** | one invocation of one profile; an immutable fact | inherits the profile's |
+| **automation** | a persisted, expiring standing arrangement | **yes, separately** |
+
+Merging any two is the failure this model prevents. Most importantly: **shipping
+code cannot widen production authority** — only a reviewed profile can.
+
+The **runner substrate** is provider- and framework-neutral. It owns isolation,
+mounts, network, secrets, limits, lifecycle, and evidence. One neutral base
+image; derived images carry **one pinned coding agent each**
+(`…-runner-claude`, `…-runner-copilot`, `…-runner-codex`). A single image
+containing every provider is prohibited
+([ADR-0011](docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md)).
+
+### An agent run, end to end
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant T as Trigger
+    participant RC as runner-control
+    participant S as Sandbox<br/>(untrusted)
+    participant API as Household API
+    participant PDP as Authorization
+    participant POL as Safety policy
+    participant ACT as action-gateway
+    participant HA as Home Assistant
+
+    T->>RC: run request (profile ref, actor?)
+    RC->>RC: resolve + validate profile version
+    RC->>S: launch pinned image — granted capabilities only
+    S->>API: household request (re-enters as a client)
+    API->>API: verify token · resolve sub + actor
+    API->>PDP: authorize — no payload crosses this line
+    PDP-->>API: permit / deny + decision id
+    API->>POL: deterministic safety policy
+    POL-->>API: within envelope / out of envelope
+    API->>ACT: only if BOTH permitted
+    ACT->>HA: device command
+    HA-->>ACT: result
+    ACT-->>S: response
+    S-->>RC: events → sealed evidence bundle
+```
+
+Step 4 is the load-bearing one: the sandbox **re-enters through the same
+enforcement point a browser uses**. There is no internal shortcut.
+
+---
+
+## Local-first availability
+
+Two ingress paths, four execution routing classes. They are independent axes
+([ADR-0002](docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md),
+[ADR-0007](docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)).
+
+```mermaid
+flowchart LR
+    subgraph INGRESS["Ingress paths"]
+        direction TB
+        PA["<b>Path A</b> · remote<br/>internet → shared edge → tailnet → Pi<br/><i>fails during a WAN outage</i>"]
+        PB["<b>Path B</b> · local<br/>LAN / tailnet → Pi<br/><b>must survive every outage</b>"]
+    end
+
+    ENF["<b>Same enforcement point</b><br/>same decisions on both paths"]
+
+    subgraph CLASSES["Execution routing classes"]
+        direction TB
+        R0["<b>R0</b> deterministic local — no model<br/><i>always available · default for sensitive paths</i>"]
+        R1["<b>R1</b> Pi-local lightweight model<br/><i>always available</i>"]
+        R2["<b>R2</b> Exxact private heavy<br/><i>optional — workstation may be off</i>"]
+        R3["<b>R3</b> cloud<br/><i>WAN + explicit permission; data leaves the house</i>"]
+    end
+
+    PA --> ENF
+    PB --> ENF
+    ENF --> R0 & R1 & R2 & R3
+
+    classDef always fill:#e8ffe9,stroke:#2a2,stroke-width:2px
+    classDef maybe fill:#fff4e5,stroke:#c80,stroke-width:1px
+    class R0,R1,PB always
+    class R2,R3,PA maybe
+```
+
+**No household operation requires Path A, R2, or R3.** Anything essential is
+reachable on the local path at R0 or R1.
+
+### What happens during an outage
+
+Direction matters as much as the resource
+([`degraded-mode.md`](docs/architecture/degraded-mode.md)):
+
+| Operation | During an authorization or WAN outage |
+|---|---|
+| Read temperature · turn a light off | **continue** |
+| Close the garage · lock a door · arm the alarm | **continue** — safe direction |
+| Bounded thermostat automation | **continue** within the declared envelope |
+| Smoke/CO response · leak shutoff | **continue, always** — deterministic, local, ungated |
+| **Open the garage · unlock a door · disable the alarm** | **fail closed** |
+| Camera · presence · access history | **fail closed** — not all reads are safe |
+| Grant or change access | **fail closed** |
+
+**Nobody gains physical access by causing an outage.** That property is what
+makes the rest defensible.
+
+The hardest open question in this repository is how the local path obtains
+bounded authority when the central decision point is unreachable — a local
+replica, signed capability leases, or a bounded cache. Each trades revocation
+latency for availability. **It is deliberately not decided**
+([U1](docs/architecture/unresolved-decisions.md#u1)).
+
+---
+
+## Security model
+
+Adopted **by pinned reference**, not copied
+([ADR-0001](docs/decisions/ADR-0001-adopt-security-first-architecture.md)):
+
+| Repository | Role | Pinned at |
+|---|---|---|
+| [`security-first-platform-architecture`](https://github.com/pulse-ops-ai/security-first-platform-architecture) | the contract | tag `v0.3.0` |
+| [`platform-edge`](https://github.com/pulse-ops-ai/platform-edge) | reference implementation + shared L1–L5 for the remote path | `main` @ `b70894a8` |
+
+Inherited unmodified: the eight-layer model; trust zones Z0–Z4; **identity and
+authorization are distinct layers**; **agents are clients, not insiders**; only
+L6 mints the internal identity envelope and L7 verifies it; the policy decision
+point decides but is **not a proxy the request travels through**;
+**authorization never rests on network position**.
+
+### Three separate controls, in order
+
+```mermaid
+flowchart LR
+    REQ["Requested action"]
+    C1["<b>1 · Sandbox capability</b><br/>runner substrate<br/><i>can the run reach it at all?</i>"]
+    C2["<b>2 · Authorization</b><br/>policy decision point<br/><i>may this principal, for this actor?</i>"]
+    C3["<b>3 · Safety policy</b><br/>deterministic · offline · <b>no model</b><br/><i>is it within the declared envelope?</i>"]
+    ACT["action-gateway → device"]
+    DENY["Denied · audited<br/>the reason names the deciding control"]
+
+    REQ --> C1 --> C2 --> C3 --> ACT
+    C1 -->|not granted| DENY
+    C2 -->|deny / unknown| DENY
+    C3 -->|out of envelope| DENY
+
+    classDef det fill:#e8ffe9,stroke:#2a2,stroke-width:2px
+    classDef deny fill:#ffe9e9,stroke:#b23,stroke-width:2px
+    class C3 det
+    class DENY deny
+```
+
+Each is owned by a different component. Each can deny. **None can be skipped —
+including for an administrator.**
+
+Safety policy runs **after** authorization so it can constrain an authorized
+principal, and so it does not leak resource bounds to an unauthorized one.
+It uses **numbers, times, and physical state** — never relationships, and never
+a model
+([ADR-0005](docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md),
+[ADR-0008](docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md)).
+
+**Never, anywhere:** a Home Assistant long-lived owner token in an agent runner;
+a direct database connection from a sandbox; a Docker network or the tailnet
+treated as authority.
+
+---
+
+## Repository layout
+
+```
+├── AGENTS.md              universal agent contract — read this first
+├── CLAUDE.md              Claude Code adapter
+├── .github/               Copilot instructions, scoped agent definitions, PR template
+├── docs/
+│   ├── architecture/      system context · trust boundaries · runner model ·
+│   │                      identity flow · routing · degraded mode · open questions
+│   ├── decisions/         ADR-0001 … ADR-0011  (all Proposed)
+│   └── operations/        runbooks — Pi bootstrap
+├── services/              Pi control plane (L6/L7) — Python, uv workspace
+│   ├── pi-api/            household surface · the governed enforcement point
+│   ├── runner-control/    the runner substrate
+│   ├── policy-engine/     deterministic safety policy — no model
+│   ├── action-gateway/    sole holder of Home Assistant credentials
+│   └── automation-service/ persisted, expiring automations
+├── agents/                household agents (NOT coding agents)
+│   ├── implementations/   domain code — grants no authority
+│   └── adapters/          coding/{claude-code,copilot-cli,codex}
+│                          frameworks/{custom-loop,pydantic-ai,langgraph}
+├── profiles/              execution profiles — WHERE AUTHORITY IS GRANTED
+├── schemas/               canonical contracts: profile · run · action · automation
+├── packages/              shared libraries — python/ (uv) · typescript/ (pnpm)
+├── apps/web/              household web application (placeholder)
+├── knowledge/             OKF-oriented knowledge bundles — experimental
+├── deploy/                images · compose · traefik · tailscale (no runtime)
+├── tests/                 profile · framework · policy-scenario conformance
+└── scripts/               validate-scaffold.sh · check.sh
+```
+
+Two workspaces: **`uv`** for Python (`services/*`, `packages/python/*`) and
+**`pnpm`** for TypeScript (`apps/*`, `packages/typescript/*`).
+
+## How to navigate this repository
+
+| You are… | Start at |
+|---|---|
+| a **human**, new here | this file, then [`docs/architecture/INDEX.md`](docs/architecture/INDEX.md) |
+| a **coding agent** (any vendor) | [`AGENTS.md`](AGENTS.md) — mandatory |
+| **Claude Code** | [`AGENTS.md`](AGENTS.md), then [`CLAUDE.md`](CLAUDE.md) |
+| **Copilot** | [`AGENTS.md`](AGENTS.md), then [`.github/copilot-instructions.md`](.github/copilot-instructions.md) |
+| reviewing a **decision** | [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) — has a "which ADRs apply?" table |
+| about to **change a directory** | that directory's `README.md` — it says what does *not* belong there too |
+| looking for **what is undecided** | [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md) |
+| **setting up the Pi** | [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md) |
+
+**Instruction precedence** — higher wins:
+accepted ADRs and governed contracts → the applicable `AGENTS.md` →
+provider-specific instruction files → the task prompt. A prompt cannot authorize
+crossing an architectural contract.
+
+## Verify a working copy
+
+```sh
+bash scripts/check.sh          # everything; reports skipped checks explicitly
+bash scripts/validate-scaffold.sh
+uv sync --all-packages && uv run ruff check . && uv run mypy && uv run pytest
+pnpm install --lockfile-only && pnpm -r --if-present run check
+```
+
+Toolchain setup for a fresh Pi: [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md).
+
+---
+
+## Decisions proposed
+
+All **`Proposed`**. None accepted —
+[`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
+
+| | |
+|---|---|
+| [ADR-0001](docs/decisions/ADR-0001-adopt-security-first-architecture.md) | Adopt the security-first architecture by pinned reference |
+| [ADR-0002](docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) | Adopt a hybrid-home deployment profile |
+| [ADR-0003](docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md) | Framework-neutral runner contracts and execution profiles |
+| [ADR-0004](docs/decisions/ADR-0004-treat-agents-as-clients.md) | Agents are clients, not insiders |
+| [ADR-0005](docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) | Separate sandbox capability, authorization, and safety policy |
+| [ADR-0006](docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md) | Separate implementation, profile, run, and automation |
+| [ADR-0007](docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) | Route local, remote, and cloud execution explicitly |
+| [ADR-0008](docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md) | OpenFGA for relationships, deterministic policy for safety |
+| [ADR-0009](docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) | Degraded mode and offline authorization posture |
+| [ADR-0010](docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) | OKF for portable knowledge only |
+| [ADR-0011](docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md) | Provider-neutral base, provider-specific coding-agent images |
+
+## What has not been implemented
+
+Nothing runs yet. Specifically absent, on purpose:
+
+| Area | State |
+|---|---|
+| Home Assistant | **not installed.** No instance, no credential, no configuration. |
+| Services | Five workspace members with manifests and placeholder packages. **No endpoints, no logic.** |
+| Authorization | **No household model.** The shared coarse model is explicitly not adopted. |
+| Safety policy | **No declaration format, no evaluator.** |
+| Runner substrate | **No image, no sandbox, no adapter.** |
+| Execution profiles | **No schema, no profile.** |
+| Schemas | All four are documented placeholders. |
+| Knowledge bundles | **None.** The validator must exist before the first bundle. |
+| Web application | Deliberately not scaffolded — depends on an open decision. |
+| Deployment | **No Compose file, no Dockerfile, no proxy or tailnet configuration.** |
+| Credentials | **None, anywhere.** |
+| Runtime dependencies | **None.** Both workspaces are dependency-free by design. |
+
+### Deliberately undecided
+
+Ten open questions are tracked in
+[`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md) and are
+closed by an ADR, never by an implementation. The most consequential is
+[U1](docs/architecture/unresolved-decisions.md#u1): how the local path obtains
+bounded authority offline. Until it is answered, everything that would need it
+**fails closed**.
+
+## Contributing
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for humans, [`AGENTS.md`](AGENTS.md) for
+agents, [`SECURITY.md`](SECURITY.md) for vulnerability reporting.
+
+Implementation issues and epics are created by the human planning workflow
+**after** these ADRs are reviewed.
