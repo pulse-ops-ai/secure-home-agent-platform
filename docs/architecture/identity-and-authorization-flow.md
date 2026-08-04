@@ -74,9 +74,10 @@ flowchart TB
     PDP["<b>L4 · policy decision point</b><br/>relationship questions only<br/><i>no payload crosses this line</i>"]
     L7["<b>L7 · service enforcement</b><br/>verify envelope<br/>service-level controls"]
     POL["<b>Deterministic safety policy</b><br/>numeric · temporal · physical<br/><b>no model in this path</b>"]
-    ACT["<b>action-gateway</b><br/>sole Home Assistant credential holder"]
+    ACT["<b>action-gateway</b><br/><b>verifies the bound approval</b><br/>sole Home Assistant credential holder"]
     HA["Home Assistant → device"]
     DENY["Denied · audited<br/>reason names the deciding control"]
+    BIND["<b>Binding failure</b> · audited separately<br/><i>something is rewriting requests</i>"]
 
     U --> KC
     A --> KC
@@ -87,15 +88,18 @@ flowchart TB
     L6 -->|"(principal, actor, action, resource, context)"| PDP
     PDP -->|permit + decision id| L6
     PDP -->|deny / unknown| DENY
-    L6 -->|"envelope: sub · actor · decision id · aud · short exp"| L7
+    L6 -->|"envelope: sub · actor · <b>bound approval</b><br/>action · resource · request digest · decision exp"| L7
     L7 --> POL
     POL -->|out of envelope| DENY
     POL -->|within envelope| ACT
+    ACT -->|"digest / action / resource mismatch"| BIND
     ACT --> HA
 
     classDef deny fill:#ffe9e9,stroke:#b23,stroke-width:2px
     classDef det fill:#e8ffe9,stroke:#2a2,stroke-width:2px
+    classDef alarm fill:#ffd6d6,stroke:#900,stroke-width:3px
     class DENY deny
+    class BIND alarm
     class POL det
 ```
 
@@ -151,10 +155,25 @@ An `unknown` decision is **not** a permit.
 
 ### Internal identity envelope
 
-Minted by L6, verified by every L7 service. Carries at least: `sub`,
-`principal_type`, `actor` (or an explicit autonomous marker), the authorization
-decision reference, issuer, audience, issued-at, a **short** expiry, a unique
-envelope id, and a correlation id.
+Minted by L6, verified by every L7 service.
+
+**Identity claims:** `sub`, `principal_type`, `actor` (or an explicit autonomous
+marker), issuer, audience, issued-at, a **short** expiry, a unique envelope id,
+and a correlation id.
+
+**Bound-approval claims — required for any action-bearing request:**
+
+| Claim | Purpose |
+|---|---|
+| `action_type` | the approved operation, including its direction |
+| `resource_id` | the fully-qualified approved resource |
+| `request_digest` | canonical digest of the approved action parameters |
+| `context_digest` | digest of the context the decision relied on |
+| `authz_decision_id` | joins to the decision record |
+| `authz_decision_exp` | the decision's **own** expiry, separate from the envelope's |
+| `policy_model_version` | the authorization model version that decided |
+
+Rules:
 
 - **Only L6 mints it.** No other component.
 - **It never crosses the edge boundary.** External callers always re-authenticate.
@@ -162,6 +181,44 @@ envelope id, and a correlation id.
   service that skips verification is a defect, not an optimization.
 - Verification is **not** optional because the services share a Docker network.
   See [`trust-boundaries.md`](trust-boundaries.md).
+
+#### A decision reference is not a decision
+
+An envelope carrying only `authz_decision_id` says "some authorization happened".
+It does not say *what* was authorized, so it is a bearer credential for whatever
+action its holder attaches it to.
+
+The substitution this closes: L6 legitimately obtains authorization to **close**
+the back door, mints a valid envelope, and a compromised intermediate rewrites
+the request to **unlock** the front door. Signature valid, expiry valid, replay
+detection satisfied — it is the envelope's first and only use. Safety policy sees
+an unlock request within its declared bounds. Nothing in the chain can tell that
+the decision point never approved it.
+
+Envelope id and replay detection do not help: they prevent the *second* use.
+
+So the approval is bound to the action, and **action mediation verifies the
+binding before dispatching anything physical**:
+
+1. verify signature, audience, and envelope expiry;
+2. **recompute** the canonical request digest from the action it is about to
+   perform, and compare;
+3. confirm `action_type` and `resource_id` match the action in hand;
+4. confirm `authz_decision_exp` has not passed.
+
+Any mismatch is a **binding failure** — audited distinctly from an ordinary
+denial and treated as an intrusion signal, because it means something between the
+decision point and the device is rewriting requests.
+
+Carrying a bare reference is acceptable **only** if the gateway dereferences the
+decision and verifies the complete approved tuple. Binding is preferred: it needs
+no round trip, so it still works on the degraded local path — exactly when the
+decision point may be unreachable.
+
+Canonicalization is security-critical and belongs in the reviewed action schema
+([`../../schemas/action/`](../../schemas/action/)), not in a serializer's
+defaults. See
+[ADR-0008 §3](../decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md).
 
 ### L7 — service enforcement
 
@@ -197,6 +254,11 @@ version.
 
 **Every denial is audited too**, and names the deciding control (authorization,
 safety policy, or sandbox capability). "Denied" with no reason is a defect.
+
+**A binding failure is audited as its own outcome**, never folded into the
+generic denial count. An ordinary denial is the system working; a binding failure
+means a component between the decision point and the device presented an approval
+for an action it was not given. It should alert.
 
 The correlation property this requires — one identifier joining edge, enforcement
 point, and service records — is already demonstrated upstream, so it is known to

@@ -23,11 +23,19 @@ Scoped rules for the Pi control plane. Inherits everything from
   policy decision point.** It answers relationship questions; it is not a proxy.
 - **Order is authorization, then safety policy.** Do not reorder them and do not
   merge them.
+- **Bind the approval to the action, and verify it before dispatch.** A decision
+  identifier alone is a bearer credential. Never write a path where the gateway
+  actuates on an unverified or unbound approval. A mismatch is a **binding
+  failure** — audited as its own outcome, not as a generic denial.
+- **Never promise physical atomicity.** Model the observable lifecycle and treat
+  `indeterminate` as a first-class terminal state. Never emit an automatic
+  inverse command.
 - **No model in the deterministic policy path.** No LLM, no learned ranker, no
   probabilistic component in `policy-engine`'s decision path.
 - **Fail closed on sensitive actions.** `unknown` is never `permit`. Consult
   [`../docs/architecture/degraded-mode.md`](../docs/architecture/degraded-mode.md)
-  for the classification; an unclassified capability fails closed.
+  for the classification, which is **(operation × requester)** — a physically-safe
+  direction is not authorization-free. An unclassified combination fails closed.
 - **Keep both ingress paths equivalent.** A control added for the remote path
   must exist on the local path, and vice versa.
 - **No household dependency on the WAN, the shared edge, the VPS, or the Exxact

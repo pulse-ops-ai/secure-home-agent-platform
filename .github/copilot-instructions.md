@@ -67,23 +67,31 @@ Prioritize findings that affect, in order:
    ([`ADR-0005`](../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md)).
    Watch for safety constraints drifting into authorization tuples, or a model
    appearing in the deterministic policy path.
-4. **Fail-closed behaviour** — a sensitive action that could proceed when
-   authorization is undecidable
+4. **Approval binding** — an action dispatched on an approval not bound to that
+   exact action, resource, and parameter digest; a bare decision reference
+   treated as proof
+   ([`ADR-0008 §3`](../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md)).
+5. **Fail-closed behaviour** — a sensitive action that could proceed when
+   authorization is undecidable; a physically-safe direction treated as
+   authorization-free; a classification missing the requester axis
    ([`ADR-0009`](../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)).
-5. **Provider neutrality** — a provider or framework name in a structural
+6. **Physical action semantics** — a claim of atomicity across a device, a
+   missing `indeterminate` terminal state, or an automatic inverse command
+   ([`services/action-gateway/README.md`](../services/action-gateway/README.md)).
+7. **Provider neutrality** — a provider or framework name in a structural
    position in a schema or platform contract
    ([`ADR-0003`](../docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md),
    [`ADR-0011`](../docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md)).
-6. **Concept conflation** — implementation, profile, run, and automation merged
+8. **Concept conflation** — implementation, profile, run, and automation merged
    ([`ADR-0006`](../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)).
-7. **Knowledge-bundle content** — secrets, live state, presence, authorization
+9. **Knowledge-bundle content** — secrets, live state, presence, authorization
    tuples, camera media, or raw personal telemetry
    ([`ADR-0010`](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)).
-8. **Index integrity** — a new, renamed, or removed document under
+10. **Index integrity** — a new, renamed, or removed document under
    `docs/architecture/` or `docs/decisions/` that is not reflected in its
    `INDEX.md`.
-9. **Silent scope creep** — unrelated changes bundled into one pull request.
-10. **Unreported skipped validation** — a PR claiming success without saying
+11. **Silent scope creep** — unrelated changes bundled into one pull request.
+12. **Unreported skipped validation** — a PR claiming success without saying
     what it skipped.
 
 Keep comments actionable and tied to a specific ADR or architecture document.

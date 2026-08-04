@@ -55,7 +55,65 @@ enforces it. **No request body, no household payload, and no device command ever
 transits the authorization system.** This mirrors the sidecar pattern already
 proven upstream and is a hard rule here.
 
-### 3. Deterministic policy owns numeric, temporal, and safety constraints
+### 3. The authorization decision is cryptographically bound to the exact action
+
+A decision **identifier** is not a decision. An artifact that says only "some
+authorization happened, decision `ad-1234`" is a bearer token for whatever action
+its holder chooses to attach it to.
+
+Concretely, the substitution attack this closes:
+
+1. L6 obtains authorization for a benign action and mints a valid envelope.
+2. A compromised caller, a compromised intermediate service, or a manipulated
+   transport path replaces the resource identifier or the action parameters.
+3. The action-mediation service sees a structurally valid envelope carrying a
+   real decision reference.
+4. Deterministic safety policy may still reject an unsafe *value* — but it cannot
+   establish that the policy decision point ever authorized **this** action on
+   **this** resource.
+
+A unique envelope identifier and replay detection do not close this. They prevent
+the *second* use of an envelope; the substitution happens on the first.
+
+**The authorization artifact must therefore bind, under the issuer's signature,
+at least:**
+
+| Bound claim | Prevents |
+|---|---|
+| `action_type` | swapping `close` for `open` |
+| `resource_id` (fully qualified) | swapping the back door for the front door |
+| `request_digest` — canonical digest of the action parameters | altering a setpoint or a duration |
+| `context_digest` — digest of the context the decision relied on | replaying a decision made under different conditions |
+| `sub` and `actor` | detaching the decision from the principal chain |
+| `authz_decision_id` | joining to the decision record |
+| `authz_decision_exp` — the decision's own expiry, separate from the envelope's | using a stale decision inside a fresh envelope |
+| `policy_model_version` | using a decision made under a superseded model |
+| `correlation_id` | audit joining |
+
+**Verification is the action-mediation service's obligation, not an optional
+optimization.** Before dispatching anything physical it must:
+
+1. verify the envelope signature, audience, and expiry;
+2. **recompute** the canonical request digest from the action it is about to
+   perform and compare it to the bound `request_digest`;
+3. confirm `action_type` and `resource_id` match the action in hand;
+4. confirm the decision has not itself expired.
+
+Any mismatch is a denial, audited as a **binding failure** — a distinct and
+alarming outcome, not a generic authorization denial. A binding failure means
+something between the decision point and the device is rewriting requests.
+
+Carrying a bare decision reference is acceptable **only** if the gateway
+dereferences the decision and verifies the complete approved tuple. Binding it
+into the signed artifact is the preferred form, because it needs no round trip and
+therefore still works on the degraded local path.
+
+**Canonicalization is security-critical.** Two encodings of the same action must
+produce the same digest, and two different actions must never collide. The
+canonical form is part of the action schema
+([`schemas/action/`](../../schemas/action/)), not an implementation detail.
+
+### 4. Deterministic policy owns numeric, temporal, and safety constraints
 
 Setpoint ranges, time windows, occupancy conditions, actuation rate limits,
 equipment interlocks, and required-confirmation rules are **not** modelled as
@@ -64,7 +122,7 @@ relationships. They are declared, deterministic policy evaluated by
 succeeds. See
 [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md).
 
-### 4. The shared model is not adopted for household resources
+### 5. The shared model is not adopted for household resources
 
 The current shared `api_surface` model is explicitly **not** assumed adequate.
 This repository owns a household authorization model with, at minimum:
@@ -81,7 +139,7 @@ shared edge model, or runs separately, is unresolved** — see
 [`docs/architecture/unresolved-decisions.md`](../architecture/unresolved-decisions.md).
 This ADR decides the *role*, not the deployment topology.
 
-### 5. Coarse at the edge, fine in the product
+### 6. Coarse at the edge, fine in the product
 
 The shared edge answers a coarse question ("may this principal reach this
 surface at all?"). The product answers the fine question ("may this principal
@@ -89,7 +147,7 @@ perform this action on this resource?"). Both must pass. **The coarse decision
 is not a substitute for the fine one**, and today the coarse decision does not
 even block.
 
-### 6. Fail closed
+### 7. Fail closed
 
 An undecidable authorization question is a denial for any sensitive action.
 `unknown` is never `permit`. Degraded-mode nuance is
@@ -101,6 +159,12 @@ An undecidable authorization question is a denial for any sensitive action.
 
 - Relationship reasoning — inheritance through areas, delegation chains, guest
   access — is handled by a system designed for it.
+- **Binding closes the substitution gap.** A valid envelope authorizes exactly one
+  action on exactly one resource with exactly those parameters, so a compromised
+  intermediate cannot repoint an approval.
+- **Binding works on the degraded path.** Because the approval is self-contained,
+  the gateway verifies it without a round trip to the decision point — which
+  matters precisely when the decision point is unreachable.
 - Keeping payloads out of the authorization system bounds both its blast radius
   and its availability impact.
 - The household model can evolve independently of the shared edge model.
@@ -111,6 +175,13 @@ An undecidable authorization question is a denial for any sensitive action.
 
 - Two authorization models to keep coherent (shared coarse, household fine), and
   the household one is greenfield work.
+- **Binding costs flexibility.** An approval cannot be reused for a similar
+  action, so batch or fan-out operations need one decision per action, or an
+  explicitly-modelled batch action with its own digest. This is friction, and it
+  is the correct trade.
+- **Canonicalization becomes security-critical.** A digest scheme with an
+  ambiguous canonical form is a bypass wearing a signature. It must be specified
+  and tested, not left to a serializer's defaults.
 - OpenFGA becomes an availability dependency on the sensitive-action path. This
   is the central tension in
   [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md).
@@ -138,6 +209,22 @@ An undecidable authorization question is a denial for any sensitive action.
   and device commands would transit the authorization system, and its
   availability would become the availability of every request. Also contradicts
   the proven upstream pattern.
+- **Carry only a decision identifier in the envelope.** Considered, and it is
+  what the shared edge does today (`x-platform-edge-authz-decision-id`).
+  Rejected as sufficient on its own: an unbound identifier makes the envelope a
+  bearer credential for any action its holder attaches it to, and the gateway has
+  no way to tell an approved action from a substituted one.
+- **Dereference the decision at the gateway instead of binding it.** Considered,
+  and it is acceptable *if* the full approved tuple is verified. Rejected as the
+  primary mechanism because it requires a round trip to the decision point at
+  actuation time — exactly the dependency the local-first posture is trying to
+  remove — and it fails precisely during an outage.
+- **Rely on transport security between L6 and the gateway.** Rejected: that is
+  network-position trust again. It also does not defend against a compromised
+  L6-side intermediate, which is inside the transport.
+- **Rely on safety policy to catch substituted actions.** Rejected: safety policy
+  bounds *values*, not *authority*. Swapping the back door for the front door
+  produces a perfectly in-envelope action that nobody authorized.
 - **Roles and scopes in the identity token instead of a decision point.**
   Rejected: it collapses identity and authorization, permissions change at token
   cadence, and revocation waits for token expiry.
@@ -153,6 +240,16 @@ An undecidable authorization question is a denial for any sensitive action.
 - Household data never enters the authorization system, so compromising it does
   not expose household state — it exposes the relationship graph, which is
   sensitive but bounded.
+- **Binding is what makes the whole chain non-forgeable.** Without it, every
+  component between L6 and the device is effectively trusted to not rewrite the
+  request — which is network-position trust reintroduced at the application
+  layer. The gateway must be able to verify authority from the artifact alone.
+- **A binding failure is an intrusion signal, not a user error.** It means
+  something is rewriting requests in flight. It must be audited and alerted
+  distinctly from an ordinary denial, or the one event that matters will be lost
+  among the many that do not.
+- Digest collision or canonicalization ambiguity would defeat binding entirely,
+  which is why the canonical form belongs in the reviewed schema.
 - Modelling `agent` as a first-class type prevents the current shared-edge
   situation, where an agent is indistinguishable from a user in the subject
   identifier.
@@ -180,21 +277,32 @@ An undecidable authorization question is a denial for any sensitive action.
 
 ## Validation and follow-up obligations
 
-1. Produce a gap analysis of the shared model against household resources and
+1. **Specify the bound-approval claim set and the canonical request-digest
+   form**, in [`schemas/action/`](../../schemas/action/) and the envelope claim
+   set. **Blocking prerequisite for any device actuation.** Not done in this
+   change.
+2. Add tests asserting that a substituted `resource_id`, a substituted
+   `action_type`, an altered parameter, an expired `authz_decision_exp`, and a
+   superseded `policy_model_version` each produce a **binding failure** — a
+   distinct audited outcome, not a generic denial.
+3. Add a canonicalization test suite: semantically identical actions must
+   produce identical digests, and semantically different actions must not
+   collide.
+4. Produce a gap analysis of the shared model against household resources and
    agent delegation, and design the household model from it. Not done in this
    change.
-2. Decide whether the shared and household stores share one runtime —
+5. Decide whether the shared and household stores share one runtime —
    unresolved; see
    [`docs/architecture/unresolved-decisions.md`](../architecture/unresolved-decisions.md).
-3. Decide policy-decision caching semantics per sensitivity class — unresolved,
+6. Decide policy-decision caching semantics per sensitivity class — unresolved,
    same document.
-4. Add policy-scenario tests
+7. Add policy-scenario tests
    ([`tests/policy-scenarios/`](../../tests/policy-scenarios/)) covering:
    delegation chain permits; delegation absent denies; area inheritance;
    guest scope expiry; decision point unreachable ⇒ sensitive action denied.
-5. Add a check that no request body or device command is ever passed to the
+8. Add a check that no request body or device command is ever passed to the
    authorization client interface.
-6. Assert that every authorization decision emits an audit record carrying a
+9. Assert that every authorization decision emits an audit record carrying a
    decision identifier that joins to the request record — the correlation
    property the shared edge already proves is achievable.
 

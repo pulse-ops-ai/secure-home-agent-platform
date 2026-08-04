@@ -199,10 +199,14 @@ subject to the buffering constraint that the Pi is not authoritative storage.
 - Cancellation is **effective**: the process tree is terminated and the sandbox
   torn down, not merely signalled.
 - Resource limits protect the household control path on the shared Pi.
-- **A partially-completed run must never leave a device partially actuated.**
-  Device actuation goes through the mediation service, which owns action
-  atomicity; the runner cannot actuate directly, so a killed run cannot leave a
-  half-open garage door.
+- **A killed run cannot leave a device in an unrecorded state.** The runner
+  cannot actuate directly; every physical effect goes through the mediation
+  service, which owns the action lifecycle. A run killed mid-action does not
+  abandon the action — the gateway continues to observe it to a terminal state
+  (including `indeterminate`) and records it.
+  **This is not a promise that devices behave atomically.** A garage door
+  genuinely can end up half-open; that outcome is *represented*, not prevented.
+  See [`../../services/action-gateway/README.md`](../../services/action-gateway/README.md).
 - Runs are **not** on the household safety path. A dead substrate must not
   affect local safety automations.
 

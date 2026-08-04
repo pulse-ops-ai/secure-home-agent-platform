@@ -152,6 +152,12 @@ pnpm -r --if-present run check
 Run at least `bash scripts/validate-scaffold.sh` before proposing any change
 that adds, moves, or removes a file.
 
+**These are also enforced automatically.**
+[`.github/workflows/checks.yml`](.github/workflows/checks.yml) is the merge gate
+and runs the portable subset on every pull request. Running them locally first is
+still expected — it is faster than discovering a failure in CI — and you must
+still report what you ran and what you skipped.
+
 ## Git
 
 - Branch from `main`: `<type>/<short-kebab-summary>`.

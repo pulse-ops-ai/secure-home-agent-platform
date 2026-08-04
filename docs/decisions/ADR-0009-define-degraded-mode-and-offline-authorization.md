@@ -37,42 +37,92 @@ A single "offline mode" flag cannot express this.
 
 ## Decision
 
-### 1. Three response classes for every operation
+### 1. Four response classes, assigned by operation AND requester
 
-Every household operation is classified into exactly one:
+**Physical direction and principal authority are two different questions.**
+Collapsing them — treating a physically-safe direction as authorization-free — is
+the error this decision explicitly avoids:
 
-- **CONTINUE** — proceeds on local deterministic evaluation alone. Used where
-  the operation is safe by construction or where *not* acting is more dangerous
-  than acting.
+```
+Is the physical direction safe?     ≠     May this principal initiate it now?
+```
+
+Closing a garage can injure someone; locking a door can lock a household member
+out or impede a responder already inside; arming an alarm around occupants
+produces a false alarm and possibly an armed response. And a compromised but
+authenticated LAN principal can use unlimited "safe" actions as denial of service
+precisely when relationship authorization is unavailable to stop it.
+
+A safe direction therefore earns a *more permissive* class, never an
+*authorization-free* one.
+
+Every household operation is classified by **(operation, requester)**:
+
+- **CONTINUE** — proceeds without a live authorization decision, because
+  authority was **already established and is locally available** (a predeclared
+  automation with an immutable, locally-evaluable scope), or because the
+  operation carries no physical risk and refusing it would break the house for no
+  security benefit.
 - **BOUNDED** — may proceed on a bounded, previously-established local authority
-  with an explicit expiry, scope, and audit obligation. Requires a mechanism
-  that does not yet exist (see below).
+  with explicit expiry, scope, and audit obligation. Requires a mechanism that
+  does not yet exist (see below).
 - **FAIL CLOSED** — does not proceed without a live authorization decision.
-  The operation is refused, the refusal is explained to the user, and the
-  refusal is audited.
+  Refused, explained to the user, and audited.
+- **EMERGENCY** — deterministic life-safety response acting under an explicitly
+  reviewed emergency policy, ungated by authorization by design.
 
-The classification for a representative operation set is maintained in
+The distinguishing question for CONTINUE versus BOUNDED is **whether a new
+authorization is being made or a prior one is being executed**:
+
+| Requester | Class ceiling in a safe direction |
+|---|---|
+| predeclared local automation | **CONTINUE** — executing a prior decision, not making a new one |
+| interactive human | **BOUNDED** — a new request; nothing established this authority |
+| agent | **BOUNDED**, and **FAIL CLOSED** for anything sensitive — delegation cannot be checked |
+
+The full classification is maintained in
 [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md) and is
 part of this decision.
 
-### 2. Local safety automations always continue
+This preserves
+[ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md)'s
+separation: deterministic safety policy bounds the *action*; it never substitutes
+for deciding *who may act*.
 
-Deterministic local safety behaviour — smoke and CO response, leak shutoff,
-freeze protection, equipment interlocks — is **R0 deterministic local**
-([ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)) and
-runs with **no dependency on authorization, the agent runtime, the automation
-service, the VPS, or the WAN**. It is not agent-mediated and it is not
-authorization-gated. Not acting is the greater hazard.
+### 2. Life-safety response always continues, under a narrow EMERGENCY policy
 
-### 3. Sensitive operations fail closed
+Deterministic local life-safety behaviour — smoke and CO response, leak shutoff,
+freeze protection, equipment interlocks, emergency egress — is **R0 deterministic
+local** ([ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md))
+and runs with **no dependency on authorization, the agent runtime, the automation
+service, the VPS, or the WAN**. Not acting is the greater hazard.
 
-Unlocking a door, opening a garage, disabling an alarm, and granting or
-modifying access all **FAIL CLOSED** when authorization cannot be decided.
-There is no degraded path that permits them on a network failure.
+Because `EMERGENCY` is the one class that may act in a *permissive* physical
+direction without a live decision, it is fenced:
 
-This is deliberately asymmetric with the safe direction: **closing** a garage or
-**locking** a door is safe by construction and is classified more permissively
-than the opening direction.
+1. deterministic only — no model, no agent, no network;
+2. triggered by a life-safety condition, never by a request; there is no API that
+   invokes emergency behaviour;
+3. enumerated and reviewed as an explicit emergency policy — the doors an alarm
+   may release on a fire signal are a named list, never "all locks";
+4. loud — every activation annunciates locally and is audited;
+5. never a fallback — no ordinary operation may be reclassified into `EMERGENCY`
+   to make it work during an outage.
+
+### 3. Sensitive operations fail closed, for every requester
+
+Unlocking a door, opening a garage, disabling an alarm, and granting or modifying
+access all **FAIL CLOSED** when authorization cannot be decided — including when
+the requester is a predeclared automation. There is no degraded path that permits
+them on a network failure.
+
+An automation that wants to unlock a door during an outage is exactly the
+automation an attacker would create, so prior authorization does not earn the
+dangerous direction. The only exception is a reviewed `EMERGENCY` egress policy
+under the constraints above.
+
+Sensitive **reads** — camera, presence, access history — also fail closed. "Reads
+are safe" is false when the read tells someone whether the house is empty.
 
 ### 4. Bounded local authority is a candidate, not a decision
 
@@ -125,13 +175,22 @@ triggers unless the automation declares that it should.
 - Safety behaviour is protected by construction — it has no dependency to lose.
 - The dangerous direction (unlock, open, disarm) is protected by an explicit
   fail-closed rule that no implementation convenience can quietly erode.
+- **Physical safety and principal authority stay separate.** A physically-safe
+  direction earns a more permissive class without becoming authorization-free,
+  so "safe by construction" cannot quietly grow into "anyone may do it".
 - The hard problem is named rather than solved badly.
 
 **Negative.**
 
 - Until a bounded-authority mechanism exists, more operations fail closed during
-  an outage than the end state intends. A WAN outage will be more annoying than
-  it eventually needs to be.
+  an outage than the end state intends — and this decision *widens* that set,
+  because interactive close/lock/arm moved from CONTINUE to BOUNDED. During a WAN
+  outage today a household member cannot interactively lock a door; only a
+  predeclared automation can. That is a real usability cost, accepted, and it is
+  the concrete price of leaving [U1](../architecture/unresolved-decisions.md#u1)
+  open rather than guessing.
+- Classification is now two-dimensional, so every capability needs a class per
+  requester rather than a single verdict.
 - Per-operation classification is a maintenance obligation. Every new capability
   needs a classification, or it defaults to fail closed.
 - Observable degradation means surfacing state that a simpler product would
@@ -152,8 +211,20 @@ triggers unless the automation declares that it should.
   This is the single worst option available and is worth naming.
 - **Fail open on reads, closed on writes.** Rejected as too coarse: some reads
   are sensitive (camera, presence, access history) and some writes are safe
-  (turning a light off, closing a garage). Direction and sensitivity matter more
-  than read/write.
+  (turning a light off). Direction, sensitivity, and requester matter more than
+  read/write.
+- **Classify by physical direction alone — "safe direction always continues".**
+  Considered, and it was this ADR's first draft. Rejected: it conflates a safe
+  *action* with a safe *actor*. Closing a garage can injure someone, locking a
+  door can lock someone out or impede a responder, arming an alarm around
+  occupants triggers a response, and unlimited unauthorized safe-direction
+  actions are a denial-of-service channel available exactly when authorization is
+  down. Direction sets the ceiling; it does not remove the authorization
+  question.
+- **Treat life-safety response as ordinary CONTINUE.** Rejected: life safety is
+  the only case that both bypasses authorization and may act permissively, so it
+  needs its own class with explicit fencing. Folding it into CONTINUE would make
+  "reclassify it as safety" an available route around authorization.
 - **Pick a bounded-authority mechanism now.** Rejected: revocation latency,
   key management, and replication cost differ sharply between the three
   candidates, and there is no operating evidence yet. Deciding now would be
@@ -182,12 +253,14 @@ triggers unless the automation declares that it should.
 
 ## Availability implications
 
-- **Guaranteed during WAN outage:** local safety automations, local reads of
-  local state, safe-direction actuation as classified.
+- **Guaranteed during WAN outage:** EMERGENCY life-safety response, local reads
+  of local non-sensitive state, lights, and predeclared local automations acting
+  in a safe direction within their immutable scope.
 - **Not guaranteed:** remote access, durable history, cloud inference, new token
   issuance.
-- **Fail closed:** sensitive actions, access grants, and anything requiring a
-  fresh authorization decision.
+- **Fail closed:** the dangerous direction for every requester, sensitive reads,
+  access grants, and — until U1 is answered — every BOUNDED operation, including
+  an interactive request to lock a door or close a garage.
 - Identity provider unavailability is distinct from authorization unavailability
   and must be classified separately — existing tokens remain valid until expiry,
   so short TTLs trade availability against revocation latency.
@@ -197,17 +270,25 @@ triggers unless the automation declares that it should.
 1. Write a follow-on ADR selecting the bounded-authority mechanism, with
    revocation latency as the primary criterion. **Blocking prerequisite for any
    BOUNDED classification to be implemented.**
-2. Complete and maintain the operation classification in
+2. Complete and maintain the **(operation × requester)** classification in
    [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md); make
-   an unclassified capability fail closed by default.
-3. Add degraded-mode scenario tests
+   an unclassified combination fail closed by default.
+3. Define what makes an automation "predeclared" for CONTINUE eligibility: an
+   immutable, locally-evaluable scope; enforced expiry; no widening while
+   degraded. Without a testable definition, CONTINUE-for-automations is a
+   loophole rather than a rule.
+4. Enumerate and obtain sign-off on the `EMERGENCY` policy set — specifically
+   which doors may be released on which life-safety signal. **Blocking
+   prerequisite for any emergency egress behaviour.**
+5. Add degraded-mode scenario tests
    ([`tests/policy-scenarios/`](../../tests/policy-scenarios/)) with the
    authorization decision point unreachable, the WAN severed, and the VPS
-   unreachable, asserting the classified outcome for each representative
-   operation.
-4. Add an operational drill in [`docs/operations/`](../operations/INDEX.md) that
+   unreachable, asserting the classified outcome for **every cell** of the
+   classification table — including that an interactive lock request is refused
+   while the equivalent predeclared automation proceeds.
+6. Add an operational drill in [`docs/operations/`](../operations/INDEX.md) that
    severs connectivity on the real Pi and verifies the classification.
-5. Assert that every degraded refusal names the unavailable dependency and emits
+7. Assert that every degraded refusal names the unavailable dependency and emits
    an audit record.
 
 ## References

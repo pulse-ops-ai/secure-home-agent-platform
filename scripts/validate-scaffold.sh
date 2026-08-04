@@ -67,6 +67,7 @@ pnpm-workspace.yaml
 .github/agents/architecture.agent.md
 .github/agents/implementation.agent.md
 .github/agents/review.agent.md
+.github/workflows/checks.yml
 docs/README.md
 docs/architecture/INDEX.md
 docs/decisions/INDEX.md

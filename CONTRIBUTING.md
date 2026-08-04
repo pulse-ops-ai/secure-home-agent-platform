@@ -94,6 +94,20 @@ pnpm -r --if-present run check             # TypeScript package manifests
 If a tool is unavailable on your machine, say so in the PR rather than dropping
 the check silently.
 
+### The merge gate
+
+[`.github/workflows/checks.yml`](.github/workflows/checks.yml) runs the portable
+part of the above on every pull request and on `main`: the scaffold validator,
+the Python workspace (with `uv sync --locked`), the TypeScript workspace (with
+`pnpm install --frozen-lockfile`), and a scan for secret-shaped values.
+
+**Local evidence does not substitute for it.** Reporting a green run on your own
+machine is useful context, but the repository enforces the portable checks
+automatically so a later change cannot merge without reproducing them. The two
+lockfile-strict flags matter: they fail on a stale `uv.lock` or a
+`pnpm-lock.yaml` that no longer matches the manifests, rather than quietly
+updating either.
+
 ## Issues
 
 Implementation issues and epics are created by the human/ChatGPT planning

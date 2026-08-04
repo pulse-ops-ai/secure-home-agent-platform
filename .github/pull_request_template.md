@@ -42,6 +42,7 @@ A skipped check MUST be listed with the reason. Never omit it.
 | `uv run pytest` | |
 | `pnpm install --lockfile-only` | |
 | `pnpm -r --if-present run check` | |
+| `.github/workflows/checks.yml` (merge gate) | |
 
 **Skipped checks and why:**
 
@@ -54,7 +55,9 @@ Check every line. Explain any that is not "no".
 - [ ] Does this change any **trust boundary**? (`docs/architecture/trust-boundaries.md`)
 - [ ] Does it change **identity, delegation, or authorization**? (ADR-0004, ADR-0008)
 - [ ] Does it change **deterministic safety policy** or device actuation? (ADR-0005)
-- [ ] Does it change **degraded-mode or fail-closed** behaviour? (ADR-0009)
+- [ ] Does it change **approval binding** — what is bound into the authorization artifact, or how the gateway verifies it? (ADR-0008 §3)
+- [ ] Does it change **physical action semantics** — the lifecycle, idempotency, terminal states, or reconciliation? (`services/action-gateway/README.md`)
+- [ ] Does it change **degraded-mode or fail-closed** behaviour, including the requester axis of the classification? (ADR-0009)
 - [ ] Does it change what the **agent runner sandbox** may reach? (ADR-0003)
 - [ ] Does it introduce a **provider or framework name** in a structural position? (ADR-0003, ADR-0011)
 - [ ] Does it add a **dependency**?

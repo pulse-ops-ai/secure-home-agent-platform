@@ -80,11 +80,36 @@ each can deny, and **none can be skipped**.
 
 ```
 sandbox capability  →  authentication  →  authorization  →  safety policy  →  action mediation
+                                              │                                      │
+                                              └────── bound approval ────────────────┘
+                                                 verified before dispatch
 ```
 
 Safety policy runs **after** authorization: it must be able to constrain an
 authorized principal. A principal that "may control the thermostat" is still not
 permitted to set it to 92 °F if the envelope forbids it.
+
+### The controls are chained, not merely sequenced
+
+Ordering alone is not enough. Between the authorization decision and the physical
+dispatch there are several hops — L6, L7, the policy engine, the mediation
+service — and any of them could, if compromised, present a valid-looking approval
+for a *different* action than the one that was approved.
+
+Therefore the approval that reaches action mediation must be **bound to the exact
+action**: action type, fully-qualified resource, a canonical digest of the
+parameters, the principal chain, and the decision's own expiry — all under the
+issuer's signature. The mediation service **recomputes the digest from the action
+it is about to perform** and refuses on any mismatch.
+
+The claim set and the verification obligation are specified in
+[ADR-0008 §3](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md).
+
+**Safety policy cannot substitute for this.** Safety policy bounds *values*, not
+*authority*: substituting the front door for the back door yields a perfectly
+in-envelope action that no one authorized. A mismatch is audited as a **binding
+failure**, distinct from an ordinary denial, because it means something in the
+chain is rewriting requests.
 
 ### Non-negotiables
 
@@ -97,6 +122,9 @@ permitted to set it to 92 °F if the envelope forbids it.
   bounded, and audited.
 - **A sensitive action requires all three to succeed.** Absence of a decision is
   not a permit.
+- **The approval is bound to the action.** A decision reference not bound to a
+  specific action, resource, and parameter digest is a bearer credential, not an
+  authorization. Action mediation verifies the binding before dispatch.
 
 ## Consequences
 
@@ -161,6 +189,11 @@ it is two rules.
 
 - Defence in depth: compromising the agent does not bypass authorization;
   compromising authorization does not bypass the safety envelope.
+- **Binding is what makes the chain hold.** Without it, the three controls are
+  merely sequential and any compromised hop between the decision point and the
+  device can present a valid approval for a different action. Separation without
+  binding gives defence in depth against the *agent* but not against the
+  *pipeline*.
 - The safety envelope is a declared artifact and must be governed like code —
   reviewed, versioned, and signed off. An unreviewed change to it is a
   privilege escalation.

@@ -273,18 +273,24 @@ reachable on the local path at R0 or R1.
 
 ### What happens during an outage
 
-Direction matters as much as the resource
+Classified by **operation and requester**, not by physical direction alone
 ([`degraded-mode.md`](docs/architecture/degraded-mode.md)):
 
-| Operation | During an authorization or WAN outage |
-|---|---|
-| Read temperature · turn a light off | **continue** |
-| Close the garage · lock a door · arm the alarm | **continue** — safe direction |
-| Bounded thermostat automation | **continue** within the declared envelope |
-| Smoke/CO response · leak shutoff | **continue, always** — deterministic, local, ungated |
-| **Open the garage · unlock a door · disable the alarm** | **fail closed** |
-| Camera · presence · access history | **fail closed** — not all reads are safe |
-| Grant or change access | **fail closed** |
+| Operation | Requester | During an authorization or WAN outage |
+|---|---|---|
+| Read temperature · lights | anyone | **continue** — no physical risk |
+| Close garage · lock door · arm alarm | predeclared automation | **continue** — executing a prior decision |
+| Close garage · lock door · arm alarm | human or agent | **bounded** → **fails closed today** |
+| Bounded thermostat adjustment | predeclared automation | **continue** within the declared envelope |
+| **Open garage · unlock door · disable alarm** | **anyone, including automations** | **fail closed** |
+| Smoke/CO · leak shutoff · emergency egress | life-safety trigger | **emergency** — deterministic, local, ungated by design |
+| Camera · presence · access history | anyone | **fail closed** — not all reads are safe |
+| Grant or change access | anyone | **fail closed** |
+
+A physically-safe direction is *not* the same as a safe requester: closing a
+garage can injure someone, locking a door can lock someone out, and unlimited
+unauthorized "safe" actions are a denial-of-service channel. Direction sets the
+ceiling; **who is asking** sets the floor.
 
 **Nobody gains physical access by causing an outage.** That property is what
 makes the rest defensible.
@@ -321,22 +327,33 @@ flowchart LR
     C1["<b>1 · Sandbox capability</b><br/>runner substrate<br/><i>can the run reach it at all?</i>"]
     C2["<b>2 · Authorization</b><br/>policy decision point<br/><i>may this principal, for this actor?</i>"]
     C3["<b>3 · Safety policy</b><br/>deterministic · offline · <b>no model</b><br/><i>is it within the declared envelope?</i>"]
-    ACT["action-gateway → device"]
+    ACT["<b>action-gateway</b><br/>verifies the <b>bound approval</b><br/>against the action in hand"]
+    HA["device"]
     DENY["Denied · audited<br/>the reason names the deciding control"]
+    BIND["<b>Binding failure</b><br/><i>something rewrote the request</i>"]
 
-    REQ --> C1 --> C2 --> C3 --> ACT
+    REQ --> C1 --> C2 --> C3 --> ACT --> HA
     C1 -->|not granted| DENY
     C2 -->|deny / unknown| DENY
     C3 -->|out of envelope| DENY
+    ACT -->|digest mismatch| BIND
 
     classDef det fill:#e8ffe9,stroke:#2a2,stroke-width:2px
     classDef deny fill:#ffe9e9,stroke:#b23,stroke-width:2px
+    classDef alarm fill:#ffd6d6,stroke:#900,stroke-width:3px
     class C3 det
     class DENY deny
+    class BIND alarm
 ```
 
 Each is owned by a different component. Each can deny. **None can be skipped —
 including for an administrator.**
+
+The controls are **chained, not merely sequenced**: the approval that reaches the
+gateway is cryptographically bound to the exact action type, resource, and
+parameter digest, and the gateway recomputes that digest before dispatching
+anything physical. A bare decision reference would be a bearer credential for
+whatever action its holder attached it to.
 
 Safety policy runs **after** authorization so it can constrain an authorized
 principal, and so it does not leak resource bounds to an unauthorized one.
@@ -347,7 +364,14 @@ a model
 
 **Never, anywhere:** a Home Assistant long-lived owner token in an agent runner;
 a direct database connection from a sandbox; a Docker network or the tailnet
-treated as authority.
+treated as authority; an unbound decision reference treated as proof that *this*
+action was approved.
+
+Physical actions are **observable, not atomic.** A garage door genuinely can end
+up half-open, so the gateway models a lifecycle — `dispatched → acknowledged →
+observed-in-progress → observed-succeeded | observed-failed | timed-out |
+indeterminate` — with idempotency keys and reconciliation, rather than promising
+a transaction boundary that physical devices cannot honour.
 
 ---
 
@@ -413,6 +437,11 @@ pnpm install --lockfile-only && pnpm -r --if-present run check
 ```
 
 Toolchain setup for a fresh Pi: [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md).
+
+The portable subset of these checks is the repository **merge gate**
+([`.github/workflows/checks.yml`](.github/workflows/checks.yml)) and runs on
+every pull request with `uv sync --locked` and `pnpm install --frozen-lockfile`,
+so a stale lockfile fails rather than being silently rewritten.
 
 ---
 

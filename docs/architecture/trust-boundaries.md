@@ -65,7 +65,7 @@ flowchart TB
 | **B3** | Pi control plane | L6/L7 services on the Pi | A token this control plane verifies **itself**. It does not trust the shared edge's assertion headers without validating origin provenance. |
 | **B4** | Agent runner sandbox | one run's process tree | Only what the execution profile grants. **Treated as untrusted** even though it runs on the Pi. Re-entry is a full client crossing of B3. |
 | **B5** | Authorization control plane | policy decision point + model store | A decision request containing principal, action, resource, and context. **No request body, no household payload, no device command ever crosses this boundary.** |
-| **B6** | Home Assistant / device boundary | Home Assistant and every physical device | A command from the action-mediation service **only**, after authorization *and* deterministic safety policy have both permitted it. The sole holder of Home Assistant credentials. |
+| **B6** | Home Assistant / device boundary | Home Assistant and every physical device | A command from the action-mediation service **only**, after authorization *and* deterministic safety policy have both permitted it, **and after the bound approval has been verified against the action actually being dispatched**. The sole holder of Home Assistant credentials. |
 | **B7** | VPS data boundary | TimescaleDB/Postgres — authoritative | A service credential over the tailnet, carrying the internal identity envelope. **No agent runner has a database connection.** |
 | **B8** | Exxact inference boundary | GPU workstation | A scoped credential from a profile that declares routing class R2. Optional: unavailability must not affect household operation. |
 
@@ -106,6 +106,7 @@ See [`runner-model.md`](runner-model.md) and
 | "Home Assistant can decide who may unlock the door." | Home Assistant is a device substrate, not a policy decision point ([ADR-0008](../decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md)). |
 | "Give the runner a read-only DB connection; it's only reading." | A read-only connection still bypasses service-level authorization, tenant scoping, and audit. |
 | "Trust `x-platform-edge-*` because it arrived on the internal interface." | Header trust requires validated origin provenance. Upstream states this explicitly. |
+| "The envelope carries a decision id, so the action was authorized." | An unbound decision reference proves *some* authorization happened, not that *this* action was approved. See [ADR-0008 §3](../decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md). |
 | "Local requests can skip authorization." | Network position under a friendlier name. |
 
 ## Evidence at each crossing
@@ -115,7 +116,7 @@ See [`runner-model.md`](runner-model.md) and
 | B0 → B1 | Edge access record; verified token; coarse decision (**audit-only today**) |
 | B1/B2 → B3 | Locally verified token; validated origin provenance |
 | B3 → B5 | Authorization decision with a decision identifier that joins to the request |
-| B3 → B6 | Action record: run, profile version, principal `sub` and `actor`, authorization decision, safety-policy verdict, device command |
+| B3 → B6 | Action record: run, profile version, principal `sub` and `actor`, the **verified bound approval** (action type, resource, request digest, decision id and expiry), safety-policy verdict, device command, observed terminal state |
 | B3 → B4 | Run record: profile version, image digest, granted capabilities |
 | B4 → B3 | A normal client request record — indistinguishable in form from a browser request, and marked `principal_type=agent` |
 | B3 → B7 | Envelope-carrying service call; durable write record |

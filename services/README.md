@@ -55,12 +55,19 @@ governed request path:
 5. **The policy decision point is not a proxy.** No request body, household
    payload, or device command is passed to it.
    ([ADR-0008](../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md))
-6. **Sensitive actions fail closed.** An undecidable authorization is never a
+6. **The approval is bound to the action, and the binding is verified before
+   dispatch.** A bare decision reference is a bearer credential. `action-gateway`
+   recomputes the request digest against the action it is about to perform; a
+   mismatch is a **binding failure**, audited separately from an ordinary denial.
+   ([ADR-0008 §3](../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md))
+7. **Physical actions are observable, not atomic.** No service may promise a
+   transaction boundary across a device. `indeterminate` is a real outcome.
+8. **Sensitive actions fail closed.** An undecidable authorization is never a
    permit.
    ([ADR-0009](../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md))
-7. **Local and remote paths get the same decisions.** A control added to one and
+9. **Local and remote paths get the same decisions.** A control added to one and
    not the other is a bypass.
-8. **Services must not depend on the WAN, the shared edge, the VPS, or the
+10. **Services must not depend on the WAN, the shared edge, the VPS, or the
    Exxact workstation** for household operation.
 
 ## Governed by

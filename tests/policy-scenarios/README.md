@@ -19,6 +19,26 @@ and path equivalence** — the household security properties.
 - Audit records carry **both** `sub` and `actor`.
 - **No request body or device command is ever passed to the decision point.**
 
+### Approval binding ([ADR-0008 §3](../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md))
+
+- A substituted `resource_id` produces a **binding failure**, not an actuation.
+- A substituted `action_type` — swapping `close` for `open` — produces a binding
+  failure.
+- An altered parameter (setpoint, duration) produces a binding failure.
+- An expired `authz_decision_exp` inside an unexpired envelope is refused.
+- A superseded `policy_model_version` is refused.
+- A binding failure is audited as its **own** outcome, distinct from a denial.
+- Canonicalization: semantically identical actions produce identical digests;
+  near-identical actions do not collide.
+
+### Action lifecycle
+
+- A dispatch timeout yields `indeterminate`, never a fabricated success or
+  failure.
+- A retry with the same idempotency key does not actuate twice.
+- No automatic inverse command is emitted on a partial action.
+- Every terminal state, including `indeterminate`, is audited.
+
 ### Safety policy ([ADR-0005](../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md))
 
 - Authorized but **out of envelope** is denied.
@@ -30,17 +50,24 @@ and path equivalence** — the household security properties.
 
 ### Degraded mode ([ADR-0009](../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md))
 
-Every row of
+**Every cell** of the (operation × requester) table in
 [`degraded-mode.md`](../../docs/architecture/degraded-mode.md), for each outage
 mode — WAN down, shared edge down, authorization unreachable, identity provider
 unreachable, VPS down. Specifically:
 
-- **Unlock, open garage, disable alarm → refused.** No outage grants physical
-  access.
-- Lock, close garage, arm alarm, turn off a light → continue.
-- Smoke/CO and leak automations → continue with everything else down.
+- **Unlock, open garage, disable alarm → refused for every requester**, including
+  a predeclared automation. No outage grants physical access.
+- **Interactive lock / close / arm → refused today** (BOUNDED behaves as FAIL
+  CLOSED), while the **equivalent predeclared automation proceeds**. This pair is
+  the load-bearing test for the requester axis.
+- Reads of local non-sensitive state and lights → continue.
+- Smoke/CO, leak shutoff, emergency egress → continue with everything else down,
+  and **only** from a life-safety trigger — never from a request.
+- No ordinary operation can be reclassified into `EMERGENCY`.
+- A predeclared automation cannot widen its scope while degraded, and an expired
+  one does not fire.
 - Camera, presence, and access-history reads → refused.
-- An **unclassified** capability → refused.
+- An **unclassified (operation, requester) combination** → refused.
 - Every refusal **names the unavailable dependency**.
 - Audit that cannot be buffered blocks the sensitive action.
 

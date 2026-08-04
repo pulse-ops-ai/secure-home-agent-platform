@@ -160,9 +160,13 @@ was not neutral.
 - Runs must be cancellable and must time out. An agent that hangs must not hold
   Pi resources indefinitely, since the Pi also carries the household control
   path.
-- Runner failure must never be able to leave a device in a partially-actuated
-  state. Action mediation is a separate service with its own contract; see
-  [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md).
+- Runner failure must never be able to leave a device in an **unrecorded** state.
+  Runners cannot actuate directly; the mediation service owns the action
+  lifecycle and observes an in-flight action to a terminal state even if the run
+  that requested it is gone. Physical atomicity is *not* claimed — a partially
+  actuated device is a representable outcome, not a preventable one. See
+  [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md) and
+  [`services/action-gateway/README.md`](../../services/action-gateway/README.md).
 - Runs are not part of the local safety path. A dead runner substrate must not
   prevent safety automations from operating.
 

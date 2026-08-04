@@ -59,34 +59,52 @@ never learns, and the finding is never discussed.
 4. **Fail closed.** A sensitive action that could proceed when authorization is
    undecidable. `unknown` is never `permit`.
    ([ADR-0009](../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md))
-5. **Authorization is not a proxy.** A request body, household payload, or device
+5. **Approval binding.** An action dispatched on an approval that is not bound to
+   that exact action type, resource, and parameter digest; a gateway that trusts a
+   bare decision reference without dereferencing and verifying the full approved
+   tuple; a binding failure folded into the generic denial count instead of being
+   audited and alerted as its own outcome; an ambiguous canonicalization for the
+   request digest.
+   ([ADR-0008 §3](../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md))
+6. **Physical action semantics.** Any claim of atomicity across a device; a
+   missing `indeterminate` terminal state; success inferred from a dispatch
+   response rather than observed; a missing idempotency key on an actuating
+   action; an automatic inverse or compensating command.
+   ([`services/action-gateway/README.md`](../../services/action-gateway/README.md))
+7. **Degraded-mode classification.** A physically-safe direction treated as
+   authorization-free; a classification that omits the **requester** axis; an
+   interactive or agent request classified `CONTINUE` on direction alone; the
+   dangerous direction permitted for any requester; an ordinary operation
+   reclassified into `EMERGENCY` to make it work offline.
+   ([ADR-0009](../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md))
+8. **Authorization is not a proxy.** A request body, household payload, or device
    command passed to the policy decision point.
    ([ADR-0008](../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md))
-6. **Provider and framework neutrality.** A provider name in a structural
+9. **Provider and framework neutrality.** A provider name in a structural
    position in a schema or platform contract; a runner image containing more
    than one coding agent.
    ([ADR-0003](../../docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md),
    [ADR-0011](../../docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md))
-7. **Concept conflation.** Implementation, profile, run, and automation merged;
+10. **Concept conflation.** Implementation, profile, run, and automation merged;
    an automation without an expiration; an automation bound to a moving profile
    reference. ([ADR-0006](../../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md))
-8. **Routing class.** Undeclared or implicitly escalating execution routing;
+11. **Routing class.** Undeclared or implicitly escalating execution routing;
    household operation made to depend on the Exxact workstation or a cloud
    provider. ([ADR-0007](../../docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md))
-9. **Knowledge-bundle content.** Secrets, live state, presence, authorization
+12. **Knowledge-bundle content.** Secrets, live state, presence, authorization
    tuples, camera media, raw personal telemetry; or an agent reading a bundle
    file directly. ([ADR-0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md))
-10. **Path equivalence.** A control added to the local path but not the remote
+13. **Path equivalence.** A control added to the local path but not the remote
     path, or the reverse.
     ([`local-remote-routing.md`](../../docs/architecture/local-remote-routing.md))
-11. **Secrets.** Any token, key, credential, or realistic-looking fake.
-12. **Index integrity.** A new, renamed, or removed document under
+14. **Secrets.** Any token, key, credential, or realistic-looking fake.
+15. **Index integrity.** A new, renamed, or removed document under
     `docs/architecture/` or `docs/decisions/` not reflected in its `INDEX.md`.
-13. **Unresolved decisions.** A change that silently answers something in
+16. **Unresolved decisions.** A change that silently answers something in
     [`unresolved-decisions.md`](../../docs/architecture/unresolved-decisions.md).
-14. **Fake implementation.** A stub that looks functional.
-15. **Scope creep.** Unrelated changes bundled together.
-16. **Unreported skipped validation.** A change claiming success without saying
+17. **Fake implementation.** A stub that looks functional.
+18. **Scope creep.** Unrelated changes bundled together.
+19. **Unreported skipped validation.** A change claiming success without saying
     what it skipped.
 
 ## Reporting
