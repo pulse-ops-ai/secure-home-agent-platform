@@ -438,10 +438,13 @@ pnpm install --lockfile-only && pnpm -r --if-present run check
 
 Toolchain setup for a fresh Pi: [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md).
 
-The portable subset of these checks is the repository **merge gate**
-([`.github/workflows/checks.yml`](.github/workflows/checks.yml)) and runs on
-every pull request with `uv sync --locked` and `pnpm install --frozen-lockfile`,
-so a stale lockfile fails rather than being silently rewritten.
+The portable subset is the repository **merge gate**
+([`.github/workflows/checks.yml`](.github/workflows/checks.yml)), running on
+every pull request with `uv sync --locked` and `pnpm install --frozen-lockfile`
+so a stale lockfile fails rather than being silently rewritten. Its third-party
+actions are pinned to **full commit SHAs** — CI is part of the governance
+boundary — and `scripts/scan-secrets.sh` scans **every tracked file** for
+secret-shaped values, including the workflow itself.
 
 ---
 

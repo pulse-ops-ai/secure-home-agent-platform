@@ -2,10 +2,13 @@
 #
 # check.sh — the aggregate check.
 #
-# Runs everything: scaffold structure, the Python workspace, the TypeScript
-# workspace. Its defining property is that **a skipped check is reported, never
-# silent** — a check that quietly disappears is how a broken repository looks
-# healthy.
+# Runs everything: scaffold structure, the secret scan, the Python workspace,
+# and the TypeScript workspace. Its defining property is that **a skipped check
+# is reported, never silent** — a check that quietly disappears is how a broken
+# repository looks healthy.
+#
+# These are the same checks the merge gate runs (.github/workflows/checks.yml),
+# so a green run here predicts a green run there.
 #
 # Exit codes:
 #   0  everything that could run, passed
@@ -52,6 +55,7 @@ skip() {
 # --- structure --------------------------------------------------------------
 
 run "scaffold structure" bash scripts/validate-scaffold.sh
+run "secret scan"        bash scripts/scan-secrets.sh
 
 # --- Python workspace -------------------------------------------------------
 

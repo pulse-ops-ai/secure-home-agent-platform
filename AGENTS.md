@@ -133,8 +133,11 @@ output.
 # aggregate — runs everything, reports skips explicitly
 bash scripts/check.sh
 
-# structure, indexes, tracked secrets, generated dirs
+# structure, indexes, secret-shaped filenames, generated dirs
 bash scripts/validate-scaffold.sh
+
+# secret-shaped VALUES — every tracked file, no exclusions
+bash scripts/scan-secrets.sh
 
 # Python (uv workspace)
 uv sync --all-packages
@@ -154,7 +157,9 @@ that adds, moves, or removes a file.
 
 **These are also enforced automatically.**
 [`.github/workflows/checks.yml`](.github/workflows/checks.yml) is the merge gate
-and runs the portable subset on every pull request. Running them locally first is
+and runs the portable subset on every pull request. Its actions are pinned to
+full commit SHAs, and its secret scan has no file-level exclusions — do not add
+one, and do not replace a SHA with a moving tag. Running them locally first is
 still expected — it is faster than discovering a failure in CI — and you must
 still report what you ran and what you skipped.
 

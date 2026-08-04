@@ -1,0 +1,27 @@
+# Dependabot keeps the SHA-pinned GitHub Actions current.
+#
+# Pinning actions to full commit SHAs makes the merge gate immutable, but an
+# immutable pin that is never updated is a stale pin — it will miss security
+# fixes in the actions themselves. Dependabot proposes SHA bumps as reviewable
+# pull requests, preserving the `# vX.Y.Z` comment, so an update is a governed
+# change rather than a silent one.
+#
+# Only the actions ecosystem is enabled. Python and TypeScript dependency
+# updates are deliberately out of scope: this repository has **no runtime
+# dependencies**, and adding one is a reviewed decision (see AGENTS.md), not
+# something a bot should propose.
+#
+# Governed by AGENTS.md and CONTRIBUTING.md.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+      - ci

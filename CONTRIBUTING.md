@@ -87,6 +87,7 @@ uv run ruff check .                        # Python lint
 uv run ruff format --check .               # Python format
 uv run mypy                                # Python types (targets configured in pyproject.toml)
 uv run pytest                              # scaffold conformance tests
+bash scripts/scan-secrets.sh               # secret-shaped values, all tracked files
 pnpm install --lockfile-only               # TypeScript workspace resolves
 pnpm -r --if-present run check             # TypeScript package manifests
 ```
@@ -98,8 +99,22 @@ the check silently.
 
 [`.github/workflows/checks.yml`](.github/workflows/checks.yml) runs the portable
 part of the above on every pull request and on `main`: the scaffold validator,
-the Python workspace (with `uv sync --locked`), the TypeScript workspace (with
-`pnpm install --frozen-lockfile`), and a scan for secret-shaped values.
+[`scripts/scan-secrets.sh`](scripts/scan-secrets.sh), the Python workspace (with
+`uv sync --locked`), and the TypeScript workspace (with
+`pnpm install --frozen-lockfile`).
+
+Two properties of that gate are deliberate and must not be eroded:
+
+- **Every third-party action is pinned to a full commit SHA**, not a moving tag
+  like `@v4`. CI is part of the governance boundary; a repointed tag would change
+  the code executing in the gate without a change to this repository. Bumps
+  arrive as reviewable Dependabot pull requests
+  ([`.github/dependabot.yml`](.github/dependabot.yml)).
+- **The secret scan has no file-level exclusions.** It scans every tracked file,
+  including the workflow itself and the scanner itself. Excluding a file — even
+  to stop a pattern matching its own definition — recreates the blind spot the
+  scan exists to remove. Pattern lines are filtered *by line*, with a sentinel
+  comment.
 
 **Local evidence does not substitute for it.** Reporting a green run on your own
 machine is useful context, but the repository enforces the portable checks

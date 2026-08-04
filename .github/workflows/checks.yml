@@ -4,9 +4,18 @@
 # change cannot merge without reproducing it. Local evidence from a maintainer's
 # Pi is additional evidence, not a substitute for this.
 #
-# Architecture-neutral: it pins toolchain *versions*, not a CPU architecture, so
-# it produces the same verdict here and on the ARM64 Pi. Nothing here deploys,
-# starts a service, or touches a credential.
+# CI is part of the governance boundary here, so every third-party action is
+# pinned to a full commit SHA. A tag like `@v4` is a moving reference: the owner
+# can repoint it, and the code executing in this workflow would change without a
+# change to this repository. Dependabot proposes SHA bumps as reviewable pull
+# requests (see .github/dependabot.yml).
+#
+# Toolchain versions are pinned to the same versions the Raspberry Pi runs, so
+# CI and the Pi execute the same tools. **The CPU architecture differs** — CI is
+# x86_64, the Pi is ARM64 — so this is not a claim of an identical environment,
+# only of identical tool versions.
+#
+# Nothing here deploys, starts a service, or touches a credential.
 #
 # Governed by AGENTS.md and CONTRIBUTING.md.
 
@@ -28,9 +37,9 @@ concurrency:
 jobs:
   scaffold:
     name: scaffold structure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Runs first and needs no toolchain — the same property that lets it run
       # on a freshly-prepared Pi before uv or Node exist.
@@ -39,12 +48,12 @@ jobs:
 
   python:
     name: python workspace
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.12.1"
           enable-cache: true
@@ -67,14 +76,15 @@ jobs:
 
   typescript:
     name: typescript workspace
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Exact patch, matching the Pi — not a floating major.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24"
+          node-version: "24.18.1"
 
       # pnpm comes from the packageManager pin via Corepack — never a global
       # install, so CI and the Pi resolve the same version.
@@ -90,36 +100,13 @@ jobs:
 
   secrets:
     name: no tracked secrets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The scaffold validator already fails on secret-shaped *filenames*. This
-      # additionally looks for secret-shaped *values*, which filename rules
-      # cannot catch. Prose about tokens and credentials is expected in this
-      # repository, so only assignment-shaped values and known credential
-      # formats are treated as findings.
+      # The scan lives in scripts/scan-secrets.sh so it runs identically here
+      # and locally, and so this workflow contains no scan patterns of its own
+      # to exclude. It scans EVERY tracked file with no file-level exclusions —
+      # including this workflow and the scanner itself.
       - name: Scan for secret-shaped values
-        run: |
-          set -uo pipefail
-          status=0
-
-          echo "== assignment-shaped values =="
-          if git grep -nEI \
-               '(password|secret|token|api[_-]?key|bearer)[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9_./+-]{12,}' \
-               -- ':!uv.lock' ':!pnpm-lock.yaml' ':!.github/workflows/checks.yml'; then
-            echo "::error::assignment-shaped secret candidate found"
-            status=1
-          else
-            echo "none"
-          fi
-
-          echo "== known credential formats =="
-          if git grep -nEI \
-               '(gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{20,}\.)' \
-               -- ':!uv.lock' ':!pnpm-lock.yaml' ':!.github/workflows/checks.yml'; then
-            echo "::error::known credential format found"
-            status=1
-          fi
-
-          exit $status
+        run: bash scripts/scan-secrets.sh

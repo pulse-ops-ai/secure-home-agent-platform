@@ -42,6 +42,7 @@ A skipped check MUST be listed with the reason. Never omit it.
 | `uv run pytest` | |
 | `pnpm install --lockfile-only` | |
 | `pnpm -r --if-present run check` | |
+| `bash scripts/scan-secrets.sh` | |
 | `.github/workflows/checks.yml` (merge gate) | |
 
 **Skipped checks and why:**
@@ -61,6 +62,7 @@ Check every line. Explain any that is not "no".
 - [ ] Does it change what the **agent runner sandbox** may reach? (ADR-0003)
 - [ ] Does it introduce a **provider or framework name** in a structural position? (ADR-0003, ADR-0011)
 - [ ] Does it add a **dependency**?
+- [ ] Does it change the **merge gate** — a moving action tag instead of a SHA, or a file-level exclusion in the secret scan? (both are prohibited)
 - [ ] Does it change the **local vs. remote path equivalence**? (`docs/architecture/local-remote-routing.md`)
 
 ## Unresolved decisions

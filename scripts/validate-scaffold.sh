@@ -68,12 +68,15 @@ pnpm-workspace.yaml
 .github/agents/implementation.agent.md
 .github/agents/review.agent.md
 .github/workflows/checks.yml
+.github/dependabot.yml
 docs/README.md
 docs/architecture/INDEX.md
 docs/decisions/INDEX.md
 docs/operations/INDEX.md
 scripts/validate-scaffold.sh
 scripts/check.sh
+scripts/scan-secrets.sh
+scripts/secret-scan-allowlist.txt
 "
 
 for f in $REQUIRED_FILES; do

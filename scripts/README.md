@@ -12,6 +12,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 |---|---|
 | [`validate-scaffold.sh`](validate-scaffold.sh) | Structural validation: navigation files, index integrity, required READMEs, workspace manifests, tracked secrets, forbidden generated directories |
 | [`check.sh`](check.sh) | Aggregate check — runs everything and **reports what it skipped** |
+| [`scan-secrets.sh`](scan-secrets.sh) | Scans **every tracked file** for secret-shaped values — no file-level exclusions |
+| [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
 | [`check-ts-package.mjs`](check-ts-package.mjs) | Validates one TypeScript workspace package manifest; invoked by each package's `check` script |
 
 ## What belongs here
@@ -40,7 +42,12 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 3. **Skips are reported, never silent.** `check.sh` prints a skipped check and
    exits non-zero on a genuine failure. A check that quietly disappears is how a
    broken repository looks healthy.
-4. **Fail loudly and specifically.** A validator that says "failed" without
+4. **No file-level exclusions in the secret scan.** `scan-secrets.sh` scans every
+   tracked file, including `.github/workflows/` and itself. Excluding a file
+   would create exactly the blind spot the scan exists to remove; the
+   pattern-definition lines are filtered **by line**, using a sentinel comment.
+   A genuine false positive goes in the allowlist, narrowly and with a reason.
+5. **Fail loudly and specifically.** A validator that says "failed" without
    saying what and where is not useful at 11pm.
 
 ## Governed by
@@ -51,5 +58,9 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 
 ```sh
 bash scripts/validate-scaffold.sh
-bash scripts/check.sh
+bash scripts/scan-secrets.sh
+bash scripts/check.sh          # runs both, plus the workspaces
 ```
+
+The same checks run as the repository merge gate —
+[`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).
