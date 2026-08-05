@@ -33,8 +33,18 @@ If any precondition fails, **stop and report which one**. Do not proceed with a
 narrowed version, do not infer the intent, and do not implement against a
 `Proposed` ADR.
 
-> As of this scaffold, **every ADR is `Proposed`**. This agent therefore has no
-> authorized implementation work yet. That is the expected state, not a fault.
+> ADR-0001 … ADR-0011 are **`Accepted`** (2026-08-05), so precondition 3 is
+> satisfiable. Preconditions 1, 2, and 4 still are not automatic:
+>
+> - there is still **no issue or task contract**, so this agent has no authorized
+>   work until one exists;
+> - **acceptance resolved none of U1–U10**, so anything depending on an open item
+>   is still blocked — most of the runtime surface is;
+> - **acceptance is not authorization to deploy.** Writing a deployment asset is
+>   in scope under a contract; running one never is.
+>
+> See [what acceptance does and does not
+> unblock](../../docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
 
 ## Scope — in (once authorized)
 

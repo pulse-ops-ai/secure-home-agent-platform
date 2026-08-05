@@ -124,16 +124,18 @@ Before installing anything on this host:
 
 ## Where this runbook stops
 
-Everything below is **out of scope until the relevant ADR is accepted**:
+The governing ADRs are accepted, but **acceptance is not authorization to
+deploy**. Everything below still needs its own reviewed work, and several steps
+depend on a decision that is still open:
 
 | Step | Blocked on |
 |---|---|
-| Install Docker and Compose | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) |
-| Join the tailnet and configure ACLs | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) |
-| Install Home Assistant Container | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md); [U10](../architecture/unresolved-decisions.md#u10) |
+| Install Docker and Compose | a deployment task contract |
+| Join the tailnet and configure ACLs | a deployment task contract |
+| Install Home Assistant Container | [U10](../architecture/unresolved-decisions.md#u10) credential strategy |
 | Provision any credential | [U2](../architecture/unresolved-decisions.md#u2), [U10](../architecture/unresolved-decisions.md#u10) |
-| Connect to the VPS database | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) |
-| Build or pull a runner image | [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md) |
+| Connect to the VPS database | a deployment task contract |
+| Build or pull a runner image | the base-image contract |
 | Start any service | service implementations exist |
 
 ## Undo

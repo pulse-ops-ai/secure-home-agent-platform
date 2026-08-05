@@ -7,15 +7,19 @@ problems, answering questions — running under controls strong enough that they
 can be trusted near a door lock, and local enough that the house keeps working
 when the internet does not.
 
-> ## Status: foundation only
+> ## Status: foundation accepted, nothing built
 >
 > This repository currently contains **documentation, governance, and workspace
 > scaffolding**. There is **no runtime**: no Home Assistant, no services, no
 > OpenFGA, no Keycloak, no runner image, no credentials, no database connection.
 >
-> All eleven ADRs are **`Proposed`**. None has been accepted. Acceptance is a
-> human decision.
+> The eleven foundational ADRs are **`Accepted`** (2026-08-05) and immutable, so
+> implementation may proceed against them under an authorizing task contract.
 >
+> **Acceptance resolved none of the ten open questions**, and is **not**
+> authorization to deploy. `BOUNDED` still behaves as `FAIL CLOSED`.
+>
+> [What acceptance does and does not unblock →](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock) ·
 > [What has not been implemented →](#what-has-not-been-implemented)
 
 ---
@@ -384,7 +388,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0011  (all Proposed)
+│   ├── decisions/         ADR-0001 … ADR-0011  (all Accepted, immutable)
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              Pi control plane (L6/L7) — Python, uv workspace
 │   ├── pi-api/            household surface · the governed enforcement point
@@ -449,10 +453,11 @@ file-level exclusion and no in-line suppression pragma.
 
 ---
 
-## Decisions proposed
+## Decisions accepted
 
-All **`Proposed`**. None accepted —
-[`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
+All eleven **`Accepted`** on 2026-08-05 and now **immutable** — reverse or amend
+only by a superseding ADR. Acceptance record and the unblock/still-blocked
+breakdown: [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 
 | | |
 |---|---|
@@ -490,8 +495,11 @@ Nothing runs yet. Specifically absent, on purpose:
 ### Deliberately undecided
 
 Ten open questions are tracked in
-[`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md) and are
-closed by an ADR, never by an implementation. The most consequential is
+[`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
+closed by a **new** ADR, never by an implementation — and **accepting the
+foundational set closed none of them**; acceptance was granted on that basis.
+
+The most consequential is
 [U1](docs/architecture/unresolved-decisions.md#u1): how the local path obtains
 bounded authority offline. Until it is answered, everything that would need it
 **fails closed**.

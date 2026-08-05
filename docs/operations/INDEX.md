@@ -20,13 +20,17 @@ be referenced here.
 
 Each of these is blocked on a decision or an implementation that does not exist:
 
+The governing ADRs are now accepted, so what remains is implementation and the
+unresolved decisions — **not** governance. Acceptance is **not** authorization to
+deploy; each runbook below still needs its own reviewed work.
+
 | Runbook | Blocked on |
 |---|---|
-| Home Assistant installation and hardening | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) acceptance; [U10](../architecture/unresolved-decisions.md#u10) credential strategy |
-| Deploying the local control plane | service implementations |
-| Runner image build and publication | [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md) acceptance |
-| Tailnet ACL configuration | [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) acceptance |
-| **Degraded-mode drill** | [ADR-0009](../decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) acceptance — severs connectivity and verifies [`degraded-mode.md`](../architecture/degraded-mode.md) |
+| Home Assistant installation and hardening | [U10](../architecture/unresolved-decisions.md#u10) credential strategy |
+| Deploying the local control plane | service implementations; [U3](../architecture/unresolved-decisions.md#u3), [U4](../architecture/unresolved-decisions.md#u4) |
+| Runner image build and publication | base-image contract (now in scope under a task contract) |
+| Tailnet ACL configuration | deployment work under a task contract |
+| **Degraded-mode drill** | a degraded-mode implementation to drill — severs connectivity and verifies [`degraded-mode.md`](../architecture/degraded-mode.md) |
 | Credential rotation | [U2](../architecture/unresolved-decisions.md#u2), [U10](../architecture/unresolved-decisions.md#u10) |
 | Backup and restore | durable-state design |
 | Incident response for a suspected agent compromise | runner substrate implementation |

@@ -1,8 +1,9 @@
 # ADR-0004: Treat agents as clients, not insiders
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0001](ADR-0001-adopt-security-first-architecture.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
 
@@ -176,3 +177,9 @@ Concretely:
 - Upstream `ADR-0002 — Agents are clients, not insiders` @ `v0.3.0`
 - [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
 - [`docs/architecture/trust-boundaries.md`](../architecture/trust-boundaries.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

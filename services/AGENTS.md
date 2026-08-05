@@ -44,8 +44,9 @@ Scoped rules for the Pi control plane. Inherits everything from
 
 ## Do not
 
-- Implement a service. **No ADR is accepted yet**, so there is no authorized
-  implementation work here.
+- Implement a service without an authorizing issue or task contract. The
+  governing ADRs are accepted, but acceptance alone authorizes nothing — and
+  most service work is still blocked on U2–U5, U9, or U10.
 - Add a dependency. These packages are dependency-free on purpose.
 - Write a stub that appears to work.
 - Decide [U3](../docs/architecture/unresolved-decisions.md#u3) (which service

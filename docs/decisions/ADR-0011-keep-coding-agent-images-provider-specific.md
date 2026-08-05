@@ -1,8 +1,9 @@
 # ADR-0011: Keep the base runner provider-neutral and coding-agent images provider-specific
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)
 
@@ -173,3 +174,9 @@ surfaces and different network posture; see
 - [`docs/architecture/runner-model.md`](../architecture/runner-model.md)
 - [`agents/adapters/README.md`](../../agents/adapters/README.md)
 - [`deploy/images/README.md`](../../deploy/images/README.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

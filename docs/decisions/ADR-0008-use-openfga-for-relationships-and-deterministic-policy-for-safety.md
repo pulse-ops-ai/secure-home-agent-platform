@@ -1,8 +1,9 @@
 # ADR-0008: Use OpenFGA for relationship decisions and deterministic policy for safety
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0001](ADR-0001-adopt-security-first-architecture.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md)
 
@@ -312,3 +313,9 @@ An undecidable authorization question is a denial for any sensitive action.
 - Upstream `architecture/identity-and-authorization.md` @ `v0.3.0`
 - [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
 - [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

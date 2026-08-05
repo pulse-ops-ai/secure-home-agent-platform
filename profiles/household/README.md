@@ -7,9 +7,10 @@ propose actions on the house.
 
 > **Blocked:** no household profile may grant a sensitive capability until agent
 > delegation is modelled
-> ([ADR-0004](../../docs/decisions/ADR-0004-treat-agents-as-clients.md)) and
-> [U1](../../docs/architecture/unresolved-decisions.md#u1) is resolved. Until
-> then, household profiles are limited to observation.
+> ([ADR-0004](../../docs/decisions/ADR-0004-treat-agents-as-clients.md) is
+> accepted, but the model is not built) and
+> [U1](../../docs/architecture/unresolved-decisions.md#u1) is resolved — it is
+> not. Until then, household profiles are limited to observation.
 
 ## What a household profile grants
 

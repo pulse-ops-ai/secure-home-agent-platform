@@ -1,8 +1,9 @@
 # ADR-0002: Adopt a hybrid-home deployment profile
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0001](ADR-0001-adopt-security-first-architecture.md), [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md), [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md), [`docs/architecture/system-context.md`](../architecture/system-context.md), [`docs/architecture/local-remote-routing.md`](../architecture/local-remote-routing.md)
 
@@ -183,3 +184,9 @@ different availability requirements, both fully governed.**
 - [`docs/architecture/system-context.md`](../architecture/system-context.md)
 - [`docs/architecture/local-remote-routing.md`](../architecture/local-remote-routing.md)
 - [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

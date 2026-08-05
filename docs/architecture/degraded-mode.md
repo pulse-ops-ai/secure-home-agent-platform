@@ -10,6 +10,11 @@ decision.
 > **Status: not implemented.** No mechanism exists. In particular, **no bounded
 > local authority mechanism has been chosen**, so every `BOUNDED` operation
 > below currently behaves as `FAIL CLOSED`.
+>
+> [ADR-0009](../decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)
+> is **accepted**, but acceptance did not close
+> [U1](unresolved-decisions.md#u1). The classification below is the target
+> posture; the `BOUNDED` column is not implementable until U1 has its own ADR.
 
 ## Two questions, not one
 

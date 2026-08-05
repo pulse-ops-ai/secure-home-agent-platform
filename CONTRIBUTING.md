@@ -18,8 +18,11 @@ requires it, the correct output is a new ADR proposal, not a quiet exception.
 ## Current phase
 
 This repository is at the **foundation** stage: documentation, governance, and
-workspace scaffolding. There is intentionally **no runtime**. Until the relevant
-ADRs are accepted by a human, do not:
+workspace scaffolding. There is intentionally **no runtime**.
+
+The foundational ADRs are accepted, so implementation may proceed against them
+under an authorizing task contract. **Acceptance is not authorization to
+deploy**, and it resolved none of U1–U10. Do not:
 
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,
@@ -147,4 +150,10 @@ asks for it.
   what belongs there, what does not, the ownership and boundary rules, the
   higher-level document that governs it, and the validation commands it will
   eventually carry.
-- ADRs are `Proposed` until a human accepts them. Do not self-accept an ADR.
+- The eleven foundational ADRs are `Accepted` (2026-08-05) and **immutable**.
+  Never edit an accepted ADR — supersede it with a new one and update
+  [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) in the same change.
+- A new ADR starts `Proposed`. **Do not self-accept it**; acceptance is a human
+  decision made in its own reviewed change.
+- Accepting an ADR never resolves anything in
+  [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).

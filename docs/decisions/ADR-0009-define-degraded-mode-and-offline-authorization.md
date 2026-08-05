@@ -1,8 +1,9 @@
 # ADR-0009: Define degraded mode and offline authorization posture
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md)
 
@@ -297,3 +298,9 @@ triggers unless the automation declares that it should.
 - [`docs/architecture/unresolved-decisions.md`](../architecture/unresolved-decisions.md)
 - [`docs/architecture/local-remote-routing.md`](../architecture/local-remote-routing.md)
 - Upstream `architecture/profiles/self-hosted-vps.md` failure-mode table @ `v0.3.0`
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

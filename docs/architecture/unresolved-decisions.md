@@ -3,10 +3,21 @@
 Questions this repository has **deliberately not answered**. They are recorded
 here so that nobody silently answers them by writing code.
 
+> **The eleven foundational ADRs were accepted on 2026-08-05. That changed
+> nothing in this file.** U1–U10 were left open deliberately, and acceptance was
+> granted on that basis — not in spite of it. An accepted ADR does **not**
+> authorize resolving an item here by implementation.
+>
+> The practical consequence: work that depends on an item below is still
+> blocked, and **`BOUNDED` still behaves as `FAIL CLOSED`**
+> ([U1](#u1)). See
+> [What acceptance does and does not unblock](../decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
+
 **Rules for this file:**
 
-- An item leaves this file only via an ADR. Not via an implementation, not via a
-  README, not via a pull-request comment.
+- An item leaves this file only via a **new** ADR. Not via an implementation,
+  not via a README, not via a pull-request comment, and not as a side effect of
+  the foundational set having been accepted.
 - If a change requires an answer to an item here, the change is blocked until
   that ADR exists — or the change must work correctly under *every* candidate
   answer.

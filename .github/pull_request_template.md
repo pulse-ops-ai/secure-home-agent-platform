@@ -72,7 +72,7 @@ Does this touch anything in docs/architecture/unresolved-decisions.md?
 If yes, it is blocked — an unresolved item is closed by an ADR, not by code.
 -->
 
-- [ ] This change resolves nothing listed in `docs/architecture/unresolved-decisions.md`.
+- [ ] This change resolves nothing listed in `docs/architecture/unresolved-decisions.md`. (The foundational ADRs being accepted did **not** close any of them.)
 
 ## Compliance
 
@@ -81,7 +81,7 @@ If yes, it is blocked — an unresolved item is closed by an ADR, not by code.
 - [ ] **No secrets, tokens, keys, or realistic-looking fakes**
 - [ ] **No infrastructure deployed, started, stopped, or configured**
 - [ ] **No GitHub issues created**
-- [ ] **No ADR self-accepted** — status remains `Proposed`
+- [ ] **No ADR self-accepted**, and **no accepted ADR edited** (supersede instead)
 - [ ] Relevant `INDEX.md` updated for any added, renamed, or removed document
 - [ ] Every directory added has a `README.md` explaining what belongs there
 - [ ] Upstream pinned repositories not modified

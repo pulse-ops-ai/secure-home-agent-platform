@@ -52,8 +52,10 @@ Work that falls out of scope is reported, not attempted.
 
 ## Constraints
 
-- **Never accept an ADR.** Status stays `Proposed`; acceptance is a human act.
-- **Never edit an accepted ADR.** Supersede it with a new one.
+- **Never edit an accepted ADR.** ADR-0001 … ADR-0011 are `Accepted` and
+  immutable. Supersede with a new ADR.
+- **Never change an ADR's status.** A new ADR starts `Proposed`; acceptance is a
+  human act in its own reviewed change.
 - **Never resolve an unresolved decision** by writing a paragraph that picks an
   answer. That requires an ADR.
 - **Never copy upstream architecture text.** This repository adopts by pinned
