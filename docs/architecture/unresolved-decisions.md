@@ -1,0 +1,242 @@
+# Unresolved Decisions
+
+Questions this repository has **deliberately not answered**. They are recorded
+here so that nobody silently answers them by writing code.
+
+**Rules for this file:**
+
+- An item leaves this file only via an ADR. Not via an implementation, not via a
+  README, not via a pull-request comment.
+- If a change requires an answer to an item here, the change is blocked until
+  that ADR exists — or the change must work correctly under *every* candidate
+  answer.
+- Adding an item is cheap and encouraged. Removing one is a governed act.
+
+| # | Question | Blocks | Severity |
+|---|---|---|---|
+| [U1](#u1) | Local OpenFGA replica vs. signed grants vs. bounded cache | any offline household authorization | **critical** |
+| [U2](#u2) | Workload-identity mechanism for runner credentials | any agent that calls a governed API | high |
+| [U3](#u3) | Which service issues the L6 internal identity envelope | all L7 verification | high |
+| [U4](#u4) | `runner-control` placement — Pi vs. VPS | runner substrate implementation | medium |
+| [U5](#u5) | Automation persistence and scheduler | automation service | medium |
+| [U6](#u6) | The framework-adapter SPI | every adapter | medium |
+| [U7](#u7) | OKF validator and toolchain | any real knowledge bundle | medium |
+| [U8](#u8) | Whether shared and household OpenFGA share a runtime | household authorization deployment | medium |
+| [U9](#u9) | Policy-decision caching semantics | authorization performance and U1 | high |
+| [U10](#u10) | Home Assistant credential strategy | action mediation | high |
+
+---
+
+## U1
+
+### Local OpenFGA replica vs. signed grants / capability leases vs. bounded cache
+
+**Severity: critical.** This is the hardest and most consequential open question
+in the repository.
+
+**The problem.** [ADR-0002](../decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)
+requires household operation without a WAN round trip.
+[ADR-0008](../decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md)
+puts authorization on the sensitive-action path. A central decision point cannot
+satisfy both. Something must be able to decide locally.
+
+**Candidates.**
+
+| Candidate | Revocation latency | Key management | Operational cost on a Pi |
+|---|---|---|---|
+| Local OpenFGA read replica | replication lag | none new | second datastore on the Pi |
+| Signed grants / capability leases | lease lifetime | signing key + rotation reachable from the Pi | low storage, real crypto operations |
+| Bounded decision cache | cache TTL | none new | trivial |
+
+**Why it is not decided.** All three have the same shape of flaw — local
+authority is stale authority, and staleness is a revocation window. The right
+choice depends on measured behaviour that does not exist yet: how often
+authorization is actually consulted on the local path, how long real outages
+last, and how quickly a revocation must take effect for a door lock.
+
+**Evidence needed before deciding.** Real request rates on the local path;
+observed outage durations; a stated maximum acceptable revocation window **per
+sensitivity class** (this is a household-owner decision, not a technical one);
+key-management feasibility on the Pi.
+
+**Interim posture.** `BOUNDED` behaves as `FAIL CLOSED`. See
+[`degraded-mode.md`](degraded-mode.md).
+
+**Owner:** requires an ADR. **Do not implement any local authority mechanism
+before it exists.**
+
+---
+
+## U2
+
+### Workload-identity mechanism for runner credentials
+
+**The problem.** [ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md)
+requires each run to authenticate as an agent principal with a short-lived
+credential — never a shared static key. How a sandbox obtains that credential
+without becoming able to mint its own is unresolved.
+
+**Candidates.** Client credentials issued per run by `runner-control`;
+mTLS with a per-run certificate; a Keycloak token-exchange flow; an
+OIDC-style workload-identity federation.
+
+**Constraints.** The credential must be scoped to one run and expire with it. The
+sandbox is untrusted, so it must not hold anything that lets it obtain a broader
+credential. The mechanism must work when the identity provider is unreachable —
+or its failure mode must be classified in
+[`degraded-mode.md`](degraded-mode.md).
+
+**Blocks:** any agent that calls a governed API.
+
+---
+
+## U3
+
+### Which service issues the L6 internal identity envelope
+
+**The problem.** Only L6 mints the envelope, and every L7 service verifies it.
+Which concrete service plays L6 here is not decided.
+
+**Candidates.** The web BFF (natural for browser traffic, wrong for voice and
+agent traffic); `pi-api` as a household L6; a dedicated envelope issuer; two
+issuers (one per ingress path — which risks divergence).
+
+**Constraints.** Both ingress paths must converge on the **same** enforcement
+semantics ([`local-remote-routing.md`](local-remote-routing.md)). Two issuers
+means two sets of claims to keep identical. The issuer holds the signing key and
+becomes a high-value target.
+
+**Blocks:** all L7 verification. Nothing can verify an envelope nobody issues.
+
+---
+
+## U4
+
+### `runner-control` placement — Pi vs. VPS
+
+**Trade-off.** On the Pi: works offline, runs close to the household API,
+competes for 8 GB of RAM with the control path. On the VPS: more resources,
+does not contend with household control, but agent runs stop when the WAN is
+down and the local path loses its runner. Both: highest complexity, two
+substrates to keep equivalent.
+
+**Constraints.** Coding-agent runs are not household-critical and could live
+remotely. Household agent runs are more useful locally. Resource contention on
+the Pi is a genuine risk to the control path.
+
+**Not blocking the scaffold**, but it must be settled before the substrate is
+built.
+
+---
+
+## U5
+
+### Automation persistence and scheduler implementation
+
+**The problem.** Automations are persisted, triggered, expiring, and
+profile-bound ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)).
+Where they are stored and what fires them is undecided.
+
+**Tension.** The VPS is the authoritative datastore, but a VPS outage must not
+stop local automations from being evaluated — while a local copy risks
+double-firing on recovery.
+
+**Constraints.** Expiration must be enforced even during an outage (an expired
+automation must not fire). Missed triggers must not replay unless declared.
+Local safety automations are deliberately **not** in this system — they are
+deterministic local behaviour with no dependency on it.
+
+---
+
+## U6
+
+### The initial framework-adapter SPI
+
+**The problem.** [ADR-0003](../decisions/ADR-0003-use-framework-neutral-runner-profiles.md)
+requires adapters, but the interface between substrate and adapter is undefined:
+what is passed in, what is returned, how failure and partial progress are
+reported, and how cancellation propagates into a runtime that may not support
+it.
+
+**Constraint.** The SPI must be expressible by all six intended adapters — three
+coding CLIs and three framework runtimes — without a provider name appearing in
+a structural position.
+
+**Approach.** Define it against the two most dissimilar adapters (a coding CLI
+and a plain deterministic loop) rather than against the most convenient one.
+
+---
+
+## U7
+
+### First OKF validator and toolchain
+
+**The problem.** [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+requires compile, validate, package, and query interfaces and a machine-checked
+prohibited-content rule. Whether OKF is the right format is unvalidated, and no
+toolchain exists.
+
+**Gate.** The validator must exist **before** the first real bundle is authored.
+Authoring bundles first would put unvalidated content in the repository and make
+the format load-bearing by accident.
+
+---
+
+## U8
+
+### Do the shared and household OpenFGA stores share one runtime?
+
+**Trade-off.** One runtime: less to operate, one place to look, but the household
+model's availability is coupled to the shared edge's, and a shared-edge incident
+becomes a household incident. Separate runtimes: independent availability and
+independent evolution, at the cost of a second store to operate and two models to
+keep coherent.
+
+**Interaction.** This is entangled with [U1](#u1) — a local replica implies a
+household store that *can* be replicated to the Pi, which points toward
+separation.
+
+---
+
+## U9
+
+### Policy-decision caching semantics
+
+**The problem.** May an authorization decision be cached? For how long? For which
+actions? How does revocation propagate?
+
+**Why it is hard.** The answer is not uniform. Caching a decision for
+"read the living-room temperature" for 60 seconds is unremarkable. Caching one
+for "unlock the front door" for 60 seconds is a 60-second revocation window on
+physical access.
+
+**Requirement.** Any caching policy must be **per sensitivity class**, with the
+window stated explicitly and reviewed as a security parameter.
+
+**Interaction.** A bounded decision cache is one of [U1](#u1)'s candidates; if it
+is chosen, U9 becomes part of that answer rather than a separate one.
+
+---
+
+## U10
+
+### Home Assistant credential strategy
+
+**The problem.** [ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md)
+forbids long-lived owner tokens and concentrates Home Assistant credentials in
+the action-mediation service. What credential that service actually holds is
+undecided.
+
+**Candidates.** A long-lived token for a dedicated, minimally-privileged Home
+Assistant user; a per-session token obtained at startup; a Home Assistant user
+per capability class; a local integration path that avoids a bearer token
+entirely.
+
+**Constraints.** Home Assistant's own permission model is coarse. Whatever is
+chosen must be revocable without disrupting household operation, must not be
+readable by any runner, and must be scoped as narrowly as Home Assistant allows —
+which may not be narrow enough, in which case the compensating control must be
+documented.
+
+**Interaction.** The mediation service becomes the highest-value credential
+holder in the house. Its surface must be minimal.

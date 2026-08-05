@@ -1,0 +1,112 @@
+# Repository merge gate.
+#
+# The portable part of `scripts/check.sh`, enforced automatically so a future
+# change cannot merge without reproducing it. Local evidence from a maintainer's
+# Pi is additional evidence, not a substitute for this.
+#
+# CI is part of the governance boundary here, so every third-party action is
+# pinned to a full commit SHA. A tag like `@v4` is a moving reference: the owner
+# can repoint it, and the code executing in this workflow would change without a
+# change to this repository. Dependabot proposes SHA bumps as reviewable pull
+# requests (see .github/dependabot.yml).
+#
+# Toolchain versions are pinned to the same versions the Raspberry Pi runs, so
+# CI and the Pi execute the same tools. **The CPU architecture differs** — CI is
+# x86_64, the Pi is ARM64 — so this is not a claim of an identical environment,
+# only of identical tool versions.
+#
+# Nothing here deploys, starts a service, or touches a credential.
+#
+# Governed by AGENTS.md and CONTRIBUTING.md.
+
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scaffold:
+    name: scaffold structure
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Runs first and needs no toolchain — the same property that lets it run
+      # on a freshly-prepared Pi before uv or Node exist.
+      - name: Validate scaffold
+        run: bash scripts/validate-scaffold.sh
+
+  python:
+    name: python workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.1"
+          enable-cache: true
+
+      # --locked fails if uv.lock is stale rather than silently updating it.
+      - name: Sync workspace (locked)
+        run: uv sync --all-packages --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Types
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest
+
+  typescript:
+    name: typescript workspace
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Exact patch, matching the Pi — not a floating major.
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.1"
+
+      # pnpm comes from the packageManager pin via Corepack — never a global
+      # install, so CI and the Pi resolve the same version.
+      - name: Enable Corepack
+        run: corepack enable
+
+      # --frozen-lockfile fails if pnpm-lock.yaml does not match the manifests.
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Check packages
+        run: pnpm -r --if-present run check
+
+  secrets:
+    name: no tracked secrets
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The scan lives in scripts/scan-secrets.sh so it runs identically here
+      # and locally, and so this workflow contains no scan patterns of its own
+      # to exclude. It scans EVERY tracked file with no file-level exclusions —
+      # including this workflow and the scanner itself.
+      - name: Scan for secret-shaped values
+        run: bash scripts/scan-secrets.sh

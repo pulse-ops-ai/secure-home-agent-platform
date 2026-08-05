@@ -1,0 +1,54 @@
+# --- Secrets: never tracked -------------------------------------------------
+# The scaffold validator (scripts/validate-scaffold.sh) also fails the build if
+# any of these are staged, because .gitignore alone does not stop `git add -f`.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+credentials.json
+secrets.yaml
+secrets.yml
+*.kubeconfig
+*.tfstate
+*.tfstate.*
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# --- Node / TypeScript ------------------------------------------------------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.pnpm-store/
+
+# --- Editors / OS -----------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# --- Agent runtime scratch --------------------------------------------------
+# Run evidence and runner scratch directories are produced at runtime and are
+# never committed. See docs/architecture/runner-model.md.
+.runs/
+.evidence/

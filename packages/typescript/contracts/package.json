@@ -1,0 +1,11 @@
+{
+  "name": "@secure-home/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TypeScript types for the platform's core objects, derived from schemas/.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "check": "node ../../../scripts/check-ts-package.mjs"
+  }
+}

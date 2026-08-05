@@ -1,0 +1,19 @@
+# Root of the TypeScript (pnpm) workspace.
+#
+# The pnpm version is pinned by "packageManager" in package.json and provisioned
+# by Corepack. Do not install pnpm globally.
+#
+# Governed by AGENTS.md and docs/decisions/INDEX.md.
+
+packages:
+  # Applications. apps/web/ is a documented placeholder with no package.json
+  # yet, so this glob currently matches no manifest — deliberately. See
+  # apps/web/README.md for why the app is not scaffolded.
+  - "apps/*"
+  # Shared TypeScript libraries.
+  - "packages/typescript/*"
+
+# No dependency in this workspace is permitted to run an install script.
+# When one legitimately needs to, it is added here by an explicit reviewed
+# change — never by an automatic approval prompt.
+onlyBuiltDependencies: []
