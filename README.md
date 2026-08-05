@@ -444,7 +444,8 @@ every pull request with `uv sync --locked` and `pnpm install --frozen-lockfile`
 so a stale lockfile fails rather than being silently rewritten. Its third-party
 actions are pinned to **full commit SHAs** — CI is part of the governance
 boundary — and `scripts/scan-secrets.sh` scans **every tracked file** for
-secret-shaped values, including the workflow itself.
+secret-shaped values, including the workflow and the scanner itself, with no
+file-level exclusion and no in-line suppression pragma.
 
 ---
 

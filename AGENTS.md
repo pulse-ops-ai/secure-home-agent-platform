@@ -158,8 +158,10 @@ that adds, moves, or removes a file.
 **These are also enforced automatically.**
 [`.github/workflows/checks.yml`](.github/workflows/checks.yml) is the merge gate
 and runs the portable subset on every pull request. Its actions are pinned to
-full commit SHAs, and its secret scan has no file-level exclusions — do not add
-one, and do not replace a SHA with a moving tag. Running them locally first is
+full commit SHAs, and its secret scan has **no file-level exclusion and no
+in-line suppression pragma** — the only way to suppress a finding is a validated
+allowlist entry. Do not add an exclusion or a pragma, and do not replace a SHA
+with a moving tag. Running them locally first is
 still expected — it is faster than discovering a failure in CI — and you must
 still report what you ran and what you skipped.
 

@@ -62,8 +62,11 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Assertions are the point of a test.
-"tests/**" = ["S101"]
+# S101: assertions are the point of a test.
+# S603/S607: the secret-scanner tests deliberately invoke the real script via
+# subprocess against a throwaway repo — testing the shipped behaviour rather
+# than a reimplementation of it is the whole point.
+"tests/**" = ["S101", "S603", "S607"]
 
 [tool.ruff.format]
 docstring-code-format = true

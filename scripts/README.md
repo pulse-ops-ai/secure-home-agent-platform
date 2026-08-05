@@ -42,11 +42,16 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 3. **Skips are reported, never silent.** `check.sh` prints a skipped check and
    exits non-zero on a genuine failure. A check that quietly disappears is how a
    broken repository looks healthy.
-4. **No file-level exclusions in the secret scan.** `scan-secrets.sh` scans every
-   tracked file, including `.github/workflows/` and itself. Excluding a file
-   would create exactly the blind spot the scan exists to remove; the
-   pattern-definition lines are filtered **by line**, using a sentinel comment.
-   A genuine false positive goes in the allowlist, narrowly and with a reason.
+4. **The secret scan has exactly one suppression mechanism, and it is
+   enforced.** `scan-secrets.sh` scans every tracked file, including
+   `.github/workflows/` and itself. There is no file-level exclusion and **no
+   in-line pragma of any spelling** — an earlier revision used a sentinel
+   comment, which was a repository-wide bypass token. Self-matching is handled by
+   assembling patterns from fragments, so the scanner scans itself with no
+   exemption. The allowlist takes `path:line:sha256=<digest> # justification`
+   entries and rejects broad, stale, unjustified, or workflow-scoped ones **in
+   code**, failing closed before scanning. Regression tests live in
+   [`../tests/test_secret_scanner.py`](../tests/test_secret_scanner.py).
 5. **Fail loudly and specifically.** A validator that says "failed" without
    saying what and where is not useful at 11pm.
 

@@ -110,11 +110,18 @@ Two properties of that gate are deliberate and must not be eroded:
   the code executing in the gate without a change to this repository. Bumps
   arrive as reviewable Dependabot pull requests
   ([`.github/dependabot.yml`](.github/dependabot.yml)).
-- **The secret scan has no file-level exclusions.** It scans every tracked file,
-  including the workflow itself and the scanner itself. Excluding a file — even
-  to stop a pattern matching its own definition — recreates the blind spot the
-  scan exists to remove. Pattern lines are filtered *by line*, with a sentinel
-  comment.
+- **The secret scan has no suppression mechanism except a validated allowlist.**
+  It scans every tracked file, including the workflow and the scanner itself.
+  There is no file-level exclusion and **no in-line pragma of any spelling** — an
+  earlier revision had a sentinel comment that turned out to be a
+  repository-wide bypass token, and it is gone. Patterns are assembled from
+  fragments so the scanner can scan itself with no exemption at all.
+  [`scripts/secret-scan-allowlist.txt`](scripts/secret-scan-allowlist.txt) takes
+  `path:line:sha256=<digest> # justification` entries: the digest means no
+  credential material is written into the allowlist, and an entry stops applying
+  the moment the line changes. Entries under `.github/workflows/`, path-only
+  entries, wildcards, stale paths, truncated digests, and missing justifications
+  are **rejected in code**, aborting the run before anything is scanned.
 
 **Local evidence does not substitute for it.** Reporting a green run on your own
 machine is useful context, but the repository enforces the portable checks
