@@ -136,7 +136,7 @@ bash scripts/check.sh
 # structure, indexes, secret-shaped filenames, generated dirs
 bash scripts/validate-scaffold.sh
 
-# secret-shaped VALUES — every tracked file, no exclusions
+# secret-shaped VALUES — every tracked text file, no exclusions
 bash scripts/scan-secrets.sh
 
 # Python (uv workspace)

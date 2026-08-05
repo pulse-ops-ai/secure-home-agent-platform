@@ -12,7 +12,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 |---|---|
 | [`validate-scaffold.sh`](validate-scaffold.sh) | Structural validation: navigation files, index integrity, required READMEs, workspace manifests, tracked secrets, forbidden generated directories |
 | [`check.sh`](check.sh) | Aggregate check — runs everything and **reports what it skipped** |
-| [`scan-secrets.sh`](scan-secrets.sh) | Scans **every tracked file** for secret-shaped values — no file-level exclusions |
+| [`scan-secrets.sh`](scan-secrets.sh) | Scans **every tracked text file** for secret-shaped values — no file-level exclusions |
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
 | [`check-ts-package.mjs`](check-ts-package.mjs) | Validates one TypeScript workspace package manifest; invoked by each package's `check` script |
 
@@ -43,7 +43,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    exits non-zero on a genuine failure. A check that quietly disappears is how a
    broken repository looks healthy.
 4. **The secret scan has exactly one suppression mechanism, and it is
-   enforced.** `scan-secrets.sh` scans every tracked file, including
+   enforced.** `scan-secrets.sh` scans every tracked text file, including
    `.github/workflows/` and itself. There is no file-level exclusion and **no
    in-line pragma of any spelling** — an earlier revision used a sentinel
    comment, which was a repository-wide bypass token. Self-matching is handled by

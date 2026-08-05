@@ -106,7 +106,9 @@ jobs:
 
       # The scan lives in scripts/scan-secrets.sh so it runs identically here
       # and locally, and so this workflow contains no scan patterns of its own
-      # to exclude. It scans EVERY tracked file with no file-level exclusions —
-      # including this workflow and the scanner itself.
+      # to exclude. It scans EVERY tracked TEXT file with no file-level
+      # exclusions — including this workflow and the scanner itself. Binary
+      # content is not pattern-scannable, so the scaffold job forbids tracked
+      # binaries outright rather than leaving a silent gap.
       - name: Scan for secret-shaped values
         run: bash scripts/scan-secrets.sh

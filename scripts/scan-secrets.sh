@@ -13,8 +13,15 @@
 # 1. NO SUPPRESSION MECHANISM OTHER THAN THE VALIDATED ALLOWLIST.
 #
 #    There is no sentinel, no magic comment, no in-line pragma of any spelling,
-#    and no file-level exclusion. Every tracked file is scanned, including
+#    and no file-level exclusion. Every tracked TEXT file is scanned, including
 #    .github/workflows/ and this script.
+#
+#    "Text" is not a hedge: `git grep -I` cannot inspect binary content, so a
+#    credential inside a binary blob would not be found by pattern matching at
+#    all. That gap is closed structurally instead — validate-scaffold.sh fails if
+#    any binary file is tracked, so the text-only assumption is enforced rather
+#    than assumed. If binary artifacts are ever permitted, this scan needs a
+#    companion policy for them.
 #
 #    An earlier version filtered any result line containing a sentinel comment.
 #    That was a repository-wide bypass token: anyone who read this file could
@@ -241,8 +248,21 @@ scan "assignment-shaped values" "$ASSIGNED" || status=1
 scan "known credential formats" "$KNOWN"    || status=1
 
 printf '\n%s== Coverage ==%s\n' "$C_BOLD" "$C_OFF"
-printf '  scanned %s tracked file(s)\n' "$(git ls-files | wc -l | tr -d ' ')"
+# Exact accounting, so "scanned everything" is never an over-claim.
+# git ls-files --eol classifies index content: i/-text is binary, i/none is
+# empty. Everything else is text and was scanned.
+total_files="$(git ls-files | wc -l | tr -d ' ')"
+binary_files="$(git ls-files --eol | awk '$1=="i/-text"' | wc -l | tr -d ' ')"
+empty_files="$(git ls-files --eol | awk '$1=="i/none"' | wc -l | tr -d ' ')"
+text_files=$((total_files - binary_files - empty_files))
+
+printf '  %s tracked file(s): %s text (scanned), %s empty, %s binary\n' \
+  "$total_files" "$text_files" "$empty_files" "$binary_files"
 printf '  no file-level exclusions, no sentinel, no line-level bypass\n'
+if [ "$binary_files" -ne 0 ]; then
+  printf '  %sbinary content is NOT pattern-scannable%s — see scripts/validate-scaffold.sh\n' \
+    "$C_YELLOW" "$C_OFF"
+fi
 
 if [ "$status" -ne 0 ]; then
   printf '\n%sSecret-shaped values found.%s\n' "$C_RED" "$C_OFF"

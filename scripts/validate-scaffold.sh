@@ -19,6 +19,7 @@
 #   - a workspace manifest is structurally wrong
 #   - an obvious secret file is tracked or staged
 #   - a generated directory is tracked or staged
+#   - a binary file is tracked (the secret scanner cannot inspect binary content)
 #
 # Governed by AGENTS.md and scripts/README.md.
 
@@ -315,6 +316,37 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   fi
 else
   fail "not a git repository — cannot check tracked files"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. No tracked binaries
+#
+# scripts/scan-secrets.sh finds secret-shaped values by pattern matching, and
+# `git grep -I` cannot inspect binary content — a credential inside a binary
+# blob would simply not be found. Rather than leave that as an unstated
+# assumption, the assumption is enforced: this repository tracks text only.
+#
+# This is a policy check, not a capability limit. If binary artifacts ever need
+# to be tracked, the correct response is a reviewed decision that also says how
+# they will be checked for embedded credentials — not deleting this check.
+# ---------------------------------------------------------------------------
+
+section "No tracked binaries"
+
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  # git ls-files --eol reports index content classification; i/-text is binary.
+  binaries="$(git ls-files --eol 2>/dev/null | awk '$1=="i/-text" {sub(/^[^\t]*\t/, ""); print}')"
+
+  if [ -n "$binaries" ]; then
+    fail "binary files are tracked — the secret scanner cannot inspect them"
+    printf '%s\n' "$binaries" | head -20 | while IFS= read -r b; do detail "$b"; done
+    detail "tracking a binary requires a reviewed decision covering how it is"
+    detail "checked for embedded credentials — see scripts/scan-secrets.sh"
+  else
+    pass "no binary file is tracked (secret scanning covers all tracked content)"
+  fi
+else
+  fail "not a git repository — cannot check for tracked binaries"
 fi
 
 # ---------------------------------------------------------------------------
