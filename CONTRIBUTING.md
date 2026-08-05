@@ -90,7 +90,7 @@ uv run ruff check .                        # Python lint
 uv run ruff format --check .               # Python format
 uv run mypy                                # Python types (targets configured in pyproject.toml)
 uv run pytest                              # scaffold conformance tests
-bash scripts/scan-secrets.sh               # secret-shaped values, all tracked files
+bash scripts/scan-secrets.sh               # secret-shaped values, all tracked text files
 pnpm install --lockfile-only               # TypeScript workspace resolves
 pnpm -r --if-present run check             # TypeScript package manifests
 ```
@@ -114,7 +114,11 @@ Two properties of that gate are deliberate and must not be eroded:
   arrive as reviewable Dependabot pull requests
   ([`.github/dependabot.yml`](.github/dependabot.yml)).
 - **The secret scan has no suppression mechanism except a validated allowlist.**
-  It scans every tracked file, including the workflow and the scanner itself.
+  It scans every tracked **text** file, including the workflow and the scanner
+  itself. Pattern matching cannot read binary content, so the text-only
+  assumption is enforced rather than assumed: `validate-scaffold.sh` fails if any
+  binary file is tracked. Tracking one requires a reviewed decision that also
+  says how it will be checked for embedded credentials.
   There is no file-level exclusion and **no in-line pragma of any spelling** — an
   earlier revision had a sentinel comment that turned out to be a
   repository-wide bypass token, and it is gone. Patterns are assembled from

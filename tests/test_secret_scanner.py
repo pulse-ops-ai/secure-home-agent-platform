@@ -310,3 +310,40 @@ def test_allowlist_entry_stops_applying_when_the_line_changes(tmp_path: Path) ->
 
     result = _scan(repo)
     assert result.returncode == EXIT_FINDINGS, "a stale digest still suppressed a finding"
+
+
+# --- coverage honesty -------------------------------------------------------
+
+
+def test_coverage_output_accounts_for_every_tracked_file(tmp_path: Path) -> None:
+    """The scanner must not claim more coverage than pattern matching gives it.
+
+    Binary content cannot be pattern-scanned, so the summary reports the text /
+    empty / binary split rather than asserting "every file was scanned".
+    """
+    repo = _make_repo(tmp_path, {"docs/a.md": "text\n", "src/empty.marker": ""})
+    (repo / "assets").mkdir()
+    (repo / "assets" / "blob.bin").write_bytes(b"\x00\x01\x02\xff\xfe binary \x00")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+
+    result = _scan(repo)
+    assert "text (scanned)" in result.stdout
+    assert "1 binary" in result.stdout
+    assert "NOT pattern-scannable" in result.stdout
+
+
+def test_secret_inside_a_binary_is_not_pattern_scannable(tmp_path: Path) -> None:
+    """Documents the real gap the binary policy exists to close.
+
+    The scanner does **not** find this, which is precisely why
+    ``scripts/validate-scaffold.sh`` refuses to let a binary be tracked at all.
+    """
+    repo = _make_repo(tmp_path, {"docs/a.md": "text\n"})
+    (repo / "assets").mkdir()
+    (repo / "assets" / "blob.bin").write_bytes(b"\x00\xff" + FAKE_AWS_KEY.encode() + b"\x00")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+
+    assert _scan(repo).returncode == EXIT_CLEAN, (
+        "if this ever fails, pattern matching gained binary coverage and the "
+        "binary policy in validate-scaffold.sh can be revisited"
+    )

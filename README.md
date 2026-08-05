@@ -447,9 +447,11 @@ The portable subset is the repository **merge gate**
 every pull request with `uv sync --locked` and `pnpm install --frozen-lockfile`
 so a stale lockfile fails rather than being silently rewritten. Its third-party
 actions are pinned to **full commit SHAs** — CI is part of the governance
-boundary — and `scripts/scan-secrets.sh` scans **every tracked file** for
+boundary — and `scripts/scan-secrets.sh` scans **every tracked text file** for
 secret-shaped values, including the workflow and the scanner itself, with no
-file-level exclusion and no in-line suppression pragma.
+file-level exclusion and no in-line suppression pragma. Pattern matching cannot
+inspect binary content, so `validate-scaffold.sh` **forbids tracked binaries**
+outright rather than leaving that as an unstated assumption.
 
 ---
 
