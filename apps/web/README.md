@@ -51,8 +51,9 @@ accident.
 ## Blocked on
 
 - [U3](../../docs/architecture/unresolved-decisions.md#u3) — which service issues
-  the L6 envelope.
-- Acceptance of [ADR-0002](../../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md).
+  the L6 envelope. Still open;
+  [ADR-0002](../../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)
+  being accepted did not close it.
 
 ## Governed by
 

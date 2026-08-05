@@ -34,8 +34,9 @@ widen what an autonomous process may do to a house. Review it accordingly.
 
 ## Do not
 
-- Author a real profile. **No ADR is accepted and no schema exists**, so a
-  profile written now would be unvalidatable.
+- Author a real profile before the schema exists — it would be unvalidatable.
+  The governing ADRs are accepted, so writing the schema is now in scope under a
+  task contract; profiles follow it, not the other way round.
 - Invent the profile schema here. It belongs in
   [`../schemas/execution-profile/`](../schemas/execution-profile/) and is
   governed by ADR-0003 and ADR-0007.

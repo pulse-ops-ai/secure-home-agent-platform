@@ -41,8 +41,10 @@ and act on the house. You, the coding agent editing these files, are governed by
 
 ## Do not
 
-- Implement an agent or an adapter. **No ADR is accepted yet**, so there is no
-  authorized implementation work here.
+- Implement an agent or an adapter without an authorizing issue or task
+  contract. The governing ADRs are accepted, but the adapter SPI is still
+  [U6](../docs/architecture/unresolved-decisions.md#u6) and run credentials are
+  still [U2](../docs/architecture/unresolved-decisions.md#u2).
 - Add a dependency, a framework, or a provider SDK.
 - Write a stub that appears to work.
 - Decide the adapter SPI — [U6](../docs/architecture/unresolved-decisions.md#u6)

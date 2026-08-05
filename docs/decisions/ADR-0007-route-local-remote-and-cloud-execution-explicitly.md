@@ -1,8 +1,9 @@
 # ADR-0007: Route local, remote, and cloud execution explicitly
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [`docs/architecture/local-remote-routing.md`](../architecture/local-remote-routing.md)
 
@@ -177,3 +178,9 @@ A third-party model provider over the internet.
 - [`docs/architecture/local-remote-routing.md`](../architecture/local-remote-routing.md)
 - [`docs/architecture/system-context.md`](../architecture/system-context.md)
 - [`profiles/README.md`](../../profiles/README.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

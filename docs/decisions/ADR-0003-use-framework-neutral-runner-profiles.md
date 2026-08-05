@@ -1,8 +1,9 @@
 # ADR-0003: Use framework-neutral runner contracts and execution profiles
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [`docs/architecture/runner-model.md`](../architecture/runner-model.md)
 
@@ -196,3 +197,9 @@ was not neutral.
 - [`agents/adapters/README.md`](../../agents/adapters/README.md)
 - [`profiles/README.md`](../../profiles/README.md)
 - Upstream `architecture/agent-as-client-model.md` @ `v0.3.0`
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

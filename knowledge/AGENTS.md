@@ -47,7 +47,10 @@ value be different in ten minutes?** If yes, it is state.
 ## Do not
 
 - Author a real bundle. **The validator does not exist yet**, so nothing can be
-  checked, and the prohibited-content rule would be unenforced.
+  checked and the prohibited-content rule would be unenforced.
+  [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+  is accepted, which makes *building* the validator in scope under a task
+  contract — the validator still comes first.
 - Choose the knowledge format — that is
   [U7](../docs/architecture/unresolved-decisions.md#u7) and requires an ADR.
 - Copy household member names, device identifiers, or network addresses into

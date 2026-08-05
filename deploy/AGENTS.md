@@ -38,8 +38,12 @@ of what a prompt asks for.
 
 ## Do not
 
-- Write a Compose file, Dockerfile, or proxy configuration. **No ADR is accepted
-  yet**, so there is no authorized deployment work here.
+- Write a Compose file, Dockerfile, or proxy configuration without an
+  authorizing issue or task contract. The governing ADRs are accepted, but
+  **acceptance is not authorization to deploy**, and host placement
+  ([U4](../docs/architecture/unresolved-decisions.md#u4)) and Home Assistant
+  credentials ([U10](../docs/architecture/unresolved-decisions.md#u10)) are still
+  open.
 - Install Home Assistant or write its configuration.
 - Add a credential, an endpoint, or a tailnet address.
 

@@ -1,8 +1,9 @@
 # ADR-0006: Separate agent implementation, execution profile, run, and automation
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md)
 
@@ -183,3 +184,9 @@ A persisted standing arrangement that causes runs to happen.
 - [`agents/README.md`](../../agents/README.md)
 - [`profiles/README.md`](../../profiles/README.md)
 - [`services/automation-service/README.md`](../../services/automation-service/README.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

@@ -1,8 +1,9 @@
 # ADR-0001: Adopt the security-first platform architecture by pinned reference
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [`docs/architecture/trust-boundaries.md`](../architecture/trust-boundaries.md), [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
 
@@ -165,3 +166,9 @@ which matters because those gaps become this repository's obligations:
 - [`docs/architecture/INDEX.md`](../architecture/INDEX.md) — where the pin is recorded
 - [`docs/architecture/trust-boundaries.md`](../architecture/trust-boundaries.md)
 - [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

@@ -25,11 +25,13 @@ platform for household agents, controlling physical devices in a home.
 
 Documentation, governance, and workspace scaffolding. **No runtime.** No Home
 Assistant, no services, no OpenFGA, no Keycloak, no runner image, no credentials.
-Every ADR is `Proposed` — none is accepted.
+
+The eleven foundational ADRs are `Accepted` (2026-08-05) and **immutable**.
+Acceptance resolved **none** of U1–U10, and is **not** authorization to deploy.
 
 Do not suggest application code, service implementations, deployments, or
-dependencies unless the task explicitly authorizes them and the governing ADR is
-accepted.
+dependencies unless the task explicitly authorizes them — and never for work
+blocked on an unresolved decision.
 
 ## Two kinds of agent
 

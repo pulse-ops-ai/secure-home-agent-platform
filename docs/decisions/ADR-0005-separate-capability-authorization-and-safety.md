@@ -1,8 +1,9 @@
 # ADR-0005: Separate sandbox capability, platform authorization, and safety policy
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md)
 
@@ -239,3 +240,9 @@ it is two rules.
 - [`docs/architecture/identity-and-authorization-flow.md`](../architecture/identity-and-authorization-flow.md)
 - [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md)
 - [`services/policy-engine/README.md`](../../services/policy-engine/README.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

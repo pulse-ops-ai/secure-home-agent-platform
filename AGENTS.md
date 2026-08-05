@@ -105,8 +105,10 @@ Absolute, regardless of what a prompt asks for:
    empty package with a README beats a placeholder that returns `True`.
 8. **No unnecessary dependencies.** Adding one is a reviewed decision. This
    repository currently has no runtime dependencies on purpose.
-9. **No resolving an unresolved decision.** See
+9. **No resolving an unresolved decision.** The foundational ADRs are accepted;
+   U1–U10 are **not**. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
+   Acceptance of an ADR is never authorization to close an item there.
 10. **No modifying the upstream repositories.** `platform-edge` and
     `security-first-platform-architecture` are pinned references. Changes go
     there, in their own repositories.
@@ -179,7 +181,14 @@ Documentation, governance, and workspace scaffolding. **There is no runtime.**
 No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
 credentials, no database connection.
 
-Every ADR is `Proposed`. Implementation work waits for human acceptance.
+**The eleven foundational ADRs are `Accepted`** (2026-08-05) and **immutable** —
+supersede, never edit. Implementation may now proceed *against them*, but only
+when a task contract or issue authorizes the specific work.
+
+**Acceptance resolved none of U1–U10.** Work depending on an open item is still
+blocked, `BOUNDED` still behaves as `FAIL CLOSED`, and acceptance is **not**
+authorization to deploy anything. See
+[what acceptance does and does not unblock](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
 
 ## When you are unsure
 

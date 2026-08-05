@@ -1,8 +1,9 @@
 # ADR-0010: Use OKF for portable knowledge only
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-03
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-05
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [`knowledge/README.md`](../../knowledge/README.md)
 
@@ -186,3 +187,9 @@ A bundle that fails is not published — it is not a warning.
 - [`knowledge/README.md`](../../knowledge/README.md)
 - [`knowledge/AGENTS.md`](../../knowledge/AGENTS.md)
 - [`docs/architecture/system-context.md`](../architecture/system-context.md)
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.

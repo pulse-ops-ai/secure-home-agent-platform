@@ -101,7 +101,10 @@ never learns, and the finding is never discussed.
 15. **Index integrity.** A new, renamed, or removed document under
     `docs/architecture/` or `docs/decisions/` not reflected in its `INDEX.md`.
 16. **Unresolved decisions.** A change that silently answers something in
-    [`unresolved-decisions.md`](../../docs/architecture/unresolved-decisions.md).
+    [`unresolved-decisions.md`](../../docs/architecture/unresolved-decisions.md),
+    or that treats the foundational ADRs' acceptance as having closed one. It did
+    not. Also: an edit to an **accepted** ADR — those are immutable and must be
+    superseded instead.
 17. **Fake implementation.** A stub that looks functional.
 18. **Scope creep.** Unrelated changes bundled together.
 19. **Unreported skipped validation.** A change claiming success without saying
@@ -115,7 +118,7 @@ what would actually go wrong, and severity.
 | Severity | Meaning |
 |---|---|
 | **blocking** | violates an accepted contract, or would permit a sensitive action to proceed unsafely |
-| **major** | contradicts a `Proposed` ADR, or introduces a boundary that will be expensive to unwind |
+| **major** | introduces a boundary that will be expensive to unwind, or contradicts a `Proposed` ADR |
 | **minor** | inconsistency, missing cross-reference, index drift |
 | **note** | observation with no contract behind it — say so explicitly |
 
