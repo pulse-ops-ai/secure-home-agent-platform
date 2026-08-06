@@ -232,3 +232,25 @@ def test_peer_and_optional_dependencies_are_graph_edges(tmp_path: Path) -> None:
         assert "@secure-home/control-plane" in result["typescript"], (
             f"a dependent declared through {field} was not selected"
         )
+
+
+# --- shared tooling fans out (#25) ------------------------------------------
+
+
+def test_shared_tooling_changes_fan_out_to_every_typescript_target() -> None:
+    """A change to shared config changes how every package builds or tests.
+
+    Validating only the directory the file lives in would validate nothing that
+    actually changed — the specific way path filtering becomes dangerous.
+    """
+    for tooling_file in (
+        "packages/tsconfig/base.json",
+        "packages/tsconfig/library.json",
+        "packages/eslint-config/base.js",
+        "packages/testing/vitest.base.js",
+        ".prettierrc.json",
+        ".prettierignore",
+        "pnpm-workspace.yaml",
+    ):
+        result = _affected(tooling_file)
+        assert len(result["typescript"]) >= 14, f"{tooling_file} did not fan out"

@@ -1,6 +1,8 @@
 {
-  "extends": "@secure-home/tsconfig/library.json",
-  "include": [
-    "src"
-  ]
+  "extends": "@secure-home/tsconfig/test",
+  "compilerOptions": {
+    "allowJs": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "vitest.base.js"]
 }

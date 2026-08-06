@@ -1,0 +1,17 @@
+# Generated output — never formatted, never linted.
+dist/
+coverage/
+node_modules/
+.venv/
+
+# Lockfiles are tool-owned; formatting them would fight the tool.
+pnpm-lock.yaml
+uv.lock
+
+# Python is formatted by ruff, not Prettier. Two formatters over one file is
+# the exact conflict the single-authority rule exists to prevent.
+*.py
+
+# Markdown is prose. Prettier reflows it in ways that fight hand-wrapped
+# documentation and Mermaid blocks, so it is left alone deliberately.
+*.md

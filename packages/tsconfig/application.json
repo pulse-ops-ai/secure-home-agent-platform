@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Human-facing applications under apps/.",
+    "",
+    "Kept separate from `service` because an application's toolchain differs:",
+    "a bundler emits, JSX and DOM libs may be needed, and declaration output is",
+    "usually pointless. Those additions belong to the issue that scaffolds the",
+    "application, not here."
+  ],
+  "extends": "./base.json",
+  "compilerOptions": {
+    "rootDir": "${configDir}/src",
+    "outDir": "${configDir}/dist",
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["${configDir}/src"]
+}

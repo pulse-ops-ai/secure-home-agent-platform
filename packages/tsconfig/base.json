@@ -1,5 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Strict, modern defaults for Node 24 + ESM. Every consumer inherits these;",
+    "a member that must relax one states why in its own tsconfig rather than",
+    "changing this file.",
+    "",
+    "Each strictness flag below is a deliberate decision, not a default sweep.",
+    "See packages/tsconfig/README.md for the rationale and the two documented",
+    "consequences (process.env indexing, and NestJS decorator support)."
+  ],
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -8,9 +17,11 @@
 
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
     "useUnknownInCatchVariables": true,
 
     "isolatedModules": true,
@@ -20,6 +31,10 @@
 
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "removeComments": false,
+
+    "noEmitOnError": true
+  },
+  "exclude": ["${configDir}/dist", "${configDir}/node_modules", "${configDir}/coverage"]
 }

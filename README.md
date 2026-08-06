@@ -404,7 +404,8 @@ a transaction boundary that physical devices cannot honour.
 │   ├── api-contracts/     operation contracts · operation catalog
 │   ├── query-model/       projection config · validated query AST
 │   ├── worker-base/       standard worker runtime contract
-│   ├── logging/ observability/ errors/ events/ testing/
+│   ├── logging/ observability/ errors/ events/
+│   ├── testing/           shared Vitest configuration
 │   └── eslint-config/ tsconfig/    shared tooling
 ├── agents/                household agents (NOT coding agents)
 │   ├── implementations/   domain code — grants no authority
@@ -463,6 +464,7 @@ bash scripts/scan-secrets.sh
 # TypeScript — the primary stack
 pnpm install --frozen-lockfile
 pnpm run deps:check            # Syncpack manifest policy
+pnpm run format:check          # Prettier — the single formatting authority
 pnpm run check:workspace       # taxonomy + dependency direction
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 

@@ -27,7 +27,35 @@ the single admitted inference boundary.
 | [`events/`](events/) | Run event and evidence contracts |
 | [`testing/`](testing/) | Shared test helpers and fixtures |
 | [`eslint-config/`](eslint-config/) | Shared ESLint flat configuration |
-| [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations |
+| [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations — `base`, `library`, `service`, `application`, `test` |
+
+## One governed tooling surface
+
+Every TypeScript member consumes the same three packages, by **export path**
+rather than relative traversal, so there is no copied configuration to drift:
+
+```jsonc
+// tsconfig.json        — lint + typecheck project (src AND tests, never emits)
+{ "extends": "@secure-home/tsconfig/test" }
+// tsconfig.build.json  — emit project (src only)
+{ "extends": "@secure-home/tsconfig/library" }
+```
+
+```js
+// eslint.config.js
+import config from '@secure-home/eslint-config/library'
+export default config
+```
+
+```ts
+// vitest.config.ts
+import { definePackageConfig } from '@secure-home/testing/vitest'
+export default definePackageConfig()
+```
+
+The full build template, every strictness decision, and the two documented
+consequences are in [`tsconfig/README.md`](tsconfig/README.md).
+**Formatting is Prettier only** — see [`eslint-config/README.md`](eslint-config/README.md).
 
 > **Every package except `eslint-config` and `tsconfig` is an empty boundary.**
 > They exist so the workspace, dependency direction, and CI target selection are

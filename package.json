@@ -18,11 +18,14 @@
     "deps:check": "syncpack lint",
     "deps:fix": "syncpack fix",
     "deps:format": "syncpack format",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
+    "prettier": "catalog:",
     "syncpack": "catalog:"
   }
 }

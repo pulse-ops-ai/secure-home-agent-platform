@@ -7,20 +7,40 @@
   "type": "module",
   "main": "index.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./base": "./base.js",
+    "./node": "./node.js",
+    "./library": "./library.js",
+    "./service": "./service.js",
+    "./application": "./application.js",
+    "./test": "./test.js"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "base.js",
+    "node.js",
+    "library.js",
+    "service.js",
+    "application.js",
+    "test.js"
   ],
   "scripts": {
-    "lint": "eslint index.js",
-    "typecheck": "node -e \"console.log('no typecheck: JavaScript config package, validated by lint')\"",
-    "test": "node -e \"console.log('no tests: configuration is validated by consumers running lint')\"",
-    "build": "node -e \"console.log('no build: config-only package')\""
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node -e \"console.log('no build: config-only package, published as-is')\""
   },
   "dependencies": {
     "@eslint/js": "catalog:",
     "eslint": "catalog:",
+    "globals": "catalog:",
     "typescript-eslint": "catalog:"
+  },
+  "devDependencies": {
+    "@secure-home/testing": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

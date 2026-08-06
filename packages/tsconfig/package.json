@@ -4,15 +4,31 @@
   "private": true,
   "description": "Shared TypeScript compiler configurations for the workspace.",
   "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./base": "./base.json",
+    "./library": "./library.json",
+    "./service": "./service.json",
+    "./application": "./application.json",
+    "./test": "./test.json"
+  },
   "files": [
     "base.json",
     "library.json",
-    "service.json"
+    "service.json",
+    "application.json",
+    "test.json"
   ],
   "scripts": {
-    "lint": "node -e \"console.log('no lint: JSON-only package; configs are validated by typecheck and by consumers compiling')\"",
-    "typecheck": "node -e \"['base.json','library.json','service.json'].forEach(f=>JSON.parse(require('node:fs').readFileSync(f,'utf8')))\"",
-    "test": "node -e \"console.log('no tests: config-only package, validated by typecheck')\"",
-    "build": "node -e \"console.log('no build: config-only package')\""
+    "lint": "node -e \"console.log('no lint: JSON-only package; validated by test')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node -e \"console.log('no build: config-only package, published as-is')\""
+  },
+  "devDependencies": {
+    "@secure-home/testing": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

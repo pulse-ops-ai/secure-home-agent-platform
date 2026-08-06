@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Test sources. Type-checked but never emitted — tests are not build output.",
+    "",
+    "Intended for a member's tsconfig.test.json, so production `include` stays",
+    "narrow and test files never reach dist/."
+  ],
+  "extends": "./base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["${configDir}/src", "${configDir}/tests"]
+}

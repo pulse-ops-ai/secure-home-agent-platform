@@ -1,9 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": "Reusable libraries under packages/. Emits declarations for consumers.",
   "extends": "./base.json",
   "compilerOptions": {
     "rootDir": "${configDir}/src",
     "outDir": "${configDir}/dist",
     "composite": false
-  }
+  },
+  "include": ["${configDir}/src"]
 }

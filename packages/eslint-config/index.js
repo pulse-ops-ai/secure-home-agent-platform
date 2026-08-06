@@ -1,23 +1,15 @@
-// Shared ESLint flat configuration.
+// Aggregate entry point.
 //
-// Deliberately small. It enforces correctness rules that apply to every
-// package; it does NOT enforce architectural import direction — that needs a
-// dependency-graph rule and arrives with the packages that have real imports
-// (ADR-0012 §15). Syncpack does not enforce it either.
+// Prefer a role-specific export — `@secure-home/eslint-config/library`,
+// `/service`, `/application`, `/test` — so a package gets the rules that match
+// what it is. This default is the library configuration, which is the strictest
+// role and the safe fallback.
 
-import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
+export { base, ignores, configFileOverrides } from './base.js'
+export { node } from './node.js'
+export { library } from './library.js'
+export { service } from './service.js'
+export { application } from './application.js'
+export { test } from './test.js'
 
-export default tseslint.config(
-  {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
-  },
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
-  {
-    rules: {
-      // A boundary package may legitimately export nothing yet.
-      '@typescript-eslint/no-empty-object-type': 'off',
-    },
-  },
-)
+export { library as default } from './library.js'

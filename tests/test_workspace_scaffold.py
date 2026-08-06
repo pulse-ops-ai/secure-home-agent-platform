@@ -13,10 +13,13 @@ they can run before any toolchain is installed.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tomllib
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -351,3 +354,166 @@ def test_aggregate_check_uses_a_locked_python_sync() -> None:
     for line in check_sh.splitlines():
         if "uv sync" in line and not line.strip().startswith("#"):
             assert "--locked" in line, f"unlocked uv sync in check.sh: {line.strip()}"
+
+
+# --- regression: extended dependency-boundary enforcement (#25) --------------
+
+
+def _with_dependency(package: str, field: str, dep: str, spec: str) -> tuple[Path, str]:
+    """Temporarily add a dependency to a manifest, then restore it."""
+    manifest = REPO_ROOT / package / "package.json"
+    original = manifest.read_text()
+    pkg = json.loads(original)
+    pkg.setdefault(field, {})[dep] = spec
+    manifest.write_text(json.dumps(pkg, indent=2) + "\n")
+    return manifest, original
+
+
+def test_a_test_only_package_cannot_be_a_production_dependency() -> None:
+    """Test helpers must not ship inside a running service."""
+    manifest, original = _with_dependency(
+        "packages/contracts", "dependencies", "@secure-home/testing", "workspace:*"
+    )
+    try:
+        result = _run_workspace_check(REPO_ROOT)
+        assert result.returncode != 0
+        assert "test-only" in result.stdout + result.stderr
+    finally:
+        manifest.write_text(original)
+
+
+def test_a_framework_cannot_enter_a_contract_shaped_package() -> None:
+    """`contracts` describes shapes; a framework there couples every consumer."""
+    for dep in ("@nestjs/common", "fastify", "next", "react"):
+        manifest, original = _with_dependency("packages/contracts", "dependencies", dep, "catalog:")
+        try:
+            result = _run_workspace_check(REPO_ROOT)
+            assert result.returncode != 0, f"{dep} was allowed into contracts"
+            assert "framework-neutral" in result.stdout + result.stderr
+        finally:
+            manifest.write_text(original)
+
+
+def test_devdependencies_do_not_create_an_architectural_edge() -> None:
+    """Build tooling is not a runtime edge.
+
+    Every package devDepends on `@secure-home/testing` (an outer layer). Treating
+    that as an architectural violation would make the layer map unusable while
+    preventing nothing, because a devDependency is absent from a deployed
+    artifact.
+    """
+    manifest, original = _with_dependency(
+        "packages/contracts", "devDependencies", "@secure-home/testing", "workspace:*"
+    )
+    try:
+        assert _run_workspace_check(REPO_ROOT).returncode == 0
+    finally:
+        manifest.write_text(original)
+
+
+# --- regression: the TypeScript / typescript-eslint pairing ------------------
+
+
+def test_catalog_typescript_is_supported_by_typescript_eslint() -> None:
+    """TypeScript must stay inside typescript-eslint's supported range.
+
+    PR #44 pinned TypeScript 7.0.2 while typescript-eslint supports
+    `>=4.8.4 <6.1.0`. Type-aware linting then threw — or passed — depending on
+    which TypeScript copy resolved first, which is worse than failing outright.
+    """
+    workspace = (REPO_ROOT / "pnpm-workspace.yaml").read_text()
+    match = re.search(r"^\s*typescript:\s*(\S+)\s*$", workspace, re.MULTILINE)
+    assert match, "no typescript entry in the pnpm catalog"
+    major, minor = (int(p) for p in match.group(1).split(".")[:2])
+
+    supported = REPO_ROOT.glob(
+        "node_modules/.pnpm/@typescript-eslint+typescript-estree@*/node_modules/"
+        "@typescript-eslint/typescript-estree/dist/parseSettings/warnAboutTSVersion.js"
+    )
+    ranges = [
+        m.group(1) for f in supported if (m := re.search(r"'>=[\d.]+ <([\d.]+)'", f.read_text()))
+    ]
+    if not ranges:
+        pytest.skip("typescript-eslint not installed; run pnpm install")
+
+    upper = min(tuple(int(p) for p in r.split(".")[:2]) for r in ranges)
+    assert (major, minor) < upper, (
+        f"catalog TypeScript {match.group(1)} is outside typescript-eslint's "
+        f"supported range (< {upper[0]}.{upper[1]}); type-aware linting will break"
+    )
+
+
+# --- shared tooling is consumed uniformly (#25) ------------------------------
+
+
+def test_every_member_extends_the_shared_tsconfig_by_package_path() -> None:
+    """No relative traversal, and no copied compiler options."""
+    problems: list[str] = []
+    for member in _pnpm_members():
+        for name in ("tsconfig.json", "tsconfig.build.json"):
+            path = member / name
+            if not path.is_file():
+                continue
+            cfg = json.loads(path.read_text())
+            extends = str(cfg.get("extends", ""))
+            rel = member.relative_to(REPO_ROOT)
+            if not extends.startswith("@secure-home/tsconfig/"):
+                problems.append(f"{rel}/{name}: extends {extends!r}")
+            if ".." in extends:
+                problems.append(f"{rel}/{name}: relative traversal in extends")
+    assert not problems, "members not using the shared tsconfig:\n  " + "\n  ".join(problems)
+
+
+def test_every_member_uses_the_shared_eslint_config() -> None:
+    """No member declares its own rules.
+
+    `packages/eslint-config` is exempt: it lints itself with the configuration
+    it exports, which it can only reference relatively — a package cannot import
+    itself by package name.
+    """
+    problems: list[str] = []
+    for member in _pnpm_members():
+        config = member / "eslint.config.js"
+        if not config.is_file():
+            continue
+        text = config.read_text()
+        rel = member.relative_to(REPO_ROOT)
+        if rel.name == "eslint-config":
+            assert "./index.js" in text, "the config package must lint itself with its own config"
+            continue
+        if "@secure-home/eslint-config" not in text:
+            problems.append(str(rel))
+    assert not problems, f"members not using the shared ESLint config: {problems}"
+
+
+def test_a_member_with_a_vitest_config_declares_the_test_dependencies() -> None:
+    """A config without its dependency fails only when someone runs the tests."""
+    problems: list[str] = []
+    for member in _pnpm_members():
+        if not (member / "vitest.config.ts").is_file():
+            continue
+        dev = json.loads((member / "package.json").read_text()).get("devDependencies", {})
+        rel = member.relative_to(REPO_ROOT)
+        for required in ("vitest", "@secure-home/testing"):
+            # packages/testing imports its own config directly.
+            if required == "@secure-home/testing" and rel.name == "testing":
+                continue
+            if required not in dev:
+                problems.append(f"{rel}: missing devDependency {required}")
+    assert not problems, "inconsistent test setup:\n  " + "\n  ".join(problems)
+
+
+def test_buildable_members_use_the_two_project_build_template() -> None:
+    """tsconfig.json lints src+tests; tsconfig.build.json emits src only."""
+    problems: list[str] = []
+    for member in _pnpm_members():
+        if not (member / "src").is_dir():
+            continue
+        rel = member.relative_to(REPO_ROOT)
+        if not (member / "tsconfig.build.json").is_file():
+            problems.append(f"{rel}: no tsconfig.build.json")
+            continue
+        scripts = json.loads((member / "package.json").read_text())["scripts"]
+        if scripts.get("build") != "tsc -p tsconfig.build.json":
+            problems.append(f"{rel}: build script is {scripts.get('build')!r}")
+    assert not problems, "members not on the build template:\n  " + "\n  ".join(problems)

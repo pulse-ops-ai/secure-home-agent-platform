@@ -17,7 +17,9 @@
  *      optionalDependencies;
  *   6. dependency direction points inward only (ADR-0012 §15), by an EXPLICIT
  *      per-package layer map rather than a per-directory one;
- *   7. TypeScript members extend the shared tsconfig.
+ *   7. TypeScript members extend the shared tsconfig;
+ *   8. test-only packages are never a production dependency;
+ *   9. no framework dependency enters a contract-shaped package.
  *
  * Node standard library only — no dependencies, so it runs before install.
  *
@@ -84,10 +86,50 @@ const LAYERS = {
 /** Deployables sit outside every package layer, and nothing may depend on them. */
 const DEPLOYABLE_LAYER = 99
 
+/**
+ * Test-only packages. A production dependency on one would ship test helpers
+ * into a running service, so they may appear in devDependencies only.
+ */
+const TEST_ONLY_PACKAGES = new Set(['@secure-home/testing'])
+
+/**
+ * Contract-shaped packages (layers 1–3) describe shapes and carry no runtime.
+ * A framework dependency here would make the contracts unusable outside the
+ * framework — the exact coupling ADR-0003's neutrality rule forbids, and the
+ * reason `contracts` is the innermost layer at all.
+ */
+const CONTRACT_LAYER_MAX = 3
+const FRAMEWORK_DEPENDENCIES = [
+  /^@nestjs\//,
+  /^fastify$/,
+  /^@fastify\//,
+  /^next$/,
+  /^react(-dom)?$/,
+  /^express$/,
+  /^@nuxt\//,
+  /^vue$/,
+  /^svelte$/,
+]
+
 const REQUIRED_SCRIPTS = ['lint', 'typecheck', 'test', 'build']
 
 /** Where internal and external dependency declarations must be checked. */
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+
+/**
+ * Fields that create a RUNTIME edge, and therefore an architectural one.
+ *
+ * devDependencies are excluded deliberately: they are build tooling, resolved
+ * at development time and absent from a published or deployed artifact, so they
+ * cannot create a runtime cycle or an outward runtime dependency. Every package
+ * devDepends on @secure-home/testing (layer 6) and @secure-home/eslint-config
+ * — treating those as architectural edges would make the layer map unusable
+ * while preventing nothing.
+ *
+ * The production restriction on test-only packages is enforced separately, so a
+ * test helper still cannot become a runtime dependency.
+ */
+const RUNTIME_DEP_FIELDS = new Set(['dependencies', 'peerDependencies', 'optionalDependencies'])
 
 /**
  * External peer dependencies are ranges by nature, so they are exempt from the
@@ -194,14 +236,30 @@ for (const m of members) {
           fail(`${m.rel}: ${field}.${dep} is not placed in the dependency layer map`)
           continue
         }
-        if (depLayer >= ownLayer) {
+        if (RUNTIME_DEP_FIELDS.has(field) && depLayer >= ownLayer) {
           fail(
-            `${m.rel} (layer ${ownLayer}) → ${dep} (layer ${depLayer}): ` +
+            `${m.rel} (layer ${ownLayer}) → ${dep} (layer ${depLayer}) via ${field}: ` +
               'direction is inward only, and equal layers are how cycles start',
           )
         }
       } else if (!CATALOG_EXEMPT_FIELDS.has(field) && spec !== 'catalog:') {
         fail(`${m.rel}: ${field}.${dep} must be "catalog:" (got ${JSON.stringify(spec)})`)
+      }
+
+      // A test-only package must never be a production dependency.
+      if (TEST_ONLY_PACKAGES.has(dep) && field !== 'devDependencies') {
+        fail(
+          `${m.rel}: ${field}.${dep} is test-only — it belongs in devDependencies, ` +
+            'never in a production dependency field',
+        )
+      }
+
+      // A contract-shaped package must stay framework-free.
+      if (ownLayer <= CONTRACT_LAYER_MAX && FRAMEWORK_DEPENDENCIES.some((re) => re.test(dep))) {
+        fail(
+          `${m.rel} (layer ${ownLayer}) depends on the framework package "${dep}" — ` +
+            'contract-shaped packages describe shapes and must stay framework-neutral',
+        )
       }
     }
   }

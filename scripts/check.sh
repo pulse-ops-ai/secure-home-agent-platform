@@ -62,6 +62,7 @@ run "secret scan"        bash scripts/scan-secrets.sh
 if command -v pnpm >/dev/null 2>&1; then
   run "typescript: lockfile"  pnpm install --frozen-lockfile
   run "typescript: manifests" pnpm run deps:check
+  run "typescript: format"    pnpm run format:check
   run "typescript: workspace" pnpm run check:workspace
   run "typescript: lint"      pnpm lint
   run "typescript: types"     pnpm typecheck

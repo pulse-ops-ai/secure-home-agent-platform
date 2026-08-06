@@ -42,8 +42,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "24.18.1"
-  UV_VERSION: "0.12.1"
+  NODE_VERSION: '24.18.1'
+  UV_VERSION: '0.12.1'
 
 jobs:
   # ==========================================================================
@@ -79,6 +79,11 @@ jobs:
 
       - name: Dependency manifest policy (Syncpack)
         run: pnpm run deps:check
+
+      # Check-only. CI never rewrites a file — a job that reformats reports on
+      # something the repository does not contain.
+      - name: Formatting (Prettier)
+        run: pnpm run format:check
 
       - name: Workspace taxonomy and dependency direction
         run: pnpm run check:workspace
