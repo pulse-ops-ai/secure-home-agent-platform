@@ -391,28 +391,47 @@ a transaction boundary that physical devices cannot honour.
 │   │                      identity flow · routing · degraded mode · open questions
 │   ├── decisions/         ADR-0001 … ADR-0012  (all Accepted, immutable)
 │   └── operations/        runbooks — Pi bootstrap
-├── services/              Pi control plane (L6/L7) — Python, uv workspace
-│   ├── pi-api/            household surface · the governed enforcement point
-│   ├── runner-control/    the runner substrate
-│   ├── policy-engine/     deterministic safety policy — no model
-│   ├── action-gateway/    sole holder of Home Assistant credentials
-│   └── automation-service/ persisted, expiring automations
+├── services/              deployable backend processes — TypeScript
+│   ├── control-plane/     household API · authorization · safety policy ·
+│   │                      action mediation · automations (Nest modules, ONE process)
+│   ├── runner-control/    the runner substrate — separate process
+│   └── workers/           specialist workers, off the request path
+│       └── python-inference/  the ONLY admitted Python boundary (uv)
+├── apps/                  human-facing applications only
+│   └── web/               household web application
+├── packages/              reusable libraries, no runtime identity
+│   ├── contracts/         authored Zod contract source
+│   ├── api-contracts/     operation contracts · operation catalog
+│   ├── query-model/       projection config · validated query AST
+│   ├── worker-base/       standard worker runtime contract
+│   ├── logging/ observability/ errors/ events/ testing/
+│   └── eslint-config/ tsconfig/    shared tooling
 ├── agents/                household agents (NOT coding agents)
 │   ├── implementations/   domain code — grants no authority
 │   └── adapters/          coding/{claude-code,copilot-cli,codex}
 │                          frameworks/{custom-loop,pydantic-ai,langgraph}
 ├── profiles/              execution profiles — WHERE AUTHORITY IS GRANTED
-├── schemas/               canonical contracts: profile · run · action · automation
-├── packages/              shared libraries — python/ (uv) · typescript/ (pnpm)
-├── apps/web/              household web application (placeholder)
+├── schemas/               generated contracts: profile · run · action · automation
 ├── knowledge/             OKF-oriented knowledge bundles — experimental
 ├── deploy/                images · compose · traefik · tailscale (no runtime)
 ├── tests/                 profile · framework · policy-scenario conformance
 └── scripts/               validate-scaffold.sh · check.sh
 ```
 
-Two workspaces: **`uv`** for Python (`services/*`, `packages/python/*`) and
-**`pnpm`** for TypeScript (`apps/*`, `packages/typescript/*`).
+**Taxonomy** — role, not language ([ADR-0012 §5](docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)):
+`services/` deployable backend processes · `apps/` human-facing applications ·
+`packages/` reusable libraries with no runtime identity · `agents/` agent
+implementations and profiles.
+
+Two workspaces: **`pnpm`** for TypeScript — the primary stack, covering
+`services/*`, `services/workers/*`, `apps/*`, `packages/*` — and **`uv`**
+retained **only** for `services/workers/python-inference`, the single admitted
+Python boundary.
+
+> **Every package boundary is empty on purpose.** They exist so the workspace,
+> dependency direction, and CI target selection are real and testable. The
+> NestJS shells (#26, #27), Zod contracts (#28), Next.js app, and `worker-base`
+> implementation are their own issues.
 
 ## How to navigate this repository
 
@@ -436,9 +455,20 @@ crossing an architectural contract.
 
 ```sh
 bash scripts/check.sh          # everything; reports skipped checks explicitly
+
+# structure and governance — no toolchain required
 bash scripts/validate-scaffold.sh
-uv sync --all-packages && uv run ruff check . && uv run mypy && uv run pytest
-pnpm install --lockfile-only && pnpm -r --if-present run check
+bash scripts/scan-secrets.sh
+
+# TypeScript — the primary stack
+pnpm install --frozen-lockfile
+pnpm run deps:check            # Syncpack manifest policy
+pnpm run check:workspace       # taxonomy + dependency direction
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+
+# Python — the admitted inference boundary only
+uv sync --all-packages --locked
+uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
 Toolchain setup for a fresh Pi: [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md).

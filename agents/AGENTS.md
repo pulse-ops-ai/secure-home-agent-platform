@@ -34,7 +34,7 @@ and act on the house. You, the coding agent editing these files, are governed by
 - **One runtime per derived image.** A multi-provider image is prohibited
   ([ADR-0011](../docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md)).
 - **Agents propose; they do not decide.** Safety bounds come from
-  [`../services/policy-engine/`](../services/policy-engine/), never from agent
+  [`../services/control-plane/`](../services/control-plane/), never from agent
   output or an agent prompt.
 - **Autonomous runs have no `actor`, explicitly** — a declared value, never a
   missing field.

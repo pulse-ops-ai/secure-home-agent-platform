@@ -2,70 +2,34 @@
 
 The household web application.
 
-> **Status: intentionally not scaffolded.** This directory contains only this
-> README. There is no `package.json`, so it is not yet a `pnpm` workspace member.
+> **Status: package boundary only.** No Next.js scaffold, no route, no page, no BFF — that needs its own issue. This directory previously had no manifest at all; it is now a discoverable workspace member that compiles.
 
-## Why it is not scaffolded yet
+## What belongs here
 
-Scaffolding a Next.js application now would bake in decisions that are still
-open — most importantly **which service is the L6 envelope issuer**
-([U3](../../docs/architecture/unresolved-decisions.md#u3)). The application's BFF
-is a candidate for that role, so its shape depends on an answer that does not
-exist. Generating a framework skeleton first would make that decision by
-accident.
-
-## Planned shape
-
-- **Next.js**, authenticating against **Keycloak**
-  ([ADR-0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-  **`Accepted`** 2026-08-06).
-- Consumes the **same Zod contracts** the control plane enforces, from the shared
-  contracts package — no re-declared types, no hand-written client models.
-- Filter and sort controls are driven by the module projection configs or the
+- Routes, pages, layouts, and the BFF, once scaffolded.
+- Consuming the **same Zod contracts** the control plane enforces, from
+  [`packages/contracts`](../../packages/contracts/) — no re-declared types, no
+  hand-written client models.
+- Filter and sort controls driven by the module projection configs or the
   metadata routes, so the UI cannot offer a query the API would reject.
-- A **BFF** reaching the Pi API over the tailnet via Traefik.
-- Reachable on both ingress paths: locally when in-home, through the shared
-  platform edge when remote — receiving **identical decisions** on both.
-- Explicit **degraded-state** presentation.
 
-## What will belong here
+## What does not belong here
 
-- Routes, pages, and layouts.
-- The BFF: session handling, token exchange, calls to the household API.
-- Application-specific components.
-
-## What will not belong here
-
-- **Shared UI primitives** — [`../../packages/typescript/ui/`](../../packages/typescript/ui/).
-- **Shared types** — [`../../packages/typescript/contracts/`](../../packages/typescript/contracts/).
-- **Authorization decisions.** The UI renders decisions; it never makes them.
-- **Home Assistant access.** Only
-  [`../../services/action-gateway/`](../../services/action-gateway/).
+- **Authorization decisions.** The UI renders decisions; it never makes one.
+  Hiding a control is not authorization.
+- **Home Assistant access** of any kind.
 - **Secrets in client code.**
-
-## Boundary rules
-
-- **Hiding a control is not authorization.** Every action is authorized
-  server-side.
-- If the BFF becomes the L6 envelope issuer, it holds a signing key and becomes
-  a high-value target — that must be a deliberate, reviewed decision, not a
-  side effect of where the code happened to go.
-- **Degraded state must be visible**, with the unavailable dependency named
-  ([ADR-0009](../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)).
-- Sensitive controls must be visually distinct from routine ones.
-
-## Blocked on
-
-- [U3](../../docs/architecture/unresolved-decisions.md#u3) — which service issues
-  the L6 envelope. Still open;
-  [ADR-0002](../../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)
-  being accepted did not close it.
+- **Backend process behaviour.** This is the only human-facing application; the
+  deployable backends are [`../../services/`](../../services/).
 
 ## Governed by
 
-[`../README.md`](../README.md) → [`../../AGENTS.md`](../../AGENTS.md).
+[`../../AGENTS.md`](../../AGENTS.md) · ADRs [0009](../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md), [0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
 
 ## Validation
 
-Once a manifest exists: `pnpm --filter <name> run check`, then build and type
-checks.
+```sh
+pnpm --filter @secure-home/web run lint
+pnpm --filter @secure-home/web run typecheck
+pnpm --filter @secure-home/web run build
+```

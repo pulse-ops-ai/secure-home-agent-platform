@@ -58,7 +58,7 @@ written in** ([ADR-0012 §5](../../docs/decisions/ADR-0012-adopt-typescript-nest
 |---|---|---|
 | `services/**` | deployable backend processes — `control-plane`, `runner-control`, `workers/*` | **TypeScript** (NestJS on Fastify). **Python only** inside `services/workers/*`, for an isolated specialist inference worker |
 | `apps/**` | human-facing applications — `web` | TypeScript (Next.js) |
-| `packages/**` | reusable libraries, incl. `contracts` and `worker-base` | TypeScript; `packages/python/**` only for inference-worker support |
+| `packages/**` | reusable libraries, incl. `contracts`, `worker-base`, `tsconfig`, `eslint-config` | **TypeScript only** — Python lives in `services/workers/python-inference` |
 | `agents/**` | agent implementations and adapters | TypeScript or Python, per the adapter |
 | `schemas/**` | generated contract artifacts | generated from Zod — **do not hand-edit** |
 | `profiles/**`, `tests/**` | execution profiles; conformance and scenario tests | — |

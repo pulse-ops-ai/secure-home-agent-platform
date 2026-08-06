@@ -74,7 +74,7 @@ requested → authorized → policy-approved → dispatched → acknowledged
 - Terminal states are **observed**, never inferred from a successful dispatch
   response.
 
-See [`../../services/action-gateway/README.md`](../../services/action-gateway/README.md).
+See [`../../services/control-plane/README.md`](../../services/control-plane/README.md).
 
 ## What belongs here
 
@@ -85,9 +85,9 @@ See [`../../services/action-gateway/README.md`](../../services/action-gateway/RE
 
 ## What does not belong here
 
-- **The safety envelope itself** — [`../../services/policy-engine/`](../../services/policy-engine/).
+- **The safety envelope itself** — [`../../services/control-plane/`](../../services/control-plane/).
   This schema describes the *request*; the envelope is the *rule*.
-- **Device-command mapping** — [`../../services/action-gateway/`](../../services/action-gateway/).
+- **Device-command mapping** — [`../../services/control-plane/`](../../services/control-plane/).
 - **Authorization model** — that is relationship data, not action data.
 
 ## Governed by

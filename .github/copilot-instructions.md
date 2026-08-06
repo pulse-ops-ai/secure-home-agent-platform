@@ -80,7 +80,7 @@ Prioritize findings that affect, in order:
    ([`ADR-0009`](../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)).
 6. **Physical action semantics** — a claim of atomicity across a device, a
    missing `indeterminate` terminal state, or an automatic inverse command
-   ([`services/action-gateway/README.md`](../services/action-gateway/README.md)).
+   ([`services/control-plane/README.md`](../services/control-plane/README.md)).
 7. **Provider neutrality** — a provider or framework name in a structural
    position in a schema or platform contract
    ([`ADR-0003`](../docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md),

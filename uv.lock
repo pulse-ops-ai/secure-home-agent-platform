@@ -8,14 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "secure-home-action-gateway",
-    "secure-home-automation-service",
-    "secure-home-contracts",
-    "secure-home-events",
-    "secure-home-pi-api",
-    "secure-home-policy-engine",
-    "secure-home-runner-control",
-    "secure-home-tools",
+    "secure-home-python-inference",
 ]
 
 [manifest.dependency-groups]
@@ -258,44 +251,9 @@ wheels = [
 ]
 
 [[package]]
-name = "secure-home-action-gateway"
+name = "secure-home-python-inference"
 version = "0.0.0"
-source = { editable = "services/action-gateway" }
-
-[[package]]
-name = "secure-home-automation-service"
-version = "0.0.0"
-source = { editable = "services/automation-service" }
-
-[[package]]
-name = "secure-home-contracts"
-version = "0.0.0"
-source = { editable = "packages/python/contracts" }
-
-[[package]]
-name = "secure-home-events"
-version = "0.0.0"
-source = { editable = "packages/python/events" }
-
-[[package]]
-name = "secure-home-pi-api"
-version = "0.0.0"
-source = { editable = "services/pi-api" }
-
-[[package]]
-name = "secure-home-policy-engine"
-version = "0.0.0"
-source = { editable = "services/policy-engine" }
-
-[[package]]
-name = "secure-home-runner-control"
-version = "0.0.0"
-source = { editable = "services/runner-control" }
-
-[[package]]
-name = "secure-home-tools"
-version = "0.0.0"
-source = { editable = "packages/python/tools" }
+source = { editable = "services/workers/python-inference" }
 
 [[package]]
 name = "typing-extensions"

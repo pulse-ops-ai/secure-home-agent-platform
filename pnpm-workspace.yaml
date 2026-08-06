@@ -3,15 +3,54 @@
 # The pnpm version is pinned by "packageManager" in package.json and provisioned
 # by Corepack. Do not install pnpm globally.
 #
-# Governed by AGENTS.md and docs/decisions/INDEX.md.
+# Governed by ADR-0012 (accepted) and AGENTS.md.
 
+# ---------------------------------------------------------------------------
+# Workspace membership — canonical taxonomy (ADR-0012 §5)
+#
+# Globs are one level deep on purpose. A recursive `**` glob would sweep in
+# generated output (dist/, node_modules/), test fixtures, and nested example
+# directories, so a package would join the workspace by accident rather than by
+# decision.
+# ---------------------------------------------------------------------------
 packages:
-  # Applications. apps/web/ is a documented placeholder with no package.json
-  # yet, so this glob currently matches no manifest — deliberately. See
-  # apps/web/README.md for why the app is not scaffolded.
+  # Deployable backend processes.
+  - "services/*"
+  # Specialist workers. Python inference workers live here too, but they are uv
+  # members, not pnpm members — this glob only picks up TypeScript workers.
+  - "services/workers/*"
+  # Human-facing applications.
   - "apps/*"
-  # Shared TypeScript libraries.
-  - "packages/typescript/*"
+  # Reusable libraries with no runtime identity.
+  - "packages/*"
+  # Agent implementations, only where an agent is itself a pnpm package.
+  - "agents/*"
+
+# ---------------------------------------------------------------------------
+# Catalog — the canonical declaration point for shared external versions
+# (ADR-0012 §19).
+#
+# EVERY external dependency goes through the catalog, with no exceptions: one
+# rule is easier to enforce and to remember than "shared ones do". A package
+# references `catalog:`; the version lives here and nowhere else, so "which
+# version of X does this repository use?" has exactly one answer.
+#
+# Syncpack enforces that packages reference the catalog rather than restating a
+# version. The lockfile records what actually resolved.
+#
+# Only what the workspace foundation and its validation genuinely need is here.
+# NestJS, Fastify, Next.js, Zod, and Winston are named by ADR-0012 but belong to
+# the issues that implement them (#26, #27, #28, and the web-shell issue).
+# ---------------------------------------------------------------------------
+catalog:
+  # Type checking and build.
+  typescript: 7.0.2
+  # Linting.
+  eslint: 10.8.0
+  "@eslint/js": 10.0.1
+  typescript-eslint: 8.66.0
+  # Manifest governance.
+  syncpack: 15.3.2
 
 # No dependency in this workspace is permitted to run an install script.
 # When one legitimately needs to, it is added here by an explicit reviewed

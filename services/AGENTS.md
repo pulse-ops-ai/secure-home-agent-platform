@@ -78,13 +78,18 @@ path.
 ## Adding a service
 
 1. It needs an accepted ADR **and** an authorizing task contract. Say which.
-2. Create the directory with a **`package.json`** (private, `workspace:*` for
-   internal deps, versions from the catalog) and a `README.md` stating what it
-   owns, what it does **not** own, which layer it is, and its failure mode.
-3. The `pnpm-workspace.yaml` glob picks it up. Add it to the catalog and Syncpack
-   policy if it introduces a shared dependency.
-4. Add it to [`README.md`](README.md).
-5. Run the validation below.
+2. Create the directory with a **`package.json`** (private, `@secure-home/*`,
+   `workspace:*` for internal deps, `catalog:` for external ones), a
+   `tsconfig.json` extending `@secure-home/tsconfig/service.json`, an
+   `eslint.config.js`, and a `README.md` stating what it owns, what it does
+   **not** own, which layer it is, and its failure mode.
+3. Declare the four standard scripts — `lint`, `typecheck`, `test`, `build` — so
+   the root commands and CI target selection reach it.
+4. The `pnpm-workspace.yaml` glob picks it up. Add any new shared dependency
+   version to the **catalog** in `pnpm-workspace.yaml`, never to the manifest.
+5. Add it to [`README.md`](README.md).
+6. Run the validation below, including `pnpm run check:workspace`, which
+   verifies taxonomy, naming, scripts, and dependency direction.
 
 **A worker** additionally builds on
 [`packages/worker-base`](../packages/README.md) rather than implementing its own
@@ -103,10 +108,12 @@ bash scripts/scan-secrets.sh
 
 # TypeScript — the primary stack for services
 pnpm install --frozen-lockfile
-pnpm -r --if-present run check
+pnpm run deps:check          # Syncpack manifest policy
+pnpm run check:workspace     # taxonomy + dependency direction
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
-# Python — only if the change touches an inference worker
-uv sync --all-packages
+# Python — only if the change touches the inference boundary
+uv sync --all-packages --locked
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 

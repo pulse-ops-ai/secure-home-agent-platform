@@ -2,8 +2,8 @@
 #
 # check.sh — the aggregate check.
 #
-# Runs everything: scaffold structure, the secret scan, the Python workspace,
-# and the TypeScript workspace. Its defining property is that **a skipped check
+# Runs everything: scaffold structure, the secret scan, the TypeScript
+# workspace (the primary stack), and the Python inference boundary. Its defining property is that **a skipped check
 # is reported, never silent** — a check that quietly disappears is how a broken
 # repository looks healthy.
 #
@@ -57,27 +57,35 @@ skip() {
 run "scaffold structure" bash scripts/validate-scaffold.sh
 run "secret scan"        bash scripts/scan-secrets.sh
 
-# --- Python workspace -------------------------------------------------------
+# --- TypeScript workspace (primary stack) -----------------------------------
+
+if command -v pnpm >/dev/null 2>&1; then
+  run "typescript: lockfile"  pnpm install --frozen-lockfile
+  run "typescript: manifests" pnpm run deps:check
+  run "typescript: workspace" pnpm run check:workspace
+  run "typescript: lint"      pnpm lint
+  run "typescript: types"     pnpm typecheck
+  run "typescript: tests"     pnpm test
+  run "typescript: build"     pnpm build
+elif command -v corepack >/dev/null 2>&1; then
+  skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
+else
+  skip "typescript workspace" "node/corepack not installed (see docs/operations/pi-bootstrap.md)"
+fi
+
+# --- Python workspace (admitted inference boundary only) --------------------
 
 if command -v uv >/dev/null 2>&1; then
-  run "python: sync"          uv sync --all-packages
+  # --locked fails on a stale uv.lock rather than repairing it. Without it the
+  # aggregate check could fix drift and then report success — reporting on a
+  # repository state that does not exist.
+  run "python: sync"          uv sync --all-packages --locked
   run "python: lint"          uv run ruff check .
   run "python: format"        uv run ruff format --check .
   run "python: types"         uv run mypy
   run "python: tests"         uv run pytest
 else
   skip "python workspace" "uv is not installed (see docs/operations/pi-bootstrap.md)"
-fi
-
-# --- TypeScript workspace ---------------------------------------------------
-
-if command -v pnpm >/dev/null 2>&1; then
-  run "typescript: lockfile"  pnpm install --lockfile-only
-  run "typescript: packages"  pnpm -r --if-present run check
-elif command -v corepack >/dev/null 2>&1; then
-  skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
-else
-  skip "typescript workspace" "node/corepack not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- summary ----------------------------------------------------------------

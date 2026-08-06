@@ -54,7 +54,7 @@ After changing files, run what your change touched:
 |---|---|
 | any file added/moved/removed | `bash scripts/validate-scaffold.sh` |
 | TypeScript anywhere — `services/`, `apps/`, `packages/` | `pnpm install --frozen-lockfile && pnpm -r --if-present run check` |
-| Python — only inference workers under `services/workers/` or `packages/python/` | `uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
+| Python — only the admitted inference boundary under `services/workers/` | `uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
 | workspace manifests, catalog, or Syncpack policy | both of the above |
 | documentation or ADRs | `bash scripts/validate-scaffold.sh` |
 | anything substantial | `bash scripts/check.sh` |

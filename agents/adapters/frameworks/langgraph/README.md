@@ -30,7 +30,7 @@ one framework, pinned.
 - **Model identifiers.** A profile field, not an adapter constant.
 - **Sandbox construction, mounts, network policy, limits.**
 - **Agent logic** — [`../../../implementations/`](../../../implementations/).
-- **Tool definitions** — [`../../../../packages/python/tools/`](../../../../packages/python/tools/).
+- **Tool definitions** — the governed tool-surface package (not yet created).
 - **Graph state persistence outside the run's evidence contract.** Hidden
   durable state would escape the run record.
 

@@ -49,7 +49,7 @@ field.
 - **Credentials or secrets.** A profile *names* the credential a run needs; it
   never contains one.
 - **Image definitions** — [`../deploy/images/`](../deploy/images/).
-- **Automations** — [`../services/automation-service/`](../services/automation-service/).
+- **Automations** — [`../services/control-plane/`](../services/control-plane/).
   A profile says what a run *may* do; an automation says when runs *happen*, and
   is authorized separately.
 

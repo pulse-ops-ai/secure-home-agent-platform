@@ -100,11 +100,27 @@ the check silently.
 
 ### The merge gate
 
-[`.github/workflows/checks.yml`](.github/workflows/checks.yml) runs the portable
-part of the above on every pull request and on `main`: the scaffold validator,
-[`scripts/scan-secrets.sh`](scripts/scan-secrets.sh), the Python workspace (with
-`uv sync --locked`), and the TypeScript workspace (with
-`pnpm install --frozen-lockfile`).
+[`.github/workflows/checks.yml`](.github/workflows/checks.yml) implements the
+ADR-0012 §20 model on every pull request and on `main`:
+
+| Job | When | Runs |
+|---|---|---|
+| `repository governance` | **always** | scaffold validation · secret and binary scan · `--frozen-lockfile` · Syncpack · workspace taxonomy and dependency direction |
+| `affected-target calculation` | **always** | the tests for target selection itself |
+| `select affected targets` | always | computes targets from the **dependency graph** |
+| `typescript targets` | when affected | lint · typecheck · test · build, filtered to affected packages |
+| `python inference target` | when affected | ruff · format · mypy · pytest |
+
+**Governance jobs are never path-filtered.** They carry no `if:` condition and
+are marked `# GOVERNANCE-UNCONDITIONAL`; `tests/test_affected_targets.py`
+asserts that. A bug in target selection can therefore never skip them, and a
+skipped target job still reports a conclusion so a required check cannot vanish.
+
+Target selection follows the **dependency graph**: a change to
+`packages/contracts` runs every dependent. Root configuration —
+`pnpm-workspace.yaml`, `package.json`, the lockfile, Syncpack config, shared
+`tsconfig` or ESLint packages, the workflow, the classifier — fans out to
+everything.
 
 Two properties of that gate are deliberate and must not be eroded:
 

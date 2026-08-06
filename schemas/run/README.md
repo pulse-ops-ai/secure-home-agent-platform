@@ -42,7 +42,7 @@ Per [ADR-0006](../../docs/decisions/ADR-0006-separate-agent-implementation-profi
 
 ## What does not belong here
 
-- **The event and evidence contract** — [`../../packages/python/events/`](../../packages/python/events/).
+- **The event and evidence contract** — [`../../packages/events/`](../../packages/events/).
   This schema references the bundle; it does not define its internals.
 - **Storage or retention policy.**
 - **Run execution logic** — [`../../services/runner-control/`](../../services/runner-control/).

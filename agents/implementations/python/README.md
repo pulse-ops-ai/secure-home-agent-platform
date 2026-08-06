@@ -17,14 +17,18 @@ and which capability classes its profile must grant.
 - **Capability grants** — [`../../../profiles/`](../../../profiles/).
 - **Credentials, Home Assistant clients, database connections.**
 - **Adapters** — [`../../adapters/`](../../adapters/).
-- **Shared libraries** — [`../../../packages/python/`](../../../packages/python/).
-- **Safety rules** — [`../../../services/policy-engine/`](../../../services/policy-engine/).
+- **Shared libraries** — [`../../../packages/`](../../../packages/).
+- **Anything outside the admitted Python boundary.** Python lives only in
+  [`../../../services/workers/python-inference/`](../../../services/workers/python-inference/)
+  ([ADR-0012 §6](../../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md));
+  a Python *agent* would need its own admission.
+- **Safety rules** — [`../../../services/control-plane/`](../../../services/control-plane/).
 
 ## Boundary rules
 
 - Runs in an untrusted sandbox; re-enters the platform as a client.
 - Acts only through the governed tool surface
-  ([`../../../packages/python/tools/`](../../../packages/python/tools/)).
+  (the governed tool-surface package, not yet created).
 - Must handle a denied tool call as a normal outcome.
 - Adding an agent here does not make it runnable. It becomes runnable when a
   reviewed execution profile exists.

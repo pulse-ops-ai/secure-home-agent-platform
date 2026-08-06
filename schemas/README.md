@@ -43,7 +43,7 @@ objects — versioned, language-neutral, and the surface external consumers read
 - **The authoring source** — that is the TypeScript contracts package.
 - **Validation code** — that belongs to the service that validates.
 - **Actual profiles or automations** — [`../profiles/`](../profiles/),
-  [`../services/automation-service/`](../services/automation-service/).
+  [`../services/control-plane/`](../services/control-plane/).
 - **Provider or framework names in a structural position.** A provider name is an
   opaque **value**, never a key, a type, or a variant.
 

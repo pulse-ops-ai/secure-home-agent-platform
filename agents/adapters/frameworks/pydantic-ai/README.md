@@ -29,7 +29,7 @@ this one framework, pinned.
 - **Model identifiers.** A profile field, not an adapter constant.
 - **Sandbox construction, mounts, network policy, limits.**
 - **Agent logic** — [`../../../implementations/`](../../../implementations/).
-- **Tool definitions** — [`../../../../packages/python/tools/`](../../../../packages/python/tools/).
+- **Tool definitions** — the governed tool-surface package (not yet created).
   The framework's tool mechanism must be wired to the **governed** tool surface,
   never to an ad-hoc client.
 

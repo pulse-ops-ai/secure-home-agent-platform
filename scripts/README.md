@@ -3,7 +3,7 @@
 Repository tooling: validation and aggregate checks. Dependency-light by design.
 
 > **Naming note.** "Scripts" here means *developer and CI tooling*. Agent-callable
-> tools are [`../packages/python/tools/`](../packages/python/tools/) — a
+> tools are the governed tool-surface package, which does not exist yet — a
 > completely different thing.
 
 ## Contents
@@ -14,7 +14,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check.sh`](check.sh) | Aggregate check — runs everything and **reports what it skipped** |
 | [`scan-secrets.sh`](scan-secrets.sh) | Scans **every tracked text file** for secret-shaped values — no file-level exclusions |
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
-| [`check-ts-package.mjs`](check-ts-package.mjs) | Validates one TypeScript workspace package manifest; invoked by each package's `check` script |
+| [`check-workspace.mjs`](check-workspace.mjs) | Workspace conformance: taxonomy, naming, script surface, **dependency direction**, and `catalog:`/`workspace:*` declarations |
+| [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 
 ## What belongs here
 
@@ -28,7 +29,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 - **Anything that touches a credential** or reads a secret store.
 - **Anything that contacts Home Assistant, the VPS, or the shared edge.**
 - **Application or service code** — [`../services/`](../services/).
-- **Agent-callable tools** — [`../packages/python/tools/`](../packages/python/tools/).
+- **Agent-callable tools** — the governed tool surface, a package that arrives
+  with the issue that needs it.
 - **Heavy dependencies.** These scripts must run on a freshly-prepared Pi with
   nothing installed beyond a shell and the workspace toolchains.
 
@@ -62,10 +64,37 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 ## Validation
 
 ```sh
-bash scripts/validate-scaffold.sh
-bash scripts/scan-secrets.sh
-bash scripts/check.sh          # runs both, plus the workspaces
+bash scripts/validate-scaffold.sh   # structure, taxonomy, indexes, secrets, binaries
+bash scripts/scan-secrets.sh        # secret-shaped values in tracked text
+node scripts/check-workspace.mjs    # workspace conformance and dependency direction
+node scripts/affected-targets.mjs <changed-files...>
+bash scripts/check.sh               # all of the above, plus both workspaces
 ```
+
+## The division of labour
+
+Three mechanisms, three jobs — conflating them is how drift becomes invisible:
+
+| Mechanism | Governs | Dependency fields |
+|---|---|---|
+| **pnpm catalog** (`pnpm-workspace.yaml`) | canonical declared versions | — |
+| **Syncpack** (`.syncpackrc.json`) | manifest policy, consistency, formatting | `dependencies`, `devDependencies`, `peerDependencies` |
+| **`check-workspace.mjs`** | taxonomy, naming, scripts, **dependency direction** | **all four**, including `optionalDependencies` |
+| **`pnpm-lock.yaml`** | the exact resolved graph | — |
+
+Two gaps make `check-workspace.mjs` load-bearing rather than decorative:
+
+- **Syncpack does not enforce import direction.** It would happily approve a
+  manifest in which `contracts` depends on an application.
+- **Syncpack has no `optional` dependency type** — verified against syncpack
+  15.3.2, which rejects it outright. `optionalDependencies` are therefore
+  governed only by `check-workspace.mjs`.
+
+Direction is checked against an **explicit per-package layer map** in
+`check-workspace.mjs`, not a per-directory one. A per-directory layer would put
+every package on one level, so `contracts` could depend on `logging` and still
+pass — the rule would read as enforced while enforcing nothing. A package absent
+from the map is an error, so placing a new package must be a decision.
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).

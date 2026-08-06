@@ -432,7 +432,7 @@ agents. They are generated from the same source, so they cannot disagree.
 | **Audit** | A **separate durable contract**, not logging ([ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md)). Audit loss blocks a sensitive action; a dropped log line does not. |
 | **Errors** | RFC 9457 problem details with a stable `type` URI, machine-readable `code`, and field-level detail. Never a raw framework error. |
 | **Concurrency** | Optimistic, via ETag or a version field. A conditional update that loses is `412`, never a silent overwrite. |
-| **Idempotency** | Mutations declare `inherent`, `key-required`, or `not-idempotent`. `key-required` operations accept an idempotency key and must not act twice ([`../../services/action-gateway/README.md`](../../services/action-gateway/README.md)). |
+| **Idempotency** | Mutations declare `inherent`, `key-required`, or `not-idempotent`. `key-required` operations accept an idempotency key and must not act twice ([`../../services/control-plane/README.md`](../../services/control-plane/README.md)). |
 | **Long-running work** | `OperationAcceptedResponse` with an operation id and a poll or subscribe path. Never a synchronous request that blocks on a physical device. |
 | **Timestamps** | UTC, ISO-8601, `z.iso.datetime()`. No local times, no naive timestamps, no epoch integers on the wire. |
 | **Versioning** | `schemaVersion` and `queryModelVersion` in every envelope, so a client can detect a contract it does not understand. |

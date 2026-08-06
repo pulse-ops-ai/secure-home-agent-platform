@@ -44,7 +44,7 @@ Per [ADR-0006](../../docs/decisions/ADR-0006-separate-agent-implementation-profi
 
 ## What does not belong here
 
-- **Actual automations** — [`../../services/automation-service/`](../../services/automation-service/).
+- **Actual automations** — [`../../services/control-plane/`](../../services/control-plane/).
 - **Scheduler implementation** — [U5](../../docs/architecture/unresolved-decisions.md#u5).
 - **Local safety automations.** Smoke/CO response, leak shutoff, and freeze
   protection are deterministic local behaviour, not automation objects, and must

@@ -1,0 +1,26 @@
+{
+  "name": "@secure-home/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared ESLint flat configuration for the workspace.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js"
+  ],
+  "scripts": {
+    "lint": "eslint index.js",
+    "typecheck": "node -e \"console.log('no typecheck: JavaScript config package, validated by lint')\"",
+    "test": "node -e \"console.log('no tests: configuration is validated by consumers running lint')\"",
+    "build": "node -e \"console.log('no build: config-only package')\""
+  },
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

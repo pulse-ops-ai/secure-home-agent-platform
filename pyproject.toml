@@ -1,18 +1,26 @@
 # Root of the Python (uv) workspace.
 #
-# This is a VIRTUAL workspace root: it has no [project] table, so the root
-# itself is not a distributable package. It exists to declare the workspace
-# members and to hold the shared tooling configuration.
+# TypeScript is the primary implementation language (ADR-0012, accepted). This
+# workspace is retained ONLY for the admitted Python boundary: isolated
+# specialist inference workers under services/workers/, where a mature ML,
+# vision, or audio dependency requires Python and no adequate TypeScript
+# equivalent exists.
 #
-# Members are globbed, so adding a service or package directory with a valid
-# pyproject.toml is enough to join the workspace.
+# The member list is EXPLICIT rather than globbed. A glob would let a Python
+# package rejoin the control plane by accident; admitting one must be a decision.
+#
+# A Python worker may never own authorization, deterministic safety policy, Home
+# Assistant credentials, device actuation, authoritative persistence, or envelope
+# minting or verification (ADR-0012 §6).
+#
+# This is a VIRTUAL workspace root: it has no [project] table, so the root itself
+# is not a distributable package.
 #
 # Governed by AGENTS.md and docs/decisions/INDEX.md.
 
 [tool.uv.workspace]
 members = [
-    "services/*",
-    "packages/python/*",
+    "services/workers/python-inference",
 ]
 
 [dependency-groups]
@@ -33,14 +41,7 @@ dev = [
 target-version = "py313"
 line-length = 100
 src = [
-    "packages/python/contracts/src",
-    "packages/python/events/src",
-    "packages/python/tools/src",
-    "services/action-gateway/src",
-    "services/automation-service/src",
-    "services/pi-api/src",
-    "services/policy-engine/src",
-    "services/runner-control/src",
+    "services/workers/python-inference/src",
     "tests",
 ]
 
@@ -82,14 +83,7 @@ warn_unreachable = true
 # Explicit target list rather than a bare "." so mypy never wanders into
 # .venv/ or a generated directory. Update this when a member is added.
 files = [
-    "packages/python/contracts/src",
-    "packages/python/events/src",
-    "packages/python/tools/src",
-    "services/action-gateway/src",
-    "services/automation-service/src",
-    "services/pi-api/src",
-    "services/policy-engine/src",
-    "services/runner-control/src",
+    "services/workers/python-inference/src",
     "tests",
 ]
 

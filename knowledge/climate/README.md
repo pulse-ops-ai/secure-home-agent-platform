@@ -22,10 +22,10 @@ its limits are.
 - **Current temperature, setpoint, humidity, or run state.** All prohibited.
 - **The enforced safety envelope.** Documenting that a heat pump is rated to
   15 °F is knowledge. The **enforced** setpoint bounds are deterministic policy,
-  owned by [`../../services/policy-engine/`](../../services/policy-engine/), and
+  owned by [`../../services/control-plane/`](../../services/control-plane/), and
   are **not** agent-readable configuration.
 - **Energy pricing** — [`../gridwise/`](../gridwise/).
-- **Automation definitions** — [`../../services/automation-service/`](../../services/automation-service/).
+- **Automation definitions** — [`../../services/control-plane/`](../../services/control-plane/).
 
 ## The distinction that matters most here
 
