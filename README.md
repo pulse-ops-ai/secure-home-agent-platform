@@ -13,10 +13,11 @@ when the internet does not.
 > scaffolding**. There is **no runtime**: no Home Assistant, no services, no
 > OpenFGA, no Keycloak, no runner image, no credentials, no database connection.
 >
-> The eleven foundational ADRs are **`Accepted`** (2026-08-05) and immutable, so
-> implementation may proceed against them under an authorizing task contract.
+> **ADR-0001 … ADR-0012** are **`Accepted`** and immutable — the foundational set
+> on 2026-08-05, the implementation stack on 2026-08-06 — so implementation may
+> proceed against them under an authorizing task contract.
 >
-> **Acceptance resolved none of the ten open questions**, and is **not**
+> **Acceptance resolved none of the eleven open questions**, and is **not**
 > authorization to deploy. `BOUNDED` still behaves as `FAIL CLOSED`.
 >
 > [What acceptance does and does not unblock →](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock) ·
@@ -388,7 +389,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0011  (all Accepted, immutable)
+│   ├── decisions/         ADR-0001 … ADR-0012  (all Accepted, immutable)
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              Pi control plane (L6/L7) — Python, uv workspace
 │   ├── pi-api/            household surface · the governed enforcement point
@@ -457,9 +458,10 @@ outright rather than leaving that as an unstated assumption.
 
 ## Decisions accepted
 
-All eleven **`Accepted`** on 2026-08-05 and now **immutable** — reverse or amend
-only by a superseding ADR. Acceptance record and the unblock/still-blocked
-breakdown: [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
+All **`Accepted`** and now **immutable** — the foundational eleven on
+2026-08-05, the implementation stack on 2026-08-06. Reverse or amend only by a
+superseding ADR. Acceptance records and the unblocked/still-blocked breakdown:
+[`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 
 | | |
 |---|---|
@@ -474,6 +476,7 @@ breakdown: [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 | [ADR-0009](docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) | Degraded mode and offline authorization posture |
 | [ADR-0010](docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) | OKF for portable knowledge only |
 | [ADR-0011](docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md) | Provider-neutral base, provider-specific coding-agent images |
+| [ADR-0012](docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | TypeScript, NestJS, and pnpm as the implementation stack |
 
 ## What has not been implemented
 
@@ -496,10 +499,12 @@ Nothing runs yet. Specifically absent, on purpose:
 
 ### Deliberately undecided
 
-Ten open questions are tracked in
+Eleven open questions are tracked in
 [`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
-closed by a **new** ADR, never by an implementation — and **accepting the
-foundational set closed none of them**; acceptance was granted on that basis.
+closed by a **new** ADR, never by an implementation — and **no acceptance so far
+has closed any of them**; both acceptances were granted on that basis.
+[U11](docs/architecture/unresolved-decisions.md#u11) (persistence toolkit) was
+*added* by ADR-0012 rather than answered by it.
 
 The most consequential is
 [U1](docs/architecture/unresolved-decisions.md#u1): how the local path obtains

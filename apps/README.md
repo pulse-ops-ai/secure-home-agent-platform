@@ -2,7 +2,7 @@
 
 **Human-facing applications only.** A directory belongs here when a person opens
 it ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Proposed`**).
+**`Accepted`** 2026-08-06).
 
 **Deployable backend processes do not belong here** — `control-plane`,
 `runner-control`, and workers are [`../services/`](../services/). Putting a

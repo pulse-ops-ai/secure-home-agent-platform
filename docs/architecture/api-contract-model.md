@@ -8,9 +8,14 @@ Governed by
 [ADR-0012](../decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md).
 That ADR decides; this document is what follows from it.
 
-> **Status: not implemented, and ADR-0012 is `Proposed`.** No package, decorator,
-> pipeline, or route described here exists. Do not build against this document
-> until the ADR is accepted **and** a task contract authorizes the specific work.
+> **Status: not implemented.** No package, decorator, pipeline, or route
+> described here exists.
+>
+> [ADR-0012](../decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+> is **`Accepted`** (2026-08-06), so these conventions are binding on work that is
+> authorized. Building against them still requires **a specific issue or task
+> contract** — acceptance authorizes the *shape* of the work, never the work
+> itself, and never deployment.
 
 ## The rule everything else follows from
 

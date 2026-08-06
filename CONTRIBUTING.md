@@ -154,10 +154,12 @@ asks for it.
   what belongs there, what does not, the ownership and boundary rules, the
   higher-level document that governs it, and the validation commands it will
   eventually carry.
-- The eleven foundational ADRs are `Accepted` (2026-08-05) and **immutable**.
-  Never edit an accepted ADR — supersede it with a new one and update
+- ADR-0001 … ADR-0012 are `Accepted` and **immutable** — the foundational set on
+  2026-08-05, ADR-0012 on 2026-08-06. Never edit an accepted ADR; supersede it
+  with a new one and update
   [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) in the same change.
-- A new ADR starts `Proposed`. **Do not self-accept it**; acceptance is a human
+- A new ADR starts `Proposed`. **Do not self-accept it**, and **never change any
+  ADR's status without an explicit human-acceptance task**; acceptance is a human
   decision made in its own reviewed change.
 - Accepting an ADR never resolves anything in
   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).

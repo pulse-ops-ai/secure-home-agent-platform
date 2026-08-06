@@ -45,8 +45,12 @@ Scoped rules for the Pi control plane. Inherits everything from
 ## Do not
 
 - Implement a service without an authorizing issue or task contract. The
-  governing ADRs are accepted, but acceptance alone authorizes nothing — and
-  most service work is still blocked on U2–U5, U9, or U10.
+  governing ADRs — including [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
+  which fixes the taxonomy, the NestJS/Fastify shape, and the contract model —
+  are accepted, but acceptance alone authorizes nothing.
+- Write persistence code of any kind. No toolkit is selected
+  ([U11](../docs/architecture/unresolved-decisions.md#u11)); most remaining
+  service work is still blocked on U2–U5, U9, or U10.
 - Add a dependency. These packages are dependency-free on purpose.
 - Write a stub that appears to work.
 - Decide [U3](../docs/architecture/unresolved-decisions.md#u3) (which service

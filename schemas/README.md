@@ -7,8 +7,8 @@ objects — versioned, language-neutral, and the surface external consumers read
 
 > **These become a generated artifact, not a handwritten one.**
 > [ADR-0012 §16](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> (**`Proposed`**) decides that the contracts are **authored in Zod** and their
-> JSON Schema is **generated** into this directory and verified in CI.
+> (**`Accepted`** 2026-08-06) decides that the contracts are **authored in Zod**
+> and their JSON Schema is **generated** into this directory and verified in CI.
 >
 > What ADR-0003 and ADR-0006 require is unchanged: these contracts remain
 > canonical, versioned, and language-neutral. What changes is that they can no
@@ -16,8 +16,9 @@ objects — versioned, language-neutral, and the surface external consumers read
 > authored source. Neither accepted ADR is edited or superseded — ADR-0012
 > refines them.
 >
-> Until ADR-0012 is accepted, nothing here is generated and nothing is
-> handwritten either.
+> Nothing here is generated yet — the contracts package and the generation step
+> do not exist. Until they do, this directory stays empty rather than acquiring
+> handwritten files that would immediately be drift.
 
 ## Layout
 
@@ -37,8 +38,8 @@ objects — versioned, language-neutral, and the surface external consumers read
 
 ## What does not belong here
 
-- **Handwritten schema files**, once ADR-0012 is accepted. A schema edited here
-  rather than at its Zod source will be overwritten and is drift by definition.
+- **Handwritten schema files.** A schema edited here rather than at its Zod
+  source will be overwritten and is drift by definition.
 - **The authoring source** — that is the TypeScript contracts package.
 - **Validation code** — that belongs to the service that validates.
 - **Actual profiles or automations** — [`../profiles/`](../profiles/),

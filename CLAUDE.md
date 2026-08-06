@@ -91,9 +91,12 @@ After changing files, run what your change touched:
 - **Do not access or request secrets.** No API keys, no tokens, no `.env`, no
   credential store. If a task appears to need one, stop and say so.
 - **Do not install Home Assistant** or contact any Home Assistant instance.
-- **Do not change any ADR's status.** The eleven foundational ADRs are
-  `Accepted` and **immutable** — never edit one; supersede it with a new ADR. Do
-  not accept a *new* ADR yourself either; that is a human decision.
+- **Do not change any ADR's status — ever — without an explicit
+  human-acceptance task.** Accepting an ADR is a human decision, made in its own
+  reviewed change.
+- **Do not edit an accepted ADR.** ADR-0001 … ADR-0012 are `Accepted` and
+  **immutable**. Amend or reverse one only by writing a new ADR that supersedes
+  it.
 - **Do not resolve anything in**
   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
 

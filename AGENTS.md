@@ -181,9 +181,13 @@ Documentation, governance, and workspace scaffolding. **There is no runtime.**
 No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
 credentials, no database connection.
 
-**The eleven foundational ADRs are `Accepted`** (2026-08-05) and **immutable** —
-supersede, never edit. Implementation may now proceed *against them*, but only
-when a task contract or issue authorizes the specific work.
+**ADR-0001 … ADR-0012 are `Accepted`** and **immutable** — the foundational set
+on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06. Supersede,
+never edit, and **never change an ADR's status without an explicit
+human-acceptance task**.
+
+Implementation may proceed *against* them, but only when a task contract or issue
+authorizes the specific work.
 
 **Acceptance resolved none of U1–U10.** Work depending on an open item is still
 blocked, `BOUNDED` still behaves as `FAIL CLOSED`, and acceptance is **not**
