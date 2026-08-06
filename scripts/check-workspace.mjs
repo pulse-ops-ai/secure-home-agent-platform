@@ -12,8 +12,11 @@
  *   2. no deployable backend process is under apps/;
  *   3. every member is private and scoped @secure-home/*;
  *   4. every member declares the four standard scripts;
- *   5. internal dependencies use workspace:*, external ones use catalog:;
- *   6. dependency direction points inward only (ADR-0012 §15);
+ *   5. internal dependencies use workspace:*, external ones use catalog: —
+ *      across dependencies, devDependencies, peerDependencies, AND
+ *      optionalDependencies;
+ *   6. dependency direction points inward only (ADR-0012 §15), by an EXPLICIT
+ *      per-package layer map rather than a per-directory one;
  *   7. TypeScript members extend the shared tsconfig.
  *
  * Node standard library only — no dependencies, so it runs before install.
@@ -27,23 +30,75 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-/** Directory role → what may live there, and which layer it sits at. */
+/** Directory role → what may live there. */
 const TAXONOMY = {
-  services: { role: 'deployable backend processes', layer: 3 },
-  apps: { role: 'human-facing applications', layer: 3 },
-  packages: { role: 'reusable libraries with no runtime identity', layer: 2 },
-  agents: { role: 'agent implementations and profiles', layer: 2 },
+  services: 'deployable backend processes',
+  apps: 'human-facing applications',
+  packages: 'reusable libraries with no runtime identity',
+  agents: 'agent implementations and profiles',
 }
 
 /**
  * Dependency direction (ADR-0012 §15): contracts ← domain ← application ←
- * adapters ← apps. Expressed as a layer number; a member may depend only on a
- * member with a layer strictly lower than, or equal to, its own — and nothing
- * may depend on a service or an app.
+ * adapters ← apps, inward only.
+ *
+ * Layering is EXPLICIT PER PACKAGE, not per directory. A per-directory layer
+ * would put every package on one level, which would let `contracts` depend on
+ * `logging`, `observability`, or `testing` and still pass — the rule would read
+ * as enforced while enforcing nothing.
+ *
+ * A member may depend only on a STRICTLY LOWER layer. Equal-layer dependencies
+ * are rejected because they are how a cycle starts.
+ *
+ * A package absent from this map is an ERROR, not a default: placing a new
+ * package in the layering must be a decision. If a genuine need crosses a layer,
+ * move the package in this map with a rationale — do not weaken the rule.
  */
-const LAYER_OF_PACKAGE = { 'packages/tsconfig': 1, 'packages/eslint-config': 1 }
+const LAYERS = {
+  // 0 — build tooling. Imports nothing; everything may use it as a devDep.
+  'packages/tsconfig': 0,
+  'packages/eslint-config': 0,
+
+  // 1 — the innermost contract source. Imports nothing from the platform.
+  'packages/contracts': 1,
+
+  // 2 — contract-shaped vocabularies built on `contracts`.
+  'packages/errors': 2,
+  'packages/events': 2,
+  'packages/query-model': 2,
+
+  // 3 — operation contracts and the catalog: contracts + query-model.
+  'packages/api-contracts': 3,
+
+  // 4 — cross-cutting infrastructure.
+  'packages/logging': 4,
+  'packages/observability': 4,
+
+  // 5 — composes infrastructure into a worker runtime.
+  'packages/worker-base': 5,
+
+  // 6 — test helpers may reach anything below them.
+  'packages/testing': 6,
+}
+
+/** Deployables sit outside every package layer, and nothing may depend on them. */
+const DEPLOYABLE_LAYER = 99
 
 const REQUIRED_SCRIPTS = ['lint', 'typecheck', 'test', 'build']
+
+/** Where internal and external dependency declarations must be checked. */
+const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+
+/**
+ * External peer dependencies are ranges by nature, so they are exempt from the
+ * `catalog:` rule. Internal peers are not — they must still be workspace:*.
+ */
+const CATALOG_EXEMPT_FIELDS = new Set(['peerDependencies'])
+
+function layerOf(rel, top) {
+  if (top === 'services' || top === 'apps') return DEPLOYABLE_LAYER
+  return LAYERS[rel]
+}
 
 const problems = []
 const fail = (msg) => problems.push(msg)
@@ -83,6 +138,15 @@ for (const m of members) {
     continue
   }
 
+  const ownLayer = layerOf(m.rel, top)
+  if (ownLayer === undefined) {
+    fail(
+      `${m.rel}: not placed in the dependency layer map — ` +
+        'add it to LAYERS in scripts/check-workspace.mjs with a rationale',
+    )
+    continue
+  }
+
   // A deployable backend process must not live under apps/.
   if (top === 'apps' && /control-plane|runner-control|worker/.test(m.rel)) {
     fail(`${m.rel}: a deployable backend process must live under services/, not apps/`)
@@ -103,8 +167,7 @@ for (const m of members) {
   }
 
   // Dependency declarations: internal → workspace:*, external → catalog:.
-  const ownLayer = LAYER_OF_PACKAGE[m.rel] ?? TAXONOMY[top].layer
-  for (const field of ['dependencies', 'devDependencies']) {
+  for (const field of DEP_FIELDS) {
     for (const [dep, spec] of Object.entries(pkg[field] ?? {})) {
       if (dep.startsWith('@secure-home/')) {
         if (spec !== 'workspace:*') {
@@ -123,13 +186,21 @@ for (const m of members) {
         }
         const depTop = depMember.rel.split('/')[0]
         if (depTop === 'services' || depTop === 'apps') {
-          fail(`${m.rel}: depends on ${dep}, but nothing may depend on a service or an app`)
+          fail(`${m.rel}: ${field}.${dep} — nothing may depend on a service or an app`)
+          continue
         }
-        const depLayer = LAYER_OF_PACKAGE[depMember.rel] ?? TAXONOMY[depTop].layer
-        if (depLayer > ownLayer) {
-          fail(`${m.rel}: depends on ${dep}, which is an outer layer — direction is inward only`)
+        const depLayer = layerOf(depMember.rel, depTop)
+        if (depLayer === undefined) {
+          fail(`${m.rel}: ${field}.${dep} is not placed in the dependency layer map`)
+          continue
         }
-      } else if (spec !== 'catalog:') {
+        if (depLayer >= ownLayer) {
+          fail(
+            `${m.rel} (layer ${ownLayer}) → ${dep} (layer ${depLayer}): ` +
+              'direction is inward only, and equal layers are how cycles start',
+          )
+        }
+      } else if (!CATALOG_EXEMPT_FIELDS.has(field) && spec !== 'catalog:') {
         fail(`${m.rel}: ${field}.${dep} must be "catalog:" (got ${JSON.stringify(spec)})`)
       }
     }

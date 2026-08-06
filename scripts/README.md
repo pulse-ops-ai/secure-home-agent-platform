@@ -75,16 +75,26 @@ bash scripts/check.sh               # all of the above, plus both workspaces
 
 Three mechanisms, three jobs — conflating them is how drift becomes invisible:
 
-| Mechanism | Governs |
-|---|---|
-| **pnpm catalog** (`pnpm-workspace.yaml`) | canonical declared versions |
-| **Syncpack** (`.syncpackrc.json`) | manifest policy, consistency, formatting |
-| **`check-workspace.mjs`** | taxonomy, naming, scripts, **dependency direction** |
-| **`pnpm-lock.yaml`** | the exact resolved graph |
+| Mechanism | Governs | Dependency fields |
+|---|---|---|
+| **pnpm catalog** (`pnpm-workspace.yaml`) | canonical declared versions | — |
+| **Syncpack** (`.syncpackrc.json`) | manifest policy, consistency, formatting | `dependencies`, `devDependencies`, `peerDependencies` |
+| **`check-workspace.mjs`** | taxonomy, naming, scripts, **dependency direction** | **all four**, including `optionalDependencies` |
+| **`pnpm-lock.yaml`** | the exact resolved graph | — |
 
-**Syncpack does not enforce import direction.** It would happily approve a
-manifest in which `contracts` depends on an application; `check-workspace.mjs`
-is what rejects it.
+Two gaps make `check-workspace.mjs` load-bearing rather than decorative:
+
+- **Syncpack does not enforce import direction.** It would happily approve a
+  manifest in which `contracts` depends on an application.
+- **Syncpack has no `optional` dependency type** — verified against syncpack
+  15.3.2, which rejects it outright. `optionalDependencies` are therefore
+  governed only by `check-workspace.mjs`.
+
+Direction is checked against an **explicit per-package layer map** in
+`check-workspace.mjs`, not a per-directory one. A per-directory layer would put
+every package on one level, so `contracts` could depend on `logging` and still
+pass — the rule would read as enforced while enforcing nothing. A package absent
+from the map is an error, so placing a new package must be a decision.
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).

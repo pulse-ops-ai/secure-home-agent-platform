@@ -76,7 +76,10 @@ fi
 # --- Python workspace (admitted inference boundary only) --------------------
 
 if command -v uv >/dev/null 2>&1; then
-  run "python: sync"          uv sync --all-packages
+  # --locked fails on a stale uv.lock rather than repairing it. Without it the
+  # aggregate check could fix drift and then report success — reporting on a
+  # repository state that does not exist.
+  run "python: sync"          uv sync --all-packages --locked
   run "python: lint"          uv run ruff check .
   run "python: format"        uv run ruff format --check .
   run "python: types"         uv run mypy

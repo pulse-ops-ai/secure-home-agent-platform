@@ -191,3 +191,44 @@ def test_unknown_path_selects_nothing() -> None:
     result = _affected("some/unknown/path.txt")
     assert result["typescript"] == []
     assert result["python"] is False
+
+
+# --- regression: every dependency field is an edge ---------------------------
+
+
+def _fixture_with_field(tmp_path: Path, field: str) -> Path:
+    """A workspace whose only edge is declared through ``field``."""
+    root = tmp_path / f"ws-{field}"
+
+    def member(rel: str, name: str, deps: dict[str, str] | None = None) -> None:
+        d = root / rel
+        d.mkdir(parents=True)
+        manifest: dict[str, object] = {"name": name, "private": True}
+        if deps:
+            manifest[field] = deps
+        (d / "package.json").write_text(json.dumps(manifest))
+
+    member("packages/contracts", "@secure-home/contracts")
+    member(
+        "services/control-plane",
+        "@secure-home/control-plane",
+        {"@secure-home/contracts": "workspace:*"},
+    )
+
+    (root / "pyproject.toml").write_text("[tool.uv.workspace]\nmembers = []\n")
+    return root
+
+
+def test_peer_and_optional_dependencies_are_graph_edges(tmp_path: Path) -> None:
+    """Regression: a dependent declared via peer/optional was invisible to CI.
+
+    Reading only `dependencies` and `devDependencies` let a real dependent be
+    skipped by target selection — silently, which is the failure mode path
+    filtering must never have.
+    """
+    for field in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+        root = _fixture_with_field(tmp_path, field)
+        result = _affected_in(root, "packages/contracts/src/index.ts")
+        assert "@secure-home/control-plane" in result["typescript"], (
+            f"a dependent declared through {field} was not selected"
+        )

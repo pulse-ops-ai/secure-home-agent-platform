@@ -9,7 +9,14 @@
     "",
     "CI runs `deps:check` (syncpack lint) only. It never runs fix or format,",
     "because a job that repairs a manifest reports on something the repository",
-    "does not contain."
+    "does not contain.",
+    "",
+    "KNOWN GAP: syncpack has no `optional` dependencyType — verified against",
+    "syncpack 15.3.2, which rejects it as 'not a built-in or custom type'. So",
+    "optionalDependencies are NOT governed here. scripts/check-workspace.mjs is",
+    "the compensating control: it checks dependencies, devDependencies,",
+    "peerDependencies, AND optionalDependencies for `catalog:` / `workspace:*`",
+    "and for inward-only layering. Do not assume this file covers that field."
   ],
 
   "sortFirst": [
@@ -39,7 +46,7 @@
       "pinVersion": "workspace:*"
     },
     {
-      "label": "Every external dependency declares `catalog:` — the version lives in pnpm-workspace.yaml and nowhere else.",
+      "label": "Every external dependency declares `catalog:` — the version lives in pnpm-workspace.yaml and nowhere else. Peers are exempt: they are ranges by nature.",
       "dependencies": ["**"],
       "dependencyTypes": ["dev", "prod"],
       "pinVersion": "catalog:"

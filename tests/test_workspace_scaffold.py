@@ -13,6 +13,7 @@ they can run before any toolchain is installed.
 from __future__ import annotations
 
 import json
+import subprocess
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -267,3 +268,86 @@ def test_every_pnpm_member_has_a_readme() -> None:
         str(m.relative_to(REPO_ROOT)) for m in _pnpm_members() if not (m / "README.md").is_file()
     ]
     assert not missing, f"workspace members without a README.md: {missing}"
+
+
+# --- regression: dependency layering is genuinely enforced -------------------
+
+
+def _run_workspace_check(repo: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "check-workspace.mjs")],
+        capture_output=True,
+        text=True,
+        cwd=repo,
+        check=False,
+    )
+
+
+def test_inward_layering_rejects_an_outward_dependency(tmp_path: Path) -> None:
+    """Regression: a per-directory layer put every package on one level.
+
+    That let `contracts` depend on `logging`, `observability`, or `testing` and
+    still pass — the rule read as enforced while enforcing nothing.
+    """
+    manifest = REPO_ROOT / "packages" / "contracts" / "package.json"
+    original = manifest.read_text()
+    try:
+        pkg = json.loads(original)
+        pkg.setdefault("dependencies", {})["@secure-home/logging"] = "workspace:*"
+        manifest.write_text(json.dumps(pkg, indent=2) + "\n")
+
+        result = _run_workspace_check(REPO_ROOT)
+        assert result.returncode != 0, "contracts → logging must be rejected"
+        assert "inward only" in result.stdout + result.stderr
+    finally:
+        manifest.write_text(original)
+
+
+def test_internal_peer_dependency_declarations_are_checked(tmp_path: Path) -> None:
+    """peerDependencies were skipped, so an invalid internal spec slipped through."""
+    manifest = REPO_ROOT / "packages" / "worker-base" / "package.json"
+    original = manifest.read_text()
+    try:
+        pkg = json.loads(original)
+        pkg["peerDependencies"] = {"@secure-home/contracts": "^1.0.0"}
+        manifest.write_text(json.dumps(pkg, indent=2) + "\n")
+
+        result = _run_workspace_check(REPO_ROOT)
+        assert result.returncode != 0, "an internal peer dep must still require workspace:*"
+        assert "workspace:*" in result.stdout + result.stderr
+    finally:
+        manifest.write_text(original)
+
+
+def test_a_package_missing_from_the_layer_map_is_rejected(tmp_path: Path) -> None:
+    """Fail closed: placing a new package in the layering must be a decision."""
+    new_pkg = REPO_ROOT / "packages" / "zz-unplaced"
+    try:
+        new_pkg.mkdir()
+        (new_pkg / "package.json").write_text(
+            json.dumps(
+                {
+                    "name": "@secure-home/zz-unplaced",
+                    "private": True,
+                    "description": "temporary fixture",
+                    "scripts": dict.fromkeys(("lint", "typecheck", "test", "build"), "true"),
+                },
+                indent=2,
+            )
+        )
+        result = _run_workspace_check(REPO_ROOT)
+        assert result.returncode != 0, "an unplaced package must fail, not default"
+        assert "layer map" in result.stdout + result.stderr
+    finally:
+        for f in new_pkg.glob("*"):
+            f.unlink()
+        new_pkg.rmdir()
+
+
+def test_aggregate_check_uses_a_locked_python_sync() -> None:
+    """Regression: `uv sync` without --locked can repair a stale lock and pass."""
+    check_sh = (REPO_ROOT / "scripts" / "check.sh").read_text()
+    assert "uv sync --all-packages --locked" in check_sh
+    for line in check_sh.splitlines():
+        if "uv sync" in line and not line.strip().startswith("#"):
+            assert "--locked" in line, f"unlocked uv sync in check.sh: {line.strip()}"

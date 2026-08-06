@@ -63,6 +63,13 @@ const TS_FANOUT_PREFIXES = ['packages/tsconfig/', 'packages/eslint-config/']
 /** Root configuration whose change affects the Python target. */
 const PY_FANOUT = ['pyproject.toml', 'uv.lock', '.github/workflows/checks.yml']
 
+/**
+ * Dependency fields that make one member a dependent of another. All four
+ * count: a peer or optional dependency is still an edge in the graph, and
+ * missing an edge means a required check is silently skipped.
+ */
+const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+
 /** Discover pnpm workspace members exactly as pnpm-workspace.yaml does. */
 function discoverTypescriptTargets(ROOT) {
   const globs = ['services', 'services/workers', 'apps', 'packages', 'agents']
@@ -83,9 +90,13 @@ function discoverTypescriptTargets(ROOT) {
         continue
       }
       if (!pkg.name) continue
+      // EVERY dependency field. A dependent declared through peerDependencies
+      // or optionalDependencies is still a dependent — omitting them would let
+      // CI silently skip it, which is the failure this whole file exists to
+      // prevent.
       const deps = new Set(
-        [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})].filter(
-          (d) => d.startsWith('@secure-home/'),
+        DEP_FIELDS.flatMap((f) => Object.keys(pkg[f] ?? {})).filter((d) =>
+          d.startsWith('@secure-home/'),
         ),
       )
       targets.set(pkg.name, { name: pkg.name, dir: `${g}/${entry}`, deps })
