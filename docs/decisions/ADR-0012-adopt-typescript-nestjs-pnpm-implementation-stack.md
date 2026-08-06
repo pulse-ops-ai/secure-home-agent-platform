@@ -73,13 +73,54 @@ neutrality rule honest at the package layer.
 Unchanged from the scaffold's stated intent
 ([`apps/web/README.md`](../../apps/web/README.md)).
 
-### 5. Initial deployment shape
+### 5. Repository taxonomy and initial deployment shape
 
-| Deployable | Contains | Why separate |
+**Directory role is determined by what a thing *is*, not by what language it is
+written in.**
+
+| Directory | Contains | Test |
 |---|---|---|
-| **`control-plane`** | household API, authorization enforcement, deterministic safety policy, action mediation, automation — as **Nest modules in one process** | They are on one request path, share one enforcement point, and must fail closed together. Splitting them at the start would buy distribution cost and no isolation benefit. |
-| **`runner-control`** | the runner substrate | It launches untrusted sandboxes ([`trust-boundaries.md`](../architecture/trust-boundaries.md) B4). Separate process, separate lifetime, separate resource envelope, so a runaway run cannot starve the household control path. |
-| **web application** | Next.js + its BFF | Different runtime, different scaling, different exposure. |
+| **`services/`** | **deployable backend processes** | it has its own lifecycle, process, and deployment identity, and no human uses it directly |
+| **`apps/`** | **human-facing applications** | a person opens it |
+| **`packages/`** | **reusable libraries** | it is imported and has **no runtime identity of its own** |
+| **`agents/`** | agent implementations, adapters, and their profiles | it runs *inside* a sandbox, launched from a profile ([ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)) |
+
+The target layout, which **issue #24 derives the canonical filesystem and
+workspace structure from**:
+
+```
+services/                deployable backend processes
+├── control-plane/       household API · authorization enforcement ·
+│                        safety policy · action mediation · automation
+│                        — Nest modules in ONE process
+├── runner-control/      the runner substrate — separate process
+└── workers/             specialist workers, incl. Python inference workers
+
+apps/
+└── web/                 Next.js + BFF — the only human-facing application
+
+packages/                reusable libraries, no runtime identity
+├── contracts/           Zod — the authored contract source
+├── worker-base/         the standard worker runtime contract (§18)
+└── …                    logging · identity · authorization · policy · events · testing
+
+agents/                  agent implementations, adapters, profiles
+```
+
+**`control-plane` and `runner-control` are services, not apps.** Both are
+deployable backend processes with no human interface. Only the Next.js
+application belongs under `apps/`. Placing a backend process under `apps/`
+would make "app" mean two different things and would break the dependency rule
+in §15, which forbids any package importing an application.
+
+Why the deployables split this way:
+
+| Deployable | Why |
+|---|---|
+| **`services/control-plane`** | `pi-api`, `policy-engine`, `action-gateway`, and `automation-service` become **Nest modules in one process**. They sit on one request path behind one enforcement point and must fail closed together; splitting them now buys distribution cost and no isolation benefit. |
+| **`services/runner-control`** | Separate process. It launches untrusted sandboxes ([`trust-boundaries.md`](../architecture/trust-boundaries.md) B4), so it needs a separate lifetime and resource envelope — a runaway run must not starve the household control path. |
+| **`services/workers/*`** | Separate processes with their own failure and scaling behaviour. Never on the household request path. |
+| **`apps/web`** | Different runtime, different scaling, different exposure. |
 
 Module boundaries inside `control-plane` are drawn so that extraction is a
 deployment change, not a rewrite: modules communicate through application
@@ -257,7 +298,9 @@ contracts  ←  domain  ←  application  ←  adapters  ←  apps
 ```
 
 Dependencies point **inward only**. `contracts` imports nothing from the
-platform. No package imports an application. Enforced in CI, not by convention.
+platform. No package imports a service or an application. Enforced in CI by
+ESLint and dependency-graph checks — not by convention, and **not** by Syncpack,
+which governs declared versions rather than architectural imports (§19).
 
 ### 16. `schemas/` becomes generated, not handwritten
 
@@ -290,6 +333,131 @@ Removing a Python placeholder before its TypeScript replacement exists would put
 the repository in a state where the scaffold validator's directory contracts and
 the workspace manifests disagree.
 
+### 18. `packages/worker-base` is the standard worker runtime contract
+
+Every worker under `services/workers/` is built on one shared package. A worker
+should be **nearly declarative**: its own code is its handler and its config
+schema, and everything cross-cutting arrives by composition.
+
+`worker-base` owns:
+
+| Concern | What it provides |
+|---|---|
+| lifecycle | start, drain, **graceful shutdown** on signal, in-flight completion |
+| configuration | Zod parsing and validation of worker config — fail at boot, never at first message |
+| logging | Winston via the shared logging package, with correlation context already bound |
+| health | liveness and readiness, including **dependency-health reporting** |
+| cancellation | cooperative cancellation and wall-clock timeout — **effective, not advisory** |
+| resilience | retry with backoff, and **dead-letter** behaviour for exhausted work |
+| throughput | concurrency limits, so one worker cannot starve the host |
+| observability | metrics and tracing hooks |
+| correctness | idempotency hooks |
+| outcomes | structured results and a shared **error taxonomy** |
+
+**Composition, not inheritance.** There is no base class to extend:
+
+```ts
+export default createWorker({
+  name: 'climate-forecast',
+  configSchema: ClimateForecastConfig,   // Zod — parsed and validated at boot
+  concurrency: 2,
+  retryPolicy: { attempts: 3, backoff: 'exponential', deadLetter: true },
+  handler: async (job, ctx) => {
+    ctx.logger.info('scoring', { jobId: job.id })
+    return { outcome: 'ok', result: await score(job.payload) }
+  },
+})
+```
+
+Inheritance would let a worker override lifecycle, shutdown, or timeout
+behaviour — the properties that must be uniform for the host to stay
+predictable. Composition makes them non-overridable.
+
+**This applies to every worker, not only Python-adjacent ones.** A Python
+inference worker is invoked *through* a TypeScript worker built on `worker-base`,
+or it implements the same outcome and error contract over its transport. The
+prohibitions in §6 are unchanged: no worker owns authorization, safety policy,
+Home Assistant credentials, actuation, or authoritative persistence.
+
+Without this package, `services/workers/*` would each reinvent shutdown, retry,
+and health — and would each get them subtly wrong.
+
+### 19. Dependency governance: pnpm catalogs, Syncpack, and a frozen lockfile
+
+Three mechanisms with three distinct jobs. Conflating them is how version drift
+becomes invisible:
+
+```
+pnpm catalogs    canonical declared versions — one place a shared version is written
+Syncpack         manifest policy and consistency — every package agrees, and with the catalog
+pnpm-lock.yaml   the exact resolved graph — what actually installs
+```
+
+Required:
+
+- **pnpm catalogs** for every dependency shared by more than one package. A
+  package references the catalog entry rather than restating a version, so
+  "which version of Zod does the repo use?" has exactly one answer.
+- **Syncpack** for manifest normalization and dependency-policy checks in CI:
+  version consistency across packages, agreement with the catalog, field
+  ordering, and banned or disallowed ranges.
+- **`workspace:*`** for every internal package dependency. An internal package
+  must never resolve from a registry.
+- **Exact versions** for anything that can change behaviour silently —
+  toolchain, codegen, and lint packages. Ranges only where an ecosystem
+  genuinely requires them, and stated.
+- **`--frozen-lockfile` in CI**, so a stale or drifted lockfile fails rather than
+  being rewritten.
+- **CI never mutates a manifest or the lockfile.** A job that "fixes" a manifest
+  makes the gate report on something the repository does not contain.
+
+**Syncpack is not package-boundary enforcement.** They govern different things
+and neither substitutes for the other:
+
+| Mechanism | Governs |
+|---|---|
+| **Syncpack** | *declarations and versions* — what a manifest says |
+| **ESLint / dependency-graph checks** (§15) | *architectural imports* — what the code actually reaches for |
+
+Syncpack would happily approve a manifest in which `contracts` depends on an
+application; §15's import rule is what forbids it.
+
+### 20. CI execution model: always-on governance, path-aware everything else
+
+A monorepo that runs every job on every change trains people to ignore CI; one
+that path-filters carelessly silently skips a required check. The rule:
+
+```
+always-on repository governance gates
++ path-aware service / package / application gates
++ root configuration changes fan out to all affected gates
+```
+
+**Always run, on every pull request, regardless of paths:**
+
+- scaffold validation ([`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh));
+- secret scan ([`scripts/scan-secrets.sh`](../../scripts/scan-secrets.sh));
+- Syncpack manifest and dependency policy;
+- manifest / lockfile consistency (`--frozen-lockfile`);
+- ADR and index integrity.
+
+These are cheap, they are repository-wide by nature, and every one of them exists
+because something must not silently regress. **None may ever be path-filtered.**
+
+**Run per target, only when affected:** build, typecheck, test, and lint for a
+service, package, or application — selected by its **dependency graph**, not by
+its own directory alone. A change to `packages/contracts` must run every target
+that depends on it.
+
+**Root configuration changes fan out to all affected gates.** A change to the
+root `tsconfig`, the ESLint config, the pnpm workspace or catalog, the lockfile,
+or a shared CI action is treated as affecting **everything**. Getting this wrong
+is the specific way path filtering becomes dangerous: a config change that alters
+behaviour everywhere, validated nowhere.
+
+**A skipped job must still report a conclusion**, so a required check can never
+be satisfied by never having run.
+
 ## Questions this ADR was required to answer
 
 | Question | Answer |
@@ -306,17 +474,26 @@ the workspace manifests disagree.
 | How is RLS introduced later without replacing application authorization? | Decision 13 — defence in depth beneath the PDP, never instead of it |
 | Where are Python workers permitted, and what may they never own? | Decision 6 — inference only; never authorization, safety policy, credentials, actuation, or authoritative persistence |
 | What migration happens to the current uv workspace scaffold? | Decision 17 — uv retained for inference workers; placeholders replaced incrementally under issue #24 |
+| Where do deployable backend processes live? | Decision 5 — `services/`; only human-facing applications live under `apps/` |
+| How do workers stay consistent? | Decision 18 — `packages/worker-base`, by composition; workers are nearly declarative |
+| How are dependency versions governed? | Decision 19 — pnpm catalogs (canonical versions) + Syncpack (manifest policy) + frozen lockfile (resolved graph) |
+| How does CI run in a monorepo? | Decision 20 — unconditional governance gates, path-aware target gates, root config fans out |
 
 ## Package dependency direction
 
 ```mermaid
 flowchart RL
-    subgraph APPS["apps / deployables"]
+    subgraph SVC["services/ — deployable backend processes"]
         CP["control-plane<br/><i>NestJS + Fastify</i>"]
         RC["runner-control<br/><i>NestJS + Fastify</i>"]
+        WRK["workers/*<br/><i>on worker-base</i>"]
+    end
+
+    subgraph APPS["apps/ — human-facing"]
         WEB["web<br/><i>Next.js + BFF</i>"]
     end
 
+    WB["<b>worker-base</b><br/>lifecycle · retry · health · cancellation"]
     ADAPT["adapters<br/>home-assistant client · openfga client<br/>persistence · http"]
     APP["application<br/>use cases · ports · operation catalog"]
     DOMAIN["domain<br/>household model · policy evaluation"]
@@ -324,12 +501,14 @@ flowchart RL
 
     CP --> ADAPT
     RC --> ADAPT
+    WRK --> WB
+    WB --> ADAPT
     WEB --> CONTRACTS
     ADAPT --> APP
     APP --> DOMAIN
     DOMAIN --> CONTRACTS
 
-    X["✗ contracts importing an app<br/>✗ domain importing an adapter"]
+    X["✗ contracts importing a service or app<br/>✗ domain importing an adapter<br/>✗ a backend process under apps/"]
     CONTRACTS -.->|prohibited| X
 
     classDef core fill:#e8f4ff,stroke:#26c,stroke-width:2px
@@ -407,6 +586,12 @@ is hand-maintained, and nothing in it may be edited in place.
 - **Projection configs add ceremony to simple list routes.** A three-field
   resource still declares one. The uniformity is what makes metadata and MCP
   generation possible at all.
+- **`worker-base` must be built before the second worker exists**, or the first
+  worker's incidental choices become the de facto contract.
+- **Path-aware CI is a correctness risk if the affected-target computation is
+  wrong.** A miscomputed dependency graph silently skips a required check —
+  which is why §20 makes governance gates unconditional and fans root config
+  changes out to everything.
 - Losing Python across most of the platform costs access to some ML tooling.
   Decision 6 keeps the door open exactly where that matters.
 
@@ -452,6 +637,28 @@ is hand-maintained, and nothing in it may be edited in place.
 - **Expose every route as an MCP tool.** Rejected: MCP eligibility is a security
   property. Automatic exposure would make adding a route a silent expansion of
   what an agent can invoke.
+- **Put `control-plane` and `runner-control` under `apps/`.** Rejected — decision
+  5. It would make "app" mean both "deployable process" and "human-facing
+  application", and would collide with §15's rule that no package imports an
+  application.
+- **A `Worker` base class to extend.** Rejected — decision 18. Inheritance lets a
+  worker override lifecycle, shutdown, and timeout, which are exactly the
+  properties that must be uniform. Composition makes them non-overridable.
+- **Let each worker own its own lifecycle.** Rejected: every worker would
+  reinvent graceful shutdown and retry, and would each get them subtly wrong in a
+  way only visible under load.
+- **Syncpack alone, without catalogs.** Rejected: Syncpack can enforce that
+  packages *agree*, but without a catalog there is no single place the canonical
+  version is written, so agreement drifts as a set.
+- **Renovate/Dependabot version bumps without catalogs or Syncpack.** Rejected as
+  a substitute: automated bumps change versions but do not make the repository
+  internally consistent, and they do not distinguish declaration policy from
+  import architecture.
+- **Run every CI job on every change.** Rejected — decision 20. On a monorepo
+  this trains contributors to ignore CI, and slow gates get bypassed.
+- **Path-filter everything, including governance gates.** Rejected: a filtered
+  secret scan or scaffold check is a required check that can be satisfied by
+  never running.
 
 ## Security implications
 
@@ -480,6 +687,16 @@ is hand-maintained, and nothing in it may be edited in place.
 - **Examples must validate.** A wrong example in an agent-facing contract is
   worse than none, because a model will follow it.
 - **RLS is beneath authorization, never instead of it.** Decision 13.
+- **Governance gates are unconditional for a security reason.** The secret scan
+  and scaffold validator exist to catch what a targeted change would not think to
+  run. A path-filtered secret scan is the blind spot this repository has already
+  closed twice.
+- **`worker-base` centralizes cancellation and timeout**, so a worker cannot
+  quietly become unkillable — the runner-substrate property in
+  [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), applied to
+  workers.
+- **A frozen lockfile and catalogs bound supply-chain drift.** An unpinned shared
+  dependency is a silent version change across every package that uses it.
 
 ## Availability implications
 
@@ -502,6 +719,11 @@ is hand-maintained, and nothing in it may be edited in place.
   prohibition on silent degradation.
 - **No runtime dependency on MCP or SDK generation.** They are consumers of a
   build artifact; their absence cannot affect household operation.
+- **`worker-base` bounds concurrency and enforces graceful shutdown**, so a
+  worker cannot starve the Pi or lose in-flight work on redeploy. Workers are
+  never on the household request path.
+- **`services/workers/*` are separate processes**, so a failing worker degrades
+  its own function and nothing else.
 
 ## Validation and follow-up obligations
 
@@ -533,7 +755,17 @@ is hand-maintained, and nothing in it may be edited in place.
     [`knowledge/platform/README.md`](../../knowledge/platform/README.md), after
     the OKF validator exists ([U7](../architecture/unresolved-decisions.md#u7)).
 12. Execute the scaffold migration as issue #24, incrementally, CI green
-    throughout.
+    throughout — landing `services/{control-plane,runner-control,workers}` and
+    `apps/web` per §5, not backend processes under `apps/`.
+13. Build `packages/worker-base` (§18) **before or with the first worker**, and
+    add a check that no worker under `services/workers/` implements its own
+    lifecycle, shutdown, retry, or health handling.
+14. Add pnpm catalogs, Syncpack policy, and `--frozen-lockfile` CI (§19), plus a
+    check that CI never mutates a manifest or the lockfile.
+15. Implement the CI execution model (§20) with the governance gates
+    **unconditional**, target selection driven by the dependency graph, and root
+    configuration changes fanning out. Add a test for the affected-target
+    computation itself — a wrong graph is a silently skipped required check.
 
 ## References
 

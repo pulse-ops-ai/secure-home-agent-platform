@@ -1,6 +1,13 @@
 # apps/
 
-User-facing applications. TypeScript, `pnpm` workspace members.
+**Human-facing applications only.** A directory belongs here when a person opens
+it ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
+**`Proposed`**).
+
+**Deployable backend processes do not belong here** — `control-plane`,
+`runner-control`, and workers are [`../services/`](../services/). Putting a
+backend process under `apps/` would make "app" mean two different things and
+would collide with the rule that no package imports an application.
 
 > **Status: no application exists.** [`web/`](web/) is a documented placeholder —
 > deliberately not scaffolded, because the BFF and envelope-issuer boundaries it
@@ -18,7 +25,7 @@ Deployable, user-facing applications:
 
 - **Shared UI components** — [`../packages/typescript/ui/`](../packages/typescript/ui/).
 - **Shared types** — [`../packages/typescript/contracts/`](../packages/typescript/contracts/).
-- **Python services** — [`../services/`](../services/).
+- **Backend services of any language** — [`../services/`](../services/).
 - **Agent implementations** — [`../agents/`](../agents/).
 - **Deployment assets** — [`../deploy/`](../deploy/).
 
