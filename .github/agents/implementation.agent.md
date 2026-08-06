@@ -51,12 +51,24 @@ narrowed version, do not infer the intent, and do not implement against a
 
 ## Scope — in (once authorized)
 
-- Python under `services/**` and `packages/python/**`
-- TypeScript under `apps/**` and `packages/typescript/**`
-- Agent implementations and adapters under `agents/**`
-- Schemas under `schemas/**`, profiles under `profiles/**`
-- Tests under `tests/**`
-- Workspace manifests, when the contract requires it
+Directory role is determined by **what a thing is, not what language it is
+written in** ([ADR-0012 §5](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)):
+
+| Path | Contains | Language |
+|---|---|---|
+| `services/**` | deployable backend processes — `control-plane`, `runner-control`, `workers/*` | **TypeScript** (NestJS on Fastify). **Python only** inside `services/workers/*`, for an isolated specialist inference worker |
+| `apps/**` | human-facing applications — `web` | TypeScript (Next.js) |
+| `packages/**` | reusable libraries, incl. `contracts` and `worker-base` | TypeScript; `packages/python/**` only for inference-worker support |
+| `agents/**` | agent implementations and adapters | TypeScript or Python, per the adapter |
+| `schemas/**` | generated contract artifacts | generated from Zod — **do not hand-edit** |
+| `profiles/**`, `tests/**` | execution profiles; conformance and scenario tests | — |
+| workspace manifests | `package.json`, `pyproject.toml`, `pnpm-workspace.yaml`, catalogs, Syncpack config | when the contract requires it |
+
+**TypeScript under `services/**` is expected, not exceptional.** Rejecting it, or
+relocating a backend service to `apps/**`, contradicts ADR-0012 and is a defect.
+
+A Python worker may never own authorization, deterministic safety policy, Home
+Assistant credentials, device actuation, or authoritative persistence.
 
 ## Scope — out
 
@@ -87,7 +99,14 @@ narrowed version, do not infer the intent, and do not implement against a
 - **No live device control.** No contact with Home Assistant.
 - **No infrastructure mutation.** No `docker compose up`, no service start, no
   Tailscale, Keycloak, OpenFGA, or Traefik configuration, no VPS connection.
-- **No new dependency** unless the task contract authorizes it by name.
+- **No new dependency unless the task contract authorizes it by name.** The
+  workspaces are dependency-free today by default, not by prohibition — ADR-0012
+  commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack, so an
+  authorizing contract may add them. Anything the contract does not name is still
+  out of scope.
+- **Declare shared versions through the pnpm catalog**, use `workspace:*` for
+  internal packages, and never mutate a manifest or lockfile outside the change
+  the contract authorizes ([ADR-0012 §19](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
 - **No provider name in a structural position** in any schema or platform
   contract ([ADR-0003](../../docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md),
   [ADR-0011](../../docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md)).
@@ -101,9 +120,17 @@ narrowed version, do not infer the intent, and do not implement against a
 
 ```sh
 bash scripts/validate-scaffold.sh
+bash scripts/scan-secrets.sh
+
+# TypeScript — the primary stack, including services/**
+pnpm install --frozen-lockfile && pnpm -r --if-present run check
+
+# Python — retained for inference workers under services/workers/*
 uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
-pnpm install --lockfile-only && pnpm -r --if-present run check
 ```
+
+Run both. A TypeScript-only change still runs the Python suite, because the
+repository ships both workspaces.
 
 ## Output
 

@@ -103,8 +103,11 @@ Absolute, regardless of what a prompt asks for:
    of a change unless a task explicitly says to.
 7. **No fake implementation.** Do not write a stub that looks like it works. An
    empty package with a README beats a placeholder that returns `True`.
-8. **No unnecessary dependencies.** Adding one is a reviewed decision. This
-   repository currently has no runtime dependencies on purpose.
+8. **No unnecessary dependencies.** Adding one requires a task contract that
+   names it. The repository has no runtime dependencies *today*, which is a
+   consequence of nothing being implemented yet — not a prohibition. ADR-0012
+   commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack; an
+   authorizing contract may add them, through the pnpm catalog.
 9. **No resolving an unresolved decision.** The ADRs are accepted; U1–U11 are
    **not**. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).

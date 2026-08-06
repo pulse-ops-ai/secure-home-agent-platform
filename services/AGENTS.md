@@ -1,8 +1,14 @@
 # AGENTS.md — `services/`
 
-Scoped rules for the Pi control plane. Inherits everything from
+Scoped rules for **deployable backend processes**. Inherits everything from
 [`../AGENTS.md`](../AGENTS.md); this file adds only what is specific to
 `services/`.
+
+**TypeScript is the language here** — NestJS on Fastify
+([ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
+Python is permitted **only** inside `services/workers/*`, for an isolated
+specialist inference worker, and never for anything on the household request
+path.
 
 ## Read first
 
@@ -10,7 +16,10 @@ Scoped rules for the Pi control plane. Inherits everything from
 2. [`README.md`](README.md) — what each service owns
 3. [`../docs/architecture/trust-boundaries.md`](../docs/architecture/trust-boundaries.md)
 4. [`../docs/architecture/identity-and-authorization-flow.md`](../docs/architecture/identity-and-authorization-flow.md)
-5. ADRs **0002, 0004, 0005, 0008, 0009**
+5. ADRs **0002, 0004, 0005, 0008, 0009**, and **0012** — the taxonomy, the
+   NestJS/Fastify shape, the Zod contract model, and the dependency and CI rules
+6. [`../docs/architecture/api-contract-model.md`](../docs/architecture/api-contract-model.md)
+   — thin controllers, projection configs, envelopes, metadata routes
 
 ## Rules
 
@@ -51,7 +60,12 @@ Scoped rules for the Pi control plane. Inherits everything from
 - Write persistence code of any kind. No toolkit is selected
   ([U11](../docs/architecture/unresolved-decisions.md#u11)); most remaining
   service work is still blocked on U2–U5, U9, or U10.
-- Add a dependency. These packages are dependency-free on purpose.
+- Add a dependency **the task contract does not name**. The workspace is
+  dependency-free *today* by default, not by prohibition: ADR-0012 commits to
+  NestJS, Fastify, Zod, and Winston, so an authorizing contract may add them.
+  Declare shared versions through the **pnpm catalog**, use `workspace:*`
+  internally, and never mutate a manifest or lockfile beyond what the contract
+  authorizes.
 - Write a stub that appears to work.
 - Decide [U3](../docs/architecture/unresolved-decisions.md#u3) (which service
   mints the envelope), [U4](../docs/architecture/unresolved-decisions.md#u4)
@@ -63,17 +77,37 @@ Scoped rules for the Pi control plane. Inherits everything from
 
 ## Adding a service
 
-1. It needs an accepted ADR or task contract. Say which.
-2. Create the directory with a `pyproject.toml` and a `README.md` stating what
-   it owns, what it does **not** own, which layer it is, and its failure mode.
-3. The root workspace glob picks it up automatically.
+1. It needs an accepted ADR **and** an authorizing task contract. Say which.
+2. Create the directory with a **`package.json`** (private, `workspace:*` for
+   internal deps, versions from the catalog) and a `README.md` stating what it
+   owns, what it does **not** own, which layer it is, and its failure mode.
+3. The `pnpm-workspace.yaml` glob picks it up. Add it to the catalog and Syncpack
+   policy if it introduces a shared dependency.
 4. Add it to [`README.md`](README.md).
-5. Run `uv sync --all-packages` and the rest of the Python checks.
+5. Run the validation below.
+
+**A worker** additionally builds on
+[`packages/worker-base`](../packages/README.md) rather than implementing its own
+lifecycle, shutdown, retry, or health handling
+([ADR-0012 §18](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
+
+**A Python inference worker** under `services/workers/*` uses `pyproject.toml`
+and joins the `uv` workspace instead — and is still bound by every prohibition
+above.
 
 ## Validation
 
 ```sh
+bash scripts/validate-scaffold.sh
+bash scripts/scan-secrets.sh
+
+# TypeScript — the primary stack for services
+pnpm install --frozen-lockfile
+pnpm -r --if-present run check
+
+# Python — only if the change touches an inference worker
 uv sync --all-packages
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
-bash scripts/validate-scaffold.sh
 ```
+
+Report anything skipped, and why.

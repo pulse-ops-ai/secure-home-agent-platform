@@ -495,7 +495,7 @@ Nothing runs yet. Specifically absent, on purpose:
 | Web application | Deliberately not scaffolded — depends on an open decision. |
 | Deployment | **No Compose file, no Dockerfile, no proxy or tailnet configuration.** |
 | Credentials | **None, anywhere.** |
-| Runtime dependencies | **None.** Both workspaces are dependency-free by design. |
+| Runtime dependencies | **None yet.** Nothing is implemented, so nothing is installed. ADR-0012 commits the stack; dependencies arrive with the work that needs them. |
 
 ### Deliberately undecided
 

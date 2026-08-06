@@ -27,7 +27,7 @@ Walk up from the file you are about to change and use the **first** `AGENTS.md`
 you find. That one wins for its subtree; the root governs everything else.
 
 ```
-services/policy-engine/pyproject.toml  →  services/AGENTS.md   →  AGENTS.md
+services/control-plane/package.json    →  services/AGENTS.md   →  AGENTS.md
 agents/adapters/codex/README.md        →  agents/AGENTS.md     →  AGENTS.md
 docs/architecture/degraded-mode.md     →  docs/AGENTS.md       →  AGENTS.md
 scripts/validate-scaffold.sh           →  (none)               →  AGENTS.md
@@ -53,8 +53,9 @@ After changing files, run what your change touched:
 | You changed | Run |
 |---|---|
 | any file added/moved/removed | `bash scripts/validate-scaffold.sh` |
-| Python under `services/` or `packages/python/` | `uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
-| TypeScript or workspace manifests | `pnpm install --lockfile-only && pnpm -r --if-present run check` |
+| TypeScript anywhere — `services/`, `apps/`, `packages/` | `pnpm install --frozen-lockfile && pnpm -r --if-present run check` |
+| Python — only inference workers under `services/workers/` or `packages/python/` | `uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
+| workspace manifests, catalog, or Syncpack policy | both of the above |
 | documentation or ADRs | `bash scripts/validate-scaffold.sh` |
 | anything substantial | `bash scripts/check.sh` |
 
@@ -119,6 +120,9 @@ no report.
 - **Host:** Raspberry Pi 5, Debian 13 ARM64. `node` and `pnpm` may only be
   available after sourcing nvm — see
   [`docs/operations/pi-bootstrap.md`](docs/operations/pi-bootstrap.md).
+- **Languages:** TypeScript is primary, including under `services/`
+  ([ADR-0012](docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
+  Python is retained only for isolated inference workers.
 - **Python:** managed by `uv`. Do not use `pip` or a system virtualenv.
 - **Node:** managed by Corepack from the `packageManager` pin. Do not
   `npm install -g pnpm`.
