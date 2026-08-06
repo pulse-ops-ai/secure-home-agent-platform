@@ -21,6 +21,7 @@
 #   - a generated directory is tracked or staged
 #   - a binary file is tracked (the secret scanner cannot inspect binary content)
 #   - guidance names a stale unresolved-decision range (e.g. "U1-U10" after U11)
+#   - the canonical taxonomy is violated (a backend process under apps/, etc.)
 #
 # Governed by AGENTS.md and scripts/README.md.
 
@@ -79,6 +80,9 @@ scripts/validate-scaffold.sh
 scripts/check.sh
 scripts/scan-secrets.sh
 scripts/secret-scan-allowlist.txt
+scripts/check-workspace.mjs
+scripts/affected-targets.mjs
+.syncpackrc.json
 "
 
 for f in $REQUIRED_FILES; do
@@ -249,7 +253,7 @@ else
 fi
 
 py_member_problems=""
-for manifest in services/*/pyproject.toml packages/python/*/pyproject.toml; do
+for manifest in services/workers/*/pyproject.toml; do
   [ -f "$manifest" ] || continue
   grep -q '^\[project\]' "$manifest"      || py_member_problems="$py_member_problems $manifest:no-[project]"
   grep -q '^name = '     "$manifest"      || py_member_problems="$py_member_problems $manifest:no-name"
@@ -271,7 +275,7 @@ grep -q '^packages:'         pnpm-workspace.yaml && pass 'pnpm-workspace.yaml de
   || fail 'pnpm-workspace.yaml has no packages: list'
 
 ts_member_problems=""
-for manifest in packages/typescript/*/package.json apps/*/package.json; do
+for manifest in services/*/package.json services/workers/*/package.json apps/*/package.json packages/*/package.json; do
   [ -f "$manifest" ] || continue
   grep -q '"private": true' "$manifest" || ts_member_problems="$ts_member_problems $manifest:not-private"
   grep -q '"name"'          "$manifest" || ts_member_problems="$ts_member_problems $manifest:no-name"
@@ -351,7 +355,54 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Unresolved-decision range references are current
+# 8. Canonical taxonomy (ADR-0012 §5)
+#
+# Directory role is determined by what a thing IS, not what language it is
+# written in. The rule most likely to be violated is a deployable backend
+# process appearing under apps/, which would also break the dependency rule that
+# nothing may import an application.
+#
+# Deep workspace validation (naming, scripts, dependency direction) is
+# scripts/check-workspace.mjs, which needs Node. This check is dependency-light
+# so it still runs on a bare checkout.
+# ---------------------------------------------------------------------------
+
+section "Canonical taxonomy"
+
+for d in services apps packages agents; do
+  if [ -d "$d" ]; then pass "$d/ exists"; else fail "$d/ is missing"; fi
+done
+
+# A backend process must not live under apps/.
+misplaced=""
+for name in control-plane runner-control worker workers; do
+  [ -d "apps/$name" ] && misplaced="$misplaced apps/$name"
+done
+if [ -n "$misplaced" ]; then
+  fail "deployable backend processes found under apps/"
+  for m in $misplaced; do detail "$m — belongs under services/"; done
+else
+  pass "no deployable backend process under apps/"
+fi
+
+# The canonical deployables exist where ADR-0012 puts them.
+for d in services/control-plane services/runner-control services/workers apps/web; do
+  if [ -d "$d" ]; then pass "$d/"; else fail "$d/ is missing"; fi
+done
+
+# Python is confined to the admitted inference boundary.
+stray_py="$(find services apps packages agents -name pyproject.toml \
+    -not -path 'services/workers/python-inference/*' 2>/dev/null || true)"
+if [ -n "$stray_py" ]; then
+  fail "Python manifests outside the admitted inference boundary"
+  printf '%s\n' "$stray_py" | while IFS= read -r f; do detail "$f"; done
+  detail "Python is permitted only under services/workers/ (ADR-0012 §6)"
+else
+  pass "Python is confined to services/workers/python-inference"
+fi
+
+# ---------------------------------------------------------------------------
+# 9. Unresolved-decision range references are current
 #
 # Authoritative guidance states the open set as a range — "acceptance resolved
 # none of U1-U11". When a new item is added, every one of those references must

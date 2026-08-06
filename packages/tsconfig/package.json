@@ -1,0 +1,18 @@
+{
+  "name": "@secure-home/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript compiler configurations for the workspace.",
+  "license": "UNLICENSED",
+  "files": [
+    "base.json",
+    "library.json",
+    "service.json"
+  ],
+  "scripts": {
+    "lint": "node -e \"console.log('no lint: JSON-only package; configs are validated by typecheck and by consumers compiling')\"",
+    "typecheck": "node -e \"['base.json','library.json','service.json'].forEach(f=>JSON.parse(require('node:fs').readFileSync(f,'utf8')))\"",
+    "test": "node -e \"console.log('no tests: config-only package, validated by typecheck')\"",
+    "build": "node -e \"console.log('no build: config-only package')\""
+  }
+}

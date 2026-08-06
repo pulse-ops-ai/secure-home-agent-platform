@@ -1,0 +1,62 @@
+{
+  "$schema": "https://unpkg.com/syncpack@15.3.2/dist/schema.json",
+
+  "//": [
+    "Syncpack governs package.json POLICY: declared versions, consistency, and",
+    "formatting. It does NOT enforce import direction — that is ESLint and",
+    "dependency-graph checking (ADR-0012 §15/§19). Syncpack would happily",
+    "approve a manifest in which `contracts` depends on an application.",
+    "",
+    "CI runs `deps:check` (syncpack lint) only. It never runs fix or format,",
+    "because a job that repairs a manifest reports on something the repository",
+    "does not contain."
+  ],
+
+  "sortFirst": [
+    "name",
+    "version",
+    "private",
+    "description",
+    "license",
+    "type",
+    "main",
+    "types",
+    "exports",
+    "files",
+    "scripts",
+    "dependencies",
+    "devDependencies",
+    "peerDependencies"
+  ],
+  "sortPackages": true,
+  "sortExports": ["types", "import", "require", "default"],
+
+  "versionGroups": [
+    {
+      "label": "Internal packages are always linked from the workspace, never a registry.",
+      "dependencies": ["@secure-home/**"],
+      "dependencyTypes": ["dev", "prod", "peer"],
+      "pinVersion": "workspace:*"
+    },
+    {
+      "label": "Every external dependency declares `catalog:` — the version lives in pnpm-workspace.yaml and nowhere else.",
+      "dependencies": ["**"],
+      "dependencyTypes": ["dev", "prod"],
+      "pinVersion": "catalog:"
+    }
+  ],
+
+  "semverGroups": [
+    {
+      "label": "Peer ranges stay permissive so a consumer can choose within them.",
+      "dependencyTypes": ["peer"],
+      "range": "^"
+    },
+    {
+      "label": "Everything else is exact — a range that moves silently changes behaviour.",
+      "dependencies": ["**"],
+      "dependencyTypes": ["dev", "prod"],
+      "range": ""
+    }
+  ]
+}

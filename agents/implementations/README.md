@@ -38,7 +38,7 @@ Illustrative, not committed:
   not agent-editable
   ([ADR-0005](../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md)).
 - **Direct calls that bypass the governed enforcement point.** Acting happens
-  through [`../../packages/python/tools/`](../../packages/python/tools/).
+  through the governed tool-surface package (not yet created).
 
 ## Boundary rules
 

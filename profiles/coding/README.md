@@ -21,7 +21,7 @@ repositories and documents.
 **A coding profile has no household device access. None.**
 
 No household tools, no reachability to the household API, no path to
-[`../../services/action-gateway/`](../../services/action-gateway/), no Home
+[`../../services/control-plane/`](../../services/control-plane/), no Home
 Assistant. This is enforced by the tool surface and the network policy, not by
 convention.
 

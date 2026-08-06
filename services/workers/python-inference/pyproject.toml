@@ -1,0 +1,16 @@
+[project]
+name = "secure-home-python-inference"
+version = "0.0.0"
+description = "The single admitted Python boundary: isolated specialist inference workers."
+readme = "README.md"
+requires-python = ">=3.13"
+# No runtime dependencies. A worker adds only the ML/vision/audio dependency
+# that justified admitting Python at all, and only under a task contract.
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/secure_home_python_inference"]

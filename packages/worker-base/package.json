@@ -1,0 +1,31 @@
+{
+  "name": "@secure-home/worker-base",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Standard worker runtime contract \u2014 boundary only, no implementation.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "node -e \"console.log('no tests: package boundary declares no behaviour yet')\"",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

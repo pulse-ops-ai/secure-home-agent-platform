@@ -32,7 +32,7 @@ reason about an energy signal instead of pattern-matching a number.
 - **Credentials or endpoints** for the Gridwise interface.
 - **Household consumption telemetry** — raw personal telemetry is prohibited.
 - **Automations** that act on energy signals —
-  [`../../services/automation-service/`](../../services/automation-service/).
+  [`../../services/control-plane/`](../../services/control-plane/).
 - **Enforced policy.** "Do not pre-cool below 68 °F" is deterministic policy, not
   knowledge.
 

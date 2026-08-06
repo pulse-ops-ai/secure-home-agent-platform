@@ -6,22 +6,32 @@ here when it is *imported* rather than *deployed*
 **`Accepted`** 2026-08-06). Deployable processes are [`../services/`](../services/);
 human-facing applications are [`../apps/`](../apps/).
 
-Split by language because the toolchains are separate: Python under a `uv`
-workspace, TypeScript under a `pnpm` workspace.
+All packages are TypeScript. Python is not a package language here — it is
+confined to [`../services/workers/python-inference`](../services/workers/python-inference/),
+the single admitted inference boundary.
 
 > **Status: no package has an implementation.** Each is a workspace member with a
 > manifest, a placeholder module, and a README describing future ownership.
 
 ## Layout
 
-| Path | Workspace | Purpose |
-|---|---|---|
-| [`python/contracts/`](python/contracts/) | uv | Typed models mirroring [`../schemas/`](../schemas/) |
-| [`python/events/`](python/events/) | uv | Run event and evidence emission contracts |
-| [`python/tools/`](python/tools/) | uv | The governed **tool surface** agent implementations may call |
-| [`typescript/contracts/`](typescript/contracts/) | pnpm | TypeScript mirror of [`../schemas/`](../schemas/) |
-| [`typescript/ui/`](typescript/ui/) | pnpm | Shared UI primitives for [`../apps/`](../apps/) |
-| `worker-base/` *(planned)* | pnpm | The standard worker runtime contract — lifecycle, graceful shutdown, Zod config, logging, health, cancellation, retry and dead-letter, concurrency, metrics, idempotency, error taxonomy ([ADR-0012 §18](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)) |
+| Path | Purpose |
+|---|---|
+| [`contracts/`](contracts/) | The **authored Zod source** for API and domain-facing contracts |
+| [`api-contracts/`](api-contracts/) | Operation contracts and the operation catalog |
+| [`query-model/`](query-model/) | Projection configuration and the validated query AST |
+| [`worker-base/`](worker-base/) | The standard worker runtime contract — **boundary only** |
+| [`logging/`](logging/) | Structured logging and request-context propagation |
+| [`observability/`](observability/) | Metrics and tracing hooks |
+| [`errors/`](errors/) | RFC 9457 problem details and the shared error taxonomy |
+| [`events/`](events/) | Run event and evidence contracts |
+| [`testing/`](testing/) | Shared test helpers and fixtures |
+| [`eslint-config/`](eslint-config/) | Shared ESLint flat configuration |
+| [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations |
+
+> **Every package except `eslint-config` and `tsconfig` is an empty boundary.**
+> They exist so the workspace, dependency direction, and CI target selection are
+> real and testable. Contents arrive with the issues that own them.
 
 ## What belongs here
 
@@ -40,7 +50,7 @@ no deployment identity of its own.
   second one exists. Premature sharing is how a package becomes a dumping
   ground.
 - **Home Assistant clients or credentials** — only
-  [`../services/action-gateway/`](../services/action-gateway/).
+  [`../services/control-plane/`](../services/control-plane/).
 
 ## Dependency direction
 

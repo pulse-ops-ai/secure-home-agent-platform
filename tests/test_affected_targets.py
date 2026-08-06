@@ -1,0 +1,193 @@
+"""Tests for ``scripts/affected-targets.mjs``.
+
+Path-aware CI is only safe if the affected-target calculation is right. A wrong
+dependency graph does not fail loudly — it **silently skips a required check**,
+which is the specific way path filtering becomes dangerous (ADR-0012 §20). So
+the calculation is tested directly, both against this repository and against a
+synthetic fixture workspace where the dependency chain is known.
+
+The governance gates are deliberately *not* computed by that script: they are
+unconditional in the workflow, so a bug here cannot skip them. That separation
+is asserted here too.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import TypedDict
+
+
+class Affected(TypedDict):
+    """What the classifier emits."""
+
+    typescript: list[str]
+    python: bool
+    reason: dict[str, list[str]]
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CLASSIFIER = REPO_ROOT / "scripts" / "affected-targets.mjs"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "checks.yml"
+
+
+def _affected(*changed: str) -> Affected:
+    """Run the real classifier against this repository."""
+    result = subprocess.run(
+        ["node", str(CLASSIFIER), *changed],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=REPO_ROOT,
+    )
+    parsed: Affected = json.loads(result.stdout)
+    return parsed
+
+
+def _affected_in(root: Path, *changed: str) -> Affected:
+    """Run the classifier's calculation against a fixture workspace."""
+    files = json.dumps(list(changed))
+    script = (
+        f"import('file://{CLASSIFIER}').then((m) => {{"
+        f"  const r = m.computeAffected({files}, {json.dumps(str(root))});"
+        f"  process.stdout.write(JSON.stringify(r));"
+        f"}})"
+    )
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=REPO_ROOT,
+    )
+    parsed: Affected = json.loads(result.stdout)
+    return parsed
+
+
+def _fixture_workspace(tmp_path: Path) -> Path:
+    """A workspace with a known chain: contracts ← domain ← service.
+
+    The real repository's boundaries do not import each other yet, so a
+    transitive chain has to be constructed to prove the traversal works rather
+    than merely appearing to.
+    """
+    root = tmp_path / "ws"
+
+    def member(rel: str, name: str, deps: list[str]) -> None:
+        d = root / rel
+        d.mkdir(parents=True)
+        (d / "package.json").write_text(
+            json.dumps(
+                {
+                    "name": name,
+                    "private": True,
+                    "dependencies": dict.fromkeys(deps, "workspace:*"),
+                }
+            )
+        )
+
+    member("packages/contracts", "@secure-home/contracts", [])
+    member("packages/domain", "@secure-home/domain", ["@secure-home/contracts"])
+    member("services/control-plane", "@secure-home/control-plane", ["@secure-home/domain"])
+    member("apps/web", "@secure-home/web", ["@secure-home/contracts"])
+    member("services/workers/reporter", "@secure-home/reporter", [])
+
+    (root / "pyproject.toml").write_text(
+        '[tool.uv.workspace]\nmembers = [\n    "services/workers/python-inference",\n]\n'
+    )
+    return root
+
+
+# --- required scenarios -----------------------------------------------------
+
+
+def test_web_only_change_does_not_run_python(tmp_path: Path) -> None:
+    result = _affected("apps/web/src/index.ts")
+    assert result["python"] is False
+    assert result["typescript"] == ["@secure-home/web"]
+
+
+def test_contracts_change_runs_every_dependent(tmp_path: Path) -> None:
+    """Transitive: a contracts change must reach the service two hops away."""
+    root = _fixture_workspace(tmp_path)
+    result = _affected_in(root, "packages/contracts/src/index.ts")
+
+    assert set(result["typescript"]) == {
+        "@secure-home/contracts",
+        "@secure-home/domain",  # direct dependent
+        "@secure-home/control-plane",  # transitive dependent
+        "@secure-home/web",  # direct dependent
+    }
+    # An unrelated worker is not dragged in.
+    assert "@secure-home/reporter" not in result["typescript"]
+
+
+def test_root_typescript_config_fans_out_to_all_targets() -> None:
+    for root_file in ("pnpm-workspace.yaml", "package.json", "packages/tsconfig/base.json"):
+        result = _affected(root_file)
+        assert len(result["typescript"]) >= 14, f"{root_file} did not fan out"
+
+
+def test_python_worker_change_runs_python_checks() -> None:
+    result = _affected(
+        "services/workers/python-inference/src/secure_home_python_inference/__init__.py"
+    )
+    assert result["python"] is True
+    assert result["typescript"] == []
+
+
+def test_docs_only_change_selects_no_target() -> None:
+    """Governance gates still run — they are unconditional in the workflow."""
+    result = _affected("docs/README.md", "README.md")
+    assert result["typescript"] == []
+    assert result["python"] is False
+
+
+def test_workflow_and_scanner_changes_cannot_skip_their_own_validation() -> None:
+    """A change to CI or the secret scanner must not exempt itself.
+
+    The scanner and scaffold validator are governance gates, which the workflow
+    runs unconditionally — so they are safe by construction. This asserts the
+    construction: the classifier never emits a "skip governance" signal, and the
+    workflow does not gate the governance jobs on it.
+    """
+    result = _affected(".github/workflows/checks.yml", "scripts/scan-secrets.sh")
+    assert "governance" not in json.dumps(result).lower()
+    # A workflow change still fans out to every target rather than skipping.
+    assert len(result["typescript"]) >= 14
+    assert result["python"] is True
+
+
+# --- structural guarantees --------------------------------------------------
+
+
+def test_governance_jobs_are_not_gated_on_the_classifier() -> None:
+    """The governance jobs must carry no `if:` condition.
+
+    This is the property that makes a classifier bug survivable: even if the
+    calculation is wrong, the unconditional gates still run.
+    """
+    workflow = WORKFLOW.read_text()
+    governance_marker = "# GOVERNANCE-UNCONDITIONAL"
+    assert governance_marker in workflow, (
+        "governance jobs must be marked so this test can verify they stay unconditional"
+    )
+
+    # Every marked job block must not contain an `if:` before the next job.
+    for block in workflow.split(governance_marker)[1:]:
+        job = block.split("\n  # ")[0]
+        assert "\n    if:" not in job, "a governance job acquired an `if:` condition"
+
+
+def test_longest_directory_match_wins() -> None:
+    """`services/workers/x` must not be misattributed to a `services/x` sibling."""
+    result = _affected("services/workers/python-inference/pyproject.toml")
+    assert result["python"] is True
+    assert "@secure-home/control-plane" not in result["typescript"]
+
+
+def test_unknown_path_selects_nothing() -> None:
+    result = _affected("some/unknown/path.txt")
+    assert result["typescript"] == []
+    assert result["python"] is False

@@ -12,6 +12,7 @@ they can run before any toolchain is installed.
 
 from __future__ import annotations
 
+import json
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -164,3 +165,105 @@ def test_mypy_and_ruff_targets_cover_every_member() -> None:
 
     assert expected <= mypy_files, f"[tool.mypy] files is missing: {sorted(expected - mypy_files)}"
     assert expected <= ruff_src, f"[tool.ruff] src is missing: {sorted(expected - ruff_src)}"
+
+
+# --- canonical taxonomy (ADR-0012 §5) ---------------------------------------
+
+TAXONOMY_ROOTS = ("services", "apps", "packages", "agents")
+
+CANONICAL_DEPLOYABLES = (
+    "services/control-plane",
+    "services/runner-control",
+    "services/workers",
+    "apps/web",
+)
+
+
+def _pnpm_members() -> list[Path]:
+    """Workspace members, discovered the way pnpm-workspace.yaml does."""
+    members: list[Path] = []
+    for glob in ("services", "services/workers", "apps", "packages", "agents"):
+        root = REPO_ROOT / glob
+        if not root.is_dir():
+            continue
+        members.extend(
+            sorted(d for d in root.iterdir() if d.is_dir() and (d / "package.json").is_file())
+        )
+    return members
+
+
+def test_taxonomy_roots_exist() -> None:
+    missing = [d for d in TAXONOMY_ROOTS if not (REPO_ROOT / d).is_dir()]
+    assert not missing, f"missing taxonomy roots: {missing}"
+
+
+def test_canonical_deployables_are_in_the_right_directories() -> None:
+    missing = [d for d in CANONICAL_DEPLOYABLES if not (REPO_ROOT / d).is_dir()]
+    assert not missing, f"missing canonical deployables: {missing}"
+
+
+def test_no_backend_process_lives_under_apps() -> None:
+    """`apps/` is human-facing only; a backend process there breaks §15 too."""
+    offenders = [
+        d.name
+        for d in (REPO_ROOT / "apps").iterdir()
+        if d.is_dir() and ("control-plane" in d.name or "runner" in d.name or "worker" in d.name)
+    ]
+    assert not offenders, f"deployable backend processes under apps/: {offenders}"
+
+
+def test_python_is_confined_to_the_admitted_inference_boundary() -> None:
+    """Python is admitted only for isolated inference workers (ADR-0012 §6)."""
+    admitted = REPO_ROOT / "services/workers/python-inference"
+    stray = [
+        str(p.relative_to(REPO_ROOT))
+        for root in TAXONOMY_ROOTS
+        for p in (REPO_ROOT / root).rglob("pyproject.toml")
+        if admitted not in p.parents
+    ]
+    assert not stray, f"Python manifests outside the inference boundary: {stray}"
+
+
+def test_every_pnpm_member_is_private_and_scoped() -> None:
+    problems: list[str] = []
+    for member in _pnpm_members():
+        pkg = json.loads((member / "package.json").read_text())
+        rel = member.relative_to(REPO_ROOT)
+        if pkg.get("private") is not True:
+            problems.append(f"{rel}: not private")
+        if not str(pkg.get("name", "")).startswith("@secure-home/"):
+            problems.append(f"{rel}: name is not scoped @secure-home/*")
+    assert not problems, "invalid workspace members:\n  " + "\n  ".join(problems)
+
+
+def test_dependency_declarations_use_catalog_and_workspace_protocols() -> None:
+    """Internal deps use workspace:*, external deps use catalog: (ADR-0012 §19)."""
+    problems: list[str] = []
+    for member in _pnpm_members():
+        pkg = json.loads((member / "package.json").read_text())
+        rel = member.relative_to(REPO_ROOT)
+        for field in ("dependencies", "devDependencies"):
+            for dep, spec in (pkg.get(field) or {}).items():
+                expected = "workspace:*" if dep.startswith("@secure-home/") else "catalog:"
+                if spec != expected:
+                    problems.append(f"{rel}: {field}.{dep} is {spec!r}, expected {expected!r}")
+    assert not problems, "invalid dependency declarations:\n  " + "\n  ".join(problems)
+
+
+def test_every_pnpm_member_declares_the_standard_scripts() -> None:
+    required = ("lint", "typecheck", "test", "build")
+    problems: list[str] = []
+    for member in _pnpm_members():
+        pkg = json.loads((member / "package.json").read_text())
+        scripts = pkg.get("scripts") or {}
+        missing = [s for s in required if s not in scripts]
+        if missing:
+            problems.append(f"{member.relative_to(REPO_ROOT)}: missing {missing}")
+    assert not problems, "members missing standard scripts:\n  " + "\n  ".join(problems)
+
+
+def test_every_pnpm_member_has_a_readme() -> None:
+    missing = [
+        str(m.relative_to(REPO_ROOT)) for m in _pnpm_members() if not (m / "README.md").is_file()
+    ]
+    assert not missing, f"workspace members without a README.md: {missing}"

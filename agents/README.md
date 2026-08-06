@@ -30,7 +30,7 @@ Per [ADR-0006](../docs/decisions/ADR-0006-separate-agent-implementation-profile-
 | **adapter** | here | **no** |
 | **execution profile** | [`../profiles/`](../profiles/) | **yes** |
 | **run** | runtime | inherits from the profile |
-| **automation** | [`../services/automation-service/`](../services/automation-service/) | **yes, separately** |
+| **automation** | [`../services/control-plane/`](../services/control-plane/) | **yes, separately** |
 
 **Nothing in this directory grants authority.** Merging an implementation grants
 nothing. Adding an adapter grants nothing. Authority is granted by a reviewed
@@ -47,7 +47,7 @@ reading agent code.
 
 - **Credentials.** Never. Credentials come from the profile, scoped to the run.
 - **Home Assistant clients.** Only
-  [`../services/action-gateway/`](../services/action-gateway/).
+  [`../services/control-plane/`](../services/control-plane/).
 - **Database connections.** No runner has one.
 - **Platform services** — [`../services/`](../services/).
 - **Profiles** — [`../profiles/`](../profiles/). Do not put capability grants in
@@ -68,7 +68,7 @@ reading agent code.
    reviewed profile change, never a workaround.
 5. **Every adapter emits the same event and evidence contract.**
 6. **Tools are the only way to act** —
-   [`../packages/python/tools/`](../packages/python/tools/) — and every tool
+   the governed tool-surface package (not yet created) — and every tool
    re-enters through a governed enforcement point.
 
 ## Governed by

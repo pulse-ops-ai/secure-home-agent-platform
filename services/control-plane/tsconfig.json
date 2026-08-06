@@ -1,0 +1,6 @@
+{
+  "extends": "@secure-home/tsconfig/service.json",
+  "include": [
+    "src"
+  ]
+}

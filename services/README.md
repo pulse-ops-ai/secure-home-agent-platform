@@ -77,7 +77,7 @@ migration — they describe what the `control-plane` modules must satisfy.
   [`../agents/implementations/`](../agents/implementations/). A service is
   platform infrastructure; an agent is a client of it.
 - **TypeScript** — those are [`../apps/`](../apps/) and
-  [`../packages/typescript/`](../packages/typescript/).
+  [`../packages/`](../packages/).
 - **Deployment assets** — Compose files, images, and proxy configuration are
   [`../deploy/`](../deploy/). A service defines what it *is*, not how it is run.
 - **Anything belonging to the shared edge.** L1–L5 for the remote path are owned

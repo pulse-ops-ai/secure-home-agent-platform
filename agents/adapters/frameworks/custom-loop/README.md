@@ -36,7 +36,7 @@ model-driven runtimes, it was a framework interface wearing a neutral name.
 - **Credentials.** Provisioned by the substrate from the profile.
 - **Sandbox construction, mounts, network policy, limits.**
 - **Agent logic** — [`../../../implementations/`](../../../implementations/).
-- **Safety rules** — [`../../../../services/policy-engine/`](../../../../services/policy-engine/).
+- **Safety rules** — [`../../../../services/control-plane/`](../../../../services/control-plane/).
 
 ## Boundary rules
 

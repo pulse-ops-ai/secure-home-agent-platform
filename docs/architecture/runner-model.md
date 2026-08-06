@@ -16,7 +16,7 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 | **Runtime adapter** | the shim to a concrete runtime — a coding-agent CLI or a framework | **No** | [`agents/adapters/`](../../agents/adapters/) |
 | **Execution profile** | the reviewed, declarative grant of capability | **Yes — this is where authority is granted** | [`profiles/`](../../profiles/) |
 | **Run** | one invocation of one profile; an immutable historical fact | inherits the profile's | [`schemas/run/`](../../schemas/run/) |
-| **Automation** | a persisted standing arrangement that causes runs | **Yes — separately authorized** | [`services/automation-service/`](../../services/automation-service/) |
+| **Automation** | a persisted standing arrangement that causes runs | **Yes — separately authorized** | [`services/control-plane/`](../../services/control-plane/) |
 
 Merging any two of these is the failure this model exists to prevent. Most
 importantly: **merging implementation and profile** would mean shipping code
@@ -206,7 +206,7 @@ subject to the buffering constraint that the Pi is not authoritative storage.
   (including `indeterminate`) and records it.
   **This is not a promise that devices behave atomically.** A garage door
   genuinely can end up half-open; that outcome is *represented*, not prevented.
-  See [`../../services/action-gateway/README.md`](../../services/action-gateway/README.md).
+  See [`../../services/control-plane/README.md`](../../services/control-plane/README.md).
 - Runs are **not** on the household safety path. A dead substrate must not
   affect local safety automations.
 

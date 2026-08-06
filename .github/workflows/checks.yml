@@ -1,23 +1,30 @@
 # Repository merge gate.
 #
-# The portable part of `scripts/check.sh`, enforced automatically so a future
-# change cannot merge without reproducing it. Local evidence from a maintainer's
-# Pi is additional evidence, not a substitute for this.
+# Implements the ADR-0012 §20 execution model:
 #
-# CI is part of the governance boundary here, so every third-party action is
-# pinned to a full commit SHA. A tag like `@v4` is a moving reference: the owner
-# can repoint it, and the code executing in this workflow would change without a
-# change to this repository. Dependabot proposes SHA bumps as reviewable pull
-# requests (see .github/dependabot.yml).
+#     always-on repository governance gates
+#   + path-aware service / package / application gates
+#   + root configuration changes fan out to all affected gates
 #
-# Toolchain versions are pinned to the same versions the Raspberry Pi runs, so
-# CI and the Pi execute the same tools. **The CPU architecture differs** — CI is
-# x86_64, the Pi is ARM64 — so this is not a claim of an identical environment,
-# only of identical tool versions.
+# The governance jobs below are marked `# GOVERNANCE-UNCONDITIONAL` and carry no
+# `if:` condition. That is load-bearing, not decorative: a bug in the
+# affected-target classifier can never skip them. tests/test_affected_targets.py
+# asserts both the marker and the absence of a condition.
+#
+# Target jobs are selected by scripts/affected-targets.mjs, which resolves the
+# workspace DEPENDENCY GRAPH rather than matching directories — a change to a
+# shared package runs every dependent. A skipped target still reports a
+# conclusion, so a required check can never be satisfied by never running.
+#
+# CI is part of the governance boundary, so every third-party action is pinned
+# to a full commit SHA. A tag like `@v7` is a moving reference. Dependabot
+# proposes SHA bumps as reviewable pull requests (.github/dependabot.yml).
+#
+# Toolchain versions match the Raspberry Pi. The CPU architecture differs
+# (x86_64 here, ARM64 on the Pi) — this is not a claim of an identical
+# environment, only of identical tool versions.
 #
 # Nothing here deploys, starts a service, or touches a credential.
-#
-# Governed by AGENTS.md and CONTRIBUTING.md.
 
 name: checks
 
@@ -34,81 +41,213 @@ concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "24.18.1"
+  UV_VERSION: "0.12.1"
+
 jobs:
-  scaffold:
-    name: scaffold structure
+  # ==========================================================================
+  # GOVERNANCE-UNCONDITIONAL
+  # Repository-wide gates. Never path-filtered, never gated on the classifier.
+  # ==========================================================================
+  governance:
+    name: repository governance
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Runs first and needs no toolchain — the same property that lets it run
-      # on a freshly-prepared Pi before uv or Node exist.
-      - name: Validate scaffold
+      # Needs no toolchain — the same property that lets it run on a
+      # freshly-prepared Pi before uv or Node exist.
+      - name: Scaffold structure, indexes, and taxonomy
         run: bash scripts/validate-scaffold.sh
 
-  python:
-    name: python workspace
+      - name: Tracked secrets and tracked binaries
+        run: bash scripts/scan-secrets.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # --frozen-lockfile fails on a stale or drifted lockfile rather than
+      # rewriting it. CI never mutates a manifest or the lockfile.
+      - name: Manifest and lockfile consistency
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency manifest policy (Syncpack)
+        run: pnpm run deps:check
+
+      - name: Workspace taxonomy and dependency direction
+        run: pnpm run check:workspace
+
+  # ==========================================================================
+  # GOVERNANCE-UNCONDITIONAL
+  # The classifier decides which target gates run, so it is itself governance.
+  # Path-filtering its tests would let a change to target selection skip the
+  # validation of target selection.
+  # ==========================================================================
+  classifier:
+    name: affected-target calculation
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          version: "0.12.1"
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
-      # --locked fails if uv.lock is stale rather than silently updating it.
-      - name: Sync workspace (locked)
-        run: uv sync --all-packages --locked
+      - name: Test the affected-target calculation
+        run: |
+          uv sync --all-packages --locked
+          uv run pytest tests/test_affected_targets.py tests/test_workspace_scaffold.py -q
 
-      - name: Lint
-        run: uv run ruff check .
-
-      - name: Format
-        run: uv run ruff format --check .
-
-      - name: Types
-        run: uv run mypy
-
-      - name: Tests
-        run: uv run pytest
-
-  typescript:
-    name: typescript workspace
+  # ==========================================================================
+  # Target selection — computes which path-aware gates must run.
+  # Adds targets only; it can never remove a governance gate.
+  # ==========================================================================
+  select:
+    name: select affected targets
     runs-on: ubuntu-24.04
+    outputs:
+      typescript: ${{ steps.compute.outputs.typescript }}
+      python: ${{ steps.compute.outputs.python }}
+      any_typescript: ${{ steps.compute.outputs.any_typescript }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      # Exact patch, matching the Pi — not a floating major.
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "24.18.1"
+          node-version: ${{ env.NODE_VERSION }}
 
-      # pnpm comes from the packageManager pin via Corepack — never a global
-      # install, so CI and the Pi resolve the same version.
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Compute changed files and affected targets
+        id: compute
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
 
-      # --frozen-lockfile fails if pnpm-lock.yaml does not match the manifests.
-      - name: Install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
+          # An unknown base (first push, force-push, manual dispatch) means the
+          # diff cannot be computed — so every target runs. Fail toward running
+          # more, never toward running less.
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "unknown base '$base' — running all targets"
+            changed="$(git ls-files)"
+          else
+            changed="$(git diff --name-only "$base" "$head")"
+          fi
 
-      - name: Check packages
-        run: pnpm -r --if-present run check
+          echo "--- changed files ---"
+          printf '%s\n' "$changed"
 
-  secrets:
-    name: no tracked secrets
+          result="$(printf '%s\n' "$changed" | node scripts/affected-targets.mjs --stdin)"
+          echo "--- affected ---"
+          printf '%s\n' "$result"
+
+          ts="$(printf '%s' "$result" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.stringify(JSON.parse(s).typescript)))")"
+          py="$(printf '%s' "$result" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).python)))")"
+
+          {
+            echo "typescript=$ts"
+            echo "python=$py"
+            if [ "$ts" = "[]" ]; then echo "any_typescript=false"; else echo "any_typescript=true"; fi
+          } >> "$GITHUB_OUTPUT"
+
+  # ==========================================================================
+  # Path-aware target gates.
+  # A skipped job still reports a conclusion, so a required check never vanishes.
+  # ==========================================================================
+  typescript:
+    name: typescript targets
+    needs: select
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The scan lives in scripts/scan-secrets.sh so it runs identically here
-      # and locally, and so this workflow contains no scan patterns of its own
-      # to exclude. It scans EVERY tracked TEXT file with no file-level
-      # exclusions — including this workflow and the scanner itself. Binary
-      # content is not pattern-scannable, so the scaffold job forbids tracked
-      # binaries outright rather than leaving a silent gap.
-      - name: Scan for secret-shaped values
-        run: bash scripts/scan-secrets.sh
+      - name: Skipped — no TypeScript target affected
+        if: needs.select.outputs.any_typescript != 'true'
+        run: |
+          echo "No TypeScript target affected by this change."
+          echo "Repository governance gates ran unconditionally in the 'governance' job."
+
+      - name: Set up Node
+        if: needs.select.outputs.any_typescript == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        if: needs.select.outputs.any_typescript == 'true'
+        run: corepack enable
+
+      - name: Install (frozen lockfile)
+        if: needs.select.outputs.any_typescript == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Filtered to the affected targets by package name, so a dependent runs
+      # even when none of its own files changed.
+      - name: Lint, typecheck, test, and build affected targets
+        if: needs.select.outputs.any_typescript == 'true'
+        env:
+          TARGETS: ${{ needs.select.outputs.typescript }}
+        run: |
+          set -euo pipefail
+          filters="$(node -e "process.stdout.write(JSON.parse(process.env.TARGETS).map(n => '--filter ' + n).join(' '))")"
+          echo "affected targets: $filters"
+          # shellcheck disable=SC2086
+          pnpm $filters run lint
+          # shellcheck disable=SC2086
+          pnpm $filters run typecheck
+          # shellcheck disable=SC2086
+          pnpm $filters run test
+          # shellcheck disable=SC2086
+          pnpm $filters run build
+
+  python:
+    name: python inference target
+    needs: select
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Skipped — Python boundary not affected
+        if: needs.select.outputs.python != 'true'
+        run: |
+          echo "No Python target affected by this change."
+          echo "Repository governance gates ran unconditionally in the 'governance' job."
+
+      - name: Install uv
+        if: needs.select.outputs.python == 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync workspace (locked)
+        if: needs.select.outputs.python == 'true'
+        run: uv sync --all-packages --locked
+
+      - name: Lint, format, types, and tests
+        if: needs.select.outputs.python == 'true'
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest

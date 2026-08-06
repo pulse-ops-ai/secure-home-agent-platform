@@ -24,7 +24,7 @@ routing class, and the capability classes its profile must grant.
 - **Capability grants** — [`../../../profiles/`](../../../profiles/).
 - **Credentials, Home Assistant clients, database connections.**
 - **Adapters** — [`../../adapters/`](../../adapters/).
-- **Shared libraries** — [`../../../packages/typescript/`](../../../packages/typescript/).
+- **Shared libraries** — [`../../../packages/`](../../../packages/).
 - **Applications** — [`../../../apps/`](../../../apps/).
 
 ## Boundary rules

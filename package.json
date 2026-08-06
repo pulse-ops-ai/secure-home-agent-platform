@@ -9,11 +9,20 @@
     "node": ">=22"
   },
   "scripts": {
+    "affected": "node scripts/affected-targets.mjs",
+    "build": "pnpm -r --if-present run build",
     "check": "bash scripts/check.sh",
     "check:scaffold": "bash scripts/validate-scaffold.sh",
-    "check:ts": "pnpm -r --if-present run check",
-    "check:py": "uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest",
-    "install:frozen": "pnpm install --lockfile-only"
+    "check:secrets": "bash scripts/scan-secrets.sh",
+    "check:workspace": "node scripts/check-workspace.mjs",
+    "deps:check": "syncpack lint",
+    "deps:fix": "syncpack fix",
+    "deps:format": "syncpack format",
+    "lint": "pnpm -r --if-present run lint",
+    "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present run typecheck"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "syncpack": "catalog:"
+  }
 }

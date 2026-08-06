@@ -23,8 +23,9 @@ Deployable, user-facing applications:
 
 ## What does not belong here
 
-- **Shared UI components** — [`../packages/typescript/ui/`](../packages/typescript/ui/).
-- **Shared types** — [`../packages/typescript/contracts/`](../packages/typescript/contracts/).
+- **Shared UI components** — no `ui` package exists yet; UI primitives stay in
+  the application until a second consumer justifies extracting one.
+- **Shared types** — [`../packages/contracts/`](../packages/contracts/).
 - **Backend services of any language** — [`../services/`](../services/).
 - **Agent implementations** — [`../agents/`](../agents/).
 - **Deployment assets** — [`../deploy/`](../deploy/).
