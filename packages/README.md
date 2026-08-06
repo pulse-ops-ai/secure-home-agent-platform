@@ -3,7 +3,7 @@
 **Reusable libraries with no runtime identity of their own.** A directory belongs
 here when it is *imported* rather than *deployed*
 ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Proposed`**). Deployable processes are [`../services/`](../services/);
+**`Accepted`** 2026-08-06). Deployable processes are [`../services/`](../services/);
 human-facing applications are [`../apps/`](../apps/).
 
 Split by language because the toolchains are separate: Python under a `uv`
@@ -45,7 +45,7 @@ no deployment identity of its own.
 ## Dependency direction
 
 [ADR-0012 §15](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-(**`Proposed`**) fixes one direction, to be enforced in CI:
+(**`Accepted`** 2026-08-06) fixes one direction, to be enforced in CI:
 
 ```
 contracts  ←  domain  ←  application  ←  adapters  ←  apps

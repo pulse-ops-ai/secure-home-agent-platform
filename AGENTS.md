@@ -103,10 +103,13 @@ Absolute, regardless of what a prompt asks for:
    of a change unless a task explicitly says to.
 7. **No fake implementation.** Do not write a stub that looks like it works. An
    empty package with a README beats a placeholder that returns `True`.
-8. **No unnecessary dependencies.** Adding one is a reviewed decision. This
-   repository currently has no runtime dependencies on purpose.
-9. **No resolving an unresolved decision.** The foundational ADRs are accepted;
-   U1–U10 are **not**. See
+8. **No unnecessary dependencies.** Adding one requires a task contract that
+   names it. The repository has no runtime dependencies *today*, which is a
+   consequence of nothing being implemented yet — not a prohibition. ADR-0012
+   commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack; an
+   authorizing contract may add them, through the pnpm catalog.
+9. **No resolving an unresolved decision.** The ADRs are accepted; U1–U11 are
+   **not**. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
    Acceptance of an ADR is never authorization to close an item there.
 10. **No modifying the upstream repositories.** `platform-edge` and
@@ -181,13 +184,18 @@ Documentation, governance, and workspace scaffolding. **There is no runtime.**
 No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
 credentials, no database connection.
 
-**The eleven foundational ADRs are `Accepted`** (2026-08-05) and **immutable** —
-supersede, never edit. Implementation may now proceed *against them*, but only
-when a task contract or issue authorizes the specific work.
+**ADR-0001 … ADR-0012 are `Accepted`** and **immutable** — the foundational set
+on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06. Supersede,
+never edit, and **never change an ADR's status without an explicit
+human-acceptance task**.
 
-**Acceptance resolved none of U1–U10.** Work depending on an open item is still
-blocked, `BOUNDED` still behaves as `FAIL CLOSED`, and acceptance is **not**
-authorization to deploy anything. See
+Implementation may proceed *against* them, but only when a task contract or issue
+authorizes the specific work.
+
+**Acceptance resolved none of U1–U11.** Work depending on an open item is still
+blocked, `BOUNDED` still behaves as `FAIL CLOSED`, **no persistence toolkit is
+selected** ([U11](docs/architecture/unresolved-decisions.md#u11)), and acceptance
+is **not** authorization to deploy anything. See
 [what acceptance does and does not unblock](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
 
 ## When you are unsure

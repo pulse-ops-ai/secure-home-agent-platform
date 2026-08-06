@@ -3,7 +3,7 @@
 The **authoring source** for the platform's API and domain-facing contracts.
 
 > Under [ADR-0012](../../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> (**`Proposed`**) this package holds **Zod** definitions that generate DTOs,
+> (**`Accepted`** 2026-08-06) this package holds **Zod** definitions that generate DTOs,
 > `z.infer` types, runtime validation, OpenAPI schemas, MCP tool schemas,
 > metadata-route content, and the published JSON Schema in
 > [`../../../schemas/`](../../../schemas/). Conventions:

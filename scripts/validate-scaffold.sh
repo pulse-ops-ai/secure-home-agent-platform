@@ -20,6 +20,7 @@
 #   - an obvious secret file is tracked or staged
 #   - a generated directory is tracked or staged
 #   - a binary file is tracked (the secret scanner cannot inspect binary content)
+#   - guidance names a stale unresolved-decision range (e.g. "U1-U10" after U11)
 #
 # Governed by AGENTS.md and scripts/README.md.
 
@@ -347,6 +348,45 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   fi
 else
   fail "not a git repository — cannot check for tracked binaries"
+fi
+
+# ---------------------------------------------------------------------------
+# 8. Unresolved-decision range references are current
+#
+# Authoritative guidance states the open set as a range — "acceptance resolved
+# none of U1-U11". When a new item is added, every one of those references must
+# move with it. A stale range UNDERSTATES what is blocked, which in the one case
+# that mattered would have read as unblocking persistence work.
+#
+# Historical statements must not use the range form; say "every item then open"
+# instead, so every range in the repository is a present-tense claim and this
+# check needs no exceptions.
+# ---------------------------------------------------------------------------
+
+section "Unresolved-decision ranges"
+
+if [ -f docs/architecture/unresolved-decisions.md ]; then
+  # Highest U-number that actually has a section.
+  max_u="$(grep -o '^## U[0-9][0-9]*' docs/architecture/unresolved-decisions.md \
+    | sed 's/^## U//' | sort -n | tail -1)"
+
+  if [ -z "$max_u" ]; then
+    fail "no '## U<n>' sections found in unresolved-decisions.md"
+  else
+    stale="$(grep -rn 'U1[–-]U[0-9][0-9]*' --include='*.md' . 2>/dev/null \
+      | grep -v "U1[–-]U${max_u}\b" || true)"
+
+    if [ -n "$stale" ]; then
+      fail "guidance names a stale unresolved-decision range (current: U1-U${max_u})"
+      printf '%s\n' "$stale" | head -10 | while IFS= read -r line; do detail "$line"; done
+      detail "a stale range understates what is blocked — update it, or drop the"
+      detail "range form if the statement is historical"
+    else
+      pass "every U-range reference names the current set (U1-U${max_u})"
+    fi
+  fi
+else
+  fail "docs/architecture/unresolved-decisions.md is missing"
 fi
 
 # ---------------------------------------------------------------------------

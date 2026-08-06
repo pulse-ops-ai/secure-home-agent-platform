@@ -43,7 +43,7 @@ rest.
 ## Planned bundle: developer-platform conventions
 
 [ADR-0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-(**`Proposed`**) specifies a governed bundle so that agents adding API surface
+(**`Accepted`** 2026-08-06) specifies a governed bundle so that agents adding API surface
 follow the contract-first rules rather than rediscovering them. Content:
 
 - contract-first conventions and the one-authored-source rule;

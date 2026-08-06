@@ -4,7 +4,7 @@
 lifecycle, process, and deployment identity, and no human uses it directly —
 regardless of what language it is written in
 ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Proposed`**).
+**`Accepted`** 2026-08-06).
 
 These are the **L6 and L7** components this repository owns
 ([ADR-0002](../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)).
@@ -22,7 +22,7 @@ These are the **L6 and L7** components this repository owns
 
 > **These placeholders are superseded by TypeScript services.**
 > [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> (**`Proposed`**) makes the control plane NestJS on Fastify, with this initial
+> (**`Accepted`** 2026-08-06) makes the control plane NestJS on Fastify, with this initial
 > deployment shape:
 >
 > | Deployable | Contains |

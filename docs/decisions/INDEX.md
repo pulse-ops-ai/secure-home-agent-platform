@@ -9,8 +9,9 @@ answer to "why is it like this?" eighteen months from now.
 > accepted file.
 >
 > **Acceptance did not resolve anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** U1–U10
-> remain open, and each still blocks the work that depends on it. See
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md)**, and
+> nothing has since. The **current** open set is **U1–U11**, and each item still
+> blocks the work that depends on it. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
 This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
@@ -36,7 +37,7 @@ referenced here.
 | **Accepted** | 2026-08-05 |
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0001 … ADR-0011, as one set |
-| **Unresolved decisions resolved** | **none** — U1–U10 remain open by explicit decision |
+| **Unresolved decisions resolved** | **none** — every item then open stayed open, by explicit decision |
 | **Review** | PR #1 (scaffold), three rounds of security review; PR #2 (acceptance) |
 
 The set was accepted **as a whole**, which matters:
@@ -113,11 +114,64 @@ implementation-neutral. These decide how it is built.
 
 | ADR | Title | Status | Governs |
 |---|---|---|---|
-| [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | **Proposed** | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
+| [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
 
-> **ADR-0012 is `Proposed`.** It is not accepted, so it does not yet authorize
-> implementation. It **refines** ADR-0003 and ADR-0006 — deciding how their
-> contracts are authored — without editing or superseding either.
+> **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
+> ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
+> editing or superseding either. See
+> [the ADR-0012 acceptance record](#adr-0012-acceptance-record).
+
+### ADR-0012 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-06 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0012 in full, including §5 taxonomy, §18 `worker-base`, §19 dependency governance, §20 CI model |
+| **Review** | issue #5; PR #41, two rounds |
+| **Unresolved decisions resolved** | **none** — U1–U11 all remain open |
+
+**What was accepted.** TypeScript primary · NestJS 11 on Fastify 5 · pnpm
+workspaces · pnpm catalogs · Syncpack manifest governance · frozen
+`pnpm-lock.yaml` · Next.js for `apps/web` · the repository taxonomy
+(`services/` deployable backend processes, `apps/` human-facing applications,
+`packages/` reusable libraries, `agents/` agent implementations and profiles) ·
+`services/control-plane`, `services/runner-control`, `services/workers/*` ·
+`packages/worker-base` · Zod as the authored source for DTOs, shared API/domain
+types, validation, metadata, OpenAPI, SDK, and MCP contracts · no handwritten
+NestJS DTO duplication · deterministic normalized OpenAPI · authorization-aware
+metadata routes · one projection configuration per API module · cursor
+pagination and the standard response envelopes · an allowlisted MCP operation
+catalog · path-aware CI with unconditional governance gates · persistence
+toolkit deferred to U11 · Python restricted to isolated specialist inference
+workers.
+
+**Now eligible for implementation — under a specific issue or task contract:**
+
+| Issue | Work |
+|---|---|
+| #24 | pnpm workspace and canonical repository-layout migration |
+| #25 | shared TypeScript configuration and testing packages |
+| #26 | NestJS/Fastify `control-plane` shell |
+| #27 | `runner-control` shell |
+| #28 | Zod contract packages |
+| *(future)* | Next.js web shell; `packages/worker-base` |
+
+**Acceptance is not a general authorization.** It permits building *against*
+ADR-0012 when an issue authorizes the specific work. It is **not** authorization
+to deploy, and it does not make any unresolved decision decided.
+
+**Still blocked, unchanged by this acceptance:**
+
+- **No persistence toolkit is selected** — [U11](../architecture/unresolved-decisions.md#u11).
+  No schema, migration, or repository code.
+- **No Home Assistant runtime is authorized**, and no credential strategy exists
+  — [U10](../architecture/unresolved-decisions.md#u10).
+- **No OpenFGA runtime is deployed** — [U8](../architecture/unresolved-decisions.md#u8).
+- **No runner workload identity is selected** — [U2](../architecture/unresolved-decisions.md#u2).
+- **`BOUNDED` still behaves as `FAIL CLOSED`** — [U1](../architecture/unresolved-decisions.md#u1).
+- U3, U4, U5, U6, U7, U9 likewise remain open and still block the work that
+  depends on them.
 
 ## Which ADRs apply to what I am changing?
 

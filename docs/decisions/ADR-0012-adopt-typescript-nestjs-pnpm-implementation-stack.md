@@ -1,8 +1,9 @@
 # ADR-0012: Adopt TypeScript, NestJS, and pnpm as the primary implementation stack
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-06
-- **Deciders:** repository owner (pending human acceptance)
+- **Accepted:** 2026-08-06
+- **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Refines:** [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md) — decides *how* their contracts are authored, without changing what they require
 - **Related:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md), [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md), [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md), [`docs/architecture/api-contract-model.md`](../architecture/api-contract-model.md), issue #5, roadmap #4
@@ -727,8 +728,9 @@ is hand-maintained, and nothing in it may be edited in place.
 
 ## Validation and follow-up obligations
 
-1. **Do not begin implementation on this ADR until it is accepted.** It is
-   `Proposed`; acceptance is a human decision in its own reviewed change.
+1. **Accepted 2026-08-06.** Implementation may proceed *against* this ADR, but
+   only under a specific issue or task contract — acceptance is not a general
+   authorization, and it is never authorization to deploy.
 2. Record the persistence-toolkit selection criteria and decide it in its own ADR
    — [U11](../architecture/unresolved-decisions.md#u11). **Blocking prerequisite
    for any schema, migration, or repository work.**
@@ -777,3 +779,9 @@ is hand-maintained, and nothing in it may be edited in place.
   — [U11](../architecture/unresolved-decisions.md#u11)
 - Zod 4 JSON Schema conversion: `.meta()`, `z.toJSONSchema`, and the
   unrepresentable-type list that decision 9 relies on
+
+---
+
+**Accepted and immutable.** Do not edit this ADR. Reverse or amend the decision
+by writing a new ADR that supersedes it, and update
+[`INDEX.md`](INDEX.md) in the same change.
