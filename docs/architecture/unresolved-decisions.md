@@ -7,7 +7,7 @@ here so that nobody silently answers them by writing code.
 >
 > | Accepted | What | Effect here |
 > |---|---|---|
-> | 2026-08-05 | the eleven foundational ADRs | none — U1–U10 stayed open |
+> | 2026-08-05 | the eleven foundational ADRs | none — every item then open stayed open |
 > | 2026-08-06 | ADR-0012, the implementation stack | none — and it **added** [U11](#u11) |
 >
 > These items were left open deliberately, and both acceptances were granted on

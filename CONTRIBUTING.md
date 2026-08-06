@@ -20,9 +20,9 @@ requires it, the correct output is a new ADR proposal, not a quiet exception.
 This repository is at the **foundation** stage: documentation, governance, and
 workspace scaffolding. There is intentionally **no runtime**.
 
-The foundational ADRs are accepted, so implementation may proceed against them
-under an authorizing task contract. **Acceptance is not authorization to
-deploy**, and it resolved none of U1–U10. Do not:
+The ADRs are accepted, so implementation may proceed against them under an
+authorizing task contract. **Acceptance is not authorization to deploy**, and it
+resolved none of U1–U11. Do not:
 
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,

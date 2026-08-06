@@ -9,8 +9,9 @@ answer to "why is it like this?" eighteen months from now.
 > accepted file.
 >
 > **Acceptance did not resolve anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** U1–U10
-> remain open, and each still blocks the work that depends on it. See
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md)**, and
+> nothing has since. The **current** open set is **U1–U11**, and each item still
+> blocks the work that depends on it. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
 This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
@@ -36,7 +37,7 @@ referenced here.
 | **Accepted** | 2026-08-05 |
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0001 … ADR-0011, as one set |
-| **Unresolved decisions resolved** | **none** — U1–U10 remain open by explicit decision |
+| **Unresolved decisions resolved** | **none** — every item then open stayed open, by explicit decision |
 | **Review** | PR #1 (scaffold), three rounds of security review; PR #2 (acceptance) |
 
 The set was accepted **as a whole**, which matters:
