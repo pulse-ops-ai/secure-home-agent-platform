@@ -40,10 +40,38 @@ system it is running inside.
 Do not duplicate `docs/` here. Summarize what an agent must know, and link the
 rest.
 
+## Planned bundle: developer-platform conventions
+
+[ADR-0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+(**`Proposed`**) specifies a governed bundle so that agents adding API surface
+follow the contract-first rules rather than rediscovering them. Content:
+
+- contract-first conventions and the one-authored-source rule;
+- thin-controller rules and the prohibition on duplicate DTO classes;
+- Zod `.meta()` rules and which features are publishable;
+- the OpenAPI normalization pipeline and its CI gates;
+- projection configurations and query-AST conventions;
+- response envelopes, pagination, and count modes;
+- error and problem-details conventions;
+- the operation catalog and MCP exposure rules;
+- logging, request context, and audit rules.
+
+Matching skills: **add Zod contract · add API operation · add list route · add
+projection config · add metadata resource · add MCP tool · add audit event · add
+persistence model.**
+
+**Gated on the OKF validator** ([U7](../../docs/architecture/unresolved-decisions.md#u7)).
+Generated API and operation reference comes from code and the normalized OpenAPI
+document — **never** hand-maintained Markdown.
+
+This bundle describes *how to build*; it is not agent-readable runtime
+configuration and confers no authority.
+
 ## Governed by
 
-[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) ·
-[ADR-0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) · ADRs
+[0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md),
+[0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
 
 ## Validation
 

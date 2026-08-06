@@ -16,7 +16,13 @@ accident.
 
 ## Planned shape
 
-- **Next.js**, authenticating against **Keycloak**.
+- **Next.js**, authenticating against **Keycloak**
+  ([ADR-0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
+  **`Proposed`**).
+- Consumes the **same Zod contracts** the control plane enforces, from the shared
+  contracts package — no re-declared types, no hand-written client models.
+- Filter and sort controls are driven by the module projection configs or the
+  metadata routes, so the UI cannot offer a query the API would reject.
 - A **BFF** reaching the Pi API over the tailnet via Traefik.
 - Reachable on both ingress paths: locally when in-home, through the shared
   platform edge when remote — receiving **identical decisions** on both.

@@ -8,6 +8,24 @@ repository owns
 > member with a manifest, a placeholder package, and a README describing future
 > ownership. There is no runtime, no endpoint, and no dependency.
 
+> **These placeholders are superseded by TypeScript applications.**
+> [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+> (**`Proposed`**) makes the control plane NestJS on Fastify, with this initial
+> deployment shape:
+>
+> | Deployable | Contains |
+> |---|---|
+> | **`control-plane`** | `pi-api`, `policy-engine`, `action-gateway`, `automation-service` as **Nest modules in one process** — one request path, one enforcement point, failing closed together |
+> | **`runner-control`** | the runner substrate, **separate** so an untrusted sandbox cannot starve the household control path |
+>
+> Module boundaries are drawn so extraction is a deployment change, not a
+> rewrite. The **ownership and boundary rules below are unchanged** by the
+> language — they are what the modules must satisfy.
+>
+> The migration is **issue #24** and is not performed here. Python is retained
+> only for isolated inference workers, which may never own authorization, safety
+> policy, Home Assistant credentials, actuation, or authoritative persistence.
+
 ## What belongs here
 
 Long-running Python services that run on the Raspberry Pi and participate in the

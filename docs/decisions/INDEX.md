@@ -106,6 +106,19 @@ and [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md).
 | [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) | Use OKF for portable knowledge only | Accepted | [`knowledge/`](../../knowledge/) |
 | [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) | Keep the base runner provider-neutral and coding-agent images provider-specific | Accepted | [`deploy/images/`](../../deploy/images/), [`agents/adapters/coding/`](../../agents/adapters/coding/) |
 
+## Implementation decisions
+
+The foundational set decides the *logical* architecture and is deliberately
+implementation-neutral. These decide how it is built.
+
+| ADR | Title | Status | Governs |
+|---|---|---|---|
+| [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | **Proposed** | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
+
+> **ADR-0012 is `Proposed`.** It is not accepted, so it does not yet authorize
+> implementation. It **refines** ADR-0003 and ADR-0006 — deciding how their
+> contracts are authored — without editing or superseding either.
+
 ## Which ADRs apply to what I am changing?
 
 | If you are touching… | Read at least |
@@ -120,6 +133,9 @@ and [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md).
 | availability, offline, or failure behaviour | ADR-0002, ADR-0007, ADR-0009 |
 | a knowledge bundle | ADR-0010 |
 | deployment assets | ADR-0002, ADR-0011 |
+| a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
+| an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
+| anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
 
 ## Deliberately not decided
 

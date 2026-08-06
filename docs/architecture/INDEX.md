@@ -36,6 +36,7 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 | [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) | How identity, delegation, authorization, the envelope, and safety policy compose |
 | [`local-remote-routing.md`](local-remote-routing.md) | Local, remote, and cloud call paths and their routing classes |
 | [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
+| [`api-contract-model.md`](api-contract-model.md) | How one Zod definition becomes DTOs, validation, OpenAPI, metadata, SDKs, and MCP tools |
 | [`unresolved-decisions.md`](unresolved-decisions.md) | Open questions that are deliberately **not** decided yet |
 
 ## Reading order
@@ -46,7 +47,8 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 4. [`runner-model.md`](runner-model.md) — how agents run inside those rules
 5. [`local-remote-routing.md`](local-remote-routing.md) — where work executes
 6. [`degraded-mode.md`](degraded-mode.md) — what happens when parts are missing
-7. [`unresolved-decisions.md`](unresolved-decisions.md) — what is still open
+7. [`api-contract-model.md`](api-contract-model.md) — how contracts are authored and generated
+8. [`unresolved-decisions.md`](unresolved-decisions.md) — what is still open
 
 ## Status
 

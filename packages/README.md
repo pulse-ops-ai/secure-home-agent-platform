@@ -35,11 +35,28 @@ no deployment identity of its own.
 - **Home Assistant clients or credentials** — only
   [`../services/action-gateway/`](../services/action-gateway/).
 
+## Dependency direction
+
+[ADR-0012 §15](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+(**`Proposed`**) fixes one direction, to be enforced in CI:
+
+```
+contracts  ←  domain  ←  application  ←  adapters  ←  apps
+```
+
+Dependencies point **inward only**. `contracts` imports nothing from the
+platform; no package imports an application. That is what lets a single Zod
+definition be reused by a NestJS controller, a Next.js page, a generated SDK, an
+MCP tool, and a test without any of them re-declaring it.
+
 ## Ownership and boundary rules
 
-1. **Schemas are canonical; packages are bindings.** The Python and TypeScript
-   contract packages must stay consistent with [`../schemas/`](../schemas/) and
-   with each other. Drift between them is a defect.
+1. **One authored source per contract.** Under
+   [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+   the TypeScript contracts package is where API and domain-facing contracts are
+   authored in Zod, and [`../schemas/`](../schemas/) becomes generated output.
+   A second hand-maintained description of the same contract is a defect, not a
+   convenience.
 2. **No provider or framework name in a structural position.**
    ([ADR-0003](../docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md))
 3. **A package never holds a credential** and never reaches a device.

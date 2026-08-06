@@ -35,6 +35,7 @@ here so that nobody silently answers them by writing code.
 | [U8](#u8) | Whether shared and household OpenFGA share a runtime | household authorization deployment | medium |
 | [U9](#u9) | Policy-decision caching semantics | authorization performance and U1 | high |
 | [U10](#u10) | Home Assistant credential strategy | action mediation | high |
+| [U11](#u11) | Persistence toolkit selection | any schema, migration, or repository work | high |
 
 ---
 
@@ -251,3 +252,48 @@ documented.
 
 **Interaction.** The mediation service becomes the highest-value credential
 holder in the house. Its surface must be minimal.
+
+---
+
+## U11
+
+### Persistence toolkit selection
+
+**Added by** [ADR-0012](../decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md).
+
+**The problem.** ADR-0012 decides the *boundary* — Zod owns DTOs and API/domain
+types, the persistence toolkit owns tables, indexes, constraints, migrations, and
+RLS, and PostgreSQL is authoritative. It does **not** choose the toolkit.
+
+**Why it is not decided.** There is no data model, no query workload, and no RLS
+design in this repository yet. Choosing between TypeORM, Drizzle, Kysely, and
+Prisma now would be a preference dressed as a decision, and the cost of being
+wrong is a migration across every repository class.
+
+**Selection criteria**, in priority order:
+
+1. **PostgreSQL RLS compatibility** — can it set the session/transaction context
+   RLS needs without fighting a connection pool? This is the highest-stakes
+   criterion, because RLS is the defence-in-depth layer beneath application
+   authorization.
+2. **Query-AST mapping** — can a validated projection AST
+   ([`api-contract-model.md`](api-contract-model.md)) be compiled to a safe query
+   without string interpolation anywhere?
+3. **Migration story** — deterministic, reviewable, reversible, and runnable on a
+   VPS without a live-schema-diff step nobody read.
+4. **TimescaleDB compatibility** — hypertables and continuous aggregates are
+   likely for household telemetry.
+5. **Type inference that does not leak** — inferring row types is useful;
+   inferring them *into DTOs* is prohibited, so the toolkit must not make that
+   the path of least resistance.
+6. **Cursor pagination** on a compound sort with a stable tie-breaker.
+7. **Operational weight on a Pi and a small VPS.**
+
+**Evidence needed.** The first real household data model — issues #28–#31
+(household state, topology, garage-door state) — plus the concrete query shapes
+the first list endpoints require.
+
+**Interim posture.** No schema, migration, or repository code until this is
+decided. The boundary in ADR-0012 §13 holds regardless of the outcome.
+
+**Owner:** requires an ADR.
