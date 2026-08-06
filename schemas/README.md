@@ -1,10 +1,23 @@
 # schemas/
 
-The **canonical** contract definitions for the platform's core objects. Language
-bindings in [`../packages/`](../packages/) are derived from these; these are the
-source of truth.
+The **canonical, published** contract definitions for the platform's core
+objects — versioned, language-neutral, and the surface external consumers read.
 
 > **Status: no schema exists.** Every directory is a documented placeholder.
+
+> **These become a generated artifact, not a handwritten one.**
+> [ADR-0012 §16](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+> (**`Proposed`**) decides that the contracts are **authored in Zod** and their
+> JSON Schema is **generated** into this directory and verified in CI.
+>
+> What ADR-0003 and ADR-0006 require is unchanged: these contracts remain
+> canonical, versioned, and language-neutral. What changes is that they can no
+> longer drift from the code that enforces them, because there is only one
+> authored source. Neither accepted ADR is edited or superseded — ADR-0012
+> refines them.
+>
+> Until ADR-0012 is accepted, nothing here is generated and nothing is
+> handwritten either.
 
 ## Layout
 
@@ -17,15 +30,16 @@ source of truth.
 
 ## What belongs here
 
-- Schema definitions (JSON Schema is the intended form) with field
-  documentation.
+- Generated JSON Schema for each platform object, with field documentation
+  carried through from the authoring contract's `.meta()`.
 - Example documents, valid and invalid, used as test fixtures.
 - Versioning and migration notes.
 
 ## What does not belong here
 
-- **Language bindings** — [`../packages/python/contracts/`](../packages/python/contracts/)
-  and [`../packages/typescript/contracts/`](../packages/typescript/contracts/).
+- **Handwritten schema files**, once ADR-0012 is accepted. A schema edited here
+  rather than at its Zod source will be overwritten and is drift by definition.
+- **The authoring source** — that is the TypeScript contracts package.
 - **Validation code** — that belongs to the service that validates.
 - **Actual profiles or automations** — [`../profiles/`](../profiles/),
   [`../services/automation-service/`](../services/automation-service/).

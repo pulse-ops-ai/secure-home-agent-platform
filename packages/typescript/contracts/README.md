@@ -1,7 +1,15 @@
 # packages/typescript/contracts
 
-TypeScript types for the platform's core objects, derived from the canonical
-schemas in [`../../../schemas/`](../../../schemas/).
+The **authoring source** for the platform's API and domain-facing contracts.
+
+> Under [ADR-0012](../../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+> (**`Proposed`**) this package holds **Zod** definitions that generate DTOs,
+> `z.infer` types, runtime validation, OpenAPI schemas, MCP tool schemas,
+> metadata-route content, and the published JSON Schema in
+> [`../../../schemas/`](../../../schemas/). Conventions:
+> [`api-contract-model.md`](../../../docs/architecture/api-contract-model.md).
+>
+> It is **not** a source of truth for database tables.
 
 > **Status: no implementation.** A private workspace member with a manifest and a
 > `check` script. No source, no dependencies. The schemas it will mirror do not

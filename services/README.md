@@ -1,30 +1,78 @@
 # services/
 
-The Pi-hosted control plane. These are the **L6 and L7** components this
-repository owns
+**Deployable backend processes.** A directory belongs here when it has its own
+lifecycle, process, and deployment identity, and no human uses it directly —
+regardless of what language it is written in
+([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
+**`Proposed`**).
+
+These are the **L6 and L7** components this repository owns
 ([ADR-0002](../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)).
+
+| Directory | Contains |
+|---|---|
+| **`services/`** | deployable backend processes — *this directory* |
+| [`../apps/`](../apps/) | human-facing applications — only the Next.js app |
+| [`../packages/`](../packages/) | reusable libraries, no runtime identity |
+| [`../agents/`](../agents/) | agent implementations, adapters, profiles |
 
 > **Status: no service is implemented.** Each directory is a Python workspace
 > member with a manifest, a placeholder package, and a README describing future
 > ownership. There is no runtime, no endpoint, and no dependency.
 
+> **These placeholders are superseded by TypeScript services.**
+> [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
+> (**`Proposed`**) makes the control plane NestJS on Fastify, with this initial
+> deployment shape:
+>
+> | Deployable | Contains |
+> |---|---|
+> | **`services/control-plane`** | `pi-api`, `policy-engine`, `action-gateway`, `automation-service` as **Nest modules in one process** — one request path, one enforcement point, failing closed together |
+> | **`services/runner-control`** | the runner substrate, **separate** so an untrusted sandbox cannot starve the household control path |
+> | **`services/workers/*`** | specialist workers on `packages/worker-base`, never on the household request path |
+>
+> Module boundaries are drawn so extraction is a deployment change, not a
+> rewrite. The **ownership and boundary rules below are unchanged** by the
+> language — they are what the modules must satisfy.
+>
+> The migration is **issue #24** and is not performed here. Python is retained
+> only for isolated inference workers, which may never own authorization, safety
+> policy, Home Assistant credentials, actuation, or authoritative persistence.
+
 ## What belongs here
 
-Long-running Python services that run on the Raspberry Pi and participate in the
-governed request path:
+Long-running backend processes that participate in the governed request path, or
+that do work on its behalf. **Language is not the criterion** — deployability is.
 
-| Service | Layer | Owns |
+### Target shape (ADR-0012 §5, landing under issue #24)
+
+| Path | Is | Owns |
 |---|---|---|
-| [`pi-api/`](pi-api/) | L6/L7 | The household read and command surface. The governed enforcement point agents and clients re-enter through. |
-| [`runner-control/`](runner-control/) | control plane | The runner substrate: profile loading, sandbox construction, run lifecycle, evidence capture. |
-| [`policy-engine/`](policy-engine/) | L7 | Deterministic operational and safety policy. Numeric, temporal, and physical constraints. **No model in this path.** |
-| [`action-gateway/`](action-gateway/) | L7 | The **only** component that talks to Home Assistant and the **only** holder of its credentials. |
-| [`automation-service/`](automation-service/) | L7 | Persisted automations: trigger, condition, policy scope, resource scope, expiration, profile-version binding. |
+| `control-plane/` | one process, Nest modules | the household surface and enforcement path: household API, authorization enforcement, deterministic safety policy, action mediation, automations |
+| `runner-control/` | separate process | the runner substrate: profile loading, sandbox construction, run lifecycle, evidence capture |
+| `workers/` | separate processes | specialist work off the request path, built on `packages/worker-base`; the only place Python is permitted |
+
+### Current placeholders
+
+The directories below are the **current Python placeholders**, superseded by the
+shape above. Their **ownership and boundary rules are unchanged** by the
+migration — they describe what the `control-plane` modules must satisfy.
+
+| Placeholder | Becomes | Owns |
+|---|---|---|
+| [`pi-api/`](pi-api/) | `control-plane` module | The household read and command surface. The governed enforcement point agents and clients re-enter through. |
+| [`runner-control/`](runner-control/) | `runner-control` service | The runner substrate: profile loading, sandbox construction, run lifecycle, evidence capture. |
+| [`policy-engine/`](policy-engine/) | `control-plane` module | Deterministic operational and safety policy. Numeric, temporal, and physical constraints. **No model in this path.** |
+| [`action-gateway/`](action-gateway/) | `control-plane` module | The **only** component that talks to Home Assistant and the **only** holder of its credentials. |
+| [`automation-service/`](automation-service/) | `control-plane` module | Persisted automations: trigger, condition, policy scope, resource scope, expiration, profile-version binding. |
 
 ## What does not belong here
 
-- **Shared libraries** — those are [`../packages/python/`](../packages/python/).
-  A service is deployed; a package is imported.
+- **Shared libraries** — those are [`../packages/`](../packages/). A service is
+  deployed and has a runtime identity; a package is imported and has none.
+- **Human-facing applications** — those are [`../apps/`](../apps/). A backend
+  process must never live there: it would make "app" mean two things and would
+  collide with the rule that no package imports an application.
 - **Agent implementations** — those are
   [`../agents/implementations/`](../agents/implementations/). A service is
   platform infrastructure; an agent is a client of it.
