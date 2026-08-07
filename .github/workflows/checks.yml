@@ -119,10 +119,15 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
-      - name: Test the affected-target calculation
+      # The WHOLE suite, not a hand-listed subset. These tests guard the
+      # unconditional gates — target selection, the workspace layer map, the
+      # secret scanner, source import direction — so running a curated list
+      # means a new governance test is enforced only when someone remembers to
+      # add it here. `tests/test_source_imports.py` was in exactly that state.
+      - name: Governance test suite
         run: |
           uv sync --all-packages --locked
-          uv run pytest tests/test_affected_targets.py tests/test_workspace_scaffold.py -q
+          uv run pytest -q
 
   # ==========================================================================
   # Target selection — computes which path-aware gates must run.

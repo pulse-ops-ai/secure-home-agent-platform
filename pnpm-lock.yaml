@@ -44,6 +44,9 @@ importers:
       syncpack:
         specifier: 'catalog:'
         version: 15.3.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   apps/web:
     devDependencies:

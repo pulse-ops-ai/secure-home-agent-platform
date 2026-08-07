@@ -25,6 +25,35 @@
  *   check-workspace.mjs       DECLARATION direction — runtime dependency fields
  *   check-source-imports.mjs  IMPORT direction — every field, from real source
  *
+ * ## Why this parses instead of pattern-matching
+ *
+ * An earlier revision matched import-shaped regular expressions against raw
+ * source. That is not safe for a gate that runs unconditionally, because a
+ * regular expression cannot see lexical structure. It reported imports that were
+ * commented out, and it missed real ones. Four constructs defeat it:
+ *
+ *   1. an import inside a line or block comment — reported, but inert;
+ *   2. a block comment between `from` and the specifier — real, but missed;
+ *   3. an import statement quoted inside a string or template — reported,
+ *      but it is text;
+ *   4. a regular expression literal containing a quote character, which
+ *      desynchronises any scan that tracks quotes without tracking syntax.
+ *
+ * Masking comments and string literals by hand fixes the first two and leaves
+ * the rest — regular expression literals, template substitutions, and JSX text
+ * containing an apostrophe all need a real lexer. So this uses TypeScript's own
+ * parser and walks the AST. A construct either is an import node or it is not;
+ * there is no pattern left to defeat.
+ *
+ * The cost is one dependency, `typescript`, already pinned in the catalog. This
+ * gate runs after `pnpm install --frozen-lockfile` in CI and in `check.sh`;
+ * `validate-scaffold.sh`, `scan-secrets.sh`, `check-workspace.mjs`, and
+ * `affected-targets.mjs` remain dependency-free and still run before install.
+ *
+ * A file whose syntax the parser rejects is a FAILURE, not a skip. A file that
+ * cannot be parsed cannot be verified, and silently passing it would restore the
+ * bypass this rewrite removed.
+ *
  * ## Zones
  *
  * A file's obligations depend on what it is, not only where it sits:
@@ -40,21 +69,21 @@
  *
  * ## Known limit, closed rather than left open
  *
- * Specifiers are read statically, so a computed `import(expr)` cannot be
- * resolved. Rather than leave that as a silent bypass, a non-literal dynamic
+ * A computed specifier — `import(name)` — cannot be resolved without running the
+ * program. Rather than leave that as a silent bypass, a non-literal dynamic
  * import or `require` in production source is itself a failure. The blind spot
  * becomes a prohibition instead of a hole.
  *
- * Node standard library only. No dependencies, so CI can run it before install.
- *
  * Usage:
- *   node scripts/check-source-imports.mjs
+ *   node scripts/check-source-imports.mjs [repository-root]
  *
  * Governed by AGENTS.md and ADR-0012 §15.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, basename, sep } from 'node:path'
+import { join, relative, basename, extname, sep } from 'node:path'
+
+import ts from 'typescript'
 
 import {
   DEFAULT_ROOT,
@@ -70,8 +99,25 @@ import {
   packageNameOf,
 } from './workspace-model.mjs'
 
-/** Files whose imports are worth reading at all. */
-const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']
+/**
+ * Extension → how TypeScript should parse the file.
+ *
+ * `ScriptKind.JS` already selects the JSX language variant, so `.js` files
+ * containing JSX parse correctly. `.ts` must NOT use a JSX kind: `<T>value` is a
+ * type assertion there and JSX parsing would reject it.
+ */
+const SCRIPT_KINDS = {
+  '.ts': ts.ScriptKind.TS,
+  '.mts': ts.ScriptKind.TS,
+  '.cts': ts.ScriptKind.TS,
+  '.tsx': ts.ScriptKind.TSX,
+  '.js': ts.ScriptKind.JS,
+  '.mjs': ts.ScriptKind.JS,
+  '.cjs': ts.ScriptKind.JS,
+  '.jsx': ts.ScriptKind.JSX,
+}
+
+const SOURCE_EXTENSIONS = Object.keys(SCRIPT_KINDS)
 
 /**
  * Directories that hold generated or installed output. Scanning `dist/` would
@@ -91,33 +137,6 @@ const TEST_DIR = /(?:^|\/)(?:tests|__tests__|__fixtures__)(?:\/|$)/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
 /** No slash → member root; `something.config.ts` → build configuration. */
 const ROOT_CONFIG = /^[^/]+\.config\.[cm]?[jt]s$/
-
-/**
- * Module specifiers, in every syntactic position that creates an import edge.
- *
- * Only import-shaped constructs are matched, so a package name merely mentioned
- * in a doc comment is not a violation. Each character class excludes quotes and
- * backticks so a match can never span a string literal.
- */
-const SPECIFIER_PATTERNS = [
-  // import ... from '<spec>'  ·  export ... from '<spec>'  ·  export * from '<spec>'
-  /(?:^|[\s;})])(?:import|export)\b[^'"`]*?\bfrom\s*['"]([^'"]+)['"]/g,
-  // import '<spec>'  — side-effect only
-  /(?:^|[\s;})])import\s*['"]([^'"]+)['"]/g,
-  // import('<spec>')  ·  require('<spec>')
-  /\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-]
-
-/** A dynamic import or require whose specifier is not a literal. */
-const NON_LITERAL_SPECIFIER = /\b(?:import|require)\s*\(\s*(?!['"])[^)\s]/g
-
-function lineOf(text, index) {
-  let line = 1
-  for (let i = 0; i < index && i < text.length; i += 1) {
-    if (text[i] === '\n') line += 1
-  }
-  return line
-}
 
 /** Every source file under `dir`, relative to it, with generated output skipped. */
 function sourceFiles(dir) {
@@ -141,7 +160,7 @@ function sourceFiles(dir) {
       if (stats.isDirectory()) {
         if (IGNORED_DIRS.has(entry) || entry.startsWith('.')) continue
         walk(full, rel)
-      } else if (SOURCE_EXTENSIONS.some((ext) => entry.endsWith(ext))) {
+      } else if (SOURCE_EXTENSIONS.includes(extname(entry))) {
         found.push(rel)
       }
     }
@@ -162,24 +181,75 @@ export function zoneOf(relativePath) {
   return 'production'
 }
 
-/** Every internal specifier in a file, with the line it appears on. */
-function internalImports(text) {
-  const found = []
-  const seen = new Set()
-  for (const pattern of SPECIFIER_PATTERNS) {
-    pattern.lastIndex = 0
-    let match
-    while ((match = pattern.exec(text)) !== null) {
-      const specifier = match[1]
-      if (!specifier.startsWith(INTERNAL_SCOPE)) continue
-      const index = match.index + match[0].indexOf(specifier)
-      const key = `${specifier}@${index}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      found.push({ specifier, line: lineOf(text, index) })
+/**
+ * Every module specifier in a file, read from the AST.
+ *
+ * Covers each syntactic position that creates an edge: static import and
+ * export-from, side-effect import, type-only import, `import x = require(...)`,
+ * dynamic `import(...)`, `require(...)`, and `typeof import(...)` in a type
+ * position. A comment is not a node, so a commented-out import is absent by
+ * construction rather than by a pattern that tries to spot one.
+ *
+ * @returns {{specifiers: Array<{specifier: string, line: number}>,
+ *            nonLiteral: Array<{line: number}>,
+ *            syntaxErrors: Array<{line: number, message: string}>}}
+ */
+export function readImports(text, fileName) {
+  const kind = SCRIPT_KINDS[extname(fileName)] ?? ts.ScriptKind.TS
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind)
+
+  const lineAt = (pos) => source.getLineAndCharacterOfPosition(pos).line + 1
+
+  const specifiers = []
+  const nonLiteral = []
+
+  const record = (node) =>
+    specifiers.push({ specifier: node.text, line: lineAt(node.getStart(source)) })
+
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      // `export { a }` with no `from` has no moduleSpecifier — not an edge.
+      const specifier = node.moduleSpecifier
+      if (specifier && ts.isStringLiteral(specifier)) record(specifier)
+    } else if (ts.isImportEqualsDeclaration(node)) {
+      const reference = node.moduleReference
+      if (ts.isExternalModuleReference(reference) && ts.isStringLiteral(reference.expression)) {
+        record(reference.expression)
+      }
+    } else if (ts.isImportTypeNode(node)) {
+      // `typeof import('x')` and `import('x').Type` in a type position.
+      const argument = node.argument
+      if (ts.isLiteralTypeNode(argument) && ts.isStringLiteral(argument.literal)) {
+        record(argument.literal)
+      } else {
+        nonLiteral.push({ line: lineAt(node.getStart(source)) })
+      }
+    } else if (ts.isCallExpression(node)) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
+      if (isDynamicImport || isRequire) {
+        const argument = node.arguments[0]
+        if (argument && ts.isStringLiteral(argument)) {
+          record(argument)
+        } else {
+          nonLiteral.push({ line: lineAt(node.getStart(source)) })
+        }
+      }
     }
+    ts.forEachChild(node, visit)
   }
-  return found.sort((a, b) => a.line - b.line || a.specifier.localeCompare(b.specifier))
+  ts.forEachChild(source, visit)
+
+  // `parseDiagnostics` is how the parser reports syntax it could not read. It
+  // is not part of the published type surface, so it is read defensively — and
+  // `test_a_file_that_does_not_parse_is_reported` pins the behaviour so a future
+  // TypeScript release cannot remove it silently.
+  const syntaxErrors = (source.parseDiagnostics ?? []).map((diagnostic) => ({
+    line: typeof diagnostic.start === 'number' ? lineAt(diagnostic.start) : 1,
+    message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
+  }))
+
+  return { specifiers, nonLiteral, syntaxErrors }
 }
 
 /**
@@ -223,19 +293,29 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
       }
       scanned += 1
 
+      const { specifiers, nonLiteral, syntaxErrors } = readImports(text, file)
+
+      // A file that does not parse cannot be verified. Failing is the only
+      // honest outcome; skipping it would be a bypass anyone could reach.
+      for (const error of syntaxErrors) {
+        fail(
+          `${path}:${error.line}: cannot be parsed, so its imports cannot be checked — ${error.message}`,
+        )
+      }
+      if (syntaxErrors.length > 0) continue
+
       if (zone === 'production') {
-        NON_LITERAL_SPECIFIER.lastIndex = 0
-        let dynamic
-        while ((dynamic = NON_LITERAL_SPECIFIER.exec(text)) !== null) {
+        for (const { line } of nonLiteral) {
           fail(
-            `${path}:${lineOf(text, dynamic.index)}: dynamic import with a non-literal ` +
-              'specifier — direction cannot be verified statically, so production source ' +
+            `${path}:${line}: dynamic import with a non-literal specifier — ` +
+              'direction cannot be verified statically, so production source ' +
               'must import by literal specifier',
           )
         }
       }
 
-      for (const { specifier, line } of internalImports(text)) {
+      for (const { specifier, line } of specifiers) {
+        if (!specifier.startsWith(INTERNAL_SCOPE)) continue
         const where = `${path}:${line}`
         const name = packageNameOf(specifier)
 
@@ -335,5 +415,5 @@ if (isMain) {
     `✓ source import direction — ${scanned} source file${scanned === 1 ? '' : 's'} ` +
       `across ${members} workspace member${members === 1 ? '' : 's'}`,
   )
-  console.log(`    scanned under ${relative(process.cwd(), root) || '.'}`)
+  console.log(`    parsed with TypeScript ${ts.version}`)
 }

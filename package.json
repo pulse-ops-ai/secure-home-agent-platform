@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "prettier": "catalog:",
-    "syncpack": "catalog:"
+    "syncpack": "catalog:",
+    "typescript": "catalog:"
   }
 }

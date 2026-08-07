@@ -336,6 +336,165 @@ def test_a_non_literal_dynamic_import_is_rejected_in_production_source(tmp_path:
     assert "non-literal" in _output(result)
 
 
+# --- lexical structure: what a regex could not see ---------------------------
+#
+# The checker reads TypeScript's AST rather than matching patterns against raw
+# text. These tests are the reason. Each one is a construct that a regular
+# expression gets wrong in one of the two possible directions: reporting an
+# import that is not there, or missing one that is.
+
+
+def _contracts_source(tmp_path: Path, label: str, body: str) -> subprocess.CompletedProcess[str]:
+    ws = _base(tmp_path, f"ws-lex-{label}")
+    ws.source("packages/contracts/src/index.ts", body)
+    return _imports(ws.root)
+
+
+def test_a_commented_out_import_is_not_an_import(tmp_path: Path) -> None:
+    """False positive: inert text must not fail the build."""
+    inert = {
+        "line": "// import { log } from '@secure-home/logging'\nexport {}",
+        "block": "/* import { log } from '@secure-home/logging' */\nexport {}",
+        "jsdoc": ("/**\n * import { log } from '@secure-home/logging'\n */\nexport {}"),
+        "trailing": "export {} // import { log } from '@secure-home/logging'",
+        "nested-in-code": ("export const a = 1 /* import { log } from '@secure-home/logging' */"),
+    }
+    for label, body in inert.items():
+        result = _contracts_source(tmp_path, f"inert-{label}", body)
+        assert result.returncode == 0, (
+            f"a {label} comment was read as an import:\n{_output(result)}"
+        )
+
+
+def test_a_comment_between_tokens_does_not_hide_an_import(tmp_path: Path) -> None:
+    """False negative — the dangerous direction. Valid syntax, still an edge."""
+    evasive = {
+        "before-specifier": "import { log } from /* c */ '@secure-home/logging'\nexport {}",
+        "after-import": "import /* c */ { log } from '@secure-home/logging'\nexport {}",
+        "everywhere": ("import/* a */{ log }/* b */from/* c */'@secure-home/logging'\nexport {}"),
+        "newline-comment": (
+            "import { log }\n  // which layer?\n  from '@secure-home/logging'\nexport {}"
+        ),
+        "side-effect": "import /* c */ '@secure-home/logging'\nexport {}",
+        "dynamic": "export const a = () => import(/* c */ '@secure-home/logging')",
+    }
+    for label, body in evasive.items():
+        result = _contracts_source(tmp_path, f"evasive-{label}", body)
+        assert result.returncode != 0, f"a comment between tokens hid the {label} import"
+        assert "direction is inward only" in _output(result), label
+
+
+def test_an_import_inside_a_literal_is_text_not_an_import(tmp_path: Path) -> None:
+    """False positive: quoting an import statement does not perform it."""
+    quoted = {
+        "double": "export const doc = \"import { log } from '@secure-home/logging'\"",
+        "single": "export const doc = 'import { log } from \"@secure-home/logging\"'",
+        "template": "export const doc = `import { log } from '@secure-home/logging'`",
+        "template-substitution": (
+            "const x = 1\nexport const doc = `import ${x} from '@secure-home/logging'`"
+        ),
+    }
+    for label, body in quoted.items():
+        result = _contracts_source(tmp_path, f"quoted-{label}", body)
+        assert result.returncode == 0, (
+            f"a {label} literal was read as an import:\n{_output(result)}"
+        )
+
+
+def test_a_regex_literal_containing_quotes_does_not_desynchronise_the_scan(
+    tmp_path: Path,
+) -> None:
+    """The construct that breaks quote-tracking scanners.
+
+    A scanner that tracks quotes without tracking syntax treats the `'` inside
+    `/['"]/` as the start of a string, runs past the real import, and reports
+    nothing. That is a silent bypass, so it gets its own test.
+    """
+    body = (
+        "const quoted = /['\"]/g\n"
+        "const divided = 10 / 2 / 1\n"
+        "import { log } from '@secure-home/logging'\n"
+        "export const a = [quoted, divided, log]"
+    )
+    result = _contracts_source(tmp_path, "regex", body)
+    assert result.returncode != 0, "a regex literal hid the import that followed it"
+    assert "direction is inward only" in _output(result)
+
+
+def test_jsx_text_containing_an_apostrophe_does_not_hide_an_import(tmp_path: Path) -> None:
+    """`don't` in JSX text is not an unterminated string, and `//` is not a comment."""
+    ws = _base(tmp_path, "ws-jsx")
+    ws.member(
+        "apps/web",
+        "@secure-home/web",
+        dependencies={"@secure-home/contracts": "workspace:*"},
+        devDependencies={"@secure-home/testing": "workspace:*"},
+    )
+    ws.source(
+        "apps/web/src/page.tsx",
+        "import { fixture } from '@secure-home/testing'\n"
+        "export const Page = () => <p>don't visit http://example.test</p>\n"
+        "export const a = fixture",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "JSX text hid the import above it"
+    assert "test-only package" in _output(result)
+
+
+def test_typescript_only_import_forms_are_edges(tmp_path: Path) -> None:
+    """`import x = require()` and `typeof import()` are imports too."""
+    forms = {
+        "import-equals": ("import log = require('@secure-home/logging')\nexport const a = log"),
+        "import-type-node": "export type A = typeof import('@secure-home/logging')",
+        "import-type-member": "export type A = import('@secure-home/logging').Logger",
+    }
+    for label, body in forms.items():
+        result = _contracts_source(tmp_path, f"ts-{label}", body)
+        assert result.returncode != 0, f"the {label} form was not seen as an edge"
+
+
+def test_a_file_that_does_not_parse_is_reported(tmp_path: Path) -> None:
+    """A file that cannot be parsed cannot be verified, so it must not pass.
+
+    This also pins the parser-diagnostic behaviour: the checker reads
+    `parseDiagnostics`, which is not published API. If a future TypeScript
+    release stops providing it, this test fails rather than the gate going quiet.
+    """
+    result = _contracts_source(
+        tmp_path,
+        "broken",
+        "import { log from '@secure-home/logging'\nexport const a = (",
+    )
+    assert result.returncode != 0
+    assert "cannot be parsed" in _output(result)
+
+
+def test_a_deeply_nested_import_is_still_found(tmp_path: Path) -> None:
+    """Walking the whole tree, not just the top level."""
+    body = (
+        "export function outer() {\n"
+        "  return {\n"
+        "    async inner() {\n"
+        "      if (globalThis) {\n"
+        "        return await import('@secure-home/logging')\n"
+        "      }\n"
+        "      return null\n"
+        "    },\n"
+        "  }\n"
+        "}"
+    )
+    result = _contracts_source(tmp_path, "nested", body)
+    assert result.returncode != 0, "a dynamic import nested in a closure was missed"
+    assert "direction is inward only" in _output(result)
+
+
+def test_an_export_without_a_source_is_not_an_import(tmp_path: Path) -> None:
+    """`export { a }` has no module specifier and creates no edge."""
+    result = _contracts_source(tmp_path, "local-export", "const a = 1\nexport { a }")
+    assert result.returncode == 0, _output(result)
+
+
 # --- fail-closed structure --------------------------------------------------
 
 
@@ -436,22 +595,67 @@ def test_the_source_import_check_runs_in_ci_and_in_the_aggregate_check() -> None
         assert not has_condition(section), f"job {name} acquired an `if:` condition"
 
 
-def test_the_check_runs_before_install() -> None:
-    """It must work on a freshly-prepared Pi, so no third-party import.
-
-    Comments are stripped first: both files document import syntax, and a test
-    that reads a doc comment as code reports on something that is not there.
-    """
+def _external_imports(script: str) -> list[str]:
+    """Third-party module specifiers in a script, ignoring its documentation."""
     specifier = re.compile(r"""(?:from|import)\s*['"]([^'"]+)['"]""")
     block_comment = re.compile(r"/\*.*?\*/", re.DOTALL)
     line_comment = re.compile(r"^\s*//.*$", re.MULTILINE)
 
-    for script in ("check-source-imports.mjs", "workspace-model.mjs"):
-        text = (REPO_ROOT / "scripts" / script).read_text()
-        code = line_comment.sub("", block_comment.sub("", text))
-        external = [
-            found
-            for found in specifier.findall(code)
-            if not found.startswith(("node:", "./", "../"))
-        ]
-        assert not external, f"{script} may only use the Node standard library: {external}"
+    text = (REPO_ROOT / "scripts" / script).read_text()
+    code = line_comment.sub("", block_comment.sub("", text))
+    return [
+        found for found in specifier.findall(code) if not found.startswith(("node:", "./", "../"))
+    ]
+
+
+def test_the_pre_install_checks_stay_dependency_free() -> None:
+    """These run before any `pnpm install`, so a dependency would break them.
+
+    `affected-targets.mjs` runs in the `select` job, which never installs, and
+    `workspace-model.mjs` is imported by `check-workspace.mjs`. A third-party
+    import in either would fail on a freshly-prepared Pi.
+    """
+    for script in ("workspace-model.mjs", "check-workspace.mjs", "affected-targets.mjs"):
+        assert not _external_imports(script), (
+            f"{script} runs before install and may use only the Node standard library"
+        )
+
+
+def test_the_gate_takes_one_dependency_and_runs_after_install() -> None:
+    """The parser is worth a dependency; the ordering that makes it safe is not optional.
+
+    Reading the AST instead of matching patterns costs one import, `typescript`.
+    That is only sound if the gate runs after the lockfile install — so the
+    ordering is asserted rather than assumed, in CI and in the aggregate check.
+    """
+    assert _external_imports("check-source-imports.mjs") == ["typescript"], (
+        "the source import gate should need the TypeScript parser and nothing else"
+    )
+
+    # Declared at the pinned catalog version, like every other external dependency.
+    root_manifest = json.loads((REPO_ROOT / "package.json").read_text())
+    assert root_manifest["devDependencies"]["typescript"] == "catalog:"
+
+    governance = governance_jobs()["governance"]
+    assert governance.index("pnpm install --frozen-lockfile") < governance.index("check:imports"), (
+        "the merge gate must install before running the source import check"
+    )
+
+    check_sh = (REPO_ROOT / "scripts" / "check.sh").read_text()
+    assert check_sh.index("pnpm install --frozen-lockfile") < check_sh.index("check:imports")
+
+
+def test_the_governance_test_suite_is_not_path_gated() -> None:
+    """Regression: these tests ran only when a Python fan-out path changed.
+
+    `tests/test_source_imports.py` guards an unconditional gate, but the
+    unconditional job ran a hand-listed subset that did not include it — so it
+    executed only when something happened to touch `pyproject.toml`, `uv.lock`,
+    or the workflow. A test for a governance gate that itself runs conditionally
+    is not a governance test.
+    """
+    classifier = governance_jobs()["classifier"]
+    assert "uv run pytest -q" in classifier, (
+        "the unconditional job must run the whole suite, not a hand-maintained list "
+        "that a new governance test can be forgotten from"
+    )

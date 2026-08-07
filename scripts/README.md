@@ -16,7 +16,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
 | [`workspace-model.mjs`](workspace-model.mjs) | The workspace's shape — taxonomy, the **layer map**, package roles. Imported by the two checks below so they cannot disagree. No side effects |
 | [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
-| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: reads real `import`/`require` statements and enforces direction on them |
+| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file with the TypeScript compiler and enforces direction on the real import nodes |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 
 ## What belongs here
@@ -42,7 +42,16 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    system.
 2. **Dependency-light.** `validate-scaffold.sh` uses POSIX-ish shell and
    coreutils only — no `jq`, no Python, no network. It must run before any
-   toolchain is installed.
+   toolchain is installed. `scan-secrets.sh`, `check-workspace.mjs`,
+   `workspace-model.mjs`, and `affected-targets.mjs` are likewise dependency-free;
+   `affected-targets.mjs` in particular runs in a CI job that never installs.
+
+   **One deliberate exception:** `check-source-imports.mjs` imports `typescript`
+   to parse source. Deciding whether a token is an import requires a lexer, and
+   a governance gate that guesses is a governance gate with bypasses. It runs
+   after `pnpm install --frozen-lockfile` in both CI and `check.sh`, and
+   `tests/test_source_imports.py` asserts that ordering and that this is the
+   only third-party import any of these scripts takes.
 3. **Skips are reported, never silent.** `check.sh` prints a skipped check and
    exits non-zero on a genuine failure. A check that quietly disappears is how a
    broken repository looks healthy.
@@ -134,8 +143,19 @@ direction hole the other cannot see. `tests/test_source_imports.py` runs both
 over one fixture and asserts they *disagree*, so a future change that collapses
 them into one fails rather than passing quietly.
 
-Two deliberate properties of the source check:
+Three deliberate properties of the source check:
 
+- **It parses; it does not pattern-match.** An earlier revision matched
+  import-shaped regular expressions against raw text. That is unsafe for a gate
+  that runs unconditionally, in both directions: it reported commented-out
+  imports, and it missed real ones written as
+  `import { log } from /* c */ '@secure-home/logging'`. Masking comments and
+  strings by hand fixes those two and leaves regular-expression literals
+  containing quotes, template substitutions, and JSX text containing an
+  apostrophe. So the checker uses TypeScript's own parser and walks the AST —
+  a construct either is an import node or it is not. A file whose syntax the
+  parser rejects **fails**; a file that cannot be parsed cannot be verified,
+  and skipping it would restore the bypass.
 - **Production is the default zone.** Only `tests/`, `__tests__/`, `*.test.*`,
   `*.spec.*`, and member-root `*.config.*` are relaxed. Code placed outside
   `src/` does not escape the rules by choosing a directory name.
