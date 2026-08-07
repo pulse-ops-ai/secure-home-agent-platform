@@ -119,6 +119,17 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
+      # The governance tests invoke the real checks as subprocesses, and
+      # `check-source-imports.mjs` parses with TypeScript. Testing the gate
+      # therefore needs the same toolchain the gate needs. Stubbing it out, or
+      # skipping those tests when the module is absent, would mean the gate that
+      # runs unconditionally is verified conditionally.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
       # The WHOLE suite, not a hand-listed subset. These tests guard the
       # unconditional gates — target selection, the workspace layer map, the
       # secret scanner, source import direction — so running a curated list
@@ -262,10 +273,15 @@ jobs:
         if: needs.select.outputs.python == 'true'
         run: uv sync --all-packages --locked
 
-      - name: Lint, format, types, and tests
+      # Python-specific quality gates only. The test suite is NOT run here: it
+      # is the governance suite (`testpaths = ["tests"]`), and the classifier job
+      # above runs all of it unconditionally. Running it again behind a path
+      # filter would add nothing — it is strictly weaker than "always" — while
+      # requiring this job to install Node and pnpm too, because those tests
+      # invoke the real checks as subprocesses.
+      - name: Lint, format, and types
         if: needs.select.outputs.python == 'true'
         run: |
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy
-          uv run pytest

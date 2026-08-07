@@ -25,7 +25,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from workflow_model import governance_jobs, has_condition
+from workflow_model import governance_jobs, has_condition, job_sections
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 IMPORT_CHECK = REPO_ROOT / "scripts" / "check-source-imports.mjs"
@@ -658,4 +658,19 @@ def test_the_governance_test_suite_is_not_path_gated() -> None:
     assert "uv run pytest -q" in classifier, (
         "the unconditional job must run the whole suite, not a hand-maintained list "
         "that a new governance test can be forgotten from"
+    )
+
+    # These tests invoke the real checks as subprocesses, and the source-import
+    # check parses with TypeScript. Skipping them when the module is absent
+    # would verify an unconditional gate conditionally, so the job installs the
+    # toolchain instead.
+    assert "pnpm install --frozen-lockfile" in classifier, (
+        "the governance suite runs the real checks, so its job must install them"
+    )
+
+    # And the path-gated Python job must not be where the suite lives.
+    python_job = job_sections()["python"]
+    assert "uv run pytest" not in python_job, (
+        "the governance suite must not run behind a path filter — that is strictly "
+        "weaker than the unconditional job that already runs it"
     )
