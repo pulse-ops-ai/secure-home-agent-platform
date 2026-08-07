@@ -3,15 +3,20 @@
 Cross-cutting conformance and scenario tests — the ones that assert **platform
 properties**, not the behaviour of a single unit.
 
-> **Status:** one real test exists,
-> [`test_workspace_scaffold.py`](test_workspace_scaffold.py), which asserts that
-> the declared workspace structure actually exists. The three conformance
-> directories are documented placeholders.
+> **Status:** the repository has no runtime yet, so the tests that exist assert
+> **governance properties** — that the structure, the boundaries, and the gates
+> are what the documents claim. The three conformance directories below are
+> documented placeholders awaiting the components they test.
 
 ## Layout
 
 | Path | Asserts |
 |---|---|
+| [`test_workspace_scaffold.py`](test_workspace_scaffold.py) | the declared workspace structure exists, and manifests obey the taxonomy and layer map |
+| [`test_source_imports.py`](test_source_imports.py) | source **imports** obey dependency direction — separately from what manifests declare |
+| [`test_affected_targets.py`](test_affected_targets.py) | CI target selection follows the dependency graph, and governance gates stay unconditional |
+| [`test_secret_scanner.py`](test_secret_scanner.py) | the secret scan has no bypass, and its allowlist fails closed |
+| [`workflow_model.py`](workflow_model.py) | *(helper, not a test)* parses `checks.yml` into job sections so "this gate is unconditional" assertions inspect the real job |
 | [`profile-conformance/`](profile-conformance/) | that an execution profile grants exactly what it declares — and that an omitted grant **denies** |
 | [`framework-conformance/`](framework-conformance/) | that every adapter emits an identical event and evidence contract |
 | [`policy-scenarios/`](policy-scenarios/) | authorization, safety policy, degraded mode, and path equivalence |

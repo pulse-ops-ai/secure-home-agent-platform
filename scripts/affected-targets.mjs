@@ -56,6 +56,8 @@ const TS_FANOUT = [
   '.prettierignore',
   'scripts/affected-targets.mjs',
   'scripts/check-workspace.mjs',
+  'scripts/check-source-imports.mjs',
+  'scripts/workspace-model.mjs',
   '.github/workflows/checks.yml',
 ]
 

@@ -21,76 +21,30 @@
  *   8. test-only packages are never a production dependency;
  *   9. no framework dependency enters a contract-shaped package.
  *
+ * It governs what a manifest may DECLARE. What source may IMPORT is a separate
+ * property that a manifest cannot prove, and it is checked separately by
+ * `check-source-imports.mjs` — see the note on RUNTIME_DEP_FIELDS below.
+ *
+ * The taxonomy and the layer map live in `workspace-model.mjs` so that both
+ * checks read the same one.
+ *
  * Node standard library only — no dependencies, so it runs before install.
  *
  * Governed by AGENTS.md and ADR-0012.
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
-
-/** Directory role → what may live there. */
-const TAXONOMY = {
-  services: 'deployable backend processes',
-  apps: 'human-facing applications',
-  packages: 'reusable libraries with no runtime identity',
-  agents: 'agent implementations and profiles',
-}
-
-/**
- * Dependency direction (ADR-0012 §15): contracts ← domain ← application ←
- * adapters ← apps, inward only.
- *
- * Layering is EXPLICIT PER PACKAGE, not per directory. A per-directory layer
- * would put every package on one level, which would let `contracts` depend on
- * `logging`, `observability`, or `testing` and still pass — the rule would read
- * as enforced while enforcing nothing.
- *
- * A member may depend only on a STRICTLY LOWER layer. Equal-layer dependencies
- * are rejected because they are how a cycle starts.
- *
- * A package absent from this map is an ERROR, not a default: placing a new
- * package in the layering must be a decision. If a genuine need crosses a layer,
- * move the package in this map with a rationale — do not weaken the rule.
- */
-const LAYERS = {
-  // 0 — build tooling. Imports nothing; everything may use it as a devDep.
-  'packages/tsconfig': 0,
-  'packages/eslint-config': 0,
-
-  // 1 — the innermost contract source. Imports nothing from the platform.
-  'packages/contracts': 1,
-
-  // 2 — contract-shaped vocabularies built on `contracts`.
-  'packages/errors': 2,
-  'packages/events': 2,
-  'packages/query-model': 2,
-
-  // 3 — operation contracts and the catalog: contracts + query-model.
-  'packages/api-contracts': 3,
-
-  // 4 — cross-cutting infrastructure.
-  'packages/logging': 4,
-  'packages/observability': 4,
-
-  // 5 — composes infrastructure into a worker runtime.
-  'packages/worker-base': 5,
-
-  // 6 — test helpers may reach anything below them.
-  'packages/testing': 6,
-}
-
-/** Deployables sit outside every package layer, and nothing may depend on them. */
-const DEPLOYABLE_LAYER = 99
-
-/**
- * Test-only packages. A production dependency on one would ship test helpers
- * into a running service, so they may appear in devDependencies only.
- */
-const TEST_ONLY_PACKAGES = new Set(['@secure-home/testing'])
+import {
+  DEFAULT_ROOT,
+  TAXONOMY,
+  DEPLOYABLE_LAYER,
+  TEST_ONLY_PACKAGES,
+  DEP_FIELDS,
+  findMembers,
+  layerOf,
+} from './workspace-model.mjs'
 
 /**
  * Contract-shaped packages (layers 1–3) describe shapes and carry no runtime.
@@ -113,9 +67,6 @@ const FRAMEWORK_DEPENDENCIES = [
 
 const REQUIRED_SCRIPTS = ['lint', 'typecheck', 'test', 'build']
 
-/** Where internal and external dependency declarations must be checked. */
-const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-
 /**
  * Fields that create a RUNTIME edge, and therefore an architectural one.
  *
@@ -126,8 +77,16 @@ const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'opti
  * — treating those as architectural edges would make the layer map unusable
  * while preventing nothing.
  *
- * The production restriction on test-only packages is enforced separately, so a
- * test helper still cannot become a runtime dependency.
+ * That exclusion is safe for MANIFEST policy and unsafe as a claim about the
+ * repository, because nothing here stops production source from importing a
+ * devDependency:
+ *
+ *     packages/contracts   devDependencies: @secure-home/logging   ← allowed here
+ *     packages/contracts/src/index.ts  import '@secure-home/logging'  ← outward
+ *
+ * `check-source-imports.mjs` closes exactly that gap by reading the source
+ * rather than the manifest. Neither check substitutes for the other, and
+ * removing either one re-opens a direction hole.
  */
 const RUNTIME_DEP_FIELDS = new Set(['dependencies', 'peerDependencies', 'optionalDependencies'])
 
@@ -137,32 +96,17 @@ const RUNTIME_DEP_FIELDS = new Set(['dependencies', 'peerDependencies', 'optiona
  */
 const CATALOG_EXEMPT_FIELDS = new Set(['peerDependencies'])
 
-function layerOf(rel, top) {
-  if (top === 'services' || top === 'apps') return DEPLOYABLE_LAYER
-  return LAYERS[rel]
-}
+/**
+ * The repository to check. Parameterised so the rules can be proven against a
+ * fixture workspace — a test that had to mutate this repository's own manifests
+ * to prove a rule is a test that can leave them mutated.
+ */
+const ROOT = process.argv[2] ?? DEFAULT_ROOT
 
 const problems = []
 const fail = (msg) => problems.push(msg)
 
-/** Find pnpm members the same way pnpm-workspace.yaml does — one level deep. */
-function findMembers() {
-  const globs = ['services', 'services/workers', 'apps', 'packages', 'agents']
-  const members = []
-  for (const g of globs) {
-    const dir = join(ROOT, g)
-    if (!existsSync(dir)) continue
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry)
-      if (!statSync(full).isDirectory()) continue
-      const manifest = join(full, 'package.json')
-      if (existsSync(manifest)) members.push({ rel: `${g}/${entry}`, dir: full, manifest })
-    }
-  }
-  return members.sort((a, b) => a.rel.localeCompare(b.rel))
-}
-
-const members = findMembers()
+const members = findMembers(ROOT)
 if (members.length === 0) fail('no workspace members found')
 
 for (const m of members) {
@@ -184,7 +128,7 @@ for (const m of members) {
   if (ownLayer === undefined) {
     fail(
       `${m.rel}: not placed in the dependency layer map — ` +
-        'add it to LAYERS in scripts/check-workspace.mjs with a rationale',
+        'add it to LAYERS in scripts/workspace-model.mjs with a rationale',
     )
     continue
   }

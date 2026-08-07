@@ -13,6 +13,7 @@
     "build": "pnpm -r --if-present run build",
     "check": "bash scripts/check.sh",
     "check:scaffold": "bash scripts/validate-scaffold.sh",
+    "check:imports": "node scripts/check-source-imports.mjs",
     "check:secrets": "bash scripts/scan-secrets.sh",
     "check:workspace": "node scripts/check-workspace.mjs",
     "deps:check": "syncpack lint",

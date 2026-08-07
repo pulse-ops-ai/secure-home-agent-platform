@@ -85,8 +85,16 @@ jobs:
       - name: Formatting (Prettier)
         run: pnpm run format:check
 
-      - name: Workspace taxonomy and dependency direction
+      - name: Workspace taxonomy and manifest dependency direction
         run: pnpm run check:workspace
+
+      # A separate gate from the one above, deliberately. `check:workspace`
+      # governs what a manifest may DECLARE and excludes devDependencies from
+      # layering; that leaves production source free to import a devDependency
+      # and cross a layer. This reads the source instead. Removing either one
+      # re-opens a direction hole that the other cannot see.
+      - name: Source import direction
+        run: pnpm run check:imports
 
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL

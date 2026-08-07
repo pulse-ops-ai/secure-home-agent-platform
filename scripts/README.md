@@ -14,7 +14,9 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check.sh`](check.sh) | Aggregate check — runs everything and **reports what it skipped** |
 | [`scan-secrets.sh`](scan-secrets.sh) | Scans **every tracked text file** for secret-shaped values — no file-level exclusions |
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
-| [`check-workspace.mjs`](check-workspace.mjs) | Workspace conformance: taxonomy, naming, script surface, **dependency direction**, and `catalog:`/`workspace:*` declarations |
+| [`workspace-model.mjs`](workspace-model.mjs) | The workspace's shape — taxonomy, the **layer map**, package roles. Imported by the two checks below so they cannot disagree. No side effects |
+| [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
+| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: reads real `import`/`require` statements and enforces direction on them |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 
 ## What belongs here
@@ -66,20 +68,22 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 ```sh
 bash scripts/validate-scaffold.sh   # structure, taxonomy, indexes, secrets, binaries
 bash scripts/scan-secrets.sh        # secret-shaped values in tracked text
-node scripts/check-workspace.mjs    # workspace conformance and dependency direction
+node scripts/check-workspace.mjs       # manifest conformance and declared direction
+node scripts/check-source-imports.mjs  # direction as source actually imports it
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```
 
 ## The division of labour
 
-Three mechanisms, three jobs — conflating them is how drift becomes invisible:
+Each mechanism has one job — conflating them is how drift becomes invisible:
 
 | Mechanism | Governs | Dependency fields |
 |---|---|---|
 | **pnpm catalog** (`pnpm-workspace.yaml`) | canonical declared versions | — |
 | **Syncpack** (`.syncpackrc.json`) | manifest policy, consistency, formatting | `dependencies`, `devDependencies`, `peerDependencies` |
-| **`check-workspace.mjs`** | taxonomy, naming, scripts, **dependency direction** | **all four**, including `optionalDependencies` |
+| **`check-workspace.mjs`** | taxonomy, naming, scripts, **declared** direction | **all four**, including `optionalDependencies`; layering applies to the runtime three |
+| **`check-source-imports.mjs`** | **imported** direction, read from source | not applicable — it reads `import`/`require`, not manifests |
 | **`pnpm-lock.yaml`** | the exact resolved graph | — |
 
 Two gaps make `check-workspace.mjs` load-bearing rather than decorative:
@@ -91,10 +95,54 @@ Two gaps make `check-workspace.mjs` load-bearing rather than decorative:
   governed only by `check-workspace.mjs`.
 
 Direction is checked against an **explicit per-package layer map** in
-`check-workspace.mjs`, not a per-directory one. A per-directory layer would put
-every package on one level, so `contracts` could depend on `logging` and still
-pass — the rule would read as enforced while enforcing nothing. A package absent
-from the map is an error, so placing a new package must be a decision.
+[`workspace-model.mjs`](workspace-model.mjs), not a per-directory one. A
+per-directory layer would put every package on one level, so `contracts` could
+depend on `logging` and still pass — the rule would read as enforced while
+enforcing nothing. A package absent from the map is an error, so placing a new
+package must be a decision. The map lives in one file because two copies would
+stop agreeing about what "inward" means without anything failing.
+
+### Why manifest direction is not enough
+
+`check-workspace.mjs` excludes `devDependencies` from layering on purpose: every
+member devDepends on `@secure-home/testing` (layer 6) and
+`@secure-home/eslint-config` (layer 0), so counting those as architectural edges
+would make the layer map unusable while preventing nothing.
+
+That exclusion is correct for manifest policy and **false as a claim about the
+repository**, because nothing in a manifest stops production source from
+importing a devDependency:
+
+```jsonc
+// packages/contracts/package.json — accepted by manifest policy
+"devDependencies": { "@secure-home/logging": "workspace:*" }
+```
+
+```ts
+// packages/contracts/src/index.ts — layer 1 reaching outward to layer 4
+import { log } from '@secure-home/logging'
+```
+
+TypeScript resolves it, `tsc` builds it, and manifest validation permits it. So
+`check-source-imports.mjs` reads the source instead, applies the same layer map
+to every import regardless of which field declared it, and additionally forbids
+production source from importing a **test-only** or **build-tooling** package —
+both of which sit at a layer the direction rule alone would allow.
+
+Neither check substitutes for the other, and removing either re-opens a
+direction hole the other cannot see. `tests/test_source_imports.py` runs both
+over one fixture and asserts they *disagree*, so a future change that collapses
+them into one fails rather than passing quietly.
+
+Two deliberate properties of the source check:
+
+- **Production is the default zone.** Only `tests/`, `__tests__/`, `*.test.*`,
+  `*.spec.*`, and member-root `*.config.*` are relaxed. Code placed outside
+  `src/` does not escape the rules by choosing a directory name.
+- **A non-literal `import(expr)` in production source is a failure.** A computed
+  specifier cannot be resolved statically, so permitting one would be a silent
+  bypass of every rule above. The blind spot is closed by prohibition rather
+  than left open — the same treatment the secret scanner gives binary files.
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).
