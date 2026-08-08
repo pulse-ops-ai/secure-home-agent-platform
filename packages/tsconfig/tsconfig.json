@@ -1,0 +1,7 @@
+{
+  "extends": "@secure-home/tsconfig/test",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["tests"]
+}

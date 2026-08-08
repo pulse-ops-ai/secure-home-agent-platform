@@ -11,21 +11,28 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./vitest": "./vitest.base.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "vitest.base.js"
   ],
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src vitest.base.js",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('no tests: package boundary declares no behaviour yet')\"",
-    "build": "tsc"
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "eslint": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "^4.1.10"
   }
 }

@@ -18,6 +18,8 @@ import subprocess
 from pathlib import Path
 from typing import TypedDict
 
+from workflow_model import governance_jobs, has_condition
+
 
 class Affected(TypedDict):
     """What the classifier emits."""
@@ -167,17 +169,39 @@ def test_governance_jobs_are_not_gated_on_the_classifier() -> None:
 
     This is the property that makes a classifier bug survivable: even if the
     calculation is wrong, the unconditional gates still run.
-    """
-    workflow = WORKFLOW.read_text()
-    governance_marker = "# GOVERNANCE-UNCONDITIONAL"
-    assert governance_marker in workflow, (
-        "governance jobs must be marked so this test can verify they stay unconditional"
-    )
 
-    # Every marked job block must not contain an `if:` before the next job.
-    for block in workflow.split(governance_marker)[1:]:
-        job = block.split("\n  # ")[0]
-        assert "\n    if:" not in job, "a governance job acquired an `if:` condition"
+    An earlier version of this test split the workflow on the marker and then on
+    `"\\n  # "`, which yielded an EMPTY string for every real job — so
+    `assert "if:" not in block` passed for any workflow at all. It read as
+    enforced while enforcing nothing. The parsing now lives in
+    `workflow_model.py`, and `test_the_extraction_is_not_vacuous` below proves
+    the sections are non-empty and really are the jobs.
+    """
+    jobs = governance_jobs()
+    assert jobs, "governance jobs must be marked so this test can verify they stay unconditional"
+
+    for name, section in jobs.items():
+        assert not has_condition(section), f"governance job {name} acquired an `if:` condition"
+
+
+def test_the_extraction_is_not_vacuous() -> None:
+    """Guard the guard: a test that inspects nothing must not look like a pass."""
+    jobs = governance_jobs()
+    assert set(jobs) == {"governance", "classifier"}, (
+        f"unexpected governance job set: {sorted(jobs)}"
+    )
+    for name, section in jobs.items():
+        assert f"  {name}:" in section, f"section for {name} does not contain the job key"
+        assert "runs-on:" in section, f"section for {name} does not contain the job body"
+
+    # And it must actually catch a condition when one is present.
+    poisoned = WORKFLOW.read_text().replace(
+        "  governance:\n    name: repository governance\n",
+        "  governance:\n    if: false\n    name: repository governance\n",
+    )
+    assert has_condition(governance_jobs(poisoned)["governance"]), (
+        "the check does not detect an `if:` added to a governance job"
+    )
 
 
 def test_longest_directory_match_wins() -> None:
@@ -232,3 +256,29 @@ def test_peer_and_optional_dependencies_are_graph_edges(tmp_path: Path) -> None:
         assert "@secure-home/control-plane" in result["typescript"], (
             f"a dependent declared through {field} was not selected"
         )
+
+
+# --- shared tooling fans out (#25) ------------------------------------------
+
+
+def test_shared_tooling_changes_fan_out_to_every_typescript_target() -> None:
+    """A change to shared config changes how every package builds or tests.
+
+    Validating only the directory the file lives in would validate nothing that
+    actually changed — the specific way path filtering becomes dangerous.
+    """
+    for tooling_file in (
+        "packages/tsconfig/base.json",
+        "packages/tsconfig/library.json",
+        "packages/eslint-config/base.js",
+        "packages/testing/vitest.base.js",
+        ".prettierrc.json",
+        ".prettierignore",
+        "pnpm-workspace.yaml",
+        # The boundary checks themselves: changing what "inward" means changes
+        # whether every package still conforms.
+        "scripts/workspace-model.mjs",
+        "scripts/check-source-imports.mjs",
+    ):
+        result = _affected(tooling_file)
+        assert len(result["typescript"]) >= 14, f"{tooling_file} did not fan out"

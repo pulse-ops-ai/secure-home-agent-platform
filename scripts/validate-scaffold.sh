@@ -164,8 +164,10 @@ check_index docs/operations/INDEX.md
 #
 # Rule: every directory needs a README.md (or an INDEX.md, for indexed
 # folders), EXCEPT a pure grouping directory — one that holds only
-# subdirectories and no files of its own. Package source trees are excluded:
-# they are code, and the package's README already covers them.
+# subdirectories and no files of its own. A package's source and test trees are
+# excluded: they are code, and the package's own README already covers them.
+# (The repository-level tests/ directory is NOT excluded — it documents the
+# conformance suites and keeps its README.)
 # ---------------------------------------------------------------------------
 
 section "Directory READMEs"
@@ -176,7 +178,7 @@ readme_missing=""
 for root in $SCAN_ROOTS; do
   [ -d "$root" ] || { fail "$root/ is missing"; continue; }
   while IFS= read -r dir; do
-    case "$dir" in */src|*/src/*) continue ;; esac
+    case "$dir" in */src|*/src/*|*/tests|*/tests/*) continue ;; esac
     [ -f "$dir/README.md" ] && continue
     [ -f "$dir/INDEX.md" ] && continue
     # A pure grouping directory holds no files of its own.

@@ -1,0 +1,3 @@
+{
+  "extends": "@secure-home/tsconfig/service"
+}

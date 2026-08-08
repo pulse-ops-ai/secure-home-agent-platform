@@ -42,8 +42,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "24.18.1"
-  UV_VERSION: "0.12.1"
+  NODE_VERSION: '24.18.1'
+  UV_VERSION: '0.12.1'
 
 jobs:
   # ==========================================================================
@@ -80,8 +80,21 @@ jobs:
       - name: Dependency manifest policy (Syncpack)
         run: pnpm run deps:check
 
-      - name: Workspace taxonomy and dependency direction
+      # Check-only. CI never rewrites a file — a job that reformats reports on
+      # something the repository does not contain.
+      - name: Formatting (Prettier)
+        run: pnpm run format:check
+
+      - name: Workspace taxonomy and manifest dependency direction
         run: pnpm run check:workspace
+
+      # A separate gate from the one above, deliberately. `check:workspace`
+      # governs what a manifest may DECLARE and excludes devDependencies from
+      # layering; that leaves production source free to import a devDependency
+      # and cross a layer. This reads the source instead. Removing either one
+      # re-opens a direction hole that the other cannot see.
+      - name: Source import direction
+        run: pnpm run check:imports
 
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL
@@ -106,10 +119,26 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
 
-      - name: Test the affected-target calculation
+      # The governance tests invoke the real checks as subprocesses, and
+      # `check-source-imports.mjs` parses with TypeScript. Testing the gate
+      # therefore needs the same toolchain the gate needs. Stubbing it out, or
+      # skipping those tests when the module is absent, would mean the gate that
+      # runs unconditionally is verified conditionally.
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # The WHOLE suite, not a hand-listed subset. These tests guard the
+      # unconditional gates — target selection, the workspace layer map, the
+      # secret scanner, source import direction — so running a curated list
+      # means a new governance test is enforced only when someone remembers to
+      # add it here. `tests/test_source_imports.py` was in exactly that state.
+      - name: Governance test suite
         run: |
           uv sync --all-packages --locked
-          uv run pytest tests/test_affected_targets.py tests/test_workspace_scaffold.py -q
+          uv run pytest -q
 
   # ==========================================================================
   # Target selection — computes which path-aware gates must run.
@@ -244,10 +273,15 @@ jobs:
         if: needs.select.outputs.python == 'true'
         run: uv sync --all-packages --locked
 
-      - name: Lint, format, types, and tests
+      # Python-specific quality gates only. The test suite is NOT run here: it
+      # is the governance suite (`testpaths = ["tests"]`), and the classifier job
+      # above runs all of it unconditionally. Running it again behind a path
+      # filter would add nothing — it is strictly weaker than "always" — while
+      # requiring this job to install Node and pnpm too, because those tests
+      # invoke the real checks as subprocesses.
+      - name: Lint, format, and types
         if: needs.select.outputs.python == 'true'
         run: |
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy
-          uv run pytest

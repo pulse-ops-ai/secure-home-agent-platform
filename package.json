@@ -13,16 +13,21 @@
     "build": "pnpm -r --if-present run build",
     "check": "bash scripts/check.sh",
     "check:scaffold": "bash scripts/validate-scaffold.sh",
+    "check:imports": "node scripts/check-source-imports.mjs",
     "check:secrets": "bash scripts/scan-secrets.sh",
     "check:workspace": "node scripts/check-workspace.mjs",
     "deps:check": "syncpack lint",
     "deps:fix": "syncpack fix",
     "deps:format": "syncpack format",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
-    "syncpack": "catalog:"
+    "prettier": "catalog:",
+    "syncpack": "catalog:",
+    "typescript": "catalog:"
   }
 }

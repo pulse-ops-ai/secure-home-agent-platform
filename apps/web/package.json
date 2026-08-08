@@ -2,7 +2,7 @@
   "name": "@secure-home/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Household web application \u2014 boundary only, no Next.js scaffold.",
+  "description": "Household web application — boundary only, no Next.js scaffold.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "dist/index.js",
@@ -19,13 +19,15 @@
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('no tests: package boundary declares no behaviour yet')\"",
-    "build": "tsc"
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "eslint": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

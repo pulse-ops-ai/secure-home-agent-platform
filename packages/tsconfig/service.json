@@ -1,9 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Deployable backend processes under services/.",
+    "",
+    "`types: []` keeps ambient global types out unless a service opts in, so a",
+    "stray @types package cannot silently widen the global namespace.",
+    "",
+    "NestJS will additionally need experimentalDecorators and",
+    "emitDecoratorMetadata. Those are NOT set here: they are framework-specific",
+    "and belong to the issues that scaffold NestJS (#26, #27). See the README."
+  ],
   "extends": "./base.json",
   "compilerOptions": {
     "rootDir": "${configDir}/src",
     "outDir": "${configDir}/dist",
     "types": []
-  }
+  },
+  "include": ["${configDir}/src"]
 }

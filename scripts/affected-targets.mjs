@@ -52,13 +52,24 @@ const TS_FANOUT = [
   'tsconfig.json',
   'tsconfig.base.json',
   'eslint.config.js',
+  '.prettierrc.json',
+  '.prettierignore',
   'scripts/affected-targets.mjs',
   'scripts/check-workspace.mjs',
+  'scripts/check-source-imports.mjs',
+  'scripts/workspace-model.mjs',
   '.github/workflows/checks.yml',
 ]
 
-/** Shared tooling packages: a change fans out to every TypeScript target. */
-const TS_FANOUT_PREFIXES = ['packages/tsconfig/', 'packages/eslint-config/']
+/**
+ * Shared tooling packages: a change fans out to every TypeScript target.
+ *
+ * `packages/testing` is here because every member's vitest.config.ts imports
+ * its shared configuration — a change to test defaults changes how every
+ * package's tests run, so validating only that package would validate nothing
+ * that actually changed.
+ */
+const TS_FANOUT_PREFIXES = ['packages/tsconfig/', 'packages/eslint-config/', 'packages/testing/']
 
 /** Root configuration whose change affects the Python target. */
 const PY_FANOUT = ['pyproject.toml', 'uv.lock', '.github/workflows/checks.yml']
@@ -196,9 +207,7 @@ export function computeAffected(changedFiles, root = DEFAULT_ROOT) {
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 if (isMain) {
   const args = process.argv.slice(2)
-  const files = args.includes('--stdin')
-    ? readFileSync(0, 'utf8').split('\n')
-    : args
+  const files = args.includes('--stdin') ? readFileSync(0, 'utf8').split('\n') : args
 
   const result = computeAffected(files)
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)

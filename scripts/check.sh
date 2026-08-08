@@ -62,7 +62,12 @@ run "secret scan"        bash scripts/scan-secrets.sh
 if command -v pnpm >/dev/null 2>&1; then
   run "typescript: lockfile"  pnpm install --frozen-lockfile
   run "typescript: manifests" pnpm run deps:check
+  run "typescript: format"    pnpm run format:check
   run "typescript: workspace" pnpm run check:workspace
+  # Separate from the line above on purpose: that one checks what manifests
+  # DECLARE, this one checks what source IMPORTS. A manifest cannot prove
+  # import direction, so neither check substitutes for the other.
+  run "typescript: imports"   pnpm run check:imports
   run "typescript: lint"      pnpm lint
   run "typescript: types"     pnpm typecheck
   run "typescript: tests"     pnpm test

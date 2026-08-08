@@ -27,7 +27,35 @@ the single admitted inference boundary.
 | [`events/`](events/) | Run event and evidence contracts |
 | [`testing/`](testing/) | Shared test helpers and fixtures |
 | [`eslint-config/`](eslint-config/) | Shared ESLint flat configuration |
-| [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations |
+| [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations — `base`, `library`, `service`, `application`, `test` |
+
+## One governed tooling surface
+
+Every TypeScript member consumes the same three packages, by **export path**
+rather than relative traversal, so there is no copied configuration to drift:
+
+```jsonc
+// tsconfig.json        — lint + typecheck project (src AND tests, never emits)
+{ "extends": "@secure-home/tsconfig/test" }
+// tsconfig.build.json  — emit project (src only)
+{ "extends": "@secure-home/tsconfig/library" }
+```
+
+```js
+// eslint.config.js
+import config from '@secure-home/eslint-config/library'
+export default config
+```
+
+```ts
+// vitest.config.ts
+import { definePackageConfig } from '@secure-home/testing/vitest'
+export default definePackageConfig()
+```
+
+The full build template, every strictness decision, and the two documented
+consequences are in [`tsconfig/README.md`](tsconfig/README.md).
+**Formatting is Prettier only** — see [`eslint-config/README.md`](eslint-config/README.md).
 
 > **Every package except `eslint-config` and `tsconfig` is an empty boundary.**
 > They exist so the workspace, dependency direction, and CI target selection are
@@ -66,9 +94,24 @@ platform; no package imports a service or an application.
 
 **Version governance is separate from import governance** (ADR-0012 §19):
 **pnpm catalogs** hold canonical shared versions, **Syncpack** enforces manifest
-consistency against them, and the **lockfile** is the resolved graph — while
-ESLint and dependency-graph checks enforce the direction above. Syncpack would
-happily approve a manifest that violates it. That is what lets a single Zod
+consistency against them, and the **lockfile** is the resolved graph. None of
+those sees direction — Syncpack would happily approve a manifest in which
+`contracts` depends on an application.
+
+Direction is enforced by two checks that are deliberately **not** the same one:
+
+| Check | Reads | Catches |
+|---|---|---|
+| [`check-workspace.mjs`](../scripts/check-workspace.mjs) | manifests | an outward **declaration** in a runtime dependency field |
+| [`check-source-imports.mjs`](../scripts/check-source-imports.mjs) | `src/**` and every other source file | an outward **import**, including one licensed by a `devDependency` |
+
+The second exists because the first cannot see it: `devDependencies` are excluded
+from manifest layering (every package devDepends on `@secure-home/testing`), so
+without a source-level check a package could devDepend on an outer package and
+import it from `src/**` with every gate green. Production source additionally may
+not import a test-only or build-tooling package at all.
+
+That separation is what lets a single Zod
 definition be reused by a NestJS controller, a Next.js page, a generated SDK, an
 MCP tool, and a test without any of them re-declaring it.
 

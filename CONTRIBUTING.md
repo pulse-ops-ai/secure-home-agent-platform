@@ -105,7 +105,7 @@ ADR-0012 §20 model on every pull request and on `main`:
 
 | Job | When | Runs |
 |---|---|---|
-| `repository governance` | **always** | scaffold validation · secret and binary scan · `--frozen-lockfile` · Syncpack · workspace taxonomy and dependency direction |
+| `repository governance` | **always** | scaffold validation · secret and binary scan · `--frozen-lockfile` · Syncpack · formatting · workspace taxonomy and **declared** direction · **source-import** direction |
 | `affected-target calculation` | **always** | the tests for target selection itself |
 | `select affected targets` | always | computes targets from the **dependency graph** |
 | `typescript targets` | when affected | lint · typecheck · test · build, filtered to affected packages |
@@ -122,7 +122,17 @@ Target selection follows the **dependency graph**: a change to
 `tsconfig` or ESLint packages, the workflow, the classifier — fans out to
 everything.
 
-Two properties of that gate are deliberate and must not be eroded:
+Three properties of that gate are deliberate and must not be eroded:
+
+- **Dependency direction is checked twice, on purpose.**
+  `check-workspace.mjs` governs what a manifest may *declare* and excludes
+  `devDependencies` from layering — necessary, because every member devDepends
+  on `@secure-home/testing`. `check-source-imports.mjs` governs what source may
+  *import*, applying the same layer map to every `import` and `require`
+  regardless of which field declared it. Without the second, a package could
+  devDepend on an outer package and import it from `src/**` with every gate
+  green. Neither substitutes for the other; `tests/test_source_imports.py`
+  asserts they disagree on a fixture built for that purpose.
 
 - **Every third-party action is pinned to a full commit SHA**, not a moving tag
   like `@v4`. CI is part of the governance boundary; a repointed tag would change

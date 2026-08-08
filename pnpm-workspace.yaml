@@ -15,16 +15,16 @@
 # ---------------------------------------------------------------------------
 packages:
   # Deployable backend processes.
-  - "services/*"
+  - 'services/*'
   # Specialist workers. Python inference workers live here too, but they are uv
   # members, not pnpm members — this glob only picks up TypeScript workers.
-  - "services/workers/*"
+  - 'services/workers/*'
   # Human-facing applications.
-  - "apps/*"
+  - 'apps/*'
   # Reusable libraries with no runtime identity.
-  - "packages/*"
+  - 'packages/*'
   # Agent implementations, only where an agent is itself a pnpm package.
-  - "agents/*"
+  - 'agents/*'
 
 # ---------------------------------------------------------------------------
 # Catalog — the canonical declaration point for shared external versions
@@ -43,14 +43,33 @@ packages:
 # the issues that implement them (#26, #27, #28, and the web-shell issue).
 # ---------------------------------------------------------------------------
 catalog:
+  # Node type definitions. Required: shared tooling and its tests use Node
+  # builtins (node:fs, node:path, node:child_process).
+  '@types/node': 24.10.1
   # Type checking and build.
-  typescript: 7.0.2
+  #
+  # PINNED TO 6.x DELIBERATELY. typescript-eslint 8.66 supports
+  # '>=4.8.4 <6.1.0' and throws outright on TS 7 ("does not support TS 7.0"),
+  # which makes type-aware linting fail or, worse, pass or fail depending on
+  # which TypeScript copy resolves first. Raising this past 6.0.x requires a
+  # typescript-eslint release that supports it — tests/ asserts the pairing.
+  typescript: 6.0.3
   # Linting.
   eslint: 10.8.0
-  "@eslint/js": 10.0.1
+  '@eslint/js': 10.0.1
   typescript-eslint: 8.66.0
+  # Lint globals (Node/browser sets) — tiny, data-only.
+  globals: 17.9.0
   # Manifest governance.
   syncpack: 15.3.2
+  # Formatting. Prettier is the SINGLE formatting authority (#25); ESLint 10
+  # ships no formatting rules in core and this workspace adds no stylistic
+  # plugin, so the two cannot conflict.
+  prettier: 3.9.6
+  # Test runner and coverage. V8 coverage is built into Node — no native
+  # compilation, so it works on the ARM64 Pi and on x86_64 CI alike.
+  vitest: 4.1.10
+  '@vitest/coverage-v8': 4.1.10
 
 # No dependency in this workspace is permitted to run an install script.
 # When one legitimately needs to, it is added here by an explicit reviewed
