@@ -18,6 +18,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
 | [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file with the TypeScript compiler and enforces direction on the real import nodes |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
+| [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, and that no specification directory holds authored content. **Not** the ADR-0010 bundle validator |
 
 ## What belongs here
 
@@ -79,6 +80,7 @@ bash scripts/validate-scaffold.sh   # structure, taxonomy, indexes, secrets, bin
 bash scripts/scan-secrets.sh        # secret-shaped values in tracked text
 node scripts/check-workspace.mjs       # manifest conformance and declared direction
 node scripts/check-source-imports.mjs  # direction as source actually imports it
+node scripts/check-knowledge.mjs       # knowledge registry conformance
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```

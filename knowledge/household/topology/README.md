@@ -1,8 +1,17 @@
-# knowledge/home-topology/
+# knowledge/household/topology/
 
 The **structure** of the house: floors, areas, rooms, and how they relate.
 
-> **Status: empty.** No bundle exists — the validator must come first.
+> **Status: `Planned` — specification only.** No module content is authored.
+
+| Field | Value |
+|---|---|
+| Status | `Planned` |
+| Owner | @mikegtech |
+| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+
+> Registered as module `household/topology` in [`../../INDEX.md`](../../INDEX.md).
+> Specification only, and not runtime-authoritative.
 
 ## What belongs here
 
@@ -36,10 +45,20 @@ Topology changes rarely — a renovation, a new device, a room repurposed. The
 as-of date matters precisely *because* it changes rarely: a stale topology is
 confidently wrong for a long time.
 
+## Intended consumers
+
+Household runners. A coding runner has no reason to know the shape of the house.
+
+## Expected queries
+
+- "Which rooms does the upstairs zone serve?"
+- "What is the canonical name for the room a person just called `the den`?"
+- "Are these two areas thermally adjacent?"
+
 ## Governed by
 
-[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) ·
-[ADR-0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 

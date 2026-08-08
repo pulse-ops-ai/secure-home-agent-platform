@@ -186,6 +186,7 @@ to deploy, and it does not make any unresolved decision decided.
 | safety policy or device actuation | ADR-0005, ADR-0008, ADR-0009 |
 | availability, offline, or failure behaviour | ADR-0002, ADR-0007, ADR-0009 |
 | a knowledge bundle | ADR-0010 |
+| a knowledge module, set, or the selection contract | ADR-0010, ADR-0003, ADR-0006 + [`../architecture/knowledge-selection-model.md`](../architecture/knowledge-selection-model.md) |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |

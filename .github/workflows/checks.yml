@@ -72,6 +72,15 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
+      # Structural only: that the knowledge registry is coherent and that no
+      # specification directory has grown authored content. Node standard
+      # library, so it needs no install — but it does need node, which is why it
+      # follows the setup step rather than sitting with the shell checks above.
+      # NOT the ADR-0010 bundle validator, which is gated on U7 and does not
+      # exist.
+      - name: Knowledge registry
+        run: node scripts/check-knowledge.mjs
+
       # --frozen-lockfile fails on a stale or drifted lockfile rather than
       # rewriting it. CI never mutates a manifest or the lockfile.
       - name: Manifest and lockfile consistency

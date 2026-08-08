@@ -158,7 +158,7 @@ does not reimplement any of it.
 - Gridwise **semantics** — what a tariff structure means, what a metric
   represents — are knowledge-bundle content
   ([ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md),
-  [`knowledge/gridwise/`](../../knowledge/gridwise/)).
+  [`knowledge/household/energy-semantics/`](../../knowledge/household/energy-semantics/)).
 - Gridwise **signals** may inform a household decision (for example, pre-cooling
   ahead of a peak window). They never bypass authorization or safety policy: a
   price signal is an input, not an authority.

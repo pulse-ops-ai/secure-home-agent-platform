@@ -1,8 +1,17 @@
-# knowledge/gridwise/
+# knowledge/household/energy-semantics/
 
 **Gridwise tariff and telemetry semantics** — what the energy data *means*.
 
-> **Status: empty.** No bundle exists — the validator must come first.
+> **Status: `Planned` — specification only.** No module content is authored.
+
+| Field | Value |
+|---|---|
+| Status | `Planned` |
+| Owner | @mikegtech |
+| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+
+> Registered as module `household/energy-semantics` in [`../../INDEX.md`](../../INDEX.md).
+> Specification only, and not runtime-authoritative.
 
 ## The relationship
 
@@ -32,7 +41,7 @@ reason about an energy signal instead of pattern-matching a number.
 - **Credentials or endpoints** for the Gridwise interface.
 - **Household consumption telemetry** — raw personal telemetry is prohibited.
 - **Automations** that act on energy signals —
-  [`../../services/control-plane/`](../../services/control-plane/).
+  [`../../services/control-plane/`](../../../services/control-plane/).
 - **Enforced policy.** "Do not pre-cool below 68 °F" is deterministic policy, not
   knowledge.
 
@@ -41,12 +50,22 @@ reason about an energy signal instead of pattern-matching a number.
 An agent may use a peak-price signal to *propose* pre-cooling. The proposal is
 still subject to authorization and to the deterministic safety envelope. Cost
 never justifies leaving the envelope
-([ADR-0005](../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md)).
+([ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md)).
+
+## Intended consumers
+
+Household runners reasoning about cost or load shifting.
+
+## Expected queries
+
+- "What defines a peak window under this tariff structure?"
+- "What does this metric represent, and in what units?"
+- "What are the known caveats of this data?"
 
 ## Governed by
 
-[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) ·
-[ADR-0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 

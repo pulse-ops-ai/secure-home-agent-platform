@@ -3,7 +3,7 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: empty.** No bundle exists — the validator must come first.
+> **Status: `Planned` — specification only.** No module content is authored.
 
 ## What belongs here
 

@@ -117,7 +117,13 @@ The reviewable artifact that binds everything and grants authority:
 | Execution | routing class (R0–R3), model route, declared fallback behaviour |
 | Limits | wall clock, CPU, memory, output size |
 | Principal | the agent identity the run authenticates as; whether an `actor` is required |
+| Knowledge | the named knowledge set the run may reason from — [`knowledge-selection-model.md`](knowledge-selection-model.md) |
 | Evidence | the evidence contract the run must satisfy |
+
+The knowledge field group is **not** a capability. It says what a run may
+*understand*, never what it may *do*; a selected module grants no tool, no
+mount, no egress, and no authorization. Its contract is specified separately and
+is **not yet schema**.
 
 **A run is launched from a profile, never from ad-hoc parameters.** Anything the
 profile does not grant is denied. Schema: [`schemas/execution-profile/`](../../schemas/execution-profile/)

@@ -3,10 +3,34 @@
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
-> **Status: exploratory, and empty on purpose.** No bundle exists. No schema is
-> asserted. The format is **experimental** — see
+> **Status: specification only, and empty on purpose.** No bundle exists. No
+> schema is asserted. The format is **experimental** — see
 > [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md).
 > The validator must exist **before** the first real bundle is authored.
+>
+> **`knowledge/` is not runtime-authoritative**
+> ([U7](../docs/architecture/unresolved-decisions.md#u7)).
+
+## Start here
+
+| Document | What it is |
+|---|---|
+| [`INDEX.md`](INDEX.md) | the **registry** — every knowledge module and set, and their status |
+| [`catalog.json`](catalog.json) | the machine-readable source the registry is a view of |
+| [`../docs/architecture/knowledge-selection-model.md`](../docs/architecture/knowledge-selection-model.md) | how a profile **selects** knowledge and what a run records about it |
+
+## Module, set, bundle
+
+Three concepts, kept distinct:
+
+```text
+knowledge module   one independently versioned body of portable knowledge
+knowledge set      a named, profile-oriented composition of allowed modules
+packaged bundle    the immutable, digest-addressed artifact delivered to a run
+```
+
+A profile selects a **set** by name and version. It never references a repository
+file path. No packaged bundle exists.
 
 ## What knowledge is
 
@@ -17,13 +41,15 @@ out, who owns a decision, and how stale a fact is.
 
 ## Permitted content
 
-| Directory | Contains |
+| Group | Contains |
 |---|---|
-| [`home-topology/`](home-topology/) | floors, areas, rooms, and their relationships |
-| [`climate/`](climate/) | HVAC equipment mapping, zones, capacities, operating limits |
-| [`security/`](security/) | security-domain semantics, runbooks, ownership |
-| [`gridwise/`](gridwise/) | Gridwise tariff and telemetry **semantics** |
-| [`platform/`](platform/) | platform self-description: policies, runbooks, limitations, ownership |
+| [`platform/`](platform/) | platform self-description: how it works, how it is governed, how it degrades |
+| [`household/`](household/) | what the house *is* and what its signals *mean* |
+| [`runbooks/`](runbooks/) | ordered procedures — validation, triage, escalation |
+
+Individual modules are listed in [`INDEX.md`](INDEX.md). A module-shaped
+directory that is not registered there is a **validation failure**: a module no
+profile can select is invisible, and invisible things do not get reviewed.
 
 Plus, in any bundle: device **semantics** (what a device *is* and is for),
 policies as documentation, runbooks, known limitations, ownership, and
@@ -96,6 +122,21 @@ would make an unvalidated format load-bearing.
 
 ## Validation
 
-Future: `validate` runs in CI and fails on any prohibited content, missing
+**Today** — [`scripts/check-knowledge.mjs`](../scripts/check-knowledge.mjs)
+validates the *specification*: that every registered module exists and carries
+its metadata, that every module directory is registered, that sets reference only
+registered modules and never file paths, that no status claims a published
+artifact, that each README agrees with the catalog, and that no specification
+directory contains authored content.
+
+```sh
+node scripts/check-knowledge.mjs
+```
+
+**This is not the ADR-0010 validator.** It checks that the registry is coherent.
+It does not machine-check prohibited content, because there is no content — and
+it enforces that there is none.
+
+**Future** — `validate` runs in CI and fails on any prohibited content, missing
 metadata, or schema violation. Also a repository check that nothing imports a
 bundle file directly.

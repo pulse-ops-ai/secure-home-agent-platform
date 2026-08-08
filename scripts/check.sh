@@ -56,6 +56,14 @@ skip() {
 
 run "scaffold structure" bash scripts/validate-scaffold.sh
 run "secret scan"        bash scripts/scan-secrets.sh
+# Node standard library only, so it belongs with the structural checks rather
+# than behind the TypeScript toolchain gate below. It still needs node itself —
+# and a missing toolchain is a SKIP that gets reported, never a silent pass.
+if command -v node >/dev/null 2>&1; then
+  run "knowledge registry" node scripts/check-knowledge.mjs
+else
+  skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
+fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------
 

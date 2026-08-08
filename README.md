@@ -68,7 +68,7 @@ it and is not an energy product.
 Gridwise is an **upstream source**, consumed through its own interface:
 
 - Gridwise **semantics** (what a rate structure means, what a metric represents)
-  become knowledge-bundle content — [`knowledge/gridwise/`](knowledge/gridwise/).
+  become knowledge-bundle content — [`knowledge/household/energy-semantics/`](knowledge/household/energy-semantics/).
 - Gridwise **signals** may inform a household proposal, such as pre-cooling
   ahead of a peak window.
 - A price signal is an **input, never an authority**. Cost does not justify
