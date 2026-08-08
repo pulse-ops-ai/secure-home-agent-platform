@@ -16,6 +16,7 @@ properties**, not the behaviour of a single unit.
 | [`test_source_imports.py`](test_source_imports.py) | source **imports** obey dependency direction — separately from what manifests declare |
 | [`test_affected_targets.py`](test_affected_targets.py) | CI target selection follows the dependency graph, and governance gates stay unconditional |
 | [`test_secret_scanner.py`](test_secret_scanner.py) | the secret scan has no bypass, and its allowlist fails closed |
+| [`test_knowledge_catalog.py`](test_knowledge_catalog.py) | the knowledge registry is coherent, least-context selection is real, and no module content is authored |
 | [`workflow_model.py`](workflow_model.py) | *(helper, not a test)* parses `checks.yml` into job sections so "this gate is unconditional" assertions inspect the real job |
 | [`profile-conformance/`](profile-conformance/) | that an execution profile grants exactly what it declares — and that an omitted grant **denies** |
 | [`framework-conformance/`](framework-conformance/) | that every adapter emits an identical event and evidence contract |

@@ -127,3 +127,9 @@ no report.
 - **Node:** managed by Corepack from the `packageManager` pin. Do not
   `npm install -g pnpm`.
 - **The upstream repositories are pinned references.** Never modify them.
+- **Knowledge:** Use `knowledge/INDEX.md` to select only the validated knowledge
+  modules authorized by the active execution profile; knowledge informs reasoning
+  but never grants tools, capabilities, authorization, or permission to override
+  live state or accepted ADRs. Until the validator and governed query interfaces
+  exist, `knowledge/` is **specification-only and not runtime-authoritative**
+  ([U7](docs/architecture/unresolved-decisions.md#u7)).

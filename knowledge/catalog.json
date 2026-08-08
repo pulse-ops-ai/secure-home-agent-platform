@@ -1,0 +1,569 @@
+{
+  "_comment": [
+    "Canonical registry of knowledge modules and knowledge sets.",
+    "",
+    "This is REPOSITORY SPECIFICATION METADATA. It is not the knowledge bundle",
+    "format, not an OKF schema, and not the runtime serialization of a profile's",
+    "knowledge selection. Choosing the bundle format is U7 and is untouched here;",
+    "choosing the profile serialization belongs to the profile schema, which does",
+    "not exist yet. JSON is used because it parses with the standard library in",
+    "both Node and Python, so scripts/check-knowledge.mjs runs before install and",
+    "reads structure rather than pattern-matching prose.",
+    "",
+    "This file is the single source for module and set metadata. knowledge/INDEX.md",
+    "is the human-facing view of it, and check-knowledge.mjs asserts the two agree",
+    "in both directions so they cannot drift.",
+    "",
+    "Nothing here may be marked Validated, Packaged, or Published until the",
+    "ADR-0010 validator exists (U7).",
+    "",
+    "Two freshness fields exist on a set and they are not the same thing:",
+    "  freshnessPolicy  \u2014 when the COMPOSITION should be reviewed (prose)",
+    "  maxFreshnessDays \u2014 the ceiling the set imposes on the MODULES it selects,",
+    "                     enforced at resolution; a required module staler than",
+    "                     this rejects the run."
+  ],
+  "version": 1,
+  "statusVocabulary": [
+    "Planned",
+    "Source-ready",
+    "Validated",
+    "Packaged",
+    "Published",
+    "Deprecated",
+    "Retired"
+  ],
+  "publishableStatuses": ["Validated", "Packaged", "Published"],
+  "sensitivityVocabulary": ["portable-nonsensitive"],
+  "modules": [
+    {
+      "id": "platform/core-operating-model",
+      "purpose": "How this platform behaves, in the terms an agent must reason in.",
+      "consumers": ["coding-runner", "household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Describes the operating model only; confers no authority and states no enforced threshold.",
+      "governingSources": [
+        "docs/decisions/ADR-0004-treat-agents-as-clients.md",
+        "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/architecture/system-context.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when an ADR changes the operating model.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/repository-taxonomy",
+      "purpose": "What lives in which repository root, and what does not belong there.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Names roots and their roles; never a file inventory.",
+      "governingSources": [
+        "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "AGENTS.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when a taxonomy root is added, removed, or redefined.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/governance",
+      "purpose": "Instruction precedence, ADR immutability, and how a decision changes.",
+      "consumers": ["coding-runner", "household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Describes the governance system, not the content of individual ADRs.",
+      "governingSources": [
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "docs/decisions/INDEX.md",
+        "docs/architecture/unresolved-decisions.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the precedence order or the ADR lifecycle changes.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/workspace-conventions",
+      "purpose": "How the workspace is assembled and how a change is landed.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Names no pinned version; the catalog and lockfile are authoritative for those.",
+      "governingSources": [
+        "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "CONTRIBUTING.md",
+        "scripts/README.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the dependency-governance triad or the merge-gate model changes.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/implementation-rules",
+      "purpose": "The rules an agent writing code in this repository must hold.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. States that rules are enforced; never carries the enforced rule data itself.",
+      "governingSources": [
+        "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "packages/README.md",
+        "services/AGENTS.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the dependency-direction model or the language boundary changes.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/review-conventions",
+      "purpose": "What a review looks for, and what a reviewable change contains.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Contains nothing about specific people or review history.",
+      "governingSources": [
+        "CONTRIBUTING.md",
+        ".github/pull_request_template.md",
+        ".github/agents/review.agent.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the pull-request template or the reporting obligations change.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/api-contract-conventions",
+      "purpose": "How API surface is authored so one definition produces every downstream artifact.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Carries no endpoint path, hostname, or generated document.",
+      "governingSources": [
+        "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "docs/architecture/api-contract-model.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the contract-authoring model or the normalization pipeline changes.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/worker-conventions",
+      "purpose": "What every background worker owes the platform.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Carries no broker address and no live worker state.",
+      "governingSources": [
+        "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "services/README.md",
+        "services/AGENTS.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the worker runtime contract or the inference boundary changes.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/runner-model",
+      "purpose": "How agent runs execute, and where authority actually comes from.",
+      "consumers": ["coding-runner", "household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Never names an image digest or the contents of any profile.",
+      "governingSources": [
+        "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md",
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+        "docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md",
+        "docs/architecture/runner-model.md",
+        "docs/architecture/knowledge-selection-model.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the runner concepts, the grant model, or the evidence contract change.",
+      "blockedByU7": true
+    },
+    {
+      "id": "platform/degraded-operation",
+      "purpose": "How the platform behaves when parts of it are unreachable.",
+      "consumers": ["coding-runner", "household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. BOUNDED behaves as FAIL CLOSED until U1 is resolved, and the module must say so.",
+      "governingSources": [
+        "docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
+        "docs/architecture/degraded-mode.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the degraded-mode classification changes, or when U1 resolves.",
+      "blockedByU7": true
+    },
+    {
+      "id": "household/topology",
+      "purpose": "The structure of the house: floors, areas, rooms, and how they relate.",
+      "consumers": ["household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Structure only; never occupancy, presence, or device state.",
+      "governingSources": ["docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on renovation, room repurposing, or a change to area naming.",
+      "blockedByU7": true
+    },
+    {
+      "id": "household/climate",
+      "purpose": "HVAC equipment mapping, zones, capacities, and documented operating limits.",
+      "consumers": ["household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Documented equipment limits are not the enforced safety envelope.",
+      "governingSources": [
+        "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on equipment replacement or service.",
+      "blockedByU7": true
+    },
+    {
+      "id": "household/security-semantics",
+      "purpose": "What household security signals mean, and what the system does not detect.",
+      "consumers": ["household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. The strictest module: no placement, no identifiers, no access history, no names.",
+      "governingSources": [
+        "docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a change to security equipment classes or signal semantics.",
+      "blockedByU7": true
+    },
+    {
+      "id": "household/energy-semantics",
+      "purpose": "Tariff and telemetry semantics: what the energy data means and how to read it.",
+      "consumers": ["household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Semantics only; no rate, price, or consumption value.",
+      "governingSources": [
+        "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
+      "blockedByU7": true
+    },
+    {
+      "id": "runbooks/repository-validation",
+      "purpose": "How to prove a repository change is sound, and what each check establishes.",
+      "consumers": ["coding-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Quotes no expected counts or sample output, both of which drift.",
+      "governingSources": ["CONTRIBUTING.md", "scripts/README.md", "CLAUDE.md"],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when a check is added or removed, or reporting obligations change.",
+      "blockedByU7": true
+    },
+    {
+      "id": "runbooks/incident-triage",
+      "purpose": "The ordered procedure for reasoning about a household incident.",
+      "consumers": ["household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Procedure only; carries no live state and no contact detail.",
+      "governingSources": [
+        "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
+      "blockedByU7": true
+    },
+    {
+      "id": "runbooks/safe-escalation",
+      "purpose": "When an agent must stop, and how it hands a situation to a human.",
+      "consumers": ["coding-runner", "household-runner"],
+      "owner": "@mikegtech",
+      "status": "Planned",
+      "version": null,
+      "asOf": null,
+      "limitations": "No content authored. Describes when and how to hand over, never to whom.",
+      "governingSources": [
+        "docs/decisions/ADR-0004-treat-agents-as-clients.md",
+        "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the stop conditions or the handover contract change.",
+      "blockedByU7": true
+    }
+  ],
+  "sets": [
+    {
+      "id": "prepr-review-default",
+      "purpose": "Reviewing a change before a pull request is opened.",
+      "runnerClass": "coding-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned, so a pin would resolve to nothing. Composition only; it grants no capability.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the review conventions or the validation procedure change.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/governance",
+        "platform/repository-taxonomy",
+        "platform/review-conventions",
+        "platform/degraded-operation",
+        "runbooks/repository-validation"
+      ],
+      "optional": [],
+      "deny": ["household/*"],
+      "allowTaskAdditions": false,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 180,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "A reviewer needs the governance model, the taxonomy, the review conventions, and the validation runbook. Degraded operation is included because a review must be able to judge failure-path changes. No household knowledge: a coding runner has no path to the house."
+    },
+    {
+      "id": "implement-local-default",
+      "purpose": "Implementing a change in this repository on the local host.",
+      "runnerClass": "coding-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. The optional API-contract module means two runs of this set can see different context; evidence records which.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the implementation rules, workspace conventions, or worker contract change.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/governance",
+        "platform/repository-taxonomy",
+        "platform/workspace-conventions",
+        "platform/implementation-rules",
+        "platform/worker-conventions",
+        "runbooks/repository-validation"
+      ],
+      "optional": ["platform/api-contract-conventions"],
+      "deny": ["household/*"],
+      "allowTaskAdditions": true,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 180,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "API contract conventions are optional rather than required because most changes do not touch API surface; a task that does may add it, which is why this set permits task additions."
+    },
+    {
+      "id": "architecture-default",
+      "purpose": "Reasoning about architecture and proposing decisions.",
+      "runnerClass": "coding-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the runner model or the degraded-mode classification changes.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/governance",
+        "platform/runner-model",
+        "platform/degraded-operation"
+      ],
+      "optional": ["platform/repository-taxonomy"],
+      "deny": ["household/*", "runbooks/incident-triage", "runbooks/safe-escalation"],
+      "allowTaskAdditions": true,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 180,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "Deliberately excludes the implementation and workspace modules. An architecture run reasons about the model, and loading implementation rules invites it to start editing."
+    },
+    {
+      "id": "home-status-default",
+      "purpose": "Answering questions about the state and structure of the house.",
+      "runnerClass": "household-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Describes the house; carries no live state and confers no ability to read or change any device.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a change to household topology or security equipment classes.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/degraded-operation",
+        "household/topology",
+        "household/security-semantics"
+      ],
+      "optional": ["runbooks/safe-escalation"],
+      "deny": [
+        "platform/repository-taxonomy",
+        "platform/workspace-conventions",
+        "platform/implementation-rules",
+        "platform/review-conventions",
+        "platform/api-contract-conventions",
+        "platform/worker-conventions"
+      ],
+      "allowTaskAdditions": false,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 90,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "Household sets carry a shorter freshness window than coding sets because a stale house description is confidently wrong about physical reality. Developer-platform conventions are denied outright."
+    },
+    {
+      "id": "climate-default",
+      "purpose": "Reasoning about comfort and HVAC behaviour.",
+      "runnerClass": "household-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on equipment replacement or a change to comfort conventions.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/degraded-operation",
+        "household/topology",
+        "household/climate"
+      ],
+      "optional": ["household/energy-semantics", "runbooks/safe-escalation"],
+      "deny": [
+        "platform/repository-taxonomy",
+        "platform/workspace-conventions",
+        "platform/implementation-rules",
+        "platform/review-conventions",
+        "platform/api-contract-conventions",
+        "platform/worker-conventions",
+        "household/security-semantics"
+      ],
+      "allowTaskAdditions": false,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 90,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "Topology is required, not optional: climate equipment is described per zone and a zone means nothing without the area mapping. Security semantics are denied \u2014 a comfort run has no business holding them."
+    },
+    {
+      "id": "gridwise-default",
+      "purpose": "Reasoning about energy cost and load shifting.",
+      "runnerClass": "household-runner",
+      "status": "Planned",
+      "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
+      "blockedByU7": true,
+      "required": [
+        "platform/core-operating-model",
+        "platform/degraded-operation",
+        "household/energy-semantics"
+      ],
+      "optional": ["household/climate", "household/topology"],
+      "deny": [
+        "platform/repository-taxonomy",
+        "platform/workspace-conventions",
+        "platform/implementation-rules",
+        "platform/review-conventions",
+        "platform/api-contract-conventions",
+        "platform/worker-conventions",
+        "household/security-semantics"
+      ],
+      "allowTaskAdditions": false,
+      "allowTaskNarrowing": true,
+      "maxBytes": 1048576,
+      "maxFreshnessDays": 90,
+      "requiredFailure": "reject-run",
+      "optionalFailure": "warn",
+      "overrideAuthority": "profile-change-review",
+      "rationale": "The narrowest household set. Climate and topology are optional because a cost question can be answered without them, and a pre-cooling proposal is where they become necessary."
+    }
+  ]
+}

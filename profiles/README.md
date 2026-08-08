@@ -31,10 +31,32 @@ and [ADR-0007](../docs/decisions/ADR-0007-route-local-remote-and-cloud-execution
 | execution | routing class R0–R3, model route, **declared** fallback behaviour |
 | limits | wall clock, CPU, memory, output size |
 | principal | the agent identity the run authenticates as; whether an `actor` is required |
+| knowledge | the named knowledge set the run may reason from |
 | evidence | the evidence contract the run must satisfy |
 
 **Anything the profile does not grant is denied.** There is no default-open
 field.
+
+### The knowledge field group is not a capability
+
+A profile's knowledge selection says what a run may **understand**. It never says
+what a run may **do**. A selected module grants no tool, no mount, no egress, no
+governed API capability, no authorization, and no safety approval — and knowledge
+never overrides live state or an accepted ADR.
+
+The contract is specified in
+[`../docs/architecture/knowledge-selection-model.md`](../docs/architecture/knowledge-selection-model.md);
+the modules and sets it selects from are registered in
+[`../knowledge/INDEX.md`](../knowledge/INDEX.md).
+
+> **Not yet schema, and not yet adopted.** That document defines the
+> knowledge-policy **seam** only. It deliberately does not redesign the execution
+> profile, does not assume the profile schema starts from scratch, and settles no
+> serialization. A later runner-baseline review will map the seam onto the runner
+> substrate that already exists — classifying each existing capability as adopt
+> unchanged, adapt, replace deliberately, or defer — and will then update the
+> runner-control and image issues around what is actually there. **Do not author
+> a profile against the field names in that document before that review.**
 
 ## What belongs here
 

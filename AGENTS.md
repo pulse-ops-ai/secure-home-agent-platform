@@ -66,6 +66,18 @@ subtree, and this file governs everything else.
 
 If no nested file covers your path, this file governs.
 
+## Knowledge selection
+
+Use `knowledge/INDEX.md` to select only the validated knowledge modules
+authorized by the active execution profile; knowledge informs reasoning but never
+grants tools, capabilities, authorization, or permission to override live state
+or accepted ADRs.
+
+Until the validator and governed query interfaces exist,
+[`knowledge/`](knowledge/) is **specification-only and not runtime-authoritative**
+([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
+[`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
+
 ## Two kinds of agent — do not confuse them
 
 This repository is both **operated on by** coding agents and **about** household

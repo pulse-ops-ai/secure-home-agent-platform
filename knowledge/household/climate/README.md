@@ -1,16 +1,25 @@
-# knowledge/climate/
+# knowledge/household/climate/
 
 **HVAC and comfort semantics**: what the equipment is, what it can do, and what
 its limits are.
 
-> **Status: empty.** No bundle exists — the validator must come first.
+> **Status: `Planned` — specification only.** No module content is authored.
+
+| Field | Value |
+|---|---|
+| Status | `Planned` |
+| Owner | @mikegtech |
+| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+
+> Registered as module `household/climate` in [`../../INDEX.md`](../../INDEX.md).
+> Specification only, and not runtime-authoritative.
 
 ## What belongs here
 
 - Equipment mapping: which unit serves which zone, its type and capacity.
 - **Operating limits** as documented facts: rated outdoor-temperature range,
   minimum cycle time, defrost behaviour, auxiliary-heat conditions.
-- Zone-to-area mapping (with [`../home-topology/`](../home-topology/)).
+- Zone-to-area mapping (with [`../topology/`](../topology/)).
 - Comfort **conventions**: what "comfortable" means for this household, as a
   documented preference.
 - Known equipment quirks and limitations.
@@ -22,10 +31,10 @@ its limits are.
 - **Current temperature, setpoint, humidity, or run state.** All prohibited.
 - **The enforced safety envelope.** Documenting that a heat pump is rated to
   15 °F is knowledge. The **enforced** setpoint bounds are deterministic policy,
-  owned by [`../../services/control-plane/`](../../services/control-plane/), and
+  owned by [`../../services/control-plane/`](../../../services/control-plane/), and
   are **not** agent-readable configuration.
-- **Energy pricing** — [`../gridwise/`](../gridwise/).
-- **Automation definitions** — [`../../services/control-plane/`](../../services/control-plane/).
+- **Energy pricing** — [`../energy-semantics/`](../energy-semantics/).
+- **Automation definitions** — [`../../services/control-plane/`](../../../services/control-plane/).
 
 ## The distinction that matters most here
 
@@ -43,11 +52,22 @@ Equipment changes on replacement or service. A bundle describing a unit that was
 replaced last year is confidently wrong — which is why the as-of date is
 required.
 
+## Intended consumers
+
+Household runners reasoning about comfort or energy. Always paired with
+[`../topology/`](../topology/), which supplies the zone-to-area mapping.
+
+## Expected queries
+
+- "What equipment serves this zone, and what is it rated to?"
+- "Is this outdoor temperature outside the unit's documented range?"
+- "What does this household mean by comfortable?"
+
 ## Governed by
 
-[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) · ADRs
-[0005](../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md),
-[0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) · ADRs
+[0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md),
+[0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 
