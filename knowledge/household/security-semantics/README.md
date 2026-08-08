@@ -1,10 +1,19 @@
-# knowledge/security/
+# knowledge/household/security-semantics/
 
 **Security-domain semantics**: what the household's security systems are, what
 their signals mean, and what to do about them.
 
-> **Status: empty.** No bundle exists — the validator must come first.
+> **Status: `Planned` — specification only.** No module content is authored.
 > **This is the domain where the prohibited-content rules matter most.**
+
+| Field | Value |
+|---|---|
+| Status | `Planned` |
+| Owner | @mikegtech |
+| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+
+> Registered as module `household/security-semantics` in [`../../INDEX.md`](../../INDEX.md).
+> Specification only, and not runtime-authoritative.
 
 ## What belongs here
 
@@ -36,17 +45,28 @@ their signals mean, and what to do about them.
 
 A knowledge bundle is portable by design — safe to send to any execution
 context, including a cloud model provider
-([ADR-0007](../../docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)).
+([ADR-0007](../../../docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)).
 A security bundle containing sensor placement, access history, or occupancy
 patterns would be a map of the house's weaknesses, transmitted routinely.
 
 Write for a reader you do not control.
 
+## Intended consumers
+
+Household runners performing triage, paired with
+[`../../runbooks/incident-triage/`](../../runbooks/incident-triage/).
+
+## Expected queries
+
+- "What does this class of signal actually indicate?"
+- "Is this a supervisory state or an alarm?"
+- "What does the system not detect?"
+
 ## Governed by
 
-[`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) · ADRs
-[0008](../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md),
-[0010](../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) · ADRs
+[0008](../../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md),
+[0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 

@@ -37,6 +37,7 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 | [`local-remote-routing.md`](local-remote-routing.md) | Local, remote, and cloud call paths and their routing classes |
 | [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
 | [`api-contract-model.md`](api-contract-model.md) | How one Zod definition becomes DTOs, validation, OpenAPI, metadata, SDKs, and MCP tools |
+| [`knowledge-selection-model.md`](knowledge-selection-model.md) | How a profile selects knowledge, how a runner resolves it, and what the run records |
 | [`unresolved-decisions.md`](unresolved-decisions.md) | Open questions that are deliberately **not** decided yet |
 
 ## Reading order
@@ -48,7 +49,8 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 5. [`local-remote-routing.md`](local-remote-routing.md) — where work executes
 6. [`degraded-mode.md`](degraded-mode.md) — what happens when parts are missing
 7. [`api-contract-model.md`](api-contract-model.md) — how contracts are authored and generated
-8. [`unresolved-decisions.md`](unresolved-decisions.md) — what is still open
+8. [`knowledge-selection-model.md`](knowledge-selection-model.md) — what a run is allowed to *understand*
+9. [`unresolved-decisions.md`](unresolved-decisions.md) — what is still open
 
 ## Status
 
