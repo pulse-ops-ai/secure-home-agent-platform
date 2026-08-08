@@ -15,7 +15,13 @@
     "in both directions so they cannot drift.",
     "",
     "Nothing here may be marked Validated, Packaged, or Published until the",
-    "ADR-0010 validator exists (U7)."
+    "ADR-0010 validator exists (U7).",
+    "",
+    "Two freshness fields exist on a set and they are not the same thing:",
+    "  freshnessPolicy  \u2014 when the COMPOSITION should be reviewed (prose)",
+    "  maxFreshnessDays \u2014 the ceiling the set imposes on the MODULES it selects,",
+    "                     enforced at resolution; a required module staler than",
+    "                     this rejects the run."
   ],
   "version": 1,
   "statusVocabulary": [
@@ -334,6 +340,17 @@
       "runnerClass": "coding-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned, so a pin would resolve to nothing. Composition only; it grants no capability.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the review conventions or the validation procedure change.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -359,6 +376,17 @@
       "runnerClass": "coding-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. The optional API-contract module means two runs of this set can see different context; evidence records which.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the implementation rules, workspace conventions, or worker contract change.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -385,6 +413,17 @@
       "runnerClass": "coding-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review when the runner model or the degraded-mode classification changes.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -408,6 +447,17 @@
       "runnerClass": "household-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Describes the house; carries no live state and confers no ability to read or change any device.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a change to household topology or security equipment classes.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -438,6 +488,17 @@
       "runnerClass": "household-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on equipment replacement or a change to comfort conventions.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -461,7 +522,7 @@
       "requiredFailure": "reject-run",
       "optionalFailure": "warn",
       "overrideAuthority": "profile-change-review",
-      "rationale": "Topology is required, not optional: climate equipment is described per zone and a zone means nothing without the area mapping. Security semantics are denied — a comfort run has no business holding them."
+      "rationale": "Topology is required, not optional: climate equipment is described per zone and a zone means nothing without the area mapping. Security semantics are denied \u2014 a comfort run has no business holding them."
     },
     {
       "id": "gridwise-default",
@@ -469,6 +530,17 @@
       "runnerClass": "household-runner",
       "status": "Planned",
       "owner": "@mikegtech",
+      "version": null,
+      "asOf": null,
+      "limitations": "No version assigned: every module it selects is unversioned. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
+      "governingSources": [
+        "docs/architecture/knowledge-selection-model.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+      ],
+      "sensitivity": "portable-nonsensitive",
+      "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
+      "blockedByU7": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",

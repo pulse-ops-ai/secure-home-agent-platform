@@ -106,8 +106,27 @@ point.
 | `climate-default` | reasoning about comfort and HVAC behaviour | core-operating-model · degraded-operation · topology · climate | energy-semantics · safe-escalation | every developer-platform module · security-semantics |
 | `gridwise-default` | reasoning about energy cost and load shifting | core-operating-model · degraded-operation · energy-semantics | climate · topology | every developer-platform module · security-semantics |
 
-Each set's `rationale` in [`catalog.json`](catalog.json) records **why** a module
-is required rather than optional. Three worth stating here:
+A set carries the **same metadata contract as a module** — owner, status,
+version, as-of date, limitations, governing sources, sensitivity, freshness
+policy, and U7 blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
+its intended-consumer field.
+
+Two of those need care:
+
+- **`version` is currently `null` on every set, and that is enforced rather than
+  incidental.** A profile pins its base set as `name@version`, and run evidence
+  records both requested and resolved set versions — so the registry must be
+  version-capable. But a set version is only meaningful once the modules it
+  selects have versions of their own; otherwise two different resolutions of
+  `set@1` would look identical in evidence. `check-knowledge.mjs` rejects a set
+  that carries a version while selecting an unversioned module.
+- **`freshnessPolicy` and `maxFreshnessDays` are different things.**
+  `freshnessPolicy` says when the *composition* should be reviewed;
+  `maxFreshnessDays` is the ceiling the set imposes on the *modules* it selects,
+  enforced at resolution — a required module staler than it rejects the run.
+
+Each set's `rationale` records **why** a module is required rather than optional.
+Three worth stating here:
 
 - `climate-default` **requires** topology rather than treating it as optional:
   climate equipment is described per zone, and a zone means nothing without the

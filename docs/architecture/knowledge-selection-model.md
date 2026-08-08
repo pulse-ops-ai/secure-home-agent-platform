@@ -82,6 +82,16 @@ knowledge:
 | Field | Contract |
 |---|---|
 | `set` | the named base composition, pinned to a version. A moving reference is not permitted, for the reason automations bind pinned profile versions ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)). |
+
+> **No set version is assignable yet.** Every registered set carries a `version`
+> field — the registry is version-capable, because this contract and the evidence
+> fields below both require it — but every one is currently `null`, because the
+> modules they select are unversioned while U7 is open. A set version that pins
+> nothing resolvable would make two different resolutions look identical in
+> evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
+> a set that carries a version while selecting an unversioned module. The
+> `@1` in the example above is therefore illustrative of the *shape*, not
+> something a profile could write today.
 | `required` | modules whose absence, invalidity, or staleness **rejects the run**. |
 | `optional` | modules whose absence produces a typed warning and is recorded. |
 | `deny` | module IDs or single-level `group/*` patterns. Denial beats every other rule, including a task addition. |

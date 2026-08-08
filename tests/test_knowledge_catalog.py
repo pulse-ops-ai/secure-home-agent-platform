@@ -223,8 +223,11 @@ def test_the_check_runs_before_install() -> None:
 # --- negative tests, against fixtures ----------------------------------------
 
 
-def _fixture(tmp_path: Path, name: str, mutate: Any) -> Path:
+def _fixture(
+    tmp_path: Path, name: str, mutate: Any, extra_index_rows: list[str] | None = None
+) -> Path:
     """A copy of the real registry, mutated to introduce one defect."""
+    extra_index_rows = extra_index_rows or []
     root = tmp_path / name
     (root / "knowledge").mkdir(parents=True)
 
@@ -233,8 +236,11 @@ def _fixture(tmp_path: Path, name: str, mutate: Any) -> Path:
 
     (root / "knowledge" / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
 
-    # Directories and READMEs for whatever survived the mutation.
-    index_lines = ["# fixture registry", ""]
+    # Directories and READMEs for whatever survived the mutation. The index
+    # mirrors the real one's shape — a Modules section and a Sets TABLE —
+    # because the checker validates set correspondence by table row, not by a
+    # bare backticked token anywhere in the prose.
+    index_lines = ["# fixture registry", "", "## Modules", "", "| Module | Purpose |", "|---|---|"]
     for module in catalog["modules"]:
         directory = root / "knowledge" / module["id"]
         if not directory.exists():
@@ -247,9 +253,11 @@ def _fixture(tmp_path: Path, name: str, mutate: Any) -> Path:
                 f"| Status | `{module.get('status', '')}` |\n"
                 f"| Owner | {module.get('owner', '')} |\n"
             )
-        index_lines.append(f"- `{module['id']}`")
+        index_lines.append(f"| `{module['id']}` | fixture |")
+    index_lines += ["", "## Sets", "", "| Set | For |", "|---|---|"]
     for s in catalog["sets"]:
-        index_lines.append(f"- `{s['id']}`")
+        index_lines.append(f"| `{s['id']}` | fixture |")
+    index_lines += extra_index_rows
     (root / "knowledge" / "INDEX.md").write_text("\n".join(index_lines) + "\n")
 
     # Governing sources are repo-relative; the fixture needs them to exist.
@@ -430,6 +438,112 @@ def test_missing_root_guidance_is_rejected(tmp_path: Path) -> None:
         result = _run(root)
         assert result.returncode != 0, f"{name} lost its guidance without failing"
         assert name in _output(result)
+
+
+def test_every_set_has_every_required_metadata_field() -> None:
+    """#43 requires the full metadata contract for every module *and* set."""
+    required = {
+        "id",
+        "purpose",
+        "runnerClass",
+        "owner",
+        "status",
+        "version",
+        "asOf",
+        "limitations",
+        "governingSources",
+        "sensitivity",
+        "freshnessPolicy",
+        "blockedByU7",
+    }
+    for s in _catalog()["sets"]:
+        missing = required - set(s)
+        assert not missing, f"{s.get('id')}: missing {sorted(missing)}"
+
+
+def test_set_governing_sources_exist() -> None:
+    for s in _catalog()["sets"]:
+        for source in s["governingSources"]:
+            assert (REPO_ROOT / source).exists(), f"set {s['id']}: {source} does not exist"
+
+
+def test_the_registry_is_version_capable() -> None:
+    """A set is what a profile pins and what evidence records, so it must carry a version field.
+
+    The field is present and currently null, which is the same rule modules
+    follow: nothing is versioned until there is content to version.
+    """
+    for s in _catalog()["sets"]:
+        assert "version" in s, f"set {s['id']}: no version field — a profile could not pin it"
+
+
+def test_a_set_version_that_pins_unversioned_modules_is_rejected(tmp_path: Path) -> None:
+    """A pin to nothing makes two different resolutions look identical in evidence."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["sets"][0]["version"] = "1.0.0"
+
+    result = _run(_fixture(tmp_path, "phantom-pin", mutate))
+    assert result.returncode != 0
+    assert "unversioned module" in _output(result)
+
+
+def test_a_set_version_is_accepted_once_its_modules_are_versioned(tmp_path: Path) -> None:
+    """The rule constrains a phantom pin, not versioning itself."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        target = catalog["sets"][0]
+        selected = set(target["required"]) | set(target["optional"])
+        for module in catalog["modules"]:
+            if module["id"] in selected:
+                module["version"] = "1.0.0"
+        target["version"] = "1.0.0"
+
+    result = _run(_fixture(tmp_path, "real-pin", mutate))
+    assert result.returncode == 0, _output(result)
+
+
+def test_an_unregistered_set_advertised_in_the_index_is_rejected(tmp_path: Path) -> None:
+    """The reverse direction for sets.
+
+    A set id has no slash, so it cannot be recognised by shape the way a module
+    id can — which is why an earlier revision caught fake modules and missed
+    fake sets entirely. Correspondence is now checked against the Sets table.
+    """
+    root = _fixture(
+        tmp_path,
+        "ghost-set",
+        lambda catalog, root: None,
+        extra_index_rows=["| `future-default` | a set nobody registered |"],
+    )
+    result = _run(root)
+    assert result.returncode != 0, "an unregistered set was advertised without failing"
+    assert "future-default" in _output(result)
+
+
+def test_a_registered_set_missing_from_the_index_is_rejected(tmp_path: Path) -> None:
+    root = _fixture(tmp_path, "hidden-set", lambda catalog, root: None)
+    index = root / "knowledge" / "INDEX.md"
+    catalog = json.loads((root / "knowledge" / "catalog.json").read_text())
+    dropped = catalog["sets"][0]["id"]
+    index.write_text(
+        "\n".join(
+            line for line in index.read_text().split("\n") if not line.startswith(f"| `{dropped}`")
+        )
+    )
+    result = _run(root)
+    assert result.returncode != 0, "a registered set vanished from the index without failing"
+    assert dropped in _output(result)
+
+
+def test_a_missing_sets_section_is_rejected(tmp_path: Path) -> None:
+    """The correspondence check must not pass by having nothing to check."""
+    root = _fixture(tmp_path, "no-sets-section", lambda catalog, root: None)
+    index = root / "knowledge" / "INDEX.md"
+    index.write_text(index.read_text().replace("## Sets", "## Something else"))
+    result = _run(root)
+    assert result.returncode != 0
+    assert "Sets" in _output(result)
 
 
 def test_a_network_address_in_a_specification_is_rejected(tmp_path: Path) -> None:

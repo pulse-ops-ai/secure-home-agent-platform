@@ -33,15 +33,22 @@
  *   2. module and set IDs are unique, well-shaped, and carry every required field;
  *   3. every module ID maps to a specification directory that exists and
  *      explains itself, and every such directory is registered — both directions;
- *   4. every set references registered module IDs only, never a file path, and
- *      its deny patterns are patterns rather than paths;
+ *   4. every set carries the same metadata contract as a module, references
+ *      registered module IDs only and never a file path, keeps its deny entries
+ *      as patterns, and does not carry a version while selecting an unversioned
+ *      module — a pin to nothing would make two different resolutions look
+ *      identical in run evidence;
  *   5. the README registry block of each module agrees with the catalog, so the
  *      prose view cannot drift from the machine-readable one;
  *   6. no module directory contains authored content — a specification directory
  *      holds its README and nothing else;
  *   7. no module or set claims a publishable status while U7 is open;
- *   8. INDEX.md references every registered module and set, and references no
- *      module or set that is not registered;
+ *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
+ *      for sets. Module IDs are recognised by shape, since they always contain a
+ *      slash. Set IDs cannot be — `Planned`, `warn`, and `catalog.json` are
+ *      backticked in that document too — so set correspondence is checked
+ *      against the rows of the `## Sets` table, which is the place the index
+ *      actually makes the claim;
  *   9. the root guidance sentence is present in both AGENTS.md and CLAUDE.md;
  *  10. specification content carries no network or hardware address.
  *
@@ -74,12 +81,28 @@ const REQUIRED_MODULE_FIELDS = [
   'blockedByU7',
 ]
 
+/**
+ * A set carries the same metadata contract as a module, plus its composition
+ * and policy fields. `runnerClass` is a set's intended-consumer field.
+ *
+ * `version` is load-bearing rather than decorative: the selection model pins a
+ * profile's base set as `name@version`, and run evidence records requested and
+ * resolved set versions. A registry that cannot express a set version cannot
+ * support either.
+ */
 const REQUIRED_SET_FIELDS = [
   'id',
   'purpose',
   'runnerClass',
   'status',
   'owner',
+  'version',
+  'asOf',
+  'limitations',
+  'governingSources',
+  'sensitivity',
+  'freshnessPolicy',
+  'blockedByU7',
   'required',
   'optional',
   'deny',
@@ -258,7 +281,15 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     setIds.add(s.id)
 
     for (const field of REQUIRED_SET_FIELDS) {
-      if (!(field in s)) fail(`set "${id}": missing required field "${field}"`)
+      if (!(field in s)) {
+        fail(`set "${id}": missing required field "${field}"`)
+        continue
+      }
+      const value = s[field]
+      if (value === null && NULLABLE_WHILE_PLANNED.has(field)) continue
+      if (value === null || value === undefined || value === '') {
+        fail(`set "${id}": field "${field}" is empty — say what it is or why it is unknown`)
+      }
     }
     if (s.runnerClass && !RUNNER_CLASSES.has(s.runnerClass)) {
       fail(`set "${id}": runnerClass "${s.runnerClass}" is not a known runner class`)
@@ -266,8 +297,16 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (s.status && !statuses.has(s.status)) {
       fail(`set "${id}": status "${s.status}" is not in the status vocabulary`)
     }
+    if (s.sensitivity && !sensitivities.has(s.sensitivity)) {
+      fail(`set "${id}": sensitivity "${s.sensitivity}" is not in the sensitivity vocabulary`)
+    }
     if (publishable.has(s.status)) {
       fail(`set "${id}": status "${s.status}" claims a published artifact while U7 is open`)
+    }
+    for (const source of s.governingSources ?? []) {
+      if (!existsSync(join(root, source))) {
+        fail(`set "${id}": governingSources names "${source}", which does not exist`)
+      }
     }
     if (s.requiredFailure && !REQUIRED_FAILURE_VALUES.has(s.requiredFailure)) {
       fail(
@@ -305,6 +344,25 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     for (const ref of required) {
       if (optional.includes(ref)) {
         fail(`set "${id}": "${ref}" is both required and optional`)
+      }
+    }
+
+    // A set version is what a profile pins (`name@version`) and what run
+    // evidence records. Pinning a version whose modules have none would be a
+    // pin to nothing: two runs of `set@1` could resolve to different content
+    // and both look correct in evidence. So a set may carry a version only once
+    // everything it selects has one.
+    if (s.version !== null && s.version !== undefined) {
+      const unversioned = [...required, ...optional].filter((ref) => {
+        const target = modules.find((m) => m.id === ref)
+        return target && (target.version === null || target.version === undefined)
+      })
+      if (unversioned.length > 0) {
+        fail(
+          `set "${id}": carries version ${JSON.stringify(s.version)} but selects unversioned ` +
+            `module(s) ${JSON.stringify(unversioned)} — a set version that pins nothing ` +
+            'resolvable makes two different resolutions look identical in run evidence',
+        )
       }
     }
 
@@ -378,13 +436,61 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         fail(`knowledge/INDEX.md does not list registered set "${id}"`)
       }
     }
-    // Reverse: anything the index presents in backticks as a module or set id
-    // must be registered, so the index cannot advertise something that does not
-    // exist.
-    for (const [, quoted] of index.matchAll(/`([a-z][a-z0-9-]*(?:\/[a-z][a-z0-9-]*)?)`/g)) {
-      const looksLikeModule = MODULE_ID.test(quoted)
-      if (looksLikeModule && !moduleIds.has(quoted)) {
+    // Reverse, module-shaped: a `group/name` token anywhere in the index must
+    // be registered. Unambiguous, because a module id always contains a slash.
+    for (const [, quoted] of index.matchAll(/`([a-z][a-z0-9-]*\/[a-z][a-z0-9-]*)`/g)) {
+      if (!moduleIds.has(quoted)) {
         fail(`knowledge/INDEX.md presents "${quoted}" as a module, but it is not registered`)
+      }
+    }
+
+    // Reverse, set-shaped: a set id has NO slash, so it cannot be recognised by
+    // shape — `Planned`, `warn`, and `catalog.json` are all backticked in this
+    // document too. Scanning the whole file for bare identifiers would either
+    // miss fake sets or reject ordinary prose.
+    //
+    // So the check is scoped to the table that presents them. Inside the
+    // `## Sets` section, the first cell of every table row names a set, and
+    // that is the claim being validated: nothing may be advertised there that
+    // is not registered, and nothing registered may be missing from it.
+    const sections = new Map()
+    let current = null
+    for (const line of index.split('\n')) {
+      const heading = /^##\s+(.+?)\s*$/.exec(line)
+      if (heading) {
+        current = heading[1]
+        sections.set(current, [])
+        continue
+      }
+      if (current) sections.get(current).push(line)
+    }
+
+    const setsSection = sections.get('Sets')
+    if (!setsSection) {
+      fail(
+        'knowledge/INDEX.md has no "## Sets" section — registered sets must be presented somewhere checkable',
+      )
+    } else {
+      const advertised = new Set()
+      for (const line of setsSection) {
+        // `| \`set-id\` | ... |`, optionally wrapped in a link.
+        const row = /^\|\s*\[?`([a-z][a-z0-9-]*)`/.exec(line)
+        if (row) advertised.add(row[1])
+      }
+      for (const advertisedId of advertised) {
+        if (!setIds.has(advertisedId)) {
+          fail(
+            `knowledge/INDEX.md advertises set "${advertisedId}" in its Sets table, ` +
+              'but it is not registered in catalog.json',
+          )
+        }
+      }
+      for (const id of setIds) {
+        if (!advertised.has(id)) {
+          fail(
+            `knowledge/INDEX.md does not present registered set "${id}" as a row in its Sets table`,
+          )
+        }
       }
     }
   }
