@@ -108,9 +108,15 @@ importers:
       '@secure-home/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
       eslint:
         specifier: 'catalog:'
         version: 10.8.0
+      prettier:
+        specifier: 'catalog:'
+        version: 3.9.6
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -188,9 +194,15 @@ importers:
       '@secure-home/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
       eslint:
         specifier: 'catalog:'
         version: 10.8.0
+      prettier:
+        specifier: 'catalog:'
+        version: 3.9.6
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

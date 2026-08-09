@@ -1,0 +1,120 @@
+/**
+ * The evidence bundle and catalog (capability `runner-evidence`):
+ * representationally complete so L3/L4 never change the contract on first
+ * consumption. Shapes only — populating, sealing, and independently
+ * verifying evidence is L3 behavior.
+ *
+ * Container-runtime identity appears ONLY as an opaque data value: changing
+ * runtime changes evidence values, never schemas (runner-adoption INV-012).
+ * No field in these authority structures is designated for credential-value
+ * transport.
+ */
+import { z } from 'zod'
+import {
+  AdapterId,
+  CapabilityGrant,
+  Digest,
+  GateResultSetBase,
+  ProfileIdentity,
+  SemVer,
+} from '@secure-home/contracts'
+import { FailureClass, RunId, TerminalState } from './run-record.js'
+
+export const EVIDENCE_BUNDLE_ID = 'evidence-bundle' as const
+export const EVIDENCE_BUNDLE_VERSION = '1.0.0' as const
+
+/** The identities an independent verifier re-derives. */
+export const EvidenceIdentities = z.strictObject({
+  run_id: RunId,
+  profile: ProfileIdentity,
+  image_digest: Digest,
+  argv_digest: Digest,
+  /** Opaque data — never a schema branch. */
+  runtime: z.string().min(1),
+  provider: z.string().min(1),
+  adapter: AdapterId,
+})
+
+/** `sub`, and an actor or the explicit autonomous/no-actor marker. */
+export const Principal = z.strictObject({
+  sub: z.string().min(1),
+  acting: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('actor'), sub: z.string().min(1) }),
+    z.strictObject({ kind: z.literal('autonomous') }),
+  ]),
+})
+
+export const OperationRecord = z.strictObject({
+  name: z.string().min(1),
+  target: z.string().min(1).optional(),
+})
+
+export const ArtifactEntry = z.strictObject({
+  path: z.string().min(1),
+  digest: Digest,
+  bytes: z.int().nonnegative(),
+})
+
+export const FileChange = z.strictObject({
+  path: z.string().min(1),
+  kind: z.enum(['created', 'modified', 'deleted']),
+})
+
+/**
+ * Observed versus claimed change sets, with the reconciliation record. The
+ * observed set is authoritative by construction — the field admits nothing
+ * else.
+ */
+export const ChangeSets = z.strictObject({
+  authoritative: z.literal('observed'),
+  observed: z.array(FileChange),
+  claimed: z.array(FileChange),
+  reconciliation: z.strictObject({
+    agreement: z.boolean(),
+    disagreements: z.array(
+      z.strictObject({
+        path: z.string().min(1),
+        detail: z.string().min(1),
+      }),
+    ),
+  }),
+})
+
+export const EvidenceOutcome = z.strictObject({
+  terminal_state: TerminalState,
+  failure: z
+    .strictObject({
+      class: FailureClass,
+      detail: z.string().min(1),
+    })
+    .optional(),
+})
+
+export const EvidenceTiming = z.strictObject({
+  started_at: z.iso.datetime(),
+  finished_at: z.iso.datetime(),
+  duration_seconds: z.number().nonnegative(),
+})
+
+export const EvidenceBundle = z.strictObject({
+  contract_id: z.literal(EVIDENCE_BUNDLE_ID),
+  contract_version: z.literal(EVIDENCE_BUNDLE_VERSION),
+  identities: EvidenceIdentities,
+  principal: Principal,
+  /** The one authored grant shape — what was ACTUALLY granted. */
+  granted_capabilities: CapabilityGrant,
+  operations: z.strictObject({
+    attempted: z.array(OperationRecord),
+    permitted: z.array(OperationRecord),
+    denied: z.array(OperationRecord),
+  }),
+  gate_results: GateResultSetBase,
+  artifacts: z.array(ArtifactEntry),
+  change_sets: ChangeSets,
+  outcome: EvidenceOutcome,
+  timing: EvidenceTiming,
+})
+
+export type EvidenceBundleT = z.infer<typeof EvidenceBundle>
+
+SemVer.parse(EVIDENCE_BUNDLE_VERSION)

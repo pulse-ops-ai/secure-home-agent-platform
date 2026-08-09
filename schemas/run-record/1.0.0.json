@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:run-record:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "run-record" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        },
+        "digest": { "$ref": "#/$defs/__schema0" }
+      },
+      "required": ["name", "version", "digest"],
+      "additionalProperties": false
+    },
+    "terminal_state": {
+      "type": "string",
+      "enum": [
+        "COMPLETED",
+        "REFUSED",
+        "OPERATIONAL_FAILURE",
+        "CANCELLED",
+        "TIMED_OUT",
+        "INDETERMINATE"
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "properties": {
+        "class": { "type": "string", "enum": ["contract_refusal", "operational"] },
+        "detail": { "type": "string", "minLength": 1 }
+      },
+      "required": ["class", "detail"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": { "bundle_digest": { "$ref": "#/$defs/__schema0" } },
+      "required": ["bundle_digest"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "run_id",
+    "profile",
+    "terminal_state",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "$defs": { "__schema0": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } }
+}

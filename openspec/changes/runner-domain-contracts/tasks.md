@@ -116,7 +116,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 2. Contracts package families
 
-- [ ] **2.1 Shared runner primitives**
+- [x] **2.1 Shared runner primitives**
   <!-- agent-task: 2.1 paths=packages/contracts/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements**
@@ -131,7 +131,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   - `C-ADV-001` seed fixtures; `C-MUT-004` target registered.
 
-- [ ] **2.2 Execution profile**
+- [x] **2.2 Execution profile**
   <!-- agent-task: 2.2 paths=packages/contracts/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements**
@@ -145,7 +145,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
   - `C-EX-001` profile fixtures incl. open-network refusal and
     credentials-as-refs; `C-PROP-001`, `C-PROP-002` seeds
 
-- [ ] **2.3 Launch assertion**
+- [x] **2.3 Launch assertion**
   <!-- agent-task: 2.3 paths=packages/contracts/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements**
@@ -158,7 +158,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   - `C-ADV-001`, `C-MUT-004`
 
-- [ ] **2.4 Path policy, gate registry, verification packs**
+- [x] **2.4 Path policy, gate registry, verification packs**
   <!-- agent-task: 2.4 paths=packages/contracts/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements**
@@ -175,7 +175,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 3. Events package families
 
-- [ ] **3.1 Run record and the enumerated terminal vocabulary**
+- [x] **3.1 Run record and the enumerated terminal vocabulary**
   <!-- agent-task: 3.1 paths=packages/events/** checks=repo-check risk=high prerequisites=1.1,2.1 -->
 
   **Implements**
@@ -189,7 +189,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   - `C-EX-001`, `C-PROP-003` (terminal side)
 
-- [ ] **3.2 Run events with the closed platform vocabulary**
+- [x] **3.2 Run events with the closed platform vocabulary**
   <!-- agent-task: 3.2 paths=packages/events/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements**
@@ -202,7 +202,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   - `C-EX-001`, `C-ADV-006`, `C-MUT-005`; corpus inclusion in `C-PROP-002`
 
-- [ ] **3.3 Evidence bundle and catalog**
+- [x] **3.3 Evidence bundle and catalog**
   <!-- agent-task: 3.3 paths=packages/events/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements**
@@ -219,7 +219,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 4. Generation pipeline
 
-- [ ] **4.1 Deterministic generation into schemas/ with the drift and identity guards**
+- [x] **4.1 Deterministic generation into schemas/ with the drift and identity guards**
   <!-- agent-task: 4.1 paths=packages/contracts/**,packages/events/**,schemas/** checks=repo-check risk=high prerequisites=2.2,2.3,2.4,3.1,3.2,3.3 -->
 
   **Implements**
@@ -252,7 +252,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 5. Conformance suite
 
-- [ ] **5.1 Neutrality, strictness, falsification, and mutation net**
+- [x] **5.1 Neutrality, strictness, falsification, and mutation net**
   <!-- agent-task: 5.1 paths=packages/contracts/**,packages/events/** checks=repo-check risk=high prerequisites=4.1 -->
 
   **Implements**

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:execution-profile:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "execution-profile" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+        }
+      },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "image_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+      },
+      "required": ["image_digest", "adapter"],
+      "additionalProperties": false
+    },
+    "capability": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string", "pattern": "^\\/" },
+              "posture": { "type": "string", "enum": ["read_only", "read_write"] }
+            },
+            "required": ["path", "posture"],
+            "additionalProperties": false
+          }
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "default": { "type": "string", "const": "deny" },
+            "granted_destinations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$" },
+                  "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                },
+                "required": ["host", "port"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["default", "granted_destinations"],
+          "additionalProperties": false
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "env_var": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } },
+            "required": ["env_var"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["tools", "mounts", "network", "credentials"],
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "routing_class": { "type": "string", "enum": ["R0", "R1", "R2", "R3"] },
+        "model_route": { "type": "string", "minLength": 1 },
+        "fallback": { "type": "string", "minLength": 1 }
+      },
+      "required": ["routing_class", "model_route", "fallback"],
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "wall_clock_seconds": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cpu_cores": { "type": "number", "exclusiveMinimum": 0 },
+        "memory_bytes": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+        "pids": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+        "output_bytes": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 }
+      },
+      "required": ["wall_clock_seconds", "cpu_cores", "memory_bytes", "pids", "output_bytes"],
+      "additionalProperties": false
+    },
+    "principal": {
+      "type": "object",
+      "properties": {
+        "sub": { "type": "string", "minLength": 1 },
+        "actor_required": { "type": "boolean" }
+      },
+      "required": ["sub", "actor_required"],
+      "additionalProperties": false
+    },
+    "knowledge": {
+      "type": "object",
+      "properties": { "selection": { "type": "string", "minLength": 1 } },
+      "required": ["selection"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": { "contract": { "type": "string", "minLength": 1 } },
+      "required": ["contract"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "identity",
+    "runtime",
+    "capability",
+    "execution",
+    "limits",
+    "principal",
+    "knowledge",
+    "evidence"
+  ],
+  "additionalProperties": false
+}

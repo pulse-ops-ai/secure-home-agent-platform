@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:evidence-bundle:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "evidence-bundle" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "identities": {
+      "type": "object",
+      "properties": {
+        "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            },
+            "digest": { "$ref": "#/$defs/__schema0" }
+          },
+          "required": ["name", "version", "digest"],
+          "additionalProperties": false
+        },
+        "image_digest": { "$ref": "#/$defs/__schema0" },
+        "argv_digest": { "$ref": "#/$defs/__schema0" },
+        "runtime": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+      },
+      "required": [
+        "run_id",
+        "profile",
+        "image_digest",
+        "argv_digest",
+        "runtime",
+        "provider",
+        "adapter"
+      ],
+      "additionalProperties": false
+    },
+    "principal": {
+      "type": "object",
+      "properties": {
+        "sub": { "type": "string", "minLength": 1 },
+        "acting": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "const": "actor" },
+                "sub": { "type": "string", "minLength": 1 }
+              },
+              "required": ["kind", "sub"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "kind": { "type": "string", "const": "autonomous" } },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": ["sub", "acting"],
+      "additionalProperties": false
+    },
+    "granted_capabilities": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string", "pattern": "^\\/" },
+              "posture": { "type": "string", "enum": ["read_only", "read_write"] }
+            },
+            "required": ["path", "posture"],
+            "additionalProperties": false
+          }
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "default": { "type": "string", "const": "deny" },
+            "granted_destinations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$" },
+                  "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                },
+                "required": ["host", "port"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["default", "granted_destinations"],
+          "additionalProperties": false
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "env_var": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } },
+            "required": ["env_var"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["tools", "mounts", "network", "credentials"],
+      "additionalProperties": false
+    },
+    "operations": {
+      "type": "object",
+      "properties": {
+        "attempted": { "type": "array", "items": { "$ref": "#/$defs/__schema1" } },
+        "permitted": { "type": "array", "items": { "$ref": "#/$defs/__schema1" } },
+        "denied": { "type": "array", "items": { "$ref": "#/$defs/__schema1" } }
+      },
+      "required": ["attempted", "permitted", "denied"],
+      "additionalProperties": false
+    },
+    "gate_results": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gate_id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+              "disposition": { "type": "string", "enum": ["PASS", "FAIL", "SKIP_OK", "SKIP_ENV"] },
+              "reason": { "type": "string", "minLength": 1 },
+              "truncated": { "type": "boolean" }
+            },
+            "required": ["gate_id", "disposition", "truncated"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["results"],
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "digest": { "$ref": "#/$defs/__schema0" },
+          "bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["path", "digest", "bytes"],
+        "additionalProperties": false
+      }
+    },
+    "change_sets": {
+      "type": "object",
+      "properties": {
+        "authoritative": { "type": "string", "const": "observed" },
+        "observed": { "type": "array", "items": { "$ref": "#/$defs/__schema2" } },
+        "claimed": { "type": "array", "items": { "$ref": "#/$defs/__schema2" } },
+        "reconciliation": {
+          "type": "object",
+          "properties": {
+            "agreement": { "type": "boolean" },
+            "disagreements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "detail": { "type": "string", "minLength": 1 }
+                },
+                "required": ["path", "detail"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["agreement", "disagreements"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["authoritative", "observed", "claimed", "reconciliation"],
+      "additionalProperties": false
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "terminal_state": {
+          "type": "string",
+          "enum": [
+            "COMPLETED",
+            "REFUSED",
+            "OPERATIONAL_FAILURE",
+            "CANCELLED",
+            "TIMED_OUT",
+            "INDETERMINATE"
+          ]
+        },
+        "failure": {
+          "type": "object",
+          "properties": {
+            "class": { "type": "string", "enum": ["contract_refusal", "operational"] },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["class", "detail"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["terminal_state"],
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "duration_seconds": { "type": "number", "minimum": 0 }
+      },
+      "required": ["started_at", "finished_at", "duration_seconds"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "identities",
+    "principal",
+    "granted_capabilities",
+    "operations",
+    "gate_results",
+    "artifacts",
+    "change_sets",
+    "outcome",
+    "timing"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "__schema1": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["created", "modified", "deleted"] }
+      },
+      "required": ["path", "kind"],
+      "additionalProperties": false
+    }
+  }
+}
