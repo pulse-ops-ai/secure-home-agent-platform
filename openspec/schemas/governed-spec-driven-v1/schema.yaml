@@ -66,7 +66,7 @@ artifacts:
       - define observable behavior;
       - include positive and negative scenarios;
       - identify failure behavior where relevant;
-      - distinguish candidate-attributable behavior from environmental or
+      - distinguish change-attributable behavior from environmental or
         operational failure when that distinction matters;
       - avoid duplicating implementation decisions from design.md.
 
@@ -139,7 +139,7 @@ artifacts:
       - concurrency or transaction behavior;
       - public cross-package contracts;
       - runner/review machinery;
-      - candidate binding or materialization;
+      - proposed-change-set binding or materialization;
       - reconciliation or readiness authority.
 
       ## Invariants
@@ -164,7 +164,7 @@ artifacts:
       - present vs absent;
       - complete vs shallow history;
       - valid vs malformed;
-      - candidate vs operational failure;
+      - change-attributable vs operational failure;
       - unique vs duplicated source;
       - unchanged vs relocated vs modified.
 
@@ -180,7 +180,7 @@ artifacts:
       - the observable state;
       - the proof available;
       - the required outcome;
-      - whether failure is candidate-attributable or operational.
+      - whether failure is change-attributable or operational.
 
       An undecidable state must not be silently mapped to success.
 
@@ -217,8 +217,7 @@ artifacts:
       - ordering does not change a canonical result;
       - producer output is accepted by an independent verifier;
       - changing a security-relevant field changes the digest;
-      - operational failure never becomes a candidate finding;
-      - deduplication changes byte accounting but not obligation identity.
+      - operational failure never becomes a change-attributable finding.
 
       Mark this section not_applicable only with a reason.
 
@@ -250,7 +249,7 @@ artifacts:
       Map accepted requirements and scenarios to:
       - current landing;
       - responsible task or task group;
-      - expected proof/hunter;
+      - expected proving test;
       - explicitly deferred landing when applicable.
 
       A deferred scenario must have a named due landing or task.

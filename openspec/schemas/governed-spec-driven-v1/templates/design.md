@@ -69,7 +69,7 @@ combinations ambiguous.
 
 | State | Condition | Outcome | Classification |
 |---|---|---|---|
-| <observable state> | <condition> | <required outcome> | candidate / operational |
+| <observable state> | <condition> | <required outcome> | change-attributable / operational |
 
 ## Interfaces and Contracts
 
@@ -87,7 +87,7 @@ free to move.
 
 Define where failure is classified and by what rule.
 
-Distinguish candidate-attributable failure from environmental or operational
+Distinguish change-attributable failure from environmental or operational
 failure. An undecidable state must not be silently mapped to success.
 
 ## Shared vs Independent Logic
