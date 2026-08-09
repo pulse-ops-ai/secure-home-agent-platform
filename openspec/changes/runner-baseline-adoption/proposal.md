@@ -198,11 +198,13 @@ accepted ADR requires a new superseding ADR through its own human review.
 A reviewed, merged change whose matrix and landing plan let the repository
 owner mint the #19 child issues directly from `tasks.md` landings — baseline
 ratification, domain contracts, trusted-core implementation with its proof
-net, image lineage, the Copilot capability/credential spike, then (gated by
-the U6/#11 ADR) the Copilot adapter and derived image, coding-adapter
+net, runner-control orchestration (the typed run-lifecycle state machine),
+image lineage, the Copilot capability/credential spike, then (gated by the
+U6/#11 ADR) the Copilot adapter and derived image, coding-adapter
 conformance, and (gated by the U4/#9 ADR) the runner-control launcher with
-network and resource enforcement — each carrying its own external authority,
-with the #27 scope revision minted alongside. Subsequent profile, image, and
+network and resource enforcement, completing with framework-neutral
+conformance — each carrying its own external authority, with the #27 scope
+revision minted alongside. Subsequent profile, image, and
 conformance work cites this change instead of re-deriving the
 classification.
 

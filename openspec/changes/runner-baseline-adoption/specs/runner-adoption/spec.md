@@ -88,6 +88,26 @@ produce its refusal evidence.
 - **THEN** the outcome is classified as operational failure
 - **AND** no artifact claims a contract decision that was never made
 
+### Requirement: The run lifecycle is an explicit state machine
+
+Every run SHALL traverse a declared lifecycle of typed states with declared
+terminal outcomes. A transition not declared from the current state SHALL be
+rejected loudly and recorded, and an ambiguous or indeterminate terminal
+state SHALL never classify as success.
+
+#### Scenario: An illegal transition is rejected
+
+- **GIVEN** a run in a declared lifecycle state
+- **WHEN** a transition not declared from that state is attempted
+- **THEN** the transition is rejected and recorded
+- **AND** the run does not proceed silently
+
+#### Scenario: Indeterminate is never success
+
+- **GIVEN** a run whose terminal state cannot be established
+- **WHEN** the outcome is classified
+- **THEN** the run classifies as a failure outcome, never success
+
 ### Requirement: Authority comes only from an execution profile
 
 The reimplemented substrate SHALL grant capability only from a versioned

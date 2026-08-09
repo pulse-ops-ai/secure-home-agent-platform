@@ -93,11 +93,16 @@ packages/runner-core          reimplemented trusted core: validation,
                               landing registers it in the workspace layout
                               (README + manifest) so the scaffold checks
                               admit it deliberately, not incidentally.
-services/runner-control       NestJS service (#27): lifecycle, profile
-                              validation boundary, adapter registry,
-                              cancellation/timeout, evidence ports —
-                              absorbs what upstream bash owns; its concrete
-                              launcher waits for the U4 ADR
+services/runner-control       NestJS service (#27): the typed run-lifecycle
+                              state machine (terminal branches REFUSED /
+                              OPERATIONAL_FAILURE / CANCELLED / TIMED_OUT /
+                              INDETERMINATE), consent to spend, profile
+                              resolution, workspace lifecycle, cancellation
+                              + timeout, gate scheduling, evidence
+                              finalization, adapter invocation — absorbs
+                              what upstream bash owns; concrete launcher
+                              waits for the U4 ADR. Shell survives only as
+                              the container entrypoint (bootstrap, exec)
 agents/adapters/coding/*      per-provider adapters behind the SPI seam
 deploy/images/                secure-home-runner-base (neutral)
                               └─ secure-home-runner-copilot (first derived)
@@ -203,24 +208,65 @@ adapter → uniform events → sealed evidence.
 - **Alternatives considered:** keeping upstream vocabulary wholesale
   (workable but imports concepts with no platform referent).
 
-### D6: The bash orchestrator's responsibilities move to runner-control — behind its gates
+### D6: Orchestration leaves bash — runner-control owns the run lifecycle
 
-- **Decision:** dispatch, consent gating, the phase machine, cancellation,
-  workspace lifecycle, gate execution, and evidence finalization — all bash
-  upstream — become `services/runner-control` interfaces. This list is the
-  #27 scope-revision input. Honest boundary: #27 is today deliberately a
-  shell with no Docker access and explicit U2/U4/U6 blocked markers; the
-  *interfaces* can be shaped now, but the **concrete launcher and any
+- **Decision:** the upstream bash crossed from automation glue into
+  application logic: it owns dispatch, consent, lifecycle phases,
+  cancellation, workspace state, gate execution, and evidence finalization —
+  a stateful control-plane application written as shell scripts. Those
+  responsibilities become `services/runner-control`, modeled as an explicit
+  **typed run-lifecycle state machine**:
+
+  ```text
+  REQUESTED → PROFILE_RESOLVED → ELIGIBLE → SANDBOX_STARTED → RUNNING
+            → VERIFYING → EVIDENCE_SEALED → COMPLETED
+  terminal branches: REFUSED · OPERATIONAL_FAILURE · CANCELLED ·
+                     TIMED_OUT · INDETERMINATE
+  ```
+
+  Illegal transitions are impossible by construction or loudly rejected;
+  ambiguous state never becomes success (normative in the spec delta). The
+  responsibility split is fixed, one owner per concern:
+
+  ```text
+  runner-core    = decisions      eligibility, policy, path/protected-
+                                  context, diff/reconciliation, evidence
+                                  construction/verification, deterministic
+                                  classification
+  runner-control = orchestration  state machine, consent to spend, profile
+                                  resolution, workspace lifecycle,
+                                  cancellation + timeout, gate scheduling,
+                                  evidence finalization, adapter invocation
+  adapter        = provider translation
+  profile        = authority
+  sandbox        = untrusted execution
+  ```
+
+  Shell survives only as the container entrypoint: bootstrap the
+  environment, `exec` runner-control. **None of the 38 upstream scripts is
+  ported and cleaned up later** — the invariants they discovered are
+  preserved through runner-core and the state machine; the accidental shell
+  architecture is discarded.
+
+  Honest boundary: #27 is today deliberately a shell with no Docker access
+  and explicit U2/U4/U6 blocked markers. The orchestration lands behind an
+  execution port with no container launch; the **concrete launcher and any
   enforcement land only after the U4 ADR (#9)** decides placement,
   resource-starvation posture, credential custody, and mount isolation.
-- **Rationale:** the upstream package is a library of trusted decisions;
-  invocation lives outside it. The platform's service boundary makes
-  cancellation an API instead of a process convention and gives the consent
-  gate an owner — but pretending the launcher can land before placement is
-  decided would be exactly the partial-work-past-a-gate the governance
-  forbids.
-- **Alternatives considered:** porting the bash (rejected: the platform is
-  TypeScript-first and the bash embeds upstream repo layout throughout).
+- **Rationale:** bash-as-control-plane defeats exactly what the adoption
+  exists to keep — typed state transitions, structured failures,
+  cancellation semantics, concurrency, testability, invariant enforcement,
+  reliable recovery. The upstream split was already half-right: the trusted
+  package answers "given these facts, what is allowed / what happened /
+  what does the evidence prove," while the bash answers "what do we do
+  next." Those are different concerns; this makes the split total and gives
+  the consent gate and cancellation an owner with an API.
+- **Alternatives considered:** porting the 38 scripts and cleaning up later
+  (**rejected: carries the accidental architecture forward** — the
+  platform is TypeScript-first and the bash embeds upstream repo layout
+  throughout); folding orchestration into runner-core (rejected: decisions
+  and orchestration are different concerns — mixing them is the upstream
+  shape being corrected).
 
 ### D7: Image lineage; the gate toolchain leaves the runner lineage
 
@@ -314,16 +360,17 @@ mechanism, **defer** = not carried, named trigger.
 
 Gap → landing mapping:
 
-| Platform-contract gap                     | Landing (see Landing Seams) |
-| ----------------------------------------- | --------------------------- |
-| No domain contracts                       | L2                          |
-| No trusted core                           | L3                          |
-| No image lineage                          | L4                          |
-| Copilot capabilities/custody unverified   | L5                          |
-| No Copilot adapter/image                  | L6 (post-U6 ADR)            |
-| No coding-adapter conformance             | L7                          |
-| Network `open`; no ceilings; no launcher  | L8 (post-U4 ADR)            |
-| No framework-neutral conformance proof    | L9                          |
+| Platform-contract gap                      | Landing (see Landing Seams) |
+| ------------------------------------------ | --------------------------- |
+| No domain contracts                        | L2                          |
+| No trusted core                            | L3                          |
+| Orchestration is bash; no lifecycle owner  | L4                          |
+| No image lineage                           | L5                          |
+| Copilot capabilities/custody unverified    | L6                          |
+| No Copilot adapter/image                   | L7 (post-U6 ADR)            |
+| No coding-adapter conformance              | L8                          |
+| Network `open`; no ceilings; no launcher   | L9 (post-U4 ADR)            |
+| No framework-neutral conformance proof     | L10                         |
 
 ## Interfaces and Contracts
 
@@ -404,35 +451,49 @@ this change.
 L1  ratification              this change merging; #19/#27 revised from it
 L2  domain contracts          Zod contracts in packages/contracts +
                               packages/events (inert: nothing consumes yet)
-L3  trusted core + proof net  packages/runner-core implementing the adopted
-                              mechanisms, with its verification suite —
-                              lands before anything consumes it
-L4  image lineage             runner-base + gates-toolchain + Claude
+L3  trusted runner-core       packages/runner-core: validation, eligibility,
+    + proof net               policy, workspace observation, reconciliation,
+                              evidence construction/verification — with its
+                              own proof net, before anything consumes it
+L4  runner-control            the lifecycle state machine, consent,
+    orchestration             cancellation + timeout, workspace lifecycle,
+                              gate scheduling, evidence finalization —
+                              behind an execution port, no container launch
+                              (#27 constraints hold; launcher waits for
+                              U4). Proves the core/control boundary:
+                              decisions cannot orchestrate, orchestration
+                              cannot decide
+L5  image lineage             runner-base + gates-toolchain + Claude
                               reference derived image (inert: no profile
                               references them yet)
-L5  Copilot capability +      answers the five verifications, incl.
+L6  Copilot capability +      answers the five verifications, incl.
     credential spike          credential injection/isolation (parallel
-                              with L4; evidence for the U6 ADR)
+                              with L5; evidence for the U6 ADR)
 ──  GATE: #11 / U6 ADR        human-accepted SPI decision, defined against
                               dissimilar adapters
-L6  Copilot adapter + derived image
-L7  coding-adapter            Claude ↔ Copilot: same profile, same run →
+L7  Copilot adapter + derived image
+L8  coding-adapter            Claude ↔ Copilot: same profile, same run →
     conformance seed          same events/evidence. A seed, not framework
                               conformance
 ──  GATE: #9 / U4 ADR         placement, starvation, credential custody,
                               mount isolation
-L8  launcher + enforcement    concrete runner-control launcher; per-run
+L9  launcher + enforcement    concrete runner-control launcher; per-run
                               network default-deny + resource ceilings
                               (authority posture: enforce)
-L9  framework-neutral         deterministic-loop adapter joins the matrix;
+L10 framework-neutral         deterministic-loop adapter joins the matrix;
     conformance               completes the ADR-0003 conformance claim
 ```
 
+Some landings may later be combined or parallelized; the conceptual
+boundaries stay.
+
 Serial safety: L2 is reviewable purely as contracts; L3 lands the trusted
-core with its own proof net before images or adapters exist to lean on it;
-L4 images are unreferenced until a profile pins them; L6 cannot merge before
-the U6 ADR is accepted and L5's evidence exists; L8 cannot land before the
-U4 ADR because enforcement without a placement decision hard-codes one; L9
+core with its own proof net before anything consumes it; L4 lands
+orchestration against the core through typed interfaces, with the boundary
+proven in both directions by dependency checks and no container launch; L5
+images are unreferenced until a profile pins them; L7 cannot merge before
+the U6 ADR is accepted and L6's evidence exists; L9 cannot land before the
+U4 ADR because enforcement without a placement decision hard-codes one; L10
 is the only point at which "uniform across adapters" may be claimed at
 ADR-0003's full strength.
 
@@ -441,10 +502,10 @@ ADR-0003's full strength.
 - D5 vocabulary table — pending owner acceptance; templates reconcile to it
   when accepted.
 - `secure-home-gates-toolchain` naming and registry placement — confirmed at
-  L4.
-- The shape of L6 depends on L5's findings (native structured output vs
+  L5.
+- The shape of L7 depends on L6's findings (native structured output vs
   wrapper; transcript availability decides how the conduct-audit mechanism
   reimplements).
-- Whether L9's deterministic-loop adapter is authored inside this change's
+- Whether L10's deterministic-loop adapter is authored inside this change's
   landing plan or as the first landing of the household-runner change —
   decided when the U6 ADR fixes the SPI's shape.
