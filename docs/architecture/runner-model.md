@@ -5,8 +5,13 @@ How agents execute. Governed by
 [ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md),
 and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md).
 
-> **Status: not implemented.** No runner image exists, no substrate is built, no
-> profile schema is defined. This is the contract those things must satisfy.
+> **Status: ratified, not yet implemented.** No runner image exists, no
+> substrate is built, no profile schema is defined. This is the contract
+> those things must satisfy. The reimplementation program is ratified by
+> the `runner-baseline-adoption` constitution (PR #48; canonical spec:
+> [`../../openspec/specs/runner-adoption/spec.md`](../../openspec/specs/runner-adoption/spec.md))
+> — sixteen normative adoption invariants and landings L2–L10, each
+> implemented only through its own externally authorized child change.
 
 ## The five concepts, and why they are not the same thing
 
