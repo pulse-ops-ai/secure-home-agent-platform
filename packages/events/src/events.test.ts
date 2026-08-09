@@ -221,7 +221,8 @@ describe('shared shapes are single instances (C-EX-005)', () => {
     const option = RunEvent.options.find(
       (candidate) => candidate.shape.event_type.value === eventType,
     )
-    return option?.shape as Record<string, unknown> | undefined
+    if (option === undefined) return undefined
+    return Object.fromEntries(Object.entries(option.shape))
   }
 
   it('the capability.granted payload IS CapabilityGrant, by instance', () => {
