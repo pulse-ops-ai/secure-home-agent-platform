@@ -1,5 +1,10 @@
 /**
- * JSON Schema generation (capability `runner-verification`, design D3).
+ * JSON Schema RENDERING (capability `runner-verification`, design D3).
+ * Build tooling only: this module imports Prettier and is deliberately
+ * NOT exported from the package index — importing it from the runtime
+ * graph would drag a devDependency into production resolution (D8: the
+ * package's only runtime dependency is Zod). The pure artifact catalog
+ * lives in `contract-artifacts.ts`.
  *
  * Explicit conversion contract — library defaults are not authority:
  * target draft-2020-12, unrepresentable: "throw" (fail closed), io:
@@ -12,52 +17,14 @@
 import { format } from 'prettier'
 import { z } from 'zod'
 import {
-  EXECUTION_PROFILE_ID,
-  EXECUTION_PROFILE_VERSION,
-  ExecutionProfile,
-} from './execution-profile.js'
-import { GATE_REGISTRY_ID, GATE_REGISTRY_VERSION, GateRegistry } from './gate-registry.js'
-import {
-  LAUNCH_ASSERTION_ID,
-  LAUNCH_ASSERTION_VERSION,
-  LaunchAssertion,
-} from './launch-assertion.js'
-import { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from './path-policy.js'
-import {
-  VERIFICATION_PACKS_ID,
-  VERIFICATION_PACKS_VERSION,
-  VerificationPacks,
-} from './verification-packs.js'
+  artifactPath,
+  CONTRACT_ARTIFACTS,
+  contractUrn,
+  type ContractArtifact,
+} from './contract-artifacts.js'
 
-export interface ContractArtifact {
-  readonly id: string
-  readonly version: string
-  readonly schema: z.ZodType
-}
-
-export const CONTRACT_ARTIFACTS: readonly ContractArtifact[] = [
-  {
-    id: EXECUTION_PROFILE_ID,
-    version: EXECUTION_PROFILE_VERSION,
-    schema: ExecutionProfile,
-  },
-  {
-    id: LAUNCH_ASSERTION_ID,
-    version: LAUNCH_ASSERTION_VERSION,
-    schema: LaunchAssertion,
-  },
-  { id: PATH_POLICY_ID, version: PATH_POLICY_VERSION, schema: PathPolicy },
-  { id: GATE_REGISTRY_ID, version: GATE_REGISTRY_VERSION, schema: GateRegistry },
-  {
-    id: VERIFICATION_PACKS_ID,
-    version: VERIFICATION_PACKS_VERSION,
-    schema: VerificationPacks,
-  },
-]
-
-/** `$id` embeds the EXACT contract version: one identity, one byte set. */
-export const contractUrn = (id: string, version: string): string =>
-  `urn:secure-home:contract:${id}:${version}`
+export type { ContractArtifact } from './contract-artifacts.js'
+export { artifactPath, CONTRACT_ARTIFACTS, contractUrn } from './contract-artifacts.js'
 
 /**
  * Prettier options mirroring the repository's .prettierrc.json: generated
@@ -92,7 +59,7 @@ export const generateArtifacts = async (
 ): Promise<ReadonlyMap<string, string>> => {
   const out = new Map<string, string>()
   for (const artifact of artifacts) {
-    out.set(`${artifact.id}/${artifact.version}.json`, await renderSchema(artifact))
+    out.set(artifactPath(artifact), await renderSchema(artifact))
   }
   return out
 }

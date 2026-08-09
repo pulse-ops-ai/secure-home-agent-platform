@@ -28,8 +28,8 @@ export type {
   GateIdT,
   ProfileIdentityT,
 } from './primitives.js'
-export { CONTRACT_ARTIFACTS, generateArtifacts } from './generation.js'
-export type { ContractArtifact } from './generation.js'
+export { artifactPath, CONTRACT_ARTIFACTS, contractUrn } from './contract-artifacts.js'
+export type { ContractArtifact } from './contract-artifacts.js'
 export {
   EXECUTION_PROFILE_ID,
   EXECUTION_PROFILE_VERSION,

@@ -16,12 +16,17 @@
  */
 import { createHash } from 'node:crypto'
 import { env as processEnv } from 'node:process'
-import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { generateArtifacts } from './generation.js'
+import {
+  checkLedgerCurrentState,
+  checkLedgerHistory,
+  verifyLedgerHistory,
+  type Ledger,
+} from './ledger-history.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../..')
@@ -42,50 +47,12 @@ const committedSchemas = (): ReadonlyMap<string, string> => {
   return out
 }
 
-type Ledger = Readonly<Record<string, string>>
-
 const currentLedger = (): Ledger =>
   (
     JSON.parse(readFileSync(join(schemasRoot, 'identity-ledger.json'), 'utf8')) as {
       entries: Ledger
     }
   ).entries
-
-/**
- * The two guard layers (D5). Pure so C-ADV-007A/B are provable as unit
- * cases regardless of git state; the git-sourced base comparison below
- * applies the same function to the real accepted ledger when resolvable.
- */
-export const checkLedgerCurrentState = (
-  ledger: Ledger,
-  files: ReadonlyMap<string, string>,
-): string[] => {
-  const failures: string[] = []
-  for (const [relPath, content] of files) {
-    const [id, file] = relPath.split('/')
-    const identity = `${id}@${(file ?? '').replace(/\.json$/, '')}`
-    const recorded = ledger[identity]
-    if (recorded === undefined) {
-      failures.push(`no ledger entry for ${identity}`)
-    } else if (recorded !== digest(content)) {
-      failures.push(`bytes do not match ledger digest for ${identity}`)
-    }
-  }
-  return failures
-}
-
-export const checkLedgerHistory = (accepted: Ledger, proposed: Ledger): string[] => {
-  const failures: string[] = []
-  for (const [identity, acceptedDigest] of Object.entries(accepted)) {
-    const now = proposed[identity]
-    if (now === undefined) {
-      failures.push(`accepted ledger entry disappeared: ${identity}`)
-    } else if (now !== acceptedDigest) {
-      failures.push(`accepted ledger entry rewritten: ${identity}`)
-    }
-  }
-  return failures
-}
 
 const FORBIDDEN_STRUCTURAL_NAMES = [
   'claude',
@@ -166,14 +133,14 @@ describe('drift against committed output (C-ADV-003)', () => {
 
 describe('identity ledger (C-ADV-007A/B, C-MUT-006 kill)', () => {
   it('current state: every committed schema matches its ledger digest', () => {
-    expect(checkLedgerCurrentState(currentLedger(), committedSchemas())).toEqual([])
+    expect(checkLedgerCurrentState(currentLedger(), committedSchemas(), digest)).toEqual([])
   })
 
   it('007A: changed bytes with an unchanged ledger fail, identity named', () => {
     const files = new Map(committedSchemas())
     const [firstPath] = [...files.keys()]
     files.set(firstPath ?? '', `${files.get(firstPath ?? '') ?? ''} `)
-    const failures = checkLedgerCurrentState(currentLedger(), files)
+    const failures = checkLedgerCurrentState(currentLedger(), files, digest)
     expect(failures).toHaveLength(1)
     expect(failures[0]).toContain('bytes do not match ledger digest')
   })
@@ -197,53 +164,20 @@ describe('identity ledger (C-ADV-007A/B, C-MUT-006 kill)', () => {
   })
 
   it('historical comparison against the accepted base ledger (fail closed)', () => {
-    // FAIL-CLOSED base resolution: inability to resolve or read the
-    // trusted base commit is a test FAILURE, never a skip. Only once the
-    // base commit is known may a ledger missing AT THAT COMMIT mean
-    // genesis. In CI (shallow checkout) the PR base SHA comes from the
-    // GitHub event and is fetched explicitly if absent.
-    const git = (args: string[]): string =>
-      execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim()
-    const resolveBaseSha = (): string => {
-      const eventPath = processEnv['GITHUB_EVENT_PATH']
-      if (eventPath !== undefined) {
-        const event = JSON.parse(readFileSync(eventPath, 'utf8')) as {
-          pull_request?: { base?: { sha?: string } }
-        }
-        const sha = event.pull_request?.base?.sha
-        if (sha !== undefined) {
-          try {
-            git(['cat-file', '-e', `${sha}^{commit}`])
-          } catch {
-            git(['fetch', '--depth=1', 'origin', sha])
-          }
-          return sha
-        }
-      }
-      return git(['merge-base', 'HEAD', 'origin/main'])
-    }
-    const base = resolveBaseSha() // any throw here fails the test
-    let baseText: string | null
-    try {
-      baseText = git(['show', `${base}:schemas/identity-ledger.json`])
-    } catch (error) {
-      const stderrRaw = (error as { stderr?: string | Buffer }).stderr
-      const detail = [
-        error instanceof Error ? error.message : String(error),
-        typeof stderrRaw === 'string' ? stderrRaw : (stderrRaw?.toString('utf8') ?? ''),
-      ].join('\n')
-      // Genesis is ONLY a ledger missing at a RESOLVED base commit; any
-      // other git failure propagates as a test failure.
-      if (/exists on disk, but not in|does not exist in/.test(detail)) {
-        baseText = null
-      } else {
-        throw error
-      }
-    }
-    if (baseText !== null) {
-      const accepted = (JSON.parse(baseText) as { entries: Ledger }).entries
-      expect(checkLedgerHistory(accepted, currentLedger())).toEqual([])
-    }
+    // The REAL repository run of the same injectable guard the git
+    // fixtures in ledger-history.test.ts prove end-to-end: base
+    // resolution must succeed (throw = failure, never a skip); genesis
+    // is only a ledger absent at the resolved base.
+    const failures = verifyLedgerHistory(
+      {
+        cwd: repoRoot,
+        eventPath: processEnv['GITHUB_EVENT_PATH'],
+        fallbackRef: 'origin/main',
+        ledgerPath: 'schemas/identity-ledger.json',
+      },
+      currentLedger(),
+    )
+    expect(failures).toEqual([])
   })
 })
 

@@ -1,32 +1,21 @@
 /**
- * JSON Schema generation for the events vocabulary — same explicit
- * conversion contract as `@secure-home/contracts` (design D3): target
- * draft-2020-12, unrepresentable: "throw", io: "output", reused: "ref".
+ * JSON Schema RENDERING for the events vocabulary — build tooling only
+ * (imports Prettier; never exported from the package index). Same
+ * explicit conversion contract as `@secure-home/contracts` (design D3):
+ * target draft-2020-12, unrepresentable: "throw", io: "output",
+ * reused: "ref". The pure catalog lives in `event-artifacts.ts`.
  */
 import { format } from 'prettier'
 import { z } from 'zod'
-import { EVIDENCE_BUNDLE_ID, EVIDENCE_BUNDLE_VERSION, EvidenceBundle } from './evidence.js'
-import { RUN_EVENT_ID, RUN_EVENT_VERSION, RunEvent } from './run-events.js'
-import { RUN_RECORD_ID, RUN_RECORD_VERSION, RunRecord } from './run-record.js'
+import {
+  artifactPath,
+  contractUrn,
+  EVENT_ARTIFACTS,
+  type ContractArtifact,
+} from './event-artifacts.js'
 
-export interface ContractArtifact {
-  readonly id: string
-  readonly version: string
-  readonly schema: z.ZodType
-}
-
-export const EVENT_ARTIFACTS: readonly ContractArtifact[] = [
-  { id: RUN_RECORD_ID, version: RUN_RECORD_VERSION, schema: RunRecord },
-  { id: RUN_EVENT_ID, version: RUN_EVENT_VERSION, schema: RunEvent },
-  {
-    id: EVIDENCE_BUNDLE_ID,
-    version: EVIDENCE_BUNDLE_VERSION,
-    schema: EvidenceBundle,
-  },
-]
-
-export const contractUrn = (id: string, version: string): string =>
-  `urn:secure-home:contract:${id}:${version}`
+export type { ContractArtifact } from './event-artifacts.js'
+export { artifactPath, contractUrn, EVENT_ARTIFACTS } from './event-artifacts.js'
 
 /**
  * Prettier options mirroring the repository's .prettierrc.json: generated
@@ -60,7 +49,7 @@ export const generateArtifacts = async (
 ): Promise<ReadonlyMap<string, string>> => {
   const out = new Map<string, string>()
   for (const artifact of artifacts) {
-    out.set(`${artifact.id}/${artifact.version}.json`, await renderSchema(artifact))
+    out.set(artifactPath(artifact), await renderSchema(artifact))
   }
   return out
 }
