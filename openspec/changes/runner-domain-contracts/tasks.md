@@ -44,14 +44,14 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`** — external authority (#51) is recorded and covering.
-The 2026-08-09 planning review returned NOT_READY with required
-contract-model corrections; this revision enacts them (four-capability
-split included, D1 accepted). The one outstanding condition is the
-**delta-only planning review of this final artifact set**. On its approval,
-task 0.1 flips this status to `AUTHORIZED` — the flip is the entire task,
-so the agent never authorizes the consequences of its own post-review
-edits.
+**`AUTHORIZED`** — external authority (#51) is recorded and covering, and
+the planning seam is frozen: full planning review 2026-08-09 (D1 accepted),
+delta reviews at `e281e39` (path authority, identity guard, credential
+wording, shared primitives) and `7cfcc4f` (historically append-only
+ledger), and the repository owner's approval for implementation
+(2026-08-09, "approved for implementation") recorded on this change.
+Implementation proceeds on this change against the frozen artifacts; any
+further planning change requires a new review before continuing.
 
 Status derivation rules (inherited):
 
@@ -59,8 +59,8 @@ Status derivation rules (inherited):
 - Authority narrower than the landing scope ⇒ `NOT_AUTHORIZED` for the
   uncovered work.
 - Assurance completeness is necessary but never sufficient.
-- This landing is ungated by U-decisions; the delta review is the only
-  outstanding condition.
+- This landing is ungated by U-decisions; the review condition is
+  satisfied as recorded above.
 
 If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
@@ -68,7 +68,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on delta-review approval**
+- [x] **0.1 Flip authorization on delta-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-domain-contracts/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Implements**
