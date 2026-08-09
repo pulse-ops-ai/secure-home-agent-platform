@@ -72,8 +72,11 @@ no deployment identity of its own.
   imported; a service is deployed.
 - **Agent implementations** — [`../agents/implementations/`](../agents/implementations/).
 - **Applications** — [`../apps/`](../apps/).
-- **Schema source of truth** — [`../schemas/`](../schemas/). Packages hold typed
-  bindings *derived from* the schemas; the schema is canonical.
+- **Hand-authored JSON Schema.** The authored source is Zod, in
+  [`contracts/`](contracts/) (and [`events/`](events/) for the run-event and
+  evidence vocabulary) — ADR-0012 §7. [`../schemas/`](../schemas/) holds the
+  **generated, published** JSON Schema derived from that source; it is output,
+  never a second authoring surface.
 - **Anything used by exactly one consumer.** Keep it in that consumer until a
   second one exists. Premature sharing is how a package becomes a dumping
   ground.
