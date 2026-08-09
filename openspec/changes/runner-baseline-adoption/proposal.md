@@ -48,7 +48,11 @@ plan from which the #19 child issues are minted.
 ### In scope
 
 - Ratify the inventory of the upstream substrate at a pinned baseline.
-- The adopt / adapt / replace / defer classification matrix.
+- The adopt / adapt / replace / defer classification matrix, with verdict
+  semantics under reimplementation: **adopt** = preserve the mechanism and
+  invariant as-is in new platform code; **adapt** = preserve with platform
+  changes; **replace** = a deliberately different mechanism; **defer** = not
+  carried, with a named re-evaluation trigger.
 - Adoption invariants as a normative spec delta (`runner-adoption`).
 - The target package boundary for the trusted core (ADR-0012 taxonomy).
 - The sequencing decision: gaps are closed with the Claude adapter as the
@@ -102,7 +106,8 @@ apply" table:
   evidence over claims) must not weaken it.
 - ADR-0011 — provider-neutral base image, one runtime per derived image; the
   upstream monolithic image is classified replace because of it.
-- ADR-0012 — the workspace taxonomy the trusted-core package lands in.
+- ADR-0012 — the workspace taxonomy the reimplemented trusted core lands
+  in, and the Zod-authored contract rule the new domain schemas follow.
 
 Architecture documents: `docs/architecture/runner-model.md` (the contract the
 gap analysis measures against), `docs/architecture/knowledge-selection-model.md`
@@ -126,8 +131,9 @@ accepted ADR requires a new superseding ADR through its own human review.
   token model is named as what U2 exists to replace).
 - No credential, secret, or provider token appears in this change or any
   landing plan. No Home Assistant, no live service.
-- Imported code is treated as untrusted until re-validated by this
-  repository's gates; adoption never means trusting upstream CI.
+- No upstream code is imported. The reimplementation is validated by this
+  repository's own gates; upstream CI and test results are evidence about
+  the design, never trust inherited by the port.
 
 ## Existing Evidence
 
@@ -165,6 +171,12 @@ accepted ADR requires a new superseding ADR through its own human review.
   adopted and not precluded. Adoption invariant: no adopted contract may
   bake in a container runtime; runtime selection is a platform decision
   adjacent to U4.
+- **No IP re-homing — decided.** The upstream `@exprealtytech` code and
+  schemas do not travel into this repository. Adoption means
+  **reimplementation against new platform-owned domain schemas**,
+  Zod-authored per ADR-0012, in this repository's own domain vocabulary.
+  The upstream substrate is consumed as design evidence only — mechanisms,
+  invariants, and failure lessons, never bytes.
 
 ## Success
 
@@ -188,9 +200,6 @@ classification.
 
 ## Open Questions
 
-- **Q0 (blocking for code landings):** re-homing/IP confirmation for the
-  upstream trusted core — travel the code, or reimplement against the
-  schemas?
 - **Q1:** upstream sync posture — one-shot vendor pin at `941160c0` with the
   PR-5 re-evaluation trigger (recommended), or periodic re-inventory?
 - **Q2:** the four Copilot CLI capability verifications — answered by the
