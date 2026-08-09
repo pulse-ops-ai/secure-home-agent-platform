@@ -7,8 +7,8 @@ no substrate. The upstream `agent-service` substrate is operationally
 exercised and heavily tested but provider-coupled, and it carries known gaps
 against the platform contract. The proposal decided: no IP re-homing —
 reimplementation against new platform-owned domain schemas, upstream
-consumed as design evidence only at the one-shot pin
-(`exprealtytech/agent-service`, `origin/dev` @ `941160c0`).
+consumed as historical design evidence during this review. After
+ratification, this repository owns the resulting truth (D2).
 
 This design classifies every upstream mechanism, fixes the target
 boundaries, and defines the landing seams the issue decomposition is minted
@@ -42,7 +42,7 @@ Platform side: documented contracts only. `profiles/`, `schemas/`,
 is deliberately a shell (#27) with no Docker access and explicit U2/U4/U6
 blocked markers; no image, no profile schema, no adapter.
 
-Upstream side (evidence, at the pin):
+Upstream side (evidence, as observed during the review):
 
 ```text
 .ai/                          config-as-data: 8 posture profiles, 6 policies
@@ -131,16 +131,28 @@ adapter → uniform events → sealed evidence.
   adopting only the JSON schemas (rejected: schemas are equally upstream
   IP, and ADR-0012 makes Zod the authored source here anyway).
 
-### D2: One-shot upstream pin at `941160c0`
+### D2: Adoption conclusions are repository-owned after ratification
 
-- **Decision:** upstream evidence is cited at exactly one commit
-  (`941160c0bd6eafc0eb4c4bd708d86b21857e1ec2`); no periodic re-inventory;
-  re-evaluation only via a new change after upstream PR-5 activation.
-- **Rationale:** with no vendored code there is nothing to sync; the
-  in-flight D11 sequence touches only the deferred citation-evidence
-  surface; a floating reference would make every citation unstable.
-- **Alternatives considered:** periodic re-inventory (rejected: recurring
-  cost with no consumer); tracking upstream `dev` (rejected: evidence rot).
+- **Decision:** the upstream runner is consumed as historical design
+  evidence during this review. Once this change is ratified, the
+  classification matrix, requirements, and landing boundaries **in this
+  repository** are authoritative for the platform. Subsequent upstream
+  changes neither modify nor invalidate this adoption automatically;
+  incorporating a later upstream lesson requires an explicit new or
+  superseding platform change. The donor repository is evidence and
+  history — never a versioned dependency: **nothing in this platform
+  executes, resolves, fetches, compares, or gates against an external
+  revision.** The observed state the review inspected is recorded in the
+  proposal's Existing Evidence as audit context only.
+- **Rationale:** with no vendored code there is nothing to sync, and with
+  repository-owned conclusions there is nothing to drift. A normative
+  external commit pin would have given stability at the price of coupling
+  this repository to another repository's commit history; ownership gives
+  the same stability without the coupling.
+- **Alternatives considered:** a normative one-shot upstream commit pin
+  (rejected: makes a donor SHA part of the platform contract); periodic
+  re-inventory (rejected: recurring cost with no consumer); tracking
+  upstream `dev` (rejected: evidence rot).
 
 ### D3: Zod-authored contracts; upstream's structural validator is replaced
 
@@ -359,7 +371,7 @@ the proposal: **adopt** = mechanism preserved as-is in new code, **adapt** =
 preserved with platform changes, **replace** = deliberately different
 mechanism, **defer** = not carried, named trigger.
 
-| Upstream mechanism (evidence at pin)             | Verdict | Platform destination                     | Notes                                                              |
+| Upstream mechanism (observed evidence)           | Verdict | Platform destination                     | Notes                                                              |
 | ------------------------------------------------ | ------- | ---------------------------------------- | ------------------------------------------------------------------ |
 | Authority-as-data (profile → capabilities)       | adopt   | `profiles/` + execution-profile schema   | extended with routing class, principal, knowledge, evidence groups |
 | Refuse-don't-default eligibility                 | adopt   | `packages/runner-core`                   | refusal before any paid call                                       |
@@ -384,7 +396,7 @@ mechanism, **defer** = not carried, named trigger.
 | Monolithic image + heredoc Dockerfile            | replace | `deploy/images/` lineage (D7)            | ADR-0011                                                           |
 | Bash orchestration                               | replace | `services/runner-control` (D6)           | #27 revision input; launcher gated by U4                           |
 | prePR packet-review pipeline surface             | replace | platform review flow (later change)      | mechanism lessons kept; artifact family not carried                |
-| `review-context/` citation evidence              | defer   | —                                        | trigger: upstream PR-5 activation                                  |
+| `review-context/` citation evidence              | defer   | —                                        | re-adoption only via a new governed platform change; the upstream disclosure work settling is timing context, not a contract term |
 | GitHub/Jenkins publication surface               | defer   | —                                        | forge wiring is a platform concern later                           |
 | Observability explain / experiment planner       | defer   | —                                        | upstream-tool dependent                                            |
 | Knowledge bundle wiring (roadmap row 13)         | defer   | —                                        | U7 + `knowledge-selection-model.md` govern here                    |
@@ -523,11 +535,13 @@ boundaries stay.
 One evidence note for L4: the donor repository intends to export a
 lifecycle census, a bash failure-mode catalog, frozen machine-readable
 surface semantics, an execute-vs-decide inventory, and a
-shadow-conformance plan. Those documents will postdate this change's
-adoption pin, and the L4 child change cites them at their own upstream
-revision with its own evidence section. The parent's one-shot pin answers
-"what evidence did this ratification classify?" — it is unaffected by
-later donor exports and does not move.
+shadow-conformance plan. The L4 child author **distills** those materials
+into platform-owned state models, requirements, and hostile corpora that
+stand on their own — the donor documents are evidence and history, never
+cited authority, and no child artifact needs a donor revision reference
+beyond optional audit context (D2). Once distilled, a requirement such as
+"SKIP_ENV never normalizes to SKIP_OK" is a platform truth independent of
+where the lesson was learned.
 
 Serial safety: L2 is reviewable purely as contracts; L3 lands the trusted
 core with its own proof net before anything consumes it; L4 lands

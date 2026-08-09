@@ -56,7 +56,7 @@ Each maps one-to-one to a requirement in the `runner-adoption` spec delta.
 | INV-010 | Security-relevant bounds refuse, never truncate                       | trust             |
 | INV-011 | Evidence sealed last, independently re-derivable, fail-closed         | data / trust      |
 | INV-012 | No platform contract encodes a container runtime                      | compatibility     |
-| INV-013 | Upstream evidence cited only at the one-shot pin                      | review/governance |
+| INV-013 | Adoption conclusions are repository-owned after ratification; donor changes never silently alter platform behavior, and nothing gates against an external revision | review/governance |
 | INV-014 | Gated landings wait for their ADRs (U6 → adapters, U4 → launcher); no partial work past a gate | review/governance |
 | INV-015 | Trust established for an intermediate representation never transfers implicitly to a later mutable artifact; the final consumer verifies the actual artifact it consumes | trust / data      |
 | INV-016 | Every requested gate receives exactly one terminal disposition from the closed gate-outcome vocabulary; environment inability is never classified as non-applicability or success | behavior / trust  |
@@ -81,8 +81,8 @@ Not a Cartesian product. The interactions that require proof:
   regardless of any recorded external authority.
 - **authority narrower than landing scope** — must derive `NOT_AUTHORIZED`
   for every uncovered landing, named.
-- **defer verdict × trigger fired** (upstream PR-5) — reopens nothing;
-  requires a new change.
+- **later donor lesson considered useful** — enters only through a new
+  governed platform change; donor movement reopens nothing automatically.
 - **inert contract × first consumer arrives** — consuming landing must
   re-run the neutrality and coherence proofs, not assume them.
 - **indeterminate terminal state × outcome classification** — must classify
@@ -114,7 +114,7 @@ Mandatory at this risk class:
 | INV-009 × D8/L9 (profile egress)   | gates inherit profile-granted egress after enforcement lands | EX-005B at L9: real gate containers have no egress path even after profile egress activates |
 | INV-005 × consent-to-spend (D6)    | consent mistaken for authority, or authority for consent    | ADV-001 plus a consent-without-profile refusal example at L4     |
 | INV-007 × INV-008                  | mid-run source mutation vs sandbox judge-write — different attacks, both must fail | ADV-003 and ADV-005 kept distinct, both required at L3/L4 |
-| INV-013 × defer triggers           | upstream churn silently reopening the classification        | manual review check: citations name only the pin (L1, each landing PR) |
+| INV-013 × defer verdicts           | donor drift silently altering the classification            | MAN-001: platform artifacts cite this repository's ratified contract as authority; nothing executes, resolves, fetches, or gates against a donor revision (L1, each landing PR) |
 | INV-004 × INV-003                  | a terminal state escaping outcome classification            | PROP-002 includes terminal-state mapping; ADV-011                |
 | INV-011 × INV-015                  | a sealed, verified catalog taken as trust in a later mutable artifact | ADV-014: verification of the intermediate never authorizes the mutated final artifact |
 
@@ -148,7 +148,7 @@ impossible.
 | PROP-005 | INV-011           | property test              | verifier agrees with catalog on generated artifact sets; flags any single mutation (L3) |
 | PROP-006 | INV-015           | property test              | mutation after verification and before consumption refuses unless independently reverified (L3; re-proven at each landing adding a final consumer: L5 digests, L7 transcripts, L9 launch) |
 | PROP-007 | INV-016           | property test              | SKIP_ENV never normalizes to SKIP_OK or PASS; every gate identity has exactly one terminal disposition (L4; vocabulary shape at L2) |
-| MAN-001  | INV-013           | manual evidence            | citation audit against the pin (L1; every landing PR review) |
+| MAN-001  | INV-013           | manual evidence            | donor-drift audit: authority citations name this repository's ratified contract; no donor revision appears as continuing authority or gate (L1; every landing PR review) |
 | MAN-002  | INV-014           | manual evidence            | authorization derivation table applied at each landing's gate (all) |
 
 Do not claim that a test proves behavior outside what it actually
@@ -225,7 +225,7 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | Bounds refuse (INV-010)             | L3      | PROP-003, ADV-009              | —                  |
 | Sealed evidence (INV-011)           | L3      | EX-006, PROP-005, ADV-011      | —                  |
 | Runtime neutrality (INV-012)        | L2      | EX-007                         | —                  |
-| One-shot pin (INV-013)              | L1      | MAN-001                        | every landing PR   |
+| Donor-drift immunity (INV-013)      | L1      | MAN-001                        | every landing PR   |
 | Gate honoring (INV-014)             | all     | MAN-002 + authorization table  | —                  |
 | Final-consumer trust (INV-015)      | L3      | PROP-006, ADV-014, MUT-008     | re-proof at L5, L7, L9 |
 | Gate outcome vocabulary (INV-016)   | L2, L4  | PROP-007, ADV-015/016/017, MUT-009 | —              |
@@ -331,7 +331,7 @@ properties:
   (EX-005B, EX-008, ADV-013 — a test double can prove argv selection,
   never that a real container has no network); neutrality re-proof at
   L7/L8; framework-neutral conformance at L10; citation-evidence adoption
-  (upstream PR-5 trigger).
+  (via a new governed platform change, if ever).
 - **Design assumptions requiring human confirmation:** child-issue minting
   and #19/#27 revision (human-only, L1); the U6 and U4 ADRs themselves;
   gates-toolchain naming at L5; L10 authoring location once the U6 ADR

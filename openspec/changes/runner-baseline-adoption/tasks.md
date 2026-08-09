@@ -178,7 +178,8 @@ audit passes (MAN-001).
 
   **Proof required**
 
-  - `MAN-001` — issue text cites the pin and this change, nothing floating
+  - `MAN-001` — issue text cites this change as its authority; no donor
+    revision appears as continuing authority
 
   **Completion**
 
@@ -504,7 +505,8 @@ as input to the U6 ADR (#11); no platform contract modified by the spike.
 Human decision through the decisions process. L7 tasks are
 `NOT_AUTHORIZED` until the ADR is `Accepted` (assurance authorization
 table). This change contributes evidence (L6 findings, upstream transcript
-adapter analysis at the pin); it does not write the ADR.
+adapter analysis recorded in this change's evidence); it does not write
+the ADR.
 
 ---
 

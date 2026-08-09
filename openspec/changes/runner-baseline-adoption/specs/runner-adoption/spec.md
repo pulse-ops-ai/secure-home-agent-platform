@@ -327,19 +327,28 @@ identity SHALL be recorded as run evidence data.
 - **THEN** no profile, run, event, or evidence contract requires a change
 - **AND** the new runtime identity appears in run evidence as data
 
-### Requirement: Upstream evidence is cited at the one-shot pin
+### Requirement: Adoption does not drift with the donor repository
 
-Adoption artifacts SHALL cite upstream evidence only at the pinned baseline
-(`origin/dev` @ `941160c0`). No vendored upstream code or schema exists to
-synchronize, and no periodic re-inventory occurs.
+Once ratified, the adoption requirements SHALL be governed exclusively by
+this repository's accepted contracts. Changes in a donor repository SHALL
+NOT silently alter, invalidate, expand, or narrow platform behavior, and
+nothing in the platform SHALL execute, resolve, fetch, compare, or gate
+against an external repository revision. No vendored upstream code or
+schema exists to synchronize, and no periodic re-inventory occurs.
 
-#### Scenario: Upstream moves
+#### Scenario: The donor repository changes
 
-- **GIVEN** new commits on the upstream integration branch after the pin
-- **WHEN** adoption landings proceed
-- **THEN** no adoption artifact changes, and re-evaluation happens only
-  through a new change gated on the named trigger (upstream PR-5
-  activation)
+- **GIVEN** the donor repository changes after this adoption is ratified
+- **WHEN** platform work proceeds
+- **THEN** the accepted runner-adoption contract remains unchanged
+- **AND** no implementation changes merely because the donor changed
+
+#### Scenario: A later donor lesson is incorporated
+
+- **GIVEN** a later donor finding is considered useful
+- **WHEN** the platform chooses to incorporate it
+- **THEN** it enters through a new governed platform change
+- **AND** the existing parent contract is not silently rewritten
 
 ### Requirement: Landings stay on the near side of U2, U4, and U6
 
@@ -386,8 +395,9 @@ domain contracts.
 
 ## Deferred Behavior
 
-- Citation-evidence adoption — re-evaluated only after upstream PR-5
-  (activation), via a new change.
+- Citation-evidence adoption — incorporated, if ever, through a new
+  governed platform change; the upstream disclosure sequence settling is
+  timing context, not a contract term.
 - Knowledge-selection wiring into profiles — gated by U7 and
   `knowledge-selection-model.md`; never adopted from upstream.
 - Hardened container runtime (Kata-class isolation) — permitted by the

@@ -47,7 +47,8 @@ plan from which the #19 child issues are minted.
 
 ### In scope
 
-- Ratify the inventory of the upstream substrate at a pinned baseline.
+- Ratify the inventory of the upstream substrate as observed during this
+  review; after ratification, this repository owns the conclusions (D2).
 - The adopt / adapt / replace / defer classification matrix, with verdict
   semantics under reimplementation: **adopt** = preserve the mechanism and
   invariant as-is in new platform code; **adapt** = preserve with platform
@@ -148,13 +149,16 @@ accepted ADR requires a new superseding ADR through its own human review.
 - Upstream repository, canonical identity: **`exprealtytech/agent-service`**
   (GitHub; inventoried via the local working copy at
   `/home/mike/dev/exp/agent-service`).
-- **Adoption baseline pin: `origin/dev` @
-  `941160c0bd6eafc0eb4c4bd708d86b21857e1ec2`** — the upstream integration
-  state, which already includes D11 PR-3a (disclosure-policy bootstrap,
-  inert). The detailed inventory was conducted 2026-08-08 at feature-branch
-  commit `4eee55f8d4432b1088a62186a8c9cf7f9be0e39f`; the delta between the
-  two is confined to the deferred `review-context/` surface, so the
-  classification is unaffected.
+- **Observed state during the review (audit context only — not a contract
+  term):** the upstream integration state at `origin/dev` commit
+  `941160c0bd6eafc0eb4c4bd708d86b21857e1ec2` (D11 PR-3a merged, inert);
+  the detailed inventory was conducted 2026-08-08 at feature-branch commit
+  `4eee55f8d4432b1088a62186a8c9cf7f9be0e39f`, with the delta between the
+  two confined to the deferred `review-context/` surface. **Nothing in
+  this platform executes, resolves, fetches, compares, or gates against
+  these revisions** — after ratification the authoritative artifact is
+  this change and its archived canonical spec, not any state of the donor
+  repository (D2).
 - Upstream operational evidence is *evidence about the design*, not
   inherited trust: the same upstream's later review cycles have continued
   to surface genuine blockers, which is exactly why every reimplemented
@@ -174,9 +178,11 @@ accepted ADR requires a new superseding ADR through its own human review.
   recorded in `tasks.md`, never this change itself.
 - **Upstream D11 sequence** (PR-3 rendering/envelope v2 → PR-4a obligation
   enforcement → PR-4b shadow → PR-5 activation) — touches only the deferred
-  `review-context/` surface. Upstream churn there does not invalidate this
-  adoption. **Re-evaluation trigger:** after upstream PR-5 (activation), a
-  follow-up change may classify citation-evidence adoption; not before.
+  `review-context/` surface. Donor changes never modify or invalidate this
+  adoption (D2). If the platform later chooses to classify
+  citation-evidence adoption, it does so through a new governed platform
+  change; the upstream disclosure sequence settling is timing context, not
+  a gate this repository evaluates.
 - **Upstream "bundle-aware implementation profile" (roadmap row 13)** — not
   adopted. It wires knowledge selection into the implement lane upstream;
   in this repository the knowledge seam is governed by
