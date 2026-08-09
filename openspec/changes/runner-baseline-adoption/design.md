@@ -487,9 +487,10 @@ discharged by this review).
 
 Serial where dependent, parallel where not. Each landing is independently
 mergeable, lands inert until its consumer exists, and carries its own
-external authorizing issue (recorded in `tasks.md`, minted after this change
-merges). The two human ADR gates are part of the sequence, not landings of
-this change.
+external authorizing issue (minted after this change merges, indexed under
+#19, and recorded in that landing's child change `tasks.md` — never by
+editing this parent). The two human ADR gates are part of the sequence, not
+landings of this change.
 
 ```text
 L1  ratification              this change merging; #19/#27 revised from it

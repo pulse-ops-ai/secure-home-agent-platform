@@ -94,7 +94,7 @@ Authorization derivation (consumed by `tasks.md` and every landing):
 
 | Observable state                                        | Proof available                       | Required outcome                     | Classification            |
 | ------------------------------------------------------- | ------------------------------------- | ------------------------------------ | ------------------------- |
-| Ungated landing, authority recorded and covering        | issue/task id + scope in tasks.md     | AUTHORIZED                           | —                         |
+| Ungated landing, authority recorded and covering        | issue id + scope in the child change's tasks.md | AUTHORIZED                 | —                         |
 | Ungated landing, authority absent or ambiguous          | none, or unverifiable reference       | NOT_AUTHORIZED                       | contract refusal          |
 | Gated landing, gate ADR not accepted                    | ADR status in decisions INDEX         | NOT_AUTHORIZED (regardless of authority) | contract refusal      |
 | Gated landing, ADR accepted, authority recorded         | ADR status + issue id + scope         | AUTHORIZED                           | —                         |
@@ -189,6 +189,7 @@ L9 under its own authority.
 | ADV-015 | Required gate toolchain unavailable                                     | disposition `SKIP_ENV`, never `SKIP_OK` or `PASS`        |
 | ADV-016 | Gate output truncated / terminal evidence incomplete                    | disposition `FAIL` with the explicit reason recorded     |
 | ADV-017 | Duplicate gate identity or second terminal disposition for one gate     | fail closed with the duplication named                   |
+| ADV-018 | Workspace contains modified orchestration, policy-interpreter, gate-scheduler, or classification helper bytes | runner-control never sources, imports, or executes those bytes as decision-bearing logic; only trusted platform-controlled code runs (L4) |
 
 ## Mutation Targets
 
@@ -204,6 +205,7 @@ their landing implements them:
 | MUT-007 | Gate network-none enforcement                      | EX-005B egress probe (L9) |
 | MUT-008 | Final-consumer verification (removal or bypass)    | ADV-014 / PROP-006  |
 | MUT-009 | SKIP_ENV classification or the duplicate-disposition guard (weakening) | PROP-007 / ADV-015 / ADV-017 |
+| MUT-010 | Allowing decision-bearing orchestration resolution from the writable workspace | ADV-018 (L4)   |
 | MUT-005 | Indeterminate-is-failure classification            | ADV-012 / PROP-002  |
 | MUT-006 | Refuse-not-truncate at declared bounds             | PROP-003 / ADV-009  |
 
@@ -220,7 +222,8 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | Authority from profile (INV-005)    | L4      | ADV-001                        | container-level re-proof at L9 |
 | Evidence outranks claims (INV-006)  | L3      | ADV-002                        | —                  |
 | Captured-once inputs (INV-007)      | L3, L4  | ADV-003, ADV-004               | —                  |
-| Judge protection (INV-008)          | L3      | ADV-005, MUT-001               | —                  |
+| Judge protection — governing data/paths (INV-008) | L3 | ADV-005, MUT-001    | —                  |
+| Judge protection — orchestration provenance (INV-008) | L4 | ADV-018, MUT-010 | —                  |
 | Exact-argv, network-none gates (INV-009) | L4 | EX-005A, ADV-006, ADV-007, MUT-004 | EX-005B, MUT-007 at L9 |
 | Bounds refuse (INV-010)             | L3      | PROP-003, ADV-009              | —                  |
 | Sealed evidence (INV-011)           | L3      | EX-006, PROP-005, ADV-011      | —                  |
@@ -240,13 +243,15 @@ The seam is `design.md` § Landing Seams: L1–L10 with two human ADR gates
 properties:
 
 - One PR per landing unless a landing's own issue splits it; no partial
-  atomic seam merges.
+  atomic seam merges. Landing authority is recorded in each child change's
+  tasks.md (#19 is the mutable program index); the parent stays permanently
+  NOT_AUTHORIZED and is never edited to record authority.
 - Verification nets land **with** the component they protect: L2 carries the
   contract conformance + neutrality properties; L3 carries the trusted-core
   proof net (EX-001/003/006, ADV-002…005, PROP-003/005); L4 carries the
   state-machine and gate-execution net (EX-004, EX-005A, PROP-002,
-  PROP-007, ADV-006/007, ADV-015…017, MUT-004, MUT-009); L9 carries the
-  runtime net (EX-005B, EX-008, ADV-013, MUT-007).
+  PROP-007, ADV-006/007, ADV-015…018, MUT-004, MUT-009, MUT-010); L9
+  carries the runtime net (EX-005B, EX-008, ADV-013, MUT-007).
 - Inert until activation: L2 contracts unconsumed until L3/L4; L5 images
   unreferenced until a profile pins them; L7 adapters unlaunchable until L9
   provides the launcher.
