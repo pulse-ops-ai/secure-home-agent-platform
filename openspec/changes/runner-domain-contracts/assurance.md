@@ -52,7 +52,7 @@ requirement or a design decision:
 | C-INV-06 | Credential-transport-purposed fields admit CredentialRef only; launch assertion and evidence/identity structures have no credential-value slot; secret-presence admits only false | launch-assertion semantics (D6) |
 | C-INV-07 | Generated schemas are deterministic, drift-detectable, and produced under the explicit conversion contract (draft-2020-12, unrepresentable: throw, no transforms/defaults) | INV-015 (D3) |
 | C-INV-08 | Evidence is structurally mandatory and representationally complete (identities incl. opaque runtime, principal, grants, dispositions, observed-vs-claimed change sets with reconciliation, outcome detail, timing) | INV-011 shape |
-| C-INV-09 | One schema identity means one schema: contract_id + exact contract_version; $id embeds the exact version; a mechanical identity guard (authored append-only ledger of identity → generated-bytes digest) makes changed-bytes-under-unchanged-identity a deterministic failure; compatibility policy stated, cross-version proof deferred to the change introducing a second version | D5 |
+| C-INV-09 | One schema identity means one schema: contract_id + exact contract_version; $id embeds the exact version; the identity guard is current-state consistent AND historically append-only against the trusted accepted base ledger (accepted entries never change or disappear; only new identity@version entries append); compatibility policy stated, cross-version proof deferred to the change introducing a second version | D5 |
 | C-INV-10 | Inert: no production consumer outside the L2 contract layer imports the new contracts; the events → contracts edge is intentional and inward | L2 posture (D8) |
 
 ## State-Space Model
@@ -74,7 +74,7 @@ Meaningful interactions requiring proof:
   reader reject new documents *by design*; the safety property is that
   the identity differs (new exact version, `$id`, and ledger entry) and
   that changed bytes under an unchanged identity fail deterministically
-  (C-PROP-005, C-ADV-007). No cross-version reader claim exists at this
+  (C-PROP-005, C-ADV-007A/B). No cross-version reader claim exists at this
   landing.
 - **opaque adapter × closed enums** — the adapter must never migrate into
   the enum class; the falsification test pins it (C-PROP-002); the closed
@@ -108,7 +108,7 @@ itself):
 | ------------------------------------ | ----------------------------------------------- | --------------------------------- |
 | C-INV-02 × C-INV-03                  | adapter accidentally typed as a closed enum; event_type accidentally opened | C-PROP-002 + C-ADV-005; C-ADV-006 |
 | C-INV-07 × C-INV-01                  | generation loosening strictness in output       | C-EX-003 asserts strict posture survives generation |
-| C-INV-09 × C-INV-01                  | two byte sets sharing one identity              | C-PROP-005 + C-ADV-007 (the ledger guard, not convention) |
+| C-INV-09 × C-INV-01                  | two byte sets sharing one identity              | C-PROP-005 + C-ADV-007A/B (current-state AND historical ledger comparison — self-consistency alone can be laundered by a rewritten row) |
 | D2 duplication rule × events package | a semantically equivalent second primitive definition in events | C-EX-005 (primitives are the contracts exports, by identity) |
 | C-INV-06 × C-INV-08                  | a designated credential-value slot appearing in evidence/identity structures | C-ADV-002 |
 | C-INV-10 × workspace checks          | a production consumer slipping in during the landing | C-EX-004 dependency scan (events edge excepted) |
@@ -134,13 +134,14 @@ itself):
 | C-ADV-004 | C-INV-03           | hostile fixture            | duplicate gate identity in registry AND in result set ⇒ both refuse |
 | C-ADV-005 | C-INV-02           | hostile fixture            | provider name as enum/discriminator in a proposed schema ⇒ scan fails naming position |
 | C-ADV-006 | C-INV-03           | hostile fixture            | provider-native event name in the event_type position ⇒ refuses; it validates only as provider_event_name data |
-| C-ADV-007 | C-INV-09           | hostile fixture            | shape mutated and regenerated with contract_version left unchanged ⇒ ledger guard fails deterministically naming the identity |
+| C-ADV-007A | C-INV-09          | hostile fixture            | shape mutated, version unchanged, ledger unchanged ⇒ current-state guard fails naming the identity |
+| C-ADV-007B | C-INV-09          | hostile fixture            | shape mutated, version unchanged, existing ledger row rewritten to the new digest ⇒ historical comparison against the accepted base fails naming the identity, despite current-state self-consistency |
 | C-MUT-001 | C-INV-01           | mutation target            | removing strict posture anywhere ⇒ C-PROP-001 kills             |
 | C-MUT-002 | C-INV-02           | mutation target            | typing adapter as enum ⇒ C-PROP-002 kills                       |
 | C-MUT-003 | C-INV-07           | mutation target            | disabling the drift check ⇒ C-ADV-003 kills                     |
 | C-MUT-004 | C-INV-06           | mutation target            | introducing a credential-value slot or widening secret-presence ⇒ C-ADV-001/002 kill |
 | C-MUT-005 | C-INV-03           | mutation target            | widening event_type to an open string ⇒ C-ADV-006 / C-PROP-003 kill |
-| C-MUT-006 | C-INV-09           | mutation target            | disabling or bypassing the identity ledger guard ⇒ C-ADV-007 kills |
+| C-MUT-006 | C-INV-09           | mutation target            | disabling either guard layer — the current digest comparison OR the historical append-only comparison against the accepted base ⇒ C-ADV-007A / C-ADV-007B kill respectively |
 
 Do not claim a proof beyond what it exercises: all of the above operate on
 documents, types, and the generation pipeline. None asserts runtime
@@ -158,8 +159,8 @@ behavior, and none claims arbitrary strings are secret-free.
 
 ## Hostile Corpus
 
-C-ADV-001 … C-ADV-007 above; the corpus grows during implementation but
-never below these seven classes. Each case asserts the refusal *and* the
+C-ADV-001 … C-ADV-007B above; the corpus grows during implementation but
+never below these eight classes. Each case asserts the refusal *and* the
 named position/file — a silent refusal is a finding.
 
 ## Mutation Targets
@@ -172,7 +173,8 @@ completion gate; an unkilled mutant blocks the seam.
 | Object                | Authority source            | Captured when       | Sandbox writable? | Transformation                       | Final verifier/consumer                  |
 | --------------------- | --------------------------- | ------------------- | ----------------- | ------------------------------------ | ---------------------------------------- |
 | Authored Zod source   | reviewed repo (this change) | merge               | n/a (no sandbox)  | —                                    | package consumers (L3+), generation step |
-| Shared identity types | `packages/contracts`        | authoring           | no                | imported inward by `packages/events` | both packages' validators — one definition, never duplicated |
+| Shared primitives     | `packages/contracts`        | authoring           | no                | imported inward by `packages/events` | both packages' validators — one definition, never duplicated |
+| Identity ledger       | authored, historically append-only | version introduction | no          | none (never regenerated); accepted base entries immutable | conformance suite: current bytes-vs-ledger digest AND proposed-vs-accepted-base comparison |
 | Generated JSON Schema | authored source             | generation at build | no                | `z.toJSONSchema` under the D3 explicit contract, stable serialization | regenerate-and-compare in the merge gate; language-neutral consumers |
 | Contract identity     | `contract_id` + exact version constants | authoring | no                | embedded in generated `$id`          | D5 direction rules; consumers            |
 
@@ -188,7 +190,10 @@ for itself).
 | source unchanged → output regenerated         | byte-identical (C-PROP-004)                       |
 | source changed → output not regenerated       | drift check fails (C-ADV-003 class)               |
 | output hand-edited → gate runs                | drift check fails naming the file (C-ADV-003)     |
-| shape unchanged → additive field added        | new exact version, new $id (C-PROP-005); old identity still names the old byte set |
+| shape unchanged → additive field added        | new exact version, new $id, new ledger entry (C-PROP-005); old identity still names the old byte set |
+| shape changed → identity left unchanged       | current-state guard fails deterministically, identity named (C-ADV-007A) |
+| accepted ledger row rewritten alongside shape | historical comparison against the accepted base fails, identity named (C-ADV-007B) |
+| accepted ledger row deleted                   | historical comparison fails — accepted entries never disappear |
 | valid document → unknown key added            | refuses naming position (C-PROP-001)              |
 | unique gate ids → one duplicated              | refuses naming duplicate (C-ADV-004)              |
 | identity constants present → removed          | refuses (versionless contract)                    |
@@ -208,7 +213,7 @@ for itself).
 | Gate identity/dispositions (`runner-verification`)              | C-PROP-003, C-ADV-004                    |
 | Policies/packs declarative (`runner-verification`)              | C-EX-001 (pack fixtures), C-EX-002       |
 | Generation deterministic (`runner-verification`)                | C-EX-003, C-PROP-004, C-ADV-003, C-MUT-003 |
-| One identity, one schema (`runner-verification`)                | C-PROP-005, C-ADV-007, C-MUT-006         |
+| One identity, one schema (`runner-verification`)                | C-PROP-005, C-ADV-007A/B, C-MUT-006      |
 | Shared primitives, single definition (D2)                       | C-EX-005                                 |
 | Evidence complete and mandatory (`runner-evidence`)             | C-EX-001, C-EX-002, C-ADV-002            |
 
@@ -260,9 +265,13 @@ L3's/L4's concern under their own landings.
   re-proofs at L7/L8; all behavioral scenarios to L3/L4 (named in the
   constitution's traceability).
 - **Design assumptions requiring human confirmation (delta review):** the
-  identity-ledger mechanism as the D5 mechanical guard (location/encoding
-  left as implementation latitude within the authorized scope); the
-  shared-primitives set exported by `packages/contracts` (D2).
+  identity-ledger mechanism as the D5 mechanical guard — current-state
+  consistency plus the historically append-only comparison against the
+  trusted accepted base ledger (location/encoding left as implementation
+  latitude within the authorized scope; a package-level conformance test
+  comparing against the accepted target-branch ledger satisfies it); the
+  genesis posture (this landing's entries seed the ledger; the historical
+  check binds from the next contract change onward).
 
 `tasks.md` must not begin implementation of unresolved trust-critical
 behavior merely because this artifact exists.

@@ -235,16 +235,20 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
   **Change**
 
   One generation entry point per package; committed `schemas/` output with
-  exact-version `$id`s; the authored, append-only identity ledger (D5)
-  mapping each identity to its generated-bytes digest. The
-  regenerate-and-compare and ledger checks are **package-level conformance
-  tests** — the existing aggregate gate executes them; **no file outside
-  #51's authorized paths is modified.**
+  exact-version `$id`s; the authored identity ledger (D5) mapping each
+  identity to its generated-bytes digest, guarded in **both layers**:
+  current-state consistency and the **historically append-only comparison
+  against the trusted accepted base ledger** (accepted entries never
+  change or disappear; a rewritten row fails even when self-consistent).
+  This landing seeds the genesis entries. The regenerate-and-compare and
+  ledger checks are **package-level conformance tests** — the existing
+  aggregate gate executes them; **no file outside #51's authorized paths
+  is modified.**
 
   **Proof required**
 
-  - `C-EX-003`, `C-PROP-004`, `C-PROP-005`, `C-ADV-003`, `C-ADV-007`,
-    `C-MUT-003`, `C-MUT-006`
+  - `C-EX-003`, `C-PROP-004`, `C-PROP-005`, `C-ADV-003`, `C-ADV-007A`,
+    `C-ADV-007B`, `C-MUT-003`, `C-MUT-006`
 
 ## 5. Conformance suite
 
@@ -260,7 +264,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
   **Proof required**
 
   - Full assurance net green: `C-EX-001…005`, `C-PROP-001…005`,
-    `C-ADV-001…007`, `C-MUT-001…006` killed.
+    `C-ADV-001…007B`, `C-MUT-001…006` killed.
 
 ---
 
@@ -276,9 +280,10 @@ This landing is complete only when:
       position anywhere in the corpus or generated output; runtime
       identity exists only as opaque evidence data.
 - [ ] `schemas/` regenerates byte-identically in the merge gate, every
-      generated `$id` embeds its exact contract version, and every identity
-      matches its ledger digest (changed bytes under an unchanged identity
-      fail deterministically).
+      generated `$id` embeds its exact contract version, every identity
+      matches its ledger digest, and the ledger is historically
+      append-only against the accepted base (a changed or vanished
+      accepted entry fails deterministically, rewritten-row included).
 - [ ] Nothing outside #51's authorized path scope was modified.
 - [ ] Repository-aware semantic review of the complete seam has run, and
       one fresh falsification-oriented independent review has completed
