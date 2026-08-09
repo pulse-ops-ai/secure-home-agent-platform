@@ -89,7 +89,7 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 1. Workspace wiring
 
-- [ ] **1.1 Zod via the catalog; package scaffolds; the events → contracts edge**
+- [x] **1.1 Zod via the catalog; package scaffolds; the events → contracts edge**
   <!-- agent-task: 1.1 paths=pnpm-workspace.yaml,pnpm-lock.yaml,packages/contracts/**,packages/events/** checks=repo-check risk=medium prerequisites=0.1 -->
 
   **Implements**

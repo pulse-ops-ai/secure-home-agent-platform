@@ -16,6 +16,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",

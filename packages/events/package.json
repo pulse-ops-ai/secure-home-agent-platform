@@ -16,6 +16,10 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@secure-home/contracts": "workspace:*",
+    "zod": "catalog:"
+  },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
