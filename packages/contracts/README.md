@@ -2,7 +2,11 @@
 
 The authored Zod contract source.
 
-> **Status: package boundary only.** No Zod definitions — that is **issue #28**. Zod is not yet a dependency.
+> **Status: package boundary only.** Zod is not yet a dependency. This package
+> is the **shared authored contract source**; domain-specific issues own
+> specific slices — the runner domain contracts via **L2/#51** (under the
+> `runner-baseline-adoption` constitution), the household/read-only contract
+> slice via **#28**. No slice owns the package globally.
 
 ## What belongs here
 
