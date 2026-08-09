@@ -58,6 +58,7 @@ Each maps one-to-one to a requirement in the `runner-adoption` spec delta.
 | INV-012 | No platform contract encodes a container runtime                      | compatibility     |
 | INV-013 | Upstream evidence cited only at the one-shot pin                      | review/governance |
 | INV-014 | Gated landings wait for their ADRs (U6 → adapters, U4 → launcher); no partial work past a gate | review/governance |
+| INV-015 | Trust established for an intermediate representation never transfers implicitly to a later mutable artifact; the final consumer verifies the actual artifact it consumes | trust / data      |
 
 ## State-Space Model
 
@@ -96,6 +97,7 @@ Authorization derivation (consumed by `tasks.md` and every landing):
 | Ungated landing, authority absent or ambiguous          | none, or unverifiable reference       | NOT_AUTHORIZED                       | contract refusal          |
 | Gated landing, gate ADR not accepted                    | ADR status in decisions INDEX         | NOT_AUTHORIZED (regardless of authority) | contract refusal      |
 | Gated landing, ADR accepted, authority recorded         | ADR status + issue id + scope         | AUTHORIZED                           | —                         |
+| Landing implementation with no authorized child change  | child OpenSpec status                 | NOT_AUTHORIZED for implementation (decomposition may proceed) | contract refusal |
 | Authority narrower than the landing plan                | scope comparison                      | NOT_AUTHORIZED for uncovered landings, named | contract refusal  |
 | Authorization state cannot be safely determined         | —                                     | NOT_AUTHORIZED                       | fail-closed               |
 
@@ -113,6 +115,7 @@ Mandatory at this risk class:
 | INV-007 × INV-008                  | mid-run source mutation vs sandbox judge-write — different attacks, both must fail | ADV-003 and ADV-005 kept distinct, both required at L3/L4 |
 | INV-013 × defer triggers           | upstream churn silently reopening the classification        | manual review check: citations name only the pin (L1, each landing PR) |
 | INV-004 × INV-003                  | a terminal state escaping outcome classification            | PROP-002 includes terminal-state mapping; ADV-011                |
+| INV-011 × INV-015                  | a sealed, verified catalog taken as trust in a later mutable artifact | ADV-014: verification of the intermediate never authorizes the mutated final artifact |
 
 ## Proof Obligations
 
@@ -142,6 +145,7 @@ impossible.
 | PROP-003 | INV-010           | property test              | generated over-bound inputs always refused, never truncated (L3) |
 | PROP-004 | INV-002           | property test              | provider-name scan over the contract corpus: zero structural hits (L2; re-run L7/L8) |
 | PROP-005 | INV-011           | property test              | verifier agrees with catalog on generated artifact sets; flags any single mutation (L3) |
+| PROP-006 | INV-015           | property test              | mutation after verification and before consumption refuses unless independently reverified (L3; re-proven at each landing adding a final consumer: L5 digests, L7 transcripts, L9 launch) |
 | MAN-001  | INV-013           | manual evidence            | citation audit against the pin (L1; every landing PR review) |
 | MAN-002  | INV-014           | manual evidence            | authorization derivation table applied at each landing's gate (all) |
 
@@ -159,6 +163,7 @@ L9 under its own authority.
 | PROP-003 | For any input exceeding its declared bound, the result is refusal with the bound named — never a truncated variant |
 | PROP-004 | For the whole contract corpus, no provider/framework name occupies a field name, enum member, or constant |
 | PROP-005 | For any generated artifact set, independent verification agrees with the sealed catalog, and any single-artifact mutation is flagged |
+| PROP-006 | For any security-relevant artifact, mutation after an earlier successful verification and before final consumption causes refusal unless the final artifact is independently reverified |
 
 ## Hostile Corpus
 
@@ -177,6 +182,7 @@ L9 under its own authority.
 | ADV-011 | Evidence finalization interrupted                                       | outcome classifies as failure, never success             |
 | ADV-012 | Indeterminate terminal state presented as success                       | classification refuses; INDETERMINATE is a failure class |
 | ADV-013 | Run killed or timed out mid-flight                                      | no privileged container, mount, or accessible credential survives; terminal evidence recorded (L9) |
+| ADV-014 | Verify intermediate representation → mutate final artifact → consume    | refusal; the earlier verification does not authorize consumption |
 
 ## Mutation Targets
 
@@ -190,6 +196,7 @@ their landing implements them:
 | MUT-003 | Independent verifier hash comparison               | PROP-005 / EX-006   |
 | MUT-004 | Exact-argv registry enforcement (no widening, no substitution) | EX-005A / ADV-006 (L4) |
 | MUT-007 | Gate network-none enforcement                      | EX-005B egress probe (L9) |
+| MUT-008 | Final-consumer verification (removal or bypass)    | ADV-014 / PROP-006  |
 | MUT-005 | Indeterminate-is-failure classification            | ADV-012 / PROP-002  |
 | MUT-006 | Refuse-not-truncate at declared bounds             | PROP-003 / ADV-009  |
 
@@ -213,6 +220,7 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | Runtime neutrality (INV-012)        | L2      | EX-007                         | —                  |
 | One-shot pin (INV-013)              | L1      | MAN-001                        | every landing PR   |
 | Gate honoring (INV-014)             | all     | MAN-002 + authorization table  | —                  |
+| Final-consumer trust (INV-015)      | L3      | PROP-006, ADV-014, MUT-008     | re-proof at L5, L7, L9 |
 | Copilot verifications               | L6      | SPIKE-01…05                    | shape L7           |
 
 Every deferred re-proof names its landing. No generic "later" bucket.
@@ -258,6 +266,33 @@ properties:
 - **Reconciliation:** each landing's completion gate applies the
   authorization derivation table deterministically; a NOT_READY landing
   review is a truthful outcome, never a crash.
+- **Standing model for landing implementation (adopted from the upstream
+  program's retrospective):** no implementation starts from
+  proposal + spec + design alone — the child change's assurance and tasks
+  are mandatory first (the schema's apply gate enforces this). During
+  construction: deterministic tests and targeted design/module review
+  only. At the complete seam: repository-aware semantic/evidence review,
+  then **one fresh falsification-oriented independent review against the
+  frozen final head**.
+- **Independent verifiers share semantics, never invent them:** domain
+  vocabulary, identity, closed states, the authority model, and semantic
+  definitions come from `packages/contracts`/`packages/events`;
+  independence lives in derivation, proof, and reconstruction. Independent
+  verification proves the same contract — it never creates a second one.
+- **Mechanical boundaries only:** a type, label, metadata field, or
+  sibling digest is never accepted as a trust boundary unless something
+  mechanically enforces it (INV-015). "Route says unreadable" requires the
+  path to be physically unavailable; "gate passed" requires the canonical
+  gate to have actually run with failure propagating nonzero.
+- **Trust-critical child assurance posture:** every trust-critical child
+  change SHALL include, within the existing assurance sections, an
+  **Authority Chain** table (object → authority source → captured when →
+  sandbox-writable? → transformation → final verifier/consumer) and a
+  meaningful **before × after transition matrix** (e.g. regular → symlink,
+  captured → source-mutated, verified → final-artifact-mutated). This
+  stays a required *posture* under schema v1; promotion to a mandatory
+  schema artifact waits until several child changes prove the pattern
+  generalizes.
 
 ## Rollout and Rollback
 

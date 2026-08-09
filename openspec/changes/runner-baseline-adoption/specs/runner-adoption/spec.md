@@ -246,6 +246,33 @@ finalize evidence SHALL never register as run success.
 - **WHEN** the run outcome is classified
 - **THEN** the outcome is a failure classification, never success
 
+### Requirement: Trust is preserved through the final consumer
+
+Every security-relevant transformation between an authoritative source and
+its final consumer SHALL either preserve a digest-bound identity through the
+transformation or be independently re-verified against authoritative
+evidence at the consumption boundary. Verification of an intermediate
+representation SHALL NOT establish trust in a later mutable artifact.
+
+#### Scenario: Final artifact changes after intermediate verification
+
+- **GIVEN** an authoritative source whose intermediate representation has
+  been verified
+- **AND** a later artifact derived from that representation remains mutable
+- **WHEN** that final artifact changes before consumption
+- **THEN** the final consumer refuses it unless the consumed artifact is
+  independently verified against the applicable authority
+- **AND** the earlier successful verification does not authorize
+  consumption
+
+#### Scenario: Final consumer independently verifies
+
+- **GIVEN** a security-relevant artifact derived from authoritative input
+- **WHEN** the final consumer verifies the artifact's digest-bound identity
+  or independently re-derives its required trust properties
+- **THEN** consumption may proceed
+- **AND** the verification evidence identifies the actual artifact consumed
+
 ### Requirement: Contracts are container-runtime neutral
 
 No platform runner contract SHALL encode a container runtime. Runtime

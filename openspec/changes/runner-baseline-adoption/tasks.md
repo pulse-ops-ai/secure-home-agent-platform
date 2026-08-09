@@ -54,12 +54,43 @@ Status derivation rules:
   assurance artifact with no external authority is `NOT_AUTHORIZED`.
 - Gated landings additionally require their accepted ADR: L7 the U6 ADR
   (#11), L9 the U4 ADR (#9) — per the assurance authorization table.
+- Every landing additionally requires its own externally authorized child
+  OpenSpec change before implementation begins — see the landing
+  implementation contract below.
 
 If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 Authorization is recorded **per landing** as issues are minted: add a row
 per landing (issue id, scope, constraints, date) and update the status for
 that landing only. One landing's authority never covers another.
+
+### Landing implementation contract — this parent is a constitution
+
+**L2–L10 are decomposition and authorization boundaries, not direct
+implementation contracts.** Before implementation begins for any landing,
+that landing SHALL have its own externally authorized
+`governed-spec-driven-v1` OpenSpec change. The child change inherits all
+applicable `runner-adoption` requirements and SHALL define its
+landing-specific proposal, specification delta where required, design,
+assurance model, tasks, state-space interactions, proof obligations,
+hostile corpus, mutation targets, and completion gate — its assurance and
+tasks artifacts complete **before** implementation (the schema's apply gate
+enforces this).
+
+Changes arising from a later ADR, spike finding, or implementation
+discovery are absorbed by the affected child change or a new superseding
+change; **they do not turn this parent ratification into a running
+implementation diary.** After merge, this parent changes only by
+superseding change.
+
+Trust-critical child changes additionally carry the Authority Chain table
+and the before × after transition matrix defined in `assurance.md`'s
+standing model.
+
+The task groups below therefore define each landing's inherited scope,
+authority boundary, prerequisite DAG, and proof obligations — the contract
+every child change starts from, not a task list any agent may implement
+from this file.
 
 ---
 
