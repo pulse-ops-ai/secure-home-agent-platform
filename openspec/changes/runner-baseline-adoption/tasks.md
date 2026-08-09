@@ -70,19 +70,31 @@ that landing only. One landing's authority never covers another.
 | L1      | ratification effects: issues minted, #19/#27 revised, docs pointers | inert       | issues exist and are recorded above; docs updated           |
 | L2      | runner domain contracts (`packages/contracts`, `packages/events`) + generated schemas | inert | contracts validate; EX-002/007, PROP-001/004 green          |
 | L3      | `packages/runner-core` + its proof net                        | inert             | EX-001/003/006, ADV-002…005, ADV-009, PROP-003/005, MUT-001…003/006 green |
-| L4      | runner-control orchestration (state machine, ports; no launch) | inert            | EX-004/005, PROP-002, ADV-001/006/007, MUT-004/005 green; boundary proven both directions |
+| L4      | runner-control orchestration (state machine, ports; no launch) | inert            | EX-004, EX-005A, PROP-002, ADV-001/006/007, MUT-004/005 green; boundary proven both directions |
 | L5      | image lineage: runner-base, gates-toolchain, Claude reference derived image | inert   | images build reproducibly, digest-pinned, unreferenced      |
 | L6      | Copilot capability/credential spike                           | inert             | SPIKE-01…05 answered with captured evidence                 |
 | — GATE  | #11 / U6 SPI ADR (human)                                      | —                 | ADR accepted                                                |
 | L7      | platform adapters: Claude reference + Copilot + Copilot derived image | inert     | adapters conform to accepted SPI; EX-002/PROP-004 re-run    |
 | L8      | coding-adapter conformance seed                               | inert             | same profile, same run → same events/evidence across both adapters |
 | — GATE  | #9 / U4 placement ADR (human)                                 | —                 | ADR accepted                                                |
-| L9      | concrete launcher + network default-deny + resource ceilings  | **enforce**       | enforcement active; EX-005 re-run post-activation; rollout/rollback obligations met |
+| L9      | concrete launcher + network default-deny + resource ceilings  | **enforce**       | enforcement active; EX-005B, EX-008/ADV-013 green; rollout/rollback obligations met |
 | L10     | framework-neutral conformance (deterministic-loop adapter)    | inert             | ADR-0003 uniform-across-adapters claim proven at full strength |
 
 A landing is the unit that may be independently merged. Do not merge a
 partial atomic seam. Verification required to trust a component lands with
 that component.
+
+The machine-readable `prerequisites=` graph below is **authoritative** over
+the visual ordering of this document:
+
+```text
+L2 ← L1        L3 ← L2        L4 ← L3        L5 ← L4
+L6 ← L1        (intentionally parallel with L2–L5)
+L7 ← L5 + GATE-U6   (Copilot adapter additionally ← L6)
+L8 ← L7
+L9 ← L8 + GATE-U4
+L10 ← L8 + L9
+```
 
 ---
 
@@ -176,7 +188,7 @@ runtime-neutrality proofs are green — with nothing consuming them yet.
 ## 2. Contracts
 
 - [ ] **2.1 Author the execution-profile, launch, policy, and gate contracts**
-  <!-- agent-task: 2.1 paths=packages/contracts/** checks=repo-check risk=high prerequisites=L1 -->
+  <!-- agent-task: 2.1 paths=packages/contracts/**,schemas/**,pnpm-workspace.yaml,pnpm-lock.yaml checks=repo-check risk=high prerequisites=L1 -->
 
   **Implements**
 
@@ -204,7 +216,7 @@ runtime-neutrality proofs are green — with nothing consuming them yet.
   consumer exists.
 
 - [ ] **2.2 Author the run-event and evidence contracts in packages/events**
-  <!-- agent-task: 2.2 paths=packages/events/** checks=repo-check risk=high prerequisites=L1 -->
+  <!-- agent-task: 2.2 paths=packages/events/**,schemas/**,pnpm-workspace.yaml,pnpm-lock.yaml checks=repo-check risk=high prerequisites=L1 -->
 
   **Implements**
 
@@ -231,7 +243,7 @@ runtime-neutrality proofs are green — with nothing consuming them yet.
   optional evidence).
 
 - [ ] **2.3 Contract conformance suite**
-  <!-- agent-task: 2.3 paths=packages/contracts/**,packages/events/** checks=repo-check risk=high prerequisites=2.1,2.2 -->
+  <!-- agent-task: 2.3 paths=packages/contracts/**,packages/events/**,schemas/** checks=repo-check risk=high prerequisites=2.1,2.2 -->
 
   **Proves**
 
@@ -262,7 +274,7 @@ consumes it yet.
 ## 3. Trusted core
 
 - [ ] **3.1 Package boundary and dependency direction**
-  <!-- agent-task: 3.1 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=L2 -->
+  <!-- agent-task: 3.1 paths=packages/runner-core/**,packages/README.md,scripts/workspace-model.mjs,pnpm-workspace.yaml,pnpm-lock.yaml checks=repo-check risk=high prerequisites=L2 -->
 
   **Implements**
 
@@ -351,7 +363,7 @@ core/control boundary is proven in both directions.
 ## 4. Orchestration
 
 - [ ] **4.1 The typed run-lifecycle state machine**
-  <!-- agent-task: 4.1 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=L3 -->
+  <!-- agent-task: 4.1 paths=services/runner-control/**,pnpm-workspace.yaml,pnpm-lock.yaml checks=repo-check risk=trust-critical prerequisites=L3 -->
 
   **Implements**
 
@@ -385,7 +397,7 @@ core/control boundary is proven in both directions.
 
   **Proof required**
 
-  - `EX-005`, `ADV-006`, `ADV-007`, `MUT-004`
+  - `EX-005A`, `ADV-006`, `ADV-007`, `MUT-004`
 
 - [ ] **4.4 Workspace lifecycle, cancellation, timeout, evidence finalization ports**
   <!-- agent-task: 4.4 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=4.1 -->
@@ -425,7 +437,7 @@ core/control boundary is proven in both directions.
 
 - [ ] **5.1 `secure-home-runner-base`** — neutral substrate only; no
       provider content; digest-pinned build.
-  <!-- agent-task: 5.1 paths=deploy/images/** checks=repo-check risk=high prerequisites=L2 -->
+  <!-- agent-task: 5.1 paths=deploy/images/** checks=repo-check risk=high prerequisites=L4 -->
 - [ ] **5.2 Gates-toolchain image** — outside the runner lineage; name and
       registry placement confirmed here (proposal Q2).
   <!-- agent-task: 5.2 paths=deploy/images/** checks=repo-check risk=high prerequisites=5.1 -->
@@ -466,12 +478,12 @@ adapter analysis at the pin); it does not write the ADR.
 # L7 — Platform adapters (post-U6)
 
 - [ ] **7.1 Claude reference adapter** against the accepted SPI.
-  <!-- agent-task: 7.1 paths=agents/adapters/coding/claude-code/** checks=repo-check risk=trust-critical prerequisites=GATE-U6 -->
+  <!-- agent-task: 7.1 paths=agents/adapters/coding/claude-code/**,pnpm-lock.yaml checks=repo-check risk=trust-critical prerequisites=L5,GATE-U6 -->
 - [ ] **7.2 Copilot adapter** against the accepted SPI, shaped by L6
       findings.
-  <!-- agent-task: 7.2 paths=agents/adapters/coding/copilot-cli/** checks=repo-check risk=trust-critical prerequisites=GATE-U6 -->
+  <!-- agent-task: 7.2 paths=agents/adapters/coding/copilot-cli/**,pnpm-lock.yaml checks=repo-check risk=trust-critical prerequisites=L5,L6,GATE-U6 -->
 - [ ] **7.3 Copilot derived image** (base + pinned Copilot CLI).
-  <!-- agent-task: 7.3 paths=deploy/images/** checks=repo-check risk=high prerequisites=7.2 -->
+  <!-- agent-task: 7.3 paths=deploy/images/** checks=repo-check risk=high prerequisites=7.2,L5 -->
 - [ ] **7.4 Re-run neutrality proofs** — `EX-002`, `PROP-004` over the
       contract corpus now that adapters exist.
   <!-- agent-task: 7.4 paths=packages/contracts/**,packages/events/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
@@ -506,19 +518,26 @@ isolation are decided there — not here.
 - [ ] **9.1 Concrete runner-control launcher** per the accepted placement;
       hardened launch posture (adapted flag set + ceilings), runtime-neutral
       expression.
-  <!-- agent-task: 9.1 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=GATE-U4 -->
+  <!-- agent-task: 9.1 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=L8,GATE-U4 -->
 - [ ] **9.2 Per-run network default-deny** with profile-declared egress
-      only; gates remain network-none (post-activation `EX-005` re-run).
+      only; gates remain network-none (`EX-005B`: a real gate container has
+      no egress even after profile egress activates).
   <!-- agent-task: 9.2 paths=services/runner-control/**,deploy/** checks=repo-check risk=trust-critical prerequisites=9.1 -->
 - [ ] **9.3 Resource ceilings** — memory, CPU, pids, wall clock, output
       size; Pi-contention evidence per #19 exit criteria.
   <!-- agent-task: 9.3 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=9.1 -->
+- [ ] **9.4 Effective cancellation and teardown** — cancel/timeout →
+      process tree dead → container gone → mounts gone → credential
+      inaccessible → terminal evidence recorded (`EX-008`, `ADV-013`; #19:
+      killed or timed-out runs leave no privileged container or mounted
+      credential).
+  <!-- agent-task: 9.4 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=9.1 -->
 
 **Completion gate:** rollout obligations from assurance met
 (advisory/shadow observation, measurements, activation condition, rollback
-condition — defined in the landing issue before authorization); `EX-005`
-and `ADV-001` re-proven at container level; the enforce flip is the only
-posture change in the whole sequence.
+condition — defined in the landing issue before authorization); `EX-005B`,
+`EX-008`/`ADV-013`, and `ADV-001` proven at container level; the enforce
+flip is the only posture change in the whole sequence.
 
 ---
 

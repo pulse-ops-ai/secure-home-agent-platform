@@ -108,7 +108,7 @@ Mandatory at this risk class:
 | Interaction                        | Risk                                                        | Required proof                                                  |
 | ---------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
 | INV-002 × L7 (adapters exist)      | provider code leaks into a contract structural position     | PROP-004 scan + EX-002 re-run at L7/L8, not only at L2           |
-| INV-009 × D8/L9 (profile egress)   | gates inherit profile-granted egress after enforcement lands | EX-005 re-run post-L9: gate containers still have no egress path |
+| INV-009 × D8/L9 (profile egress)   | gates inherit profile-granted egress after enforcement lands | EX-005B at L9: real gate containers have no egress path even after profile egress activates |
 | INV-005 × consent-to-spend (D6)    | consent mistaken for authority, or authority for consent    | ADV-001 plus a consent-without-profile refusal example at L4     |
 | INV-007 × INV-008                  | mid-run source mutation vs sandbox judge-write — different attacks, both must fail | ADV-003 and ADV-005 kept distinct, both required at L3/L4 |
 | INV-013 × defer triggers           | upstream churn silently reopening the classification        | manual review check: citations name only the pin (L1, each landing PR) |
@@ -127,7 +127,9 @@ impossible.
 | EX-002   | INV-002           | schema/contract validation | contract conformance suite (L2; re-run L7, L8)        |
 | EX-003   | INV-003           | deterministic examples     | refusal-writes-evidence + operational-failure tests (L3, L4) |
 | EX-004   | INV-004           | deterministic examples     | declared-transition walk of the state machine (L4)    |
-| EX-005   | INV-009           | integration test           | gate container egress probe fails; argv equals registry (L4; re-run post-L9) |
+| EX-005A  | INV-009           | deterministic + integration (execution port) | exact argv equals registry; caller cannot widen; undeclared gate refused (L4) |
+| EX-005B  | INV-009           | integration test           | real gate container has no egress; network-none survives profile egress grants (L9) |
+| EX-008   | effective cancellation/timeout (runner-model contract; #19 exit criteria) | integration + adversarial | cancel/timeout → process tree dead → container gone → mounts gone → credential inaccessible → terminal evidence recorded (L9) |
 | EX-006   | INV-011           | independent re-derivation  | verifier re-derives catalog from disk and policy (L3) |
 | EX-007   | INV-012           | schema/contract validation | no runtime-identifying field in any contract (L2)     |
 | SPIKE-01 | Copilot structured output      | manual + captured evidence | spike artifact set (L6)                  |
@@ -174,6 +176,7 @@ L9 under its own authority.
 | ADV-010 | Contract PR introducing a provider-named structural field               | conformance check rejects with the position named        |
 | ADV-011 | Evidence finalization interrupted                                       | outcome classifies as failure, never success             |
 | ADV-012 | Indeterminate terminal state presented as success                       | classification refuses; INDETERMINATE is a failure class |
+| ADV-013 | Run killed or timed out mid-flight                                      | no privileged container, mount, or accessible credential survives; terminal evidence recorded (L9) |
 
 ## Mutation Targets
 
@@ -185,7 +188,7 @@ their landing implements them:
 | MUT-001 | Protected-context refusal on judge-material writes | ADV-005 fixture     |
 | MUT-002 | Snapshot digest verification of authority inputs   | ADV-003 fixture     |
 | MUT-003 | Independent verifier hash comparison               | PROP-005 / EX-006   |
-| MUT-004 | Network-none on gate execution                     | EX-005 egress probe |
+| MUT-004 | Network-none on gate execution                     | EX-005B egress probe |
 | MUT-005 | Indeterminate-is-failure classification            | ADV-012 / PROP-002  |
 | MUT-006 | Refuse-not-truncate at declared bounds             | PROP-003 / ADV-009  |
 
@@ -203,7 +206,7 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | Evidence outranks claims (INV-006)  | L3      | ADV-002                        | —                  |
 | Captured-once inputs (INV-007)      | L3, L4  | ADV-003, ADV-004               | —                  |
 | Judge protection (INV-008)          | L3      | ADV-005, MUT-001               | —                  |
-| Exact-argv, network-none gates (INV-009) | L4 | EX-005, ADV-006, ADV-007, MUT-004 | re-proof post-L9 |
+| Exact-argv, network-none gates (INV-009) | L4 | EX-005A, ADV-006, ADV-007, MUT-004 | EX-005B at L9 |
 | Bounds refuse (INV-010)             | L3      | PROP-003, ADV-009              | —                  |
 | Sealed evidence (INV-011)           | L3      | EX-006, PROP-005, ADV-011      | —                  |
 | Runtime neutrality (INV-012)        | L2      | EX-007                         | —                  |
@@ -224,7 +227,8 @@ properties:
 - Verification nets land **with** the component they protect: L2 carries the
   contract conformance + neutrality properties; L3 carries the trusted-core
   proof net (EX-001/003/006, ADV-002…005, PROP-003/005); L4 carries the
-  state-machine and gate-execution net (EX-004/005, PROP-002, ADV-006/007).
+  state-machine and gate-execution net (EX-004, EX-005A, PROP-002,
+  ADV-006/007); L9 carries the runtime net (EX-005B, EX-008, ADV-013).
 - Inert until activation: L2 contracts unconsumed until L3/L4; L5 images
   unreferenced until a profile pins them; L7 adapters unlaunchable until L9
   provides the launcher.
@@ -271,9 +275,11 @@ properties:
   (and property-tested) at L4.
 - **Requirements lacking proof:** none — every invariant has a named proof
   obligation and landing above.
-- **Scenarios intentionally deferred:** container-level re-proof of
-  INV-005/INV-009 at L9; neutrality re-proof at L7/L8; framework-neutral
-  conformance at L10; citation-evidence adoption (upstream PR-5 trigger).
+- **Scenarios intentionally deferred:** container-level proof at L9
+  (EX-005B, EX-008, ADV-013 — a test double can prove argv selection,
+  never that a real container has no network); neutrality re-proof at
+  L7/L8; framework-neutral conformance at L10; citation-evidence adoption
+  (upstream PR-5 trigger).
 - **Design assumptions requiring human confirmation:** child-issue minting
   and #19/#27 revision (human-only, L1); the U6 and U4 ADRs themselves;
   gates-toolchain naming at L5; L10 authoring location once the U6 ADR

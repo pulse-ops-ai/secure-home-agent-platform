@@ -195,7 +195,7 @@ adapter → uniform events → sealed evidence.
 - **Decision (accepted):** the new domain schemas use platform-native
   terms. Mapping from upstream vocabulary:
 
-| Upstream term                          | Platform term (proposed)              |
+| Upstream term                          | Platform term                         |
 | -------------------------------------- | ------------------------------------- |
 | candidate (change set)                 | proposed change set                   |
 | candidate-attributable                 | change-attributable                    |
