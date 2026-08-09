@@ -1,15 +1,17 @@
 /**
- * C-EX-001 (run record, events, evidence fixtures), C-PROP-003 (terminal
- * and event vocabularies closed), C-ADV-006 + C-MUT-005 kill (provider
- * names never validate as event types), C-EX-005 (shared primitives are
- * the contracts exports, by instance identity — no second definition),
- * ADV-012 shape (INDETERMINATE never maps to success), runtime-as-data.
+ * C-EX-001 (fixtures), C-PROP-003 (closed vocabularies), C-ADV-006 +
+ * C-MUT-005 kill (provider names never validate as event types),
+ * C-EX-005 (shared primitives are the contracts exports, by instance —
+ * no second definition), ADV-012 shape (only COMPLETED maps to success),
+ * runtime-as-data, plus the review's MF4/MF5: the outcome union makes
+ * contradictory terminal states unrepresentable, and every event type's
+ * payload is contracted.
  */
 import { describe, expect, it } from 'vitest'
-import { CapabilityGrant, GateResultSetBase, ProfileIdentity } from '@secure-home/contracts'
+import { CapabilityGrant, GateResults, ProfileIdentity } from '@secure-home/contracts'
 import { EvidenceBundle } from './evidence.js'
 import { EVENT_TYPES, RunEvent } from './run-events.js'
-import { RunRecord, TERMINAL_SUCCESS, TerminalState } from './run-record.js'
+import { RunOutcome, RunRecord, TERMINAL_SUCCESS, TerminalState } from './run-record.js'
 
 const digestOf = (letter: string) => `sha256:${letter.repeat(64)}`
 
@@ -26,13 +28,78 @@ const grant = {
   credentials: [],
 }
 
+const outcomes = {
+  COMPLETED: { terminal_state: 'COMPLETED' as const },
+  REFUSED: {
+    terminal_state: 'REFUSED' as const,
+    failure: { class: 'contract_refusal' as const, detail: 'profile missing' },
+  },
+  OPERATIONAL_FAILURE: {
+    terminal_state: 'OPERATIONAL_FAILURE' as const,
+    failure: { class: 'operational' as const, detail: 'runtime unavailable' },
+  },
+  CANCELLED: { terminal_state: 'CANCELLED' as const, detail: 'operator cancel' },
+  TIMED_OUT: { terminal_state: 'TIMED_OUT' as const, detail: 'wall clock exceeded' },
+  INDETERMINATE: {
+    terminal_state: 'INDETERMINATE' as const,
+    detail: 'terminal evidence incomplete',
+  },
+}
+
 const validRecord = () => ({
   contract_id: 'run-record' as const,
   contract_version: '1.0.0' as const,
   run_id: 'run-20260809-0001',
   profile,
-  terminal_state: 'COMPLETED' as const,
+  outcome: outcomes.COMPLETED,
   evidence: { bundle_digest: digestOf('c') },
+})
+
+describe('run outcome union (MF4: contradictions unrepresentable)', () => {
+  it('every terminal state has exactly one valid outcome shape', () => {
+    for (const outcome of Object.values(outcomes)) {
+      expect(RunOutcome.safeParse(outcome).success).toBe(true)
+    }
+  })
+
+  it('COMPLETED with a failure is unrepresentable', () => {
+    expect(
+      RunOutcome.safeParse({
+        terminal_state: 'COMPLETED',
+        failure: { class: 'operational', detail: 'x' },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('REFUSED without contract_refusal detail is unrepresentable', () => {
+    expect(RunOutcome.safeParse({ terminal_state: 'REFUSED' }).success).toBe(false)
+    expect(
+      RunOutcome.safeParse({
+        terminal_state: 'REFUSED',
+        failure: { class: 'operational', detail: 'x' },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('OPERATIONAL_FAILURE with contract_refusal is unrepresentable', () => {
+    expect(
+      RunOutcome.safeParse({
+        terminal_state: 'OPERATIONAL_FAILURE',
+        failure: { class: 'contract_refusal', detail: 'x' },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('cancellation/timeout/indeterminate require their explicit detail', () => {
+    for (const state of ['CANCELLED', 'TIMED_OUT', 'INDETERMINATE'] as const) {
+      expect(RunOutcome.safeParse({ terminal_state: state }).success).toBe(false)
+    }
+  })
+
+  it('the union covers the enumerated vocabulary exactly', () => {
+    const unionStates = RunOutcome.options.map((option) => option.shape.terminal_state.value).sort()
+    expect(unionStates).toEqual([...TerminalState.options].sort())
+  })
 })
 
 describe('run record (C-EX-001, C-PROP-003)', () => {
@@ -43,12 +110,11 @@ describe('run record (C-EX-001, C-PROP-003)', () => {
     expect(RunRecord.safeParse(doc).success).toBe(false)
   })
 
-  it('the terminal vocabulary is closed and enumerated', () => {
-    for (const state of TerminalState.options) {
-      expect(RunRecord.safeParse({ ...validRecord(), terminal_state: state }).success).toBe(true)
-    }
+  it('out-of-vocabulary terminal states refuse', () => {
     for (const bad of ['SUCCEEDED', 'completed', 'DONE', 'UNKNOWN', '']) {
-      expect(RunRecord.safeParse({ ...validRecord(), terminal_state: bad }).success).toBe(false)
+      expect(
+        RunRecord.safeParse({ ...validRecord(), outcome: { terminal_state: bad } }).success,
+      ).toBe(false)
     }
   })
 
@@ -60,23 +126,66 @@ describe('run record (C-EX-001, C-PROP-003)', () => {
   })
 })
 
-describe('run events (C-PROP-003, C-ADV-006)', () => {
-  const validEvent = () => ({
+describe('run events (MF5: payloads contracted per type)', () => {
+  const envelope = {
     contract_id: 'run-event' as const,
     contract_version: '1.0.0' as const,
-    event_type: 'capability.granted' as const,
     run_id: 'run-20260809-0001',
     sequence: 1,
     timestamp: '2026-08-09T12:00:00Z',
     adapter: 'copilot-cli',
     provider: 'example-provider',
-    grant,
+  }
+
+  const payloads: Record<(typeof EVENT_TYPES)[number], Record<string, unknown>> = {
+    'run.started': { profile },
+    'capability.granted': { grant },
+    'call.attempted': {
+      call_id: 'call-0001',
+      operation: { name: 'household.read', target: 'garage.door' },
+    },
+    'call.disposition': { call_id: 'call-0001', disposition: 'permitted' },
+    'adapter.started': {},
+    'adapter.completed': {},
+    'run.terminated': { outcome: outcomes.COMPLETED },
+  }
+
+  it('every platform event type validates with its contracted payload', () => {
+    for (const eventType of EVENT_TYPES) {
+      expect(
+        RunEvent.safeParse({ ...envelope, event_type: eventType, ...payloads[eventType] }).success,
+      ).toBe(true)
+    }
   })
 
-  it('every platform event type validates with one shape', () => {
-    for (const eventType of EVENT_TYPES) {
-      expect(RunEvent.safeParse({ ...validEvent(), event_type: eventType }).success).toBe(true)
-    }
+  it('a grant event without a grant is unrepresentable', () => {
+    expect(RunEvent.safeParse({ ...envelope, event_type: 'capability.granted' }).success).toBe(
+      false,
+    )
+  })
+
+  it('a grant on run.started is unrepresentable', () => {
+    expect(
+      RunEvent.safeParse({ ...envelope, event_type: 'run.started', profile, grant }).success,
+    ).toBe(false)
+  })
+
+  it('call events carry correlation and structure', () => {
+    expect(
+      RunEvent.safeParse({
+        ...envelope,
+        event_type: 'call.attempted',
+        operation: { name: 'household.read' },
+      }).success,
+    ).toBe(false)
+    expect(
+      RunEvent.safeParse({ ...envelope, event_type: 'call.disposition', call_id: 'call-0001' })
+        .success,
+    ).toBe(false)
+  })
+
+  it('run.terminated requires the shared outcome', () => {
+    expect(RunEvent.safeParse({ ...envelope, event_type: 'run.terminated' }).success).toBe(false)
   })
 
   it('provider-native names refuse in the event_type position (C-ADV-006)', () => {
@@ -87,14 +196,19 @@ describe('run events (C-PROP-003, C-ADV-006)', () => {
       'run.started.v2',
       'RUN.STARTED',
     ]) {
-      expect(RunEvent.safeParse({ ...validEvent(), event_type: providerName }).success).toBe(false)
+      expect(
+        RunEvent.safeParse({ ...envelope, event_type: providerName, ...payloads['run.started'] })
+          .success,
+      ).toBe(false)
     }
   })
 
   it('provider naming rides as opaque data', () => {
     const parsed = RunEvent.parse({
-      ...validEvent(),
+      ...envelope,
       event_type: 'call.attempted',
+      call_id: 'call-0001',
+      operation: { name: 'household.read' },
       provider_event_name: 'tool_use',
       provider_metadata: { native_id: 'toolu_123' },
     })
@@ -102,15 +216,27 @@ describe('run events (C-PROP-003, C-ADV-006)', () => {
   })
 })
 
-describe('shared primitives are the contracts exports (C-EX-005)', () => {
+describe('shared shapes are single instances (C-EX-005)', () => {
+  const shapeFor = (eventType: string): Record<string, unknown> | undefined => {
+    const option = RunEvent.options.find(
+      (candidate) => candidate.shape.event_type.value === eventType,
+    )
+    return option?.shape as Record<string, unknown> | undefined
+  }
+
   it('the capability.granted payload IS CapabilityGrant, by instance', () => {
-    const grantField = RunEvent.shape.grant
-    expect(grantField.unwrap()).toBe(CapabilityGrant)
+    expect(shapeFor('capability.granted')?.['grant']).toBe(CapabilityGrant)
+  })
+
+  it('run outcome is one instance across record, evidence, and termination event', () => {
+    expect(RunRecord.shape.outcome).toBe(RunOutcome)
+    expect(EvidenceBundle.shape.outcome).toBe(RunOutcome)
+    expect(shapeFor('run.terminated')?.['outcome']).toBe(RunOutcome)
   })
 
   it('evidence reuses the primitives by instance — no second definition', () => {
     expect(EvidenceBundle.shape.granted_capabilities).toBe(CapabilityGrant)
-    expect(EvidenceBundle.shape.gate_results).toBe(GateResultSetBase)
+    expect(EvidenceBundle.shape.gate_results).toBe(GateResults)
     expect(EvidenceBundle.shape.identities.shape.profile).toBe(ProfileIdentity)
     expect(RunRecord.shape.profile).toBe(ProfileIdentity)
   })
@@ -135,12 +261,22 @@ describe('evidence bundle (C-EX-001, runtime-as-data, C-ADV-002)', () => {
     },
     granted_capabilities: grant,
     operations: {
-      attempted: [{ name: 'household.read', target: 'garage.door' }],
-      permitted: [{ name: 'household.read', target: 'garage.door' }],
+      attempted: [
+        {
+          call_id: 'call-0001',
+          operation: { name: 'household.read', target: 'garage.door' },
+        },
+      ],
+      permitted: [
+        {
+          call_id: 'call-0001',
+          operation: { name: 'household.read', target: 'garage.door' },
+        },
+      ],
       denied: [],
     },
     gate_results: {
-      results: [{ gate_id: 'lint', disposition: 'PASS' as const, truncated: false }],
+      lint: { disposition: 'PASS' as const, truncated: false as const },
     },
     artifacts: [{ path: 'out/result.json', digest: digestOf('f'), bytes: 128 }],
     change_sets: {
@@ -155,7 +291,7 @@ describe('evidence bundle (C-EX-001, runtime-as-data, C-ADV-002)', () => {
         disagreements: [{ path: 'src/b.ts', detail: 'claimed but not observed' }],
       },
     },
-    outcome: { terminal_state: 'COMPLETED' as const },
+    outcome: outcomes.COMPLETED,
     timing: {
       started_at: '2026-08-09T12:00:00Z',
       finished_at: '2026-08-09T12:05:00Z',
@@ -165,6 +301,35 @@ describe('evidence bundle (C-EX-001, runtime-as-data, C-ADV-002)', () => {
 
   it('validates a representationally complete bundle', () => {
     expect(EvidenceBundle.safeParse(bundle()).success).toBe(true)
+  })
+
+  it('gate semantics hold at the evidence boundary (B2): PASS+truncated refuses', () => {
+    const doc = bundle() as unknown as Record<string, unknown>
+    expect(
+      EvidenceBundle.safeParse({
+        ...doc,
+        gate_results: { lint: { disposition: 'PASS', truncated: true } },
+      }).success,
+    ).toBe(false)
+    expect(
+      EvidenceBundle.safeParse({
+        ...doc,
+        gate_results: { lint: { disposition: 'FAIL', truncated: false } },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('contradictory outcomes refuse at the evidence boundary (MF4)', () => {
+    const doc = bundle() as unknown as Record<string, unknown>
+    expect(
+      EvidenceBundle.safeParse({
+        ...doc,
+        outcome: {
+          terminal_state: 'COMPLETED',
+          failure: { class: 'operational', detail: 'x' },
+        },
+      }).success,
+    ).toBe(false)
   })
 
   it('runtime identity is data, never schema: two runtimes, one schema', () => {

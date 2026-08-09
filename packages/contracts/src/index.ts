@@ -28,6 +28,8 @@ export type {
   GateIdT,
   ProfileIdentityT,
 } from './primitives.js'
+export { CONTRACT_ARTIFACTS, generateArtifacts } from './generation.js'
+export type { ContractArtifact } from './generation.js'
 export {
   EXECUTION_PROFILE_ID,
   EXECUTION_PROFILE_VERSION,
@@ -43,27 +45,26 @@ export type { LaunchAssertionT } from './launch-assertion.js'
 export {
   GATE_REGISTRY_ID,
   GATE_REGISTRY_VERSION,
-  GateDefinition,
   GateDisposition,
+  GateOutcome,
   GateRegistry,
-  GateRegistryBase,
-  GateResult,
-  GateResultSet,
-  GateResultSetBase,
+  GateResults,
+  GateSpec,
 } from './gate-registry.js'
 export type {
-  GateDefinitionT,
   GateDispositionT,
+  GateOutcomeT,
   GateRegistryT,
-  GateResultT,
+  GateResultsT,
+  GateSpecT,
 } from './gate-registry.js'
 export { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from './path-policy.js'
 export type { PathPolicyT } from './path-policy.js'
 export {
+  PackId,
+  PackSpec,
   VERIFICATION_PACKS_ID,
   VERIFICATION_PACKS_VERSION,
-  VerificationPack,
   VerificationPacks,
-  VerificationPacksBase,
 } from './verification-packs.js'
-export type { VerificationPackT, VerificationPacksT } from './verification-packs.js'
+export type { PackSpecT, VerificationPacksT } from './verification-packs.js'

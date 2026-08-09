@@ -28,10 +28,12 @@ describe('verification packs', () => {
   const packs = {
     contract_id: 'verification-packs' as const,
     contract_version: '1.0.0' as const,
-    packs: [{ id: 'static-quality', description: 'lint and typecheck', gate_ids: ['lint'] }],
+    packs: {
+      'static-quality': { description: 'lint and typecheck', gate_ids: ['lint'] },
+    },
   }
 
-  it('validates gate-identity references', () => {
+  it('validates keyed gate-identity references', () => {
     expect(VerificationPacks.safeParse(packs).success).toBe(true)
   })
 
@@ -44,15 +46,24 @@ describe('verification packs', () => {
     ]) {
       const mutated = {
         ...packs,
-        packs: [{ ...packs.packs[0], ...extra }],
+        packs: {
+          'static-quality': {
+            description: 'lint and typecheck',
+            gate_ids: ['lint'],
+            ...extra,
+          },
+        },
       }
       expect(VerificationPacks.safeParse(mutated).success).toBe(false)
     }
   })
 
-  it('duplicate pack identity refuses', () => {
-    const dup = { ...packs, packs: [...packs.packs, ...packs.packs] }
-    expect(VerificationPacks.safeParse(dup).success).toBe(false)
+  it('pack identity is the record key — invalid identities refuse', () => {
+    const bad = {
+      ...packs,
+      packs: { 'Not Valid': { description: 'x', gate_ids: ['lint'] } },
+    }
+    expect(VerificationPacks.safeParse(bad).success).toBe(false)
   })
 })
 

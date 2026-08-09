@@ -6,11 +6,8 @@
  * "output" (contract schemas use no transforms or defaults, so input and
  * output are identical by construction), reused: "ref" (shared primitives
  * emit $defs). The authored strict Zod schemas remain the parse authority;
- * this output is published projection.
- *
- * Refined schemas (identity uniqueness, disposition rules) generate from
- * their structural base: JSON Schema cannot express unique-by-key, and the
- * refinement lives in the parse authority.
+ * this output is published projection. Identity uniqueness is structural
+ * (keyed records), so it survives generation.
  */
 import { format } from 'prettier'
 import { z } from 'zod'
@@ -19,7 +16,7 @@ import {
   EXECUTION_PROFILE_VERSION,
   ExecutionProfile,
 } from './execution-profile.js'
-import { GATE_REGISTRY_ID, GATE_REGISTRY_VERSION, GateRegistryBase } from './gate-registry.js'
+import { GATE_REGISTRY_ID, GATE_REGISTRY_VERSION, GateRegistry } from './gate-registry.js'
 import {
   LAUNCH_ASSERTION_ID,
   LAUNCH_ASSERTION_VERSION,
@@ -29,7 +26,7 @@ import { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from './path-policy.j
 import {
   VERIFICATION_PACKS_ID,
   VERIFICATION_PACKS_VERSION,
-  VerificationPacksBase,
+  VerificationPacks,
 } from './verification-packs.js'
 
 export interface ContractArtifact {
@@ -50,15 +47,11 @@ export const CONTRACT_ARTIFACTS: readonly ContractArtifact[] = [
     schema: LaunchAssertion,
   },
   { id: PATH_POLICY_ID, version: PATH_POLICY_VERSION, schema: PathPolicy },
-  {
-    id: GATE_REGISTRY_ID,
-    version: GATE_REGISTRY_VERSION,
-    schema: GateRegistryBase,
-  },
+  { id: GATE_REGISTRY_ID, version: GATE_REGISTRY_VERSION, schema: GateRegistry },
   {
     id: VERIFICATION_PACKS_ID,
     version: VERIFICATION_PACKS_VERSION,
-    schema: VerificationPacksBase,
+    schema: VerificationPacks,
   },
 ]
 

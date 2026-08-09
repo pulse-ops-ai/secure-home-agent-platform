@@ -4,10 +4,17 @@
  * A gate is an exact executable plus argv array — never a shell string —
  * and its network field admits only "none": a networked gate is
  * inexpressible. Dispositions are the closed vocabulary
- * PASS | FAIL | SKIP_OK | SKIP_ENV; truncation is FAIL with a reason; a
- * duplicate gate identity is invalid at validation (the authored Zod
- * schemas are the parse authority — JSON Schema cannot express
- * unique-by-key, so generation uses the structural base).
+ * PASS | FAIL | SKIP_OK | SKIP_ENV, modeled as a discriminated union so
+ * the illegal combinations are unrepresentable: PASS/SKIP_OK/SKIP_ENV
+ * admit only truncated:false, and FAIL requires a non-empty reason
+ * (truncation therefore can only ever be FAIL-with-reason).
+ *
+ * Registries and result sets are keyed by GateId, so identity uniqueness
+ * is structural — it survives into the generated JSON Schema
+ * (propertyNames pattern) instead of living only in a parse-time
+ * refinement. (JSON itself collapses duplicate object keys at parse; the
+ * contract makes a second disposition for one identity unrepresentable,
+ * which is the stronger guarantee.)
  */
 import { z } from 'zod'
 import { GateId, SemVer } from './primitives.js'
@@ -15,105 +22,61 @@ import { GateId, SemVer } from './primitives.js'
 export const GATE_REGISTRY_ID = 'gate-registry' as const
 export const GATE_REGISTRY_VERSION = '1.0.0' as const
 
-export const GateDefinition = z.strictObject({
-  id: GateId,
+const EnvName = z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'environment-variable name')
+
+/** One gate's execution declaration; its identity is the registry key. */
+export const GateSpec = z.strictObject({
   executable: z.string().min(1),
   args: z.array(z.string()),
   timeout_seconds: z.int().positive(),
   max_output_bytes: z.int().positive(),
-  environment_names: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'environment-variable name')),
+  environment_names: z.array(EnvName),
   network: z.literal('none'),
 })
 
-/** Structural base — what generation projects to JSON Schema. */
-export const GateRegistryBase = z.strictObject({
+export const GateRegistry = z.strictObject({
   contract_id: z.literal(GATE_REGISTRY_ID),
   contract_version: z.literal(GATE_REGISTRY_VERSION),
-  gates: z.array(GateDefinition),
-})
-
-const uniqueBy = <T>(
-  items: readonly T[],
-  key: (item: T) => string,
-  ctx: z.core.$RefinementCtx,
-  path: string,
-): void => {
-  const seen = new Set<string>()
-  for (const [index, item] of items.entries()) {
-    const k = key(item)
-    if (seen.has(k)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `duplicate gate identity: ${k}`,
-        path: [path, index],
-      })
-    }
-    seen.add(k)
-  }
-}
-
-/** Parse authority: structural base plus identity-uniqueness refinement. */
-export const GateRegistry = GateRegistryBase.superRefine((value, ctx) => {
-  uniqueBy(value.gates, (gate) => gate.id, ctx, 'gates')
+  gates: z.record(GateId, GateSpec),
 })
 
 /** Closed disposition vocabulary — platform-owned. */
 export const GateDisposition = z.enum(['PASS', 'FAIL', 'SKIP_OK', 'SKIP_ENV'])
 
-const GateResultShape = z.strictObject({
-  gate_id: GateId,
-  disposition: GateDisposition,
-  reason: z.string().min(1).optional(),
-  truncated: z.boolean(),
-})
+/**
+ * One gate's terminal outcome; its identity is the result-set key.
+ * PASS/SKIP_OK/SKIP_ENV cannot be truncated; FAIL requires the reason.
+ */
+export const GateOutcome = z.discriminatedUnion('disposition', [
+  z.strictObject({
+    disposition: z.literal('PASS'),
+    truncated: z.literal(false),
+    reason: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    disposition: z.literal('SKIP_OK'),
+    truncated: z.literal(false),
+    reason: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    disposition: z.literal('SKIP_ENV'),
+    truncated: z.literal(false),
+    reason: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    disposition: z.literal('FAIL'),
+    truncated: z.boolean(),
+    reason: z.string().min(1),
+  }),
+])
 
-/** Truncated or incomplete output is FAIL with the reason recorded. */
-export const GateResult = GateResultShape.superRefine((value, ctx) => {
-  if (value.truncated && value.disposition !== 'FAIL') {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'truncated output must classify as FAIL',
-      path: ['disposition'],
-    })
-  }
-  if (value.truncated && value.reason === undefined) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'truncation requires an explicit reason',
-      path: ['reason'],
-    })
-  }
-  if (value.disposition === 'FAIL' && value.reason === undefined) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'FAIL requires an explicit reason',
-      path: ['reason'],
-    })
-  }
-})
+/** Exactly one terminal disposition per gate identity, structurally. */
+export const GateResults = z.record(GateId, GateOutcome)
 
-export const GateResultSetBase = z.strictObject({
-  results: z.array(GateResultShape),
-})
-
-/** Exactly one terminal disposition per gate identity per run. */
-export const GateResultSet = GateResultSetBase.superRefine((value, ctx) => {
-  const seen = new Set<string>()
-  for (const [index, result] of value.results.entries()) {
-    if (seen.has(result.gate_id)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `duplicate gate identity: ${result.gate_id}`,
-        path: ['results', index],
-      })
-    }
-    seen.add(result.gate_id)
-  }
-})
-
-export type GateDefinitionT = z.infer<typeof GateDefinition>
+export type GateSpecT = z.infer<typeof GateSpec>
 export type GateRegistryT = z.infer<typeof GateRegistry>
 export type GateDispositionT = z.infer<typeof GateDisposition>
-export type GateResultT = z.infer<typeof GateResult>
+export type GateOutcomeT = z.infer<typeof GateOutcome>
+export type GateResultsT = z.infer<typeof GateResults>
 
 SemVer.parse(GATE_REGISTRY_VERSION)

@@ -15,6 +15,7 @@
  *            base (a rewritten or vanished accepted entry fails).
  */
 import { createHash } from 'node:crypto'
+import { env as processEnv } from 'node:process'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -195,24 +196,51 @@ describe('identity ledger (C-ADV-007A/B, C-MUT-006 kill)', () => {
     expect(checkLedgerHistory(accepted, proposed)).toEqual([])
   })
 
-  it('historical comparison against the accepted base ledger (git; genesis-aware)', () => {
-    // Shallow checkouts may not resolve a merge base; the pure function
-    // above proves the guard's logic, and this applies it to the real
-    // accepted state whenever the repository history is available.
-    let baseText: string | undefined
-    try {
-      const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      }).trim()
-      baseText = execFileSync('git', ['show', `${base}:schemas/identity-ledger.json`], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      })
-    } catch {
-      baseText = undefined // genesis or unavailable history: nothing accepted yet
+  it('historical comparison against the accepted base ledger (fail closed)', () => {
+    // FAIL-CLOSED base resolution: inability to resolve or read the
+    // trusted base commit is a test FAILURE, never a skip. Only once the
+    // base commit is known may a ledger missing AT THAT COMMIT mean
+    // genesis. In CI (shallow checkout) the PR base SHA comes from the
+    // GitHub event and is fetched explicitly if absent.
+    const git = (args: string[]): string =>
+      execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trim()
+    const resolveBaseSha = (): string => {
+      const eventPath = processEnv['GITHUB_EVENT_PATH']
+      if (eventPath !== undefined) {
+        const event = JSON.parse(readFileSync(eventPath, 'utf8')) as {
+          pull_request?: { base?: { sha?: string } }
+        }
+        const sha = event.pull_request?.base?.sha
+        if (sha !== undefined) {
+          try {
+            git(['cat-file', '-e', `${sha}^{commit}`])
+          } catch {
+            git(['fetch', '--depth=1', 'origin', sha])
+          }
+          return sha
+        }
+      }
+      return git(['merge-base', 'HEAD', 'origin/main'])
     }
-    if (baseText !== undefined) {
+    const base = resolveBaseSha() // any throw here fails the test
+    let baseText: string | null
+    try {
+      baseText = git(['show', `${base}:schemas/identity-ledger.json`])
+    } catch (error) {
+      const stderrRaw = (error as { stderr?: string | Buffer }).stderr
+      const detail = [
+        error instanceof Error ? error.message : String(error),
+        typeof stderrRaw === 'string' ? stderrRaw : (stderrRaw?.toString('utf8') ?? ''),
+      ].join('\n')
+      // Genesis is ONLY a ledger missing at a RESOLVED base commit; any
+      // other git failure propagates as a test failure.
+      if (/exists on disk, but not in|does not exist in/.test(detail)) {
+        baseText = null
+      } else {
+        throw error
+      }
+    }
+    if (baseText !== null) {
       const accepted = (JSON.parse(baseText) as { entries: Ledger }).entries
       expect(checkLedgerHistory(accepted, currentLedger())).toEqual([])
     }

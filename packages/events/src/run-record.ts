@@ -1,8 +1,11 @@
 /**
  * The run record (capability `runner-execution`): stable run identity, the
- * profile identity it launched from, and the enumerated terminal
- * vocabulary. Only COMPLETED maps to success; INDETERMINATE is a failure
- * class — ambiguity never classifies as success.
+ * profile identity it launched from, and the shared run outcome — a
+ * discriminated union on the enumerated terminal vocabulary, so
+ * contradictory states are unrepresentable: COMPLETED carries no failure,
+ * REFUSED requires contract_refusal detail, OPERATIONAL_FAILURE requires
+ * operational detail, and CANCELLED/TIMED_OUT/INDETERMINATE carry their
+ * own explicit detail with no failure class to contradict.
  */
 import { z } from 'zod'
 import { Digest, ProfileIdentity, SemVer } from '@secure-home/contracts'
@@ -34,21 +37,46 @@ export const TERMINAL_SUCCESS: Readonly<Record<z.infer<typeof TerminalState>, bo
   INDETERMINATE: false,
 }
 
-/** Failure classification carried as data (vocabulary per constitution D5). */
-export const FailureClass = z.enum(['contract_refusal', 'operational'])
+/**
+ * The ONE run-outcome shape, shared by the run record, the evidence
+ * bundle, and the run.terminated event — never redefined.
+ */
+export const RunOutcome = z.discriminatedUnion('terminal_state', [
+  z.strictObject({ terminal_state: z.literal('COMPLETED') }),
+  z.strictObject({
+    terminal_state: z.literal('REFUSED'),
+    failure: z.strictObject({
+      class: z.literal('contract_refusal'),
+      detail: z.string().min(1),
+    }),
+  }),
+  z.strictObject({
+    terminal_state: z.literal('OPERATIONAL_FAILURE'),
+    failure: z.strictObject({
+      class: z.literal('operational'),
+      detail: z.string().min(1),
+    }),
+  }),
+  z.strictObject({
+    terminal_state: z.literal('CANCELLED'),
+    detail: z.string().min(1),
+  }),
+  z.strictObject({
+    terminal_state: z.literal('TIMED_OUT'),
+    detail: z.string().min(1),
+  }),
+  z.strictObject({
+    terminal_state: z.literal('INDETERMINATE'),
+    detail: z.string().min(1),
+  }),
+])
 
 export const RunRecord = z.strictObject({
   contract_id: z.literal(RUN_RECORD_ID),
   contract_version: z.literal(RUN_RECORD_VERSION),
   run_id: RunId,
   profile: ProfileIdentity,
-  terminal_state: TerminalState,
-  failure: z
-    .strictObject({
-      class: FailureClass,
-      detail: z.string().min(1),
-    })
-    .optional(),
+  outcome: RunOutcome,
   // Evidence is structurally mandatory: a run without evidence is not a
   // valid run (packages/events charter; runner-adoption).
   evidence: z.strictObject({
@@ -58,6 +86,7 @@ export const RunRecord = z.strictObject({
 
 export type RunIdT = z.infer<typeof RunId>
 export type TerminalStateT = z.infer<typeof TerminalState>
+export type RunOutcomeT = z.infer<typeof RunOutcome>
 export type RunRecordT = z.infer<typeof RunRecord>
 
 SemVer.parse(RUN_RECORD_VERSION)

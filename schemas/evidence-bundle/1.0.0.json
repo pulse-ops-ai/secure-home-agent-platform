@@ -127,24 +127,51 @@
     },
     "gate_results": {
       "type": "object",
-      "properties": {
-        "results": {
-          "type": "array",
-          "items": {
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+      "additionalProperties": {
+        "oneOf": [
+          {
             "type": "object",
             "properties": {
-              "gate_id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
-              "disposition": { "type": "string", "enum": ["PASS", "FAIL", "SKIP_OK", "SKIP_ENV"] },
-              "reason": { "type": "string", "minLength": 1 },
-              "truncated": { "type": "boolean" }
+              "disposition": { "type": "string", "const": "PASS" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
             },
-            "required": ["gate_id", "disposition", "truncated"],
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "SKIP_OK" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "SKIP_ENV" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "FAIL" },
+              "truncated": { "type": "boolean" },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated", "reason"],
             "additionalProperties": false
           }
-        }
-      },
-      "required": ["results"],
-      "additionalProperties": false
+        ]
+      }
     },
     "artifacts": {
       "type": "array",
@@ -190,31 +217,75 @@
       "additionalProperties": false
     },
     "outcome": {
-      "type": "object",
-      "properties": {
-        "terminal_state": {
-          "type": "string",
-          "enum": [
-            "COMPLETED",
-            "REFUSED",
-            "OPERATIONAL_FAILURE",
-            "CANCELLED",
-            "TIMED_OUT",
-            "INDETERMINATE"
-          ]
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "terminal_state": { "type": "string", "const": "COMPLETED" } },
+          "required": ["terminal_state"],
+          "additionalProperties": false
         },
-        "failure": {
+        {
           "type": "object",
           "properties": {
-            "class": { "type": "string", "enum": ["contract_refusal", "operational"] },
+            "terminal_state": { "type": "string", "const": "REFUSED" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "contract_refusal" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "OPERATIONAL_FAILURE" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "operational" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "CANCELLED" },
             "detail": { "type": "string", "minLength": 1 }
           },
-          "required": ["class", "detail"],
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "TIMED_OUT" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "INDETERMINATE" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
           "additionalProperties": false
         }
-      },
-      "required": ["terminal_state"],
-      "additionalProperties": false
+      ]
     },
     "timing": {
       "type": "object",
@@ -254,10 +325,18 @@
     "__schema1": {
       "type": "object",
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "target": { "type": "string", "minLength": 1 }
+        "call_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+        "operation": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "target": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
       },
-      "required": ["name"],
+      "required": ["call_id", "operation"],
       "additionalProperties": false
     },
     "__schema2": {

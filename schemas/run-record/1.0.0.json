@@ -19,25 +19,76 @@
       "required": ["name", "version", "digest"],
       "additionalProperties": false
     },
-    "terminal_state": {
-      "type": "string",
-      "enum": [
-        "COMPLETED",
-        "REFUSED",
-        "OPERATIONAL_FAILURE",
-        "CANCELLED",
-        "TIMED_OUT",
-        "INDETERMINATE"
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "terminal_state": { "type": "string", "const": "COMPLETED" } },
+          "required": ["terminal_state"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "REFUSED" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "contract_refusal" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "OPERATIONAL_FAILURE" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "operational" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "CANCELLED" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "TIMED_OUT" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "INDETERMINATE" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        }
       ]
-    },
-    "failure": {
-      "type": "object",
-      "properties": {
-        "class": { "type": "string", "enum": ["contract_refusal", "operational"] },
-        "detail": { "type": "string", "minLength": 1 }
-      },
-      "required": ["class", "detail"],
-      "additionalProperties": false
     },
     "evidence": {
       "type": "object",
@@ -46,14 +97,7 @@
       "additionalProperties": false
     }
   },
-  "required": [
-    "contract_id",
-    "contract_version",
-    "run_id",
-    "profile",
-    "terminal_state",
-    "evidence"
-  ],
+  "required": ["contract_id", "contract_version", "run_id", "profile", "outcome", "evidence"],
   "additionalProperties": false,
   "$defs": { "__schema0": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } }
 }

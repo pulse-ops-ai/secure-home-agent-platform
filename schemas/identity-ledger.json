@@ -1,13 +1,13 @@
 {
   "$comment": "Identity ledger (runner-domain-contracts D5). AUTHORED and append-only: each entry maps contract_id@exact-version to the digest of its generated schema bytes. An accepted entry may neither change nor disappear; only new identity@version entries may append. Never regenerated - regeneration must not be able to heal an identity violation.",
   "entries": {
-    "evidence-bundle@1.0.0": "sha256:e0b3e5eef8fcb35484651930bd79c1f6efef693108ed4358da8e5d8efdeda885",
+    "evidence-bundle@1.0.0": "sha256:a62190802bd86790346313013888bd5bc5f2feab13b4d16aeaed1a4b61fce8fc",
     "execution-profile@1.0.0": "sha256:8c7bbe641c44fcb8137564a14be4c651f71ab28f73081978de43b841a5d85ffc",
-    "gate-registry@1.0.0": "sha256:31e95407d1fb2f720d7fd71873690be7bbb731f99d7857a079208cf48abe4f28",
+    "gate-registry@1.0.0": "sha256:f4e09c3d6eaa746ca80e2c72375a6df869701622fdf10cbb0cc57cb0b3862b2f",
     "launch-assertion@1.0.0": "sha256:56fc1f2ad7ac71b6e3935099fdba1165450242fe97c20f4fad19134ae65b8333",
     "path-policy@1.0.0": "sha256:91f8486986853dc8459cc40747986502be28eb2c834b3bf5d62c4c3f2b71525a",
-    "run-event@1.0.0": "sha256:487e1c0c7524ce6d8ecbd445566e9426754f32d6e42e4fd3587f893798df11a4",
-    "run-record@1.0.0": "sha256:c5f9e842e2d97f17dac5be8dca1f2755a3c73a59fc99aafd0a1d832f22ae1569",
-    "verification-packs@1.0.0": "sha256:ddb2f871864dee0fca2ac41a4cd4275e85925933a10d6628640d4b33cda67e12"
+    "run-event@1.0.0": "sha256:0aff142507025b9aa91369333e9225d3b3848ff8261415dd2338e88a9568b740",
+    "run-record@1.0.0": "sha256:22a0a438d49e34a61c4271b2a8bc2a86c929c76ac67104052e49a8ceae48747e",
+    "verification-packs@1.0.0": "sha256:6752fe6c74c0447ed733568be5ec222fccc3f155730c5fb7da2eb7624dc287c2"
   }
 }

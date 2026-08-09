@@ -4,21 +4,27 @@
  * consumption. Shapes only — populating, sealing, and independently
  * verifying evidence is L3 behavior.
  *
- * Container-runtime identity appears ONLY as an opaque data value: changing
- * runtime changes evidence values, never schemas (runner-adoption INV-012).
- * No field in these authority structures is designated for credential-value
- * transport.
+ * Consumes the AUTHORITATIVE shared shapes, never structural bases:
+ * gate results are the keyed, discriminated `GateResults` (INV-016 holds
+ * at the evidence boundary), the outcome is the shared `RunOutcome`
+ * union, and operations reuse the event stream's `OperationRecord`.
+ *
+ * Container-runtime identity appears ONLY as an opaque data value:
+ * changing runtime changes evidence values, never schemas
+ * (runner-adoption INV-012). No field in these authority structures is
+ * designated for credential-value transport.
  */
 import { z } from 'zod'
 import {
   AdapterId,
   CapabilityGrant,
   Digest,
-  GateResultSetBase,
+  GateResults,
   ProfileIdentity,
   SemVer,
 } from '@secure-home/contracts'
-import { FailureClass, RunId, TerminalState } from './run-record.js'
+import { RunId, RunOutcome } from './run-record.js'
+import { CallId, OperationRecord } from './run-events.js'
 
 export const EVIDENCE_BUNDLE_ID = 'evidence-bundle' as const
 export const EVIDENCE_BUNDLE_VERSION = '1.0.0' as const
@@ -44,9 +50,10 @@ export const Principal = z.strictObject({
   ]),
 })
 
-export const OperationRecord = z.strictObject({
-  name: z.string().min(1),
-  target: z.string().min(1).optional(),
+/** One operation as recorded in the run, correlated by call id. */
+export const EvidenceOperation = z.strictObject({
+  call_id: CallId,
+  operation: OperationRecord,
 })
 
 export const ArtifactEntry = z.strictObject({
@@ -80,16 +87,6 @@ export const ChangeSets = z.strictObject({
   }),
 })
 
-export const EvidenceOutcome = z.strictObject({
-  terminal_state: TerminalState,
-  failure: z
-    .strictObject({
-      class: FailureClass,
-      detail: z.string().min(1),
-    })
-    .optional(),
-})
-
 export const EvidenceTiming = z.strictObject({
   started_at: z.iso.datetime(),
   finished_at: z.iso.datetime(),
@@ -104,14 +101,14 @@ export const EvidenceBundle = z.strictObject({
   /** The one authored grant shape — what was ACTUALLY granted. */
   granted_capabilities: CapabilityGrant,
   operations: z.strictObject({
-    attempted: z.array(OperationRecord),
-    permitted: z.array(OperationRecord),
-    denied: z.array(OperationRecord),
+    attempted: z.array(EvidenceOperation),
+    permitted: z.array(EvidenceOperation),
+    denied: z.array(EvidenceOperation),
   }),
-  gate_results: GateResultSetBase,
+  gate_results: GateResults,
   artifacts: z.array(ArtifactEntry),
   change_sets: ChangeSets,
-  outcome: EvidenceOutcome,
+  outcome: RunOutcome,
   timing: EvidenceTiming,
 })
 

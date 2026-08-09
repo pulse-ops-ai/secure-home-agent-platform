@@ -6,11 +6,11 @@
     "contract_id": { "type": "string", "const": "gate-registry" },
     "contract_version": { "type": "string", "const": "1.0.0" },
     "gates": {
-      "type": "array",
-      "items": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+      "additionalProperties": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
           "executable": { "type": "string", "minLength": 1 },
           "args": { "type": "array", "items": { "type": "string" } },
           "timeout_seconds": {
@@ -30,7 +30,6 @@
           "network": { "type": "string", "const": "none" }
         },
         "required": [
-          "id",
           "executable",
           "args",
           "timeout_seconds",

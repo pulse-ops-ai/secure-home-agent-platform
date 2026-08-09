@@ -6,15 +6,15 @@
     "contract_id": { "type": "string", "const": "verification-packs" },
     "contract_version": { "type": "string", "const": "1.0.0" },
     "packs": {
-      "type": "array",
-      "items": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "additionalProperties": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
           "description": { "type": "string", "minLength": 1 },
           "gate_ids": { "minItems": 1, "type": "array", "items": { "$ref": "#/$defs/__schema0" } }
         },
-        "required": ["id", "description", "gate_ids"],
+        "required": ["description", "gate_ids"],
         "additionalProperties": false
       }
     }
