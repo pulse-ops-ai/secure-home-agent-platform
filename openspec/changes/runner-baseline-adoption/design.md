@@ -248,6 +248,32 @@ adapter → uniform events → sealed evidence.
   sandbox        = untrusted execution
   ```
 
+  **D6 relocates a trust boundary.** Upstream, decision-bearing
+  orchestration executes from proposed-change-writable worktree files —
+  the donor's recorded gap: three landings ensured a change could not
+  alter the policy data judging it, while the change could still alter
+  the code *interpreting* that data. The platform replacement moves those
+  decisions into trusted platform-controlled code outside the sandbox's
+  write authority — a provenance and write-isolation invariant (the
+  spec's judge-protection requirement now names orchestration code), not
+  a physical-placement claim: placement stays with U4. The typed state
+  machine is the mechanism that makes the boundary explicit and testable.
+
+  The donor defect catalog is the evidence: duplicate gate execution
+  (identity uniqueness should be structural — unrepresentable, not a
+  runtime run-once guard); lifecycle-by-grep (a hand-rolled
+  INDETERMINATE); exit/return propagation by convention (typed outcomes);
+  ambient environment overrides as undeclared authority (captured-once
+  applied to orchestration itself); the dual-implementation tax
+  (orchestration invokes the one trusted decision implementation, never
+  reproduces it).
+
+  **Shell may execute; shell may not decide.** Thin shell/process
+  adapters may bootstrap and execute a trusted, already-determined plan
+  and report raw execution results. They do not own eligibility, policy
+  interpretation, gate membership, outcome classification,
+  reconciliation, or authoritative evidence finalization.
+
   Shell survives only as the container entrypoint: bootstrap the
   environment, `exec` runner-control. **None of the 38 upstream scripts is
   ported and cleaned up later** — the invariants they discovered are
@@ -493,6 +519,15 @@ L10 framework-neutral         deterministic-loop adapter joins the matrix;
 
 Some landings may later be combined or parallelized; the conceptual
 boundaries stay.
+
+One evidence note for L4: the donor repository intends to export a
+lifecycle census, a bash failure-mode catalog, frozen machine-readable
+surface semantics, an execute-vs-decide inventory, and a
+shadow-conformance plan. Those documents will postdate this change's
+adoption pin, and the L4 child change cites them at their own upstream
+revision with its own evidence section. The parent's one-shot pin answers
+"what evidence did this ratification classify?" — it is unaffected by
+later donor exports and does not move.
 
 Serial safety: L2 is reviewable purely as contracts; L3 lands the trusted
 core with its own proof net before anything consumes it; L4 lands

@@ -101,7 +101,7 @@ from this file.
 | L1      | ratification effects: issues minted, #19/#27 revised, docs pointers | inert       | issues exist and are recorded above; docs updated           |
 | L2      | runner domain contracts (`packages/contracts`, `packages/events`) + generated schemas | inert | contracts validate; EX-002/007, PROP-001/004 green          |
 | L3      | `packages/runner-core` + its proof net                        | inert             | EX-001/003/006, ADV-002…005, ADV-009, PROP-003/005, MUT-001…003/006 green |
-| L4      | runner-control orchestration (state machine, ports; no launch) | inert            | EX-004, EX-005A, PROP-002, ADV-001/006/007, MUT-004/005 green; boundary proven both directions |
+| L4      | runner-control orchestration (state machine, ports; no launch) | inert            | EX-004, EX-005A, PROP-002/007, ADV-001/006/007/015…017, MUT-004/005/009 green; boundary proven both directions |
 | L5      | image lineage: runner-base, gates-toolchain, Claude reference derived image | inert   | images build reproducibly, digest-pinned, unreferenced      |
 | L6      | Copilot capability/credential spike                           | inert             | SPIKE-01…05 answered with captured evidence                 |
 | — GATE  | #11 / U6 SPI ADR (human)                                      | —                 | ADR accepted                                                |
@@ -423,12 +423,14 @@ core/control boundary is proven in both directions.
 
   **Implements**
 
-  - Requirement: `Gates execute only from the exact-argv registry`
-  - Invariant(s): `INV-009`
+  - Requirement: `Gates execute only from the exact-argv registry`,
+    `Gate outcomes come from a closed vocabulary`
+  - Invariant(s): `INV-009`, `INV-016`
 
   **Proof required**
 
-  - `EX-005A`, `ADV-006`, `ADV-007`, `MUT-004`
+  - `EX-005A`, `PROP-007`, `ADV-006`, `ADV-007`, `ADV-015`, `ADV-016`,
+    `ADV-017`, `MUT-004`, `MUT-009`
 
 - [ ] **4.4 Workspace lifecycle, cancellation, timeout, evidence finalization ports**
   <!-- agent-task: 4.4 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=4.1 -->

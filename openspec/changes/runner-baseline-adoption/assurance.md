@@ -59,6 +59,7 @@ Each maps one-to-one to a requirement in the `runner-adoption` spec delta.
 | INV-013 | Upstream evidence cited only at the one-shot pin                      | review/governance |
 | INV-014 | Gated landings wait for their ADRs (U6 → adapters, U4 → launcher); no partial work past a gate | review/governance |
 | INV-015 | Trust established for an intermediate representation never transfers implicitly to a later mutable artifact; the final consumer verifies the actual artifact it consumes | trust / data      |
+| INV-016 | Every requested gate receives exactly one terminal disposition from the closed gate-outcome vocabulary; environment inability is never classified as non-applicability or success | behavior / trust  |
 
 ## State-Space Model
 
@@ -146,6 +147,7 @@ impossible.
 | PROP-004 | INV-002           | property test              | provider-name scan over the contract corpus: zero structural hits (L2; re-run L7/L8) |
 | PROP-005 | INV-011           | property test              | verifier agrees with catalog on generated artifact sets; flags any single mutation (L3) |
 | PROP-006 | INV-015           | property test              | mutation after verification and before consumption refuses unless independently reverified (L3; re-proven at each landing adding a final consumer: L5 digests, L7 transcripts, L9 launch) |
+| PROP-007 | INV-016           | property test              | SKIP_ENV never normalizes to SKIP_OK or PASS; every gate identity has exactly one terminal disposition (L4; vocabulary shape at L2) |
 | MAN-001  | INV-013           | manual evidence            | citation audit against the pin (L1; every landing PR review) |
 | MAN-002  | INV-014           | manual evidence            | authorization derivation table applied at each landing's gate (all) |
 
@@ -164,6 +166,7 @@ L9 under its own authority.
 | PROP-004 | For the whole contract corpus, no provider/framework name occupies a field name, enum member, or constant |
 | PROP-005 | For any generated artifact set, independent verification agrees with the sealed catalog, and any single-artifact mutation is flagged |
 | PROP-006 | For any security-relevant artifact, mutation after an earlier successful verification and before final consumption causes refusal unless the final artifact is independently reverified |
+| PROP-007 | For any gate plan and result set, `SKIP_ENV` never normalizes to `SKIP_OK` or `PASS`, and every requested gate identity has exactly one terminal disposition |
 
 ## Hostile Corpus
 
@@ -183,6 +186,9 @@ L9 under its own authority.
 | ADV-012 | Indeterminate terminal state presented as success                       | classification refuses; INDETERMINATE is a failure class |
 | ADV-013 | Run killed or timed out mid-flight                                      | no privileged container, mount, or accessible credential survives; terminal evidence recorded (L9) |
 | ADV-014 | Verify intermediate representation → mutate final artifact → consume    | refusal; the earlier verification does not authorize consumption |
+| ADV-015 | Required gate toolchain unavailable                                     | disposition `SKIP_ENV`, never `SKIP_OK` or `PASS`        |
+| ADV-016 | Gate output truncated / terminal evidence incomplete                    | disposition `FAIL` with the explicit reason recorded     |
+| ADV-017 | Duplicate gate identity or second terminal disposition for one gate     | fail closed with the duplication named                   |
 
 ## Mutation Targets
 
@@ -197,6 +203,7 @@ their landing implements them:
 | MUT-004 | Exact-argv registry enforcement (no widening, no substitution) | EX-005A / ADV-006 (L4) |
 | MUT-007 | Gate network-none enforcement                      | EX-005B egress probe (L9) |
 | MUT-008 | Final-consumer verification (removal or bypass)    | ADV-014 / PROP-006  |
+| MUT-009 | SKIP_ENV classification or the duplicate-disposition guard (weakening) | PROP-007 / ADV-015 / ADV-017 |
 | MUT-005 | Indeterminate-is-failure classification            | ADV-012 / PROP-002  |
 | MUT-006 | Refuse-not-truncate at declared bounds             | PROP-003 / ADV-009  |
 
@@ -221,6 +228,7 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | One-shot pin (INV-013)              | L1      | MAN-001                        | every landing PR   |
 | Gate honoring (INV-014)             | all     | MAN-002 + authorization table  | —                  |
 | Final-consumer trust (INV-015)      | L3      | PROP-006, ADV-014, MUT-008     | re-proof at L5, L7, L9 |
+| Gate outcome vocabulary (INV-016)   | L2, L4  | PROP-007, ADV-015/016/017, MUT-009 | —              |
 | Copilot verifications               | L6      | SPIKE-01…05                    | shape L7           |
 
 Every deferred re-proof names its landing. No generic "later" bucket.
@@ -237,8 +245,8 @@ properties:
   contract conformance + neutrality properties; L3 carries the trusted-core
   proof net (EX-001/003/006, ADV-002…005, PROP-003/005); L4 carries the
   state-machine and gate-execution net (EX-004, EX-005A, PROP-002,
-  ADV-006/007, MUT-004); L9 carries the runtime net (EX-005B, EX-008,
-  ADV-013, MUT-007).
+  PROP-007, ADV-006/007, ADV-015…017, MUT-004, MUT-009); L9 carries the
+  runtime net (EX-005B, EX-008, ADV-013, MUT-007).
 - Inert until activation: L2 contracts unconsumed until L3/L4; L5 images
   unreferenced until a profile pins them; L7 adapters unlaunchable until L9
   provides the launcher.
@@ -279,6 +287,13 @@ properties:
   definitions come from `packages/contracts`/`packages/events`;
   independence lives in derivation, proof, and reconstruction. Independent
   verification proves the same contract — it never creates a second one.
+- **Shell may execute, never decide (D6):** in child-change reviews,
+  decision-bearing shell is a refusal finding, not a style note —
+  eligibility, policy interpretation, gate membership, outcome
+  classification, reconciliation, or authoritative evidence finalization
+  implemented in shell refuses review. Thin exec adapters that bootstrap
+  and execute an already-determined plan and report raw results are the
+  permitted residue.
 - **Mechanical boundaries only:** a type, label, metadata field, or
   sibling digest is never accepted as a trust boundary unless something
   mechanically enforces it (INV-015). "Route says unreadable" requires the

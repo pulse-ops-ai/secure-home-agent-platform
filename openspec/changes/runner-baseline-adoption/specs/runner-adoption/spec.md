@@ -168,8 +168,8 @@ discarded after the run.
 
 The material that governs or judges a run — the pinned base source, the
 captured profile and policies, the gate registry, the governing
-instructions, and the run's own evidence — SHALL be outside the sandbox's
-write reach. A write that touches any of it SHALL refuse materialization
+instructions, the decision-bearing orchestration and interpreter code, and
+the run's own evidence — SHALL be outside the sandbox's write reach. A write that touches any of it SHALL refuse materialization
 with the violation recorded; the offending change is never silently
 dropped.
 
@@ -186,6 +186,16 @@ dropped.
 - **WHEN** the sandbox attempts to write where evidence is assembled
 - **THEN** the evidence derivation is unaffected, because it reads only
   trusted host observation and captured inputs
+
+#### Scenario: Modified orchestration never judges its own run
+
+- **GIVEN** a writable workspace containing modified orchestration,
+  policy-interpreter, gate-scheduler, or classification code
+- **WHEN** that same run is evaluated
+- **THEN** none of those modified bytes execute as decision-bearing logic
+  for that run
+- **AND** security-relevant orchestration executes only from trusted
+  platform-controlled code outside the proposed change's write authority
 
 ### Requirement: Gates execute only from the exact-argv registry
 
@@ -210,6 +220,37 @@ egress, and gates hold no profile.
 - **WHEN** the gate plan is built
 - **THEN** the executed argv is exactly the registry's declaration, and the
   mismatch is refused, not merged
+
+### Requirement: Gate outcomes come from a closed vocabulary
+
+Every requested gate SHALL report exactly one terminal disposition per run,
+drawn from a closed vocabulary: `PASS`, `FAIL`, `SKIP_OK` (nothing to run),
+`SKIP_ENV` (environment unable to run). Truncated or incomplete gate output
+SHALL classify as `FAIL` with the reason recorded. Environment inability
+SHALL never classify as non-applicability or success, and a missing,
+ambiguous, malformed, or duplicated disposition SHALL fail closed.
+
+#### Scenario: Toolchain missing is never nothing-to-run
+
+- **GIVEN** a requested gate whose toolchain is unavailable
+- **WHEN** the gate is scheduled
+- **THEN** its disposition is `SKIP_ENV`
+- **AND** it never classifies as `SKIP_OK` or `PASS`
+
+#### Scenario: Truncated output fails with the reason
+
+- **GIVEN** a gate whose output was truncated or whose terminal evidence
+  is incomplete
+- **WHEN** its disposition is derived
+- **THEN** the disposition is `FAIL` with the truncation or incompleteness
+  recorded as the reason
+
+#### Scenario: Duplicate gate identity fails closed
+
+- **GIVEN** a run whose gate plan or results carry a duplicate gate
+  identity or a second terminal disposition for the same gate
+- **WHEN** dispositions are reconciled
+- **THEN** the run fails closed with the duplication named
 
 ### Requirement: Security-relevant bounds refuse, never truncate
 
