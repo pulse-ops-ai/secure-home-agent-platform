@@ -43,6 +43,18 @@ artifacts:
 
       Requirements describe WHAT must hold, not implementation mechanics.
 
+      Author each spec as a DELTA against the main spec, using the standard
+      delta operations as ## headers:
+      - "## ADDED Requirements" for new capabilities;
+      - "## MODIFIED Requirements" — include the FULL updated requirement;
+      - "## REMOVED Requirements" — include Reason and Migration;
+      - "## RENAMED Requirements" — FROM:/TO: format.
+      Remove any operation section that is not used.
+
+      Requirements use "### Requirement:" headers and scenarios use
+      "#### Scenario:" headers (exactly four hashtags). Every requirement
+      must have at least one scenario.
+
       For every requirement:
       - define observable behavior;
       - include positive and negative scenarios;

@@ -85,7 +85,7 @@ Examples:
 - ADRs or decisions;
 - merged PRs;
 - incidents;
-- Jira or product decisions as provenance.
+- GitHub issues or product decisions as provenance.
 
 Do not treat an unverified issue or agent statement as implementation evidence.
 

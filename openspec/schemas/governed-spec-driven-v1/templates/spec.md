@@ -4,20 +4,31 @@
 
 Describe the behavior governed by this capability.
 
-This document is normative.
+New capabilities only: keep this section. Delete it when modifying an existing
+capability.
 
-It defines WHAT must hold.
+This document is normative. It defines WHAT must hold, authored as a **delta**
+against the main spec: every requirement appears under the delta operation
+that applies to it, so validation, sync, and archive can fold it into
+`openspec/specs/`.
 
 Implementation architecture belongs in `design.md`.
 Proof strategy belongs in `assurance.md`.
 
+Remove any delta operation section you do not use.
+
 ---
+
+## ADDED Requirements
 
 ### Requirement: <Requirement Name>
 
 The system SHALL <observable required behavior>.
 
 Clarify important semantics directly in the requirement when necessary.
+Where failure classification is part of the behavior, state it in the
+scenarios: distinguish candidate-attributable failure from operational
+failure, and never collapse an undecidable state into success.
 
 #### Scenario: <Positive behavior>
 
@@ -34,11 +45,13 @@ Clarify important semantics directly in the requirement when necessary.
 - **THEN** <required refusal or failure>
 - **AND** <required observable classification or evidence>
 
----
+## MODIFIED Requirements
 
-### Requirement: <Another Requirement>
+Include the FULL updated requirement content, not only the edited part.
 
-The system SHALL <observable behavior>.
+### Requirement: <Existing Requirement Name>
+
+The system SHALL <full updated observable behavior>.
 
 #### Scenario: <Scenario name>
 
@@ -46,11 +59,25 @@ The system SHALL <observable behavior>.
 - **WHEN** ...
 - **THEN** ...
 
+## REMOVED Requirements
+
+### Requirement: <Removed Requirement Name>
+
+- **Reason:** <why the requirement is removed>
+- **Migration:** <how dependent behavior or consumers migrate>
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: <old name>`
+- TO: `### Requirement: <new name>`
+
 ---
 
 ## Failure Semantics
 
-Use this section when failure classification is part of the behavior.
+Use this section when failure classification is part of the behavior. It is
+supporting context for the delta above; normative failure behavior must also
+appear in requirement scenarios.
 
 Distinguish where applicable:
 
