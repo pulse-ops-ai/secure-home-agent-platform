@@ -39,7 +39,7 @@ artifacts:
     requires: []
 
   - id: specs
-    generates: "specs/**/*.md"
+    generates: 'specs/**/*.md'
     description: >
       Observable behavioral requirements and scenarios forming the normative
       contract for the change.
