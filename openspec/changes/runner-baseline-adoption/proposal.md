@@ -5,7 +5,7 @@
 Issue #19 (Epic 4: runner substrate and execution profiles) cannot be
 decomposed honestly until the existing runner substrate is classified. A
 working substrate already exists in `agent-service`: a governed execution
-platform with three production-proven run modes (packet review, sandboxed
+platform with three operationally exercised, heavily tested run modes (packet review, sandboxed
 implementation, semantic review), a ~43.5k-line zero-runtime-dependency
 trusted host package, and 358k run artifacts of operational evidence.
 
@@ -24,7 +24,7 @@ What happens today:
 
 - The platform has contracts (`runner-model.md`, ADR-0003/0006/0011) but no
   substrate, no profile schema, no image, and no adapter.
-- The upstream substrate is proven but has provider coupling (Claude CLI
+- The upstream substrate is operationally exercised but provider-coupled (Claude CLI
   flags, transcript format, `claude_posture` field names) and known gaps
   against the platform contract: network egress is declared `open`, the model
   container has no resource ceilings, the image is monolithic, orchestration
@@ -58,9 +58,14 @@ plan from which the #19 child issues are minted.
 - The sequencing decision: gaps are closed with the Claude adapter as the
   reference vehicle, neutralizing the provider seam as each piece is touched;
   Copilot CLI becomes the first platform derived image.
-- The Copilot CLI capability verification obligations (structured output,
-  fail-closed tool allowlisting, machine-readable transcript, cost/usage
-  reporting) as named proof obligations.
+- The Copilot CLI capability verification obligations as named proof
+  obligations — five properties: structured output, fail-closed tool
+  allowlisting, machine-readable transcript, cost/usage reporting, and
+  noninteractive credential injection and isolation (no credential material
+  persisting in `$HOME`, caches, the workspace, image layers, or after
+  teardown). Provider credential custody is an adapter/substrate concern
+  proven here; it is distinct from platform workload identity, which stays
+  with U2.
 - The landing plan that seeds the issue decomposition under #19.
 
 ### Out of scope
@@ -115,10 +120,13 @@ gap analysis measures against), `docs/architecture/knowledge-selection-model.md`
 
 Declare unresolved-decision dependencies:
 
-- **Depends on U1–U11:** none — and three are load-bearing *constraints*:
-  the change must not select a workload-identity mechanism (U2), place
-  runner-control (U4), or freeze the adapter SPI (U6). Landings that border
-  them are scoped to stay on the near side.
+- **Depends on U1–U11:** this ratification change depends on no unresolved
+  decision. Its implementation landings do, and say so: the Copilot adapter
+  landing is **gated by U6/#11** (the SPI ADR must be accepted first), and
+  the launcher/enforcement landing is **gated by U4/#9** (placement,
+  resource-starvation, credential-custody, and mount-isolation decisions).
+  U2 remains the platform workload-identity boundary every landing stops
+  at. No landing starts partial work past a gate.
 
 This change proposes **no ADR status change**. Amending or reversing an
 accepted ADR requires a new superseding ADR through its own human review.
@@ -137,13 +145,20 @@ accepted ADR requires a new superseding ADR through its own human review.
 
 ## Existing Evidence
 
-- Upstream repository: `agent-service` (local working copy at
+- Upstream repository, canonical identity: **`exprealtytech/agent-service`**
+  (GitHub; inventoried via the local working copy at
   `/home/mike/dev/exp/agent-service`).
-- **Adoption baseline pin: `origin/dev` @ `941160c0`** — the upstream
-  integration state, which already includes D11 PR-3a (disclosure-policy
-  bootstrap, inert). The detailed inventory was conducted at feature-branch
-  commit `4eee55f8`; the delta between the two is confined to the deferred
-  `review-context/` surface, so the classification is unaffected.
+- **Adoption baseline pin: `origin/dev` @
+  `941160c0bd6eafc0eb4c4bd708d86b21857e1ec2`** — the upstream integration
+  state, which already includes D11 PR-3a (disclosure-policy bootstrap,
+  inert). The detailed inventory was conducted 2026-08-08 at feature-branch
+  commit `4eee55f8d4432b1088a62186a8c9cf7f9be0e39f`; the delta between the
+  two is confined to the deferred `review-context/` surface, so the
+  classification is unaffected.
+- Upstream operational evidence is *evidence about the design*, not
+  inherited trust: the same upstream's later review cycles have continued
+  to surface genuine blockers, which is exactly why every reimplemented
+  mechanism is re-proven by this repository's own gates.
 - Inventoried surfaces: `.ai/` operational harness (8 posture profiles, 6
   policy files, 11 schemas, hardened launch path, consent gates, 358k run
   artifacts) and `exp-global-packages/agent-runner` (50 JSON schemas, 30
@@ -181,11 +196,14 @@ accepted ADR requires a new superseding ADR through its own human review.
 ## Success
 
 A reviewed, merged change whose matrix and landing plan let the repository
-owner mint the #19 child issues directly from `tasks.md` landings — inventory
-ratification, #27 revision, execution-profile contract, base image, Copilot
-capability spike, Copilot derived image, conformance suite, network
-enforcement — each carrying its own external authority. Subsequent profile,
-image, and conformance work cites this change instead of re-deriving the
+owner mint the #19 child issues directly from `tasks.md` landings — baseline
+ratification, domain contracts, trusted-core implementation with its proof
+net, image lineage, the Copilot capability/credential spike, then (gated by
+the U6/#11 ADR) the Copilot adapter and derived image, coding-adapter
+conformance, and (gated by the U4/#9 ADR) the runner-control launcher with
+network and resource enforcement — each carrying its own external authority,
+with the #27 scope revision minted alongside. Subsequent profile, image, and
+conformance work cites this change instead of re-deriving the
 classification.
 
 ## Non-Goals

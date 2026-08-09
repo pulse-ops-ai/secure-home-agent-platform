@@ -38,8 +38,12 @@ direction SHALL be mechanically enforced.
 ### Requirement: Contracts are provider-neutral in structural positions
 
 No provider or framework name SHALL appear in a structural position — field
-name, enum member, or constant — of any platform runner contract. Provider
-identity SHALL be recorded as data values only.
+name, enum member, or constant — of any platform runner contract. A provider
+or framework name SHALL appear only as an opaque data value (the profile's
+`adapter` field and provider-identity evidence fields). No provider-specific
+configurable structure SHALL be introduced into any platform contract before
+the U6 adapter-SPI ADR; provider-specific flag mapping and transcript
+parsing live behind the adapter boundary, never in the contract.
 
 #### Scenario: Provider recorded as data
 
@@ -48,10 +52,18 @@ identity SHALL be recorded as data values only.
 - **THEN** the provider appears only as a recorded value in
   provider-identity fields, never as a field name, enum member, or constant
 
+#### Scenario: Adding an adapter changes no schema
+
+- **GIVEN** the execution-profile and run contracts as accepted
+- **WHEN** a new provider or framework adapter is introduced
+- **THEN** no platform contract schema requires a change — only a new
+  opaque `adapter` value exists
+
 #### Scenario: A provider-named structural field is refused
 
 - **GIVEN** a proposed contract with a provider name in a structural
-  position
+  position, or a provider-specific configuration block inlined ahead of the
+  U6 ADR
 - **WHEN** contract conformance checks run
 - **THEN** the contract is rejected with the violating position named
 
@@ -109,6 +121,109 @@ claims and cross-checked, never substituted for observation.
 - **THEN** the observed change set is authoritative
 - **AND** the disagreement is recorded in the run evidence
 
+### Requirement: Authority inputs are captured once and digest-bound
+
+Every authority input to a run — the execution profile, policies, and gate
+registry — SHALL be read once into a captured snapshot whose digest is
+recorded, and every downstream decision (validation, selection, launch
+composition, enforcement) SHALL derive from the captured bytes. The source
+identity a run operates on SHALL be pinned (base identity recorded), and the
+writable workspace SHALL be an ephemeral derivation of that immutable base,
+discarded after the run.
+
+#### Scenario: Downstream decisions use the snapshot
+
+- **GIVEN** a run whose profile was captured and digest-recorded at start
+- **WHEN** the source profile file changes mid-run
+- **THEN** every decision in that run still derives from the captured
+  bytes, and the recorded digest identifies exactly what governed it
+
+#### Scenario: Pristine base is asserted
+
+- **GIVEN** a run whose workspace must derive from the pinned base identity
+- **WHEN** the workspace does not match the pinned base at creation
+- **THEN** the run is refused before any model invocation
+
+### Requirement: A run cannot alter what judges it
+
+The material that governs or judges a run — the pinned base source, the
+captured profile and policies, the gate registry, the governing
+instructions, and the run's own evidence — SHALL be outside the sandbox's
+write reach. A write that touches any of it SHALL refuse materialization
+with the violation recorded; the offending change is never silently
+dropped.
+
+#### Scenario: Governing context write refuses materialization
+
+- **GIVEN** a run whose sandbox writes to a protected governing path
+- **WHEN** the trusted host examines the workspace change set
+- **THEN** materialization is refused entirely
+- **AND** the violation is recorded in the run evidence
+
+#### Scenario: Evidence is not sandbox-writable
+
+- **GIVEN** a running sandbox and the run's evidence record
+- **WHEN** the sandbox attempts to write where evidence is assembled
+- **THEN** the evidence derivation is unaffected, because it reads only
+  trusted host observation and captured inputs
+
+### Requirement: Gates execute only from the exact-argv registry
+
+Verification gates SHALL execute only as an exact executable plus argv array
+declared in the repository-owned registry — never a shell string, never
+arguments composed by the model or the caller — and gate execution SHALL
+have no network access unless the registry entry explicitly declares it.
+
+#### Scenario: Undeclared gate is refused before spend
+
+- **GIVEN** a task naming a gate id absent from the registry
+- **WHEN** eligibility is evaluated
+- **THEN** the run is refused before any model invocation, with the
+  undeclared id named
+
+#### Scenario: Gate argv cannot be widened
+
+- **GIVEN** a gate execution request carrying extra caller-supplied
+  arguments
+- **WHEN** the gate plan is built
+- **THEN** the executed argv is exactly the registry's declaration, and the
+  mismatch is refused, not merged
+
+### Requirement: Security-relevant bounds refuse, never truncate
+
+Where a declared bound protects a security property — input size, path
+count, context bytes — an over-bound input SHALL be refused with the bound
+named. Truncating to fit SHALL not occur.
+
+#### Scenario: Over-bound input is refused
+
+- **GIVEN** an input exceeding its declared byte bound
+- **WHEN** the bound is enforced
+- **THEN** the operation is refused with the bound and observed size
+  recorded
+- **AND** no truncated variant proceeds
+
+### Requirement: Evidence is sealed, independently re-derivable, and fail-closed
+
+Every run SHALL end with a sealed evidence record written after all other
+artifacts, verifiable by an independent checker that re-derives expected
+state from the same policy authority and the artifacts on disk. A failure to
+finalize evidence SHALL never register as run success.
+
+#### Scenario: Independent verification re-derives state
+
+- **GIVEN** a completed run directory and the evidence policy authority
+- **WHEN** the independent verifier runs
+- **THEN** it re-derives the expected artifact set, re-computes hashes, and
+  revalidates contracts from disk — agreeing with the sealed record or
+  failing with the divergence named
+
+#### Scenario: Evidence failure cannot become success
+
+- **GIVEN** a run whose evidence finalization fails
+- **WHEN** the run outcome is classified
+- **THEN** the outcome is a failure classification, never success
+
 ### Requirement: Contracts are container-runtime neutral
 
 No platform runner contract SHALL encode a container runtime. Runtime
@@ -139,8 +254,18 @@ synchronize, and no periodic re-inventory occurs.
 ### Requirement: Landings stay on the near side of U2, U4, and U6
 
 No adoption landing SHALL select a workload-identity mechanism (U2), place
-runner-control (U4), or freeze the adapter SPI (U6). A landing that cannot
+runner-control (U4), or freeze the adapter SPI (U6). Landings whose work
+requires a resolved decision SHALL be explicitly gated on its accepted ADR:
+the provider-adapter landing on the U6 ADR (#11), and the
+launcher/enforcement landing on the U4 ADR (#9). A landing that cannot
 proceed without one of them SHALL stop and report the dependency.
+
+#### Scenario: A gated landing waits for its ADR
+
+- **GIVEN** the Copilot adapter landing and no accepted U6 ADR
+- **WHEN** authorization for that landing is evaluated
+- **THEN** the landing is not authorized, and the gate is reported rather
+  than worked around
 
 #### Scenario: A landing hits an unresolved boundary
 
