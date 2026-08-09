@@ -165,11 +165,6 @@ accepted ADR requires a new superseding ADR through its own human review.
   adopted and not precluded. Adoption invariant: no adopted contract may
   bake in a container runtime; runtime selection is a platform decision
   adjacent to U4.
-- **Re-homing / IP confirmation** — the upstream package is
-  `@exprealtytech`-namespaced with employer CI and ownership metadata.
-  Whether code travels or is reimplemented against the (language-neutral)
-  schemas is an ownership question the repository owner answers before any
-  code landing. Blocking for code landings; not blocking for this change.
 
 ## Success
 
