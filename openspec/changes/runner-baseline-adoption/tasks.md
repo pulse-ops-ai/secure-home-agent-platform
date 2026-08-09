@@ -77,7 +77,7 @@ that landing only. One landing's authority never covers another.
 | L7      | platform adapters: Claude reference + Copilot + Copilot derived image | inert     | adapters conform to accepted SPI; EX-002/PROP-004 re-run    |
 | L8      | coding-adapter conformance seed                               | inert             | same profile, same run → same events/evidence across both adapters |
 | — GATE  | #9 / U4 placement ADR (human)                                 | —                 | ADR accepted                                                |
-| L9      | concrete launcher + network default-deny + resource ceilings  | **enforce**       | enforcement active; EX-005B, EX-008/ADV-013 green; rollout/rollback obligations met |
+| L9      | concrete launcher + network default-deny + resource ceilings  | **enforce**       | enforcement active; EX-005B, EX-008/ADV-013, MUT-007 green; rollout/rollback obligations met |
 | L10     | framework-neutral conformance (deterministic-loop adapter)    | inert             | ADR-0003 uniform-across-adapters claim proven at full strength |
 
 A landing is the unit that may be independently merged. Do not merge a
@@ -520,8 +520,9 @@ isolation are decided there — not here.
       expression.
   <!-- agent-task: 9.1 paths=services/runner-control/** checks=repo-check risk=trust-critical prerequisites=L8,GATE-U4 -->
 - [ ] **9.2 Per-run network default-deny** with profile-declared egress
-      only; gates remain network-none (`EX-005B`: a real gate container has
-      no egress even after profile egress activates).
+      only; gates remain network-none (`EX-005B`, `MUT-007`: a real gate
+      container has no egress even after profile egress activates, and
+      weakening the network-none guard kills the probe).
   <!-- agent-task: 9.2 paths=services/runner-control/**,deploy/** checks=repo-check risk=trust-critical prerequisites=9.1 -->
 - [ ] **9.3 Resource ceilings** — memory, CPU, pids, wall clock, output
       size; Pi-contention evidence per #19 exit criteria.
@@ -536,8 +537,8 @@ isolation are decided there — not here.
 **Completion gate:** rollout obligations from assurance met
 (advisory/shadow observation, measurements, activation condition, rollback
 condition — defined in the landing issue before authorization); `EX-005B`,
-`EX-008`/`ADV-013`, and `ADV-001` proven at container level; the enforce
-flip is the only posture change in the whole sequence.
+`EX-008`/`ADV-013`, `MUT-007`, and `ADV-001` proven at container level; the
+enforce flip is the only posture change in the whole sequence.
 
 ---
 

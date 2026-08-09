@@ -188,7 +188,8 @@ their landing implements them:
 | MUT-001 | Protected-context refusal on judge-material writes | ADV-005 fixture     |
 | MUT-002 | Snapshot digest verification of authority inputs   | ADV-003 fixture     |
 | MUT-003 | Independent verifier hash comparison               | PROP-005 / EX-006   |
-| MUT-004 | Network-none on gate execution                     | EX-005B egress probe |
+| MUT-004 | Exact-argv registry enforcement (no widening, no substitution) | EX-005A / ADV-006 (L4) |
+| MUT-007 | Gate network-none enforcement                      | EX-005B egress probe (L9) |
 | MUT-005 | Indeterminate-is-failure classification            | ADV-012 / PROP-002  |
 | MUT-006 | Refuse-not-truncate at declared bounds             | PROP-003 / ADV-009  |
 
@@ -206,7 +207,7 @@ Landing-level here; per-task traceability lives in `tasks.md`.
 | Evidence outranks claims (INV-006)  | L3      | ADV-002                        | —                  |
 | Captured-once inputs (INV-007)      | L3, L4  | ADV-003, ADV-004               | —                  |
 | Judge protection (INV-008)          | L3      | ADV-005, MUT-001               | —                  |
-| Exact-argv, network-none gates (INV-009) | L4 | EX-005A, ADV-006, ADV-007, MUT-004 | EX-005B at L9 |
+| Exact-argv, network-none gates (INV-009) | L4 | EX-005A, ADV-006, ADV-007, MUT-004 | EX-005B, MUT-007 at L9 |
 | Bounds refuse (INV-010)             | L3      | PROP-003, ADV-009              | —                  |
 | Sealed evidence (INV-011)           | L3      | EX-006, PROP-005, ADV-011      | —                  |
 | Runtime neutrality (INV-012)        | L2      | EX-007                         | —                  |
@@ -228,7 +229,8 @@ properties:
   contract conformance + neutrality properties; L3 carries the trusted-core
   proof net (EX-001/003/006, ADV-002…005, PROP-003/005); L4 carries the
   state-machine and gate-execution net (EX-004, EX-005A, PROP-002,
-  ADV-006/007); L9 carries the runtime net (EX-005B, EX-008, ADV-013).
+  ADV-006/007, MUT-004); L9 carries the runtime net (EX-005B, EX-008,
+  ADV-013, MUT-007).
 - Inert until activation: L2 contracts unconsumed until L3/L4; L5 images
   unreferenced until a profile pins them; L7 adapters unlaunchable until L9
   provides the launcher.
