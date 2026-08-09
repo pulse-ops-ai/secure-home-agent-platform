@@ -83,10 +83,13 @@ Every contract SHALL carry a stable `contract_id` and an **exact**
 `contract_version` (semantic revision, e.g. `1.0.0`): an additive
 compatible shape change increments the minor version; a breaking shape
 change increments the major version. The generated schema `$id` SHALL embed
-the exact contract version, so no two distinct schema byte sets can share
-an identity. Compatibility direction SHALL be stated as: a newer compatible
-reader may accept supported older documents; an older strict reader is
-NEVER assumed to accept documents emitted under a newer schema.
+the exact contract version, and a **mechanical identity guard** SHALL make
+"shape bytes changed while the contract identity is unchanged" a
+deterministic conformance failure — never a convention. Compatibility
+policy is stated, not proven, at this landing: an older strict reader is
+NEVER assumed to accept documents emitted under a newer schema, and
+cross-version reader compatibility is version-pair-specific, proven
+explicitly if and when a second version is introduced.
 
 #### Scenario: Versionless contract refuses
 
@@ -103,13 +106,19 @@ NEVER assumed to accept documents emitted under a newer schema.
   `$id` differs — the previous identity still names exactly the previous
   byte set
 
-#### Scenario: Compatibility direction holds
+#### Scenario: Changed bytes under an unchanged identity fail
 
-- **GIVEN** a newer compatible reader and an older strict reader
-- **WHEN** documents cross versions
-- **THEN** the newer reader accepts supported older documents, and no
-  contract or test asserts that the older strict reader accepts newer
-  documents
+- **GIVEN** a shape change regenerated without a version increment
+- **WHEN** the identity guard runs
+- **THEN** it fails deterministically, naming the identity whose recorded
+  bytes no longer match
+
+#### Scenario: No cross-version proof is claimed
+
+- **GIVEN** this landing's single version of every contract
+- **WHEN** its proofs are examined
+- **THEN** no test claims cross-version reader compatibility — that proof
+  obligation attaches to the change that introduces a second version
 
 ---
 

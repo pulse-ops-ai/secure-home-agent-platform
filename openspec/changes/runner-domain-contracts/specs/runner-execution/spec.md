@@ -15,12 +15,12 @@ Shapes only — launching, classifying, and event emission are L4 behavior.
 The launch-assertion contract SHALL express the composed launch as an
 ordered argv array with its digest, the environment-variable **names**
 granted to the launch, and a secret-presence field that admits only `false`.
-Every field whose semantic purpose is credential transport SHALL admit
-`CredentialRef` (a named environment-variable reference) only; neither the
-launch assertion nor any identity structure SHALL carry a field capable of
-holding a credential value. Whether arbitrary unrelated text accidentally
-contains secret material is a scanning and runtime concern (L4/L9), not a
-shape claim.
+No field SHALL be designated for credential-value transport: every field
+whose semantic purpose is credential transport SHALL admit `CredentialRef`
+(a named environment-variable reference) only, and no credential-value slot
+SHALL exist in the launch assertion or the identity structures. Whether
+arbitrary unrelated text accidentally contains secret material is a
+scanning and runtime concern (L4/L9), not a shape claim.
 
 #### Scenario: Secret-bearing assertion cannot exist
 
@@ -33,8 +33,8 @@ shape claim.
 - **GIVEN** every field in the corpus whose semantic purpose is credential
   transport
 - **WHEN** its shape is examined
-- **THEN** it admits `CredentialRef` entries only, with no value-capable
-  field present
+- **THEN** it admits `CredentialRef` entries only, with no designated
+  value slot present
 
 ### Requirement: Run identity and terminal outcomes are a closed, enumerated vocabulary
 

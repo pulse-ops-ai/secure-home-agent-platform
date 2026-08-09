@@ -19,9 +19,11 @@ Task completion does not redefine the specification, architecture, or
 assurance model.
 
 Check alias used in task metadata: `repo-check` = `bash scripts/check.sh`
-(scaffold validation, secret scan, workspace checks) plus, from task 4
-onward, the regenerate-and-compare drift gate this change introduces. No
-task names an undeclared check.
+(scaffold validation, secret scan, workspace checks). The
+regenerate-and-compare drift check and the identity-ledger guard this
+change introduces are **package-level conformance tests**, reached by the
+existing aggregate gate without modifying any script outside #51's
+authorized paths. No task names an undeclared check.
 
 ---
 
@@ -114,14 +116,16 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 2. Contracts package families
 
-- [ ] **2.1 Shared identity types and CredentialRef**
+- [ ] **2.1 Shared runner primitives**
   <!-- agent-task: 2.1 paths=packages/contracts/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements**
 
-  - Design D6, D7; requirement `The launch assertion is data with no
-    credential-value slot` (CredentialRef shape).
-  - Invariant(s): `C-INV-06`, `C-INV-01`
+  - Design D2, D6, D7: `CredentialRef`, `ProfileIdentity`/`ProfileRef`,
+    `AdapterId`, `GateId`, `Digest`, `CapabilityGrant` — authored once,
+    exported for the inward events edge; no semantically equivalent
+    second definition may ever exist in events.
+  - Invariant(s): `C-INV-06`, `C-INV-01`; seeds `C-EX-005`
 
   **Proof required**
 
@@ -178,8 +182,8 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   - Requirement: `Run identity and terminal outcomes are a closed,
     enumerated vocabulary` (`runner-execution`)
-  - Invariant(s): `C-INV-03`; imports profile identity from contracts
-    (D2/D8)
+  - Invariant(s): `C-INV-03`; imports the shared primitives from
+    contracts (D2/D8) — proven by `C-EX-005`
 
   **Proof required**
 
@@ -215,8 +219,8 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
 ## 4. Generation pipeline
 
-- [ ] **4.1 Deterministic generation into schemas/ with the drift gate**
-  <!-- agent-task: 4.1 paths=packages/contracts/**,packages/events/**,schemas/**,scripts/** checks=repo-check risk=high prerequisites=2.2,2.3,2.4,3.1,3.2,3.3 -->
+- [ ] **4.1 Deterministic generation into schemas/ with the drift and identity guards**
+  <!-- agent-task: 4.1 paths=packages/contracts/**,packages/events/**,schemas/** checks=repo-check risk=high prerequisites=2.2,2.3,2.4,3.1,3.2,3.3 -->
 
   **Implements**
 
@@ -231,12 +235,16 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
   **Change**
 
   One generation entry point per package; committed `schemas/` output with
-  exact-version `$id`s; regenerate-and-compare wired into
-  `scripts/check.sh` so drift fails the repository gate.
+  exact-version `$id`s; the authored, append-only identity ledger (D5)
+  mapping each identity to its generated-bytes digest. The
+  regenerate-and-compare and ledger checks are **package-level conformance
+  tests** — the existing aggregate gate executes them; **no file outside
+  #51's authorized paths is modified.**
 
   **Proof required**
 
-  - `C-EX-003`, `C-PROP-004`, `C-PROP-005`, `C-ADV-003`, `C-MUT-003`
+  - `C-EX-003`, `C-PROP-004`, `C-PROP-005`, `C-ADV-003`, `C-ADV-007`,
+    `C-MUT-003`, `C-MUT-006`
 
 ## 5. Conformance suite
 
@@ -251,8 +259,8 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 
   **Proof required**
 
-  - Full assurance net green: `C-EX-001…004`, `C-PROP-001…005`,
-    `C-ADV-001…006`, `C-MUT-001…005` killed.
+  - Full assurance net green: `C-EX-001…005`, `C-PROP-001…005`,
+    `C-ADV-001…007`, `C-MUT-001…006` killed.
 
 ---
 
@@ -261,14 +269,17 @@ If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 This landing is complete only when:
 
 - [ ] Every task above is complete and every proof obligation is green.
-- [ ] All five mutation targets are demonstrably killed.
+- [ ] All six mutation targets are demonstrably killed.
 - [ ] `C-EX-004` confirms zero importers outside the L2 contract layer
       (the events → contracts edge excepted) — the landing is inert.
 - [ ] No provider, framework, or runtime name occupies a structural
       position anywhere in the corpus or generated output; runtime
       identity exists only as opaque evidence data.
-- [ ] `schemas/` regenerates byte-identically in the merge gate, and every
-      generated `$id` embeds its exact contract version.
+- [ ] `schemas/` regenerates byte-identically in the merge gate, every
+      generated `$id` embeds its exact contract version, and every identity
+      matches its ledger digest (changed bytes under an unchanged identity
+      fail deterministically).
+- [ ] Nothing outside #51's authorized path scope was modified.
 - [ ] Repository-aware semantic review of the complete seam has run, and
       one fresh falsification-oriented independent review has completed
       against the frozen final head.

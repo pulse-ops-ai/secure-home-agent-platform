@@ -114,8 +114,10 @@ This change proposes **no ADR status change**.
   secret-presence field admits only `false`). Whether arbitrary unrelated
   text contains secret material is a scanning/runtime concern (L4/L9), not
   a shape claim.
-- No secrets, no live services, no deployment, no runtime dependency beyond
-  Zod (catalog-managed, authorized by #51 naming this work).
+- No secrets, no live services, no deployment, no **external** runtime
+  dependency beyond Zod (catalog-managed, authorized by #51 naming this
+  work); the only new workspace edge is the intentional inward
+  `events → contracts` dependency (D8).
 
 ## Existing Evidence
 

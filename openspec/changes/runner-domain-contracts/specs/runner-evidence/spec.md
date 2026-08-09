@@ -29,8 +29,10 @@ or through digest-bound catalog references:
   the disagreement/reconciliation record between them;
 - outcome with structured refusal/operational detail, and timing.
 
-No field in the evidence or identity structures SHALL be capable of
-carrying a credential value.
+No field in the evidence or identity authority structures SHALL be
+designated for credential-value transport; credential-purpose positions
+admit `CredentialRef` only, and no credential-value slot exists. Arbitrary
+string-content scanning is an L4/L9 concern.
 
 #### Scenario: A run without evidence does not validate
 
@@ -57,7 +59,7 @@ carrying a credential value.
 
 - **GIVEN** the evidence and identity structures
 - **WHEN** their shapes are examined
-- **THEN** no field capable of carrying a credential value exists
+- **THEN** no designated credential-value slot exists
 
 ---
 

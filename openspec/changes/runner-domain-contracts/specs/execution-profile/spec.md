@@ -49,8 +49,8 @@ validate.
 
 - **GIVEN** the profile's credential-grant field group
 - **WHEN** its type is examined
-- **THEN** it admits `CredentialRef` entries only, and no field capable of
-  carrying a credential value exists
+- **THEN** it admits `CredentialRef` entries only, and no designated
+  credential-value slot exists
 
 #### Scenario: Knowledge reference grants nothing
 

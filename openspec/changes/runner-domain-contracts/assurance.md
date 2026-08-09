@@ -52,7 +52,7 @@ requirement or a design decision:
 | C-INV-06 | Credential-transport-purposed fields admit CredentialRef only; launch assertion and evidence/identity structures have no credential-value slot; secret-presence admits only false | launch-assertion semantics (D6) |
 | C-INV-07 | Generated schemas are deterministic, drift-detectable, and produced under the explicit conversion contract (draft-2020-12, unrepresentable: throw, no transforms/defaults) | INV-015 (D3) |
 | C-INV-08 | Evidence is structurally mandatory and representationally complete (identities incl. opaque runtime, principal, grants, dispositions, observed-vs-claimed change sets with reconciliation, outcome detail, timing) | INV-011 shape |
-| C-INV-09 | One schema identity means one schema: contract_id + exact contract_version; $id embeds the exact version; stated compatibility direction | D5 |
+| C-INV-09 | One schema identity means one schema: contract_id + exact contract_version; $id embeds the exact version; a mechanical identity guard (authored append-only ledger of identity → generated-bytes digest) makes changed-bytes-under-unchanged-identity a deterministic failure; compatibility policy stated, cross-version proof deferred to the change introducing a second version | D5 |
 | C-INV-10 | Inert: no production consumer outside the L2 contract layer imports the new contracts; the events → contracts edge is intentional and inward | L2 posture (D8) |
 
 ## State-Space Model
@@ -71,9 +71,11 @@ Dimensions that materially affect this landing:
 Meaningful interactions requiring proof:
 
 - **strictness × identity** — an additive change makes the old strict
-  reader reject new documents *by design*; the safety property is that the
-  identity differs (new exact version and `$id`), never that the old
-  reader accepts (C-PROP-005).
+  reader reject new documents *by design*; the safety property is that
+  the identity differs (new exact version, `$id`, and ledger entry) and
+  that changed bytes under an unchanged identity fail deterministically
+  (C-PROP-005, C-ADV-007). No cross-version reader claim exists at this
+  landing.
 - **opaque adapter × closed enums** — the adapter must never migrate into
   the enum class; the falsification test pins it (C-PROP-002); the closed
   `event_type` must never migrate into the open class (C-ADV-006).
@@ -106,8 +108,9 @@ itself):
 | ------------------------------------ | ----------------------------------------------- | --------------------------------- |
 | C-INV-02 × C-INV-03                  | adapter accidentally typed as a closed enum; event_type accidentally opened | C-PROP-002 + C-ADV-005; C-ADV-006 |
 | C-INV-07 × C-INV-01                  | generation loosening strictness in output       | C-EX-003 asserts strict posture survives generation |
-| C-INV-09 × C-INV-01                  | two byte sets sharing one identity              | C-PROP-005 (identity uniqueness under additive change) |
-| C-INV-06 × C-INV-08                  | a value-capable slot appearing in evidence/identity structures | C-ADV-002 |
+| C-INV-09 × C-INV-01                  | two byte sets sharing one identity              | C-PROP-005 + C-ADV-007 (the ledger guard, not convention) |
+| D2 duplication rule × events package | a semantically equivalent second primitive definition in events | C-EX-005 (primitives are the contracts exports, by identity) |
+| C-INV-06 × C-INV-08                  | a designated credential-value slot appearing in evidence/identity structures | C-ADV-002 |
 | C-INV-10 × workspace checks          | a production consumer slipping in during the landing | C-EX-004 dependency scan (events edge excepted) |
 | C-INV-05 × C-INV-08                  | runtime identity leaking into schema structure instead of evidence data | C-EX-002 |
 
@@ -119,22 +122,25 @@ itself):
 | C-EX-002  | C-INV-05           | schema/contract validation | corpus scan: no structural runtime authority anywhere; evidence carries the opaque runtime-identity data field |
 | C-EX-003  | C-INV-01, C-INV-07 | deterministic example      | generated output preserves strict posture under the explicit conversion contract |
 | C-EX-004  | C-INV-10           | architecture guard         | workspace dependency scan: zero importers outside the L2 contract layer; the events → contracts edge passes |
+| C-EX-005  | D2 duplication rule | architecture guard        | events' schemas reference the contracts exports by identity — no semantically equivalent second primitive definition exists in events |
 | C-PROP-001 | C-INV-01          | property test              | generated unknown-key documents always refuse (Zod parse authority, not the generated schema), position named |
 | C-PROP-002 | C-INV-02          | property test              | generated adapter identifiers: corpus validates unchanged, zero schema diff |
 | C-PROP-003 | C-INV-03          | property test              | out-of-vocabulary terminal states, dispositions, and event types always refuse; duplicate gate identities always refuse |
 | C-PROP-004 | C-INV-07          | property test              | double generation byte-identical; any single source mutation ⇒ compare fails |
-| C-PROP-005 | C-INV-09          | property test              | for any additive optional field: exact version increments, generated $id differs, newer reader accepts supported older documents; no two distinct byte sets share an $id |
-| C-ADV-001 | C-INV-06           | hostile fixture            | secret-value payloads against every credential-transport-purposed position ⇒ refuse; no value-capable slot found |
-| C-ADV-002 | C-INV-06 × C-INV-08 | hostile fixture           | evidence/identity structures probed for value-capable slots ⇒ none exists |
+| C-PROP-005 | C-INV-09          | property test              | for any additive optional field: exact version increments, generated $id differs, a new ledger entry appears; no two distinct byte sets share an $id — no cross-version reader claim |
+| C-ADV-001 | C-INV-06           | hostile fixture            | secret-value payloads against every credential-transport-purposed position ⇒ refuse; no designated value slot found |
+| C-ADV-002 | C-INV-06 × C-INV-08 | hostile fixture           | evidence/identity structures probed for designated credential-value slots ⇒ none exists |
 | C-ADV-003 | C-INV-07           | hostile fixture            | hand-edited `schemas/` file ⇒ regenerate-and-compare fails, file named |
 | C-ADV-004 | C-INV-03           | hostile fixture            | duplicate gate identity in registry AND in result set ⇒ both refuse |
 | C-ADV-005 | C-INV-02           | hostile fixture            | provider name as enum/discriminator in a proposed schema ⇒ scan fails naming position |
 | C-ADV-006 | C-INV-03           | hostile fixture            | provider-native event name in the event_type position ⇒ refuses; it validates only as provider_event_name data |
+| C-ADV-007 | C-INV-09           | hostile fixture            | shape mutated and regenerated with contract_version left unchanged ⇒ ledger guard fails deterministically naming the identity |
 | C-MUT-001 | C-INV-01           | mutation target            | removing strict posture anywhere ⇒ C-PROP-001 kills             |
 | C-MUT-002 | C-INV-02           | mutation target            | typing adapter as enum ⇒ C-PROP-002 kills                       |
 | C-MUT-003 | C-INV-07           | mutation target            | disabling the drift check ⇒ C-ADV-003 kills                     |
 | C-MUT-004 | C-INV-06           | mutation target            | introducing a credential-value slot or widening secret-presence ⇒ C-ADV-001/002 kill |
 | C-MUT-005 | C-INV-03           | mutation target            | widening event_type to an open string ⇒ C-ADV-006 / C-PROP-003 kill |
+| C-MUT-006 | C-INV-09           | mutation target            | disabling or bypassing the identity ledger guard ⇒ C-ADV-007 kills |
 
 Do not claim a proof beyond what it exercises: all of the above operate on
 documents, types, and the generation pipeline. None asserts runtime
@@ -148,17 +154,17 @@ behavior, and none claims arbitrary strings are secret-free.
 | C-PROP-002 | For any generated adapter identifier, every schema in the corpus validates unchanged |
 | C-PROP-003 | For any out-of-vocabulary terminal state, disposition, or event type, and any duplicated gate identity, validation refuses |
 | C-PROP-004 | For unchanged source, generation is byte-identical; for any single source mutation, comparison fails |
-| C-PROP-005 | For any additive optional field: the exact contract version and $id change; newer compatible readers accept supported older documents; distinct byte sets never share an identity |
+| C-PROP-005 | For any additive optional field: the exact contract version, $id, and ledger entry change; distinct byte sets never share an identity; no cross-version reader compatibility is claimed |
 
 ## Hostile Corpus
 
-C-ADV-001 … C-ADV-006 above; the corpus grows during implementation but
-never below these six classes. Each case asserts the refusal *and* the
+C-ADV-001 … C-ADV-007 above; the corpus grows during implementation but
+never below these seven classes. Each case asserts the refusal *and* the
 named position/file — a silent refusal is a finding.
 
 ## Mutation Targets
 
-C-MUT-001 … C-MUT-005 above. Each must be demonstrably killed before the
+C-MUT-001 … C-MUT-006 above. Each must be demonstrably killed before the
 completion gate; an unkilled mutant blocks the seam.
 
 ## Authority Chain
@@ -202,7 +208,8 @@ for itself).
 | Gate identity/dispositions (`runner-verification`)              | C-PROP-003, C-ADV-004                    |
 | Policies/packs declarative (`runner-verification`)              | C-EX-001 (pack fixtures), C-EX-002       |
 | Generation deterministic (`runner-verification`)                | C-EX-003, C-PROP-004, C-ADV-003, C-MUT-003 |
-| One identity, one schema (`runner-verification`)                | C-PROP-005                               |
+| One identity, one schema (`runner-verification`)                | C-PROP-005, C-ADV-007, C-MUT-006         |
+| Shared primitives, single definition (D2)                       | C-EX-005                                 |
 | Evidence complete and mandatory (`runner-evidence`)             | C-EX-001, C-EX-002, C-ADV-002            |
 
 Deferred re-proofs (named landings): C-PROP-002, C-ADV-005/006, and the
@@ -230,7 +237,9 @@ Per the standing model:
   falsification-oriented independent review against the frozen final head.
 - **Deterministic gates continuous:** scaffold validation, secret scan,
   Prettier, workspace checks, and (new here) the regenerate-and-compare
-  drift gate.
+  drift and identity-ledger checks — implemented as package-level
+  conformance tests reached by the existing aggregate gate, per #51's
+  path scope.
 - The shape/behavior admissibility table above is part of the review
   contract: any proof claiming runtime behavior at this landing is a
   review-refusal finding.
@@ -251,8 +260,9 @@ L3's/L4's concern under their own landings.
   re-proofs at L7/L8; all behavioral scenarios to L3/L4 (named in the
   constitution's traceability).
 - **Design assumptions requiring human confirmation (delta review):** the
-  placement of the corpus-wide generation/identity requirements under
-  `runner-verification`; the D3 explicit conversion parameters.
+  identity-ledger mechanism as the D5 mechanical guard (location/encoding
+  left as implementation latitude within the authorized scope); the
+  shared-primitives set exported by `packages/contracts` (D2).
 
 `tasks.md` must not begin implementation of unresolved trust-critical
 behavior merely because this artifact exists.

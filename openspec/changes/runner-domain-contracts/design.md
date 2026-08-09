@@ -61,7 +61,8 @@ packages/contracts  (authored, Zod; layer 1)
   gate-registry/       unique gate id · exact executable+argv ·
                        network: literal "none"
   verification-packs/  pack id → gate-id references only
-  shared identities    CredentialRef · profile ref · gate id · adapter id
+  shared primitives    CredentialRef · ProfileIdentity/ProfileRef ·
+                       AdapterId · GateId · Digest · CapabilityGrant
 
 packages/events  (authored, Zod; layer 2 — imports contracts)
   run-record/          run id · profile identity+digest · enumerated
@@ -109,14 +110,19 @@ per-package conformance suites
 ### D2: Package ownership follows the charters; capabilities may span packages
 
 - **Decision:** profile, launch-assertion, path-policy, gate-registry,
-  verification-pack shapes and the shared identity types (`CredentialRef`,
-  profile ref, gate id, adapter id) are authored in `packages/contracts`;
-  run-record, run-event, and evidence shapes in `packages/events`, which
-  **imports the identity types from `packages/contracts`** (D8). The
-  capability map never encodes package paths.
-- **Rationale:** parent D9 and the charters; identities must be one
-  definition — duplicating them into events or weakening them to bare
-  strings would violate the shared-semantics rule.
+  verification-pack shapes and the **shared runner primitives** —
+  `CredentialRef`, `ProfileIdentity`/`ProfileRef`, `AdapterId`, `GateId`,
+  `Digest`, and `CapabilityGrant` (the profile's capability-group shape) —
+  are authored in `packages/contracts`; run-record, run-event, and
+  evidence shapes in `packages/events`, which **imports the shared
+  primitives from `packages/contracts`** (D8). One authored shape flows
+  through: profile capability group → `capability.granted` event payload →
+  `evidence.granted_capabilities`. **No semantically equivalent second Zod
+  definition exists in `packages/events`.** The capability map never
+  encodes package paths.
+- **Rationale:** parent D9 and the charters; primitives must be one
+  definition — a locally redefined grant shape in events would recreate
+  the exact semantic duplication this architecture eliminates.
 
 ### D3: Zod v4 native generation with an explicit conversion contract
 
@@ -128,8 +134,11 @@ per-package conformance suites
   a design change, not a knob); reused schemas are registered so shared
   identities emit `$defs` references; cycles are not expected and error.
   One generation entry point per package writes `schemas/` with stable,
-  sorted serialization; CI runs regenerate-and-compare and a diff fails
-  the gate. The **authored strict Zod schemas remain the parse
+  sorted serialization. The regenerate-and-compare check is implemented
+  as **package-level conformance tests**, so the existing aggregate gate
+  (`scripts/check.sh` → the workspace test pipeline) executes it without
+  any modification outside #51's authorized path scope; a diff fails the
+  gate. The **authored strict Zod schemas remain the parse
   authority** — generated `additionalProperties: false` is published
   projection, never the proof of runtime strictness (C-PROP-001 exercises
   Zod parsing itself).
@@ -165,13 +174,25 @@ per-package conformance suites
 - **Decision:** every contract carries a stable `contract_id` and an
   **exact** `contract_version` (semantic revision, e.g. `1.0.0`).
   Additive compatible change → minor (`1.0.0 → 1.1.0`); breaking change →
-  major (`1.x → 2.0.0`). The generated `$id` embeds the exact version, so
-  two distinct schema byte sets can never share an identity.
-  **Compatibility direction is explicit:** a newer compatible reader may
-  accept supported older documents; an older strict reader is never
-  assumed to accept newer documents (strict posture guarantees it
-  won't — that is expected, not a compatibility violation). No schema
+  major (`1.x → 2.0.0`). The generated `$id` embeds the exact version,
+  and identity is enforced by a **mechanical identity guard**, not
+  convention: an authored, append-only **identity ledger** in the
+  contract layer maps each `contract_id`@exact-version to the digest of
+  its generated schema bytes. The conformance suite fails
+  deterministically when (a) a generated schema's bytes do not match its
+  ledger digest — shape changed under an unchanged identity — or (b) a
+  generated identity has no ledger entry. A new version appends a ledger
+  line; nothing ever rewrites one. (The ledger is authored, never
+  regenerated — regeneration must not be able to heal an identity
+  violation.) **Compatibility posture:** an older strict reader is never
+  assumed to accept newer documents; cross-version reader compatibility
+  is version-pair-specific and is proven by the change that introduces a
+  second version — this landing proves exact identity only. No schema
   registry yet.
+- **Implementation latitude:** the guard's file location and encoding are
+  implementation detail within the authorized scope; the observable
+  contract is fixed — changed bytes under an unchanged identity ⇒ named,
+  deterministic conformance failure.
 - **Rationale:** the original single-integer scheme let an additive change
   produce a different byte set under the same version-bearing `$id` — two
   schemas, one identity — which the review correctly rejected.
@@ -208,8 +229,9 @@ per-package conformance suites
   (catalog entry, ADR-0012 §19). `packages/events` has two: `zod` and
   `@secure-home/contracts` (`workspace:*`) — the deliberate inward edge of
   the workspace layer map (contracts layer 1, events layer 2), through
-  which events imports the shared identity types instead of duplicating or
-  weakening them. No other dependency enters with this landing.
+  which events imports the shared runner primitives (identities, Digest,
+  CredentialRef, CapabilityGrant) instead of duplicating or weakening
+  them. No other dependency enters with this landing.
   **Inertness is redefined accordingly:** no production consumer *outside
   the L2 contract layer* imports the new runner contracts; the
   `events → contracts` edge never counts against it.
