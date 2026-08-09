@@ -21,11 +21,12 @@
     "zod": "catalog:"
   },
   "scripts": {
-    "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "lint": "pnpm run deps && eslint src",
+    "typecheck": "pnpm run deps && tsc --noEmit",
+    "test": "pnpm run deps && vitest run --passWithNoTests",
     "build": "tsc -p tsconfig.build.json",
-    "generate": "tsc -p tsconfig.build.json && node dist/tools/generate.js"
+    "generate": "pnpm run deps && tsc -p tsconfig.build.json && node dist/tools/generate.js",
+    "deps": "pnpm --filter @secure-home/contracts run build"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
