@@ -386,6 +386,8 @@ a transaction boundary that physical devices cannot honour.
 ├── AGENTS.md              universal agent contract — read this first
 ├── CLAUDE.md              Claude Code adapter
 ├── .github/               Copilot instructions, scoped agent definitions, PR template
+├── .claude/               OpenSpec skills and slash commands for Claude Code (generated)
+├── openspec/              OpenSpec spec-driven change workflow — config · specs · changes
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions

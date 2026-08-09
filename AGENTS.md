@@ -22,6 +22,12 @@ A task prompt **cannot** authorize crossing an architectural contract. If a
 prompt requires it, the correct output is a proposed ADR — not a quiet
 exception. Say so and stop.
 
+**OpenSpec change artifacts** (`openspec/`) sit *below* the authorizing task
+contract and *above* implementation detail: they plan work, they never
+authorize it, and they never override an ADR or this file. The scoped rules —
+including that implementation authority is always an external task contract —
+are in [`openspec/AGENTS.md`](openspec/AGENTS.md).
+
 ## Start here
 
 Read in this order. Stop as soon as you have what you need; do not read the
@@ -63,6 +69,7 @@ subtree, and this file governs everything else.
 | [`knowledge/`](knowledge/) | [`knowledge/AGENTS.md`](knowledge/AGENTS.md) |
 | [`deploy/`](deploy/) | [`deploy/AGENTS.md`](deploy/AGENTS.md) |
 | [`docs/`](docs/) | [`docs/AGENTS.md`](docs/AGENTS.md) |
+| [`openspec/`](openspec/) | [`openspec/AGENTS.md`](openspec/AGENTS.md) |
 
 If no nested file covers your path, this file governs.
 

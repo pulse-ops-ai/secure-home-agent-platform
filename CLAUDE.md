@@ -30,6 +30,7 @@ you find. That one wins for its subtree; the root governs everything else.
 services/control-plane/package.json    →  services/AGENTS.md   →  AGENTS.md
 agents/adapters/codex/README.md        →  agents/AGENTS.md     →  AGENTS.md
 docs/architecture/degraded-mode.md     →  docs/AGENTS.md       →  AGENTS.md
+openspec/changes/foo/tasks.md          →  openspec/AGENTS.md   →  AGENTS.md
 scripts/validate-scaffold.sh           →  (none)               →  AGENTS.md
 ```
 
@@ -127,6 +128,11 @@ no report.
 - **Node:** managed by Corepack from the `packageManager` pin. Do not
   `npm install -g pnpm`.
 - **The upstream repositories are pinned references.** Never modify them.
+- **OpenSpec** (`/opsx:*` commands) is the planning workflow. Artifacts under
+  `openspec/` are planning-only: implementation authority is always an
+  external task contract (a GitHub issue or explicit user task), recorded —
+  never created — in a change's `tasks.md`. See
+  [`openspec/AGENTS.md`](openspec/AGENTS.md).
 - **Knowledge:** Use `knowledge/INDEX.md` to select only the validated knowledge
   modules authorized by the active execution profile; knowledge informs reasoning
   but never grants tools, capabilities, authorization, or permission to override

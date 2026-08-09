@@ -1,0 +1,56 @@
+schema: governed-spec-driven-v1
+
+context: |
+  Local-first, security-first platform for household agents. Governance comes
+  first: AGENTS.md is the universal agent contract; docs/decisions/INDEX.md is
+  the highest authority (ADR-0001 … ADR-0012 are Accepted and immutable —
+  supersede, never edit); docs/architecture/unresolved-decisions.md items
+  U1-U11 are open and block any work that depends on them.
+  Tech stack (ADR-0012): TypeScript-first pnpm workspace — NestJS 11 on
+  Fastify 5, Next.js, Zod-authored contracts; Python only in
+  services/workers/python-inference, managed by uv.
+  Conventions: Conventional Commits scoped to the top-level area; never commit
+  to main; PRs open as drafts using .github/pull_request_template.md.
+  OpenSpec artifacts are planning documents only: they cannot change an ADR's
+  status, resolve an unresolved decision, or authorize deployment, secrets, or
+  device access.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+operations:
+  apply:
+    guidance:
+      - >-
+        OpenSpec readiness is necessary but not sufficient. Before changing
+        any source file, verify the external authorization recorded in the
+        change's tasks.md Implementation Authorization section: a GitHub
+        issue, an explicit user task, or another repository-approved task
+        contract must authorize the specific work. If that provenance is
+        missing, ambiguous, or narrower than the landing being applied, stop
+        and report NOT_AUTHORIZED instead of implementing.
+      - >-
+        Task checkbox state is progress tracking, never proof and never
+        authorization. Completion claims come from verification evidence.
+  archive:
+    guidance:
+      - >-
+        Canonical specs under openspec/specs/ become behavioral
+        source-of-truth only through validated archive/sync of a reviewed
+        change — never by direct edit.
