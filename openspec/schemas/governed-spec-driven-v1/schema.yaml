@@ -27,6 +27,13 @@ artifacts:
       - evidence motivating the change;
       - explicit non-goals.
 
+      Include a Governance section that:
+      - names the governing ADRs from the docs/decisions/INDEX.md
+        "which ADRs apply" table;
+      - declares whether the change depends on any unresolved decision
+        (U1-U11) — dependent work is blocked, not partially started;
+      - states that the change proposes no ADR status change.
+
       Do not prescribe detailed implementation here.
       Implementation mechanics belong in design.md.
     requires: []
@@ -116,7 +123,7 @@ artifacts:
       "How will we know the implementation is correct, complete, reviewable,
       and safe to build on?"
 
-      Derive this artifact from specs.md/spec deltas and design.md.
+      Derive this artifact from the spec deltas (specs/**) and design.md.
       Do not invent new product requirements here.
 
       Include the following sections.

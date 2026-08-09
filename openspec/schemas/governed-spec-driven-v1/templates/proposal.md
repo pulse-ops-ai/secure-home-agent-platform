@@ -54,6 +54,22 @@ operational surfaces affected by the change.
 
 This is impact discovery, not an implementation file list.
 
+## Governance
+
+Name the governing ADRs, from the
+[docs/decisions/INDEX.md](../../docs/decisions/INDEX.md) "which ADRs apply"
+table:
+
+- ADR-XXXX — <why it governs this change>
+
+Declare unresolved-decision dependencies:
+
+- **Depends on U1–U11:** `none | <U-numbers>` — work depending on an open item
+  is blocked, not partially started.
+
+This change proposes **no ADR status change**. Amending or reversing an
+accepted ADR requires a new superseding ADR through its own human review.
+
 ## Trust / Security / Data Considerations
 
 State whether the change affects any of the following:
