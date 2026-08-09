@@ -17,7 +17,7 @@
  * which is the stronger guarantee.)
  */
 import { z } from 'zod'
-import { GateId, SemVer } from './primitives.js'
+import { GateId, SemVer } from '../primitives/index.js'
 
 export const GATE_REGISTRY_ID = 'gate-registry' as const
 export const GATE_REGISTRY_VERSION = '1.0.0' as const

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { ExecutionProfile } from './execution-profile.js'
-import { generateArtifacts } from './generation.js'
+import { generateArtifacts } from '../schema/generation.js'
 
 const mulberry32 = (seed: number) => (): number => {
   seed |= 0

@@ -7,7 +7,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { generateArtifacts } from '../generation.js'
+import { generateArtifacts } from '../schema/generation.js'
 
 const main = async (): Promise<void> => {
   const here = dirname(fileURLToPath(import.meta.url))

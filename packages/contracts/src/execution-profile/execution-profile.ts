@@ -11,7 +11,7 @@ import {
   ProfileRef,
   RoutingClass,
   SemVer,
-} from './primitives.js'
+} from '../primitives/index.js'
 
 export const EXECUTION_PROFILE_ID = 'execution-profile' as const
 export const EXECUTION_PROFILE_VERSION = '1.0.0' as const

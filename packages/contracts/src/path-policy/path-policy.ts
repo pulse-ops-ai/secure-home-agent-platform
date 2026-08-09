@@ -3,7 +3,7 @@
  * consumed by a neutral engine. Shapes only — enforcement is L3.
  */
 import { z } from 'zod'
-import { SemVer } from './primitives.js'
+import { SemVer } from '../primitives/index.js'
 
 export const PATH_POLICY_ID = 'path-policy' as const
 export const PATH_POLICY_VERSION = '1.0.0' as const

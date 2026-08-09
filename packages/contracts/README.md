@@ -2,11 +2,34 @@
 
 The authored Zod contract source.
 
-> **Status: package boundary only.** Zod is not yet a dependency. This package
-> is the **shared authored contract source**; domain-specific issues own
-> specific slices — the runner domain contracts via **L2/#51** (under the
-> `runner-baseline-adoption` constitution), the household/read-only contract
-> slice via **#28**. No slice owns the package globally.
+> **Status: runner slice implemented.** This package is the **shared authored
+> contract source**; domain-specific issues own specific slices — the runner
+> domain contracts via **L2/#51** (under the `runner-baseline-adoption`
+> constitution, implemented by the `runner-domain-contracts` change), the
+> household/read-only contract slice via **#28**. No slice owns the package
+> globally.
+
+## Layout
+
+One directory per bounded contract family. Consumers import only the package
+index; the internal organization is not API.
+
+```text
+src/
+├── primitives/        # shared runner primitives (Digest, CapabilityGrant, …)
+├── execution-profile/ # the platform's authority shape
+├── launch-assertion/  # the composed launch as data
+├── path-policy/       # declarative write-boundary policy
+├── verification/      # gate registry, gate outcomes, verification packs
+├── schema/            # artifact catalog (pure) + renderer and ledger guard (build-only)
+├── conformance/       # corpus-wide proof suites (neutrality, strictness, identity, …)
+└── tools/             # schema writer, run by `pnpm run generate`
+```
+
+`schema/index.ts` re-exports only the pure artifact catalog. The renderer
+(`generation.ts`, needs Prettier) and the identity-ledger guard
+(`ledger-history.ts`) are build/CI tooling and are never exported from the
+package index — the package's only runtime dependency is Zod.
 
 ## What belongs here
 

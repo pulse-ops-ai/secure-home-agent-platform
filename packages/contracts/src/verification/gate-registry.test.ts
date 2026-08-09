@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { GateOutcome, GateRegistry, GateResults } from './gate-registry.js'
-import { generateArtifacts } from './generation.js'
+import { generateArtifacts } from '../schema/generation.js'
 
 const spec = () => ({
   executable: 'pnpm',

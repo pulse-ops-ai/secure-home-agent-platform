@@ -6,7 +6,7 @@
  * field exists, so a pack cannot smuggle a command.
  */
 import { z } from 'zod'
-import { GateId, SemVer } from './primitives.js'
+import { GateId, SemVer } from '../primitives/index.js'
 
 export const VERIFICATION_PACKS_ID = 'verification-packs' as const
 export const VERIFICATION_PACKS_VERSION = '1.0.0' as const

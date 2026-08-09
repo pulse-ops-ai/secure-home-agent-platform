@@ -5,7 +5,7 @@
  * unrepresentable, never redacted.
  */
 import { z } from 'zod'
-import { CredentialRef, Digest, SemVer } from './primitives.js'
+import { CredentialRef, Digest, SemVer } from '../primitives/index.js'
 
 export const LAUNCH_ASSERTION_ID = 'launch-assertion' as const
 export const LAUNCH_ASSERTION_VERSION = '1.0.0' as const

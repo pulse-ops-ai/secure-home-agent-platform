@@ -10,19 +10,21 @@ import {
   EXECUTION_PROFILE_ID,
   EXECUTION_PROFILE_VERSION,
   ExecutionProfile,
-} from './execution-profile.js'
-import { GATE_REGISTRY_ID, GATE_REGISTRY_VERSION, GateRegistry } from './gate-registry.js'
+} from '../execution-profile/index.js'
 import {
   LAUNCH_ASSERTION_ID,
   LAUNCH_ASSERTION_VERSION,
   LaunchAssertion,
-} from './launch-assertion.js'
-import { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from './path-policy.js'
+} from '../launch-assertion/index.js'
+import { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from '../path-policy/index.js'
 import {
+  GATE_REGISTRY_ID,
+  GATE_REGISTRY_VERSION,
+  GateRegistry,
   VERIFICATION_PACKS_ID,
   VERIFICATION_PACKS_VERSION,
   VerificationPacks,
-} from './verification-packs.js'
+} from '../verification/index.js'
 
 export interface ContractArtifact {
   readonly id: string
