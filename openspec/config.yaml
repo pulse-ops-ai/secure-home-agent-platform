@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: governed-spec-driven-v1
 
 context: |
   Local-first, security-first platform for household agents. Governance comes

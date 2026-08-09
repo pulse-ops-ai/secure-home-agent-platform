@@ -1,0 +1,333 @@
+name: governed-spec-driven-v1
+version: 1
+
+description: >
+  Governed spec-driven development workflow for secure-home-agent-platform.
+  Extends the standard proposal/specs/design/tasks workflow with a mandatory
+  pre-implementation assurance artifact that defines invariants, state-space
+  coverage, proof obligations, verification strategy, landing seams, and
+  review posture before implementation tasks are authorized.
+
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: >
+      Change proposal describing why the change is needed, what capability
+      changes, and its expected impact.
+    template: proposal.md
+    instruction: |
+      Create the change proposal.
+
+      Explain WHY the change is needed and WHAT capability changes.
+
+      Identify:
+      - the observed problem or opportunity;
+      - affected capabilities and systems;
+      - known trust, security, compatibility, or migration concerns;
+      - evidence motivating the change;
+      - explicit non-goals.
+
+      Do not prescribe detailed implementation here.
+      Implementation mechanics belong in design.md.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: >
+      Observable behavioral requirements and scenarios forming the normative
+      contract for the change.
+    template: spec.md
+    instruction: |
+      Define the normative behavior of the change using OpenSpec requirements
+      and scenarios.
+
+      Requirements describe WHAT must hold, not implementation mechanics.
+
+      For every requirement:
+      - define observable behavior;
+      - include positive and negative scenarios;
+      - identify failure behavior where relevant;
+      - distinguish candidate-attributable behavior from environmental or
+        operational failure when that distinction matters;
+      - avoid duplicating implementation decisions from design.md.
+
+      Use the standard OpenSpec requirement/scenario structure so normal
+      OpenSpec validation and archive behavior remain compatible.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: >
+      Technical architecture and implementation design, including trust
+      boundaries, ownership, alternatives, and dependency structure.
+    template: design.md
+    instruction: |
+      Create the technical design explaining HOW the accepted behavior will
+      be implemented.
+
+      Define:
+      - architecture and component responsibilities;
+      - trust and authority boundaries;
+      - data and control flow;
+      - state transitions;
+      - interfaces and contracts;
+      - failure classification boundaries;
+      - compatibility and migration strategy;
+      - security implications;
+      - alternatives considered and rejected.
+
+      For trust-critical or stateful behavior, include decision tables where
+      prose alone would leave combinations ambiguous.
+
+      Explicitly identify:
+      - logic that may be shared;
+      - logic that must remain independently implemented;
+      - atomic landing seams or serial PR boundaries;
+      - behavior intentionally deferred to later landings.
+
+      Do not mark implementation tasks complete here.
+    requires:
+      - proposal
+
+  - id: assurance
+    generates: assurance.md
+    description: >
+      Pre-implementation proof and verification plan establishing that the
+      design and specification are sufficiently complete to implement and
+      review safely.
+    template: assurance.md
+    instruction: |
+      Create the pre-implementation assurance plan.
+
+      This artifact answers:
+      "How will we know the implementation is correct, complete, reviewable,
+      and safe to build on?"
+
+      Derive this artifact from specs.md/spec deltas and design.md.
+      Do not invent new product requirements here.
+
+      Include the following sections.
+
+      ## Risk classification
+
+      Classify the change as low, medium, high, or trust-critical.
+
+      Explain the classification using concrete characteristics such as:
+      - authorization or authentication;
+      - PII or encryption;
+      - persistence migrations;
+      - concurrency or transaction behavior;
+      - public cross-package contracts;
+      - runner/review machinery;
+      - candidate binding or materialization;
+      - reconciliation or readiness authority.
+
+      ## Invariants
+
+      List the properties that must always hold.
+
+      Each invariant must have a stable identifier.
+
+      Distinguish:
+      - behavioral invariants;
+      - security/trust invariants;
+      - data-integrity invariants;
+      - compatibility invariants;
+      - review/governance invariants.
+
+      ## State-space model
+
+      Enumerate the independent dimensions that materially affect behavior.
+
+      Example dimensions may include:
+      - required vs optional;
+      - present vs absent;
+      - complete vs shallow history;
+      - valid vs malformed;
+      - candidate vs operational failure;
+      - unique vs duplicated source;
+      - unchanged vs relocated vs modified.
+
+      Do not blindly generate the Cartesian product.
+      Identify meaningful interactions that require proof.
+
+      ## Decision tables
+
+      For behavior with multiple interacting dimensions, define explicit
+      state × condition × outcome tables.
+
+      Every row must identify:
+      - the observable state;
+      - the proof available;
+      - the required outcome;
+      - whether failure is candidate-attributable or operational.
+
+      An undecidable state must not be silently mapped to success.
+
+      ## Cross-requirement interactions
+
+      Identify combinations of individually valid requirements that could
+      interact incorrectly.
+
+      This section is mandatory for high-risk and trust-critical changes.
+
+      ## Proof obligations
+
+      Map every current-scope invariant and important scenario to the form of
+      evidence that will prove it.
+
+      Allowed proof classes include:
+      - deterministic example test;
+      - property test;
+      - mutation test;
+      - hostile/adversarial fixture;
+      - integration test;
+      - schema/contract validation;
+      - independent re-derivation;
+      - manual evidence when automation is impossible.
+
+      Do not claim that a test proves behavior outside what it actually
+      exercises.
+
+      ## Property tests
+
+      Define general properties that should hold across generated combinations.
+
+      Examples:
+      - ordering does not change a canonical result;
+      - producer output is accepted by an independent verifier;
+      - changing a security-relevant field changes the digest;
+      - operational failure never becomes a candidate finding;
+      - deduplication changes byte accounting but not obligation identity.
+
+      Mark this section not_applicable only with a reason.
+
+      ## Hostile corpus
+
+      List concrete adversarial cases required before implementation can be
+      considered complete.
+
+      Include cases arising from:
+      - malformed inputs;
+      - missing data;
+      - duplicated data;
+      - stale state;
+      - corruption;
+      - boundary values;
+      - partial failure;
+      - environmental failure;
+      - previously observed defects.
+
+      ## Mutation targets
+
+      Identify critical guards whose removal or weakening must cause tests to
+      fail.
+
+      For low-risk changes this may be not_applicable with justification.
+
+      ## Traceability plan
+
+      Map accepted requirements and scenarios to:
+      - current landing;
+      - responsible task or task group;
+      - expected proof/hunter;
+      - explicitly deferred landing when applicable.
+
+      A deferred scenario must have a named due landing or task.
+      Do not use a generic "later" bucket.
+
+      ## Landing plan
+
+      Define the implementation landing seam.
+
+      State:
+      - whether the change is one PR or a serial sequence;
+      - which components must land atomically;
+      - which verification net must land with each component;
+      - what remains inert until activation;
+      - which PR, if any, changes authority.
+
+      For serial trust-sensitive changes, explain why each landing is safe for
+      the next landing to build and be reviewed against.
+
+      ## Review plan
+
+      Define which review surfaces are required at the complete seam.
+
+      Distinguish:
+      - evidence review;
+      - repository-aware semantic review;
+      - contract-conformance obligations;
+      - engineering/architecture review when required;
+      - deterministic reconciliation.
+
+      Do not require repeated full reviews at known-incomplete construction
+      checkpoints unless explicitly justified.
+
+      ## Rollout and rollback
+
+      For changes that alter authority, runtime behavior, security posture, or
+      shared infrastructure, define:
+      - shadow/advisory phase when applicable;
+      - measurements required before activation;
+      - activation condition;
+      - rollback condition.
+
+      Use not_applicable with justification for low-risk changes.
+
+      ## Assurance completeness
+
+      Conclude with:
+      - unresolved state-model questions;
+      - requirements lacking proof;
+      - scenarios intentionally deferred;
+      - design assumptions requiring human confirmation.
+
+      tasks.md must not begin implementation of unresolved trust-critical
+      behavior merely because this artifact exists.
+    requires:
+      - specs
+      - design
+
+  - id: tasks
+    generates: tasks.md
+    description: >
+      Dependency-ordered implementation plan whose tasks are traceable to the
+      accepted specification, design, and assurance plan.
+    template: tasks.md
+    instruction: |
+      Create the implementation task plan from the accepted specs, design, and
+      assurance artifacts.
+
+      Every task must:
+      - have a stable task identifier;
+      - identify the requirement/scenario/invariant it implements or proves;
+      - identify affected paths where known;
+      - identify the declared verification/proof required for completion;
+      - respect the landing plan and atomic seams;
+      - preserve explicit deferred work rather than silently absorbing it.
+
+      Organize tasks in dependency order.
+
+      Verification work must ship with the component it protects.
+      Do not put the entire adversarial/property/mutation net at the end when
+      earlier components depend on that proof for safe landing.
+
+      For serial PRs:
+      - group tasks by landing;
+      - state the completion boundary for each landing;
+      - do not mark a landing complete while its required proof obligations
+        remain deferred.
+
+      Task completion is operational state and must not redefine normative
+      requirements or design decisions.
+    requires:
+      - specs
+      - design
+      - assurance
+
+apply:
+  requires:
+    - tasks
+  tracks: tasks.md
