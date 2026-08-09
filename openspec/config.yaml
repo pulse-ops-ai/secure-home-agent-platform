@@ -34,14 +34,23 @@ context: |
 #     tasks:
 #       - Break tasks into chunks of max 2 hours
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - >-
+        OpenSpec readiness is necessary but not sufficient. Before changing
+        any source file, verify the external authorization recorded in the
+        change's tasks.md Implementation Authorization section: a GitHub
+        issue, an explicit user task, or another repository-approved task
+        contract must authorize the specific work. If that provenance is
+        missing, ambiguous, or narrower than the landing being applied, stop
+        and report NOT_AUTHORIZED instead of implementing.
+      - >-
+        Task checkbox state is progress tracking, never proof and never
+        authorization. Completion claims come from verification evidence.
+  archive:
+    guidance:
+      - >-
+        Canonical specs under openspec/specs/ become behavioral
+        source-of-truth only through validated archive/sync of a reviewed
+        change — never by direct edit.

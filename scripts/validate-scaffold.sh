@@ -443,6 +443,98 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 10. OpenSpec governance
+#
+# Structural invariants of the OpenSpec adoption: the config selects the
+# governed schema, the artifact DAG keeps assurance before tasks and tasks
+# before apply, every referenced template exists with balanced code fences,
+# and the governance/authorization wording is present.
+#
+# These checks are dependency-free and STRUCTURAL ONLY. They are not
+# equivalent to OpenSpec validation — artifact-level checks require the
+# OpenSpec CLI (`openspec validate <change> --strict`), run per change.
+# ---------------------------------------------------------------------------
+
+section "OpenSpec governance"
+
+OS_SCHEMA_DIR="openspec/schemas/governed-spec-driven-v1"
+OS_SCHEMA="$OS_SCHEMA_DIR/schema.yaml"
+
+if grep -q '^schema: governed-spec-driven-v1$' openspec/config.yaml 2>/dev/null; then
+  pass "openspec/config.yaml selects governed-spec-driven-v1"
+else
+  fail "openspec/config.yaml does not select governed-spec-driven-v1"
+fi
+
+if [ -f "$OS_SCHEMA" ]; then
+  pass "$OS_SCHEMA exists"
+
+  for tpl in $(sed -n 's/^ *template: *//p' "$OS_SCHEMA" | sort -u); do
+    if [ -f "$OS_SCHEMA_DIR/templates/$tpl" ]; then
+      pass "template $tpl resolves"
+    else
+      fail "schema references templates/$tpl, which does not exist"
+    fi
+  done
+
+  if awk '/- id: assurance/,/- id: tasks/' "$OS_SCHEMA" | grep -q -- '- specs' \
+    && awk '/- id: assurance/,/- id: tasks/' "$OS_SCHEMA" | grep -q -- '- design'; then
+    pass "assurance requires specs and design"
+  else
+    fail "assurance artifact no longer requires specs and design"
+  fi
+
+  if awk '/- id: tasks/,/^apply:/' "$OS_SCHEMA" | grep -q -- '- assurance'; then
+    pass "tasks requires assurance"
+  else
+    fail "tasks artifact no longer requires assurance"
+  fi
+
+  if awk '/^apply:/,0' "$OS_SCHEMA" | grep -q -- '- tasks'; then
+    pass "apply requires tasks"
+  else
+    fail "apply phase no longer requires tasks"
+  fi
+else
+  fail "$OS_SCHEMA is missing"
+fi
+
+for tpl in "$OS_SCHEMA_DIR"/templates/*.md; do
+  [ -f "$tpl" ] || continue
+  fences="$(grep -c '^[[:space:]]*```' "$tpl" || true)"
+  if [ $((fences % 2)) -eq 0 ]; then
+    pass "balanced code fences: ${tpl##*/}"
+  else
+    fail "unbalanced code fences in $tpl ($fences markers)"
+  fi
+done
+
+if grep -q '^## Governance' "$OS_SCHEMA_DIR/templates/proposal.md" 2>/dev/null; then
+  pass "proposal template requires a Governance section"
+else
+  fail "proposal template is missing its Governance section"
+fi
+
+if grep -q 'RECORDS external authorization' "$OS_SCHEMA_DIR/templates/tasks.md" 2>/dev/null \
+  && grep -q 'NOT_AUTHORIZED' "$OS_SCHEMA_DIR/templates/tasks.md" 2>/dev/null; then
+  pass "tasks template records external authorization (never creates it)"
+else
+  fail "tasks template lost the external-authorization provenance wording"
+fi
+
+if grep -q 'necessary but not sufficient' openspec/config.yaml 2>/dev/null; then
+  pass "config.yaml carries the apply authorization guidance"
+else
+  fail "config.yaml is missing the apply authorization guidance"
+fi
+
+if [ -f openspec/AGENTS.md ]; then
+  pass "openspec/AGENTS.md exists"
+else
+  fail "openspec/AGENTS.md is missing — OpenSpec has no scoped governance"
+fi
+
+# ---------------------------------------------------------------------------
 
 section "Result"
 

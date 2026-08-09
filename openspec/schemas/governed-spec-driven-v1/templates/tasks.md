@@ -18,9 +18,34 @@ model.
 
 ## Implementation Authorization
 
-Assurance status:
+This section RECORDS external authorization. It can never create it.
+
+OpenSpec artifacts are planning documents. The implementation authority is a
+GitHub issue, an explicit user task, or another repository-approved task
+contract — never this file, and never the assurance artifact.
+
+### External authority
+
+| Field | Value |
+|---|---|
+| Source type | `github_issue \| user_task \| task_contract` |
+| Source id / link | <issue number, task reference, or contract path> |
+| Authorized scope | <the landings/tasks the authority actually covers> |
+| Constraints | <constraints the authority imposes, or `none stated`> |
+| Owner | <who authorized, where available> |
+| Recorded at | <date / revision, where available> |
+
+### Status
 
 **`<AUTHORIZED | AUTHORIZED_WITH_EXPLICIT_DEFERRED_ITEMS | NOT_AUTHORIZED>`**
+
+Status derivation rules:
+
+- Missing, ambiguous, or unverifiable provenance ⇒ `NOT_AUTHORIZED`.
+- Authority narrower than the landing plan ⇒ `NOT_AUTHORIZED` for every
+  uncovered landing; name them explicitly.
+- Assurance completeness is necessary but never sufficient. A complete
+  assurance artifact with no external authority is `NOT_AUTHORIZED`.
 
 If the status is `NOT_AUTHORIZED`, implementation tasks must not begin.
 

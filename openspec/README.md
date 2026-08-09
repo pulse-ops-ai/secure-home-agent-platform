@@ -28,4 +28,19 @@ Planning documents only. A change here:
   workflow from reviewed changes, not by tooling.
 
 Precedence is unchanged: accepted ADRs and `AGENTS.md` govern; a change that
-conflicts with them is wrong, not authoritative.
+conflicts with them is wrong, not authoritative. The scoped agent contract is
+[`AGENTS.md`](AGENTS.md) in this directory.
+
+## Validation
+
+Two layers, deliberately distinct:
+
+- **Repository gate** — `bash scripts/validate-scaffold.sh` (run by
+  `scripts/check.sh` and CI) enforces the *structural* invariants:
+  `config.yaml` selects the governed schema, the artifact DAG keeps
+  assurance before tasks and tasks before apply, referenced templates exist
+  with balanced fences, and the governance/authorization wording is present.
+  This is dependency-free and **not equivalent to OpenSpec validation**.
+- **OpenSpec CLI** — artifact-level correctness (`openspec validate
+  <change> --strict`, `openspec schemas`) requires the CLI and is run per
+  change, not in the merge gate.

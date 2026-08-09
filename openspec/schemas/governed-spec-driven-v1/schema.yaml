@@ -319,6 +319,13 @@ artifacts:
       Create the implementation task plan from the accepted specs, design, and
       assurance artifacts.
 
+      The Implementation Authorization section RECORDS external authorization
+      — it never creates it. Capture the authority source type and id (GitHub
+      issue, explicit user task, or repository-approved task contract), the
+      authorized scope/landings, constraints, and owner where available.
+      Missing, ambiguous, or narrower-than-plan provenance means
+      NOT_AUTHORIZED. Assurance completeness is necessary but not sufficient.
+
       Every task must:
       - have a stable task identifier;
       - identify the requirement/scenario/invariant it implements or proves;
