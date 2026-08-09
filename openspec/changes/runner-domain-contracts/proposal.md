@@ -50,8 +50,9 @@ decisions, no refusal logic, no orchestration, no consumer.
 - The contract conformance suite: structural-neutrality scan, strictness
   properties, adding-an-adapter-changes-no-schema falsification test —
   re-runnable at L7/L8.
-- Surfacing the canonical capability decomposition as the central design
-  decision for this change's review (see Open Questions).
+- The canonical capability decomposition — **accepted by the planning
+  review (D1)** and enacted as four capability deltas: `execution-profile`,
+  `runner-execution`, `runner-verification`, `runner-evidence`.
 
 ### Out of scope
 
@@ -89,7 +90,8 @@ apply" table:
 Canonical inherited contract: `openspec/specs/runner-adoption/spec.md` —
 this change inherits, at shape level, INV-002 (provider neutrality, opaque
 `adapter`), INV-003 (outcome classification vocabulary), INV-005
-(authority-from-profile shape), INV-012 (runtime neutrality), INV-015
+(authority-from-profile shape), INV-011 (evidence shape), INV-012
+(runtime neutral structurally, runtime identity as evidence data), INV-015
 (digest-bound generation chain), and INV-016 (closed gate-outcome
 vocabulary).
 
@@ -105,10 +107,13 @@ This change proposes **no ADR status change**.
 
 - Public cross-package contracts: **yes** — this change defines them. Shapes
   only; nothing executes, grants, or validates at runtime here.
-- Credential handling appears only as a *reference shape*: credentials are
-  named by environment-variable name; a credential value is unrepresentable
-  in any contract (the launch assertion's secret-presence field admits only
-  `false`).
+- Credential handling appears only as a *reference shape*: every field
+  whose semantic purpose is credential transport admits `CredentialRef`
+  (environment-variable names) only, and the launch assertion and
+  evidence/identity structures carry no credential-value slot (the
+  secret-presence field admits only `false`). Whether arbitrary unrelated
+  text contains secret material is a scanning/runtime concern (L4/L9), not
+  a shape claim.
 - No secrets, no live services, no deployment, no runtime dependency beyond
   Zod (catalog-managed, authorized by #51 naming this work).
 
@@ -147,18 +152,16 @@ re-runnable when adapters exist; and the landing is verifiably inert.
 
 - No runtime behavior, no consumer, no engine selection beyond what
   ADR-0012 already decides.
-- No canonical-capability archive decision made unilaterally (see Q1).
+- No planning change self-authorized: the status flip (task 0.1) happens
+  only on the delta review's approval, after any edits it requires.
 - No provider-specific structure, no persistence, no household contracts.
 
 ## Open Questions
 
-- **Q1 (the review's central decision):** the canonical capability
-  decomposition for these contracts — the proposed grouping is
-  `execution-profile / runner-execution / runner-verification /
-  runner-evidence` (design D1, with alternatives). The spec delta is
-  authored as a single `runner-domain-contracts` capability pending that
-  decision; enacting the accepted grouping is the first post-review task.
-- **Q2:** versioning depth for v1 — per-contract `contract_version`
-  constants plus package semver and stated compatibility rules (design D5);
-  the review confirms whether that is sufficient before any consumer
-  exists.
+None held open. Q1 (capability decomposition) was accepted by the
+2026-08-09 planning review and is enacted in this revision; Q2 (versioning)
+was resolved by the same review with the exact-identity model now in D5.
+The pending **delta-only review** confirms this enacted artifact set,
+including the placement of the corpus-wide generation/identity
+requirements under `runner-verification` and the D3 explicit conversion
+parameters.
