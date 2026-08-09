@@ -220,9 +220,9 @@ classification.
 
 ## Open Questions
 
-- **Q1:** upstream sync posture — one-shot vendor pin at `941160c0` with the
-  PR-5 re-evaluation trigger (recommended), or periodic re-inventory?
-- **Q2:** the four Copilot CLI capability verifications — answered by the
-  capability-spike landing before the derived-image landing is authorized.
-- **Q3:** gate-toolchain image naming and whether it lives in the ADR-0011
-  lineage or beside it (input to the base-image landing).
+- **Q1:** the five Copilot CLI capability/credential verifications —
+  answered by the spike landing; their outcome shapes the platform-adapters
+  landing that follows the U6 ADR.
+- **Q2:** the gate-toolchain image name and registry placement — D7 already
+  places the toolchain outside the ADR-0011 runner lineage; only naming and
+  registry location remain, confirmed at the image-lineage landing.

@@ -80,7 +80,7 @@ State whether the change affects any of the following:
 - transaction or concurrency behavior;
 - public package or API contracts;
 - runner, review, or materialization machinery;
-- candidate binding or evidence;
+- proposed-change-set binding or evidence;
 - reconciliation or readiness authority;
 - deployment or production isolation.
 

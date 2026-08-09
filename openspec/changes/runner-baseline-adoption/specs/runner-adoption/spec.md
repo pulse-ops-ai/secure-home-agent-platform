@@ -192,7 +192,9 @@ dropped.
 Verification gates SHALL execute only as an exact executable plus argv array
 declared in the repository-owned registry — never a shell string, never
 arguments composed by the model or the caller — and gate execution SHALL
-have no network access unless the registry entry explicitly declares it.
+have no network access. A networked verifier is a separately reviewed
+capability, never a registry exception; only the execution profile grants
+egress, and gates hold no profile.
 
 #### Scenario: Undeclared gate is refused before spend
 

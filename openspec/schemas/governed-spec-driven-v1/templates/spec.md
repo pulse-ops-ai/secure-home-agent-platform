@@ -27,7 +27,7 @@ The system SHALL <observable required behavior>.
 
 Clarify important semantics directly in the requirement when necessary.
 Where failure classification is part of the behavior, state it in the
-scenarios: distinguish candidate-attributable failure from operational
+scenarios: distinguish change-attributable failure from operational
 failure, and never collapse an undecidable state into success.
 
 #### Scenario: <Positive behavior>
@@ -83,7 +83,7 @@ Distinguish where applicable:
 
 | Condition | Required outcome | Classification |
 |---|---|---|
-| <candidate-controlled defect> | <result> | candidate |
+| <change-attributable defect> | <result> | change-attributable |
 | <environment unavailable> | <result> | operational |
 | <state cannot be safely determined> | <result> | operational / fail-closed |
 

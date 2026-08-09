@@ -31,7 +31,7 @@ Consider:
 - public contracts;
 - review/runner machinery;
 - materialization;
-- candidate/evidence binding;
+- proposed-change-set/evidence binding;
 - reconciliation/readiness authority;
 - infrastructure security boundaries.
 
@@ -47,13 +47,11 @@ Each invariant must have a stable ID.
 Examples of appropriate invariants:
 
 ```text
-Operational failure can never become a candidate finding.
+Operational failure can never become a change-attributable finding.
 
 Every required obligation must receive one terminal disposition.
 
-The bytes verified must be the bytes rendered.
-
-Deduplication may reduce byte accounting but never obligation identity.
+An undecidable state never classifies as success.
 ```
 
 ## State-Space Model
@@ -75,7 +73,7 @@ state × condition × outcome tables.
 
 | Observable state | Proof available | Required outcome | Classification |
 |---|---|---|---|
-| <state> | <proof> | <outcome> | candidate / operational |
+| <state> | <proof> | <outcome> | change-attributable / operational |
 
 An undecidable state must not be silently mapped to success.
 

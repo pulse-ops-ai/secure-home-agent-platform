@@ -168,7 +168,10 @@ adapter → uniform events → sealed evidence.
   boundary; **no provider-specific configurable structure enters any
   platform contract before the U6 ADR**. The sequence is: Copilot
   capability/credential spike → **#11/U6 SPI ADR (human acceptance)** →
-  Copilot adapter and derived image. Claude↔Copilot conformance is a
+  the platform Claude reference adapter, the Copilot adapter, and the
+  Copilot derived image (U6 blocks every adapter, the reference one
+  included; before the ADR, Claude participates as the reference image and
+  spike vehicle only). Claude↔Copilot conformance is a
   **coding-adapter conformance seed**; framework conformance completes only
   with a dissimilar adapter (a plain deterministic loop), per U6's recorded
   approach.
@@ -187,24 +190,27 @@ adapter → uniform events → sealed evidence.
   the conformance suite needs a second adapter, and ADR-0011 is built for
   coexistence).
 
-### D5: Platform domain vocabulary (proposed — pending owner acceptance)
+### D5: Platform domain vocabulary (accepted 2026-08-09)
 
-- **Decision (proposed):** the new domain schemas use platform-native
+- **Decision (accepted):** the new domain schemas use platform-native
   terms. Mapping from upstream vocabulary:
 
 | Upstream term                          | Platform term (proposed)              |
 | -------------------------------------- | ------------------------------------- |
 | candidate (change set)                 | proposed change set                   |
-| candidate-attributable                 | agent-attributable                    |
+| candidate-attributable                 | change-attributable                    |
 | operational (failure)                  | operational (kept)                    |
 | hunter                                 | proving test                          |
 | landing                                | landing (kept — already in templates) |
 | byte accounting / obligation identity  | deferred with citation-evidence       |
 
 - **Rationale:** reimplementation authors the vocabulary anyway; terms
-  should name platform concepts (agents, runs, profiles) rather than
-  inherited pipeline jargon. The template vocabulary freeze resolves here:
-  templates are reconciled to whatever this table says once accepted.
+  should name platform concepts rather than inherited pipeline jargon.
+  `change-attributable` (not `agent-attributable`): a reviewer can discover
+  a defect in a human-authored change or one produced by another agent —
+  the failure belongs to the change being evaluated, never the reviewing
+  agent. The canonical workflow templates are reconciled to this table in
+  the same seam that accepted it.
 - **Alternatives considered:** keeping upstream vocabulary wholesale
   (workable but imports concepts with no platform referent).
 
@@ -334,9 +340,9 @@ mechanism, **defer** = not carried, named trigger.
 | Read-once, digest-bound authority inputs         | adopt   | `packages/runner-core`                   | spec: "Authority inputs are captured once and digest-bound"        |
 | Protected governing context (run can't judge-shop) | adopt | `packages/runner-core`                   | spec: "A run cannot alter what judges it"                          |
 | Workspace-diff-is-truth + claim cross-check      | adopt   | `packages/runner-core`                   | spec: "Evidence outranks claims"                                   |
-| Exit-code outcome discipline (0/1/2)             | adopt   | all runner tools                         | spec: "Outcome classification"                                     |
+| Exit-code outcome discipline (0/1/2)             | adapt   | CLI boundaries + runner-control          | CLIs retain 0/1/2; runner-control exposes typed service outcomes (D6 state machine) |
 | Evidence catalog written last + verifier         | adopt   | `packages/runner-core`                   | spec: "sealed, independently re-derivable, fail-closed"            |
-| Hardened container launch flag set               | adopt   | runner-control launcher (post-U4)        | plus ceilings from D8                                              |
+| Hardened container launch posture                | adapt   | runner-control launcher (post-U4)        | posture kept; ceilings added (D8); expressed runtime-neutrally     |
 | Consent gates for paid runs                      | adopt   | runner-control                           | becomes an owned API, not env convention                           |
 | Gate registry (exact argv, no shell)             | adopt   | platform gate contract                   | spec: "Gates execute only from the exact-argv registry"            |
 | `--network none` gate containers                 | adopt   | runner-control + gates toolchain image   | read-only warmed toolchain mount                                   |
@@ -367,7 +373,7 @@ Gap → landing mapping:
 | Orchestration is bash; no lifecycle owner  | L4                          |
 | No image lineage                           | L5                          |
 | Copilot capabilities/custody unverified    | L6                          |
-| No Copilot adapter/image                   | L7 (post-U6 ADR)            |
+| No platform adapter implementations        | L7 (post-U6 ADR)            |
 | No coding-adapter conformance              | L8                          |
 | Network `open`; no ceilings; no launcher   | L9 (post-U4 ADR)            |
 | No framework-neutral conformance proof     | L10                         |
@@ -401,7 +407,7 @@ the U6 ADR.
 Classification happens in trusted host code, never in the model or the
 adapter. Contract refusal (bound violated → refusal evidence, exit 1) is
 distinct from operational failure (environment fault, exit 2); an
-undecidable state refuses. Agent-attributable versus operational
+undecidable state refuses. Change-attributable versus operational
 classification of run outcomes lives in the evidence contract (vocabulary
 per D5).
 
@@ -471,7 +477,8 @@ L6  Copilot capability +      answers the five verifications, incl.
                               with L5; evidence for the U6 ADR)
 ──  GATE: #11 / U6 ADR        human-accepted SPI decision, defined against
                               dissimilar adapters
-L7  Copilot adapter + derived image
+L7  platform adapters       Claude reference adapter + Copilot adapter +
+                              Copilot derived image (all post-U6)
 L8  coding-adapter            Claude ↔ Copilot: same profile, same run →
     conformance seed          same events/evidence. A seed, not framework
                               conformance
@@ -492,15 +499,14 @@ core with its own proof net before anything consumes it; L4 lands
 orchestration against the core through typed interfaces, with the boundary
 proven in both directions by dependency checks and no container launch; L5
 images are unreferenced until a profile pins them; L7 cannot merge before
-the U6 ADR is accepted and L6's evidence exists; L9 cannot land before the
+the U6 ADR is accepted and L6's evidence exists — and it implements both
+platform adapters, so L8 has two real parties; L9 cannot land before the
 U4 ADR because enforcement without a placement decision hard-codes one; L10
 is the only point at which "uniform across adapters" may be claimed at
 ADR-0003's full strength.
 
 ## Open Questions
 
-- D5 vocabulary table — pending owner acceptance; templates reconcile to it
-  when accepted.
 - `secure-home-gates-toolchain` naming and registry placement — confirmed at
   L5.
 - The shape of L7 depends on L6's findings (native structured output vs
