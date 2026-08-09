@@ -49,14 +49,20 @@ The contract is specified in
 the modules and sets it selects from are registered in
 [`../knowledge/INDEX.md`](../knowledge/INDEX.md).
 
-> **Not yet schema, and not yet adopted.** That document defines the
-> knowledge-policy **seam** only. It deliberately does not redesign the execution
-> profile, does not assume the profile schema starts from scratch, and settles no
-> serialization. A later runner-baseline review will map the seam onto the runner
-> substrate that already exists — classifying each existing capability as adopt
-> unchanged, adapt, replace deliberately, or defer — and will then update the
-> runner-control and image issues around what is actually there. **Do not author
-> a profile against the field names in that document before that review.**
+> **Not yet schema.** That document defines the knowledge-policy **seam**
+> only. It deliberately does not redesign the execution profile, does not
+> assume the profile schema starts from scratch, and settles no
+> serialization.
+>
+> **The runner-baseline review is done.** The `runner-baseline-adoption`
+> change (PR #48, archived to
+> [`../openspec/specs/runner-adoption/spec.md`](../openspec/specs/runner-adoption/spec.md))
+> classified every existing substrate capability adopt/adapt/replace/defer
+> and decomposed the runner program into landings. The execution-profile
+> contract is authored by the L2 landing (`packages/contracts`, Zod, with
+> the `adapter` field as an opaque value) under its own authorized child
+> change. **Do not author a profile before that contract lands** — profiles
+> here are consumers of it.
 
 ## What belongs here
 
