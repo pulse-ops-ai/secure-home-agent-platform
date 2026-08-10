@@ -178,6 +178,38 @@ describe('fail-closed conditions', () => {
     }
   })
 
+  it('a lied profile name or version with the ORIGINAL digest fails (review P1)', () => {
+    const bundle = producerBundle(ARTIFACTS)
+    for (const lie of [{ version: '9.9.9' }, { name: 'impersonated-profile' }]) {
+      const tampered = {
+        ...bundle,
+        identities: {
+          ...bundle.identities,
+          profile: { ...bundle.identities.profile, ...lie },
+        },
+      }
+      const result = verifyEvidence(tampered, independent(ARTIFACTS))
+      if (!('verified' in result) || result.verified) throw new Error('expected failure')
+      expect(result.failures.join('\n')).toContain('profile identity diverges')
+    }
+  })
+
+  it('a lied authority contract version with the ORIGINAL digest fails (review P1)', () => {
+    const bundle = producerBundle(ARTIFACTS)
+    const tampered = {
+      ...bundle,
+      identities: {
+        ...bundle.identities,
+        path_policy: { ...bundle.identities.path_policy, contract_version: '3.0.0' },
+      },
+    }
+    const result = verifyEvidence(tampered, independent(ARTIFACTS))
+    if (!('verified' in result) || result.verified) throw new Error('expected failure')
+    expect(result.failures.join('\n')).toContain(
+      'path-policy identity diverges on contract_version',
+    )
+  })
+
   it('a diverging governing authority is caught by independent re-capture', () => {
     const swapped = {
       ...independent(ARTIFACTS),

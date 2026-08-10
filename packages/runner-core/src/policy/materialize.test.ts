@@ -110,6 +110,18 @@ describe('protected governing material (ADV-005, MUT-001)', () => {
     if (decision.kind !== 'refusal') throw new Error('expected refusal')
     expect(decision.code).toBe('protected_path')
   })
+
+  it('an unestablishable protected source refuses — protection never lapses silently (review P2)', () => {
+    for (const badSource of ['../outside-repo.json', '/abs/authority.json', 'file:authority']) {
+      const decision = decideMaterialization(capturedPolicy(), observed(change('packages/a.ts')), [
+        badSource,
+      ])
+      if (decision.kind !== 'refusal') throw new Error('expected refusal')
+      expect(decision.code).toBe('path_undecidable')
+      expect(decision.violated.element).toBe(badSource)
+      expect(decision.detail).toContain('refuses rather than lapsing')
+    }
+  })
 })
 
 describe('bounds refuse, never truncate (ADV-009, RC-ADV-06, MUT-006)', () => {

@@ -73,7 +73,17 @@ export const decideMaterialization = (
   const protectedPrefixes: string[] = doc.prohibited_rules.map((rule) => rule.prefix)
   for (const source of protectedSources) {
     const normalized = normalizePath(source)
-    if (normalized.ok) protectedPrefixes.push(normalized.normalized)
+    if (!normalized.ok) {
+      // Fail closed at the judge-protection boundary (review P2 on
+      // d749da7): a protected path that cannot be established must not
+      // silently become "not protected".
+      return refuse(
+        'path_undecidable',
+        { element: source },
+        `protected authority source cannot be normalized: ${normalized.reason} — an unestablishable protection refuses rather than lapsing`,
+      )
+    }
+    protectedPrefixes.push(normalized.normalized)
   }
 
   const roots: string[] = []

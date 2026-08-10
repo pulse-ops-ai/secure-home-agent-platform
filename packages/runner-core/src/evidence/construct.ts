@@ -16,7 +16,13 @@
  * snapshots, never from claims.
  */
 import { EvidenceBundle, TERMINAL_SUCCESS, type EvidenceBundleT } from '@secure-home/events'
-import { type Decision, proceed, refuse } from '../decision/index.js'
+import {
+  type Decision,
+  type ObservedDecision,
+  operationalFailure,
+  proceed,
+  refuse,
+} from '../decision/index.js'
 import { canonicalSort, digestOf, normalizePath } from '../primitives/index.js'
 import type { AuthoritySnapshots } from '../authority/index.js'
 import { decideMaterialization } from '../policy/index.js'
@@ -43,7 +49,7 @@ export interface EvidenceInputs {
   readonly timing: EvidenceBundleT['timing']
 }
 
-export const constructEvidence = (inputs: EvidenceInputs): Decision<EvidenceBundleT> => {
+export const constructEvidence = (inputs: EvidenceInputs): ObservedDecision<EvidenceBundleT> => {
   const { snapshots } = inputs
   const missing = (element: string): Decision<EvidenceBundleT> =>
     refuse(
@@ -59,10 +65,12 @@ export const constructEvidence = (inputs: EvidenceInputs): Decision<EvidenceBund
   if (!snapshots.gate_registry.ok) return snapshots.gate_registry.refusal
 
   if (!inputs.artifacts.ok) {
-    return refuse(
-      'incomplete_evidence',
-      { element: 'artifact surface' },
-      `artifact observation reported failed: ${inputs.artifacts.failure} — evidence cannot claim an artifact set it could not observe`,
+    // An orchestrator-reported unreadable surface is an OPERATIONAL
+    // failure (frozen failure-semantics table; review P1 on d749da7) —
+    // no contract decision was made, and no partial bundle is returned.
+    return operationalFailure(
+      'artifact surface',
+      `observation reported failed: ${inputs.artifacts.failure} — evidence cannot claim an artifact set it could not observe`,
     )
   }
 

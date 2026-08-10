@@ -92,14 +92,49 @@ export const verifyEvidence = (
     byPath.set(artifact.path, artifact.digest)
   }
 
-  // Re-derive authority identities from the independently supplied bytes.
-  const digests = new Map<string, { digest: string; version: string }>()
+  // Re-derive authority identities from the independently supplied
+  // bytes and compare them FIELD-COMPLETE (review P1 on d749da7): a
+  // bundle that lies about a name or contract version while keeping the
+  // original digest must fail, not merely one with divergent bytes.
+  const identityDiverges = (
+    name: string,
+    recorded: Record<string, string>,
+    derived: Record<string, string>,
+  ): void => {
+    for (const [field, expected] of Object.entries(derived)) {
+      if (recorded[field] !== expected) {
+        failures.push(
+          `${name} identity diverges on ${field}: bundle records ${JSON.stringify(recorded[field])}, independent capture derives ${JSON.stringify(expected)}`,
+        )
+      }
+    }
+  }
   let acquisitionFault: OperationalFailure | null = null
-  const recapture = <T extends { contract_id: string; contract_version: string }>(
+
+  const profileCapture = captureAuthority(independent.profile, {
+    contract_id: EXECUTION_PROFILE_ID,
+    schema: ExecutionProfile,
+  })
+  if ('kind' in profileCapture) {
+    acquisitionFault = profileCapture
+  } else if (!profileCapture.ok) {
+    failures.push(
+      `independent capture of profile refused: ${profileCapture.refusal.detail} — expectation cannot be derived`,
+    )
+  } else {
+    identityDiverges('profile', bundle.identities.profile, {
+      name: profileCapture.value.identity.name,
+      version: profileCapture.value.identity.version,
+      digest: profileCapture.digest,
+    })
+  }
+
+  const recaptureContract = <T extends { contract_id: string; contract_version: string }>(
     name: string,
     input: AuthorityBytes,
     contractId: string,
     schema: Parameters<typeof captureAuthority<T>>[1]['schema'],
+    recorded: Record<string, string>,
   ): void => {
     if (acquisitionFault !== null) return
     const captured = captureAuthority<T>(input, { contract_id: contractId, schema })
@@ -113,38 +148,28 @@ export const verifyEvidence = (
       )
       return
     }
-    digests.set(name, { digest: captured.digest, version: captured.value.contract_version })
+    identityDiverges(name, recorded, {
+      contract_id: captured.contract.contract_id,
+      contract_version: captured.contract.contract_version,
+      digest: captured.contract.digest,
+    })
   }
-  recapture('profile', independent.profile, EXECUTION_PROFILE_ID, ExecutionProfile)
-  recapture('path_policy', independent.path_policy, PATH_POLICY_ID, PathPolicy)
-  recapture('gate_registry', independent.gate_registry, GATE_REGISTRY_ID, GateRegistry)
+  recaptureContract(
+    'path-policy',
+    independent.path_policy,
+    PATH_POLICY_ID,
+    PathPolicy,
+    bundle.identities.path_policy,
+  )
+  recaptureContract(
+    'gate-registry',
+    independent.gate_registry,
+    GATE_REGISTRY_ID,
+    GateRegistry,
+    bundle.identities.gate_registry,
+  )
   if (acquisitionFault !== null) return acquisitionFault
   if (failures.length > 0) return { verified: false, failures }
-
-  const profileCapture = digests.get('profile')
-  if (profileCapture !== undefined && bundle.identities.profile.digest !== profileCapture.digest) {
-    failures.push(
-      `profile identity diverges: bundle records ${bundle.identities.profile.digest}, independent capture derives ${profileCapture.digest}`,
-    )
-  }
-  const policyCapture = digests.get('path_policy')
-  if (
-    policyCapture !== undefined &&
-    bundle.identities.path_policy.digest !== policyCapture.digest
-  ) {
-    failures.push(
-      `path-policy identity diverges: bundle records ${bundle.identities.path_policy.digest}, independent capture derives ${policyCapture.digest}`,
-    )
-  }
-  const registryCapture = digests.get('gate_registry')
-  if (
-    registryCapture !== undefined &&
-    bundle.identities.gate_registry.digest !== registryCapture.digest
-  ) {
-    failures.push(
-      `gate-registry identity diverges: bundle records ${bundle.identities.gate_registry.digest}, independent capture derives ${registryCapture.digest}`,
-    )
-  }
 
   // Artifact surface: recompute digests; membership must be EXACT.
   const consumed: ConsumedArtifact[] = []

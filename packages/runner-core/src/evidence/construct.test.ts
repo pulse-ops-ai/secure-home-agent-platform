@@ -114,9 +114,11 @@ describe('construction from authoritative inputs (task 5.1)', () => {
     }
   })
 
-  it('an unobservable artifact surface refuses construction', () => {
+  it('an unobservable artifact surface is OPERATIONAL failure, never a refusal (review P1)', () => {
     const decision = constructEvidence(inputs({ artifacts: { ok: false, failure: 'EIO' } }))
-    expect(decision.kind).toBe('refusal')
+    expect(decision.kind).toBe('operational_failure')
+    expect(JSON.stringify(decision)).not.toContain('"code"')
+    expect(JSON.stringify(decision)).not.toContain('"identities"')
   })
 
   it('RC-ADV-02: for a success outcome, the bound refusal precedes construction', () => {
