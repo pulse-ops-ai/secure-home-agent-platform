@@ -172,7 +172,7 @@ The landing is complete when:
   **Completion** — Frozen install, lint, typecheck, and build pass on an empty
   package.
 
-- [ ] **1.2 Dependency-direction negative proof**
+- [x] **1.2 Dependency-direction negative proof**
   <!-- agent-task: 1.2 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — INV-001; `runner-adoption` "Trusted core is extraction-ready".
@@ -181,7 +181,7 @@ The landing is complete when:
   import in this package is rejected by the direction checks. The negative case
   must be demonstrated to fail without the guard, not merely asserted.
 
-- [ ] **1.3 Dependency allowlist and I/O guards**
+- [x] **1.3 Dependency allowlist and I/O guards**
   <!-- agent-task: 1.3 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Design D2, D3; RC-INV-01, RC-INV-04.
@@ -191,7 +191,7 @@ The landing is complete when:
   `node:child_process`, `node:net`, `node:http(s)`, or `node:dgram` import
   anywhere in `src/**`).
 
-- [ ] **1.4 Result algebra and refusal vocabulary**
+- [x] **1.4 Result algebra and refusal vocabulary**
   <!-- agent-task: 1.4 paths=packages/runner-core/src/decision/**,packages/runner-core/src/primitives/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Design D5; RC-INV-06, INV-003.
@@ -206,7 +206,7 @@ The landing is complete when:
 
 ## 2. Authority capture and eligibility
 
-- [ ] **2.1 Immutable snapshot construction**
+- [x] **2.1 Immutable snapshot construction**
   <!-- agent-task: 2.1 paths=packages/runner-core/src/authority/** checks=repo-check risk=high prerequisites=1.4 -->
 
   **Implements** — Requirement "Captured authority is an immutable,
@@ -218,7 +218,7 @@ The landing is complete when:
   **Proof required** — `ADV-003` (source mutated after capture; decisions
   unchanged); `RC-ADV-11` (contract mismatch refuses); `MUT-002` registered.
 
-- [ ] **2.2 Snapshot-only decision signatures**
+- [x] **2.2 Snapshot-only decision signatures**
   <!-- agent-task: 2.2 paths=packages/runner-core/src/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — RC-INV-02; Design D4.
@@ -226,7 +226,7 @@ The landing is complete when:
   **Proof required** — `RC-EX-02`: no exported decision parameter is a path,
   handle, reader, or port. `RC-MUT-05` registered.
 
-- [ ] **2.3 Eligibility decisions**
+- [x] **2.3 Eligibility decisions**
   <!-- agent-task: 2.3 paths=packages/runner-core/src/eligibility/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — Requirement "Eligibility refuses rather than defaults"
@@ -236,7 +236,7 @@ The landing is complete when:
   undecidable row; `RC-ADV-10` (duplicate gate identity); `RC-MUT-04`
   registered.
 
-- [ ] **2.4 Refusal-versus-operational classification**
+- [x] **2.4 Refusal-versus-operational classification**
   <!-- agent-task: 2.4 paths=packages/runner-core/src/decision/**,packages/runner-core/src/authority/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — Requirement "Refusal is a recordable value, not an
@@ -247,7 +247,7 @@ The landing is complete when:
 
 ## 3. Path decisions, protected context, bounds
 
-- [ ] **3.1 Normalization and write-root decisions**
+- [x] **3.1 Normalization and write-root decisions**
   <!-- agent-task: 3.1 paths=packages/runner-core/src/policy/** checks=repo-check risk=high prerequisites=1.4 -->
 
   **Implements** — Requirements "Write eligibility derives from captured policy
@@ -257,7 +257,7 @@ The landing is complete when:
   **Proof required** — traversal, alias-escape (`RC-ADV-05`), and
   undecidable-normalization fixtures.
 
-- [ ] **3.2 Protected governing material**
+- [x] **3.2 Protected governing material**
   <!-- agent-task: 3.2 paths=packages/runner-core/src/policy/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements** — Requirement "Governing material is never writable by the
@@ -267,7 +267,7 @@ The landing is complete when:
   protection-outranks-root fixture; `RC-ADV-04` and `RC-EX-06` (unrecognized
   rule form refuses at capture); `MUT-001` and `RC-MUT-01` registered.
 
-- [ ] **3.3 Bounds refuse, never truncate**
+- [x] **3.3 Bounds refuse, never truncate**
   <!-- agent-task: 3.3 paths=packages/runner-core/src/policy/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements** — Requirement "Security-relevant bounds refuse, never
@@ -279,7 +279,7 @@ The landing is complete when:
 
 ## 4. Workspace observation and reconciliation
 
-- [ ] **4.1 Authoritative change-set derivation**
+- [x] **4.1 Authoritative change-set derivation**
   <!-- agent-task: 4.1 paths=packages/runner-core/src/workspace/** checks=repo-check risk=high prerequisites=1.4 -->
 
   **Implements** — Requirement "The authoritative change set derives from host
@@ -291,7 +291,7 @@ The landing is complete when:
   only; `RC-ADV-12` (empty-but-readable) versus `RC-ADV-03` (reported
   unreadable) kept distinct.
 
-- [ ] **4.2 Claim reconciliation**
+- [x] **4.2 Claim reconciliation**
   <!-- agent-task: 4.2 paths=packages/runner-core/src/reconciliation/** checks=repo-check risk=high prerequisites=4.1 -->
 
   **Implements** — Requirements "Reconciliation records disagreement without
@@ -303,7 +303,7 @@ The landing is complete when:
 
 ## 5. Evidence construction
 
-- [ ] **5.1 Construct evidence from authoritative inputs**
+- [x] **5.1 Construct evidence from authoritative inputs**
   <!-- agent-task: 5.1 paths=packages/runner-core/src/evidence/** checks=repo-check risk=high prerequisites=2.1,3.2,4.2 -->
 
   **Implements** — Requirement "Evidence is constructed only from authoritative
@@ -321,7 +321,7 @@ The landing is complete when:
   authority identities do not match the captured snapshots is never
   constructed.
 
-- [ ] **5.2 Seal-eligibility predicate**
+- [x] **5.2 Seal-eligibility predicate**
   <!-- agent-task: 5.2 paths=packages/runner-core/src/evidence/** checks=repo-check risk=high prerequisites=5.1 -->
 
   **Implements** — Requirements "Seal eligibility is a deterministic decision
@@ -336,7 +336,7 @@ The landing is complete when:
 
 ## 6. Independent verification
 
-- [ ] **6.1 Verifier independence guard**
+- [x] **6.1 Verifier independence guard**
   <!-- agent-task: 6.1 paths=packages/runner-core/src/verification/** checks=repo-check risk=high prerequisites=5.1 -->
 
   **Implements** — RC-INV-03; Design D6.
@@ -348,7 +348,7 @@ The landing is complete when:
   This guard lands **before** the verifier body, so the verifier cannot be
   written against the producer and refactored apart afterwards.
 
-- [ ] **6.2 Independent re-derivation**
+- [x] **6.2 Independent re-derivation**
   <!-- agent-task: 6.2 paths=packages/runner-core/src/verification/** checks=repo-check risk=high prerequisites=6.1 -->
 
   **Implements** — Requirement "Independent verification re-derives rather than
@@ -360,7 +360,7 @@ The landing is complete when:
   `identities.gate_registry` compared against the verifier's own captures,
   failing on any divergence; `MUT-003` and `RC-MUT-06` registered.
 
-- [ ] **6.3 Final-consumer trust boundary**
+- [x] **6.3 Final-consumer trust boundary**
   <!-- agent-task: 6.3 paths=packages/runner-core/src/verification/** checks=repo-check risk=high prerequisites=6.2 -->
 
   **Implements** — Requirement "Verifying an intermediate never authorizes a
@@ -371,20 +371,20 @@ The landing is complete when:
 
 ## 7. Verification Net for PR-1
 
-- [ ] **7.1 Cross-cutting architecture guards over the finished tree**
+- [x] **7.1 Cross-cutting architecture guards over the finished tree**
   <!-- agent-task: 7.1 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=6.3 -->
 
   **Proof required** — `RC-EX-02`, `RC-EX-03`, `RC-EX-04` re-run over the
   complete source tree; `RC-EX-05` (inert: no module-load side effect, zero
   importers in the repository).
 
-- [ ] **7.2 Full property run**
+- [x] **7.2 Full property run**
   <!-- agent-task: 7.2 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=6.3 -->
 
   **Proof required** — `PROP-003`, `PROP-005`, `PROP-006`, `RC-PROP-01`,
   `RC-PROP-02` at their declared generation breadth.
 
-- [ ] **7.3 Mutation sweep**
+- [x] **7.3 Mutation sweep**
   <!-- agent-task: 7.3 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
 
   **Proof required** — every target in `assurance.md` § Mutation Targets
@@ -392,7 +392,7 @@ The landing is complete when:
   `RC-MUT-08`) killed by its named test. A surviving mutant is a missing proof
   and blocks the landing.
 
-- [ ] **7.4 First-consumer contract conformance**
+- [x] **7.4 First-consumer contract conformance**
   <!-- agent-task: 7.4 paths=packages/runner-core/** checks=repo-check risk=high prerequisites=7.1 -->
 
   **Implements** — the ratified "inert contract × first consumer arrives"
@@ -402,7 +402,7 @@ The landing is complete when:
   **Proof required** — every L2 contract this package consumes is validated by
   this package's own suite, not by trusting L2's passing suite.
 
-- [ ] **7.5 Report any further L2 contract gap**
+- [x] **7.5 Report any further L2 contract gap**
   <!-- agent-task: 7.5 paths=openspec/changes/runner-core/** checks=repo-check risk=low prerequisites=7.4 -->
 
   **Change** — The gaps this seam originally carried (Q1, Q2) are corrected
