@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:evidence-bundle:2.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "evidence-bundle" },
+    "contract_version": { "type": "string", "const": "2.0.0" },
+    "identities": {
+      "type": "object",
+      "properties": {
+        "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "version": { "$ref": "#/$defs/__schema0" },
+            "digest": { "$ref": "#/$defs/__schema1" }
+          },
+          "required": ["name", "version", "digest"],
+          "additionalProperties": false
+        },
+        "image_digest": { "$ref": "#/$defs/__schema1" },
+        "argv_digest": { "$ref": "#/$defs/__schema1" },
+        "path_policy": { "$ref": "#/$defs/__schema2" },
+        "gate_registry": { "$ref": "#/$defs/__schema2" },
+        "runtime": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
+      },
+      "required": [
+        "run_id",
+        "profile",
+        "image_digest",
+        "argv_digest",
+        "path_policy",
+        "gate_registry",
+        "runtime",
+        "provider",
+        "adapter"
+      ],
+      "additionalProperties": false
+    },
+    "principal": {
+      "type": "object",
+      "properties": {
+        "sub": { "type": "string", "minLength": 1 },
+        "acting": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "const": "actor" },
+                "sub": { "type": "string", "minLength": 1 }
+              },
+              "required": ["kind", "sub"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "kind": { "type": "string", "const": "autonomous" } },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": ["sub", "acting"],
+      "additionalProperties": false
+    },
+    "granted_capabilities": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string", "pattern": "^\\/" },
+              "posture": { "type": "string", "enum": ["read_only", "read_write"] }
+            },
+            "required": ["path", "posture"],
+            "additionalProperties": false
+          }
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "default": { "type": "string", "const": "deny" },
+            "granted_destinations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "host": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$" },
+                  "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+                },
+                "required": ["host", "port"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["default", "granted_destinations"],
+          "additionalProperties": false
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": { "env_var": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } },
+            "required": ["env_var"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["tools", "mounts", "network", "credentials"],
+      "additionalProperties": false
+    },
+    "operations": {
+      "type": "object",
+      "properties": {
+        "attempted": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
+        "permitted": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
+        "denied": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } }
+      },
+      "required": ["attempted", "permitted", "denied"],
+      "additionalProperties": false
+    },
+    "gate_results": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "PASS" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "SKIP_OK" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "SKIP_ENV" },
+              "truncated": { "type": "boolean", "const": false },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "disposition": { "type": "string", "const": "FAIL" },
+              "truncated": { "type": "boolean" },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "required": ["disposition", "truncated", "reason"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "digest": { "$ref": "#/$defs/__schema1" },
+          "bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["path", "digest", "bytes"],
+        "additionalProperties": false
+      }
+    },
+    "change_sets": {
+      "type": "object",
+      "properties": {
+        "authoritative": { "type": "string", "const": "observed" },
+        "observed": { "type": "array", "items": { "$ref": "#/$defs/__schema4" } },
+        "claimed": { "type": "array", "items": { "$ref": "#/$defs/__schema4" } },
+        "reconciliation": {
+          "type": "object",
+          "properties": {
+            "agreement": { "type": "boolean" },
+            "disagreements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "detail": { "type": "string", "minLength": 1 }
+                },
+                "required": ["path", "detail"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["agreement", "disagreements"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["authoritative", "observed", "claimed", "reconciliation"],
+      "additionalProperties": false
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "terminal_state": { "type": "string", "const": "COMPLETED" } },
+          "required": ["terminal_state"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "REFUSED" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "contract_refusal" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "OPERATIONAL_FAILURE" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "operational" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "CANCELLED" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "TIMED_OUT" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "INDETERMINATE" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "duration_seconds": { "type": "number", "minimum": 0 }
+      },
+      "required": ["started_at", "finished_at", "duration_seconds"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "identities",
+    "principal",
+    "granted_capabilities",
+    "operations",
+    "gate_results",
+    "artifacts",
+    "change_sets",
+    "outcome",
+    "timing"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": { "type": "string", "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$" },
+    "__schema1": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "contract_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "contract_version": { "$ref": "#/$defs/__schema0" },
+        "digest": { "$ref": "#/$defs/__schema1" }
+      },
+      "required": ["contract_id", "contract_version", "digest"],
+      "additionalProperties": false
+    },
+    "__schema3": {
+      "type": "object",
+      "properties": {
+        "call_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+        "operation": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "target": { "type": "string", "minLength": 1 }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["call_id", "operation"],
+      "additionalProperties": false
+    },
+    "__schema4": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["created", "modified", "deleted"] }
+      },
+      "required": ["path", "kind"],
+      "additionalProperties": false
+    }
+  }
+}

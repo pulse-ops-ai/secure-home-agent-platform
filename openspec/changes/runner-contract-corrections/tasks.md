@@ -50,17 +50,22 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED`** — recorded 2026-08-10:
 
-#51 authorizes the L2 contract scope, and the completed L2 landing's review
-trail (recorded in the archived `runner-domain-contracts` change) does not
-extend to this correction. Implementation starts only after:
+- The planning seam merged via PR #64; the delta reviews on PR #62
+  (2026-08-10) directed this correction and its sequencing ("authorize
+  runner-contract-corrections → implement its v2 contracts + schemas +
+  ledger proofs"), and found no blocker in its content.
+- The repository owner closed both open questions and approved
+  implementation (2026-08-10): **CQ1 — required** (`path_policy` and
+  `gate_registry` are mandatory `AuthorityIdentity` fields); **CQ2 —
+  retain + generate** (superseded `1.0.0` artifacts and ledger rows kept,
+  ledger strictly appends); **#51 confirmed** as the external authority
+  for a correction within the L2 scope.
+- `openspec validate runner-contract-corrections --strict` passes.
 
-- the planning review approves this artifact set and closes **CQ1**
-  (required identity fields) and **CQ2** (superseded-version retention); and
-- the repository owner confirms #51 covers the correction — or records a
-  narrower/other authority — and approves implementation; and
-- task 0.1 records both and flips this status.
+Implementation proceeds on this change against the frozen artifacts; any
+further planning change requires a new review before continuing.
 
 Status derivation rules (inherited):
 
@@ -96,7 +101,7 @@ base, and no file outside the declared path authority is modified.
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on planning-review approval**
+- [x] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-contract-corrections/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Change** — On the planning review approving this artifact set and
@@ -108,7 +113,7 @@ base, and no file outside the declared path authority is modified.
 
 ## 1. Shared identity primitive
 
-- [ ] **1.1 `AuthorityIdentity` in contracts primitives**
+- [x] **1.1 `AuthorityIdentity` in contracts primitives**
   <!-- agent-task: 1.1 paths=packages/contracts/** checks=repo-check risk=high prerequisites=0.1 -->
 
   **Implements** — Design D2; CC-INV-05.
@@ -118,7 +123,7 @@ base, and no file outside the declared path authority is modified.
 
 ## 2. Path-policy v2
 
-- [ ] **2.1 Typed prohibited rules at contract version 2.0.0**
+- [x] **2.1 Typed prohibited rules at contract version 2.0.0**
   <!-- agent-task: 2.1 paths=packages/contracts/**,schemas/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — MODIFIED requirement "Policies and packs are declarative
@@ -135,7 +140,7 @@ base, and no file outside the declared path authority is modified.
 
 ## 3. Evidence-bundle v2
 
-- [ ] **3.1 Complete evidence identities at contract version 2.0.0**
+- [x] **3.1 Complete evidence identities at contract version 2.0.0**
   <!-- agent-task: 3.1 paths=packages/events/**,schemas/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — MODIFIED requirement "Evidence is never optional and is
@@ -152,7 +157,7 @@ base, and no file outside the declared path authority is modified.
 
 ## 4. Ledger append and corpus proofs
 
-- [ ] **4.1 Append the two identity rows; prove the corpus**
+- [x] **4.1 Append the two identity rows; prove the corpus**
   <!-- agent-task: 4.1 paths=schemas/**,packages/contracts/**,packages/events/** checks=repo-check risk=high prerequisites=2.1,3.1 -->
 
   **Implements** — Design D3; CC-INV-04; the append-only discipline

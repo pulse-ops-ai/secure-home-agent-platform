@@ -17,6 +17,7 @@
 import { z } from 'zod'
 import {
   AdapterId,
+  AuthorityIdentity,
   CapabilityGrant,
   Digest,
   GateResults,
@@ -27,14 +28,22 @@ import { RunId, RunOutcome } from './run-record.js'
 import { CallId, OperationRecord } from './run-events.js'
 
 export const EVIDENCE_BUNDLE_ID = 'evidence-bundle' as const
-export const EVIDENCE_BUNDLE_VERSION = '1.0.0' as const
+export const EVIDENCE_BUNDLE_VERSION = '2.0.0' as const
 
-/** The identities an independent verifier re-derives. */
+/**
+ * The identities an independent verifier re-derives. Version 2.0.0
+ * (runner-contract-corrections D2): the digest-bound contract identities
+ * of the governing path policy and gate registry are MANDATORY — an
+ * evidence bundle that cannot name the authority that governed its run
+ * does not validate.
+ */
 export const EvidenceIdentities = z.strictObject({
   run_id: RunId,
   profile: ProfileIdentity,
   image_digest: Digest,
   argv_digest: Digest,
+  path_policy: AuthorityIdentity,
+  gate_registry: AuthorityIdentity,
   /** Opaque data — never a schema branch. */
   runtime: z.string().min(1),
   provider: z.string().min(1),

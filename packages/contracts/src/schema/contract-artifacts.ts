@@ -17,6 +17,7 @@ import {
   LaunchAssertion,
 } from '../launch-assertion/index.js'
 import { PATH_POLICY_ID, PATH_POLICY_VERSION, PathPolicy } from '../path-policy/index.js'
+import { PATH_POLICY_V1_VERSION, PathPolicyV1 } from '../path-policy/v1.js'
 import {
   GATE_REGISTRY_ID,
   GATE_REGISTRY_VERSION,
@@ -43,6 +44,9 @@ export const CONTRACT_ARTIFACTS: readonly ContractArtifact[] = [
     version: LAUNCH_ASSERTION_VERSION,
     schema: LaunchAssertion,
   },
+  // Superseded 1.0.0 retained and still generated (corrections D3): the
+  // ledger appends, never rewrites, and published versions stay published.
+  { id: PATH_POLICY_ID, version: PATH_POLICY_V1_VERSION, schema: PathPolicyV1 },
   { id: PATH_POLICY_ID, version: PATH_POLICY_VERSION, schema: PathPolicy },
   { id: GATE_REGISTRY_ID, version: GATE_REGISTRY_VERSION, schema: GateRegistry },
   {

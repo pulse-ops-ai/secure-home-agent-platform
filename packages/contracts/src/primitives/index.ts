@@ -9,6 +9,7 @@
  * (or any provider) must change no schema (ADR-0003; runner-adoption).
  */
 export * from './adapter-id.js'
+export * from './authority-identity.js'
 export * from './capability-grant.js'
 export * from './credential-ref.js'
 export * from './digest.js'

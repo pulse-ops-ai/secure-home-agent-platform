@@ -86,6 +86,14 @@ describe('historical ledger guard at the git seam (C-ADV-007B, C-MUT-006 kill)',
     expect(verifyLedgerHistory(options(repo), head)).toEqual([])
   })
 
+  it('a rewritten accepted row hidden behind an append still fails (CC-ADV-01)', () => {
+    const head: Ledger = { 'foo@1.0.0': 'sha256:bbbb', 'foo@2.0.0': 'sha256:cccc' }
+    const { repo } = fixtureRepo(A, head)
+    expect(verifyLedgerHistory(options(repo), head)).toEqual([
+      'accepted ledger entry rewritten: foo@1.0.0',
+    ])
+  })
+
   it('an unresolvable trusted base is a failure, never a skip', () => {
     const head: Ledger = { ...A, 'bar@1.0.0': 'sha256:cccc' }
     const { repo } = fixtureRepo(A, head)
