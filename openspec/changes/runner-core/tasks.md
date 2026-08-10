@@ -39,6 +39,17 @@ Anything else is out of scope. If L2's public API proves insufficient during
 implementation, **stop and report the contract gap** — do not modify
 `packages/contracts` or `packages/events` inside this landing.
 
+**Recorded deviation (owner-authorized 2026-08-10).** L2's C-EX-004
+inertness test hard-codes its consumer allowlist, so the authorized
+arrival of this landing's package fails it — the ratified "inert
+contract × first consumer arrives" transition. The stop-and-report rule
+above was followed; the owner authorized a **one-line allowlist
+amendment** to `packages/contracts/src/conformance/inertness.test.ts`
+(adding `packages/runner-core`) inside this PR, under #51 and #52
+jointly, disclosed here and in the PR for the seam review. No other
+contracts/events file is touched, and any importer beyond the
+authorized consumer still fails the test.
+
 ---
 
 ## Implementation Authorization
