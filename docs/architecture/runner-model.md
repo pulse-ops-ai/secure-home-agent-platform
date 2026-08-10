@@ -5,13 +5,26 @@ How agents execute. Governed by
 [ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md),
 and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md).
 
-> **Status: ratified, not yet implemented.** No runner image exists, no
-> substrate is built, no profile schema is defined. This is the contract
-> those things must satisfy. The reimplementation program is ratified by
-> the `runner-baseline-adoption` constitution (PR #48; canonical spec:
+> **Status: runner domain contracts implemented; execution substrate not
+> yet implemented.** L2 (#51, child change `runner-domain-contracts`,
+> PR #60) established the canonical runner domain contracts — execution
+> profiles, runs and events, verification, evidence — authored as Zod in
+> [`packages/contracts`](../../packages/contracts/) and
+> [`packages/events`](../../packages/events/), generated to JSON Schema
+> under [`schemas/`](../../schemas/) and guarded by an append-only
+> identity ledger. The contracts are inert: no production consumer
+> imports them yet. The trusted runner core begins with L3 (#52); **no
+> runner image, orchestration runtime, adapter, or launcher exists yet.**
+> The program is ratified by the `runner-baseline-adoption` constitution
+> (PR #48; canonical spec:
 > [`../../openspec/specs/runner-adoption/spec.md`](../../openspec/specs/runner-adoption/spec.md))
 > — sixteen normative adoption invariants and landings L2–L10, each
 > implemented only through its own externally authorized child change.
+> Canonical capability specs from L2:
+> [`execution-profile`](../../openspec/specs/execution-profile/spec.md) ·
+> [`runner-execution`](../../openspec/specs/runner-execution/spec.md) ·
+> [`runner-verification`](../../openspec/specs/runner-verification/spec.md) ·
+> [`runner-evidence`](../../openspec/specs/runner-evidence/spec.md)
 
 ## The five concepts, and why they are not the same thing
 
@@ -20,7 +33,7 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 | **Agent implementation** | domain code — a climate observer, a security reviewer | **No** | [`agents/implementations/`](../../agents/implementations/) |
 | **Runtime adapter** | the shim to a concrete runtime — a coding-agent CLI or a framework | **No** | [`agents/adapters/`](../../agents/adapters/) |
 | **Execution profile** | the reviewed, declarative grant of capability | **Yes — this is where authority is granted** | [`profiles/`](../../profiles/) |
-| **Run** | one invocation of one profile; an immutable historical fact | inherits the profile's | [`schemas/run/`](../../schemas/run/) |
+| **Run** | one invocation of one profile; an immutable historical fact | inherits the profile's | [`schemas/run-record/`](../../schemas/run-record/) |
 | **Automation** | a persisted standing arrangement that causes runs | **Yes — separately authorized** | [`services/control-plane/`](../../services/control-plane/) |
 
 Merging any two of these is the failure this model exists to prevent. Most
@@ -118,9 +131,9 @@ The reviewable artifact that binds everything and grants authority:
 |---|---|
 | Identity | profile name, version |
 | Runtime | runner image (digest-pinned), adapter |
-| Capability | permitted tool surface, filesystem mounts and posture, network policy |
+| Capability | permitted tool surface, filesystem mounts and posture, network policy (default deny), credential grants as named references |
 | Execution | routing class (R0–R3), model route, declared fallback behaviour |
-| Limits | wall clock, CPU, memory, output size |
+| Limits | wall clock, CPU, memory, pids, output size |
 | Principal | the agent identity the run authenticates as; whether an `actor` is required |
 | Knowledge | the named knowledge set the run may reason from — [`knowledge-selection-model.md`](knowledge-selection-model.md) |
 | Evidence | the evidence contract the run must satisfy |
@@ -131,8 +144,11 @@ mount, no egress, and no authorization. Its contract is specified separately and
 is **not yet schema**.
 
 **A run is launched from a profile, never from ad-hoc parameters.** Anything the
-profile does not grant is denied. Schema: [`schemas/execution-profile/`](../../schemas/execution-profile/)
-(**not yet defined**).
+profile does not grant is denied. Schema:
+[`schemas/execution-profile/`](../../schemas/execution-profile/), generated from
+the authored Zod contract in [`packages/contracts`](../../packages/contracts/)
+(canonical requirements:
+[`execution-profile`](../../openspec/specs/execution-profile/spec.md)).
 
 ## Runner classes
 
@@ -203,6 +219,13 @@ Every run produces:
 Properties: **uniform across adapters**, **sufficient to answer "what was this
 allowed to do, and what did it do?"** without reading agent code, and durable —
 subject to the buffering constraint that the Pi is not authoritative storage.
+
+The shapes are landed L2 contracts —
+[`runner-execution`](../../openspec/specs/runner-execution/spec.md) (run
+records, the closed terminal vocabulary, the closed event vocabulary) and
+[`runner-evidence`](../../openspec/specs/runner-evidence/spec.md) (the evidence
+bundle) — generated under [`schemas/`](../../schemas/). The substrate that
+emits them is L3+ and does not exist yet.
 
 ## Cancellation, timeout, resources
 
