@@ -15,8 +15,10 @@ mandatory for a run record, and SHALL be capable of representing, directly
 or through digest-bound catalog references:
 
 - identities: run identity; profile identity with digest; image digest;
-  argv digest; **container-runtime identity as opaque data**; provider and
-  adapter identity as opaque data;
+  argv digest; **the digest-bound contract identity of the path policy that
+  governed the run; the digest-bound contract identity of the gate registry
+  that governed the run**; **container-runtime identity as opaque data**;
+  provider and adapter identity as opaque data;
 - principal: `sub`, and `actor` or an explicit autonomous/no-actor marker;
 - the capabilities actually granted to the run;
 - attempted, permitted, and denied operations;
@@ -25,6 +27,12 @@ or through digest-bound catalog references:
 - the authoritative observed change set, the model-claimed change set, and
   the disagreement/reconciliation record between them;
 - outcome with structured refusal/operational detail, and timing.
+
+The path-policy and gate-registry identities SHALL be **mandatory**: an
+evidence bundle that cannot name the digest-bound identity of the policy and
+registry that governed its run SHALL NOT validate. Each such identity SHALL
+record the contract identity, the exact contract version, and the digest of
+the captured authority bytes.
 
 No field in the evidence or identity authority structures SHALL be
 designated for credential-value transport; credential-purpose positions
@@ -58,5 +66,11 @@ string-content scanning is an L4/L9 concern.
 - **WHEN** their shapes are examined
 - **THEN** no designated credential-value slot exists
 
----
+#### Scenario: Evidence names every governing authority input
+
+- **GIVEN** an evidence bundle for a completed run
+- **WHEN** its identity group is examined
+- **THEN** it records the digest-bound contract identity of the path policy
+  and of the gate registry that governed the run
+- **AND** a bundle omitting either identity does not validate
 
