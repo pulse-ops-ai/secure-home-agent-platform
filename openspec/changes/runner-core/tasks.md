@@ -58,24 +58,28 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED`** — recorded 2026-08-10:
 
-The GitHub issue authorizes the L3 landing scope. Implementation nevertheless
-starts only after the complete planning seam receives its required review and
-the explicit post-review authorization task (0.1) is performed.
+- The original trust-critical questions (Q1–Q4) were closed by the delta
+  review of 2026-08-10 — Q1/Q2 by direction into the L2
+  `runner-contract-corrections` change, Q3 confirmed, Q4 by removing
+  L3-owned I/O ports (design D3/D4).
+- The prerequisite correction is fully landed: planning PR #64,
+  implementation PR #65 (`path-policy` 2.0.0 typed rules;
+  `evidence-bundle` 2.0.0 required per-contract authority identities),
+  canonical-spec sync PR #66. This seam was rebased and reconciled
+  against it.
+- The **final focused review** approved the reconciled seam at head
+  `2c10a634345bc378962a689118083090306ea2ef` (reviewer, 2026-08-10:
+  "the earlier blockers are now genuinely closed, not just planned …
+  task 0.1 can record this review and flip NOT_AUTHORIZED → AUTHORIZED
+  with no other planning changes"; review posted on PR #62). The owner
+  approved and merged the planning seam (PR #62, squash `3ba26b5`).
+- `openspec validate runner-core --strict` ran successfully on the
+  reviewed head; CI green on the same exact head.
 
-The original trust-critical questions (Q1–Q4) were closed by the delta
-review of 2026-08-10 — Q1/Q2 by direction into the L2
-`runner-contract-corrections` change, Q3 confirmed, Q4 by removing L3-owned
-I/O ports (design D3/D4). The conditions that gate 0.1 now:
-
-- **The `runner-contract-corrections` change has merged** — this seam
-  consumes the amended `path-policy` and `evidence-bundle` contracts and
-  cannot be implemented against the unamended shapes — and this seam has
-  been reconciled against the landed amendment.
-- **The reconciled seam passes its focused delta review**, including
-  `openspec validate runner-core --strict` run successfully (a compensating
-  structural self-check is not equivalent and does not satisfy this).
+Implementation proceeds on this change against the frozen artifacts; any
+further planning change requires a new review before continuing.
 
 Status derivation rules (inherited):
 
@@ -118,7 +122,7 @@ The landing is complete when:
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on planning-review approval**
+- [x] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-core/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Implements**
