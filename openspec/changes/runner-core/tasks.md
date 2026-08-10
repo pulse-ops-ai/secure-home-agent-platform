@@ -64,18 +64,18 @@ The GitHub issue authorizes the L3 landing scope. Implementation nevertheless
 starts only after the complete planning seam receives its required review and
 the explicit post-review authorization task (0.1) is performed.
 
-Two additional conditions gate 0.1 here, both trust-critical and both recorded
-in `design.md` § Open Questions:
+The original trust-critical questions (Q1–Q4) were closed by the delta
+review of 2026-08-10 — Q1/Q2 by direction into the L2
+`runner-contract-corrections` change, Q3 confirmed, Q4 by removing L3-owned
+I/O ports (design D3/D4). The conditions that gate 0.1 now:
 
-- **Q1** — the `prohibited_rules` interpretation (D8) must be confirmed or
-  redirected. An unconfirmed rule language means the protected-path decision
-  has no agreed semantics.
-- **Q2** — neither the evidence bundle nor the canonical `runner-evidence`
-  requirement can record the path-policy or gate-registry digest. The review
-  must accept option A (proceed and report the gap) or direct option B
-  (amending a **ratified capability spec** plus the bundle, which is outside
-  this landing's path authority and would sequence before L3). Options C and D
-  are set out in `design.md` and rejected there with reasons.
+- **The `runner-contract-corrections` change has merged** — this seam
+  consumes the amended `path-policy` and `evidence-bundle` contracts and
+  cannot be implemented against the unamended shapes — and this seam has
+  been reconciled against the landed amendment.
+- **The reconciled seam passes its focused delta review**, including
+  `openspec validate runner-core --strict` run successfully (a compensating
+  structural self-check is not equivalent and does not satisfy this).
 
 Status derivation rules (inherited):
 
@@ -127,9 +127,11 @@ The landing is complete when:
 
   **Change**
 
-  On the planning review approving this artifact set **and** closing Q1 and Q2:
+  On the focused delta review approving the reconciled artifact set, with the
+  `runner-contract-corrections` change landed and strict validation run:
   record the approval and flip the Status above from `NOT_AUTHORIZED` to
-  `AUTHORIZED`, citing the review and the resolution of both questions.
+  `AUTHORIZED`, citing the review, the landed correction, and the validation
+  run.
 
   This task changes **only** the Status block of this file. It changes no
   design, spec, or assurance content. Any planning correction happens *before*
@@ -141,8 +143,9 @@ The landing is complete when:
 
   **Completion**
 
-  Status reads `AUTHORIZED` with the review and both question resolutions
-  cited. Tasks 1.1 onward may begin; not before.
+  Status reads `AUTHORIZED`, citing the focused delta review, the landed
+  `runner-contract-corrections` change, and the strict validation run. Tasks
+  1.1 onward may begin; not before.
 
 ## 1. Package registration and architecture guards
 
@@ -199,12 +202,14 @@ The landing is complete when:
 
 ## 2. Authority capture and eligibility
 
-- [ ] **2.1 Capture-once snapshots**
-  <!-- agent-task: 2.1 paths=packages/runner-core/src/authority/**,packages/runner-core/src/ports/** checks=repo-check risk=high prerequisites=1.4 -->
+- [ ] **2.1 Immutable snapshot construction**
+  <!-- agent-task: 2.1 paths=packages/runner-core/src/authority/** checks=repo-check risk=high prerequisites=1.4 -->
 
-  **Implements** — Requirement "Authority inputs are captured once and
-  digest-bound", "Captured authority carries a validated contract identity"
-  (`runner-authority`); INV-007; Design D3, D4.
+  **Implements** — Requirement "Captured authority is an immutable,
+  digest-bound snapshot", "Captured authority carries a validated contract
+  identity" (`runner-authority`); INV-007 (L3 half); Design D3, D4 —
+  including the `AuthorityBytes` input value type. Acquisition is L4 and is
+  not implemented here.
 
   **Proof required** — `ADV-003` (source mutated after capture; decisions
   unchanged); `RC-ADV-11` (contract mismatch refuses); `MUT-002` registered.
@@ -233,7 +238,7 @@ The landing is complete when:
   **Implements** — Requirement "Refusal is a recordable value, not an
   exception" (`runner-authority`); INV-003.
 
-  **Proof required** — `EX-003`; `RC-ADV-03` (port failure yields operational
+  **Proof required** — `EX-003`; `RC-ADV-03` (a reported observation failure yields operational
   failure with no refusal code).
 
 ## 3. Path decisions, protected context, bounds
@@ -271,14 +276,16 @@ The landing is complete when:
 ## 4. Workspace observation and reconciliation
 
 - [ ] **4.1 Authoritative change-set derivation**
-  <!-- agent-task: 4.1 paths=packages/runner-core/src/workspace/**,packages/runner-core/src/ports/** checks=repo-check risk=high prerequisites=1.4 -->
+  <!-- agent-task: 4.1 paths=packages/runner-core/src/workspace/** checks=repo-check risk=high prerequisites=1.4 -->
 
   **Implements** — Requirement "The authoritative change set derives from host
-  observation" (`runner-workspace-observation`); INV-006.
+  observation" (`runner-workspace-observation`); INV-006; the
+  `WorkspaceObservation` and `ArtifactObservation` input value types (D3) —
+  values only, no observer abstraction.
 
-  **Proof required** — the derivation interface accepts observation only;
-  `RC-ADV-12` (empty-but-readable) versus `RC-ADV-03` (unreadable) kept
-  distinct.
+  **Proof required** — the derivation interface accepts observation values
+  only; `RC-ADV-12` (empty-but-readable) versus `RC-ADV-03` (reported
+  unreadable) kept distinct.
 
 - [ ] **4.2 Claim reconciliation**
   <!-- agent-task: 4.2 paths=packages/runner-core/src/reconciliation/** checks=repo-check risk=high prerequisites=4.1 -->
@@ -385,14 +392,14 @@ The landing is complete when:
   **Proof required** — every L2 contract this package consumes is validated by
   this package's own suite, not by trusting L2's passing suite.
 
-- [ ] **7.5 Report the L2 contract gaps**
+- [ ] **7.5 Report any further L2 contract gap**
   <!-- agent-task: 7.5 paths=openspec/changes/runner-core/** checks=repo-check risk=low prerequisites=7.4 -->
 
-  **Change** — Record, in the landing's report, the contract gaps found in
-  practice: Q2 (no policy or gate-registry digest field in
-  `EvidenceIdentities`) and any further gap encountered. **Report them; do not
-  fix them here** — `packages/contracts` and `packages/events` are outside this
-  landing's path authority.
+  **Change** — The gaps this seam originally carried (Q1, Q2) are corrected
+  in L2 by `runner-contract-corrections`. Record, in the landing's report,
+  any **further** contract gap encountered during implementation. **Report
+  it; do not fix it here** — `packages/contracts` and `packages/events` are
+  outside this landing's path authority.
 
 ## PR-1 Completion Gate
 

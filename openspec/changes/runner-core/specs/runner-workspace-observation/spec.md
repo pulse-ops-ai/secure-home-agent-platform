@@ -117,7 +117,7 @@ change set eligible.
 | Observed change absent from claims | recorded disagreement; observation authoritative | change-attributable |
 | Same path, divergent kind | recorded disagreement; observed kind authoritative | change-attributable |
 | Claimed set malformed or unparseable | recorded as a claim-parse refusal; observation still authoritative | change-attributable |
-| Host observer reports the workspace unreadable | operational failure; no authoritative set is produced | operational |
+| Orchestrator reports the workspace unreadable | operational failure; no authoritative set is produced | operational |
 
 A missing observation never yields an empty authoritative set — it yields an
 operational failure, because "nothing changed" and "we could not look" are
@@ -132,6 +132,11 @@ supplies the behavior behind it.
 
 ## Deferred Behavior
 
+- **Observation acquisition** — physically observing the workspace and
+  supplying the observation to this capability as an immutable value is L4.
+  This capability derives and reconciles from what it is given; that the
+  observation was acquired from the real workspace, and acquired
+  independently where verification requires it, is L4's obligation.
 - **Workspace lifecycle** — creation from a pinned base, ephemerality, and
   discard are L4; the pristine-base assertion at creation is L4's decision
   point using this capability's observation input.

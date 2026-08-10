@@ -16,13 +16,20 @@ proof strategy belongs in `assurance.md`.
 
 ## ADDED Requirements
 
-### Requirement: Authority inputs are captured once and digest-bound
+### Requirement: Captured authority is an immutable, digest-bound snapshot
 
-The trusted core SHALL read each authority-bearing input exactly once into a
-captured snapshot that records the source identity, the digest of the captured
-bytes, and the contract-validation result of those bytes. Every subsequent
-decision SHALL derive from the captured snapshot. No decision interface SHALL
-accept a mutable source reference in place of a snapshot.
+The trusted core SHALL construct, from authority bytes supplied to it as an
+immutable value, a captured snapshot that records the source identity, the
+digest of the supplied bytes, and the contract-validation result of those
+bytes. Every subsequent decision SHALL derive from the captured snapshot. No
+decision interface SHALL accept a mutable source reference — a path, handle,
+reader, port, or callback — in place of a snapshot.
+
+The core SHALL NOT acquire authority bytes on its own initiative: reading
+each authority source **exactly once**, retaining the resulting snapshot for
+the run, and never re-reading a source for a downstream decision are
+orchestration obligations owned by L4, which passes the acquired bytes into
+this capability as values.
 
 Authority-bearing inputs are the execution profile, the path policy, the gate
 registry, and any further authority data a later landing declares.
@@ -38,15 +45,17 @@ registry, and any further authority data a later landing declares.
 
 - **GIVEN** any trusted decision exposed by the core
 - **WHEN** its interface is examined
-- **THEN** it accepts captured snapshots and host observations only
-- **AND** no parameter names a path, handle, or reader from which the decision
-  could obtain authority bytes itself
+- **THEN** it accepts captured snapshots and observation values only
+- **AND** no parameter names a path, handle, reader, port, or callback from
+  which the decision could obtain authority bytes itself
 
 #### Scenario: Capture failure is a refusal, not an empty snapshot
 
-- **GIVEN** an authority source that cannot be read or whose bytes do not parse
-- **WHEN** capture is attempted
-- **THEN** the result is a refusal naming the source and the failure
+- **GIVEN** supplied authority bytes that fail contract validation, or an
+  acquisition failure reported by the orchestrator in place of bytes
+- **WHEN** snapshot construction is attempted
+- **THEN** the result is a refusal naming the source and the validation
+  failure, or an operational failure for the reported acquisition fault
 - **AND** no snapshot is produced that a later decision could treat as
   authority
 
@@ -138,8 +147,9 @@ from operational failure.
 
 #### Scenario: Operational failure is not a contract refusal
 
-- **GIVEN** an environmental fault reported by an injected port — an
-  unreadable source or an unavailable observer
+- **GIVEN** an environmental fault reported by the orchestrator's acquisition
+  or observation — an unreadable source or an unavailable workspace —
+  supplied to the core as a reported-failure value
 - **WHEN** the core classifies the outcome
 - **THEN** the classification is operational failure
 - **AND** no result claims a contract decision that was never made
@@ -154,7 +164,7 @@ from operational failure.
 | Captured bytes fail contract validation | refusal naming contract and position | change-attributable |
 | Requested gate identity absent from the captured registry | refusal naming the identity | change-attributable |
 | Security-relevant input over its declared bound | refusal naming bound and observed value | change-attributable |
-| Injected port reports the source unreadable | operational failure naming the source | operational |
+| Orchestrator reports an authority source unreadable | operational failure naming the source | operational |
 | Eligibility cannot be established from the inputs | refusal recording undecidability | fail-closed |
 
 An undecidable state is never mapped to eligible.
@@ -167,6 +177,12 @@ inert until L4 consumes it: no existing behavior changes.
 
 ## Deferred Behavior
 
+- **Source acquisition** — reading each authority source **exactly once**,
+  retaining the resulting snapshot for the run, never re-reading a source for
+  a downstream decision, and independently re-acquiring inputs for
+  verification are L4 orchestration obligations. L3 proves snapshot
+  construction, digest binding, and snapshot-only decisions; it cannot prove
+  an acquisition count and does not claim to.
 - **Consent to spend** — distinct from eligibility, and owned by L4.
 - **Gate scheduling and execution** — L4; L3 decides only that a requested gate
   identity is declared.

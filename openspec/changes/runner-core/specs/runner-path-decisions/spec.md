@@ -154,14 +154,16 @@ never eligible.
 
 ## Compatibility
 
-Additive. The capability consumes `PathPolicy` as authored in
-`packages/contracts` and requires no change to it.
-
-`PathPolicy.prohibited_rules` is declared as opaque strings with no rule
-language. This capability's normative interpretation of those strings is
-defined in `design.md` D8 and is subject to the planning review (proposal Q1).
-Until that interpretation is confirmed, an unrecognized rule form SHALL refuse
-rather than be ignored.
+Additive. The capability consumes `PathPolicy` as amended by the
+`runner-contract-corrections` change (directed by the delta review,
+2026-08-10, closing Q1): prohibited rules are **typed structured rules** with
+a closed kind vocabulary, so the rule language is fixed by the L2 contract
+and this capability interprets no opaque strings. Matching semantics for the
+`path_prefix` kind are stated in `design.md` D8. A policy whose bytes fail
+contract validation refuses at capture; a rule whose kind lies outside the
+core's implemented vocabulary — possible only if a future contract version
+adds one — SHALL refuse the policy rather than be skipped. L3 implementation
+begins only after the correction lands.
 
 ## Deferred Behavior
 

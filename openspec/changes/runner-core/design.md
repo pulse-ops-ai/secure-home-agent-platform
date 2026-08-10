@@ -32,7 +32,9 @@ ADR-0004, ADR-0006, ADR-0012, and `docs/architecture/runner-model.md`.
 
 ## Non-Goals
 
-- Any I/O performed on the core's own initiative.
+- Any I/O performed on the core's own initiative — and any I/O
+  *abstraction*: no reader, observer, source, or port interface is defined
+  here. Acquisition and observation are L4.
 - Any ordering, sequencing, scheduling, or lifecycle.
 - Any framework surface: no decorator, module, controller, or provider.
 - Selecting U2 workload identity, placing runner-control (U4), or defining the
@@ -58,6 +60,12 @@ L2's behavioral contract is now **canonical**, archived and synced by #63:
 authoritative statement of what the shapes must express; this change consumes
 them and adds no requirement to any of them.
 
+Two of those contracts are being amended by the review-directed
+`runner-contract-corrections` change (typed prohibited rules in
+`path-policy`; required policy/registry `AuthorityIdentity` fields in
+`evidence-bundle`). This seam consumes the **amended** contracts and
+sequences behind that correction; it still modifies neither package.
+
 Dependency direction is already enforced by two independent mechanisms:
 `scripts/check-workspace.mjs` (what a manifest may declare) and
 `scripts/check-source-imports.mjs` (what source may import), both reading
@@ -71,16 +79,22 @@ packages/runner-core/src/
   primitives/       deterministic, decision-free helpers
                     digest, canonical ordering, path normalization, bounds math
   decision/         the Decision<T> / Refusal result algebra and refusal codes
-  authority/        capture-once snapshots; contract validation; snapshot set
+  authority/        snapshot construction from supplied bytes; contract
+                    validation; the immutable snapshot set; input value types
   eligibility/      pre-spend eligibility decisions over a snapshot set
   policy/           write roots, protected material, prohibited rules, bounds
-  workspace/        authoritative change-set derivation from observation
+  workspace/        authoritative change-set derivation from supplied
+                    observation values; observation value types
   reconciliation/   observed vs claimed comparison
   evidence/         evidence construction; seal-eligibility predicate
   verification/     INDEPENDENT re-derivation and comparison
-  ports/            the injected observation interfaces (types only)
   index.ts          the public trusted-operation surface
 ```
+
+There is no `ports/` directory and no I/O abstraction anywhere in the tree:
+the package defines **value types** for what it consumes (authority bytes
+with source identity, workspace observations, artifact observations) and
+never a reader, observer, or source interface (D3).
 
 The public surface exposes **trusted domain operations** — `captureAuthority`,
 `decideEligibility`, `decideMaterialization`, `deriveAuthoritativeChangeSet`,
@@ -132,28 +146,42 @@ edited, which is a reviewable act.
 This is fail-closed in the direction that matters: a new dependency is refused
 by default rather than permitted until someone remembers to ban it.
 
-### D3: The core performs no I/O; observation arrives through injected ports
+### D3: The core performs no I/O and owns no I/O abstraction; bytes and observations arrive as immutable values
 
 `runner-core` imports nothing from `node:fs`, `node:child_process`, or any
-network module. Everything the outside world contributes enters as data through
-narrow port interfaces defined in `ports/` as **types only**:
+network module — **and it defines no reader, observer, source, or port
+interface either**. Everything the outside world contributes enters as an
+immutable value, typed by the core:
 
-| Port | Supplies |
+| Value type | Carries |
 |---|---|
-| `AuthorityBytesSource` | the bytes of one authority input, plus its source identity |
-| `WorkspaceObserver` | the observed change set for a workspace |
-| `ArtifactObserver` | the observed artifact surface: path, bytes, digest |
+| `AuthorityBytes` | the bytes of one authority input, plus its source identity — or the orchestrator's reported acquisition failure |
+| `WorkspaceObservation` | the observed change set for a workspace — or a reported observation failure |
+| `ArtifactObservation` | the observed artifact surface: path, bytes, digest per artifact — or a reported observation failure |
+
+**L4 owns the real acquisition and observation machinery** — its own reader
+and observer ports, if it wants them, live in L4. It acquires each authority
+source exactly once, retains the resulting snapshot for the run, performs
+independent re-observation for verification, and passes the results into L3
+as the values above.
 
 Three consequences, all wanted: the package stays framework-neutral and
-trivially testable; L4 owns every real read; and "the verifier reads the
-authoritative inputs independently" has a precise meaning — the verifier is
-handed *its own* port instances, and never the producer's results.
+trivially testable; L4 owns every real read *and the abstractions for
+reading*, so no L3 signature can smuggle an I/O capability; and "the
+verifier's inputs are independent" has a precise, honest meaning — the
+verifier is handed independently acquired **values**, and the obligation
+that they were acquired independently and afresh is L4's to prove, not L3's
+to claim.
 
-Rejected: letting the core read the filesystem directly. It would make the
-package untestable without a real workspace, put I/O failure modes inside trust
-decisions, and blur which component is allowed to touch the host.
+Rejected: letting the core read the filesystem directly — untestable without
+a real workspace, I/O failure modes inside trust decisions, blurred host
+boundary. Rejected (this revision, per the delta review): L3-owned port
+interfaces with L4-supplied implementations — an I/O abstraction defined by
+the pure core contradicts "performs no I/O", invites a later implementation
+inside L3, and made the capture-once claim unprovable as stated. Q4 is
+resolved by this removal.
 
-### D4: Capture-once is enforced by types, not by discipline
+### D4: Snapshot-only decisions are enforced by types; acquire-once is L4's, stated honestly
 
 `CapturedAuthority` is the only shape a decision accepts:
 
@@ -166,12 +194,25 @@ type CapturedAuthority<T> =
       readonly refusal: Refusal }
 ```
 
-No decision signature accepts a path, a reader, a port, or raw bytes. Re-reading
-a source mid-decision is therefore not merely forbidden — it is not
-expressible, which is the difference between a rule and a mechanism.
+No **decision** signature accepts a path, a reader, a port, a callback, or
+raw bytes — `captureAuthority` is the single constructor that takes an
+`AuthorityBytes` value and produces the snapshot every decision requires.
+Re-reading a source mid-decision is therefore not merely forbidden — it is
+not expressible, which is the difference between a rule and a mechanism.
 
-A snapshot's `digest` is computed over the captured bytes before parsing, so
-the recorded identity is of the bytes that were actually read.
+A snapshot's `digest` is computed over the supplied bytes before parsing, so
+the recorded identity is of the bytes that actually governed.
+
+The split of the ratified capture-once invariant (INV-007), stated honestly:
+
+- **L3 proves**: given captured bytes, an immutable digest-bound snapshot is
+  constructed; every decision accepts only snapshots; a decision cannot
+  express a re-read.
+- **L4 proves**: each authority source was physically acquired **exactly
+  once** per run, the snapshot was retained, verification inputs were
+  re-acquired independently, and no downstream step re-read a source. A pure
+  package that performs no I/O cannot prove an acquisition count, and this
+  design does not claim it.
 
 ### D5: Refusal is a returned value with a stable code
 
@@ -223,28 +264,29 @@ cannot observe when it was called — and claiming otherwise would be exactly th
 overclaim the assurance instructions forbid. The boundary is stated in the
 capability spec and repeated here so no later reader assumes L3 covered it.
 
-### D8: `prohibited_rules` is interpreted as normalized path prefixes, and an unrecognized form refuses
+### D8: Prohibited rules are consumed as the L2 typed contract; an unimplemented kind refuses
 
-`PathPolicy.prohibited_rules` is `array(string().min(1))` with no declared rule
-language (proposal Q1). L3 must interpret it and cannot change L2.
+The delta review (2026-08-10) directed Q1's resolution into L2: the
+`runner-contract-corrections` change types `prohibited_rules` as structured
+rules with a closed kind vocabulary — initially `path_prefix` only, with
+non-normalized forms (wildcard, traversal, absolute, scheme) structurally
+unrepresentable. L3 therefore interprets **no opaque strings**; the rule
+language is the contract's.
 
-Proposed interpretation: each rule is a **repository-relative normalized path
-prefix**. A change is prohibited when its normalized path equals a rule or lies
-beneath one as a path component prefix. No wildcard, regex, or brace syntax is
-recognized.
+L3's remaining semantics, for the `path_prefix` kind: a change is prohibited
+when its normalized path equals the rule's prefix or lies beneath it as a
+path **component** prefix (`docs` matches `docs/x.md`, never `docs-2/x.md`).
 
-Any rule string that does not parse as a normalized relative path — one
-containing a wildcard character, a traversal segment, an absolute prefix, or a
-scheme — **refuses the whole policy at capture time**. It is not ignored, not
-skipped, and not best-effort matched.
+Defense in depth, kept: a policy whose bytes fail contract validation
+refuses at capture (that is capture's job); and a rule whose `kind` lies
+outside the core's implemented vocabulary — possible only when a future
+contract version adds a kind before the core learns it — **refuses the whole
+policy**, never skipping the rule. A protection rule silently ignored is a
+protection silently removed, which remains the highest-consequence failure
+this capability has.
 
-Rationale: an unrecognized rule silently ignored is a protection silently
-removed, which is the highest-consequence failure this capability has. Prefix
-matching is the narrowest interpretation that satisfies the requirement, and it
-is trivially decidable. Adopting a glob language later is an L2 contract change
-with its own review.
-
-**This interpretation requires confirmation at the planning review.**
+This design consumes the correction; L3 implementation begins only after it
+lands (see § Open Questions, Q1/Q2 resolution).
 
 ### D9: Protected-path violations are refusals, not reconciliation disagreements
 
@@ -320,24 +362,26 @@ Exported by L3 for L4:
 
 | Operation | Takes | Returns |
 |---|---|---|
-| `captureAuthority` | source identity + bytes + expected contract | `CapturedAuthority<T>` |
+| `captureAuthority` | `AuthorityBytes` value (source identity + bytes) + expected contract | `CapturedAuthority<T>` |
 | `decideEligibility` | snapshot set + requested gate ids | `Decision<Eligible>` |
 | `decideMaterialization` | captured policy + observed change set | `Decision<Materializable>` |
 | `deriveAuthoritativeChangeSet` | host observation | `Decision<AuthoritativeChangeSet>` |
 | `reconcileClaims` | authoritative set + claimed set | `Reconciliation` |
 | `constructEvidence` | snapshots + observation + gate results + outcome inputs | `Decision<EvidenceBundleT>` |
 | `decideSealEligibility` | evidence input set | `Decision<SealEligible>` |
-| `verifyEvidence` | claimed bundle + independent observations | `VerificationResult` |
+| `verifyEvidence` | claimed bundle + independently acquired observation values | `VerificationResult` |
 
-No exported operation accepts a path, a file handle, or a callback that could
-read one.
+No exported operation accepts a path, a file handle, a reader, a port, or a
+callback that could read one. Bytes and observations are values; their
+acquisition is L4's.
 
 ## Failure Classification Boundaries
 
 - **Contract refusal** — a decision the core made from valid inputs: missing
   authority, undeclared gate, protected path, over-bound input, incomplete
   evidence. Always carries a refusal code and the violated element.
-- **Operational failure** — an injected port could not supply an observation.
+- **Operational failure** — the orchestrator reported that acquisition or
+  observation failed, supplied to the core as a reported-failure value.
   Never carries a refusal code, and never claims a contract decision.
 - **Undecidable** — the inputs do not determine an answer. Classified as
   refusal, recorded as undecidable, never eligible and never verified.
@@ -355,10 +399,11 @@ SHA-256 would prove nothing and add a divergence risk.
 
 **Must remain independent** (`evidence/` versus `verification/`): expected
 artifact membership, expected change membership, completeness, and consistency.
-The verifier derives its expectation from the authoritative inputs and its own
-observations; if it derived it from the producer's function, it would confirm
-the producer's opinion rather than check it. D6 enforces this with an import
-guard.
+The verifier derives its expectation from the authoritative inputs and the
+independently acquired observation values L4 hands it; if it derived it from
+the producer's function or the producer's inputs, it would confirm the
+producer's opinion rather than check it. D6 enforces the import side with a
+guard; the independent-acquisition side is L4's obligation, named in D3/D4.
 
 ## Compatibility and Migration
 
@@ -403,36 +448,37 @@ enforcement flip in the program.
 
 ## Open Questions
 
-Carried into the planning review. The first two are trust-critical and must be
-closed before implementation begins.
+All four questions this seam carried are now resolved by review direction
+(delta review, 2026-08-10, on PR #62). Recorded here with their outcomes;
+none remains open in this design.
 
-**Q1 — `prohibited_rules` interpretation (trust-critical).** D8 proposes
-normalized path prefixes with refusal on any unrecognized form. Confirm, or
-direct that a typed rule contract be added to L2 first — which would make L3
-depend on an L2 change and is outside #52's path authority.
+**Q1 — `prohibited_rules` interpretation (trust-critical). RESOLVED: typed
+rule contract in L2.** The review directed that L3 not invent semantics over
+opaque strings: *"The rule language belongs in the L2 contract."* The
+`runner-contract-corrections` change types the rules (closed kind
+vocabulary, structurally normalized `path_prefix`); D8 now consumes that
+contract, retains component-prefix matching semantics, and refuses any kind
+outside the implemented vocabulary. L3 sequences behind the correction.
 
 **Q2 — evidence cannot record the policy or gate-registry digest
-(trust-critical).** `EvidenceIdentities` has no field for either, and the
-now-canonical [`runner-evidence`](../../specs/runner-evidence/spec.md)
-requirement does not enumerate one either — so this is a gap in a **ratified
-capability spec**, not only in a schema file. Four options, none of which L3
-may take unilaterally:
+(trust-critical). RESOLVED: option B.** The four-option analysis (A: accept
+the gap; B: amend the ratified `runner-evidence` contract first; C: L3-owned
+side structure — rejected as a contract fork; D: record inputs as
+`ArtifactEntry` rows — rejected because it overloads an outputs field and
+forces the verifier to special-case RC-ADV-07's fail-closed accounting) was
+decided for **B**: *"a small governed L2 follow-up that adds digest-bound
+identities for the path policy and gate registry to the evidence
+contract/spec."* `runner-contract-corrections` adds both as required
+`AuthorityIdentity` fields; evidence construction populates them and the
+verifier compares them against its independently supplied captures. L3
+sequences behind the correction.
 
-| Option | Consequence |
-|---|---|
-| A — accept the gap for L3 | INV-007's "digest-recorded" holds inside the core and in verification, but a *reader of the evidence bundle alone* cannot tell which policy governed the run. The verifier still catches substitution, because it re-captures and compares. |
-| B — amend `runner-evidence` and the bundle first | Correct and complete, and outside #52's path authority. Requires an L2 follow-up change against a ratified capability spec, sequenced before L3. |
-| C — record them in an L3-owned side structure | Creates a second evidence-shaped artifact outside the ratified contract. Rejected here as a contract fork. |
-| D — record captured authority as `ArtifactEntry` rows | Structurally available today: the canonical requirement admits representation "directly or through digest-bound catalog references", and `ArtifactEntry` is `{path, digest, bytes}`. **But** the same requirement enumerates `artifacts` as *outputs*, so recording inputs there overloads the field — and it collides with the verifier's rule that an artifact present on the surface but absent from the bundle fails closed (RC-ADV-07): the verifier would have to special-case which artifacts are inputs. Available, semantically wrong, and it weakens a guard. |
+**Q3 — protected-path violation representation. CONFIRMED.** D9 stands: a
+protected-path write is a policy/materialization refusal, never a
+reconciliation disagreement.
 
-This design assumes **A** and reports the gap; the review may direct **B**.
-**D** is surfaced because it is the only option that needs no L2 change, and it
-should be rejected knowingly rather than overlooked.
-
-**Q3 — protected-path violation representation.** D9 renders it as a refusal
-rather than a reconciliation disagreement. Confirm.
-
-**Q4 — port granularity.** D3 proposes three ports. If L4's real
-implementation wants a different split, the interfaces are L3-owned and would
-change under a later authorized change. Flagged so the review can weigh it now
-rather than after L4 is written.
+**Q4 — port granularity. RESOLVED: ports removed from L3.** The review did
+not accept L3-owned I/O ports: *"Move acquisition/observation ports to L4
+and keep L3 value-oriented/pure."* D3 now defines value types only; L4 owns
+every acquisition and observation abstraction; INV-007's acquire-once half
+is honestly assigned to L4 (D4).

@@ -65,10 +65,11 @@ orchestrator asks.
 
 Four bounded behaviors:
 
-1. **Authority capture and eligibility** — read authority-bearing inputs once,
-   digest-bind the captured bytes, and decide eligibility from the snapshot
-   before any model or provider spend. Missing authority is never a permissive
-   default.
+1. **Authority capture and eligibility** — construct immutable, digest-bound
+   snapshots from authority bytes the orchestrator acquired (acquiring each
+   source exactly once is L4's obligation), and decide eligibility from the
+   snapshot before any model or provider spend. Missing authority is never a
+   permissive default.
 2. **Path decisions** — allowed write roots, prohibited paths, governing-context
    protection, normalized path handling, and declared bounds. Over-bound input
    is refused, never truncated.
@@ -86,7 +87,9 @@ Four bounded behaviors:
 
 - `packages/runner-core` as a new workspace member, registered in the layer
   model with a mechanically enforced dependency direction.
-- The four behaviors above, as pure decision logic over injected ports.
+- The four behaviors above, as pure decision logic over immutable values
+  supplied by the orchestrator — the core owns no I/O and no I/O
+  abstraction (design D3).
 - The proof net that must land with them: architecture guards, deterministic
   examples, hostile fixtures, property tests, and mutation targets.
 
@@ -150,7 +153,7 @@ accepted ADR requires a new superseding ADR through its own human review.
 |---|---|---|
 | authentication or authorization | **yes** | eligibility decisions gate spend; a permissive default would be an authorization bypass |
 | PII or encryption | no | no personal data; digests only |
-| persistence or migrations | no | no storage; pure decisions over injected ports |
+| persistence or migrations | no | no storage; pure decisions over supplied immutable values |
 | transaction or concurrency | no | no shared mutable state; decisions are pure functions of their inputs |
 | public package contracts | **yes** | `packages/runner-core` exports the interface L4 consumes |
 | runner / review / materialization machinery | **yes** | this *is* the trusted core of that machinery |
@@ -185,9 +188,14 @@ Classification follows in `assurance.md`: **trust-critical**.
 - The workspace dependency-direction machinery (manifest layering and
   source-import direction), merged in #44 and #45.
 
-**Accepted but not yet implemented:**
+**Directed but not yet implemented:**
 
-- None. L3 depends on no unimplemented landing.
+- **`runner-contract-corrections`** — the review-directed L2 correction
+  (typed prohibited rules; evidence identities completed over the governing
+  policy and registry). **L3 implementation sequences behind it**: this seam
+  consumes the amended `path-policy` and `evidence-bundle` contracts, and
+  task 0.1 cannot flip before the correction lands and this seam is
+  reconciled against it.
 
 **External:** none. No new third-party dependency is proposed; `zod` is already
 in the catalog and is the only runtime dependency L2 carries.
@@ -218,41 +226,26 @@ This change must not:
 
 ## Open Questions
 
-Trust-critical questions must be closed before implementation begins. These are
-carried into the planning review:
+All questions this proposal carried are resolved by the delta review
+(2026-08-10, on PR #62). Recorded with outcomes; `design.md` § Open
+Questions holds the detail:
 
-- **Q1 — `prohibited_rules` has no declared rule language.**
-  `PathPolicy.prohibited_rules` is `array(string().min(1))`. L3 must interpret
-  those strings to decide protected-path violations, but L2 declares no syntax
-  or matching semantics. This proposal takes the position that L3 defines the
-  interpretation as **normative behavior in its own capability spec** without
-  changing L2's shape (design D8). The alternative — a typed rule contract in
-  L2 — would be an L2 change and is out of this landing's path authority.
-  **Requires confirmation at review.**
+- **Q1 — `prohibited_rules` rule language. RESOLVED: typed rule contract in
+  L2.** The review directed that L3 not invent semantics over opaque
+  strings; the `runner-contract-corrections` change types the rules, and L3
+  consumes the amended contract (design D8).
 
-- **Q2 — evidence cannot record the policy or gate-registry digest.**
-  `EvidenceIdentities` carries `run_id`, `profile`, `image_digest`,
-  `argv_digest`, `runtime`, `provider`, `adapter`. INV-007 requires every
-  authority input to be captured and **digest-recorded**, but there is no field
-  for the path-policy digest or the gate-registry digest. L3 can capture and
-  digest-bind them internally; it cannot record them in the L2 evidence bundle.
+- **Q2 — evidence cannot record the policy or gate-registry digest.
+  RESOLVED: option B.** The review directed a governed L2 follow-up adding
+  both digest-bound identities to the `runner-evidence` contract;
+  `runner-contract-corrections` carries it, and L3 populates and verifies
+  the new fields. Options C and D remain rejected with their recorded
+  reasons.
 
-  The gap is not merely an artefact of the Zod file. The now-canonical
-  [`runner-evidence`](../../specs/runner-evidence/spec.md) requirement
-  enumerates what evidence must be capable of representing — run identity,
-  profile identity with digest, image digest, argv digest, runtime, provider,
-  adapter, principal, granted capabilities, operations, **gate results**,
-  artifacts, change sets, outcome, timing — and neither the path-policy digest
-  nor the gate-registry digest appears in that enumeration. Closing the gap by
-  adding fields is therefore a change to a **ratified capability spec**, not
-  only to a schema file.
+- **Q3 — protected-path violation representation. CONFIRMED.** A
+  protected-path violation is a policy/materialization refusal (design D9),
+  never a reconciliation disagreement.
 
-  This is a **contract gap in L2**, reported rather than worked around.
-  **Requires a decision at review** — see `design.md` § Open Questions for the
-  four options and their consequences.
-
-- **Q3 — protected-path violations have no distinct evidence representation.**
-  `ChangeSets.reconciliation` models `agreement` plus `disagreements[]`. A
-  protected-path violation is not a disagreement between observation and claim;
-  it is a refusal cause. Encoding one as the other would conflate two different
-  facts. **Requires confirmation** of the L3-side handling in design D9.
+- **Q4 — port granularity. RESOLVED: no L3 ports.** Acquisition and
+  observation abstractions move to L4; L3 receives immutable values (design
+  D3/D4), and INV-007's acquire-once half is honestly assigned to L4.

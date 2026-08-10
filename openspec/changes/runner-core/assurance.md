@@ -54,7 +54,7 @@ below.
 | INV-001 | `packages/runner-core` imports nothing from `services/*` or `apps/*`, and the direction is mechanically enforced |
 | INV-003 | Contract refusal and operational failure are distinct outcomes; a refusal carries enough to write refusal evidence |
 | INV-006 | The authoritative change set derives from host observation; claims are recorded and cross-checked, never substituted |
-| INV-007 | Authority inputs are captured once and digest-bound; every decision derives from the snapshot |
+| INV-007 | *(split with L4, honestly)* L3: captured authority is an immutable digest-bound snapshot and every decision derives from it, snapshot-only by construction. L4: each source physically acquired exactly once, snapshot retained, verification inputs independently re-acquired — an acquisition count a pure package cannot prove |
 | INV-008 | *(data/path side only)* A run cannot alter the material that governs or judges it |
 | INV-010 | Security-relevant bounds refuse, never truncate |
 | INV-011 | Evidence is independently re-derivable and fail-closed; failure to establish evidence never registers as success |
@@ -71,7 +71,7 @@ below.
 | RC-INV-05 | No public interface expresses a truncated, sampled, or partial result for a security-relevant bound | trust |
 | RC-INV-06 | Every trusted operation returns a `Decision`; no contract-reason path throws | behavior |
 | RC-INV-07 | The package is inert: no module-load side effect, and no importer in the repository | behavior |
-| RC-INV-08 | An unrecognized `prohibited_rules` form refuses the policy at capture, never being ignored | trust |
+| RC-INV-08 | A prohibited rule the core cannot interpret — policy bytes failing contract validation, or a rule kind outside the implemented vocabulary — refuses the whole policy at capture, never being skipped | trust |
 
 ## State-Space Model
 
@@ -129,7 +129,7 @@ Mandatory at this risk class.
 | INV-006 × INV-008 | a claimed change set naming a protected path could be read as authoritative and then refused for the wrong reason | RC-ADV-01: claims naming a protected path never enter the authoritative set; the refusal cites the *observed* violation |
 | INV-010 × INV-011 | an over-bound change set could be refused after evidence has been partially constructed, leaving a bundle that half-describes a refused run | RC-ADV-02: bound refusal precedes construction; no partial bundle is returned |
 | INV-011 × INV-015 | a sealed, verified bundle taken as trust in a later mutated artifact | ADV-014 / PROP-006 at the consumption boundary |
-| INV-003 × INV-011 | an operational read failure could be recorded as a contract refusal in evidence, inventing a decision | RC-ADV-03: port failure yields `OperationalFailure`, and no refusal code appears |
+| INV-003 × INV-011 | an operational read failure could be recorded as a contract refusal in evidence, inventing a decision | RC-ADV-03: a reported acquisition or observation failure yields `OperationalFailure`, and no refusal code appears |
 | RC-INV-03 × D6 | a later refactor extracts a "shared" membership helper, collapsing verifier independence | RC-EX-03 import-graph guard plus MUT-003 |
 | RC-INV-02 × L4 consumption | L4 could pass a reader through a generic parameter, re-opening re-reads | RC-EX-02 signature guard over the exported surface |
 
@@ -145,10 +145,10 @@ split rather than overclaimed.
 | ID | What L3 must prove | Authoritative input | Candidate failure | Independent observable evidence | Can L3 prove it? |
 |---|---|---|---|---|---|
 | EX-001 | `packages/runner-core` has no `services/*` or `apps/*` import, and the check fails when one is added | the workspace layer model and the package's real import graph | someone adds a service import and the gate stays green | merge-gate run of `check:workspace` and `check:imports`, plus a negative fixture proving the added import fails | **Yes, fully** |
-| EX-003 | A contract refusal carries enough to write refusal evidence, and an operational failure claims no contract decision | the `Decision` result values | a port error is recorded as a refusal, inventing a decision that was never made | deterministic tests over both variants asserting the presence/absence of a refusal code | **Yes, fully** |
+| EX-003 | A contract refusal carries enough to write refusal evidence, and an operational failure claims no contract decision | the `Decision` result values | a reported environmental failure is recorded as a refusal, inventing a decision that was never made | deterministic tests over both variants asserting the presence/absence of a refusal code | **Yes, fully** |
 | EX-006 | An independent verifier re-derives expected state from authoritative inputs and artifacts, agreeing or naming the divergence | captured snapshots + observed artifact surface | verifier calls the producer and confirms its opinion | re-derivation tests plus the import-graph guard (RC-EX-03) | **Yes, fully** |
 | ADV-002 | A claim naming a file absent from the observation loses; disagreement is recorded | host observation + claimed set | claim merged into the authoritative set | fixture asserting authoritative-set membership and the recorded disagreement | **Yes, fully** |
-| ADV-003 | A source mutated after capture does not change any decision | captured snapshot | a decision re-reads the source | fixture mutating the port's bytes after capture; decisions unchanged; digest identifies the captured bytes | **Yes, fully** — the port makes the mutation expressible in-test |
+| ADV-003 | A source mutated after capture does not change any decision | captured snapshot | a decision re-reads the source | fixture supplying one byte value at capture and a different value afterwards; decisions unchanged; digest identifies the captured bytes | **Yes, for the snapshot side** — value-based inputs make the mutation expressible in-test; that no re-acquisition physically occurred is L4's acquire-once proof |
 | ADV-004 | *Split.* L3 proves that a base-identity **mismatch input** yields refusal | captured base identity + observed identity | mismatch treated as acceptable | fixture over the comparison decision | **Partly.** L3 owns the comparison; **L4 owns asserting it at workspace creation**, because "before any model invocation" is an ordering property |
 | ADV-005 | A sandbox write to a protected governing path refuses materialization entirely, violation recorded | captured policy + observed change set | the offending change is dropped and the rest proceeds | fixture with one protected and several eligible changes; whole set refused | **Yes, for the data/path side.** The code side (modified orchestration never judges its run) is L4/ADV-018 |
 | ADV-009 | An input over its declared byte bound is refused with bound and observed size, never truncated | captured policy bounds + observation | truncate-to-fit | fixture at over-bound; plus the API-shape guard that no truncating mode exists | **Yes, fully** |
@@ -163,9 +163,12 @@ split rather than overclaimed.
 | MUT-008 | Removing or bypassing final-consumer verification is killed | — | consumption skips reverification | ADV-014 / PROP-006 must fail under the mutant | **Yes, fully** |
 
 **Explicitly not claimed by L3**, and named here so no reader assumes coverage:
-EX-004 and PROP-002 (lifecycle state machine, L4); EX-005A/B, ADV-006, ADV-007
-execution, MUT-004, MUT-007 (gate *execution*, L4/L9 — L3 proves only that an
-undeclared gate identity refuses at eligibility); ADV-018 and MUT-010
+the **acquire-once half of INV-007** — that each authority source was
+physically read exactly once, the snapshot retained, and verification inputs
+independently re-acquired (L4; a pure package cannot prove an acquisition
+count); EX-004 and PROP-002 (lifecycle state machine, L4); EX-005A/B, ADV-006,
+ADV-007 execution, MUT-004, MUT-007 (gate *execution*, L4/L9 — L3 proves only
+that an undeclared gate identity refuses at eligibility); ADV-018 and MUT-010
 (orchestration provenance, L4); ADV-013, EX-008 (cancellation and teardown,
 L9); the ordering half of the sealed-last rule (L4).
 
@@ -178,7 +181,7 @@ L9); the ordering half of the sealed-last rule (L4).
 | RC-EX-03 | RC-INV-03 | architecture guard | import-graph guard: zero edges between `src/evidence/**` and `src/verification/**` |
 | RC-EX-04 | RC-INV-04 | architecture guard | no `node:fs`, `node:child_process`, `node:net`, `node:http(s)`, or `node:dgram` import in `src/**` |
 | RC-EX-05 | RC-INV-07 | deterministic example | importing the package index executes no side effect; the repository has zero importers |
-| RC-EX-06 | RC-INV-08 | deterministic example | an unrecognized `prohibited_rules` form refuses the policy at capture |
+| RC-EX-06 | RC-INV-08 | deterministic example | policy bytes with an unknown rule kind or non-normalized prefix fail capture validation; a kind outside the implemented vocabulary refuses the whole policy |
 | RC-PROP-01 | RC-INV-06 | property test | for any generated input, every trusted operation returns a `Decision` and throws for no contract reason |
 | RC-PROP-02 | INV-006 | property test | for any generated observed/claimed pair, the authoritative set equals the observed set exactly, independent of presentation order |
 | RC-MUT-01 | RC-INV-08 | mutation test | ignoring an unrecognized rule instead of refusing is killed by RC-EX-06 |
@@ -208,8 +211,8 @@ L9); the ordering half of the sealed-last rule (L4).
 | ADV-014 | Verify → mutate the artifact → consume | refusal; the earlier verification authorizes nothing |
 | RC-ADV-01 | Claimed set names a protected path absent from the observation | claim never enters the authoritative set; no protected-path refusal is invented from a claim |
 | RC-ADV-02 | Over-bound change set presented with otherwise complete evidence inputs | bound refusal precedes construction; no partial bundle |
-| RC-ADV-03 | Observation port throws or reports unreadable | operational failure; no refusal code; no authoritative set |
-| RC-ADV-04 | `prohibited_rules` contains a wildcard, traversal segment, absolute prefix, or scheme | policy refused at capture; never best-effort matched |
+| RC-ADV-03 | Supplied observation value reports the workspace unreadable | operational failure; no refusal code; no authoritative set |
+| RC-ADV-04 | Policy bytes carry an unknown rule kind, or a prefix with a wildcard, traversal segment, absolute prefix, or scheme | policy refused at capture validation; never best-effort matched, never partially applied |
 | RC-ADV-05 | Path reaches its target through a link resolving outside its root | refused with path and reported target named |
 | RC-ADV-06 | Change set exactly at every declared bound | proceeds; repeated evaluation is identical |
 | RC-ADV-07 | Artifact surface contains an artifact absent from the bundle | verification fails naming the unaccounted artifact |
@@ -248,27 +251,26 @@ authority, from its source to its final consumer.
 | Object | Authoritative source | Capture boundary | Digest / identity | Mutable after capture? | Sandbox write reach | Transformation | Final consumer / verifier |
 |---|---|---|---|---|---|---|---|
 | Execution profile | repository-declared profile bytes | `captureAuthority` at run start | `Digest` over captured bytes; `ProfileIdentity` | source yes, snapshot no | **none** — protected material | parse → `ExecutionProfile` | eligibility; recorded in `EvidenceIdentities.profile` |
-| Path policy | repository-declared policy bytes | `captureAuthority` | `Digest` over captured bytes | source yes, snapshot no | **none** — protected | parse → `PathPolicy`; rules → normalized prefixes (D8) | materialization decisions; **not recordable in the L2 bundle (Q2)** |
-| Gate registry | repository-declared registry bytes | `captureAuthority` | `Digest` over captured bytes | source yes, snapshot no | **none** — protected | parse → `GateRegistry` | eligibility (declared-identity check); **not recordable in the bundle (Q2)** |
+| Path policy | repository-declared policy bytes | `captureAuthority` | `Digest` over captured bytes | source yes, snapshot no | **none** — protected | parse → `PathPolicy` v2 (typed rules); component-prefix matching (D8) | materialization decisions; recorded as `identities.path_policy` (`AuthorityIdentity`, per the `runner-contract-corrections` amendment); verifier compares against its own capture |
+| Gate registry | repository-declared registry bytes | `captureAuthority` | `Digest` over captured bytes | source yes, snapshot no | **none** — protected | parse → `GateRegistry` | eligibility (declared-identity check); recorded as `identities.gate_registry` (`AuthorityIdentity`, per the amendment); verifier compares against its own capture |
 | Pinned base / source identity | supplied to the core as captured identity | passed in as data | `Digest` | n/a to the core | none | compared against observed identity | L3 comparison; **asserted at creation by L4** |
-| Writable workspace | host, via `WorkspaceObserver` | observation, per call | observed change set | yes — it is the sandbox's workspace | **full** (that is the point) | derive authoritative change set | materialization decisions; evidence `change_sets.observed` |
-| Observed change set | `WorkspaceObserver` output | at derivation | set of `FileChange` | no — a value | none | normalization; bound measurement | path decisions; reconciliation; evidence |
+| Writable workspace | host, observed by **L4** | L4 observation, supplied as a `WorkspaceObservation` value | observed change set | yes — it is the sandbox's workspace | **full** (that is the point) | derive authoritative change set | materialization decisions; evidence `change_sets.observed` |
+| Observed change set | the supplied `WorkspaceObservation` value | at derivation | set of `FileChange` | no — a value | none | normalization; bound measurement | path decisions; reconciliation; evidence |
 | Model-claimed change set | adapter/provider output | passed in as **untrusted data** | none — claims carry no identity | no — a value | n/a | compared only | `change_sets.claimed`; never the authoritative set |
 | Gate results | supplied as `GateResults` | passed in as data | keyed by `GateId`; one disposition per identity, structurally | no | none | none | evidence `gate_results`; verifier revalidates |
-| Artifact surface | host, via `ArtifactObserver` | observation, per call | recomputed `Digest` per artifact | yes — files on disk | depends on the path decisions | digest recomputation; membership derivation | evidence `artifacts`; verifier recomputes independently |
+| Artifact surface | host, observed by **L4** | L4 observation, supplied as an `ArtifactObservation` value | recomputed `Digest` per artifact | yes — files on disk | depends on the path decisions | digest recomputation; membership derivation | evidence `artifacts`; verifier recomputes from its own supplied observation |
 | Evidence bundle | constructed by `evidence/` | construction | `EvidenceBundle` contract validation | yes, as a file, once written by L4 | **none** — protected | contract validation | `verification/`, using its **own** observations |
 | Sealed representation | L4 | **out of L3 scope** | — | — | none | — | L4; L3 supplies the eligibility predicate only |
-| Verifier inputs | the same authoritative sources, **re-observed** | verifier's own port instances | independently recomputed | — | none | independent re-derivation | the verification result, naming the artifacts consumed |
+| Verifier inputs | the same authoritative sources, **independently re-acquired by L4** | supplied to the verifier as values distinct from the producer's | independently recomputed | — | none | independent re-derivation | the verification result, naming the artifacts consumed; acquisition independence is L4's obligation |
 
 Two rows deserve emphasis. The **model-claimed change set** is the only object
 with no identity and no authority — by design; it is compared and recorded, and
-it reaches no decision. The **path policy** and **gate registry** rows expose
-Q2: they are captured and digest-bound, and their digests have nowhere to go —
-not in the evidence bundle, and not in the canonical `runner-evidence`
-requirement that governs what the bundle must be able to express. The verifier
-still detects substitution, because it re-captures and compares; what is lost
-is a *reader of the bundle alone* being able to tell which policy governed the
-run.
+it reaches no decision. The **path policy** and **gate registry** rows carried
+Q2 in the original seam: their digests had nowhere to go in the L2 bundle. The
+delta review directed option B, and the `runner-contract-corrections` change
+adds both as required `AuthorityIdentity` fields — so the chain now terminates
+in the bundle for every governing authority input, and a reader of the bundle
+alone can tell which policy and registry governed the run.
 
 ## Before × After Transition Analysis
 
@@ -292,7 +294,7 @@ implementation must handle as a *transition*, not merely as two states.
 | 13 | evidence inputs complete | one prerequisite becomes undecided | seal eligibility refuses naming it | RC-MUT-07 |
 | 14 | gate set all declared | one identity undeclared, or duplicated | eligibility refuses naming it | RC-ADV-10, eligibility fixtures |
 | 15 | workspace readable, empty change set | workspace unreadable | empty-and-valid → operational failure; the two never collapse | RC-ADV-12 vs RC-ADV-03 |
-| 16 | policy rules all recognized | one unrecognized rule form | policy refused at capture; not partially applied | RC-ADV-04, RC-MUT-01 |
+| 16 | policy validates with implemented rule kinds | bytes carry an unknown kind or non-normalized prefix | policy refused at capture; not partially applied | RC-ADV-04, RC-MUT-01 |
 
 No transition in this table may end in a success classification.
 
@@ -302,7 +304,8 @@ No transition in this table may end in a success classification.
 |---|---|---|---|
 | Extraction-ready core (INV-001) | L3 | 1.2 | EX-001 |
 | Dependency allowlist (RC-INV-01) | L3 | 1.3 | RC-EX-01 |
-| Captured-once, digest-bound (INV-007) | L3 | 2.1, 2.2 | ADV-003, MUT-002, RC-EX-02 |
+| Snapshot construction and snapshot-only decisions (INV-007, L3 half) | L3 | 2.1, 2.2 | ADV-003, MUT-002, RC-EX-02 |
+| Acquire-once, retention, independent re-acquisition (INV-007, L4 half) | **L4** | — | **deferred, named** |
 | Eligibility refuses (runner-authority) | L3 | 2.3 | eligibility table fixtures, RC-MUT-04 |
 | Refusal is a value (INV-003) | L3 | 2.4 | EX-003, RC-PROP-01, RC-ADV-03 |
 | Path decisions (runner-path-decisions) | L3 | 3.1, 3.2 | ADV-005, RC-ADV-04/05, MUT-001 |
@@ -358,8 +361,11 @@ Per the ratified standing model:
 - **Mechanical boundaries only:** a comment, a type name, or a directory
   convention is not a trust boundary unless something enforces it. RC-INV-03
   and RC-INV-04 are guards for exactly this reason.
-- **Planning-review gate:** Q1 and Q2 in `design.md` are trust-critical open
-  questions and must be closed **before** task 0.1 flips authorization.
+- **Planning-review gate:** Q1–Q4 were closed by the delta review
+  (2026-08-10) — Q1/Q2 by direction into the `runner-contract-corrections`
+  L2 change, Q3 confirmed, Q4 by removing L3-owned ports. Task 0.1
+  additionally gates on that correction **landing** and this seam passing
+  its focused delta review against the reconciled artifacts.
 
 ## Rollout and Rollback
 
@@ -374,38 +380,30 @@ and its own landing defines the shadow period, activation, and rollback.
 
 ## Assurance Completeness
 
-**Unresolved state-model questions:**
-
-- The exact prohibited-rule matching semantics depend on Q1. The state model
-  above assumes normalized path prefixes with refusal on any unrecognized form;
-  a different answer changes RC-ADV-04 and RC-MUT-01, not the surrounding
-  structure.
+**Unresolved state-model questions:** none. Q1's rule language is fixed by
+the L2 typed contract (`runner-contract-corrections`); the state model's
+RC-ADV-04 and RC-MUT-01 operate at capture validation and at the
+implemented-kind boundary.
 
 **Requirements lacking proof:** none within L3's scope. Every requirement in
 the four capability specs has a named proof obligation above.
 
-**Scenarios intentionally deferred, each with a named landing:** the assertion
-half of ADV-004, seal ordering, orchestration provenance (ADV-018, MUT-010),
-lifecycle transitions (EX-004, PROP-002), gate execution (EX-005A/B, ADV-006,
-ADV-007 execution, MUT-004, MUT-007), cancellation and teardown (EX-008,
-ADV-013), and PROP-006 re-proof at each later landing that adds a final
-consumer.
+**Scenarios intentionally deferred, each with a named landing:** the
+acquire-once half of INV-007 (L4), the assertion half of ADV-004, seal
+ordering, orchestration provenance (ADV-018, MUT-010), lifecycle transitions
+(EX-004, PROP-002), gate execution (EX-005A/B, ADV-006, ADV-007 execution,
+MUT-004, MUT-007), cancellation and teardown (EX-008, ADV-013), and PROP-006
+re-proof at each later landing that adds a final consumer.
 
 **Design assumptions requiring human confirmation:**
 
-- **Q1** — `prohibited_rules` interpretation (trust-critical).
-- **Q2** — neither the evidence bundle nor the now-canonical
-  `runner-evidence` requirement can record the policy or gate-registry digest;
-  option A is assumed and the gap reported (trust-critical). Closing it by
-  adding fields amends a **ratified capability spec**, which is outside this
-  landing's path authority.
-- **Q3** — protected-path violations render as refusals, not reconciliation
-  disagreements.
-- **Q4** — the three-port split in D3.
-- **D1** — layer 3 placement, chosen partly to inherit the framework guard
-  without editing an out-of-scope file, with the `CONTRACT_LAYER_MAX` naming
-  consequence reported rather than fixed.
+- **Q1–Q4** — resolved by the delta review (2026-08-10): Q1 typed rules in
+  L2, Q2 option B in L2 (both via `runner-contract-corrections`), Q3
+  confirmed, Q4 ports removed. Recorded in `design.md` § Open Questions.
+- **D1** — layer 3 placement, **accepted** by the same review, with the
+  `CONTRACT_LAYER_MAX` naming consequence recorded as non-blocking technical
+  debt, not widened into #52.
 
-`tasks.md` must not begin implementation of unresolved trust-critical behavior
-merely because this artifact exists. Q1 and Q2 are trust-critical and gate task
-0.1.
+`tasks.md` must not begin implementation merely because this artifact
+exists. Task 0.1 gates on the `runner-contract-corrections` change landing
+and on this reconciled seam passing its focused delta review.

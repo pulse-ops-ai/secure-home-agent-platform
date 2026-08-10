@@ -47,10 +47,15 @@ against the claimed or sealed evidence. The verifier SHALL NOT obtain its
 expected state by calling the producer's derivation, and SHALL NOT accept the
 producer's serialized output as the source of the expectation it checks.
 
-The verifier SHALL, at minimum: read the authoritative inputs through its own
-observation; recompute artifact digests; derive the expected artifact and
-change membership; revalidate the evidence against its declared contract; and
-compare the claimed evidence to the re-derived state.
+The verifier SHALL, at minimum: derive its expectation from authority bytes
+and artifact observations supplied to it as immutable values **distinct from
+those given to the producer**; recompute artifact digests; derive the
+expected artifact and change membership; revalidate the evidence against its
+declared contract; and compare the claimed evidence to the re-derived state.
+That the verifier's inputs were in fact acquired independently and afresh
+from the authoritative sources is an L4 orchestration obligation; L3 proves
+that its verification derives only from the inputs it was given, never from
+the producer's results.
 
 #### Scenario: Verifier agrees with an untampered bundle
 
@@ -177,7 +182,7 @@ unverified, or ineligible.
 | Artifact present on disk but absent from the bundle | verification failure naming the extra artifact | change-attributable |
 | Bundle absent, malformed, or self-contradictory | verification failure naming the condition | fail-closed |
 | Seal prerequisite missing or undecided | refusal naming the prerequisite | change-attributable |
-| Artifact reader reports the surface unreadable | operational failure | operational |
+| Orchestrator reports the artifact surface unreadable | operational failure | operational |
 | Terminal state cannot be established | indeterminate terminal state | fail-closed |
 
 No condition in this table maps to success.
@@ -189,18 +194,21 @@ Additive. Evidence is constructed against `EvidenceBundle` as authored in
 `RunOutcome`, whose `TERMINAL_SUCCESS` map already fixes `COMPLETED` as the
 only success.
 
-**Known limitation, recorded rather than worked around.**
-`EvidenceIdentities` has no field for the path-policy digest or the
-gate-registry digest, so evidence constructed here cannot record which policy
-or registry governed the run (proposal Q2). The core captures and digest-binds
-both internally, and the verifier compares them against its own capture; the
-digests are simply not expressible in the L2 bundle. Closing this requires an
-L2 change, which is outside this landing's path authority.
+**Sequenced behind the L2 correction.** The gap this change originally
+reported as Q2 — no field for the path-policy or gate-registry identity in
+`EvidenceIdentities` — was directed to option B by the delta review
+(2026-08-10) and is being closed in L2 by the `runner-contract-corrections`
+change: `identities.path_policy` and `identities.gate_registry` become
+required digest-bound `AuthorityIdentity` values. This capability populates
+both from the captured snapshots and the verifier compares them against its
+independently supplied captures. L3 implementation begins only after that
+correction lands; this seam consumes the amended contract.
 
 ## Deferred Behavior
 
 - **Finalization ordering** — actually writing evidence last is L4. This
   capability supplies the eligibility predicate only.
 - **Persistence** — where evidence is stored is U11 and the run schema.
-- **Container-level artifact observation** — L9; here the artifact surface
-  arrives through an injected observation port.
+- **Observation acquisition** — the artifact surface arrives as immutable
+  observation values supplied by the orchestrator (L4); container-level
+  observation mechanics are L9.
