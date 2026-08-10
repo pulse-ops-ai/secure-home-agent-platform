@@ -3,8 +3,11 @@
 The canonical schema for an **execution profile** — the artifact that grants an
 agent run its authority.
 
-> **Status: not defined.** This is the highest-priority schema: nothing in the
-> runner model can be built without it.
+> **Status: `1.0.0.json` generated** from the authored Zod contract in
+> [`packages/contracts`](../../packages/contracts/) (`runner-domain-contracts`,
+> L2/#51) — regenerate via `pnpm --filter @secure-home/contracts run generate`;
+> never hand-edit. The `$id` embeds the exact contract version and is recorded
+> in [`../identity-ledger.json`](../identity-ledger.json).
 
 ## Required field groups
 

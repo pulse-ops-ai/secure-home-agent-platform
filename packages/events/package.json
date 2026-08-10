@@ -16,17 +16,25 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@secure-home/contracts": "workspace:*",
+    "zod": "catalog:"
+  },
   "scripts": {
-    "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "build": "tsc -p tsconfig.build.json"
+    "lint": "pnpm run deps && eslint src",
+    "typecheck": "pnpm run deps && tsc --noEmit",
+    "test": "pnpm run deps && vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "generate": "pnpm run deps && tsc -p tsconfig.build.json && node dist/tools/generate.js",
+    "deps": "pnpm --filter @secure-home/contracts run build"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "eslint": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:launch-assertion:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "launch-assertion" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "argv": { "minItems": 1, "type": "array", "items": { "$ref": "#/$defs/__schema0" } },
+    "argv_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "environment_names": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+    },
+    "credentials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "env_var": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } },
+        "required": ["env_var"],
+        "additionalProperties": false
+      }
+    },
+    "contains_secret_values": { "type": "boolean", "const": false }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "argv",
+    "argv_digest",
+    "environment_names",
+    "credentials",
+    "contains_secret_values"
+  ],
+  "additionalProperties": false,
+  "$defs": { "__schema0": { "type": "string" } }
+}

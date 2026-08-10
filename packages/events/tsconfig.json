@@ -1,3 +1,6 @@
 {
-  "extends": "@secure-home/tsconfig/test"
+  "extends": "@secure-home/tsconfig/test",
+  "compilerOptions": {
+    "types": ["node"]
+  }
 }

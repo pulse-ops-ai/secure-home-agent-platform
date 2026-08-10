@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:verification-packs:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "verification-packs" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "packs": {
+      "type": "object",
+      "propertyNames": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "gate_ids": { "minItems": 1, "type": "array", "items": { "$ref": "#/$defs/__schema0" } }
+        },
+        "required": ["description", "gate_ids"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["contract_id", "contract_version", "packs"],
+  "additionalProperties": false,
+  "$defs": { "__schema0": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" } }
+}

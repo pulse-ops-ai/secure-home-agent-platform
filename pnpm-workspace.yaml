@@ -66,6 +66,9 @@ catalog:
   # ships no formatting rules in core and this workspace adds no stylistic
   # plugin, so the two cannot conflict.
   prettier: 3.9.6
+  # Runner domain contracts: the single authored contract source (ADR-0012
+  # §7), added by L2/#51 (runner-domain-contracts).
+  zod: 4.4.3
   # Test runner and coverage. V8 coverage is built into Node — no native
   # compilation, so it works on the ARM64 Pi and on x86_64 CI alike.
   vitest: 4.1.10

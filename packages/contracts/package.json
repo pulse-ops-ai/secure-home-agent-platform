@@ -16,17 +16,23 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "generate": "tsc -p tsconfig.build.json && node dist/tools/generate.js"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "eslint": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
