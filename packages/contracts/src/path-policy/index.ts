@@ -8,6 +8,7 @@ export {
   PATH_POLICY_ID,
   PATH_POLICY_VERSION,
   PathPolicy,
+  PathPolicyAuthorityIdentity,
   ProhibitedPathRule,
   RelativePathPrefix,
 } from './path-policy.js'

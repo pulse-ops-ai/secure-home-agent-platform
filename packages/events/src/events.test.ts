@@ -9,9 +9,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  AuthorityIdentity,
   CapabilityGrant,
+  GateRegistryAuthorityIdentity,
   GateResults,
+  PathPolicyAuthorityIdentity,
   ProfileIdentity,
 } from '@secure-home/contracts'
 import { EvidenceBundle } from './evidence.js'
@@ -245,9 +246,10 @@ describe('shared shapes are single instances (C-EX-005)', () => {
     expect(EvidenceBundle.shape.gate_results).toBe(GateResults)
     expect(EvidenceBundle.shape.identities.shape.profile).toBe(ProfileIdentity)
     expect(RunRecord.shape.profile).toBe(ProfileIdentity)
-    // CC-EX-05: the authority identities are the contracts instance too.
-    expect(EvidenceBundle.shape.identities.shape.path_policy).toBe(AuthorityIdentity)
-    expect(EvidenceBundle.shape.identities.shape.gate_registry).toBe(AuthorityIdentity)
+    // CC-EX-05: the authority identities are the contracts instances too —
+    // the per-contract specializations, not a redefined shape.
+    expect(EvidenceBundle.shape.identities.shape.path_policy).toBe(PathPolicyAuthorityIdentity)
+    expect(EvidenceBundle.shape.identities.shape.gate_registry).toBe(GateRegistryAuthorityIdentity)
   })
 })
 
@@ -330,6 +332,29 @@ describe('evidence bundle (C-EX-001, runtime-as-data, C-ADV-002)', () => {
       expect(
         EvidenceBundle.safeParse({ ...doc, identities }).success,
         `a bundle omitting identities.${field} must not validate`,
+      ).toBe(false)
+    }
+  })
+
+  it('a mislabeled or swapped authority identity is unrepresentable (Codex P1)', () => {
+    const doc = bundle() as unknown as Record<string, unknown>
+    const identities = doc['identities'] as Record<string, unknown>
+    const mislabeled = [
+      { field: 'path_policy', contract_id: 'gate-registry' },
+      { field: 'path_policy', contract_id: 'execution-profile' },
+      { field: 'gate_registry', contract_id: 'path-policy' },
+      { field: 'gate_registry', contract_id: 'anything-else' },
+    ]
+    for (const { field, contract_id } of mislabeled) {
+      expect(
+        EvidenceBundle.safeParse({
+          ...doc,
+          identities: {
+            ...identities,
+            [field]: { contract_id, contract_version: '1.0.0', digest: digestOf('9') },
+          },
+        }).success,
+        `identities.${field} must refuse contract_id ${JSON.stringify(contract_id)}`,
       ).toBe(false)
     }
   })

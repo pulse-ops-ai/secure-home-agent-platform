@@ -10,10 +10,20 @@
  * reinterpretation of existing rule data.
  */
 import { z } from 'zod'
-import { SemVer } from '../primitives/index.js'
+import { AuthorityIdentity, SemVer } from '../primitives/index.js'
 
 export const PATH_POLICY_ID = 'path-policy' as const
 export const PATH_POLICY_VERSION = '2.0.0' as const
+
+/**
+ * The digest-bound authority identity OF A PATH POLICY specifically:
+ * `contract_id` admits only this contract's id, so a mislabeled or
+ * swapped authority identity is unrepresentable in evidence (Codex
+ * review on PR #65).
+ */
+export const PathPolicyAuthorityIdentity = AuthorityIdentity.extend({
+  contract_id: z.literal(PATH_POLICY_ID),
+})
 
 /**
  * A normalized repository-relative path prefix, structurally: no leading

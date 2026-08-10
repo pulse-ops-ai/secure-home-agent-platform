@@ -17,10 +17,11 @@
 import { z } from 'zod'
 import {
   AdapterId,
-  AuthorityIdentity,
   CapabilityGrant,
   Digest,
+  GateRegistryAuthorityIdentity,
   GateResults,
+  PathPolicyAuthorityIdentity,
   ProfileIdentity,
   SemVer,
 } from '@secure-home/contracts'
@@ -35,15 +36,17 @@ export const EVIDENCE_BUNDLE_VERSION = '2.0.0' as const
  * (runner-contract-corrections D2): the digest-bound contract identities
  * of the governing path policy and gate registry are MANDATORY — an
  * evidence bundle that cannot name the authority that governed its run
- * does not validate.
+ * does not validate. Each field admits only its own contract's identity
+ * (contract_id is a literal), so a mislabeled or swapped authority
+ * identity is unrepresentable.
  */
 export const EvidenceIdentities = z.strictObject({
   run_id: RunId,
   profile: ProfileIdentity,
   image_digest: Digest,
   argv_digest: Digest,
-  path_policy: AuthorityIdentity,
-  gate_registry: AuthorityIdentity,
+  path_policy: PathPolicyAuthorityIdentity,
+  gate_registry: GateRegistryAuthorityIdentity,
   /** Opaque data — never a schema branch. */
   runtime: z.string().min(1),
   provider: z.string().min(1),

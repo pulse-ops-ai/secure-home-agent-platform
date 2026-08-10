@@ -8,6 +8,7 @@ export {
   GateDisposition,
   GateOutcome,
   GateRegistry,
+  GateRegistryAuthorityIdentity,
   GateResults,
   GateSpec,
 } from './gate-registry.js'

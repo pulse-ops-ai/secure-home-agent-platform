@@ -21,8 +21,26 @@
         },
         "image_digest": { "$ref": "#/$defs/__schema1" },
         "argv_digest": { "$ref": "#/$defs/__schema1" },
-        "path_policy": { "$ref": "#/$defs/__schema2" },
-        "gate_registry": { "$ref": "#/$defs/__schema2" },
+        "path_policy": {
+          "type": "object",
+          "properties": {
+            "contract_id": { "type": "string", "const": "path-policy" },
+            "contract_version": { "$ref": "#/$defs/__schema0" },
+            "digest": { "$ref": "#/$defs/__schema1" }
+          },
+          "required": ["contract_id", "contract_version", "digest"],
+          "additionalProperties": false
+        },
+        "gate_registry": {
+          "type": "object",
+          "properties": {
+            "contract_id": { "type": "string", "const": "gate-registry" },
+            "contract_version": { "$ref": "#/$defs/__schema0" },
+            "digest": { "$ref": "#/$defs/__schema1" }
+          },
+          "required": ["contract_id", "contract_version", "digest"],
+          "additionalProperties": false
+        },
         "runtime": { "type": "string", "minLength": 1 },
         "provider": { "type": "string", "minLength": 1 },
         "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" }
@@ -119,9 +137,9 @@
     "operations": {
       "type": "object",
       "properties": {
-        "attempted": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
-        "permitted": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
-        "denied": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } }
+        "attempted": { "type": "array", "items": { "$ref": "#/$defs/__schema2" } },
+        "permitted": { "type": "array", "items": { "$ref": "#/$defs/__schema2" } },
+        "denied": { "type": "array", "items": { "$ref": "#/$defs/__schema2" } }
       },
       "required": ["attempted", "permitted", "denied"],
       "additionalProperties": false
@@ -191,8 +209,8 @@
       "type": "object",
       "properties": {
         "authoritative": { "type": "string", "const": "observed" },
-        "observed": { "type": "array", "items": { "$ref": "#/$defs/__schema4" } },
-        "claimed": { "type": "array", "items": { "$ref": "#/$defs/__schema4" } },
+        "observed": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
+        "claimed": { "type": "array", "items": { "$ref": "#/$defs/__schema3" } },
         "reconciliation": {
           "type": "object",
           "properties": {
@@ -327,16 +345,6 @@
     "__schema2": {
       "type": "object",
       "properties": {
-        "contract_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
-        "contract_version": { "$ref": "#/$defs/__schema0" },
-        "digest": { "$ref": "#/$defs/__schema1" }
-      },
-      "required": ["contract_id", "contract_version", "digest"],
-      "additionalProperties": false
-    },
-    "__schema3": {
-      "type": "object",
-      "properties": {
         "call_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
         "operation": {
           "type": "object",
@@ -351,7 +359,7 @@
       "required": ["call_id", "operation"],
       "additionalProperties": false
     },
-    "__schema4": {
+    "__schema3": {
       "type": "object",
       "properties": {
         "path": { "type": "string", "minLength": 1 },

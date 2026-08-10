@@ -2,7 +2,7 @@
   "$comment": "Identity ledger (runner-domain-contracts D5). AUTHORED and append-only: each entry maps contract_id@exact-version to the digest of its generated schema bytes. An accepted entry may neither change nor disappear; only new identity@version entries may append. Never regenerated - regeneration must not be able to heal an identity violation.",
   "entries": {
     "evidence-bundle@1.0.0": "sha256:a62190802bd86790346313013888bd5bc5f2feab13b4d16aeaed1a4b61fce8fc",
-    "evidence-bundle@2.0.0": "sha256:54b11d4d0b3d031c487230cae33b6dd9895b8de3b5bc303468bbd53c29d32fb3",
+    "evidence-bundle@2.0.0": "sha256:ed8ecaba5bf047e1213041c39749868bc12463e2c99d44880af30580b825951d",
     "execution-profile@1.0.0": "sha256:8c7bbe641c44fcb8137564a14be4c651f71ab28f73081978de43b841a5d85ffc",
     "gate-registry@1.0.0": "sha256:f4e09c3d6eaa746ca80e2c72375a6df869701622fdf10cbb0cc57cb0b3862b2f",
     "launch-assertion@1.0.0": "sha256:56fc1f2ad7ac71b6e3935099fdba1165450242fe97c20f4fad19134ae65b8333",
