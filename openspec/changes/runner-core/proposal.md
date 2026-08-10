@@ -185,17 +185,13 @@ Classification follows in `assurance.md`: **trust-critical**.
 **Already implemented:**
 
 - L2 / #51 — `packages/contracts` and `packages/events`, merged.
+- **`runner-contract-corrections`** — the review-directed L2 correction,
+  fully landed: planning seam PR #64, implementation PR #65 (`path-policy`
+  2.0.0 with typed rules; `evidence-bundle` 2.0.0 with required
+  per-contract authority identities), canonical-spec sync PR #66. This
+  seam consumes the amended contracts as they now exist on `main`.
 - The workspace dependency-direction machinery (manifest layering and
   source-import direction), merged in #44 and #45.
-
-**Directed but not yet implemented:**
-
-- **`runner-contract-corrections`** — the review-directed L2 correction
-  (typed prohibited rules; evidence identities completed over the governing
-  policy and registry). **L3 implementation sequences behind it**: this seam
-  consumes the amended `path-policy` and `evidence-bundle` contracts, and
-  task 0.1 cannot flip before the correction lands and this seam is
-  reconciled against it.
 
 **External:** none. No new third-party dependency is proposed; `zod` is already
 in the catalog and is the only runtime dependency L2 carries.

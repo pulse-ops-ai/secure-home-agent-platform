@@ -60,11 +60,14 @@ L2's behavioral contract is now **canonical**, archived and synced by #63:
 authoritative statement of what the shapes must express; this change consumes
 them and adds no requirement to any of them.
 
-Two of those contracts are being amended by the review-directed
-`runner-contract-corrections` change (typed prohibited rules in
-`path-policy`; required policy/registry `AuthorityIdentity` fields in
-`evidence-bundle`). This seam consumes the **amended** contracts and
-sequences behind that correction; it still modifies neither package.
+Two of those contracts were amended by the review-directed
+`runner-contract-corrections` change, now fully landed (planning #64,
+implementation #65, archive/sync #66): typed prohibited rules in
+`path-policy` 2.0.0, and required per-contract authority identities in
+`evidence-bundle` 2.0.0 (`PathPolicyAuthorityIdentity` /
+`GateRegistryAuthorityIdentity` — a mislabeled identity is
+unrepresentable). This seam consumes the amended contracts as they exist
+on `main`; it still modifies neither package.
 
 Dependency direction is already enforced by two independent mechanisms:
 `scripts/check-workspace.mjs` (what a manifest may declare) and
@@ -458,7 +461,7 @@ opaque strings: *"The rule language belongs in the L2 contract."* The
 `runner-contract-corrections` change types the rules (closed kind
 vocabulary, structurally normalized `path_prefix`); D8 now consumes that
 contract, retains component-prefix matching semantics, and refuses any kind
-outside the implemented vocabulary. L3 sequences behind the correction.
+outside the implemented vocabulary. The correction has since landed (#64/#65/#66).
 
 **Q2 — evidence cannot record the policy or gate-registry digest
 (trust-critical). RESOLVED: option B.** The four-option analysis (A: accept
@@ -471,7 +474,7 @@ identities for the path policy and gate registry to the evidence
 contract/spec."* `runner-contract-corrections` adds both as required
 `AuthorityIdentity` fields; evidence construction populates them and the
 verifier compares them against its independently supplied captures. L3
-sequences behind the correction.
+sequences behind the correction — which has since landed (#64/#65/#66).
 
 **Q3 — protected-path violation representation. CONFIRMED.** D9 stands: a
 protected-path write is a policy/materialization refusal, never a

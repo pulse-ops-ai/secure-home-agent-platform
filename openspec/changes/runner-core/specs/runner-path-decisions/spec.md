@@ -154,16 +154,16 @@ never eligible.
 
 ## Compatibility
 
-Additive. The capability consumes `PathPolicy` as amended by the
-`runner-contract-corrections` change (directed by the delta review,
-2026-08-10, closing Q1): prohibited rules are **typed structured rules** with
-a closed kind vocabulary, so the rule language is fixed by the L2 contract
-and this capability interprets no opaque strings. Matching semantics for the
-`path_prefix` kind are stated in `design.md` D8. A policy whose bytes fail
-contract validation refuses at capture; a rule whose kind lies outside the
-core's implemented vocabulary — possible only if a future contract version
-adds one — SHALL refuse the policy rather than be skipped. L3 implementation
-begins only after the correction lands.
+Additive. The capability consumes `PathPolicy` as amended by the **landed**
+`runner-contract-corrections` change (directed by the delta review closing
+Q1; implemented in PR #65, canonical since PR #66): prohibited rules are
+**typed structured rules** with a closed kind vocabulary, so the rule
+language is fixed by the L2 contract and this capability interprets no
+opaque strings. Matching semantics for the `path_prefix` kind are stated in
+`design.md` D8. A policy whose bytes fail contract validation refuses at
+capture; a rule whose kind lies outside the core's implemented vocabulary —
+possible only if a future contract version adds one — SHALL refuse the
+policy rather than be skipped.
 
 ## Deferred Behavior
 

@@ -194,15 +194,17 @@ Additive. Evidence is constructed against `EvidenceBundle` as authored in
 `RunOutcome`, whose `TERMINAL_SUCCESS` map already fixes `COMPLETED` as the
 only success.
 
-**Sequenced behind the L2 correction.** The gap this change originally
-reported as Q2 — no field for the path-policy or gate-registry identity in
+**The L2 correction has landed.** The gap this change originally reported
+as Q2 — no field for the path-policy or gate-registry identity in
 `EvidenceIdentities` — was directed to option B by the delta review
-(2026-08-10) and is being closed in L2 by the `runner-contract-corrections`
-change: `identities.path_policy` and `identities.gate_registry` become
-required digest-bound `AuthorityIdentity` values. This capability populates
-both from the captured snapshots and the verifier compares them against its
-independently supplied captures. L3 implementation begins only after that
-correction lands; this seam consumes the amended contract.
+(2026-08-10) and closed in L2 by the `runner-contract-corrections` change
+(implemented in PR #65, canonical since PR #66): `identities.path_policy`
+and `identities.gate_registry` are required digest-bound values whose
+`contract_id` admits only the owning contract
+(`PathPolicyAuthorityIdentity` / `GateRegistryAuthorityIdentity` — a
+mislabeled or swapped identity is unrepresentable). This capability
+populates both from the captured snapshots and the verifier compares them
+against its independently supplied captures.
 
 ## Deferred Behavior
 
