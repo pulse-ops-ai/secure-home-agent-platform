@@ -50,6 +50,14 @@ shared primitives (`Digest`, `GateId`, `ProfileIdentity`, `CapabilityGrant`,
 `TERMINAL_SUCCESS`, the closed event vocabulary, and `EvidenceBundle` with
 `EvidenceIdentities`, `ChangeSets`, `FileChange`, `ArtifactEntry`.
 
+L2's behavioral contract is now **canonical**, archived and synced by #63:
+[`execution-profile`](../../specs/execution-profile/spec.md),
+[`runner-execution`](../../specs/runner-execution/spec.md),
+[`runner-verification`](../../specs/runner-verification/spec.md), and
+[`runner-evidence`](../../specs/runner-evidence/spec.md). Those four are the
+authoritative statement of what the shapes must express; this change consumes
+them and adds no requirement to any of them.
+
 Dependency direction is already enforced by two independent mechanisms:
 `scripts/check-workspace.mjs` (what a manifest may declare) and
 `scripts/check-source-imports.mjs` (what source may import), both reading
@@ -404,16 +412,22 @@ direct that a typed rule contract be added to L2 first — which would make L3
 depend on an L2 change and is outside #52's path authority.
 
 **Q2 — evidence cannot record the policy or gate-registry digest
-(trust-critical).** `EvidenceIdentities` has no field for either. Three
-options, none of which L3 may take unilaterally:
+(trust-critical).** `EvidenceIdentities` has no field for either, and the
+now-canonical [`runner-evidence`](../../specs/runner-evidence/spec.md)
+requirement does not enumerate one either — so this is a gap in a **ratified
+capability spec**, not only in a schema file. Four options, none of which L3
+may take unilaterally:
 
 | Option | Consequence |
 |---|---|
 | A — accept the gap for L3 | INV-007's "digest-recorded" holds inside the core and in verification, but a *reader of the evidence bundle alone* cannot tell which policy governed the run. The verifier still catches substitution, because it re-captures and compares. |
-| B — add the fields to L2 first | Correct, and outside #52's path authority. Requires an L2 follow-up change and delays L3. |
-| C — record them in an L3-owned side structure | Creates a second evidence-shaped artifact outside the ratified contract. Rejected by the authors of this design as a contract fork. |
+| B — amend `runner-evidence` and the bundle first | Correct and complete, and outside #52's path authority. Requires an L2 follow-up change against a ratified capability spec, sequenced before L3. |
+| C — record them in an L3-owned side structure | Creates a second evidence-shaped artifact outside the ratified contract. Rejected here as a contract fork. |
+| D — record captured authority as `ArtifactEntry` rows | Structurally available today: the canonical requirement admits representation "directly or through digest-bound catalog references", and `ArtifactEntry` is `{path, digest, bytes}`. **But** the same requirement enumerates `artifacts` as *outputs*, so recording inputs there overloads the field — and it collides with the verifier's rule that an artifact present on the surface but absent from the bundle fails closed (RC-ADV-07): the verifier would have to special-case which artifacts are inputs. Available, semantically wrong, and it weakens a guard. |
 
 This design assumes **A** and reports the gap; the review may direct **B**.
+**D** is surfaced because it is the only option that needs no L2 change, and it
+should be rejected knowingly rather than overlooked.
 
 **Q3 — protected-path violation representation.** D9 renders it as a refusal
 rather than a reconciliation disagreement. Confirm.

@@ -263,8 +263,12 @@ authority, from its source to its final consumer.
 Two rows deserve emphasis. The **model-claimed change set** is the only object
 with no identity and no authority — by design; it is compared and recorded, and
 it reaches no decision. The **path policy** and **gate registry** rows expose
-Q2: they are captured and digest-bound, and their digests have nowhere to go in
-the ratified evidence bundle.
+Q2: they are captured and digest-bound, and their digests have nowhere to go —
+not in the evidence bundle, and not in the canonical `runner-evidence`
+requirement that governs what the bundle must be able to express. The verifier
+still detects substitution, because it re-captures and compares; what is lost
+is a *reader of the bundle alone* being able to tell which policy governed the
+run.
 
 ## Before × After Transition Analysis
 
@@ -390,8 +394,11 @@ consumer.
 **Design assumptions requiring human confirmation:**
 
 - **Q1** — `prohibited_rules` interpretation (trust-critical).
-- **Q2** — the evidence bundle cannot record the policy or gate-registry
-  digest; option A is assumed and the gap reported (trust-critical).
+- **Q2** — neither the evidence bundle nor the now-canonical
+  `runner-evidence` requirement can record the policy or gate-registry digest;
+  option A is assumed and the gap reported (trust-critical). Closing it by
+  adding fields amends a **ratified capability spec**, which is outside this
+  landing's path authority.
 - **Q3** — protected-path violations render as refusals, not reconciliation
   disagreements.
 - **Q4** — the three-port split in D3.

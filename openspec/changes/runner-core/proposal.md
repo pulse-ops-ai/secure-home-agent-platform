@@ -162,7 +162,10 @@ Classification follows in `assurance.md`: **trust-critical**.
 
 ## Existing Evidence
 
-- `openspec/specs/runner-adoption/spec.md` — ratified requirements.
+- `openspec/specs/runner-adoption/spec.md` — ratified adoption requirements.
+- `openspec/specs/{execution-profile,runner-execution,runner-verification,runner-evidence}/spec.md`
+  — L2's canonical capability specs, archived and synced by #63. These are the
+  authoritative behavioral statement of the contracts L3 consumes.
 - `openspec/changes/archive/2026-08-09-runner-baseline-adoption/{design,assurance}.md`
   — landing seams and the inherited proof identifiers.
 - `packages/contracts/src/{path-policy,verification,execution-profile,launch-assertion,primitives}/**`
@@ -233,9 +236,20 @@ carried into the planning review:
   authority input to be captured and **digest-recorded**, but there is no field
   for the path-policy digest or the gate-registry digest. L3 can capture and
   digest-bind them internally; it cannot record them in the L2 evidence bundle.
+
+  The gap is not merely an artefact of the Zod file. The now-canonical
+  [`runner-evidence`](../../specs/runner-evidence/spec.md) requirement
+  enumerates what evidence must be capable of representing — run identity,
+  profile identity with digest, image digest, argv digest, runtime, provider,
+  adapter, principal, granted capabilities, operations, **gate results**,
+  artifacts, change sets, outcome, timing — and neither the path-policy digest
+  nor the gate-registry digest appears in that enumeration. Closing the gap by
+  adding fields is therefore a change to a **ratified capability spec**, not
+  only to a schema file.
+
   This is a **contract gap in L2**, reported rather than worked around.
   **Requires a decision at review** — see `design.md` § Open Questions for the
-  three options and their consequences.
+  four options and their consequences.
 
 - **Q3 — protected-path violations have no distinct evidence representation.**
   `ChangeSets.reconciliation` models `agreement` plus `disagreements[]`. A

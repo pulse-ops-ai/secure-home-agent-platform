@@ -70,10 +70,12 @@ in `design.md` § Open Questions:
 - **Q1** — the `prohibited_rules` interpretation (D8) must be confirmed or
   redirected. An unconfirmed rule language means the protected-path decision
   has no agreed semantics.
-- **Q2** — the evidence bundle cannot record the path-policy or gate-registry
-  digest. The review must accept option A (proceed and report the gap) or
-  direct option B (an L2 change first, which is outside this landing's path
-  authority and would sequence before L3).
+- **Q2** — neither the evidence bundle nor the canonical `runner-evidence`
+  requirement can record the path-policy or gate-registry digest. The review
+  must accept option A (proceed and report the gap) or direct option B
+  (amending a **ratified capability spec** plus the bundle, which is outside
+  this landing's path authority and would sequence before L3). Options C and D
+  are set out in `design.md` and rejected there with reasons.
 
 Status derivation rules (inherited):
 
