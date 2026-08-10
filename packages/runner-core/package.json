@@ -24,7 +24,7 @@
     "lint": "pnpm run deps && eslint src",
     "typecheck": "pnpm run deps && tsc --noEmit",
     "test": "pnpm run deps && vitest run --passWithNoTests",
-    "build": "pnpm run deps && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "deps": "pnpm --filter @secure-home/contracts run build && pnpm --filter @secure-home/events run build"
   },
   "devDependencies": {
