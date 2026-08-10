@@ -19,7 +19,9 @@ import {
   AdapterId,
   CapabilityGrant,
   Digest,
+  GateRegistryAuthorityIdentity,
   GateResults,
+  PathPolicyAuthorityIdentity,
   ProfileIdentity,
   SemVer,
 } from '@secure-home/contracts'
@@ -27,14 +29,24 @@ import { RunId, RunOutcome } from './run-record.js'
 import { CallId, OperationRecord } from './run-events.js'
 
 export const EVIDENCE_BUNDLE_ID = 'evidence-bundle' as const
-export const EVIDENCE_BUNDLE_VERSION = '1.0.0' as const
+export const EVIDENCE_BUNDLE_VERSION = '2.0.0' as const
 
-/** The identities an independent verifier re-derives. */
+/**
+ * The identities an independent verifier re-derives. Version 2.0.0
+ * (runner-contract-corrections D2): the digest-bound contract identities
+ * of the governing path policy and gate registry are MANDATORY — an
+ * evidence bundle that cannot name the authority that governed its run
+ * does not validate. Each field admits only its own contract's identity
+ * (contract_id is a literal), so a mislabeled or swapped authority
+ * identity is unrepresentable.
+ */
 export const EvidenceIdentities = z.strictObject({
   run_id: RunId,
   profile: ProfileIdentity,
   image_digest: Digest,
   argv_digest: Digest,
+  path_policy: PathPolicyAuthorityIdentity,
+  gate_registry: GateRegistryAuthorityIdentity,
   /** Opaque data — never a schema branch. */
   runtime: z.string().min(1),
   provider: z.string().min(1),

@@ -4,6 +4,7 @@
  * `generation.ts`, which the package index never exports).
  */
 import type { z } from 'zod'
+import { EVIDENCE_BUNDLE_V1_VERSION, EvidenceBundleV1 } from './evidence-v1.js'
 import { EVIDENCE_BUNDLE_ID, EVIDENCE_BUNDLE_VERSION, EvidenceBundle } from './evidence.js'
 import { RUN_EVENT_ID, RUN_EVENT_VERSION, RunEvent } from './run-events.js'
 import { RUN_RECORD_ID, RUN_RECORD_VERSION, RunRecord } from './run-record.js'
@@ -17,6 +18,12 @@ export interface ContractArtifact {
 export const EVENT_ARTIFACTS: readonly ContractArtifact[] = [
   { id: RUN_RECORD_ID, version: RUN_RECORD_VERSION, schema: RunRecord },
   { id: RUN_EVENT_ID, version: RUN_EVENT_VERSION, schema: RunEvent },
+  // Superseded 1.0.0 retained and still generated (corrections D3).
+  {
+    id: EVIDENCE_BUNDLE_ID,
+    version: EVIDENCE_BUNDLE_V1_VERSION,
+    schema: EvidenceBundleV1,
+  },
   {
     id: EVIDENCE_BUNDLE_ID,
     version: EVIDENCE_BUNDLE_VERSION,

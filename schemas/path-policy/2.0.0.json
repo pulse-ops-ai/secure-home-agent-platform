@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:path-policy:2.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "path-policy" },
+    "contract_version": { "type": "string", "const": "2.0.0" },
+    "allowed_write_roots": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "prohibited_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "const": "path_prefix" },
+          "prefix": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}(?:\\/|$))[A-Za-z0-9._-]+(?:\\/(?!\\.{1,2}(?:\\/|$))[A-Za-z0-9._-]+)*$"
+          }
+        },
+        "required": ["kind", "prefix"],
+        "additionalProperties": false
+      }
+    },
+    "max_files": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+    "max_total_bytes": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+    "max_file_bytes": { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "allowed_write_roots",
+    "prohibited_rules",
+    "max_files",
+    "max_total_bytes",
+    "max_file_bytes"
+  ],
+  "additionalProperties": false
+}

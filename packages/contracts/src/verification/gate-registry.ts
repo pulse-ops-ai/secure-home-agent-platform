@@ -17,10 +17,20 @@
  * which is the stronger guarantee.)
  */
 import { z } from 'zod'
-import { GateId, SemVer } from '../primitives/index.js'
+import { AuthorityIdentity, GateId, SemVer } from '../primitives/index.js'
 
 export const GATE_REGISTRY_ID = 'gate-registry' as const
 export const GATE_REGISTRY_VERSION = '1.0.0' as const
+
+/**
+ * The digest-bound authority identity OF A GATE REGISTRY specifically:
+ * `contract_id` admits only this contract's id, so a mislabeled or
+ * swapped authority identity is unrepresentable in evidence (Codex
+ * review on PR #65).
+ */
+export const GateRegistryAuthorityIdentity = AuthorityIdentity.extend({
+  contract_id: z.literal(GATE_REGISTRY_ID),
+})
 
 const EnvName = z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'environment-variable name')
 
