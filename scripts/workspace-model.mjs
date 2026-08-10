@@ -65,6 +65,11 @@ export const LAYERS = {
 
   // 3 — operation contracts and the catalog: contracts + query-model.
   'packages/api-contracts': 3,
+  // 3 — the trusted runner decision core: contracts + events only. Placed at
+  // 3 deliberately (runner-core design D1): the framework-dependency guard in
+  // check-workspace.mjs applies to ownLayer <= CONTRACT_LAYER_MAX, so this
+  // placement buys mechanical framework-neutrality enforcement.
+  'packages/runner-core': 3,
 
   // 4 — cross-cutting infrastructure.
   'packages/logging': 4,

@@ -153,7 +153,7 @@ The landing is complete when:
 
 ## 1. Package registration and architecture guards
 
-- [ ] **1.1 Register the workspace member**
+- [x] **1.1 Register the workspace member**
   <!-- agent-task: 1.1 paths=packages/runner-core/**,pnpm-workspace.yaml,pnpm-lock.yaml,scripts/workspace-model.mjs,packages/README.md checks=repo-check risk=medium prerequisites=0.1 -->
 
   **Implements** — Design D1.
