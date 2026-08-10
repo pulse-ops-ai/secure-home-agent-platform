@@ -305,13 +305,17 @@ The landing is complete when:
   **Implements** — Requirement "Evidence is constructed only from authoritative
   inputs" (`runner-evidence-derivation`).
 
-  **Change** — Construct an `EvidenceBundle` as authored in
-  `packages/events`. Record the Q2 gap in the module: the policy and
-  gate-registry digests are captured and compared internally but have no field
-  in the ratified bundle.
+  **Change** — Construct an `EvidenceBundle` as amended by
+  `runner-contract-corrections`: populate `identities.path_policy` and
+  `identities.gate_registry` as `AuthorityIdentity` values derived from the
+  captured snapshots (contract identity, exact version, digest of the
+  captured bytes). The verifier (task 6.2) compares both against its own
+  independently supplied captures.
 
   **Proof required** — `RC-ADV-02` (bound refusal precedes construction; no
-  partial bundle); claims reach only the claim fields.
+  partial bundle); claims reach only the claim fields; a bundle whose
+  authority identities do not match the captured snapshots is never
+  constructed.
 
 - [ ] **5.2 Seal-eligibility predicate**
   <!-- agent-task: 5.2 paths=packages/runner-core/src/evidence/** checks=repo-check risk=high prerequisites=5.1 -->
@@ -348,7 +352,9 @@ The landing is complete when:
 
   **Proof required** — `EX-006`; `PROP-005` (single-artifact mutation flagged);
   `RC-ADV-07` (extra unaccounted artifact); `RC-ADV-08` (ambiguity); missing
-  artifact; `MUT-003` and `RC-MUT-06` registered.
+  artifact; the bundle's `identities.path_policy` and
+  `identities.gate_registry` compared against the verifier's own captures,
+  failing on any divergence; `MUT-003` and `RC-MUT-06` registered.
 
 - [ ] **6.3 Final-consumer trust boundary**
   <!-- agent-task: 6.3 paths=packages/runner-core/src/verification/** checks=repo-check risk=high prerequisites=6.2 -->
