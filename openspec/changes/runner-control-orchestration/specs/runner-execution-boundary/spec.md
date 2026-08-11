@@ -129,4 +129,7 @@ classification decisions are the L3 operations as authored.
 - **Adapter implementations** — L7, after U6/#11; the adapter port is the
   seam they implement.
 - **Evidence persistence location** — U11; the sink port is the seam.
-- **Process bootstrap / activation** — post-U4 landing.
+- **Executing the shell's bootstrap / activation** — a post-U4
+  operational act on the inert shell this landing ships (design D2);
+  **no separate landing exists**, and any code-changing launch surface
+  belongs to L4's shell or to L9.
