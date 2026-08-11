@@ -1,0 +1,153 @@
+# runner-authority-acquisition
+
+## Purpose
+
+The acquire-once half of INV-007, owned here as promised by the canonical
+`runner-authority` spec: physically reading each authority source exactly
+once per run, retaining the snapshot, independently re-acquiring for
+verification, and asserting the pinned base identity at workspace creation.
+Acquisition only — validation, digest binding, and every decision over the
+acquired bytes are the trusted core's.
+
+This document is normative. It defines WHAT must hold, authored as a
+**delta** against the main spec. Implementation architecture belongs in
+`design.md`; proof strategy belongs in `assurance.md`.
+
+---
+
+## ADDED Requirements
+
+### Requirement: Authority acquisition happens in exactly two declared epochs, once per source in each
+
+A run SHALL have exactly two acquisition epochs, each with its own
+single-use acquisition set:
+
+- the **production epoch**: each authority-bearing source (the execution
+  profile, the path policy, the gate registry) is read exactly once,
+  before the run enters `PROFILE_RESOLVED`; the resulting snapshots are
+  retained for every decision of the run's production path;
+- the **verification epoch**: each source is read exactly once more, after
+  production, into a distinct verification acquisition set consumed only
+  by independent verification.
+
+Within an epoch, a further read of an already-acquired source SHALL be
+structurally unavailable, not merely avoided. Across the whole run
+lifecycle, a source is therefore read at most twice — once per epoch,
+never twice within one, and never with either epoch's values substituted
+for the other's. No downstream production step SHALL re-read a source or
+reach the verification set; no verification step SHALL consume production
+values.
+
+#### Scenario: One read per source per epoch
+
+- **GIVEN** a run acquiring its profile, policy, and registry
+- **WHEN** the run proceeds through eligibility, execution, evidence
+  construction, and independent verification
+- **THEN** each source was physically read exactly twice over the run —
+  once in the production epoch and once in the verification epoch
+- **AND** every production decision derived from the production snapshots
+  and the verifier consumed only the verification acquisition
+
+#### Scenario: A second acquisition attempt within an epoch is unexpressible
+
+- **GIVEN** a run whose production epoch has acquired a source
+- **WHEN** any production component attempts to acquire the same source
+  again
+- **THEN** the attempt fails structurally with the source and epoch named
+- **AND** no second read reaches the host from that epoch
+
+#### Scenario: Production completes before PROFILE_RESOLVED
+
+- **GIVEN** a run in `REQUESTED`
+- **WHEN** it advances to `PROFILE_RESOLVED`
+- **THEN** the production epoch's acquisition of profile, policy, and
+  registry has completed and captured
+- **AND** every state from `PROFILE_RESOLVED` onward can therefore
+  construct full evidence identities
+
+#### Scenario: Mid-run source mutation changes nothing
+
+- **GIVEN** a run whose production epoch acquired and snapshotted its
+  sources
+- **WHEN** the underlying files change mid-run
+- **THEN** every subsequent production decision still derives from the
+  retained snapshots, and the recorded digests identify the acquired
+  bytes
+
+### Requirement: Profile resolution yields a versioned profile or refuses
+
+Run authority SHALL come only from a resolved, versioned execution profile:
+resolution SHALL locate the profile by name and version, acquire its bytes
+through the single-acquisition mechanism, and refuse — through the trusted
+core's capture and eligibility decisions — when the profile is missing,
+invalid, or mismatched. No run SHALL proceed on ad-hoc parameters, defaults,
+or a profile substituted after resolution.
+
+#### Scenario: A missing profile refuses before spend
+
+- **GIVEN** a run request naming a profile that does not resolve
+- **WHEN** resolution runs
+- **THEN** the run refuses with the profile named, before any sandbox start
+  or provider spend
+
+### Requirement: Verification consumes only the verification epoch
+
+Independent verification SHALL receive the verification epoch's authority
+bytes and a fresh artifact observation as NEW values, distinct from every
+production value, and SHALL pass them to the trusted core's verifier.
+Producer inputs, producer snapshots, or the producer's constructed bundle
+SHALL NOT be supplied as the verifier's inputs, and the two epochs'
+acquisitions SHALL be separately recorded.
+
+#### Scenario: The verifier receives its own epoch
+
+- **GIVEN** a run whose evidence was constructed from the production
+  epoch
+- **WHEN** independent verification runs
+- **THEN** the authority bytes and artifact observations supplied to the
+  verifier come from the verification epoch, distinct from the
+  production values
+- **AND** both epochs' acquisitions appear separately in the run's
+  acquisition record
+
+### Requirement: The pinned base identity is asserted at workspace creation
+
+Before any model or provider invocation, the orchestrator SHALL observe the
+workspace base identity at creation and assert it against the pinned
+identity using the trusted core's comparison; a mismatch SHALL refuse the
+run. The assertion SHALL be sequenced at creation — not deferred to
+verification time.
+
+#### Scenario: A dirty base refuses before any model invocation
+
+- **GIVEN** a workspace whose observed base identity differs from the
+  pinned identity
+- **WHEN** the workspace is created for a run
+- **THEN** the run refuses with both identities named
+- **AND** no model or provider invocation follows
+
+---
+
+## Failure Semantics
+
+| Condition | Required outcome | Classification |
+|---|---|---|
+| Source unreadable at an epoch's acquisition | operational failure carried into the core as a reported value | operational |
+| Second acquisition attempted within an epoch | structural failure naming the source and epoch; no host read | change-attributable |
+| Profile does not resolve | refusal before spend, recorded as an early-terminal refusal record (`runner-lifecycle`) | change-attributable |
+| Base identity mismatch at creation | refusal naming both identities; no model invocation | change-attributable |
+| Verifier supplied production values | unexpressible by construction; any bypass is a defect | change-attributable |
+
+## Compatibility
+
+Additive. The acquisition ports produce exactly the L3 value types
+(`AuthorityBytes`, `WorkspaceObservation`, `ArtifactObservation`); the
+trusted core is consumed as authored — no capture, validation, or decision
+logic is duplicated here.
+
+## Deferred Behavior
+
+- **Credential acquisition or custody** — U2; profiles carry references
+  only and this capability never resolves one.
+- **In-container acquisition mechanics** — L9; here acquisition reads the
+  host-side repository/profile store through the read-only source port.
