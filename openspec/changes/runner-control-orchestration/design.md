@@ -146,23 +146,28 @@ Accepted by the planning review (OQ1): real read-only acquisition and
 observation are appropriate for L4; execution and adapter implementations
 remain deterministic fakes with no spawn or container capability.
 
-### D4: Acquire-once is a consumed token, in exactly two declared epochs
+### D4: Acquire-once is a consumed token, in declared epoch roles
 
-Each run has exactly two `AcquisitionSet`s, one per declared epoch
-(review blocker 1's resolution, normative in
+Acquisition sets exist per epoch ROLE (review blocker 1's resolution as
+refined by the delta review, normative in
 `runner-authority-acquisition`):
 
-- the **production set**, consumed before `PROFILE_RESOLVED` is entered —
-  one single-use token per source; consuming a token performs the one
-  host read and returns the L3 `AuthorityBytes` value; a consumed token
-  cannot be consumed again (structural error naming source and epoch, no
-  host read);
-- the **verification set**, constructed only when verification begins,
-  with its own single-use tokens — the mechanism that makes
+- the **production set** exists for every run and is consumed before
+  `PROFILE_RESOLVED` is entered — one single-use token per source;
+  consuming a token performs the one host read and returns the L3
+  `AuthorityBytes` value; a consumed token cannot be consumed again
+  (structural error naming source and epoch, no host read). A production
+  epoch that cannot complete terminates the run fail-closed from
+  `REQUESTED` (D11) — no partial trust, no silent retry;
+- the **verification set** exists only for a run that reaches independent
+  verification, with its own single-use tokens — the mechanism that makes
   "independently acquired, afresh" true rather than asserted.
 
-Honest counting: a source is read at most twice per run — once per epoch,
-never twice within one. Downstream production components receive
+Honest counting: a source is read AT MOST twice per run — at most once
+per epoch, never twice within one; a run that reaches verification has
+read each required source exactly once in each epoch, and an
+early-terminated run has read less, never more. Downstream production
+components receive
 SNAPSHOTS (`CapturedAuthority` results), never tokens; the verifier
 receives only the verification set's values. Neither epoch's values are
 expressible as the other's inputs.

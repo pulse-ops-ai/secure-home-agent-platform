@@ -45,7 +45,7 @@ are below.
 |---|---|
 | INV-004 | the run lifecycle is a typed, total state machine; undeclared transitions rejected loudly; terminal states final |
 | INV-005 | authority only from a versioned execution profile; consent is never authority |
-| INV-007 | *(L4 half)* each source physically acquired exactly once PER EPOCH — once for production (before `PROFILE_RESOLVED`), once for verification — never twice within an epoch, epochs never cross-fed |
+| INV-007 | *(L4 half)* each source physically acquired AT MOST once per epoch — production (for every run, before `PROFILE_RESOLVED`) and verification (only for runs that reach it) — never twice within an epoch, epochs never cross-fed; an incomplete production epoch terminates fail-closed |
 | INV-008 | *(code side)* decision-bearing orchestration executes only from trusted platform-controlled code, never the writable workspace |
 | INV-009 | *(scheduling side)* only declared gates; exactly the registry's argv; caller cannot widen |
 | INV-011 | *(ordering half)* evidence sealed last, after the core's eligibility |
