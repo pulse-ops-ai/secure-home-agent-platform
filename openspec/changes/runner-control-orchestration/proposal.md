@@ -7,9 +7,10 @@ stopped exactly at its boundary: pure decisions over immutable values, no
 I/O, no I/O abstraction, no ordering. Every obligation L3 recorded as
 "deferred, named — L4" is currently unowned:
 
-- the **acquire-once half of INV-007** — reading each authority source
-  exactly once, retaining the snapshot, independently re-acquiring for
-  verification;
+- the **acquire-once half of INV-007** — reading each authority source at
+  most once per declared epoch (production for every run; verification
+  only for runs that reach it), retaining the snapshots, never
+  cross-feeding the epochs;
 - the **run-lifecycle state machine** (INV-004) — today no component can
   even represent a run's phase;
 - **consent-to-spend**, gate **scheduling**, cancellation and timeout
@@ -45,7 +46,8 @@ boundary-only placeholder.
 
 **What should be possible instead.** An orchestration service whose every
 run is a typed walk through a declared state machine; that acquires each
-authority source exactly once and asks `runner-core` for every decision;
+authority source at most once per epoch and asks `runner-core` for every
+decision;
 that schedules only declared gates with exactly the registry's argv; that
 seals evidence last; and that structurally cannot launch a container, hold a
 provider SDK, or make a trust decision itself.
@@ -70,11 +72,12 @@ provenance invariants stay unimplemented promises.
    classifies as success; consent-to-spend gates the spend transition and is
    never authority; lifecycle transitions emit the closed L2 run-event
    vocabulary.
-2. **Authority acquisition** — each authority source read exactly once per
-   run through the acquisition ports, snapshot retained, downstream re-reads
-   structurally unexpressible; verification inputs independently
-   re-acquired; the pinned base identity asserted at workspace creation,
-   before any model invocation.
+2. **Authority acquisition** — each authority source read at most once
+   per epoch through the acquisition ports (production before
+   `PROFILE_RESOLVED`, for every run; verification only for runs that
+   reach it), snapshots retained, within-epoch re-reads structurally
+   unexpressible; the pinned base identity asserted at workspace
+   creation, before any model invocation.
 3. **Gate orchestration** — scheduling only identities the captured registry
    declares; executed argv exactly the registry's (a caller cannot widen);
    exactly one terminal disposition per gate identity; `SKIP_ENV` never
@@ -106,7 +109,7 @@ provenance invariants stay unimplemented promises.
 | Deferred behavior | Owner |
 |---|---|
 | Container launch, mounts, network enforcement, resource ceilings, real process execution | L9 (post-U4/#9) |
-| Service activation: process bootstrap, HTTP surface, scheduling triggers, deployment | post-U4 activation landing |
+| Executing the bootstrap, binding a listener, triggering, deployment | post-U4 **operational act** on the inert shell (design D2) — no separate landing; the concrete launcher is L9 |
 | Provider adapters, transcript parsing, credential injection | L6/L7 (post-U6/#11) |
 | Image lineage | L5 |
 | Workload identity / credential custody | U2 |
@@ -207,7 +210,8 @@ zod, so orchestration cannot author a contract shape (design D8).
 ## Success
 
 A requested run walks the declared machine and nothing else: authority is
-acquired once and decided by `runner-core`; consent without a profile
+acquired through single-use epoch tokens and decided by `runner-core`;
+consent without a profile
 refuses before anything starts; only declared gates execute, with exactly
 the registry's argv; a cancelled or timed-out run lands in its declared
 terminal state with evidence sealed last; INDETERMINATE is never success;

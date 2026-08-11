@@ -214,8 +214,8 @@ The landing is complete when:
 - [ ] **3.1 Acquire-once tokens and the two-epoch acquisition sets**
   <!-- agent-task: 3.1 paths=services/runner-control/src/acquisition/**,services/runner-control/src/ports/** checks=repo-check risk=high prerequisites=1.1 -->
 
-  **Implements** — Requirement "Authority acquisition happens in exactly
-  two declared epochs, once per source in each"
+  **Implements** — Requirement "Authority acquisition happens in declared
+  epochs, at most once per source in each"
   (`runner-authority-acquisition`); INV-007 L4 half; Design D4 —
   including production-epoch completion before `PROFILE_RESOLVED`.
 
@@ -371,5 +371,7 @@ authorization.
 
 # Additional Landings
 
-None. L4 is one PR. Activation (bootstrap, triggering, placement) is a
-separate post-U4 landing; the concrete launcher is L9.
+None. L4 is one PR, and there is **no additional activation landing**: the
+NestJS/Fastify shell lands INERT in this change (design D2), and post-U4
+activation/placement is an operational act governed by the existing
+program boundary — the concrete launcher remains L9.

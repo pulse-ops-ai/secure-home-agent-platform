@@ -3,9 +3,10 @@
 ## Purpose
 
 The acquire-once half of INV-007, owned here as promised by the canonical
-`runner-authority` spec: physically reading each authority source exactly
-once per run, retaining the snapshot, independently re-acquiring for
-verification, and asserting the pinned base identity at workspace creation.
+`runner-authority` spec: physically reading each authority source at most
+once per epoch — the production epoch for every run, the verification
+epoch only for runs that reach independent verification — retaining the
+snapshots, and asserting the pinned base identity at workspace creation.
 Acquisition only — validation, digest binding, and every decision over the
 acquired bytes are the trusted core's.
 
@@ -17,36 +18,50 @@ This document is normative. It defines WHAT must hold, authored as a
 
 ## ADDED Requirements
 
-### Requirement: Authority acquisition happens in exactly two declared epochs, once per source in each
+### Requirement: Authority acquisition happens in declared epochs, at most once per source in each
 
-A run SHALL have exactly two acquisition epochs, each with its own
-single-use acquisition set:
+Acquisition SHALL be organized into two declared epoch roles, each with
+its own single-use acquisition set:
 
-- the **production epoch**: each authority-bearing source (the execution
-  profile, the path policy, the gate registry) is read exactly once,
-  before the run enters `PROFILE_RESOLVED`; the resulting snapshots are
-  retained for every decision of the run's production path;
-- the **verification epoch**: each source is read exactly once more, after
-  production, into a distinct verification acquisition set consumed only
-  by independent verification.
+- the **production epoch** exists for every run: each authority-bearing
+  source (the execution profile, the path policy, the gate registry) is
+  read at most once, before the run enters `PROFILE_RESOLVED`; the
+  resulting snapshots are retained for every decision of the run's
+  production path. A production epoch that cannot complete — a source
+  missing, unresolvable, or faulting — terminates the run fail-closed
+  from `REQUESTED` (`runner-lifecycle`'s early-terminal requirement); it
+  is never silently retried or partially trusted;
+- the **verification epoch** exists only for a run that reaches
+  independent verification: each source is read at most once more, into a
+  distinct verification acquisition set consumed only by the verifier.
 
 Within an epoch, a further read of an already-acquired source SHALL be
 structurally unavailable, not merely avoided. Across the whole run
-lifecycle, a source is therefore read at most twice — once per epoch,
-never twice within one, and never with either epoch's values substituted
-for the other's. No downstream production step SHALL re-read a source or
-reach the verification set; no verification step SHALL consume production
-values.
+lifecycle a source is therefore read **at most twice** — at most once per
+epoch — and a run that reaches verification successfully has read each
+required source exactly once in each epoch. Neither epoch's values are
+expressible as the other's inputs: no production step may reach the
+verification set, and no verification step may consume production values.
 
-#### Scenario: One read per source per epoch
+#### Scenario: A run reaching verification reads each source once per epoch
 
 - **GIVEN** a run acquiring its profile, policy, and registry
 - **WHEN** the run proceeds through eligibility, execution, evidence
   construction, and independent verification
-- **THEN** each source was physically read exactly twice over the run —
-  once in the production epoch and once in the verification epoch
+- **THEN** each required source was physically read exactly once in the
+  production epoch and exactly once in the verification epoch — at most
+  twice over the run
 - **AND** every production decision derived from the production snapshots
   and the verifier consumed only the verification acquisition
+
+#### Scenario: A run terminating early reads less, never more
+
+- **GIVEN** a run whose production acquisition fails, or that terminates
+  before verification
+- **WHEN** its acquisition record is examined
+- **THEN** no source shows more than one read in any epoch
+- **AND** an incomplete production epoch ended the run fail-closed from
+  `REQUESTED`, with no partial trust and no silent retry
 
 #### Scenario: A second acquisition attempt within an epoch is unexpressible
 
