@@ -1,0 +1,39 @@
+{
+  "name": "@secure-home/runner-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The trusted runner decision core: authority capture, eligibility, path decisions, reconciliation, evidence derivation, and independent verification.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@secure-home/contracts": "workspace:*",
+    "@secure-home/events": "workspace:*"
+  },
+  "scripts": {
+    "lint": "pnpm run deps && eslint src",
+    "typecheck": "pnpm run deps && tsc --noEmit",
+    "test": "pnpm run deps && vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "deps": "pnpm --filter @secure-home/contracts run build && pnpm --filter @secure-home/events run build"
+  },
+  "devDependencies": {
+    "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/testing": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

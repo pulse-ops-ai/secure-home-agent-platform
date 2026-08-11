@@ -1,0 +1,119 @@
+/**
+ * Observed-versus-claimed reconciliation (requirement "Reconciliation
+ * records disagreement without resolving it in favor of claims";
+ * INV-006). Claims are UNTRUSTED input: they arrive as an already-parsed
+ * structure of unknown shape, are validated here, and never alter the
+ * authoritative set. An absent claim set records as absent — never as
+ * agreement. Comparison is set-shaped and independent of presentation
+ * order (RC-PROP-02).
+ */
+import { canonicalSort } from '../primitives/index.js'
+import type { AuthoritativeChangeSet } from '../workspace/index.js'
+
+export interface ClaimedChange {
+  readonly path: string
+  readonly kind: 'created' | 'modified' | 'deleted'
+}
+
+export interface Disagreement {
+  readonly path: string
+  readonly detail: string
+}
+
+export interface Reconciliation {
+  readonly agreement: boolean
+  readonly claims: 'present' | 'absent' | 'malformed'
+  readonly claimed: readonly ClaimedChange[]
+  readonly disagreements: readonly Disagreement[]
+}
+
+const CHANGE_KINDS = new Set(['created', 'modified', 'deleted'])
+
+const parseClaims = (raw: unknown): readonly ClaimedChange[] | null => {
+  if (!Array.isArray(raw)) return null
+  const out: ClaimedChange[] = []
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== 'object') return null
+    const { path, kind } = entry as { path?: unknown; kind?: unknown }
+    if (typeof path !== 'string' || path.length === 0) return null
+    if (typeof kind !== 'string' || !CHANGE_KINDS.has(kind)) return null
+    out.push({ path, kind: kind as ClaimedChange['kind'] })
+  }
+  return out
+}
+
+export const reconcileClaims = (
+  authoritativeInput: AuthoritativeChangeSet,
+  claimedRaw: unknown,
+): Reconciliation => {
+  // Fail closed against untyped callers: an unestablishable authoritative
+  // set compares as empty rather than crashing.
+  const authoritative: AuthoritativeChangeSet = Array.isArray(
+    (authoritativeInput as { changes?: unknown } | null | undefined)?.changes,
+  )
+    ? authoritativeInput
+    : { changes: [] }
+  if (claimedRaw === undefined || claimedRaw === null) {
+    return {
+      agreement: false,
+      claims: 'absent',
+      claimed: [],
+      disagreements:
+        authoritative.changes.length === 0
+          ? []
+          : authoritative.changes.map((change) => ({
+              path: change.path,
+              detail: 'observed but not claimed (claim set absent)',
+            })),
+    }
+  }
+
+  const claimed = parseClaims(claimedRaw)
+  if (claimed === null) {
+    return {
+      agreement: false,
+      claims: 'malformed',
+      claimed: [],
+      disagreements: [
+        {
+          path: '(claim set)',
+          detail: 'claimed change set is malformed; observation authoritative',
+        },
+      ],
+    }
+  }
+
+  const keyOf = (path: string, kind: string): string => `${kind} ${path}`
+  const observedKeys = new Map(
+    authoritative.changes.map((change) => [keyOf(change.path, change.kind), change]),
+  )
+  const claimedKeys = new Map(claimed.map((change) => [keyOf(change.path, change.kind), change]))
+
+  const observedPaths = new Map(authoritative.changes.map((change) => [change.path, change.kind]))
+  const claimedPaths = new Map(claimed.map((change) => [change.path, change.kind]))
+
+  const disagreements: Disagreement[] = []
+  for (const change of claimed) {
+    if (observedKeys.has(keyOf(change.path, change.kind))) continue
+    const observedKind = observedPaths.get(change.path)
+    disagreements.push({
+      path: change.path,
+      detail:
+        observedKind === undefined
+          ? 'claimed but not observed'
+          : `divergent kind: claimed "${change.kind}", observed "${observedKind}" — the observed kind is authoritative`,
+    })
+  }
+  for (const change of authoritative.changes) {
+    if (claimedKeys.has(keyOf(change.path, change.kind))) continue
+    if (claimedPaths.has(change.path)) continue // divergent kind, already recorded
+    disagreements.push({ path: change.path, detail: 'observed but not claimed' })
+  }
+
+  return {
+    agreement: disagreements.length === 0,
+    claims: 'present',
+    claimed: canonicalSort(claimed, (change) => `${change.path}:${change.kind}`),
+    disagreements: canonicalSort(disagreements, (entry) => entry.path),
+  }
+}

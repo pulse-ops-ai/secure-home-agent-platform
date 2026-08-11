@@ -25,6 +25,7 @@ the single admitted inference boundary.
 | [`observability/`](observability/) | Metrics and tracing hooks |
 | [`errors/`](errors/) | RFC 9457 problem details and the shared error taxonomy |
 | [`events/`](events/) | Run event and evidence contracts |
+| [`runner-core/`](runner-core/) | The trusted runner decision core — pure decisions over captured authority and host observations |
 | [`testing/`](testing/) | Shared test helpers and fixtures |
 | [`eslint-config/`](eslint-config/) | Shared ESLint flat configuration |
 | [`tsconfig/`](tsconfig/) | Shared TypeScript compiler configurations — `base`, `library`, `service`, `application`, `test` |

@@ -10,8 +10,12 @@ import { describe, expect, it } from 'vitest'
 import { repoRoot } from './helpers.js'
 
 describe('inertness (C-EX-004)', () => {
-  it('no production consumer outside the L2 contract layer imports the contracts', () => {
-    const layer = new Set(['packages/contracts', 'packages/events'])
+  it('no production consumer outside the contract layer or its authorized consumers imports the contracts', () => {
+    // packages/runner-core is the AUTHORIZED first consumer (L3/#52,
+    // runner-core change; owner-approved allowlist amendment 2026-08-10
+    // under #51+#52 jointly — the ratified "inert contract × first
+    // consumer arrives" transition). Any OTHER importer still fails.
+    const layer = new Set(['packages/contracts', 'packages/events', 'packages/runner-core'])
     const offenders: string[] = []
     for (const group of ['packages', 'services', 'apps']) {
       const groupDir = join(repoRoot, group)
