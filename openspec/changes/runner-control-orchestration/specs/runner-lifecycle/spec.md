@@ -78,18 +78,32 @@ profile grants.
 ### Requirement: Cancellation and timeout are declared transitions with mandatory evidence
 
 Cancellation and timeout SHALL be declared transitions into `CANCELLED` and
-`TIMED_OUT` respectively, available from every non-terminal state after
-`REQUESTED`. A cancelled or timed-out run SHALL still produce sealed
-evidence recording the terminal cause; the lifecycle SHALL never abandon a
-run in a non-terminal state.
+`TIMED_OUT` respectively, available from `PROFILE_RESOLVED` and every later
+non-terminal state. Because entering `PROFILE_RESOLVED` requires the
+completed production acquisition (`runner-authority-acquisition`), every
+cancellable or timeout-able state can construct the full evidence-bundle
+identity set: a cancelled or timed-out run SHALL seal a full L2 evidence
+bundle recording the terminal cause, with empty observation, artifact, and
+gate-result sets where the run had not yet produced them — an empty set
+being the true record of a run that changed nothing. The lifecycle SHALL
+never abandon a run in a non-terminal state.
 
 #### Scenario: Cancellation from RUNNING terminates with evidence
 
 - **GIVEN** a run in `RUNNING`
 - **WHEN** cancellation is requested
 - **THEN** the run transitions to `CANCELLED`
-- **AND** evidence is finalized for the cancelled run with the cause
-  recorded
+- **AND** a full evidence bundle is sealed for the cancelled run with the
+  cause recorded
+
+#### Scenario: Cancellation from an early cancellable state still seals full evidence
+
+- **GIVEN** a run in `PROFILE_RESOLVED`
+- **WHEN** cancellation is requested
+- **THEN** the run transitions to `CANCELLED`
+- **AND** the sealed bundle carries the complete authority identities from
+  the production acquisition, with empty observed, claimed, artifact, and
+  gate-result sets
 
 #### Scenario: Timeout is a declared transition, not a hang
 
@@ -97,6 +111,28 @@ run in a non-terminal state.
 - **WHEN** the timeout fires
 - **THEN** the run transitions to `TIMED_OUT` and evidence records the
   budget and the state it interrupted
+
+### Requirement: A run that terminates before authority completes produces an early-terminal refusal record
+
+A run terminating in `REQUESTED` — a request naming no profile, a profile
+that fails to resolve, or an acquisition fault before the production epoch
+completes — cannot construct the full evidence bundle, because the
+authority identities the bundle requires do not exist. Such a termination
+SHALL produce a governed **early-terminal refusal record**: a durable
+record carrying the run identity, the requested profile reference as data,
+the terminal outcome with its structured detail, and timing. The record's
+shape SHALL be a governed platform contract — introduced by a small L2
+amendment sequenced before this landing's implementation — and SHALL NOT
+be an evidence bundle with fabricated authority identities, which is
+prohibited.
+
+#### Scenario: A resolution failure leaves a refusal record, not a fabricated bundle
+
+- **GIVEN** a run request whose profile does not resolve
+- **WHEN** the run terminates `REFUSED` from `REQUESTED`
+- **THEN** an early-terminal refusal record is written with the requested
+  reference, the refusal detail, and timing
+- **AND** no evidence bundle with invented authority identities exists
 
 ### Requirement: Terminal classification is total and INDETERMINATE is never success
 
@@ -112,13 +148,21 @@ SHALL never be presented, recorded, or reported as success.
 - **THEN** the outcome is `INDETERMINATE`
 - **AND** every success-reporting surface treats it as failure
 
-### Requirement: Lifecycle transitions emit the closed run-event vocabulary
+### Requirement: Lifecycle moments the closed vocabulary represents emit events; every transition is recorded
 
-Each declared transition SHALL emit its corresponding events from the
-closed L2 `run-event` vocabulary through the event sink port — including
-`run.started`, `capability.granted` carrying the profile's grant verbatim,
-and `run.terminated` carrying the shared outcome. Provider-native event
-names SHALL ride only as opaque data fields, never as event types.
+The lifecycle SHALL emit run events at exactly the moments the closed L2
+`run-event` vocabulary represents — `run.started` and `capability.granted`
+(carrying the captured profile's grant verbatim) when the spend transition
+commits, `adapter.started`/`adapter.completed` and the `call.*` events from
+the adapter port's reports, and `run.terminated` carrying the shared
+outcome at every terminal transition. The lifecycle SHALL NOT invent event
+types or overload existing ones for other transitions. Separately, EVERY
+declared transition — including `PROFILE_RESOLVED`, `ELIGIBLE`,
+`VERIFYING`, and `EVIDENCE_SEALED` — SHALL be recorded in the run's
+**transition record**, an orchestration-owned durable record distinct from
+the L2 event stream, so the full walk is reconstructable without widening
+the closed vocabulary. Provider-native event names SHALL ride only as
+opaque data fields, never as event types.
 
 #### Scenario: The grant event carries the profile's grant
 
@@ -127,6 +171,16 @@ names SHALL ride only as opaque data fields, never as event types.
 - **THEN** a `capability.granted` event is emitted whose grant is exactly
   the captured profile's capability group
 
+#### Scenario: Non-event transitions are recorded, not forced into the vocabulary
+
+- **GIVEN** a run advancing through `PROFILE_RESOLVED`, `ELIGIBLE`, and
+  `VERIFYING`
+- **WHEN** its emissions and records are examined
+- **THEN** no run event was emitted with an invented or overloaded type
+  for those transitions
+- **AND** each transition appears in the run's transition record with its
+  states and timing
+
 ---
 
 ## Failure Semantics
@@ -134,9 +188,10 @@ names SHALL ride only as opaque data fields, never as event types.
 | Condition | Required outcome | Classification |
 |---|---|---|
 | Undeclared (state, transition) pair attempted | rejected, recorded; state unchanged | change-attributable |
-| Run request without a profile, any consent | refusal before spend | change-attributable |
+| Run request without a profile, any consent | refusal before spend; early-terminal refusal record | change-attributable |
+| Termination in `REQUESTED` (resolution/acquisition failure) | early-terminal refusal record; never a fabricated bundle | change-attributable or operational per cause |
 | Eligible but unconsented spend attempt | held at `ELIGIBLE`, recorded | change-attributable |
-| Cancellation or timeout | declared terminal transition with sealed evidence | operational or change-attributable per cause |
+| Cancellation or timeout at/after `PROFILE_RESOLVED` | declared terminal transition with a full sealed bundle (empty sets where nothing ran) | operational or change-attributable per cause |
 | Terminal state unestablishable | `INDETERMINATE`, treated as failure | fail-closed |
 
 ## Compatibility

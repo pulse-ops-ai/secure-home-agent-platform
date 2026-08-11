@@ -38,8 +38,9 @@ traceability; ADR-0003/0004/0006/0007/0011/0012; issue #27.
 ## Non-Goals
 
 - No container launch, Docker socket, or real subprocess execution.
-- No process bootstrap, HTTP surface, trigger, queue, or scheduler
-  (activation is post-U4).
+- No listener, no executed bootstrap, no trigger, queue, or scheduler —
+  the NestJS shell lands INERT (D2); activation is a post-U4 operational
+  act.
 - No provider SDK, adapter implementation, or transcript parsing (L6/L7).
 - No U2/U4/U6/U11 decision.
 - No modification of the L2/L3 packages beyond the anticipated
@@ -79,9 +80,11 @@ services/runner-control/src/
   adapters/        port IMPLEMENTATIONS shipped by this landing:
                    fs-read-only sources + observers; deterministic
                    in-memory execution/adapter/sink/clock fakes
-  runner.ts        the orchestration composition root (pure wiring;
-                   no bootstrap, no process surface)
-  index.ts         the service's typed surface for the activation landing
+  app/             the INERT NestJS/Fastify application shell: module
+                   tree + composition boundary; no listener, nothing
+                   executes it (D2)
+  runner.ts        the framework-free composition root (pure wiring)
+  index.ts         the service's typed surface
 ```
 
 ### Decisions
@@ -100,18 +103,25 @@ Rejected: encoding the lifecycle implicitly in the call graph — that is
 exactly the donor's shape, and it cannot prove PROP-002 (every undeclared
 pair rejected).
 
-### D2: Framework-free orchestration core; activation is a later landing (OQ2)
+### D2: Framework-free orchestration modules inside an INERT NestJS/Fastify application shell (OQ2, resolved per review)
 
-ADR-0012 prescribes NestJS/Fastify for services. This landing ships the
-orchestration core framework-free — plain typed modules behind a
-composition root — and defers the NestJS process surface to the post-U4
-activation landing. Reasons: (1) an HTTP surface before placement (U4) is
-decided would create exactly the premature-deployment surface the program
-forbids; (2) the framework-free core keeps the proof net deterministic;
-(3) ADR-0012's own layering (§15) puts framework adapters outward of
-application logic. This is a **deferral within ADR-0012, not a deviation**
-— the activation landing adds the NestJS shell around this core. Requires
-review confirmation (proposal OQ2).
+The planning review rejected an untracked post-U4 "activation landing"
+(#19 has no such landing, and ADR-0012 already selected the stack). As
+directed, this landing ships BOTH:
+
+- the orchestration domain modules framework-free — plain typed modules,
+  deterministic to prove, exactly as before; and
+- the **inert NestJS/Fastify application shell now**: the Nest module tree
+  and composition boundary that wires ports and core into the
+  application — with **no listener, no `main` bootstrap executed by
+  anything, no launcher, no deployment**. Importing the shell instantiates
+  nothing and binds no socket; RO-EX-07 proves it.
+
+Activation — actually starting the process, triggering, placement — stays
+gated on U4 as an operational act on the already-landed shell, not as a
+new landing. The dependency allowlist widens accordingly (D8): the
+ADR-0012 framework set is admitted; zod, client SDKs, and container
+runtimes remain excluded.
 
 ### D3: Ports are interfaces owned here; implementations are split read/execute (OQ1)
 
@@ -132,19 +142,30 @@ Shipped implementations follow a read/execute asymmetry:
   L9 (execution, post-U4) and L7 (adapters, post-U6). No implementation in
   this landing spawns a process.
 
-Requires review confirmation (proposal OQ1).
+Accepted by the planning review (OQ1): real read-only acquisition and
+observation are appropriate for L4; execution and adapter implementations
+remain deterministic fakes with no spawn or container capability.
 
-### D4: Acquire-once is a consumed token, not a convention
+### D4: Acquire-once is a consumed token, in exactly two declared epochs
 
-Each run constructs one `AcquisitionSet` holding single-use tokens per
-authority source. Consuming a token performs the one host read and returns
-the L3 `AuthorityBytes` value; a consumed token cannot be consumed again —
-the second attempt is a structural error naming the source, and no host
-read occurs. Downstream components receive SNAPSHOTS (the L3
-`CapturedAuthority` results), never tokens, so re-reading is not merely
-forbidden but unreachable. Verification constructs a NEW `AcquisitionSet`
-— the mechanism that makes "independently acquired, afresh" true rather
-than asserted.
+Each run has exactly two `AcquisitionSet`s, one per declared epoch
+(review blocker 1's resolution, normative in
+`runner-authority-acquisition`):
+
+- the **production set**, consumed before `PROFILE_RESOLVED` is entered —
+  one single-use token per source; consuming a token performs the one
+  host read and returns the L3 `AuthorityBytes` value; a consumed token
+  cannot be consumed again (structural error naming source and epoch, no
+  host read);
+- the **verification set**, constructed only when verification begins,
+  with its own single-use tokens — the mechanism that makes
+  "independently acquired, afresh" true rather than asserted.
+
+Honest counting: a source is read at most twice per run — once per epoch,
+never twice within one. Downstream production components receive
+SNAPSHOTS (`CapturedAuthority` results), never tokens; the verifier
+receives only the verification set's values. Neither epoch's values are
+expressible as the other's inputs.
 
 ### D5: Consent is a recorded input on the spend transition
 
@@ -182,10 +203,12 @@ and is recorded.
 
 Three mechanisms, mirroring L3's D2/D6 discipline:
 
-- **Dependency allowlist**: runtime dependencies are exactly
-  `{@secure-home/contracts, @secure-home/events, @secure-home/runner-core}`
-  — deliberately no zod (cannot author schemas), no framework, no client
-  SDKs; asserted by an in-package conformance test.
+- **Dependency allowlist**: runtime dependencies are exactly the three
+  platform packages `{@secure-home/contracts, @secure-home/events,
+  @secure-home/runner-core}` plus the pinned ADR-0012 framework set for
+  the inert shell (`@nestjs/*`, the Fastify platform adapter) — and
+  deliberately NO zod (cannot author schemas), no client SDKs, no
+  container runtime; asserted exact by an in-package conformance test.
 - **No decision re-implementation**: every trust decision recorded in a
   run originates from a core call; the run record keeps the decision
   provenance (which operation, which inputs by digest), and the review
@@ -196,16 +219,22 @@ Three mechanisms, mirroring L3's D2/D6 discipline:
   a source scan in the conformance suite, plus the behavioral fixture: a
   workspace carrying modified "orchestration" bytes executes nothing.
 
-### D9: Events are emitted at transitions, from captured data only
+### D9: Events at the representable moments; a transition record for the rest (OQ3 + review blocker 3)
 
-`events/` maps each declared transition to its L2 run-event(s):
-`run.started` at spend commit, `capability.granted` carrying the captured
-profile's grant verbatim (the one authored shape, by instance),
-`call.attempted`/`call.disposition` from adapter-port reports,
-`adapter.started`/`adapter.completed` from the adapter port lifecycle,
-`run.terminated` carrying the shared outcome. Provider-native names ride in
-the contracted opaque fields. Emission failures are operational, never
-silent (OQ3 confirms emission belongs here).
+The closed L2 vocabulary represents specific lifecycle moments, and this
+design emits at exactly those: `run.started` + `capability.granted`
+(grant verbatim, the one authored shape by instance) at spend commit,
+`call.attempted`/`call.disposition` and
+`adapter.started`/`adapter.completed` from adapter-port reports, and
+`run.terminated` at every terminal transition. No event type is invented
+or overloaded for `PROFILE_RESOLVED`, `ELIGIBLE`, `VERIFYING`, or
+`EVIDENCE_SEALED` — instead, EVERY declared transition lands in the run's
+**transition record**: an orchestration-owned durable record (state from,
+state to, cause, timestamp) distinct from the L2 event stream, making the
+full walk reconstructable without an L2 vocabulary change. If a later
+landing wants transitions as first-class events, that is a governed L2
+amendment — deliberately not taken here. Emission failures are
+operational, never silent.
 
 ### D10: Concurrency — one run, one writer
 
@@ -214,6 +243,30 @@ on one run are serialized by construction (the machine hands out the next
 transition capability only once) and a lost race is a recorded rejection,
 not an interleaving. Cross-run concurrency is unconstrained here (no shared
 mutable state between runs); resource-level isolation is L9.
+
+### D11: Early terminals split at PROFILE_RESOLVED; pre-authority runs leave a refusal record (review blocker 2)
+
+The evidence obligation is honest about what can exist at each state:
+
+- **At/after `PROFILE_RESOLVED`**: the production acquisition is complete
+  (D4), so every termination — cancellation, timeout, refusal,
+  operational failure — seals a FULL L2 evidence bundle. Empty observed,
+  claimed, artifact, and gate-result sets are legitimate values there: a
+  run that changed nothing records nothing, truthfully.
+- **In `REQUESTED`** (no profile named, resolution failure, acquisition
+  fault): the bundle's required authority identities do not exist, and
+  fabricating them is prohibited. These runs terminate with an
+  **early-terminal refusal record** — run id, requested profile reference
+  as data, structured outcome, timing — whose shape is a governed
+  platform contract introduced by a **small L2 amendment sequenced before
+  this landing's implementation** (the `runner-contract-corrections`
+  precedent: its own child change under the L2 authority, reviewed on its
+  own terms). Task 0.1 gates on that amendment landing.
+
+Rejected: weakening L3 construction to accept missing authority
+(fail-open); fabricating identities (lying evidence); making cancellation
+unavailable until `RUNNING` (leaves early runs un-cancellable for no
+reason once acquisition is sequenced first).
 
 ## Decision Tables
 
@@ -288,10 +341,18 @@ enforcement flip of the program.
 
 ## Open Questions
 
-Carried into the planning review (stated in `proposal.md`):
+All resolved by the planning review of 2026-08-10/11 (recorded in
+`proposal.md` § Open Questions):
 
-- **OQ1** — the read/execute asymmetry of shipped port implementations
+- **OQ1 — accepted**: the read/execute implementation asymmetry stands
   (D3).
-- **OQ2** — framework-free core with post-U4 activation as an ADR-0012
-  deferral (D2).
-- **OQ3** — run-event emission owned by this landing (D9).
+- **OQ2 — resolved as directed**: no untracked activation landing; the
+  inert NestJS/Fastify shell lands in L4 with framework-free domain
+  modules inside it (D2).
+- **OQ3 — accepted with the blocker-3 narrowing**: emission at the
+  representable vocabulary moments plus the orchestration-owned
+  transition record for every transition (D9).
+
+The review's three blockers are enacted: acquisition epochs (D4), the
+early-terminal evidence split with its sequenced L2 amendment (D11), and
+the emission narrowing (D9).

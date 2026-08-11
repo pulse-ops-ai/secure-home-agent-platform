@@ -68,12 +68,19 @@ This section RECORDS external authorization. It can never create it.
 complete planning seam receives its required review and the explicit
 post-review authorization task (0.1) is performed.
 
-Conditions gating 0.1:
+The planning review of 2026-08-10/11 (posted on PR #69) resolved
+OQ1–OQ3 (OQ1 accepted; OQ2 → the inert NestJS shell lands in this change;
+OQ3 accepted with the emission narrowing) and raised three blockers, all
+enacted in this seam: acquisition epochs (D4), the early-terminal
+evidence split (D11), and the emission narrowing (D9).
 
-- The planning review approves this artifact set and closes **OQ1**
-  (read/execute port-implementation asymmetry), **OQ2** (framework-free
-  core with post-U4 activation as an ADR-0012 deferral), and **OQ3**
-  (run-event emission owned by this landing).
+Conditions gating 0.1 now:
+
+- The **focused delta review** approves the enacted blocker resolutions.
+- The **early-terminal refusal-record L2 amendment** (D11) has been
+  authored as its own child change under the L2 authority, reviewed, and
+  **landed** — this seam's implementation writes those records and cannot
+  be built against a contract that does not exist.
 - `openspec validate runner-control-orchestration --strict` has run
   successfully on the reviewed head.
 
@@ -121,11 +128,10 @@ The landing is complete when:
 - [ ] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-control-orchestration/tasks.md checks=repo-check risk=low prerequisites=none -->
 
-  **Change** — On the planning review approving this artifact set and
-  closing OQ1–OQ3, with strict validation run: record the approval and
-  flip the Status above to `AUTHORIZED`, citing the review, the question
-  resolutions, and the validation run. This task changes only the Status
-  block of this file.
+  **Change** — On the focused delta review approving the enacted blocker
+  resolutions, with the early-terminal L2 amendment landed and strict
+  validation run: record all three and flip the Status above to
+  `AUTHORIZED`. This task changes only the Status block of this file.
 
   **Proof required** — `repo-check` green.
 
@@ -136,11 +142,13 @@ The landing is complete when:
 
   **Implements** — Design D2/D3 scaffolding; the first-consumer arrival.
 
-  **Change** — Declare runtime deps exactly
-  `{@secure-home/contracts, @secure-home/events, @secure-home/runner-core}`;
-  standard tooling template; `src/` skeleton per the proposed tree. Obtain
-  and record the owner authorization for the runner-core consumer-allowlist
-  amendment; apply it as its own disclosed commit.
+  **Change** — Declare runtime deps exactly: the three platform packages
+  plus the pinned ADR-0012 framework set for the inert shell (D2/D8) —
+  no zod, no client SDK, no container runtime; standard tooling template;
+  `src/` skeleton per the proposed tree including the INERT `app/` Nest
+  module tree (no listener, no executed bootstrap). Obtain and record the
+  owner authorization for the runner-core consumer-allowlist amendment;
+  apply it as its own disclosed commit.
 
   **Proof required** — frozen install, lint, typecheck, build green;
   direction checks accept the inward edges; `RO-EX-01` seed.
@@ -169,12 +177,15 @@ The landing is complete when:
 - [ ] **2.2 Cancellation and timeout transitions**
   <!-- agent-task: 2.2 paths=services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=2.1 -->
 
-  **Implements** — Requirement "Cancellation and timeout are declared
-  transitions with mandatory evidence" (`runner-lifecycle`).
+  **Implements** — Requirements "Cancellation and timeout are declared
+  transitions with mandatory evidence" and "A run that terminates before
+  authority completes produces an early-terminal refusal record"
+  (`runner-lifecycle`); Design D11.
 
-  **Proof required** — `RO-ADV-06` (cancellation from every non-terminal
-  state, sealed evidence); the timeout fixture (budget elapses → TIMED_OUT
-  with state named).
+  **Proof required** — `RO-ADV-06` (cancellation from every cancellable
+  state, full bundle with empty sets); the timeout fixture; `RO-ADV-07`
+  (REQUESTED terminals write the refusal record, never a fabricated
+  bundle); `RO-MUT-05` registered.
 
 - [ ] **2.3 Consent-to-spend**
   <!-- agent-task: 2.3 paths=services/runner-control/src/consent/**,services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=2.1 -->
@@ -189,21 +200,24 @@ The landing is complete when:
 - [ ] **2.4 Run-event emission at transitions**
   <!-- agent-task: 2.4 paths=services/runner-control/src/events/** checks=repo-check risk=high prerequisites=2.1 -->
 
-  **Implements** — Requirement "Lifecycle transitions emit the closed
-  run-event vocabulary" (`runner-lifecycle`); Design D9.
+  **Implements** — Requirement "Lifecycle moments the closed vocabulary
+  represents emit events; every transition is recorded"
+  (`runner-lifecycle`); Design D9.
 
-  **Proof required** — per-transition emission fixtures;
-  `capability.granted` carries the captured grant verbatim (instance
-  check); ADV-012 at every reporting surface.
+  **Proof required** — emission fixtures at the representable moments; a
+  no-invented-or-overloaded-type scan; every transition present in the
+  transition record; `capability.granted` carries the captured grant
+  verbatim (instance check); ADV-012 at every reporting surface.
 
 ## 3. Authority acquisition
 
-- [ ] **3.1 Acquire-once tokens and the acquisition set**
+- [ ] **3.1 Acquire-once tokens and the two-epoch acquisition sets**
   <!-- agent-task: 3.1 paths=services/runner-control/src/acquisition/**,services/runner-control/src/ports/** checks=repo-check risk=high prerequisites=1.1 -->
 
-  **Implements** — Requirement "Each authority source is acquired exactly
-  once per run" (`runner-authority-acquisition`); INV-007 L4 half; Design
-  D4.
+  **Implements** — Requirement "Authority acquisition happens in exactly
+  two declared epochs, once per source in each"
+  (`runner-authority-acquisition`); INV-007 L4 half; Design D4 —
+  including production-epoch completion before `PROFILE_RESOLVED`.
 
   **Proof required** — `RO-EX-04`, `RO-PROP-01`, `RO-ADV-04` (mid-run
   mutation changes nothing); `RO-MUT-01` registered.
@@ -217,14 +231,15 @@ The landing is complete when:
   **Proof required** — missing/invalid/mismatched resolution fixtures,
   refusal before any execution-port call.
 
-- [ ] **3.3 Independent re-acquisition for verification**
+- [ ] **3.3 The verification epoch**
   <!-- agent-task: 3.3 paths=services/runner-control/src/acquisition/** checks=repo-check risk=high prerequisites=3.1 -->
 
-  **Implements** — Requirement "Verification inputs are acquired
-  independently and afresh" (`runner-authority-acquisition`).
+  **Implements** — Requirement "Verification consumes only the
+  verification epoch" (`runner-authority-acquisition`); Design D4.
 
-  **Proof required** — `RO-ADV-05`: fresh set, two recorded acquisitions,
-  producer-value injection unexpressible.
+  **Proof required** — `RO-ADV-05`: the verifier consumes only the
+  verification set; both epochs separately recorded; production-value
+  injection unexpressible.
 
 - [ ] **3.4 Base-identity assertion at creation**
   <!-- agent-task: 3.4 paths=services/runner-control/src/acquisition/**,services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=3.1 -->
@@ -331,7 +346,7 @@ The landing is complete when:
   <!-- agent-task: 7.3 paths=services/runner-control/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
 
   **Proof required** — every target (`MUT-004/005/009/010`,
-  `RO-MUT-01…04`) killed by its named test; the map is itself a test.
+  `RO-MUT-01…05`) killed by its named test; the map is itself a test.
 
 - [ ] **7.4 Report any further L3/L2 gap**
   <!-- agent-task: 7.4 paths=openspec/changes/runner-control-orchestration/** checks=repo-check risk=low prerequisites=7.3 -->

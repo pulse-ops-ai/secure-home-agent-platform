@@ -141,11 +141,12 @@ From the `docs/decisions/INDEX.md` "which ADRs apply" table:
   decision is made here.
 - **ADR-0011** — no image is built or selected here beyond carrying the
   profile's digest-pinned reference as data.
-- **ADR-0012** — TypeScript service under `services/`; the NestJS/Fastify
-  process surface is **deferred to the post-U4 activation landing** (design
-  D2): this landing ships the framework-free orchestration core so that no
-  HTTP surface exists before placement (U4) is decided. Deviation-shaped
-  decision, stated for the review rather than discovered later.
+- **ADR-0012** — TypeScript service under `services/`; per the planning
+  review's OQ2 direction, the **inert NestJS/Fastify application shell
+  lands in this change** (framework-free domain modules inside it, no
+  listener, no executed bootstrap, no deployment) — no separate activation
+  landing is implied; activation is a post-U4 operational act on the
+  landed shell (design D2).
 
 **Depends on U1–U11:** `none` — and it must stay that way: no placement
 (U4), no workload identity (U2), no adapter SPI (U6), no persistence
@@ -187,10 +188,21 @@ Classification follows in `assurance.md`: **trust-critical**.
 **Already implemented:** L2 + corrections (contracts at v2), L3
 (`packages/runner-core`, PR #67), the workspace layering machinery.
 
-**External:** none. No new third-party dependency: the runtime dependency
-set is exactly `{@secure-home/contracts, @secure-home/events,
-@secure-home/runner-core}` — deliberately **without** zod, so orchestration
-cannot author a contract shape (design D8).
+**Directed but not yet implemented:**
+
+- **The early-terminal refusal-record L2 amendment** (review blocker 2's
+  resolution, design D11): a small governed contract for runs that
+  terminate before the production acquisition completes, authored and
+  landed as its own child change under the L2 authority (the
+  `runner-contract-corrections` precedent). **L4 implementation sequences
+  behind it**; task 0.1 gates on it landing.
+
+**External:** the pinned ADR-0012 framework set (`@nestjs/*` + the Fastify
+platform adapter) enters the service's runtime dependencies for the inert
+shell — already catalog-governed, no new third-party selection. The
+allowlist otherwise stays exactly `{@secure-home/contracts,
+@secure-home/events, @secure-home/runner-core}` — deliberately **without**
+zod, so orchestration cannot author a contract shape (design D8).
 
 ## Success
 
@@ -209,8 +221,9 @@ This change must not:
 - launch a container, open a Docker socket, or execute a real subprocess —
   the execution port's only in-repo implementations are deterministic test
   fakes;
-- add a process bootstrap, HTTP endpoint, queue consumer, or scheduler —
-  activation is post-U4;
+- execute a bootstrap, bind a listener, register an HTTP endpoint, queue
+  consumer, or scheduler — the NestJS shell lands INERT and activation is
+  a post-U4 operational act;
 - import a provider SDK, Home Assistant client, OpenFGA client, database
   client, or any framework;
 - re-implement, wrap-and-modify, or second-guess any `runner-core`
@@ -224,21 +237,21 @@ This change must not:
 
 ## Open Questions
 
-Carried into the planning review:
+All resolved by the planning review (2026-08-10/11, posted on PR #69):
 
-- **OQ1 — real filesystem acquisition in L4 (trust-relevant).** This
-  proposal ships REAL read-only filesystem implementations for authority
-  sources and workspace/artifact observation (they are reads, not
-  execution), while execution and adapter invocation ship as test fakes
-  only. Confirm this read/execute asymmetry, or direct that all real I/O
-  wait for later landings.
-- **OQ2 — bootstrap deferral versus ADR-0012.** ADR-0012 prescribes
-  NestJS/Fastify for services; this seam ships a framework-free
-  orchestration core and defers the process surface to a post-U4
-  activation landing, so no HTTP surface exists before placement is
-  decided. Confirm this reading of ADR-0012 (deferral, not deviation), or
-  direct that the NestJS shell land now.
-- **OQ3 — run-event emission scope.** This seam emits the closed L2
-  run-event vocabulary from lifecycle transitions through the event sink
-  port. Confirm that emission belongs to L4 (the alternative — deferring
-  emission to activation — leaves evidence without its event stream).
+- **OQ1 — ACCEPTED.** Real read-only filesystem implementations for
+  acquisition/observation; execution and adapter invocation remain
+  deterministic fakes with no spawn or container capability (design D3).
+- **OQ2 — RESOLVED AS DIRECTED.** No untracked activation landing: the
+  inert NestJS/Fastify shell lands in this change with framework-free
+  domain modules inside it — no listener, no executed bootstrap (design
+  D2).
+- **OQ3 — ACCEPTED WITH NARROWING.** Emission belongs to L4, at exactly
+  the moments the closed L2 vocabulary represents; every other transition
+  lands in the orchestration-owned transition record (design D9; review
+  blocker 3).
+
+The review's blockers are enacted in this seam: acquisition epochs
+(blocker 1 → D4 and the normative epoch requirement), the early-terminal
+evidence split with its sequenced L2 refusal-record amendment (blocker 2
+→ D11), and the emission narrowing (blocker 3 → D9).
