@@ -3,9 +3,10 @@
 ## Purpose
 
 The acquire-once half of INV-007, owned here as promised by the canonical
-`runner-authority` spec: physically reading each authority source exactly
-once per run, retaining the snapshot, independently re-acquiring for
-verification, and asserting the pinned base identity at workspace creation.
+`runner-authority` spec: physically reading each authority source at most
+once per epoch — the production epoch for every run, the verification
+epoch only for runs that reach independent verification — retaining the
+snapshots, and asserting the pinned base identity at workspace creation.
 Acquisition only — validation, digest binding, and every decision over the
 acquired bytes are the trusted core's.
 

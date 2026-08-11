@@ -306,8 +306,8 @@ value types. Consumed from L2: profile/policy/registry shapes (via the
 core), `RunEvent`, `RunRecord`, `EvidenceBundle` vocabularies for emission
 and sinks.
 
-Exported by L4 (for the activation landing and for L7/L9 port
-implementers):
+Exported by L4 (for post-U4 activation — an operational act on this
+shell — and for L7/L9 port implementers):
 
 | Surface | Contents |
 |---|---|
@@ -338,8 +338,9 @@ snapshot, or a decision result not produced by the core.
 pattern: groups for lifecycle, acquisition, scheduling, boundary, each with
 its own fixtures; a final cross-cutting net over the finished tree.
 
-**Inert until activation**: no bootstrap exists; nothing imports the
-service; CI builds and proves it. Rollback is non-reference.
+**Inert until activated (a post-U4 operational act, not a landing)**:
+nothing executes the shell's bootstrap, no listener binds, nothing
+imports the service; CI builds and proves it. Rollback is non-reference.
 
 **Authority posture: additive.** No enforcement flip; L9 remains the single
 enforcement flip of the program.

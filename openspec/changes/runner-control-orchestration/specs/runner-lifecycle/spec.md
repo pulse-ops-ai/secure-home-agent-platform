@@ -204,8 +204,11 @@ classification operations without modification.
 
 - **Real sandbox start** — `SANDBOX_STARTED` is entered through the
   execution port; the concrete launcher is L9 (post-U4/#9).
-- **Triggering** — what causes `REQUESTED` (human, schedule, automation) is
-  the post-U4 activation landing plus ADR-0006's automation model.
+- **Triggering** — what causes `REQUESTED` (human, schedule, automation)
+  is a post-U4 operational concern on the inert shell (design D2),
+  together with ADR-0006's automation model. **No separate activation
+  landing exists**: any code-changing trigger or launch surface belongs to
+  L4's shell or to a named existing landing (the launcher is L9).
 - **Effective kill semantics** — that cancellation physically terminates a
   process tree is L9 (EX-008, ADV-013); this capability owns the lifecycle
   semantics and evidence.

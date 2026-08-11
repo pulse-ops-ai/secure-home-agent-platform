@@ -139,9 +139,10 @@ Interactions that require proof:
 **Explicitly not claimed by L4**, named so no reader assumes coverage:
 EX-005B and MUT-007 (container-level gate execution, L9); EX-008 and
 ADV-013 (effective kill and teardown, L9); enforcement of mounts, network,
-and resource ceilings (L9); adapter behavior (L7); activation, triggering,
-and placement (post-U4); credential custody (U2); evidence persistence
-(U11).
+and resource ceilings (L9); adapter behavior (L7); executing the shell's
+bootstrap, triggering, and placement — post-U4 operational acts on the
+landed shell, not a landing (D2); credential custody (U2); evidence
+persistence (U11).
 
 ### Proofs minted by this change
 
@@ -230,7 +231,7 @@ classification it did not earn.
 | Cannot-decide boundary (RO-INV-01/06) | L4 | 6.1 | RO-EX-01, RO-EX-06, RO-MUT-04 |
 | Container-level gate execution (EX-005B, MUT-007) | **L9** | — | **deferred, named** |
 | Effective kill/teardown (EX-008, ADV-013) | **L9** | — | **deferred, named** |
-| Activation / process surface | **post-U4** | — | **deferred, named** |
+| Executing the shell's bootstrap / triggering / placement | **post-U4 operational act** (D2 — no landing) | — | **deferred, named** |
 
 ## Review Plan
 
@@ -247,8 +248,9 @@ L3-arrival precedent with owner authorization.
 
 `not_applicable` with reason: the service has no bootstrap, no listener,
 and no importer; CI builds and proves it. Rollback is non-reference.
-Activation, with its own shadow/rollback plan, is the post-U4 landing;
-L9 remains the single enforcement flip of the program.
+Activating the landed shell — a post-U4 operational act with its own
+shadow/rollback plan, not a landing — comes later; L9 remains the single
+enforcement flip of the program.
 
 ## Assurance Completeness
 
@@ -259,7 +261,8 @@ capability specs traces to named proofs above.
 
 **Scenarios intentionally deferred, each with a named landing:** EX-005B,
 MUT-007, EX-008, ADV-013, enforcement ceilings (L9); adapter conformance
-(L7/L8); activation and triggering (post-U4); credential custody (U2);
+(L7/L8); bootstrap execution and triggering (post-U4 operational acts on
+the landed shell); credential custody (U2);
 evidence persistence (U11).
 
 **Design assumptions requiring human confirmation:** OQ1–OQ3 were
