@@ -64,8 +64,8 @@ This section RECORDS external authorization. It can never create it.
 
 **`AUTHORIZED`** — recorded 2026-08-12.
 
-#27 authorizes the L4 landing scope, and **all four gating conditions are
-now satisfied**.
+#27 authorizes the L4 landing scope, and **all five gating conditions in
+the table below are now satisfied**.
 
 | Gate | Evidence |
 |---|---|
@@ -361,7 +361,10 @@ The landing is complete when:
   <!-- agent-task: 7.3 paths=services/runner-control/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
 
   **Proof required** — every target (`MUT-004/005/009/010`,
-  `RO-MUT-01…05`) killed by its named test; the map is itself a test.
+  `RO-MUT-01…07` — the range includes `RO-MUT-06` requester provenance
+  and `RO-MUT-07` cross-run isolation) killed by its named test; the map
+  is itself a test, and it SHALL fail if a registered target is absent
+  from the sweep rather than merely passing over a shorter list.
 
 - [ ] **7.4 Report any further L3/L2 gap**
   <!-- agent-task: 7.4 paths=openspec/changes/runner-control-orchestration/** checks=repo-check risk=low prerequisites=7.3 -->

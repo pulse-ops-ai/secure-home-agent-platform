@@ -63,8 +63,8 @@ are below.
 | RO-INV-06 | Every trust decision recorded for a run is attributable to a trusted-core operation invocation (no re-implementation) | trust |
 | RO-INV-07 | The shell is inert: importing the service (including the NestJS module tree) starts nothing, binds no listener, spawns nothing | behavior |
 | RO-INV-08 | One run has one writer: concurrent transition attempts serialize; a lost race is a recorded rejection | behavior |
-| RO-INV-09 | Requester attribution written into an early-termination record comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
-| RO-INV-10 | Runs are isolated across the shared ports: the core holds no unkeyed mutable per-run state, every run-scoped port call carries its `run_id`, and no ordering claim this landing makes is global | behavior |
+| RO-INV-09 | Requester attribution written into an early-termination record (normative in `runner-lifecycle`) comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
+| RO-INV-10 | Runs are isolated across the shared ports (normative in `runner-execution-boundary`): the core holds no unkeyed mutable per-run state, every run-scoped port call carries its `run_id`, and no ordering claim this landing makes is global | behavior |
 
 ## State-Space Model
 
