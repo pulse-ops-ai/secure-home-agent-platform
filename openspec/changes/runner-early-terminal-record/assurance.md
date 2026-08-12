@@ -61,8 +61,12 @@ Independent dimensions that materially affect this contract:
 Not a Cartesian product. The interactions that require proof:
 
 - **requester × authority absence** — the requester is identity-shaped
-  yet must never read as authority: it carries no digest, no grant, and
-  no profile-derived agent identity.
+  yet must never read as authority. What the shape enforces: no digest,
+  no grant, no capability field. What it **cannot** enforce: provenance —
+  an agent principal is shape-identical to a requester, so no schema can
+  decide which one a caller passed. That obligation is L4's (#27), and
+  it is not vacuous: a `REQUESTED` terminal caused by a later
+  acquisition fault can occur with a profile already captured.
 - **narrowed union × shared vocabulary** — narrowing must not fork
   `TerminalState`/`TERMINAL_SUCCESS` or produce a second terminal
   vocabulary; every option must remain an instance the full union also
