@@ -31,7 +31,13 @@ operational detail; and timing.
 The record SHALL NOT be capable of carrying authority identities,
 capability grants, gate results, change sets, or artifacts — the fields
 SHALL NOT exist, so a fabricated-authority record is unrepresentable
-rather than forbidden. The record's outcome vocabulary SHALL admit only
+rather than forbidden. This constraint is **structural**: it binds the
+record's fields, not the content of the free-text failure detail
+inherited from the terminal vocabulary. Arbitrary string-content
+scanning remains an L4/L9 concern, exactly as the parent requirement
+already states for credential values — a shape contract cannot enforce
+what a human-readable string does not contain, and this specification
+does not claim otherwise. The record's outcome vocabulary SHALL admit only
 the non-success terminal states: a run that never obtained authority
 SHALL NOT be able to claim success, and the success state SHALL be
 absent from the record's outcome union rather than merely forbidden by
@@ -72,7 +78,9 @@ identity.
 - **GIVEN** a run request naming a profile that fails to resolve
 - **WHEN** the run terminates
 - **THEN** the record carries the requested name and version as data
-- **AND** no digest, grant, or authority identity appears anywhere in it
+- **AND** no **structural field** for a digest, grant, or authority
+  identity exists in the record — the constraint is on the shape, not on
+  the free-text failure detail, whose content is not scanned here
 
 #### Scenario: Fabricated authority is unrepresentable
 
