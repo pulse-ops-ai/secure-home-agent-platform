@@ -71,7 +71,7 @@ questions the ADRs deliberately left open:
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
 | Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Freezing the adapter SPI | [U6](../architecture/unresolved-decisions.md#u6) |
+| Freezing the adapter SPI | [U6](../architecture/unresolved-decisions.md#u6) — proposed by **ADR-0013**, still open until accepted |
 | Authoring a real knowledge bundle | [U7](../architecture/unresolved-decisions.md#u7) |
 | Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
 | Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |
@@ -115,6 +115,7 @@ implementation-neutral. These decide how it is built.
 | ADR | Title | Status | Governs |
 |---|---|---|---|
 | [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
+| [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | **Proposed** | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -180,7 +181,7 @@ to deploy, and it does not make any unresolved decision decided.
 | anything | ADR-0001 |
 | a service under `services/` | ADR-0002, ADR-0004, ADR-0005, ADR-0008, ADR-0009 |
 | an execution profile or the profile schema | ADR-0003, ADR-0006, ADR-0007 |
-| an agent implementation or adapter | ADR-0003, ADR-0004, ADR-0006, ADR-0011 |
+| an agent implementation or adapter | ADR-0003, ADR-0004, ADR-0006, ADR-0011 + **ADR-0013** (proposed) |
 | the runner substrate or a runner image | ADR-0003, ADR-0005, ADR-0011 |
 | authorization, identity, or the envelope | ADR-0004, ADR-0008 |
 | safety policy or device actuation | ADR-0005, ADR-0008, ADR-0009 |
