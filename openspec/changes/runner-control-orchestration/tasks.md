@@ -62,31 +62,28 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED`** — recorded 2026-08-12.
 
-#27 authorizes the L4 landing scope. **Three of the four gating
-conditions are satisfied**; the fourth is not, so the status stands.
+#27 authorizes the L4 landing scope, and **all four gating conditions are
+now satisfied**.
 
-| Gate | Status |
+| Gate | Evidence |
 |---|---|
-| The focused delta review approves the enacted blocker resolutions | ✅ approved on PR #70's closing round |
-| The early-terminal refusal-record L2 amendment is landed | ✅ `early-termination-record@1.0.0` minted (PR #76, `96da9de`) and archived with its requirement canonical (PR #78) |
-| `openspec validate runner-control-orchestration --strict` | ✅ valid on the reviewed head |
-| The requester-provenance obligation is **recorded** and approved | ✅ RO-INV-09 + RO-EX-08/RO-ADV-08/RO-MUT-06 (PR #77, `d26eeff`) |
-| **D10's cross-run concurrency posture is confirmed** | ❌ **outstanding** — see below |
+| The focused delta review approves the enacted blocker resolutions | approved on PR #70's closing round |
+| The early-terminal refusal-record L2 amendment is landed | `early-termination-record@1.0.0` minted (PR #76, `96da9de`) and archived with its requirement canonical (PR #78) |
+| `openspec validate runner-control-orchestration --strict` | valid on this head |
+| The requester-provenance obligation is recorded and approved | RO-INV-09 + RO-EX-08/RO-ADV-08/RO-MUT-06 (PR #77, `d26eeff`) |
+| D10's cross-run concurrency posture is confirmed | confirmed by the repository owner 2026-08-12 on PR #79; recorded in `design.md` D10 and `assurance.md`, with its added obligation minted as RO-INV-10 / RO-EX-09 / RO-PROP-04 / RO-MUT-07 |
 
-**Why the status stays closed.** `assurance.md` § Assurance Completeness
-listed two design assumptions awaiting human confirmation. D11's
-early-terminal model was confirmed in fact — the amendment it required
-was authored, reviewed, merged, and archived — and that record is now
-corrected. **D10's cross-run concurrency posture never was**: no review
-on PR #69 or PR #70 mentions it. This file's own derivation rule says an
-unresolved trust-critical question means `NOT_AUTHORIZED` regardless of
-recorded authority, and a landing that classifies itself trust-critical
-does not get to waive that because the remaining question feels small.
+An earlier revision of this branch's predecessor flipped this status while
+D10 was still outstanding. That flip was reverted (PR #79) and the status
+is granted here only on the completed set.
 
-An earlier revision of this branch flipped the status with D10
-outstanding. That was wrong and is reverted here.
+**Scope reminder — authorization is not a widening.** This authorizes
+the tasks below as written: no container launch, no provider SDK, no
+Docker socket, no bootstrap execution. The runner-core consumer-allowlist
+amendment in 1.1 still requires its own recorded owner authorization
+before that file is touched.
 
 Status derivation rules (inherited):
 
@@ -129,7 +126,7 @@ The landing is complete when:
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on planning-review approval**
+- [x] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-control-orchestration/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Change** — When **every** gate in the Status table above is satisfied
