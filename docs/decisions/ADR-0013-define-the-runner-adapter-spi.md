@@ -267,8 +267,10 @@ open and L7 stays blocked.
 
 ## Links
 
-- [L6 spike evidence](../spikes/l6-copilot-cli/) and its
-  [U6 decision inputs](../spikes/l6-copilot-cli/U6-decision-inputs.md)
+- [L6 spike evidence](../spikes/l6-copilot-cli/) — in particular the
+  [consolidated findings](../spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md),
+  whose per-spike verdicts and "required inputs to U6" list are the empirical
+  basis for every decision above
 - [`runner-model.md`](../architecture/runner-model.md)
 - [`unresolved-decisions.md#u6`](../architecture/unresolved-decisions.md#u6)
 - Issue #11 (U6 gate), issue #54 (L6 spike), issue #55 (L7 adapters)
