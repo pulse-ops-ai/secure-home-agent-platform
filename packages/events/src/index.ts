@@ -16,7 +16,19 @@ export {
   TERMINAL_SUCCESS,
   TerminalState,
 } from './run-record.js'
-export type { RunIdT, RunOutcomeT, RunRecordT, TerminalStateT } from './run-record.js'
+export type {
+  NonSuccessOutcomeT,
+  RunIdT,
+  RunOutcomeT,
+  RunRecordT,
+  TerminalStateT,
+} from './run-record.js'
+export {
+  EARLY_TERMINATION_RECORD_ID,
+  EARLY_TERMINATION_RECORD_VERSION,
+  EarlyTerminationRecord,
+} from './early-termination-record.js'
+export type { EarlyTerminationRecordT } from './early-termination-record.js'
 export {
   CallId,
   EVENT_TYPES,

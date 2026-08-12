@@ -131,7 +131,7 @@ modified.
 
 ## 1. The contract and its corpus discipline
 
-- [ ] **1.1 `EarlyTerminationRecord` at contract version 1.0.0**
+- [x] **1.1 `EarlyTerminationRecord` at contract version 1.0.0**
   <!-- agent-task: 1.1 paths=packages/events/**,schemas/** checks=repo-check risk=high prerequisites=0.1 -->
 
   **Implements** — ADDED requirement "A run that terminates before
@@ -159,7 +159,7 @@ modified.
   the request rather than a profile) is not structurally decidable and is
   assigned to L4 (#27); this task proves only the structural half.
 
-- [ ] **1.2 Ledger append and corpus proofs**
+- [x] **1.2 Ledger append and corpus proofs**
   <!-- agent-task: 1.2 paths=schemas/**,packages/events/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Design D3; ET-INV-04; the append-only discipline.

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secure-home:contract:early-termination-record:1.0.0",
+  "type": "object",
+  "properties": {
+    "contract_id": { "type": "string", "const": "early-termination-record" },
+    "contract_version": { "type": "string", "const": "1.0.0" },
+    "run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,127}$" },
+    "requester": {
+      "type": "object",
+      "properties": {
+        "sub": { "type": "string", "minLength": 1 },
+        "acting": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "type": "string", "const": "actor" },
+                "sub": { "type": "string", "minLength": 1 }
+              },
+              "required": ["kind", "sub"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "kind": { "type": "string", "const": "autonomous" } },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": ["sub", "acting"],
+      "additionalProperties": false
+    },
+    "requested_profile": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+            }
+          },
+          "required": ["name", "version"],
+          "additionalProperties": false
+        },
+        { "type": "null" }
+      ]
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "REFUSED" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "contract_refusal" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "OPERATIONAL_FAILURE" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "const": "operational" },
+                "detail": { "type": "string", "minLength": 1 }
+              },
+              "required": ["class", "detail"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["terminal_state", "failure"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "CANCELLED" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "TIMED_OUT" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "terminal_state": { "type": "string", "const": "INDETERMINATE" },
+            "detail": { "type": "string", "minLength": 1 }
+          },
+          "required": ["terminal_state", "detail"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "duration_seconds": { "type": "number", "minimum": 0 }
+      },
+      "required": ["started_at", "finished_at", "duration_seconds"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "contract_id",
+    "contract_version",
+    "run_id",
+    "requester",
+    "requested_profile",
+    "outcome",
+    "timing"
+  ],
+  "additionalProperties": false
+}

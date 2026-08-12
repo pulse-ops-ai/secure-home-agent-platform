@@ -41,34 +41,66 @@ export const TERMINAL_SUCCESS: Readonly<Record<z.infer<typeof TerminalState>, bo
  * The ONE run-outcome shape, shared by the run record, the evidence
  * bundle, and the run.terminated event — never redefined.
  */
+/**
+ * The terminal outcome options, named so a narrower vocabulary can be
+ * composed from THESE INSTANCES rather than hand-copied. `RunOutcome`
+ * below still composes all six in their original order, so every
+ * generated artifact that embeds it is byte-identical.
+ */
+const CompletedOutcome = z.strictObject({ terminal_state: z.literal('COMPLETED') })
+
+const RefusedOutcome = z.strictObject({
+  terminal_state: z.literal('REFUSED'),
+  failure: z.strictObject({
+    class: z.literal('contract_refusal'),
+    detail: z.string().min(1),
+  }),
+})
+
+const OperationalFailureOutcome = z.strictObject({
+  terminal_state: z.literal('OPERATIONAL_FAILURE'),
+  failure: z.strictObject({
+    class: z.literal('operational'),
+    detail: z.string().min(1),
+  }),
+})
+
+const CancelledOutcome = z.strictObject({
+  terminal_state: z.literal('CANCELLED'),
+  detail: z.string().min(1),
+})
+
+const TimedOutOutcome = z.strictObject({
+  terminal_state: z.literal('TIMED_OUT'),
+  detail: z.string().min(1),
+})
+
+const IndeterminateOutcome = z.strictObject({
+  terminal_state: z.literal('INDETERMINATE'),
+  detail: z.string().min(1),
+})
+
 export const RunOutcome = z.discriminatedUnion('terminal_state', [
-  z.strictObject({ terminal_state: z.literal('COMPLETED') }),
-  z.strictObject({
-    terminal_state: z.literal('REFUSED'),
-    failure: z.strictObject({
-      class: z.literal('contract_refusal'),
-      detail: z.string().min(1),
-    }),
-  }),
-  z.strictObject({
-    terminal_state: z.literal('OPERATIONAL_FAILURE'),
-    failure: z.strictObject({
-      class: z.literal('operational'),
-      detail: z.string().min(1),
-    }),
-  }),
-  z.strictObject({
-    terminal_state: z.literal('CANCELLED'),
-    detail: z.string().min(1),
-  }),
-  z.strictObject({
-    terminal_state: z.literal('TIMED_OUT'),
-    detail: z.string().min(1),
-  }),
-  z.strictObject({
-    terminal_state: z.literal('INDETERMINATE'),
-    detail: z.string().min(1),
-  }),
+  CompletedOutcome,
+  RefusedOutcome,
+  OperationalFailureOutcome,
+  CancelledOutcome,
+  TimedOutOutcome,
+  IndeterminateOutcome,
+])
+
+/**
+ * The same vocabulary with the ONE success state absent — the option is
+ * not present, so a success claim is unrepresentable rather than
+ * forbidden by convention. Composed from the instances above: there is
+ * no second terminal vocabulary anywhere in the platform.
+ */
+export const NonSuccessOutcome = z.discriminatedUnion('terminal_state', [
+  RefusedOutcome,
+  OperationalFailureOutcome,
+  CancelledOutcome,
+  TimedOutOutcome,
+  IndeterminateOutcome,
 ])
 
 export const RunRecord = z.strictObject({
@@ -87,6 +119,7 @@ export const RunRecord = z.strictObject({
 export type RunIdT = z.infer<typeof RunId>
 export type TerminalStateT = z.infer<typeof TerminalState>
 export type RunOutcomeT = z.infer<typeof RunOutcome>
+export type NonSuccessOutcomeT = z.infer<typeof NonSuccessOutcome>
 export type RunRecordT = z.infer<typeof RunRecord>
 
 SemVer.parse(RUN_RECORD_VERSION)

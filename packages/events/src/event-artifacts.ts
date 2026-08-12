@@ -4,6 +4,11 @@
  * `generation.ts`, which the package index never exports).
  */
 import type { z } from 'zod'
+import {
+  EARLY_TERMINATION_RECORD_ID,
+  EARLY_TERMINATION_RECORD_VERSION,
+  EarlyTerminationRecord,
+} from './early-termination-record.js'
 import { EVIDENCE_BUNDLE_V1_VERSION, EvidenceBundleV1 } from './evidence-v1.js'
 import { EVIDENCE_BUNDLE_ID, EVIDENCE_BUNDLE_VERSION, EvidenceBundle } from './evidence.js'
 import { RUN_EVENT_ID, RUN_EVENT_VERSION, RunEvent } from './run-events.js'
@@ -28,6 +33,11 @@ export const EVENT_ARTIFACTS: readonly ContractArtifact[] = [
     id: EVIDENCE_BUNDLE_ID,
     version: EVIDENCE_BUNDLE_VERSION,
     schema: EvidenceBundle,
+  },
+  {
+    id: EARLY_TERMINATION_RECORD_ID,
+    version: EARLY_TERMINATION_RECORD_VERSION,
+    schema: EarlyTerminationRecord,
   },
 ]
 
