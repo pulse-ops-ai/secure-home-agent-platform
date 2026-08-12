@@ -3,9 +3,10 @@ schema: governed-spec-driven-v1
 context: |
   Local-first, security-first platform for household agents. Governance comes
   first: AGENTS.md is the universal agent contract; docs/decisions/INDEX.md is
-  the highest authority (ADR-0001 … ADR-0012 are Accepted and immutable —
-  supersede, never edit); docs/architecture/unresolved-decisions.md items
-  U1-U11 are open and block any work that depends on them.
+  the highest authority (ADR-0001 … ADR-0013 are Accepted and immutable —
+  supersede, never edit); of docs/architecture/unresolved-decisions.md items
+  U1-U11, only U6 is closed (by ADR-0013, 2026-08-12) — every other item is
+  open and blocks any work that depends on it.
   Tech stack (ADR-0012): TypeScript-first pnpm workspace — NestJS 11 on
   Fastify 5, Next.js, Zod-authored contracts; Python only in
   services/workers/python-inference, managed by uv.

@@ -8,9 +8,11 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
-> **Acceptance did not resolve anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md)**, and
-> nothing has since. The **current** open set is **U1–U11**, and each item still
+> **Neither foundational acceptance resolved anything in
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** One
+> item has closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
+> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12 — the
+> only item of the tracked set **U1–U11** ever closed. Every other item still
 > blocks the work that depends on it. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
@@ -175,7 +177,7 @@ must each prove.
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0012 in full, including §5 taxonomy, §18 `worker-base`, §19 dependency governance, §20 CI model |
 | **Review** | issue #5; PR #41, two rounds |
-| **Unresolved decisions resolved** | **none** — U1–U11 all remain open |
+| **Unresolved decisions resolved** | **none** — every item then open stayed open |
 
 **What was accepted.** TypeScript primary · NestJS 11 on Fastify 5 · pnpm
 workspaces · pnpm catalogs · Syncpack manifest governance · frozen

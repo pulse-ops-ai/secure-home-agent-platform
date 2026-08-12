@@ -21,8 +21,9 @@ This repository is at the **foundation** stage: documentation, governance, and
 workspace scaffolding. There is intentionally **no runtime**.
 
 The ADRs are accepted, so implementation may proceed against them under an
-authorizing task contract. **Acceptance is not authorization to deploy**, and it
-resolved none of U1–U11. Do not:
+authorizing task contract. **Acceptance is not authorization to deploy.** Of the
+tracked set U1–U11, only [U6](docs/architecture/unresolved-decisions.md#u6) has
+been closed (ADR-0013, 2026-08-12); every other item is open. Do not:
 
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,

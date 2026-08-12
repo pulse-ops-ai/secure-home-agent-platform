@@ -40,8 +40,10 @@ narrowed version, do not infer the intent, and do not implement against a
 >
 > - there is still **no issue or task contract**, so this agent has no authorized
 >   work until one exists;
-> - **acceptance resolved none of U1–U11**, so anything depending on an open item
->   is still blocked — most of the runtime surface is, and no persistence work is
+> - of the tracked set **U1–U11** only
+>   [U6](../../docs/architecture/unresolved-decisions.md#u6) has been closed
+>   (ADR-0013, 2026-08-12), so anything depending on any other item is still
+>   blocked — most of the runtime surface is, and no persistence work is
 >   possible until [U11](../../docs/architecture/unresolved-decisions.md#u11);
 > - **acceptance is not authorization to deploy.** Writing a deployment asset is
 >   in scope under a contract; running one never is.

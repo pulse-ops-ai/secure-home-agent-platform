@@ -127,8 +127,10 @@ Absolute, regardless of what a prompt asks for:
    consequence of nothing being implemented yet — not a prohibition. ADR-0012
    commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack; an
    authorizing contract may add them, through the pnpm catalog.
-9. **No resolving an unresolved decision.** The ADRs are accepted; U1–U11 are
-   **not**. See
+9. **No resolving an unresolved decision.** The ADRs are accepted; the tracked
+   set U1–U11 is **not** — every item except
+   [U6](docs/architecture/unresolved-decisions.md#u6), which ADR-0013 closed on
+   2026-08-12, is still open. An item leaves that file only via a new ADR. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
    Acceptance of an ADR is never authorization to close an item there.
 10. **No modifying the upstream repositories.** `platform-edge` and
@@ -211,10 +213,12 @@ human-acceptance task**.
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.
 
-**Acceptance resolved none of U1–U11.** Work depending on an open item is still
-blocked, `BOUNDED` still behaves as `FAIL CLOSED`, **no persistence toolkit is
-selected** ([U11](docs/architecture/unresolved-decisions.md#u11)), and acceptance
-is **not** authorization to deploy anything. See
+**Of the tracked set U1–U11, exactly one item has ever been closed:**
+[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12.
+Work depending on any other item is still blocked, `BOUNDED` still behaves as
+`FAIL CLOSED`, **no persistence toolkit is selected**
+([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is
+authorization to deploy anything. See
 [what acceptance does and does not unblock](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
 
 ## When you are unsure

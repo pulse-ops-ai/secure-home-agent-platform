@@ -440,8 +440,10 @@ agents. They are generated from the same source, so they cannot disagree.
 ## What is deliberately not specified here
 
 - The persistence toolkit — [U11](unresolved-decisions.md#u11).
-- The adapter SPI for agent runtimes — [U6](unresolved-decisions.md#u6). Nothing
-  here applies to it; runner contracts stay provider-neutral
+- The adapter SPI for agent runtimes — decided separately by
+  [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), which
+  closed [U6](unresolved-decisions.md#u6). Nothing here applies to it; runner
+  contracts stay provider-neutral
   ([ADR-0003](../decisions/ADR-0003-use-framework-neutral-runner-profiles.md)).
 - Whether the decorator layer is first-party or built over an existing adapter.
   The contract is fixed; the implementation is a bounded choice.

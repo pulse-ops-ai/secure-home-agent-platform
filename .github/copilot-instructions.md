@@ -27,8 +27,10 @@ Documentation, governance, and workspace scaffolding. **No runtime.** No Home
 Assistant, no services, no OpenFGA, no Keycloak, no runner image, no credentials.
 
 ADR-0001 … ADR-0012 are `Accepted` and **immutable** (foundational set
-2026-08-05; the implementation stack 2026-08-06). Acceptance resolved **none** of
-U1–U11, and is **not** authorization to deploy.
+2026-08-05; the implementation stack 2026-08-06). ADR-0013 (2026-08-12) is `Accepted` and closed
+[U6](../docs/architecture/unresolved-decisions.md#u6) — the only item of the
+tracked set U1–U11 ever closed. Acceptance is **not** authorization to
+deploy.
 
 Do not suggest application code, service implementations, deployments, or
 dependencies unless the task explicitly authorizes them — and never for work

@@ -62,13 +62,23 @@ substrate's security properties are its own, not the runtime's.
 5. **Coding and household runner classes are separate.** A coding adapter has no
    path to household devices.
 
-## Open
+## The SPI is decided
 
 The adapter SPI — what the substrate passes in, what an adapter returns, how
-failure and cancellation propagate — is
-[U6](../../docs/architecture/unresolved-decisions.md#u6). It should be designed
-against the two most **dissimilar** adapters (a coding CLI and a plain
-deterministic loop), not the most convenient one.
+failure and cancellation propagate — was decided by
+[ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md) on
+2026-08-12, closing
+[U6](../../docs/architecture/unresolved-decisions.md#u6). As U6 required, it is
+defined against the two most **dissimilar** adapters (a coding CLI and a plain
+deterministic loop), and on the empirical
+[L6 spike evidence](../../docs/spikes/l6-copilot-cli/).
+
+The load-bearing parts for anyone writing an adapter here: an adapter
+**translates and reports** — it never decides a terminal state, never enforces a
+capability, and never holds a credential value. It narrows the provider-visible
+tool surface from the profile (defense in depth), while the substrate enforces
+the real boundary. Provider event shapes are normalized at this boundary against
+a **pinned provider version** and never leak upward.
 
 ## Governed by
 
