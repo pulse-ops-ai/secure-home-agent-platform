@@ -93,6 +93,9 @@ Corpus grows 10 → 11 identities.
 
 ## Open Questions
 
-EQ1 (minimal vs partial-authority fields) and EQ2 (events placement) are
-stated in `proposal.md`; both assumed as decided above and requiring
-confirmation at the planning review.
+Both closed by the repository owner on 2026-08-11 (recorded on PR #71),
+confirming the decisions D1 already takes: **EQ1 — minimal** (D11's
+enumeration only; no partial-authority listing) and **EQ2 —
+`packages/events`** (beside the run-record family, shared shapes by
+instance). No design change follows from either closure. Implementation
+authorization remains withheld pending the planning review.

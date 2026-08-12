@@ -147,12 +147,20 @@ closes.
 
 ## Open Questions
 
-- **EQ1 — minimal versus partial-authority fields.** This proposal keeps
-  the record to D11's reviewed enumeration (run id, requested reference,
-  outcome, timing). The alternative — an optional list of the authority
-  identities that WERE captured before the fault — would aid debugging
-  but adds surface to refusal evidence. The failure detail already rides
-  in `outcome.failure.detail` as text. Confirm minimal, or direct the
-  addition.
-- **EQ2 — package placement.** Authored in `packages/events` beside the
-  run-record family (it is a terminal record, not authority). Confirm.
+Both were closed by the repository owner on 2026-08-11 (recorded on
+PR #71); implementation authorization was deliberately withheld pending
+the planning review, and the status stays `NOT_AUTHORIZED`.
+
+- **EQ1 — minimal versus partial-authority fields. CLOSED: minimal.** The
+  record keeps D11's reviewed enumeration (run id, requested reference,
+  outcome, timing). The rejected alternative — an optional list of the
+  authority identities that WERE captured before the fault — would aid
+  debugging but adds authority-shaped surface to refusal evidence, and
+  the failure detail already rides in `outcome.failure.detail` as text.
+  A record for a run that never obtained authority carries nothing
+  authority-shaped.
+- **EQ2 — package placement. CLOSED: `packages/events`.** Authored beside
+  the run-record family (it is a terminal record, not authority), reusing
+  `RunOutcome` and `EvidenceTiming` by instance. The rejected alternative
+  (`packages/contracts`) would have inverted the events → contracts edge
+  for exactly those shapes.

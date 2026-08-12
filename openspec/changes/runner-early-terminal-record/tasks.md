@@ -52,14 +52,20 @@ This section RECORDS external authorization. It can never create it.
 
 #51 authorizes the L2 contract scope under the correction-within-scope
 reading the owner confirmed for `runner-contract-corrections`.
-Implementation starts only after:
 
-- the planning review approves this artifact set and closes **EQ1**
-  (minimal versus partial-authority fields) and **EQ2** (events
-  placement); and
+**EQ1 and EQ2 are closed** (owner, 2026-08-11, recorded on PR #71): EQ1
+minimal — D11's enumeration only, no partial-authority listing; EQ2
+`packages/events`. Neither closure changed the design or the proof net.
+The owner **deliberately withheld implementation authorization** at the
+same time, directing that the planning review come first.
+
+Implementation therefore starts only after:
+
+- the planning review approves this artifact set; and
 - the owner confirms the #51 reading for this correction and approves
   implementation; and
-- task 0.1 records both and flips this status.
+- task 0.1 records both, together with the closed questions, and flips
+  this status.
 
 Status derivation rules (inherited):
 
@@ -99,10 +105,11 @@ modified.
 - [ ] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-early-terminal-record/tasks.md checks=repo-check risk=low prerequisites=none -->
 
-  **Change** — On the planning review approving this artifact set and
-  closing EQ1/EQ2, and the owner's confirmation of authority: record both
-  and flip the Status above to `AUTHORIZED`. This task changes only the
-  Status block of this file.
+  **Change** — On the planning review approving this artifact set, and
+  the owner's confirmation of authority and approval to implement:
+  record both — together with the already-closed EQ1/EQ2 — and flip the
+  Status above to `AUTHORIZED`. This task changes only the Status block
+  of this file.
 
   **Proof required** — `repo-check` green.
 

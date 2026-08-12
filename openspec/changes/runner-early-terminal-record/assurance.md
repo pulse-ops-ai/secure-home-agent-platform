@@ -92,8 +92,10 @@ before merge is branch deletion; after merge, a further append.
 
 ## Assurance Completeness
 
-**Unresolved state-model questions:** none beyond EQ1/EQ2, which gate 0.1.
-**Requirements lacking proof:** none. **Deferred, named:** the exclusivity
-behavior and every writer/reader obligation (L4/#27 and later).
-**Design assumptions requiring human confirmation:** EQ1 (minimal
-enumeration), EQ2 (events placement).
+**Unresolved state-model questions:** none — EQ1 (minimal enumeration)
+and EQ2 (events placement) were closed by the owner on 2026-08-11, and
+neither closure changed the proof net. **Requirements lacking proof:**
+none. **Deferred, named:** the exclusivity behavior and every
+writer/reader obligation (L4/#27 and later). **Design assumptions
+requiring human confirmation:** none outstanding; task 0.1 now gates on
+the planning review and the owner's #51 authority confirmation alone.
