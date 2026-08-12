@@ -83,13 +83,21 @@ Conditions gating 0.1 now:
   be built against a contract that does not exist.
 - `openspec validate runner-control-orchestration --strict` has run
   successfully on the reviewed head.
-- **The requester-provenance obligation is carried and proven.** The owner
-  directed (2026-08-12) that this landing prove requester attribution used
-  in an early-termination record comes from the `REQUESTED`/run-request
-  input and is neither fabricated nor inferred later — recorded as
-  RO-INV-09 with proofs RO-EX-08, RO-ADV-08, and RO-MUT-06. The L2
-  contract cannot decide provenance (an agent principal is
-  shape-identical to a requester), so this half is L4's to prove.
+- **The requester-provenance obligation is RECORDED and approved** — not
+  yet proven. The owner directed (2026-08-12) that this landing prove
+  requester attribution used in an early-termination record comes from
+  the `REQUESTED`/run-request input and is neither fabricated nor
+  inferred later. What gates 0.1 is that the obligation exists in the
+  frozen artifacts and survived review: RO-INV-09 with proofs RO-EX-08,
+  RO-ADV-08, and RO-MUT-06, assigned to task 2.2 and named in
+  traceability. The L2 contract cannot decide provenance (an agent
+  principal is shape-identical to a requester), so this half is L4's to
+  prove — **during implementation**. Demanding the evidence here would be
+  circular: those proofs are task 2.2's, task 2.2 may not begin until
+  this status flips, and the landing could never leave
+  `NOT_AUTHORIZED`. The evidence is a **completion** condition, carried
+  by the Completion Definition below ("every task below is done with its
+  declared proof green") and by task 2.2's own proof list.
 
 Status derivation rules (inherited):
 
