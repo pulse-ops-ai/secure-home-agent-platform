@@ -8,6 +8,7 @@
  * semantically equivalent second one here.
  */
 export {
+  EarlyTerminationOutcome,
   RUN_RECORD_ID,
   RUN_RECORD_VERSION,
   RunId,
@@ -17,7 +18,7 @@ export {
   TerminalState,
 } from './run-record.js'
 export type {
-  NonSuccessOutcomeT,
+  EarlyTerminationOutcomeT,
   RunIdT,
   RunOutcomeT,
   RunRecordT,

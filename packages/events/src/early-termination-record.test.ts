@@ -17,7 +17,7 @@ import {
   EARLY_TERMINATION_RECORD_VERSION,
 } from './early-termination-record.js'
 import { EvidenceTiming, Principal } from './evidence.js'
-import { NonSuccessOutcome, RunId, RunOutcome, TERMINAL_SUCCESS } from './run-record.js'
+import { EarlyTerminationOutcome, RunId, RunOutcome, TERMINAL_SUCCESS } from './run-record.js'
 
 const timing = {
   started_at: '2026-08-12T12:00:00Z',
@@ -139,14 +139,14 @@ describe('success is absent, not forbidden (ET-EX-06, ET-ADV-02)', () => {
 
   it('the narrowed union is the full vocabulary minus exactly the success option', () => {
     const all: string[] = RunOutcome.options.map((option) => option.shape.terminal_state.value)
-    const narrowed: string[] = NonSuccessOutcome.options.map(
+    const narrowed: string[] = EarlyTerminationOutcome.options.map(
       (option) => option.shape.terminal_state.value,
     )
     expect(all.filter((state) => !narrowed.includes(state))).toEqual(['COMPLETED'])
   })
 
   it('EQ4: the narrowing REUSES the option instances — no second vocabulary exists', () => {
-    for (const option of NonSuccessOutcome.options) {
+    for (const option of EarlyTerminationOutcome.options) {
       expect(
         RunOutcome.options.includes(option),
         `${option.shape.terminal_state.value} must be the same instance RunOutcome composes`,
@@ -160,7 +160,7 @@ describe('ET-EX-03: shared shapes are consumed by instance', () => {
     expect(EarlyTerminationRecord.shape.run_id).toBe(RunId)
     expect(EarlyTerminationRecord.shape.requester).toBe(Principal)
     expect(EarlyTerminationRecord.shape.timing).toBe(EvidenceTiming)
-    expect(EarlyTerminationRecord.shape.outcome).toBe(NonSuccessOutcome)
+    expect(EarlyTerminationRecord.shape.outcome).toBe(EarlyTerminationOutcome)
     expect(EarlyTerminationRecord.shape.requested_profile.unwrap()).toBe(ProfileRef)
   })
 })

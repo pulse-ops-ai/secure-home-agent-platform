@@ -94,8 +94,12 @@ export const RunOutcome = z.discriminatedUnion('terminal_state', [
  * not present, so a success claim is unrepresentable rather than
  * forbidden by convention. Composed from the instances above: there is
  * no second terminal vocabulary anywhere in the platform.
+ *
+ * Named for its consumer and composed here, exactly as design D1b of the
+ * `runner-early-terminal-record` change specifies: the options it reuses
+ * are this module's, so the reuse is local and mechanically provable.
  */
-export const NonSuccessOutcome = z.discriminatedUnion('terminal_state', [
+export const EarlyTerminationOutcome = z.discriminatedUnion('terminal_state', [
   RefusedOutcome,
   OperationalFailureOutcome,
   CancelledOutcome,
@@ -119,7 +123,7 @@ export const RunRecord = z.strictObject({
 export type RunIdT = z.infer<typeof RunId>
 export type TerminalStateT = z.infer<typeof TerminalState>
 export type RunOutcomeT = z.infer<typeof RunOutcome>
-export type NonSuccessOutcomeT = z.infer<typeof NonSuccessOutcome>
+export type EarlyTerminationOutcomeT = z.infer<typeof EarlyTerminationOutcome>
 export type RunRecordT = z.infer<typeof RunRecord>
 
 SemVer.parse(RUN_RECORD_VERSION)

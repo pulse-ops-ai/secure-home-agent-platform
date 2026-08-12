@@ -13,7 +13,7 @@
  *    so a fabricated-authority record is unrepresentable, not merely
  *    forbidden.
  *  - **No success.** The outcome is the shared terminal vocabulary with
- *    the one success state ABSENT (`NonSuccessOutcome`), composed from
+ *    the one success state ABSENT (`EarlyTerminationOutcome`), composed from
  *    the same option instances `RunOutcome` uses. A run that obtained no
  *    authority cannot claim it succeeded.
  *
@@ -26,7 +26,7 @@
 import { z } from 'zod'
 import { ProfileRef, SemVer } from '@secure-home/contracts'
 import { EvidenceTiming, Principal } from './evidence.js'
-import { NonSuccessOutcome, RunId } from './run-record.js'
+import { EarlyTerminationOutcome, RunId } from './run-record.js'
 
 export const EARLY_TERMINATION_RECORD_ID = 'early-termination-record' as const
 export const EARLY_TERMINATION_RECORD_VERSION = '1.0.0' as const
@@ -40,7 +40,7 @@ export const EarlyTerminationRecord = z.strictObject({
   /** WHAT was asked for, as data — or an explicit null when nothing was named. */
   requested_profile: ProfileRef.nullable(),
   /** The terminal outcome, success structurally absent. */
-  outcome: NonSuccessOutcome,
+  outcome: EarlyTerminationOutcome,
   timing: EvidenceTiming,
 })
 
