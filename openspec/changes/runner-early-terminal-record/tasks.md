@@ -48,38 +48,37 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED`** — recorded 2026-08-12:
 
-#51 authorizes the L2 contract scope under the correction-within-scope
-reading the owner confirmed for `runner-contract-corrections`.
+- **EQ1 and EQ2** were closed by the owner on 2026-08-11 (recorded on
+  PR #71/#72): EQ1 minimal — D11's enumeration only, no partial
+  *execution-authority* listing; EQ2 `packages/events`.
+- **EQ3 — YES** (owner, 2026-08-12): the record MUST carry mandatory
+  requester/principal attribution, available at `REQUESTED`. Requester
+  attribution is not partial execution authority and must not be
+  omitted.
+- **EQ4 — YES** (owner, 2026-08-12): the record MUST use a narrowed
+  terminal vocabulary in which success is structurally unrepresentable,
+  **reusing the shared authored primitives** — a second terminal
+  vocabulary must not be hand-copied to achieve the narrowing.
+- **#51 authority — CONFIRMED** (owner, 2026-08-12), explicitly
+  authorizing the minting of `early-termination-record@1.0.0` in
+  `packages/events`, and covering exactly: the authored contract, the
+  generated schema, **one** appended identity-ledger row, the `ET-*`
+  conformance net, and the planning/status edits recording this
+  authorization. **It does not extend beyond this correction and does
+  not authorize L4 implementation.**
+- The planning reviews of PR #72 (four rounds) approved the artifact set
+  with no blocking findings remaining.
+- `openspec validate runner-early-terminal-record --strict` passes on
+  the implemented head.
 
-**EQ1 and EQ2 are closed** (owner, 2026-08-11, recorded on PR #71): EQ1
-minimal — D11's enumeration only, no partial *execution-authority*
-listing; EQ2 `packages/events`. Neither closure changed the design or the
-proof net. The owner **deliberately withheld implementation
-authorization** at the same time, directing that the planning review come
-first.
-
-**EQ3 and EQ4 are open**, raised by the planning review of PR #72 and
-answered with positions taken (proposal and design D1/D1b): EQ3 — the
-requesting principal is mandatory, so a refusal states who was refused;
-EQ4 — the outcome union is narrowed so an authority-less record cannot
-claim success.
-
-Implementation therefore starts only after:
-
-- the planning review approves this artifact set and closes **EQ3** and
-  **EQ4**; and
-- the owner confirms the #51 reading for this correction **and
-  explicitly authorizes minting `early-termination-record@1.0.0` as a
-  NEW contract identity** — the planning review is explicit that this
-  must not be inferred from the corrections precedent — and approves
-  implementation; and
-- **`openspec validate runner-early-terminal-record --strict` has run
-  successfully on the reviewed head** (a compensating structural check is
-  not equivalent and does not satisfy this); and
-- task 0.1 records all of it, together with the closed questions, and
-  flips this status.
+**Recorded downstream obligation (owner-directed).** Before L4's task 0.1
+flips, the `runner-control-orchestration` change must carry a proof
+obligation that requester attribution used in an early-terminal record
+comes from the `REQUESTED`/run-request input and is neither fabricated
+nor inferred later. That obligation is recorded in the L4 change by this
+same commit series; it is L4's to prove, not this change's.
 
 Status derivation rules (inherited):
 
@@ -116,7 +115,7 @@ modified.
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on planning-review approval**
+- [x] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-early-terminal-record/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Change** — On the planning review approving this artifact set and
@@ -132,7 +131,7 @@ modified.
 
 ## 1. The contract and its corpus discipline
 
-- [ ] **1.1 `EarlyTerminationRecord` at contract version 1.0.0**
+- [x] **1.1 `EarlyTerminationRecord` at contract version 1.0.0**
   <!-- agent-task: 1.1 paths=packages/events/**,schemas/** checks=repo-check risk=high prerequisites=0.1 -->
 
   **Implements** — ADDED requirement "A run that terminates before
@@ -160,7 +159,7 @@ modified.
   the request rather than a profile) is not structurally decidable and is
   assigned to L4 (#27); this task proves only the structural half.
 
-- [ ] **1.2 Ledger append and corpus proofs**
+- [x] **1.2 Ledger append and corpus proofs**
   <!-- agent-task: 1.2 paths=schemas/**,packages/events/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Design D3; ET-INV-04; the append-only discipline.
