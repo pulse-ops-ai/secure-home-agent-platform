@@ -55,7 +55,12 @@ bundle's `principal`, which is the profile-derived agent identity a run
 authenticates as — that identity does not exist for a run whose profile
 never resolved. Reusing the `Principal` shape is exact (an identity plus
 an actor-or-autonomous marker) while the field name keeps the semantics
-honest. Recording it is what lets a refusal say **who** was refused
+honest — but the distinction is **semantic, not structural**: the two
+shapes are identical, so no contract can decide which one a caller
+passed. Enforcing that the requester is populated from the request
+belongs to L4, and is assigned there; for these runs it is also
+vacuously safe, since no profile ever resolved and therefore no
+profile-derived principal exists. Recording it is what lets a refusal say **who** was refused
 without any authority having been established; the requester travels with
 the request, so it is available in `REQUESTED`.
 

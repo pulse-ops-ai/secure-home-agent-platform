@@ -149,9 +149,16 @@ modified.
 
   **Proof required** — `ET-EX-01` (smuggled authority fields refuse;
   minimal record validates), `ET-EX-02` (null vs stated reference),
-  `ET-EX-03` (instance identity), `ET-EX-05` (requester mandatory),
-  `ET-EX-06` and `ET-ADV-02` (success unrepresentable), `ET-ADV-03`
-  (byte-neutral extraction); `ET-MUT-01/02/03` registered.
+  `ET-EX-03` (instance identity), `ET-EX-05` (requester mandatory and
+  authority-free), `ET-EX-06` and `ET-ADV-02` (success unrepresentable),
+  `ET-ADV-03` (byte-neutral extraction), `ET-ADV-04/05/06`,
+  `ET-PROP-01` (every requester × reference × non-success combination
+  validates and maps to failure), `ET-PROP-02` (every evidence-only key
+  refuses); `ET-MUT-01/02/03/04` registered.
+
+  **Not claimed here** — requester *provenance* (that the value came from
+  the request rather than a profile) is not structurally decidable and is
+  assigned to L4 (#27); this task proves only the structural half.
 
 - [ ] **1.2 Ledger append and corpus proofs**
   <!-- agent-task: 1.2 paths=schemas/**,packages/events/** checks=repo-check risk=high prerequisites=1.1 -->
