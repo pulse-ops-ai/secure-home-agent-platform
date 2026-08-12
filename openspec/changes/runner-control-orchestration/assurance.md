@@ -63,6 +63,7 @@ are below.
 | RO-INV-06 | Every trust decision recorded for a run is attributable to a trusted-core operation invocation (no re-implementation) | trust |
 | RO-INV-07 | The shell is inert: importing the service (including the NestJS module tree) starts nothing, binds no listener, spawns nothing | behavior |
 | RO-INV-08 | One run has one writer: concurrent transition attempts serialize; a lost race is a recorded rejection | behavior |
+| RO-INV-09 | Requester attribution written into an early-termination record comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
 
 ## State-Space Model
 
@@ -154,6 +155,7 @@ persistence (U11).
 | RO-EX-04 | RO-INV-04 | deterministic example | second consumption within an epoch fails naming source and epoch; host-read recorder shows exactly one read per epoch |
 | RO-EX-05 | RO-INV-05 | architecture guard | scheduling surface accepts identities only (signature scan + widening fixture) |
 | RO-EX-06 | RO-INV-06 | deterministic example | run record's decision provenance names a core operation for every recorded decision |
+| RO-EX-08 | RO-INV-09 | deterministic example | the requester recorded in an early-termination record is the run request's principal, byte-for-byte; a fixture whose production epoch captured a profile BEFORE a later acquisition fault still records the requester, never the profile's agent principal |
 | RO-EX-07 | RO-INV-07 | deterministic example | importing the service incl. the Nest module tree has no side effect; no listener, timer, or child process appears |
 | RO-ADV-01 | INV-005/D5 | adversarial | eligibility-proceed with consent absent: held at ELIGIBLE, recorded, not spent |
 | RO-ADV-02 | INV-004 | adversarial | transition replay after terminal state: rejected, terminal unchanged |
@@ -162,11 +164,13 @@ persistence (U11).
 | RO-ADV-05 | INV-007 (verification) | adversarial | verifier consumes only the verification epoch; recorder shows the two epochs separately; production-value injection not expressible |
 | RO-ADV-06 | lifecycle × cancellation | adversarial | cancellation from each cancellable state (`PROFILE_RESOLVED` onward): declared transition + full sealed bundle with empty sets where nothing ran |
 | RO-ADV-07 | D11 early terminals | adversarial | termination in `REQUESTED` (no profile / resolution failure / acquisition fault): early-terminal refusal record written; no bundle with fabricated identities exists |
+| RO-ADV-08 | RO-INV-09 | adversarial | a `REQUESTED` terminal caused by a policy or registry acquisition fault that FOLLOWS a successful profile capture: the record's requester is still the request's principal, and the captured profile's agent principal appears nowhere |
 | RO-PROP-01 | RO-INV-04 | property | for any generated acquisition order, each source read at most once per epoch and at most twice per run; within-epoch second attempts always structural errors |
 | RO-PROP-02 | INV-016 | property | for any generated report sequence with duplicates/skips/truncations, recorded dispositions are one-per-identity with meanings preserved |
 | RO-PROP-03 | RO-INV-08 | property | for any interleaving of concurrent transition attempts on one run, the machine serializes; losers are recorded rejections |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
+| RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
@@ -222,6 +226,7 @@ classification it did not earn.
 | Acquire-once per epoch (INV-007 L4 half) | L4 | 3.1, 3.2 | RO-EX-04, RO-PROP-01, RO-ADV-04, RO-MUT-01 |
 | Verification epoch | L4 | 3.3 | RO-ADV-05 |
 | Early-terminal refusal record (D11) | L4 (+ the sequenced L2 amendment) | 2.2, 5.3 | RO-ADV-07, RO-MUT-05 |
+| **Requester provenance** — attribution comes from the run request, never a captured profile (owner-directed, 2026-08-12) | L4 | 2.2, 3.2 | RO-EX-08, RO-ADV-08, RO-MUT-06 |
 | Base identity at creation (ADV-004 assertion half) | L4 | 3.4 | creation-sequenced fixture |
 | Gate scheduling (INV-009/INV-016) | L4 | 4.1, 4.2 | EX-005A, ADV-006/007/015/016/017, PROP-007, MUT-004, MUT-009, RO-PROP-02 |
 | Ports and no-launch (RO-INV-02) | L4 | 5.1 | RO-EX-02 |

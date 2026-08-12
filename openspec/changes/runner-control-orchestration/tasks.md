@@ -83,6 +83,13 @@ Conditions gating 0.1 now:
   be built against a contract that does not exist.
 - `openspec validate runner-control-orchestration --strict` has run
   successfully on the reviewed head.
+- **The requester-provenance obligation is carried and proven.** The owner
+  directed (2026-08-12) that this landing prove requester attribution used
+  in an early-termination record comes from the `REQUESTED`/run-request
+  input and is neither fabricated nor inferred later — recorded as
+  RO-INV-09 with proofs RO-EX-08, RO-ADV-08, and RO-MUT-06. The L2
+  contract cannot decide provenance (an agent principal is
+  shape-identical to a requester), so this half is L4's to prove.
 
 Status derivation rules (inherited):
 
@@ -185,7 +192,10 @@ The landing is complete when:
   **Proof required** — `RO-ADV-06` (cancellation from every cancellable
   state, full bundle with empty sets); the timeout fixture; `RO-ADV-07`
   (REQUESTED terminals write the refusal record, never a fabricated
-  bundle); `RO-MUT-05` registered.
+  bundle); `RO-EX-08` and `RO-ADV-08` (requester attribution comes from
+  the run request — including the case where a profile WAS captured
+  before a later acquisition fault); `RO-MUT-05` and `RO-MUT-06`
+  registered.
 
 - [ ] **2.3 Consent-to-spend**
   <!-- agent-task: 2.3 paths=services/runner-control/src/consent/**,services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=2.1 -->
