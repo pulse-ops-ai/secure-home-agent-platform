@@ -62,42 +62,30 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED`** — recorded 2026-08-12.
 
-#27 authorizes the L4 landing scope. Implementation starts only after the
-complete planning seam receives its required review and the explicit
-post-review authorization task (0.1) is performed.
+#27 authorizes the L4 landing scope. All four gating conditions are now
+satisfied, each verifiable on `main`:
 
-The planning review of 2026-08-10/11 (posted on PR #69) resolved
-OQ1–OQ3 (OQ1 accepted; OQ2 → the inert NestJS shell lands in this change;
-OQ3 accepted with the emission narrowing) and raised three blockers, all
-enacted in this seam: acquisition epochs (D4), the early-terminal
-evidence split (D11), and the emission narrowing (D9).
+| Gate | Evidence |
+|---|---|
+| The focused delta review approves the enacted blocker resolutions | approved on PR #70's closing round, after the corpus-wide sweep of the epoch-counting and phantom-landing contradictions |
+| The early-terminal refusal-record L2 amendment is landed | `early-termination-record@1.0.0` minted (PR #76, squash `96da9de`) and archived with its requirement canonical (PR #78) |
+| `openspec validate runner-control-orchestration --strict` | valid on the reviewed head |
+| The requester-provenance obligation is **recorded** and approved | RO-INV-09 with proofs RO-EX-08, RO-ADV-08, RO-MUT-06 (PR #77, squash `d26eeff`) — recorded, not proven; the evidence is a completion condition, since demanding it here would be circular |
 
-Conditions gating 0.1 now:
+The original trust-critical questions were closed earlier: Q1/Q2 by
+direction into the L2 correction, Q3 confirmed, Q4 by removing L3-owned
+I/O ports (design D3/D4), and OQ1–OQ3 by the planning review.
 
-- The **focused delta review** approves the enacted blocker resolutions.
-- The **early-terminal refusal-record L2 amendment** (D11) has been
-  authored as its own child change under the L2 authority, reviewed, and
-  **landed** — this seam's implementation writes those records and cannot
-  be built against a contract that does not exist.
-- `openspec validate runner-control-orchestration --strict` has run
-  successfully on the reviewed head.
-- **The requester-provenance obligation is RECORDED and approved** — not
-  yet proven. The owner directed (2026-08-12) that this landing prove
-  requester attribution used in an early-termination record comes from
-  the `REQUESTED`/run-request input and is neither fabricated nor
-  inferred later. What gates 0.1 is that the obligation exists in the
-  frozen artifacts and survived review: RO-INV-09 with proofs RO-EX-08,
-  RO-ADV-08, and RO-MUT-06, assigned to task 2.2 and named in
-  traceability. The L2 contract cannot decide provenance (an agent
-  principal is shape-identical to a requester), so this half is L4's to
-  prove — **during implementation**. Demanding the evidence here would be
-  circular: those proofs are task 2.2's, task 2.2 may not begin until
-  this status flips, and the landing could never leave
-  `NOT_AUTHORIZED`. The evidence is a **completion** condition, carried
-  by the Completion Definition below ("every task below is done with its
-  declared proof green") and by task 2.2's own proof list.
+Implementation proceeds against the frozen artifacts. Any further
+planning change requires a new review before continuing.
+
+**Path authority is unchanged and binding.** If the anticipated
+`packages/runner-core` consumer-allowlist amendment is needed, this
+landing **stops and reports** for explicit owner authorization rather
+than reaching across — the precedent set when the L2 correction was
+found editing L4's seam.
 
 Status derivation rules (inherited):
 
@@ -140,7 +128,7 @@ The landing is complete when:
 
 ## 0. Post-review authorization
 
-- [ ] **0.1 Flip authorization on planning-review approval**
+- [x] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-control-orchestration/tasks.md checks=repo-check risk=low prerequisites=none -->
 
   **Change** — On the focused delta review approving the enacted blocker
