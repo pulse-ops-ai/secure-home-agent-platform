@@ -273,9 +273,19 @@ evidence persistence (U11).
 **Design assumptions requiring human confirmation:** OQ1–OQ3 were
 resolved by the planning review (2026-08-10/11; OQ1 accepted, OQ2
 resolved as the inert-shell direction, OQ3 accepted with the blocker-3
-narrowing). Remaining for confirmation at the delta review: D11's
-early-terminal model and the shape/sequencing of its L2 refusal-record
-amendment; D10's cross-run concurrency posture.
+narrowing). **D11's early-terminal model is confirmed** — the delta review approved
+it and the L2 refusal-record amendment it required was authored,
+reviewed, merged (PR #76), and archived (PR #78), so its shape and
+sequencing are now facts rather than assumptions.
+
+**D10's cross-run concurrency posture remains the one outstanding
+confirmation**, and it gates task 0.1. No review has addressed it. The
+posture as sharpened in `design.md` D10: per run, a single writer with
+serialized transitions (RO-INV-08, proven by RO-PROP-03); across runs,
+the orchestration core holds no shared state, but port *implementations*
+may be shared instances — so every ordering property this landing
+claims, seal-last included, is scoped **per run** and must never be read
+as global.
 
 `tasks.md` must not begin implementation of unresolved trust-critical
 behavior merely because this artifact exists. Task 0.1 gates on the delta

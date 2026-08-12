@@ -243,11 +243,27 @@ operational, never silent.
 
 ### D10: Concurrency — one run, one writer
 
-A run's state is advanced by a single owner; concurrent transition attempts
-on one run are serialized by construction (the machine hands out the next
-transition capability only once) and a lost race is a recorded rejection,
-not an interleaving. Cross-run concurrency is unconstrained here (no shared
-mutable state between runs); resource-level isolation is L9.
+**Per run:** state is advanced by a single owner; concurrent transition
+attempts on one run are serialized by construction (the machine hands out
+the next transition capability only once) and a lost race is a recorded
+rejection, not an interleaving. Proven by RO-INV-08 / RO-PROP-03.
+
+**Across runs:** the orchestration core holds no state shared between
+runs — each run owns its lifecycle state, its two acquisition sets, its
+disposition recorder, and its finalization ordering. But port
+*implementations* may legitimately be shared instances (one event sink,
+one clock), so the honest statement is not "cross-run concurrency is
+unconstrained": it is that **every ordering property this landing claims
+is scoped to one run**. Seal-last means last among *that run's* writes;
+concurrent runs may interleave their port calls freely, and no proof
+here depends on global ordering. The recorded-sequence evidence for
+RO-ADV-03 is therefore filtered per run.
+
+Resource-level isolation between concurrent runs — starvation, CPU and
+memory ceilings on a shared Pi — is L9's, not this landing's.
+
+**This posture is the one design assumption still awaiting human
+confirmation, and it gates task 0.1.**
 
 ### D11: Early terminals split at PROFILE_RESOLVED; pre-authority runs leave a refusal record (review blocker 2)
 

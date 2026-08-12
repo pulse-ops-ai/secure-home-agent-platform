@@ -62,30 +62,31 @@ This section RECORDS external authorization. It can never create it.
 
 ### Status
 
-**`AUTHORIZED`** — recorded 2026-08-12.
+**`NOT_AUTHORIZED`**
 
-#27 authorizes the L4 landing scope. All four gating conditions are now
-satisfied, each verifiable on `main`:
+#27 authorizes the L4 landing scope. **Three of the four gating
+conditions are satisfied**; the fourth is not, so the status stands.
 
-| Gate | Evidence |
+| Gate | Status |
 |---|---|
-| The focused delta review approves the enacted blocker resolutions | approved on PR #70's closing round, after the corpus-wide sweep of the epoch-counting and phantom-landing contradictions |
-| The early-terminal refusal-record L2 amendment is landed | `early-termination-record@1.0.0` minted (PR #76, squash `96da9de`) and archived with its requirement canonical (PR #78) |
-| `openspec validate runner-control-orchestration --strict` | valid on the reviewed head |
-| The requester-provenance obligation is **recorded** and approved | RO-INV-09 with proofs RO-EX-08, RO-ADV-08, RO-MUT-06 (PR #77, squash `d26eeff`) — recorded, not proven; the evidence is a completion condition, since demanding it here would be circular |
+| The focused delta review approves the enacted blocker resolutions | ✅ approved on PR #70's closing round |
+| The early-terminal refusal-record L2 amendment is landed | ✅ `early-termination-record@1.0.0` minted (PR #76, `96da9de`) and archived with its requirement canonical (PR #78) |
+| `openspec validate runner-control-orchestration --strict` | ✅ valid on the reviewed head |
+| The requester-provenance obligation is **recorded** and approved | ✅ RO-INV-09 + RO-EX-08/RO-ADV-08/RO-MUT-06 (PR #77, `d26eeff`) |
+| **D10's cross-run concurrency posture is confirmed** | ❌ **outstanding** — see below |
 
-The original trust-critical questions were closed earlier: Q1/Q2 by
-direction into the L2 correction, Q3 confirmed, Q4 by removing L3-owned
-I/O ports (design D3/D4), and OQ1–OQ3 by the planning review.
+**Why the status stays closed.** `assurance.md` § Assurance Completeness
+listed two design assumptions awaiting human confirmation. D11's
+early-terminal model was confirmed in fact — the amendment it required
+was authored, reviewed, merged, and archived — and that record is now
+corrected. **D10's cross-run concurrency posture never was**: no review
+on PR #69 or PR #70 mentions it. This file's own derivation rule says an
+unresolved trust-critical question means `NOT_AUTHORIZED` regardless of
+recorded authority, and a landing that classifies itself trust-critical
+does not get to waive that because the remaining question feels small.
 
-Implementation proceeds against the frozen artifacts. Any further
-planning change requires a new review before continuing.
-
-**Path authority is unchanged and binding.** If the anticipated
-`packages/runner-core` consumer-allowlist amendment is needed, this
-landing **stops and reports** for explicit owner authorization rather
-than reaching across — the precedent set when the L2 correction was
-found editing L4's seam.
+An earlier revision of this branch flipped the status with D10
+outstanding. That was wrong and is reverted here.
 
 Status derivation rules (inherited):
 
@@ -128,13 +129,17 @@ The landing is complete when:
 
 ## 0. Post-review authorization
 
-- [x] **0.1 Flip authorization on planning-review approval**
+- [ ] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-control-orchestration/tasks.md checks=repo-check risk=low prerequisites=none -->
 
-  **Change** — On the focused delta review approving the enacted blocker
-  resolutions, with the early-terminal L2 amendment landed and strict
-  validation run: record all three and flip the Status above to
-  `AUTHORIZED`. This task changes only the Status block of this file.
+  **Change** — When **every** gate in the Status table above is satisfied
+  — the delta review approving the enacted blocker resolutions, the
+  early-terminal L2 amendment landed, strict validation run, the
+  requester-provenance obligation recorded and approved, and **the owner's
+  confirmation of D10's cross-run concurrency posture obtained** — record
+  each and flip the Status above to `AUTHORIZED`. Partial satisfaction
+  does not authorize a partial flip. This task changes only the Status
+  block of this file.
 
   **Proof required** — `repo-check` green.
 
