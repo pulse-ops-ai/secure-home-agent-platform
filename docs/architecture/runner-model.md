@@ -246,9 +246,12 @@ emits them is L3+ and does not exist yet.
 
 ## Open
 
-- The adapter SPI: what the substrate passes in, what an adapter returns, how
-  failure is reported.
 - Whether `runner-control` runs on the Pi, on the VPS, or both.
 - The workload-identity mechanism for run credentials.
+
+The adapter SPI — what the substrate passes in, what an adapter returns, how
+failure is reported — is **no longer open**: it was decided by
+[ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md) on
+2026-08-12, closing [U6](unresolved-decisions.md#u6).
 
 All tracked in [`unresolved-decisions.md`](unresolved-decisions.md).

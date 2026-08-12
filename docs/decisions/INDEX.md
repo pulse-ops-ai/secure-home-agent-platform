@@ -8,9 +8,11 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
-> **Acceptance did not resolve anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md)**, and
-> nothing has since. The **current** open set is **U1–U11**, and each item still
+> **Neither foundational acceptance resolved anything in
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** One
+> item has closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
+> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12 — the
+> only item of the tracked set **U1–U11** ever closed. Every other item still
 > blocks the work that depends on it. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
@@ -54,7 +56,9 @@ contract or issue authorizes the specific work
 ([`.github/agents/implementation.agent.md`](../../.github/agents/implementation.agent.md)):
 
 - the execution-profile, run, action, and automation schemas;
-- the runner substrate and the adapter SPI's *neutral* parts;
+- the runner substrate, and — since **ADR-0013** closed
+  [U6](../architecture/unresolved-decisions.md#u6) on 2026-08-12 — the adapter
+  SPI in full, not only its neutral parts;
 - the household authorization model's structure (types, relations, delegation);
 - the deterministic safety-policy declaration format and evaluator;
 - the knowledge-bundle validator and the four OKF interfaces;
@@ -71,7 +75,6 @@ questions the ADRs deliberately left open:
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
 | Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Freezing the adapter SPI | [U6](../architecture/unresolved-decisions.md#u6) — proposed by **ADR-0013**, still open until accepted |
 | Authoring a real knowledge bundle | [U7](../architecture/unresolved-decisions.md#u7) |
 | Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
 | Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |
@@ -115,12 +118,56 @@ implementation-neutral. These decide how it is built.
 | ADR | Title | Status | Governs |
 |---|---|---|---|
 | [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
-| [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | **Proposed** | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
+| [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
 > editing or superseding either. See
 > [the ADR-0012 acceptance record](#adr-0012-acceptance-record).
+
+### ADR-0013 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-12 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0013 in full: the ten SPI decisions, including the cross-layer capability split and the terminal-state posture |
+| **Review** | issue #11 (U6 gate); PR #74, drafted from the L6 spike evidence in PR #73 |
+| **Unresolved decisions resolved** | **[U6](../architecture/unresolved-decisions.md#u6)** — the first item ever to leave `unresolved-decisions.md`. Every other item remains open |
+
+**What was accepted.** Adapters translate and report, never decide or enforce ·
+capability is a **cross-layer** property — the adapter narrows the
+provider-visible tool surface from the profile (defense in depth, proven at
+L7/L8 as translation fidelity) while the substrate enforces the real boundary
+(proven at L9), so *"one adapter cannot widen the profile"* is a cross-layer
+proof · provider terminal state is observational input and the lifecycle
+decides among the six terminal states · model output is untrusted text until
+the platform validates it · provider event shapes are normalized at the adapter
+boundary against a pinned provider version and never leak upward · usage is
+recorded in native token and credit units, never as modeled currency · adapters
+hold credential references only, with per-run semantics left to U2 and
+enforcement to L9 · cancellation is effected by the substrate · neutrality holds
+structurally, so adding an adapter changes no schema.
+
+**Decided on evidence, not expectation.** Every decision traces to the L6 spike
+([`docs/spikes/l6-copilot-cli/`](../spikes/l6-copilot-cli/)), which found that
+Copilot CLI 1.0.79 enforces no caller schema, that `--allow-tool` is not a
+closed allowlist, and that the CLI reported success while being killed.
+
+**Now eligible for implementation — under a specific issue or task contract:**
+
+| Issue | Work |
+|---|---|
+| #55 | L7 platform adapters, against the frozen SPI |
+| #56 | L8 coding-adapter conformance seed |
+
+**Still not authorized by this acceptance.** No adapter is implemented, no
+provider credential is provisioned, no image is built, and
+[U2](../architecture/unresolved-decisions.md#u2) (workload identity),
+[U4](../architecture/unresolved-decisions.md#u4) (placement), and
+[U11](../architecture/unresolved-decisions.md#u11) (persistence) remain open.
+The ADR's own § Validation and follow-up obligations lists what L7, L8, and L9
+must each prove.
 
 ### ADR-0012 acceptance record
 
@@ -130,7 +177,7 @@ implementation-neutral. These decide how it is built.
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0012 in full, including §5 taxonomy, §18 `worker-base`, §19 dependency governance, §20 CI model |
 | **Review** | issue #5; PR #41, two rounds |
-| **Unresolved decisions resolved** | **none** — U1–U11 all remain open |
+| **Unresolved decisions resolved** | **none** — every item then open stayed open |
 
 **What was accepted.** TypeScript primary · NestJS 11 on Fastify 5 · pnpm
 workspaces · pnpm catalogs · Syncpack manifest governance · frozen
@@ -181,7 +228,7 @@ to deploy, and it does not make any unresolved decision decided.
 | anything | ADR-0001 |
 | a service under `services/` | ADR-0002, ADR-0004, ADR-0005, ADR-0008, ADR-0009 |
 | an execution profile or the profile schema | ADR-0003, ADR-0006, ADR-0007 |
-| an agent implementation or adapter | ADR-0003, ADR-0004, ADR-0006, ADR-0011 + **ADR-0013** (proposed) |
+| an agent implementation or adapter | ADR-0003, ADR-0004, ADR-0006, ADR-0011, **ADR-0013** |
 | the runner substrate or a runner image | ADR-0003, ADR-0005, ADR-0011 |
 | authorization, identity, or the envelope | ADR-0004, ADR-0008 |
 | safety policy or device actuation | ADR-0005, ADR-0008, ADR-0009 |

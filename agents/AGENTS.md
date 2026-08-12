@@ -42,14 +42,20 @@ and act on the house. You, the coding agent editing these files, are governed by
 ## Do not
 
 - Implement an agent or an adapter without an authorizing issue or task
-  contract. The governing ADRs are accepted, but the adapter SPI is still
-  [U6](../docs/architecture/unresolved-decisions.md#u6) and run credentials are
-  still [U2](../docs/architecture/unresolved-decisions.md#u2).
+  contract. The adapter SPI is now decided —
+  [ADR-0013](../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md) closed
+  [U6](../docs/architecture/unresolved-decisions.md#u6) on 2026-08-12 — but run
+  credentials are still
+  [U2](../docs/architecture/unresolved-decisions.md#u2), and a decided SPI is
+  still not an authorization to write code.
 - Add a dependency, a framework, or a provider SDK.
 - Write a stub that appears to work.
-- Decide the adapter SPI — [U6](../docs/architecture/unresolved-decisions.md#u6)
-  — or the workload-identity mechanism —
-  [U2](../docs/architecture/unresolved-decisions.md#u2) — by writing code.
+- Decide the workload-identity mechanism —
+  [U2](../docs/architecture/unresolved-decisions.md#u2) — by writing code. (The
+  adapter SPI was decided the only way an item here may be: by an ADR.
+  Implement **against**
+  [ADR-0013](../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md); do
+  not re-decide it in an adapter.)
 
 ## Adding an adapter
 

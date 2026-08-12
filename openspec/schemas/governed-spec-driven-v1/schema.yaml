@@ -31,7 +31,8 @@ artifacts:
       - names the governing ADRs from the docs/decisions/INDEX.md
         "which ADRs apply" table;
       - declares whether the change depends on any unresolved decision
-        (U1-U11) — dependent work is blocked, not partially started;
+        still open in the tracked set U1-U11 — dependent work is blocked,
+        not partially started;
       - states that the change proposes no ADR status change.
 
       Do not prescribe detailed implementation here.
