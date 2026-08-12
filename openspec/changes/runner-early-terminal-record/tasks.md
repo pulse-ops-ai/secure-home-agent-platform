@@ -54,18 +54,32 @@ This section RECORDS external authorization. It can never create it.
 reading the owner confirmed for `runner-contract-corrections`.
 
 **EQ1 and EQ2 are closed** (owner, 2026-08-11, recorded on PR #71): EQ1
-minimal — D11's enumeration only, no partial-authority listing; EQ2
-`packages/events`. Neither closure changed the design or the proof net.
-The owner **deliberately withheld implementation authorization** at the
-same time, directing that the planning review come first.
+minimal — D11's enumeration only, no partial *execution-authority*
+listing; EQ2 `packages/events`. Neither closure changed the design or the
+proof net. The owner **deliberately withheld implementation
+authorization** at the same time, directing that the planning review come
+first.
+
+**EQ3 and EQ4 are open**, raised by the planning review of PR #72 and
+answered with positions taken (proposal and design D1/D1b): EQ3 — the
+requesting principal is mandatory, so a refusal states who was refused;
+EQ4 — the outcome union is narrowed so an authority-less record cannot
+claim success.
 
 Implementation therefore starts only after:
 
-- the planning review approves this artifact set; and
-- the owner confirms the #51 reading for this correction and approves
+- the planning review approves this artifact set and closes **EQ3** and
+  **EQ4**; and
+- the owner confirms the #51 reading for this correction **and
+  explicitly authorizes minting `early-termination-record@1.0.0` as a
+  NEW contract identity** — the planning review is explicit that this
+  must not be inferred from the corrections precedent — and approves
   implementation; and
-- task 0.1 records both, together with the closed questions, and flips
-  this status.
+- **`openspec validate runner-early-terminal-record --strict` has run
+  successfully on the reviewed head** (a compensating structural check is
+  not equivalent and does not satisfy this); and
+- task 0.1 records all of it, together with the closed questions, and
+  flips this status.
 
 Status derivation rules (inherited):
 
@@ -105,13 +119,16 @@ modified.
 - [ ] **0.1 Flip authorization on planning-review approval**
   <!-- agent-task: 0.1 paths=openspec/changes/runner-early-terminal-record/tasks.md checks=repo-check risk=low prerequisites=none -->
 
-  **Change** — On the planning review approving this artifact set, and
-  the owner's confirmation of authority and approval to implement:
-  record both — together with the already-closed EQ1/EQ2 — and flip the
-  Status above to `AUTHORIZED`. This task changes only the Status block
-  of this file.
+  **Change** — On the planning review approving this artifact set and
+  closing EQ3/EQ4, and the owner's confirmation of authority — including
+  the explicit authorization to mint a new contract identity — record all
+  of it, together with the already-closed EQ1/EQ2 and the strict
+  validation run, and flip the Status above to `AUTHORIZED`. This task
+  changes only the Status block of this file.
 
-  **Proof required** — `repo-check` green.
+  **Proof required** — `repo-check` green **and**
+  `openspec validate runner-early-terminal-record --strict` run
+  successfully on the reviewed head, both cited in the Status block.
 
 ## 1. The contract and its corpus discipline
 
@@ -123,13 +140,18 @@ modified.
   (`runner-evidence`); Design D1, D2.
 
   **Change** — The schema in `packages/events` beside the run-record
-  family, shared shapes by instance; the artifact catalog entry;
-  `schemas/early-termination-record/1.0.0.json` generated with its
-  directory README.
+  family, shared shapes by instance — including the mandatory
+  `requester` (`Principal`) and the narrowed `EarlyTerminationOutcome`
+  composed from `run-record.ts`'s extracted terminal options (D1b); the
+  artifact catalog entry; `schemas/early-termination-record/1.0.0.json`
+  generated with its directory README. The extraction is **byte-neutral
+  by obligation**: every existing artifact must regenerate identically.
 
   **Proof required** — `ET-EX-01` (smuggled authority fields refuse;
   minimal record validates), `ET-EX-02` (null vs stated reference),
-  `ET-EX-03` (instance identity), `ET-MUT-01` registered.
+  `ET-EX-03` (instance identity), `ET-EX-05` (requester mandatory),
+  `ET-EX-06` and `ET-ADV-02` (success unrepresentable), `ET-ADV-03`
+  (byte-neutral extraction); `ET-MUT-01/02/03` registered.
 
 - [ ] **1.2 Ledger append and corpus proofs**
   <!-- agent-task: 1.2 paths=schemas/**,packages/events/** checks=repo-check risk=high prerequisites=1.1 -->
