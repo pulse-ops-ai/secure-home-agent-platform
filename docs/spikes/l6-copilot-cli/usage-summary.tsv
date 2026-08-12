@@ -1,0 +1,17 @@
+case	proc_exit	result_exit	shutdown	model	requests	shutdown_req_cost	otel_invoke_cost	premium	in_tok	out_tok	cache_read	reasoning	nano_aiu	api_ms
+allow-deny-same	0	0	routine	gpt-5.4	2	0	2.0	0	10490	154	4608	102	1816700000	3421
+deny-injection	0	0	routine	gpt-5.4	2	0	2.0	0	10611	254	4608	208	1996950000	5530
+env-auth-invalid	0	0	routine	gpt-5.4	1	0	0.0	0	5127	29	0	21	1325250000	2728
+external-abort	124	0	routine	gpt-5.4	1	0	1.0	0	5150	145	0	106	1505000000	4919
+no-tool	0	0	routine	gpt-5.4	1	0	1.0	0	14324	42	0	34	3644000000	2777
+otel-default	0	0	routine	gpt-5.4	1	0	1.0	0	5132	25	0	15	1320500000	1371
+outside-tool	0	0	routine	gpt-5.4	1	0	1.0	0	5155	85	0	77	1416250000	2015
+schema-invalid-adversarial	0	0	routine	gpt-5.4	1	0	1.0	0	5188	132	0	116	1495000000	23142
+schema-valid	0	0	routine	gpt-5.4	1	0	1.0	0	5164	38	0	27	1348000000	2333
+secret-env-marker	0	0	routine	gpt-5.4	2	0	2.0	0	10492	127	4608	63	1776700000	4491
+tool-denied	0	0	routine	gpt-5.4	2	0	2.0	0	10496	135	4608	84	1789700000	3512
+tool-positive	0	0	routine	gpt-5.4	2	0	2.0	0	10417	92	4608	36	1705450000	6571
+unapproved-no-ask	0	0	routine	gpt-5.4	2	0	2.0	0	10494	135	4608	82	1789200000	10907
+unapproved-write	0	0	routine	gpt-5.4	2	0	2.0	0	10428	90	0	53	2742000000	2828
+unapproved-write-ask-enabled	0	0	routine	gpt-5.4	2	0	2.0	0	10553	199	4608	150	1899950000	3678
+unknown-tool	0	0	routine	gpt-5.4	1	1	1.0	1	3680	87	0	79	1050500000	2192
