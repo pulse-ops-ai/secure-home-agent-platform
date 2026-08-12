@@ -81,11 +81,60 @@ successful while its evidence is unsealed.
 #### Scenario: The seal is the final write
 
 - **GIVEN** a run producing artifacts, events, and evidence
-- **WHEN** the recorded port-call sequence is examined
+- **WHEN** the recorded port-call sequence **filtered to that run** is
+  examined
 - **THEN** the evidence-sink seal write is ordered after every other write
   of the run
 - **AND** it happened only after the core's seal-eligibility decision
   proceeded
+- **AND** a write issued by a concurrent run through the same port instance
+  is not a post-seal write for this run
+
+### Requirement: Runs are isolated across shared port instances
+
+Ordering guarantees this capability states are scoped to a single run and
+SHALL NOT be read as global. Separate runs MAY execute concurrently and
+their port calls MAY interleave.
+
+Every run-scoped operation the orchestrator issues through a port —
+event emission, artifact and evidence writes, execution and adapter
+invocation — SHALL carry its `run_id`. A port implementation MAY be a
+single instance shared by concurrent runs; such an implementation SHALL be
+safe for concurrent use and SHALL hold **no unkeyed mutable per-run
+state** — every piece of per-run state it retains SHALL be keyed by
+`run_id`, so no state can bleed between runs. The orchestration core
+SHALL likewise hold no unkeyed mutable per-run state.
+
+This landing SHALL NOT impose a concurrent-run or resource ceiling:
+CPU, memory, starvation, scheduling, and substrate-level isolation are
+enforcement concerns of the later enforcement landing, and a shared port
+implementation delivered there inherits this obligation.
+
+#### Scenario: Two runs sharing one set of port instances stay disjoint
+
+- **GIVEN** two runs orchestrated concurrently through a single shared set
+  of port implementations
+- **WHEN** their emissions and evidence writes are examined
+- **THEN** every recorded operation carries the `run_id` of the run that
+  issued it
+- **AND** each run's sealed record is exactly the record that run produces
+  when executed alone
+- **AND** neither run's evidence contains an operation issued by the other
+
+#### Scenario: Interleaving does not change a run's outcome
+
+- **GIVEN** any interleaving of two concurrent runs over shared ports
+- **WHEN** each run's `run_id`-filtered recorded sequence is compared with
+  that run executed in isolation
+- **THEN** the two sequences are identical, seal ordering included
+
+#### Scenario: Unkeyed per-run state is not conformant
+
+- **GIVEN** a shared port implementation that retains per-run state in a
+  field not keyed by `run_id`
+- **WHEN** two runs use it concurrently
+- **THEN** the implementation does not satisfy this requirement, and the
+  divergence is observable as a difference from the isolated execution
 
 ### Requirement: The core/control boundary holds in both directions
 

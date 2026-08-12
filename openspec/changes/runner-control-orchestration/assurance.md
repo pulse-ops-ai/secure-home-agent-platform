@@ -63,7 +63,8 @@ are below.
 | RO-INV-06 | Every trust decision recorded for a run is attributable to a trusted-core operation invocation (no re-implementation) | trust |
 | RO-INV-07 | The shell is inert: importing the service (including the NestJS module tree) starts nothing, binds no listener, spawns nothing | behavior |
 | RO-INV-08 | One run has one writer: concurrent transition attempts serialize; a lost race is a recorded rejection | behavior |
-| RO-INV-09 | Requester attribution written into an early-termination record comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
+| RO-INV-09 | Requester attribution written into an early-termination record (normative in `runner-lifecycle`) comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
+| RO-INV-10 | Runs are isolated across the shared ports (normative in `runner-execution-boundary`): the core holds no unkeyed mutable per-run state, every run-scoped port call carries its `run_id`, and no ordering claim this landing makes is global | behavior |
 
 ## State-Space Model
 
@@ -113,6 +114,8 @@ Interactions that require proof:
 | INV-008 × INV-006 | workspace-claimed "orchestration" content treated as executable | ADV-018 fixture: modified bytes observed as data, never loaded |
 | INV-009 × INV-016 | a widened argv or renormalized skip surviving into evidence | EX-005A + PROP-007 through to the evidence fixture |
 | RO-INV-08 × INV-004 | interleaved transitions corrupting the machine | RO-PROP-03 concurrent-attempt property |
+| RO-INV-10 × RO-ADV-03 | "seal last" read as globally last, so a concurrent run's write looks like a post-seal write | RO-PROP-04: per-run filtered sequences; seal-last holds within each run under interleaving |
+| RO-INV-10 × INV-013 | one run's evidence absorbing another's operations through a shared sink | RO-EX-09 two-run shared-port fixture; bundles disjoint by `run_id` |
 
 ## Proof Obligations
 
@@ -168,9 +171,12 @@ persistence (U11).
 | RO-PROP-01 | RO-INV-04 | property | for any generated acquisition order, each source read at most once per epoch and at most twice per run; within-epoch second attempts always structural errors |
 | RO-PROP-02 | INV-016 | property | for any generated report sequence with duplicates/skips/truncations, recorded dispositions are one-per-identity with meanings preserved |
 | RO-PROP-03 | RO-INV-08 | property | for any interleaving of concurrent transition attempts on one run, the machine serializes; losers are recorded rejections |
+| RO-EX-09 | RO-INV-10 | deterministic example | two runs orchestrated through ONE shared set of port instances: every emission and evidence write carries its own `run_id`, the two sealed bundles are disjoint, and each equals the bundle that run produces alone |
+| RO-PROP-04 | RO-INV-10 | property | for any generated interleaving of two concurrent runs over shared port instances, each run's `run_id`-filtered recorded sequence is identical to that run executed in isolation — including seal-last, which holds per run |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
+| RO-MUT-07 | RO-INV-10 | mutation | replacing a `run_id`-keyed structure with a single unkeyed field, or dropping the `run_id` from a port call, is killed by RO-EX-09 / RO-PROP-04 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
@@ -210,6 +216,7 @@ persistence (U11).
 | 13 | clean workspace | workspace gains "orchestration" bytes | bytes are data; only trusted code decides | ADV-018, MUT-010, RO-EX-03 |
 | 14 | producer verified inputs | verification begins | fresh acquisition, distinct values | RO-ADV-05 |
 | 15 | one writer advancing | concurrent transition attempts | serialized; losers recorded | RO-PROP-03 |
+| 15A | one run sealing | a concurrent run writes through the same port instance | the other run's write is not a post-seal write for this run; per-run sequences unaffected | RO-PROP-04, RO-MUT-07 |
 | 16 | outcome established | outcome unestablishable | INDETERMINATE, treated as failure everywhere | ADV-012, MUT-005 |
 | 17 | request accepted | profile absent / resolution fails / acquisition faults in `REQUESTED` | early-terminal refusal record; never a fabricated bundle | RO-ADV-07, RO-MUT-05 |
 | 18 | non-event transition occurs | emissions examined | no invented/overloaded event type; transition present in the transition record | D9 emission fixtures |
@@ -227,6 +234,7 @@ classification it did not earn.
 | Verification epoch | L4 | 3.3 | RO-ADV-05 |
 | Early-terminal refusal record (D11) | L4 (+ the sequenced L2 amendment) | 2.2, 5.3 | RO-ADV-07, RO-MUT-05 |
 | **Requester provenance** — attribution comes from the run request, never a captured profile (owner-directed, 2026-08-12) | L4 | 2.2, 3.2 | RO-EX-08, RO-ADV-08, RO-MUT-06 |
+| **Cross-run isolation over shared ports** — per-run ordering only; no unkeyed mutable per-run state (owner-confirmed D10, 2026-08-12) | L4 | 5.1, 5.3, 7.2 | RO-EX-09, RO-PROP-04, RO-MUT-07 |
 | Base identity at creation (ADV-004 assertion half) | L4 | 3.4 | creation-sequenced fixture |
 | Gate scheduling (INV-009/INV-016) | L4 | 4.1, 4.2 | EX-005A, ADV-006/007/015/016/017, PROP-007, MUT-004, MUT-009, RO-PROP-02 |
 | Ports and no-launch (RO-INV-02) | L4 | 5.1 | RO-EX-02 |
@@ -259,7 +267,9 @@ enforcement flip of the program.
 
 ## Assurance Completeness
 
-**Unresolved state-model questions:** none beyond OQ1–OQ3, which gate 0.1.
+**Unresolved state-model questions:** none. OQ1–OQ3 were resolved by the
+planning review and D10 by the owner's confirmation; nothing remains that
+gates 0.1.
 
 **Requirements lacking proof:** none; every requirement in the four
 capability specs traces to named proofs above.
@@ -278,16 +288,22 @@ it and the L2 refusal-record amendment it required was authored,
 reviewed, merged (PR #76), and archived (PR #78), so its shape and
 sequencing are now facts rather than assumptions.
 
-**D10's cross-run concurrency posture remains the one outstanding
-confirmation**, and it gates task 0.1. No review has addressed it. The
-posture as sharpened in `design.md` D10: per run, a single writer with
-serialized transitions (RO-INV-08, proven by RO-PROP-03); across runs,
-the orchestration core holds no shared state, but port *implementations*
-may be shared instances — so every ordering property this landing
-claims, seal-last included, is scoped **per run** and must never be read
-as global.
+**D10's cross-run concurrency posture is confirmed** — by the repository
+owner on 2026-08-12, recorded on PR #79. Per run: a single writer with
+serialized transitions (RO-INV-08, proven by RO-PROP-03). Across runs:
+the core holds no shared state, port implementations may be shared
+instances, and consequently every ordering property this landing claims
+— seal-last included — is scoped **per run** and must never be read as
+global. The confirmation added an obligation this artifact now carries:
+a shared port instance must be concurrency-safe and hold **no unkeyed
+mutable per-run state**, with every run-scoped operation carrying its
+`run_id`. That is RO-INV-10, proven by RO-EX-09 / RO-PROP-04 / RO-MUT-07.
+L4 does not impose a concurrent-run or resource ceiling; CPU, memory,
+starvation, scheduling, and substrate isolation remain L9's.
+
+**No design assumption awaiting human confirmation remains.**
 
 `tasks.md` must not begin implementation of unresolved trust-critical
-behavior merely because this artifact exists. Task 0.1 gates on the delta
-review of these enacted resolutions AND on the early-terminal L2
-amendment landing.
+behavior merely because this artifact exists. Task 0.1 gates on all four
+conditions in its Status table, of which the D10 confirmation was the
+last outstanding.

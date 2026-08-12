@@ -262,8 +262,19 @@ RO-ADV-03 is therefore filtered per run.
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.
 
-**This posture is the one design assumption still awaiting human
-confirmation, and it gates task 0.1.**
+**Shared port instances carry an obligation, not a free pass.** Any port
+implementation shared across runs must be safe for concurrent use and
+must hold **no unkeyed mutable per-run state** — every piece of per-run
+state it retains is keyed by `run_id`, so nothing can bleed between runs.
+Correspondingly, every run-scoped write, event, and evidence operation
+the core issues carries its `run_id`. This is what makes sharing safe
+rather than merely convenient, and it is proven here by RO-INV-10 /
+RO-EX-09 / RO-PROP-04 / RO-MUT-07 — L4 proves the core's half (it holds
+no unkeyed state and always supplies the key); L9's real implementations
+inherit the obligation.
+
+**Confirmed by the repository owner on 2026-08-12** (recorded on PR #79),
+closing the last design assumption gating task 0.1.
 
 ### D11: Early terminals split at PROFILE_RESOLVED; pre-authority runs leave a refusal record (review blocker 2)
 

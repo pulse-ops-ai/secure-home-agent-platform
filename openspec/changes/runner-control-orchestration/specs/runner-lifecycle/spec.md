@@ -126,13 +126,31 @@ amendment sequenced before this landing's implementation — and SHALL NOT
 be an evidence bundle with fabricated authority identities, which is
 prohibited.
 
+The record SHALL carry the **requester** — the principal named by the
+run request that was accepted at `REQUESTED`. Requester attribution is
+not partial execution authority and SHALL NOT be omitted on the grounds
+that authority never completed. It SHALL be taken from the run-request
+input and SHALL NOT be fabricated, inferred, or sourced from a captured
+profile's agent principal, including when a profile was successfully
+captured before the fault that caused the termination.
+
 #### Scenario: A resolution failure leaves a refusal record, not a fabricated bundle
 
 - **GIVEN** a run request whose profile does not resolve
 - **WHEN** the run terminates `REFUSED` from `REQUESTED`
 - **THEN** an early-terminal refusal record is written with the requested
   reference, the refusal detail, and timing
+- **AND** the record's requester is the principal named by the run request
 - **AND** no evidence bundle with invented authority identities exists
+
+#### Scenario: A captured profile never supplies the requester
+
+- **GIVEN** a run whose production epoch captured a profile before a later
+  acquisition fault terminated it in `REQUESTED`
+- **WHEN** the early-terminal refusal record is examined
+- **THEN** its requester is the run request's principal, byte-for-byte
+- **AND** the captured profile's agent principal appears nowhere in the
+  record
 
 ### Requirement: Terminal classification is total and INDETERMINATE is never success
 
