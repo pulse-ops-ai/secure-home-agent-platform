@@ -52,15 +52,21 @@ anywhere.
 `requester` is the identity that ASKED for the run, with its actor or
 explicit autonomous marker (EQ3). It is deliberately not the evidence
 bundle's `principal`, which is the profile-derived agent identity a run
-authenticates as — that identity does not exist for a run whose profile
-never resolved. Reusing the `Principal` shape is exact (an identity plus
-an actor-or-autonomous marker) while the field name keeps the semantics
-honest — but the distinction is **semantic, not structural**: the two
-shapes are identical, so no contract can decide which one a caller
-passed. Enforcing that the requester is populated from the request
-belongs to L4, and is assigned there; for these runs it is also
-vacuously safe, since no profile ever resolved and therefore no
-profile-derived principal exists. Recording it is what lets a refusal say **who** was refused
+authenticates as. Reusing the `Principal` shape is exact (an identity
+plus an actor-or-autonomous marker) while the field name keeps the
+semantics honest — but the distinction is **semantic, not structural**:
+the two shapes are identical, so no contract can decide which one a
+caller passed.
+
+Enforcing that the requester is populated from the request therefore
+belongs to L4, and is assigned there. It is **not** a formality: L4's
+production epoch acquires the profile, the path policy, and the gate
+registry, and a `REQUESTED` terminal caused by an acquisition fault
+*after* a successful profile capture leaves a real profile-derived
+principal in hand — precisely the value an implementation defect would
+reach for. (An earlier draft of this design called the assignment
+vacuously safe because "no profile exists for these runs"; that was
+wrong and is withdrawn.) Recording it is what lets a refusal say **who** was refused
 without any authority having been established; the requester travels with
 the request, so it is available in `REQUESTED`.
 

@@ -184,9 +184,11 @@ requiring confirmation before task 0.1 flips:
   system, and the requester travels with the request, so it exists even
   in `REQUESTED`. This proposal therefore makes `requester` **mandatory**.
   It is distinct from what EQ1 rejected: the requester is not execution
-  authority, grants nothing, and is not the profile-derived agent
-  principal (which does not exist for these runs). Confirm, or direct
-  omission.
+  authority and grants nothing. It is also not the profile-derived agent
+  principal — but that distinction is **semantic, not structural**: the
+  two shapes are identical, so populating it from the request is an L4
+  obligation this change assigns rather than proves (design D1;
+  assurance § Traceability). Confirm, or direct omission.
 - **EQ4 — narrowing the outcome union.** The record's outcome admits only
   the non-success terminal states, so an authority-less record cannot
   claim success — absent option, not forbidden value (design D1b). The
