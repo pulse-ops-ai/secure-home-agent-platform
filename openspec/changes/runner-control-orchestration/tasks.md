@@ -294,9 +294,15 @@ The landing is complete when:
   port, and no port can launch a container" (`runner-execution-boundary`);
   Design D3 (read/execute asymmetry per OQ1's resolution).
 
+  **Change** — Every run-scoped port operation takes its `run_id`; any
+  per-run state a shipped implementation retains is keyed by it (D10's
+  confirmed obligation — no unkeyed mutable per-run state).
+
   **Proof required** — `RO-EX-02` over the finished port set; fs
   implementations produce exactly the L3 value types; execution/adapter
-  implementations are the declared deterministic fakes.
+  implementations are the declared deterministic fakes; `RO-EX-09` (two
+  runs over ONE shared set of port instances: disjoint bundles, each
+  equal to that run executed alone).
 
 - [ ] **5.2 Orchestration provenance**
   <!-- agent-task: 5.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=5.1 -->
@@ -316,7 +322,8 @@ The landing is complete when:
   ordering half; Design D7.
 
   **Proof required** — `RO-ADV-03` (early seal refused; good path seals
-  last by recorded sequence); `RO-MUT-02` registered.
+  last by recorded sequence, **filtered to this run** — D10); `RO-MUT-02`
+  and `RO-MUT-07` registered.
 
 ## 6. Core/control boundary
 
@@ -350,8 +357,8 @@ The landing is complete when:
 - [ ] **7.2 Full property run**
   <!-- agent-task: 7.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=6.2 -->
 
-  **Proof required** — `PROP-002`, `PROP-007`, `RO-PROP-01/02/03` at their
-  declared breadth.
+  **Proof required** — `PROP-002`, `PROP-007`, `RO-PROP-01/02/03/04` at
+  their declared breadth.
 
 - [ ] **7.3 Mutation sweep**
   <!-- agent-task: 7.3 paths=services/runner-control/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
