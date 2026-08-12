@@ -40,9 +40,10 @@ completes has no representable terminal record: every existing contract
 demands authority identities that were never established.
 
 **What should be possible instead.** A minimal, governed record — run
-identity, the requested profile reference as data, the structured terminal
-outcome, timing — that an early-terminated run leaves behind, distinct
-from the evidence bundle and never a substitute for it.
+identity, the requesting principal, the requested profile reference as
+data, the structured terminal outcome, timing — that an early-terminated
+run leaves behind, distinct from the evidence bundle and never a
+substitute for it.
 
 **Who is affected.** L4 writes these records (its lifecycle spec requires
 them); any future evidence reader distinguishes full bundles from
@@ -54,13 +55,17 @@ One ADDED requirement on the canonical `runner-evidence` capability and
 one new L2 contract:
 
 - **`early-termination-record@1.0.0`** (authored in `packages/events`,
-  beside the run-record family): `run_id`; `requested_profile` as a
-  `ProfileRef` **or null** (a request may name nothing); `outcome` as the
-  shared `RunOutcome` union; `timing` as the shared `EvidenceTiming`
-  shape. Strict, provider-neutral, no credential-value slot — the same
-  posture as every L2 contract. Exactly one of `run-record` (with its full
-  bundle) or `early-termination-record` exists per run, and the record
-  SHALL NOT carry fabricated authority identities — the shape makes them
+  beside the run-record family): `run_id`; **`requester`** — the identity
+  that asked for the run, with its actor or explicit autonomous marker,
+  so a refusal independently states *who* was refused; `requested_profile`
+  as a `ProfileRef` **or null** (a request may name nothing); `outcome`
+  drawn from the terminal vocabulary **narrowed to its non-success
+  members**, so an authority-less record cannot claim success; `timing`
+  as the shared `EvidenceTiming` shape. Strict, provider-neutral, no
+  credential-value slot — the same posture as every L2 contract. Exactly
+  one of `run-record` (with its full bundle) or
+  `early-termination-record` exists per run, and the record SHALL NOT
+  carry fabricated authority identities — the shape makes them
   inexpressible by having no such fields.
 
 ## Scope
@@ -69,8 +74,12 @@ one new L2 contract:
 
 - The `runner-evidence` delta (ADDED requirement).
 - `packages/events`: the `EarlyTerminationRecord` schema, artifact catalog
-  entry, and proofs; shared shapes (`ProfileRef`, `RunOutcome`,
-  `EvidenceTiming`, `RunId`) reused **by instance**, never redefined.
+  entry, and proofs; shared shapes (`ProfileRef`, `Principal`,
+  `EvidenceTiming`, `RunId`) reused **by instance**, never redefined; and
+  the narrowed `EarlyTerminationOutcome` union composed from
+  `run-record.ts`'s existing terminal options (design D1b), with
+  byte-identical regeneration of every existing artifact as a hard
+  obligation.
 - `schemas/early-termination-record/1.0.0.json` generated; one **appended**
   identity-ledger row; README for the new schema directory.
 - Conformance additions within the existing L2 nets (corpus set-equality,
@@ -79,7 +88,10 @@ one new L2 contract:
 ### Out of scope
 
 - Writing the records — L4 behavior, under #27.
-- Any change to `evidence-bundle`, `run-record`, or any other contract.
+- Any change to the SHAPE of `evidence-bundle`, `run-record`, or any
+  other contract — D1b names `run-record.ts`'s terminal options without
+  altering what any existing contract composes, and every existing
+  artifact must regenerate byte-identically.
 - Persistence location — U11; readers — later landings.
 
 ## Affected Areas
@@ -135,9 +147,9 @@ refusal evidence).
 ## Success
 
 An early-terminated run leaves a durable, contract-valid record naming
-what was requested, how it ended, and when — with fabricated authority
-identities structurally inexpressible — and the L4 seam's last 0.1 gate
-closes.
+**who asked**, what was requested, how it ended, and when — with
+fabricated authority identities and any success claim structurally
+inexpressible — and the L4 seam's last 0.1 gate closes.
 
 ## Non-Goals
 
@@ -147,12 +159,45 @@ closes.
 
 ## Open Questions
 
-- **EQ1 — minimal versus partial-authority fields.** This proposal keeps
-  the record to D11's reviewed enumeration (run id, requested reference,
-  outcome, timing). The alternative — an optional list of the authority
-  identities that WERE captured before the fault — would aid debugging
-  but adds surface to refusal evidence. The failure detail already rides
-  in `outcome.failure.detail` as text. Confirm minimal, or direct the
-  addition.
-- **EQ2 — package placement.** Authored in `packages/events` beside the
-  run-record family (it is a terminal record, not authority). Confirm.
+**EQ1 and EQ2 were closed** by the repository owner on 2026-08-11
+(recorded on PR #71); implementation authorization was deliberately
+withheld pending the planning review, and the status stays
+`NOT_AUTHORIZED`.
+
+- **EQ1 — minimal versus partial-authority fields. CLOSED: minimal.** The
+  record keeps D11's reviewed enumeration. The rejected alternative — an
+  optional list of the *execution-authority* identities captured before
+  the fault — would add authority-shaped surface to refusal evidence, and
+  the failure detail already rides in `outcome.failure.detail`. A record
+  for a run that never obtained authority carries nothing
+  authority-shaped.
+- **EQ2 — package placement. CLOSED: `packages/events`.** Beside the
+  run-record family, reusing shared shapes by instance. The rejected
+  alternative (`packages/contracts`) would have inverted the events →
+  contracts edge for exactly those shapes.
+
+**Raised by the planning review of PR #72**, positions taken above and
+requiring confirmation before task 0.1 flips:
+
+- **EQ3 — the requesting principal (trust-relevant).** A refusal that
+  cannot say *who* was refused is weak evidence for a household security
+  system, and the requester travels with the request, so it exists even
+  in `REQUESTED`. This proposal therefore makes `requester` **mandatory**.
+  It is distinct from what EQ1 rejected: the requester is not execution
+  authority and grants nothing. It is also not the profile-derived agent
+  principal — but that distinction is **semantic, not structural**: the
+  two shapes are identical, so populating it from the request is an L4
+  obligation this change assigns rather than proves (design D1;
+  assurance § Traceability). Confirm, or direct omission.
+- **EQ4 — narrowing the outcome union.** The record's outcome admits only
+  the non-success terminal states, so an authority-less record cannot
+  claim success — absent option, not forbidden value (design D1b). The
+  cost is naming `run-record.ts`'s terminal options, with byte-identical
+  regeneration of every existing artifact as a hard, mechanically proven
+  obligation. Confirm, or direct that the full `RunOutcome` be reused
+  with the prohibition left behavioral at L4.
+- **Authority to mint a new identity.** The owner's #51 confirmation must
+  explicitly cover **minting `early-termination-record@1.0.0` as a new
+  contract identity**, not merely amending an existing one — inference
+  from the corrections precedent is not sufficient (planning review,
+  PR #72).
