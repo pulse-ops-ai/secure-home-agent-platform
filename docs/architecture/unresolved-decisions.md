@@ -3,16 +3,18 @@
 Questions this repository has **deliberately not answered**. They are recorded
 here so that nobody silently answers them by writing code.
 
-> **Two acceptances have happened. Neither closed anything in this file.**
+> **Three acceptances have happened. Exactly one closed anything in this file.**
 >
 > | Accepted | What | Effect here |
 > |---|---|---|
 > | 2026-08-05 | the eleven foundational ADRs | none — every item then open stayed open |
 > | 2026-08-06 | ADR-0012, the implementation stack | none — and it **added** [U11](#u11) |
+> | 2026-08-12 | ADR-0013, the runner adapter SPI | **closed [U6](#u6)** — the first item ever to leave |
 >
-> These items were left open deliberately, and both acceptances were granted on
-> that basis — not in spite of it. An accepted ADR does **not** authorize
-> resolving an item here by implementation.
+> The first two acceptances left every item open deliberately, and were granted
+> on that basis — not in spite of it. An accepted ADR does **not** authorize
+> resolving an item here by implementation; ADR-0013 closed U6 by *answering
+> it*, which is the only mechanism this file admits.
 >
 > The practical consequence: work that depends on an item below is still blocked,
 > **`BOUNDED` still behaves as `FAIL CLOSED`** ([U1](#u1)), and **no persistence
@@ -29,6 +31,11 @@ here so that nobody silently answers them by writing code.
   that ADR exists — or the change must work correctly under *every* candidate
   answer.
 - Adding an item is cheap and encouraged. Removing one is a governed act.
+- A resolved item is **marked resolved in place**, never deleted: its section
+  stays, headed by the ADR that answered it. Deleting the section would break
+  every inbound reference and erase the question a future reader most needs —
+  *what were we unsure about, and what settled it?* The summary table shows its
+  state at a glance.
 
 | # | Question | Blocks | Severity |
 |---|---|---|---|
@@ -37,7 +44,7 @@ here so that nobody silently answers them by writing code.
 | [U3](#u3) | Which service issues the L6 internal identity envelope | all L7 verification | high |
 | [U4](#u4) | `runner-control` placement — Pi vs. VPS | runner substrate implementation | medium |
 | [U5](#u5) | Automation persistence and scheduler | automation service | medium |
-| [U6](#u6) | The framework-adapter SPI | every adapter | medium |
+| [U6](#u6) | The framework-adapter SPI | ~~every adapter~~ | **RESOLVED** — [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), 2026-08-12 |
 | [U7](#u7) | OKF validator and toolchain | any real knowledge bundle | medium |
 | [U8](#u8) | Whether shared and household OpenFGA share a runtime | household authorization deployment | medium |
 | [U9](#u9) | Policy-decision caching semantics | authorization performance and U1 | high |
@@ -170,6 +177,18 @@ deterministic local behaviour with no dependency on it.
 ## U6
 
 ### The initial framework-adapter SPI
+
+> **RESOLVED 2026-08-12 by
+> [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md).** The
+> question below is kept as written, because the answer only makes sense
+> against it. Nothing here blocks work any longer; read the ADR for what was
+> decided and the
+> [L6 spike evidence](../spikes/l6-copilot-cli/) for what it was decided on.
+>
+> The short version: adapters translate and report but never decide or enforce;
+> capability narrowing at the adapter and capability enforcement at the
+> substrate are **different layers with different proofs**; and the provider's
+> own terminal state is observational, never authoritative.
 
 **The problem.** [ADR-0003](../decisions/ADR-0003-use-framework-neutral-runner-profiles.md)
 requires adapters, but the interface between substrate and adapter is undefined:

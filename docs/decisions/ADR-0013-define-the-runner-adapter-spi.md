@@ -1,11 +1,12 @@
 # ADR-0013: Define the runner adapter SPI
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-12
+- **Accepted:** 2026-08-12
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0004](ADR-0004-treat-agents-as-clients.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-- **Closes:** [U6](../architecture/unresolved-decisions.md#u6) — on acceptance, by a human, in its own change
+- **Closes:** [U6](../architecture/unresolved-decisions.md#u6) — closed on acceptance, 2026-08-12
 
 ## Context
 
@@ -247,9 +248,10 @@ Nothing in the interface requires a subprocess, a transcript file, or a model.
 
 ## Validation and follow-up obligations
 
-On acceptance — which is a human act, in its own reviewed change — this ADR
-closes [U6](../architecture/unresolved-decisions.md#u6). Until then U6 stays
-open and L7 stays blocked.
+This ADR was accepted on 2026-08-12 and **closes**
+[U6](../architecture/unresolved-decisions.md#u6) — the first item ever to leave
+`unresolved-decisions.md`. L7 is unblocked; the obligations below are what that
+unblocking costs.
 
 - **L7 must prove translation fidelity:** the provider-visible tool surface is
   generated from the profile, and no adapter-created widening exists.
