@@ -31,6 +31,7 @@ import {
   DeterministicAdapterInvocation,
   DeterministicExecution,
   InMemoryExecutionSession,
+  InMemoryWorkspaceLifecycle,
   InMemoryRunJournal,
   InMemoryRunLease,
   RecordingEventSink,
@@ -65,6 +66,7 @@ import { PORT_TOKENS } from './tokens.js'
     { provide: PORT_TOKENS.journal, useClass: InMemoryRunJournal },
     { provide: PORT_TOKENS.lease, useClass: InMemoryRunLease },
     { provide: PORT_TOKENS.session, useClass: InMemoryExecutionSession },
+    { provide: PORT_TOKENS.workspace, useClass: InMemoryWorkspaceLifecycle },
   ],
   exports: [
     PORT_TOKENS.execution,
@@ -75,6 +77,7 @@ import { PORT_TOKENS } from './tokens.js'
     PORT_TOKENS.journal,
     PORT_TOKENS.lease,
     PORT_TOKENS.session,
+    PORT_TOKENS.workspace,
   ],
 })
 export class RunnerControlModule {}

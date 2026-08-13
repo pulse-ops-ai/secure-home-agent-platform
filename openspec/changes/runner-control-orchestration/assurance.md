@@ -106,6 +106,9 @@ are below.
 | RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
 | RO-INV-50 | Every terminal transition is checked, on the failure paths too: a terminal the machine refuses is not recorded as having happened | trust |
 | RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
+| RO-INV-52 | A run writes into an isolated workspace provisioned before execution, and discarded on every exit | trust |
+| RO-INV-53 | Changes leave the workspace only on the trusted core's materialization decision; a refusal applies nothing, and what is applied back is exactly the AUTHORITATIVE observation | trust |
+| RO-INV-54 | Apply-back precedes the seal, and a run whose changes did not land does not seal as `COMPLETED` | trust |
 
 ## State-Space Model
 
@@ -278,6 +281,12 @@ persistence (U11).
 | RO-EX-69 | RO-INV-51 | adversarial | a `start()` that throws and an `interrupt()` that throws both still close the session |
 | RO-EX-70 | RO-INV-51 | adversarial | a `claim()` that throws resolves with a conclusion and writes nothing; a `release()` that throws does not replace a completed run |
 | RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact |
+| RO-EX-72 | RO-INV-53 | deterministic example | permitted changes are applied back only after the core decided they may be; a policy-refused change set applies nothing |
+| RO-EX-73 | RO-INV-53 | adversarial | changes outside the policy never leave the workspace, and the refusal names the offending path |
+| RO-EX-74 | RO-INV-54 | adversarial | the apply-back precedes the seal; an apply-back that fails terminates `OPERATIONAL_FAILURE` and the sealed bundle says so rather than `COMPLETED` |
+| RO-EX-75 | RO-INV-52 | adversarial | provisioning failure stops the run before anything executes; the workspace is discarded on refusal too; a run that never provisioned discards nothing |
+| RO-EX-76 | RO-INV-53 | deterministic example | an empty change set is not an apply-back |
+| RO-EX-77 | RO-INV-53 | deterministic example | what is applied back is exactly the observed set — not the model's claims |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -314,6 +323,8 @@ persistence (U11).
 | RO-MUT-37 | RO-INV-48 | mutation | terminating a lost-lease run by writing its record is killed by RO-EX-66 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | retracting the whole run instead of the attempt is killed by RO-EX-71 (verified) |
+| RO-MUT-40 | RO-INV-53 | mutation | applying back without asking the core is killed by RO-EX-72/73 |
+| RO-MUT-41 | RO-INV-54 | mutation | sealing `COMPLETED` after a failed apply-back is killed by RO-EX-74 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

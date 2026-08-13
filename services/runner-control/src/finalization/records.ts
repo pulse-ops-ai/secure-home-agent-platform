@@ -192,7 +192,10 @@ export const assembleEvidence = (inputs: EvidenceAssemblyInputs): AssemblyResult
     return {
       ok: false,
       failure: 'refusal',
-      detail: `${constructed.code}: ${constructed.detail}`,
+      // The violated element is carried through. A refusal that says
+      // "path resolves under no declared allowed write root" without
+      // naming the path makes an operator go looking for it.
+      detail: `${constructed.code} on ${constructed.violated.element}: ${constructed.detail}`,
     }
   }
   return { ok: true, bundle: constructed.value, outcome }

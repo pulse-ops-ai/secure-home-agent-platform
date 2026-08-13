@@ -26,8 +26,8 @@
  */
 import type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
-import type { Retractable } from './finalization.js'
-import type { AcquisitionEpoch, RunScoped } from './values.js'
+import type { Retractable } from '../ports/finalization.js'
+import type { AcquisitionEpoch, RunScoped } from '../ports/values.js'
 
 /** One acquisition, journaled as it happens. */
 export interface JournaledAcquisition {

@@ -81,7 +81,7 @@ describe('RO-EX-52: the session is always closed', () => {
     const conclusion = await new Runner(
       testPorts({
         session,
-        workspace: new StaticWorkspaceObserver(
+        observer: new StaticWorkspaceObserver(
           { ok: true, changes: [] },
           { ok: true, digest: `sha256:${'c'.repeat(64)}` },
         ),

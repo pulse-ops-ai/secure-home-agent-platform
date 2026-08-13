@@ -117,7 +117,7 @@ describe('RO-EX-12: COMPLETED requires a sealed bundle', () => {
 describe('RO-EX-13: the pinned base is asserted before the adapter runs', () => {
   it('a substituted workspace refuses, and the adapter is never invoked', async () => {
     const ports = testPorts({
-      workspace: new StaticWorkspaceObserver(
+      observer: new StaticWorkspaceObserver(
         { ok: true, changes: [] },
         { ok: true, digest: `sha256:${'c'.repeat(64)}` },
       ),
@@ -133,7 +133,7 @@ describe('RO-EX-13: the pinned base is asserted before the adapter runs', () => 
 
   it('an unobservable base is operational, not a pass', async () => {
     const ports = testPorts({
-      workspace: new StaticWorkspaceObserver(
+      observer: new StaticWorkspaceObserver(
         { ok: true, changes: [] },
         { ok: false, failure: 'workspace unreadable' },
       ),

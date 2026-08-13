@@ -28,6 +28,7 @@ import type { PrincipalT, ProfileRefT } from './ports/contract-types.js'
 import {
   compareBaseIdentity,
   decideEligibility,
+  decideMaterialization,
   isProceed,
   reconcileClaims,
   verifyEvidence,
@@ -58,7 +59,7 @@ import {
   type TransitionKind,
   type TransitionTable,
 } from './lifecycle/index.js'
-import { observeArtifacts, observeWorkspace } from './observation/index.js'
+import { observeArtifacts, observeWorkspace } from './workspace/index.js'
 import type {
   AcquisitionEpoch,
   ArtifactObservation,
@@ -69,6 +70,7 @@ import type {
   RunInput,
   SessionHandle,
   TerminalObservations,
+  WorkspaceHandle,
 } from './ports/index.js'
 import type { GateResultsT } from '@secure-home/contracts'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
@@ -369,6 +371,19 @@ export class Runner {
       // the durable record is as complete as the journal allowed.
       await journalTick()
       disarm()
+      if (workspace !== undefined) {
+        const discarding = workspace
+        workspace = undefined
+        try {
+          await this.#ports.workspace.discard({
+            run_id: request.run_id,
+            workspace_ref: discarding.workspace_ref,
+          })
+        } catch {
+          // Reported by the implementation; not a reason to fail a run
+          // that has already concluded.
+        }
+      }
       if (session !== undefined) {
         const closing = session
         session = undefined
@@ -452,6 +467,8 @@ export class Runner {
     let held: string | undefined
     /** The open execution session, once one exists. */
     let session: SessionHandle | undefined
+    /** The isolated workspace, once provisioned. */
+    let workspace: WorkspaceHandle | undefined
     // Accumulated while RUNNING, read while VERIFYING and at every
     // terminal: the run's observations so far.
     let recorder = new DispositionRecorder([])
@@ -787,6 +804,25 @@ export class Runner {
      * the state, which is what makes the state mean something.
      */
     const openSession = async (): Promise<PhaseCommand<RunConclusion>> => {
+      // THE ISOLATED WRITABLE WORKSPACE, before anything can write.
+      //
+      // A run writes into a workspace that is not the source of truth,
+      // and what it did there leaves only through a materialization
+      // decision. Provisioning after execution would make the isolation
+      // decorative.
+      const provisioned = await this.#ports.workspace.provision({
+        run_id: request.run_id,
+        source_ref: request.workspace_root,
+      })
+      if (!provisioned.ok) {
+        return finish(
+          'operational_fault',
+          `the isolated workspace could not be provisioned: ${provisioned.detail}`,
+          'OPERATIONAL_FAILURE',
+        )
+      }
+      workspace = provisioned.handle
+
       const prepared = await this.#ports.session.prepare({
         run_id: request.run_id,
         profile: { ...profile.value.identity, digest: profile.digest },
@@ -865,7 +901,7 @@ export class Runner {
       // cannot un-run it. The comparison itself belongs to the core; what
       // belongs here is doing it at the right moment — before the adapter,
       // before spend has any effect the outside world can see.
-      const base = await this.#ports.workspace.observeBase({
+      const base = await this.#ports.observer.observeBase({
         run_id: request.run_id,
         root: request.workspace_root,
       })
@@ -1025,7 +1061,7 @@ export class Runner {
         }
       }
 
-      const workspace = await observeWorkspace(this.#ports.workspace, {
+      const workspace = await observeWorkspace(this.#ports.observer, {
         run_id: request.run_id,
         root: request.workspace_root,
       })
@@ -1177,6 +1213,52 @@ export class Runner {
         })
       }
       const verification = verdict.artifacts_consumed
+
+      // ---- MATERIALIZATION ------------------------------------------
+      // The core decides whether what the host observed may leave the
+      // workspace. Orchestration asks and obeys; it does not judge.
+      // `decideMaterialization` had existed since L3 and nothing called
+      // it, which meant nothing decided whether a run's changes were
+      // allowed to escape isolation.
+      if (observed.changes.length > 0) {
+        const policy = snapshots.path_policy
+        const materialization = decideMaterialization(policy, observed, [
+          snapshots.profile?.source.source ?? 'profile',
+          policy?.source.source ?? 'path-policy',
+          snapshots.gate_registry?.source.source ?? 'gate-registry',
+        ])
+        if (!isProceed(materialization)) {
+          return finish('refuse', describeRefusal(materialization), 'REFUSED', {
+            gate_results: recorder.results(),
+            observed,
+            artifacts,
+            operations,
+          })
+        }
+        if (workspace !== undefined && policy?.ok === true) {
+          const applied = await this.#ports.workspace.applyBack({
+            run_id: request.run_id,
+            workspace_ref: workspace.workspace_ref,
+            // The AUTHORITATIVE observation — not the model's claims,
+            // and not a re-derivation of them.
+            changes: observed.changes,
+            authorized_by: {
+              contract_id: policy.contract.contract_id,
+              digest: policy.digest,
+            },
+          })
+          if (!applied.ok) {
+            // A run whose changes did not land has not completed. Sealing
+            // it would describe a repository state that never happened.
+            return finish(
+              'operational_fault',
+              `apply-back failed: ${applied.detail}`,
+              'OPERATIONAL_FAILURE',
+              { gate_results: recorder.results(), observed, artifacts, operations },
+            )
+          }
+        }
+      }
 
       return await finish('complete', 'the run completed', 'COMPLETED', {
         gate_results: recorder.results(),

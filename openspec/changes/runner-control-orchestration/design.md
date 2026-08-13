@@ -362,6 +362,34 @@ spike's exit-124-versus-`exitCode: 0` case — and a disagreement resolves
 to `INDETERMINATE`, a failure class, rather than to whichever observation
 was consulted first.
 
+### D3d: Materialization — who owns apply-back
+
+`decideMaterialization` had existed in the trusted core since L3 and
+orchestration never called it. That was not a missing call; it was a
+missing BOUNDARY. A run could change a workspace and nothing decided
+whether those changes were allowed to leave it — observation answers
+"what happened", never "may this be kept".
+
+The boundary, with ownership stated rather than left to be discovered:
+
+```text
+isolated writable workspace   ← provisioned through a port; L9 makes it real
+       ↓
+trusted host observes diff    ← L4 owns this, and does it
+       ↓
+materialization decision      ← the CORE decides; L4 only asks
+       ↓
+verified apply-back / refuse  ← L4 orders it; L9 performs it
+```
+
+L4 owns the lifecycle and the ORDERING: provision before execution, ask
+before applying, apply before sealing, discard on every exit, and never
+seal `COMPLETED` for a run whose changes did not land. L9 owns creating a
+genuinely isolated workspace and performing a genuinely atomic
+apply-back. This landing ships an implementation that isolates nothing
+and applies nothing, and says so — the ordering it enforces is real
+regardless.
+
 ### D8: Orchestration structurally cannot decide
 
 Three mechanisms, mirroring L3's D2/D6 discipline:

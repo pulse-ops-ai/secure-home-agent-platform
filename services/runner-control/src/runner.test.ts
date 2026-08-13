@@ -213,7 +213,7 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
     // An unreadable workspace mid-run is an operational fault, and the
     // run still reaches a terminal state with evidence.
     const ports = testPorts({
-      workspace: new StaticWorkspaceObserver({ ok: false, failure: 'workspace vanished' }),
+      observer: new StaticWorkspaceObserver({ ok: false, failure: 'workspace vanished' }),
     })
     const conclusion = await new Runner(ports).run(runRequest())
     expect(conclusion.state).toBe('OPERATIONAL_FAILURE')

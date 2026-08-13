@@ -10,8 +10,9 @@
  * image, no mount, no socket, and no argv anywhere in the surface.
  */
 import type { FinalizationPort, Retractable } from './finalization.js'
-import type { RunJournalPort, RunLeasePort } from './journal.js'
-import type { ExecutionSessionPort } from './session.js'
+import type { RunJournalPort, RunLeasePort } from '../run-state/ports.js'
+import type { ExecutionSessionPort } from '../execution/ports.js'
+import type { WorkspaceLifecyclePort } from '../workspace/ports.js'
 import type {
   AdapterInvocationRequest,
   AdapterReport,
@@ -107,7 +108,9 @@ export interface Ports {
   readonly finalization: FinalizationPort
   /** The execution session: what makes SANDBOX_STARTED a caused state. */
   readonly session: ExecutionSessionPort
-  readonly workspace: WorkspaceObserverPort
+  /** The isolated workspace, and the apply-back the core authorizes. */
+  readonly workspace: WorkspaceLifecyclePort
+  readonly observer: WorkspaceObserverPort
   readonly artifacts: ArtifactObserverPort
   readonly execution: ExecutionPort
   readonly adapter: AdapterInvocationPort
@@ -117,7 +120,8 @@ export interface Ports {
 }
 
 export * from './values.js'
-export * from './journal.js'
+export * from '../run-state/ports.js'
 export * from './finalization.js'
-export * from './session.js'
+export * from '../execution/ports.js'
+export * from '../workspace/ports.js'
 export type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'

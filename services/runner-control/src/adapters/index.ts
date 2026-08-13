@@ -1,3 +1,11 @@
+export { InMemoryRunJournal, InMemoryRunLease } from '../run-state/in-memory.js'
+export { InMemoryExecutionSession } from '../execution/in-memory.js'
+export { InMemoryWorkspaceLifecycle } from '../workspace/in-memory.js'
+export {
+  FilesystemArtifactObserver,
+  FilesystemAuthoritySource,
+  FilesystemWorkspaceObserver,
+} from '../workspace/filesystem.js'
 export {
   DeterministicAdapterInvocation,
   DeterministicExecution,
@@ -6,11 +14,4 @@ export {
   SteppingClock,
   type RecordedWrite,
 } from './deterministic.js'
-export { InMemoryRunJournal, InMemoryRunLease } from './journal.js'
-export { InMemoryExecutionSession } from './session.js'
 export { TransactionalFinalization, type CommitParticipants } from './finalization.js'
-export {
-  FilesystemArtifactObserver,
-  FilesystemAuthoritySource,
-  FilesystemWorkspaceObserver,
-} from './filesystem.js'

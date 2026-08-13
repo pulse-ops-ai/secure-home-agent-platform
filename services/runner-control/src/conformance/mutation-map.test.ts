@@ -229,6 +229,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-71'],
   },
   {
+    id: 'RO-MUT-40',
+    mutation: 'apply changes back without asking the core to decide materialization',
+    killedBy: ['RO-EX-72', 'RO-EX-73'],
+  },
+  {
+    id: 'RO-MUT-41',
+    mutation: 'seal COMPLETED after an apply-back that failed',
+    killedBy: ['RO-EX-74'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

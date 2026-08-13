@@ -72,7 +72,7 @@ export {
   type TransitionResult,
   type WriteClaim,
 } from './lifecycle/index.js'
-export { observeArtifacts, observeWorkspace } from './observation/index.js'
+export { observeArtifacts, observeWorkspace } from './workspace/index.js'
 export * from './ports/index.js'
 export type { PrincipalT, ProfileRefT } from './ports/contract-types.js'
 export {

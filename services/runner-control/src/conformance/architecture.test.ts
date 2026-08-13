@@ -210,14 +210,14 @@ describe('RO-EX-03: the module graph is fixed', () => {
     // The artifact observer returns { path, content: string }. Nothing
     // in the service passes that content to an import, a require, or an
     // evaluator — there is no such call site to pass it to.
-    const observer = code(join(srcRoot, 'adapters/filesystem.ts'))
-    expect(read(join(srcRoot, 'adapters/filesystem.ts'))).toContain('readFileSync')
+    const observer = code(join(srcRoot, 'workspace/filesystem.ts'))
+    expect(read(join(srcRoot, 'workspace/filesystem.ts'))).toContain('readFileSync')
     expect(observer.includes('import(')).toBe(false)
     expect(observer.includes('eval')).toBe(false)
   })
 
   it('the filesystem implementations are read-only: no write primitive exists', () => {
-    const filesystem = code(join(srcRoot, 'adapters/filesystem.ts'))
+    const filesystem = code(join(srcRoot, 'workspace/filesystem.ts'))
     for (const primitive of [
       'writeFile',
       'appendFile',
@@ -272,7 +272,7 @@ describe('RO-EX-07: the shell is inert', () => {
     const shell = await import('../app/index.js')
     expect(typeof shell.RunnerControlModule).toBe('function')
     // Importing did not construct the module, only declared it.
-    expect(Object.keys(shell.PORT_TOKENS)).toHaveLength(11)
+    expect(Object.keys(shell.PORT_TOKENS)).toHaveLength(12)
   })
 })
 

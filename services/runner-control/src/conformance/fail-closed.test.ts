@@ -102,7 +102,7 @@ describe('RO-EX-19: a core refusal is not relabelled operational', () => {
     // A change outside every allowed write root: the core refuses on
     // materialization when the outcome claims success.
     const ports = testPorts({
-      workspace: {
+      observer: {
         observe: () =>
           Promise.resolve({
             ok: true as const,

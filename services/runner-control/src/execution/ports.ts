@@ -22,7 +22,7 @@
  * problem to PROVE. This landing ships a deterministic implementation
  * that starts nothing; L9 replaces it.
  */
-import type { RunScoped } from './values.js'
+import type { RunScoped } from '../ports/values.js'
 
 /**
  * What a started session gives the rest of the run: something to name it

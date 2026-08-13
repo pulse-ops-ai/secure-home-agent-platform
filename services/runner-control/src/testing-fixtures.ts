@@ -16,6 +16,7 @@ import {
   RecordingEventSink,
   RecordingEvidenceSink,
   InMemoryExecutionSession,
+  InMemoryWorkspaceLifecycle,
   InMemoryRunJournal,
   InMemoryRunLease,
   SteppingClock,
@@ -35,6 +36,9 @@ import type {
   SessionPreparation,
   SessionPrepareRequest,
   SessionStart,
+  ApplyBackOutcome,
+  ApplyBackRequest,
+  WorkspaceProvision,
 } from './ports/index.js'
 import type { RunRequest } from './runner.js'
 
@@ -186,7 +190,8 @@ export interface TestPorts extends Ports {
 export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
   const base = {
     authority: new CountingAuthoritySource(),
-    workspace: new StaticWorkspaceObserver(),
+    observer: new StaticWorkspaceObserver(),
+    workspace: new InMemoryWorkspaceLifecycle(),
     artifacts: new StaticArtifactObserver(),
     execution: new DeterministicExecution(),
     adapter: new DeterministicAdapterInvocation(),
@@ -380,6 +385,43 @@ export class HangingExecution {
   runGate(request: GateExecutionRequest): Promise<GateReport> {
     this.requests.push(request)
     return new Promise<GateReport>(() => {})
+  }
+}
+
+/** Records the workspace lifecycle it was driven through. */
+export class RecordingWorkspaceLifecycle {
+  readonly calls: string[] = []
+  applied: ApplyBackRequest | undefined
+  readonly #failures: { provision?: string; applyBack?: string }
+
+  constructor(failures: { provision?: string; applyBack?: string } = {}) {
+    this.#failures = failures
+  }
+
+  provision(request: { run_id: string; source_ref: string }): Promise<WorkspaceProvision> {
+    this.calls.push('provision')
+    const failure = this.#failures.provision
+    return Promise.resolve(
+      failure === undefined
+        ? {
+            ok: true,
+            handle: { workspace_ref: `workspace:${request.run_id}`, root: request.source_ref },
+          }
+        : { ok: false, detail: failure },
+    )
+  }
+
+  applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome> {
+    this.calls.push('applyBack')
+    const failure = this.#failures.applyBack
+    if (failure !== undefined) return Promise.resolve({ ok: false, detail: failure })
+    this.applied = request
+    return Promise.resolve({ ok: true, applied: request.changes.length })
+  }
+
+  discard(): Promise<void> {
+    this.calls.push('discard')
+    return Promise.resolve()
   }
 }
 
