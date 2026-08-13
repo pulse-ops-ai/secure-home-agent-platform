@@ -68,9 +68,7 @@ import type {
   LeaseClaim,
   Ports,
   RunInput,
-  SessionHandle,
   TerminalObservations,
-  WorkspaceHandle,
 } from './ports/index.js'
 import type { GateResultsT } from '@secure-home/contracts'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
@@ -79,6 +77,7 @@ import {
   buildEarlyTerminationRecord,
   executionPrincipal,
 } from './finalization/records.js'
+import { RunScope } from './run/scope.js'
 
 export interface RunRequest {
   readonly run_id: string
@@ -232,97 +231,148 @@ export class Runner {
     signals: RunSignals,
     generation: number,
   ): Promise<RunConclusion> {
-    // The open session is tracked HERE rather than only inside the walk,
-    // so a session method that throws — `start`, `interrupt` — cannot
-    // carry the reference out of scope with it. A prepared session that
-    // nobody can close is a leak, and the throw path is exactly where
-    // leaks happen.
-    const open: { handle: { session_ref: string } | undefined } = { handle: undefined }
+    // A clock that throws is one of the ports this handler exists for,
+    // so the machine gets one that cannot.
+    const safeClock = {
+      now: (scoped: { run_id: string }) => {
+        try {
+          return this.#ports.clock.now(scoped)
+        } catch {
+          return UNESTABLISHED_INSTANT
+        }
+      },
+    }
+    // THE SCOPE IS CREATED HERE, not inside the walk.
+    //
+    // That single move is what makes the recovery below correct. While
+    // the machine, the workspace, the session and the timers lived in
+    // the walk's closures, an exception left this handler unable to
+    // reach any of them — so it fabricated a fresh machine in REQUESTED
+    // and reported a run that never happened.
+    const scope = new RunScope(
+      { run_id: request.run_id, generation },
+      new RunMachine(request.run_id, safeClock, signals.transitions),
+      safeClock.now({ run_id: request.run_id }),
+    )
     try {
-      return await this.#walk(request, signals, generation, open)
+      return await this.#walk(request, signals, scope)
     } catch (error) {
       const detail = `the run's terminal state could not be established: ${
         error instanceof Error ? error.message : String(error)
       }`
-      if (open.handle !== undefined) {
-        const leaked = open.handle
-        open.handle = undefined
-        try {
-          await this.#ports.session.close({
-            run_id: request.run_id,
-            generation,
-            session_ref: leaked.session_ref,
-          })
-        } catch {
-          // The session port is what failed. Reported through the
-          // conclusion rather than by failing to conclude.
-        }
-      }
-      // A clock that throws is one of the ports this catch exists for,
-      // so the fallback must not call it again.
-      const safeClock = {
-        now: (scoped: { run_id: string }) => {
+      // The REAL machine, advanced from the state the run actually
+      // reached. Checked like any other transition: a table that does
+      // not declare `indeterminate` from here leaves the run where it
+      // was rather than recording a terminal that was refused.
+      scope.machine.advance('indeterminate', detail)
+
+      // Flush what the walk had not journaled yet, so the durable record
+      // carries the walk rather than stopping at the last tick before
+      // the throw. Best effort — the journal may be what failed.
+      await this.#flushJournal(scope)
+
+      // Release what the run holds. This is the leak the old handler
+      // could not reach: `conclude()` never ran, so the workspace and
+      // the deadline timer survived every exception.
+      await scope.release(this.#ports)
+
+      // WHICH RECORD, decided from the run's real state.
+      //
+      // A run that never captured a profile has no identities, and the
+      // early-terminal record is the only shape it can produce. A run
+      // that HAD authority must not be given that shape.
+      //
+      // Nor is a bundle sealed from here. Sealing is the finalization
+      // transaction's, and the exception may have come from inside it;
+      // inventing a seal in a catch block is how a run that failed
+      // acquires a record saying otherwise. For this case the journal is
+      // the reconstructable record, which is what it is for.
+      let produced: RunConclusion['produced'] = 'none'
+      if (!scope.authorityCaptured) {
+        const record = buildEarlyTerminationRecord({
+          run_id: request.run_id,
+          requester: request.requester,
+          requested_profile: request.profile_ref,
+          state: scope.machine.state,
+          detail,
+          started_at: scope.startedAt,
+          finished_at: safeClock.now({ run_id: request.run_id }),
+        })
+        if (record.ok) {
           try {
-            return this.#ports.clock.now(scoped)
+            await this.#ports.evidence.write({
+              ...scope.fence,
+              kind: 'early_termination_record',
+              record: record.record,
+            })
+            produced = 'early_termination_record'
           } catch {
-            return UNESTABLISHED_INSTANT
+            // The sink is the thing that failed. The conclusion below
+            // still reports a terminal state rather than rejecting.
           }
-        },
-      }
-      const machine = new RunMachine(request.run_id, safeClock)
-      machine.advance('indeterminate', detail)
-      const record = buildEarlyTerminationRecord({
-        run_id: request.run_id,
-        requester: request.requester,
-        requested_profile: request.profile_ref,
-        state: machine.state,
-        detail,
-        started_at: safeClock.now({ run_id: request.run_id }),
-        finished_at: safeClock.now({ run_id: request.run_id }),
-      })
-      if (record.ok) {
-        try {
-          await this.#ports.evidence.write({
-            run_id: request.run_id,
-            generation,
-            kind: 'early_termination_record',
-            record: record.record,
-          })
-        } catch {
-          // The sink is the thing that failed. The conclusion below
-          // still reports a terminal state rather than rejecting.
         }
       }
       return {
         run_id: request.run_id,
-        state: machine.state,
-        produced: record.ok ? 'early_termination_record' : 'none',
+        state: scope.machine.state,
+        produced,
         detail,
-        transitions: machine.transitionRecord,
-        rejections: machine.rejections,
+        transitions: scope.machine.transitionRecord,
+        rejections: scope.machine.rejections,
       }
     }
   }
 
-  async #walk(
-    request: RunRequest,
-    signals: RunSignals,
-    generation: number,
-    open: { handle: { session_ref: string } | undefined },
-  ): Promise<RunConclusion> {
-    const machine = new RunMachine(request.run_id, this.#ports.clock, signals.transitions)
-    const ledger = new FinalizationLedger(request.run_id)
-    const startedAt = this.#ports.clock.now({ run_id: request.run_id })
+  /**
+   * Append everything the machine has recorded since the last tick.
+   *
+   * Called after every machine mutation during the walk, so the journal
+   * is written AS THE WALK HAPPENS rather than assembled and flushed at
+   * the end — and called again by the exception handler, so a run that
+   * died mid-phase leaves the same durable trail as one that concluded.
+   */
+  async #flushJournal(scope: RunScope): Promise<void> {
+    if (scope.fenceLost !== undefined) return
+    const pending = scope.machine.pendingJournal()
+    let transitions = 0
+    let rejections = 0
+    try {
+      for (const transition of pending.transitions) {
+        const appended = await this.#ports.journal.appendTransition({ ...scope.fence, transition })
+        // A refused append is NOT left pending. Pending means "retry
+        // next tick", and a fence refusal is the one failure mode that
+        // retrying cannot fix — the entry would be re-offered forever to
+        // a journal that will never take it.
+        if (!appended.ok) return scope.loseFence(appended.detail)
+        transitions += 1
+      }
+      for (const rejection of pending.rejections) {
+        const appended = await this.#ports.journal.appendRejection({ ...scope.fence, rejection })
+        if (!appended.ok) return scope.loseFence(appended.detail)
+        rejections += 1
+      }
+    } catch {
+      // Swallowed on purpose: an append that fails leaves its entry
+      // PENDING, and the next tick retries it. Propagating would end the
+      // run over a transient journal fault, and — worse — the entry
+      // would still be unwritten.
+    } finally {
+      // Only what LANDED is confirmed. Anything after the failure stays
+      // pending and is retried, so a rejected append cannot silently
+      // remove a transition from the record.
+      scope.machine.confirmJournaled(transitions, rejections)
+    }
+  }
 
-    /**
-     * THE FENCE, presented to every effect this run performs.
-     *
-     * Renewing the lease between phases proves the run was ours a moment
-     * ago; it cannot prove the write happening now is. So the generation
-     * travels with each effect and the receiving port refuses a
-     * superseded one — see `RunFence`.
-     */
-    const fence = { run_id: request.run_id, generation }
+  async #walk(request: RunRequest, signals: RunSignals, scope: RunScope): Promise<RunConclusion> {
+    // Aliases for the parts of the scope that never change identity.
+    // Everything MUTABLE is written through `scope` directly, so the
+    // exception handler above sees the run that actually happened.
+    const machine = scope.machine
+    const fence = scope.fence
+    const generation = fence.generation
+    const startedAt = scope.startedAt
+    const ledger = new FinalizationLedger(request.run_id)
 
     /**
      * Set the first time any port refuses this run's fence.
@@ -334,9 +384,8 @@ export class Runner {
      * This is the same conclusion the walk's `lost` path reaches, arrived
      * at from inside a phase rather than at its boundary.
      */
-    let fenceLost: string | undefined
     const loseFence = (detail: string): void => {
-      fenceLost ??= detail
+      scope.loseFence(detail)
     }
 
     /**
@@ -358,48 +407,8 @@ export class Runner {
       if (!appended.ok) loseFence(appended.detail)
     }
 
-    /**
-     * Append everything the machine has recorded since the last tick.
-     *
-     * Called after every machine mutation, so the journal is written AS
-     * THE WALK HAPPENS rather than assembled and flushed at the end. A
-     * run that dies at RUNNING leaves behind what actually occurred; a
-     * batched write would leave nothing.
-     */
-    const journalTick = async (): Promise<void> => {
-      if (fenceLost !== undefined) return
-      const pending = machine.pendingJournal()
-      let transitions = 0
-      let rejections = 0
-      try {
-        for (const transition of pending.transitions) {
-          const appended = await this.#ports.journal.appendTransition({ ...fence, transition })
-          // A refused append is NOT left pending. Pending means "retry
-          // next tick", and a fence refusal is the one failure mode that
-          // retrying cannot fix — the entry would be re-offered forever
-          // to a journal that will never take it.
-          if (!appended.ok) return loseFence(appended.detail)
-          transitions += 1
-        }
-        for (const rejection of pending.rejections) {
-          const appended = await this.#ports.journal.appendRejection({ ...fence, rejection })
-          if (!appended.ok) return loseFence(appended.detail)
-          rejections += 1
-        }
-      } catch {
-        // Swallowed on purpose: an append that fails leaves its entry
-        // PENDING, and the next tick retries it. Propagating would end
-        // the run over a transient journal fault, and — worse — the
-        // entry would still be unwritten. `conclude` reports anything
-        // still pending at the end, so a permanently failing journal is
-        // visible rather than silent.
-      } finally {
-        // Only what LANDED is confirmed. Anything after the failure
-        // stays pending and is retried at the next tick, so a rejected
-        // append cannot silently remove a transition from the record.
-        machine.confirmJournaled(transitions, rejections)
-      }
-    }
+    /** The walk's journal tick — the same flush the handler above uses. */
+    const journalTick = (): Promise<void> => this.#flushJournal(scope)
 
     /**
      * Conclude the run: persist the transition record, then report.
@@ -423,48 +432,25 @@ export class Runner {
       // One more attempt for anything a failed append left pending, so
       // the durable record is as complete as the journal allowed.
       await journalTick()
-      disarm()
-      if (fenceLost !== undefined) {
-        // OWNERSHIP MOVED. Everything below this point is a write, and
-        // the fence refuses all of them — including the cleanup. That is
-        // deliberate: the workspace and session named here belong to
-        // whoever holds the run now, and discarding them would destroy
-        // the state of a run in progress. Leaking is recoverable;
-        // deleting a live workspace is not.
+      // One release path, shared with the exception handler. Releasing
+      // here and separately in the handler is how the two drifted: the
+      // handler's version discarded nothing, so every throw leaked the
+      // workspace and the deadline timer.
+      await scope.release(this.#ports)
+      if (scope.fenceLost !== undefined) {
+        // OWNERSHIP MOVED. Everything a conclusion would write is
+        // refused by the fence — including the cleanup, which `release`
+        // therefore skips: the workspace and session named here belong
+        // to whoever holds the run now, and discarding them would
+        // destroy the state of a run in progress. Leaking is
+        // recoverable; deleting a live workspace is not.
         return {
           run_id: request.run_id,
           state: machine.state,
           produced: 'none',
-          detail: `${fenceLost}; no further write was made (this attempt had reached: ${detail})`,
+          detail: `${scope.fenceLost}; no further write was made (this attempt had reached: ${detail})`,
           transitions: machine.transitionRecord,
           rejections: machine.rejections,
-        }
-      }
-      if (workspace !== undefined) {
-        const discarding = workspace
-        workspace = undefined
-        try {
-          await this.#ports.workspace.discard({
-            ...fence,
-            workspace_ref: discarding.workspace_ref,
-          })
-        } catch {
-          // Reported by the implementation; not a reason to fail a run
-          // that has already concluded.
-        }
-      }
-      if (session !== undefined) {
-        const closing = session
-        session = undefined
-        open.handle = undefined
-        try {
-          await this.#ports.session.close({
-            ...fence,
-            session_ref: closing.session_ref,
-          })
-        } catch {
-          // A session that will not close is reported by L9's
-          // implementation, not by failing an already-concluded run.
         }
       }
       return {
@@ -541,10 +527,6 @@ export class Runner {
     }
     /** Set by the consent phase so a hold can report which kind it was. */
     let held: string | undefined
-    /** The open execution session, once one exists. */
-    let session: SessionHandle | undefined
-    /** The isolated workspace, once provisioned. */
-    let workspace: WorkspaceHandle | undefined
     // Accumulated while RUNNING, read while VERIFYING and at every
     // terminal: the run's observations so far.
     let recorder = new DispositionRecorder([])
@@ -594,6 +576,7 @@ export class Runner {
       // requested, so the binding has to be checked here, before
       // PROFILE_RESOLVED and long before spend.
       profile = resolved
+      scope.authorityCaptured = true
       const captured = profile.value.identity
       if (
         captured.name !== request.profile_ref.name ||
@@ -641,7 +624,7 @@ export class Runner {
       // commit — it must stop. Reaching the commit and being refused
       // there would work too, but only by accident of which resources
       // the new owner happened to touch first.
-      if (fenceLost !== undefined) return stop(await conclude('none', detail))
+      if (scope.fenceLost !== undefined) return stop(await conclude('none', detail))
       // ORDER MATTERS HERE, twice over.
       //
       // The terminal transition is taken LAST, after the bundle is
@@ -794,15 +777,10 @@ export class Runner {
      */
     const aborter = new AbortController()
     let abortReason: 'cancel' | 'timeout' | undefined
-    const timers: ReturnType<typeof setTimeout>[] = []
     const raise = (reason: 'cancel' | 'timeout'): void => {
       if (abortReason !== undefined) return
       abortReason = reason
       aborter.abort()
-    }
-    const disarm = (): void => {
-      for (const timer of timers) clearTimeout(timer)
-      timers.length = 0
     }
 
     /**
@@ -836,11 +814,11 @@ export class Runner {
      */
     const abortRun = async (partial: FinishPartial = {}): Promise<PhaseCommand<RunConclusion>> => {
       const reason = abortReason ?? 'cancel'
-      if (session !== undefined) {
+      if (scope.session !== undefined) {
         try {
           await this.#ports.session.interrupt({
             ...fence,
-            session_ref: session.session_ref,
+            session_ref: scope.session.session_ref,
             reason,
           })
         } catch {
@@ -919,7 +897,7 @@ export class Runner {
           'OPERATIONAL_FAILURE',
         )
       }
-      workspace = provisioned.handle
+      scope.workspace = provisioned.handle
 
       const prepared = await this.#ports.session.prepare({
         ...fence,
@@ -937,11 +915,10 @@ export class Runner {
           'OPERATIONAL_FAILURE',
         )
       }
-      session = prepared.handle
-      open.handle = session
+      scope.session = prepared.handle
       const sessionStarted = await this.#ports.session.start({
         ...fence,
-        session_ref: session.session_ref,
+        session_ref: scope.session.session_ref,
       })
       if (!sessionStarted.ok) {
         if (sessionStarted.reason === 'stale_fence') {
@@ -957,14 +934,14 @@ export class Runner {
 
       // Arm the deadline from the session's own budget. A run with no
       // deadline is the unbounded run the model forbids.
-      const deadlineMs = signals.deadline_ms ?? session.deadline.wall_clock_seconds * 1000
-      timers.push(
+      const deadlineMs = signals.deadline_ms ?? scope.session.deadline.wall_clock_seconds * 1000
+      scope.timers.push(
         setTimeout(() => {
           raise('timeout')
         }, deadlineMs),
       )
       if (signals.cancelAfterMs !== undefined) {
-        timers.push(
+        scope.timers.push(
           setTimeout(() => {
             raise('cancel')
           }, signals.cancelAfterMs),
@@ -973,7 +950,7 @@ export class Runner {
 
       return {
         kind: 'earned',
-        cause: `session ${session.session_ref} started; consent recorded by ${request.consent?.by ?? 'unknown'}`,
+        cause: `session ${scope.session.session_ref} started; consent recorded by ${request.consent?.by ?? 'unknown'}`,
       }
     }
 
@@ -1045,7 +1022,7 @@ export class Runner {
             env_var: credential.env_var,
           })),
           workspace: {
-            session_ref: session?.session_ref ?? `session:${request.run_id}`,
+            session_ref: scope.session?.session_ref ?? `session:${request.run_id}`,
             root_ref: `workspace:${request.run_id}`,
           },
           signal: aborter.signal,
@@ -1150,7 +1127,7 @@ export class Runner {
             ...fence,
             gate_id: entry.gate_id,
             spec: entry.spec,
-            session_ref: session?.session_ref ?? `session:${request.run_id}`,
+            session_ref: scope.session?.session_ref ?? `session:${request.run_id}`,
             signal: aborter.signal,
           }),
         )
@@ -1178,24 +1155,27 @@ export class Runner {
         }
       }
 
-      const workspace = await observeWorkspace(this.#ports.observer, {
+      // Named for what it is. This was `const workspace`, shadowing the
+      // outer provisioned WorkspaceHandle — so this phase structurally
+      // could not reach the workspace it was running in.
+      const changeSet = await observeWorkspace(this.#ports.observer, {
         run_id: request.run_id,
         root: request.workspace_root,
       })
-      if (!isProceed(workspace)) {
+      if (!isProceed(changeSet)) {
         // A workspace we could not READ is operational; a workspace whose
         // contents the core refused is a contract refusal. Keeping them
         // apart here is the same INV-003 distinction the evidence
         // boundary keeps.
-        const operational = workspace.kind === 'operational_failure'
+        const operational = changeSet.kind === 'operational_failure'
         return finish(
           operational ? 'operational_fault' : 'refuse',
-          operational ? workspace.detail : describeRefusal(workspace),
+          operational ? changeSet.detail : describeRefusal(changeSet),
           operational ? 'OPERATIONAL_FAILURE' : 'REFUSED',
           { gate_results: recorder.results(), operations },
         )
       }
-      observed = workspace.value
+      observed = changeSet.value
       artifacts = await observeArtifacts(this.#ports.artifacts, {
         run_id: request.run_id,
         paths: request.artifact_paths,
@@ -1351,7 +1331,7 @@ export class Runner {
             operations,
           })
         }
-        if (workspace !== undefined && policy?.ok === true) {
+        if (scope.workspace !== undefined && policy?.ok === true) {
           // OWNERSHIP, RE-ASKED IMMEDIATELY BEFORE THE WRITE THAT ESCAPES
           // ISOLATION.
           //
@@ -1375,7 +1355,7 @@ export class Runner {
           }
           const applied = await this.#ports.workspace.applyBack({
             ...fence,
-            workspace_ref: workspace.workspace_ref,
+            workspace_ref: scope.workspace.workspace_ref,
             // The AUTHORITATIVE observation — not the model's claims,
             // and not a re-derivation of them.
             changes: observed.changes,

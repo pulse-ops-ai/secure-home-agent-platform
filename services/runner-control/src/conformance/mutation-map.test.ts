@@ -245,6 +245,23 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-84'],
   },
   {
+    id: 'RO-MUT-43',
+    mutation:
+      'recover through a fresh RunMachine, so a run that reached RUNNING reports one invented transition from REQUESTED',
+    killedBy: ['RO-EX-85'],
+  },
+  {
+    id: 'RO-MUT-44',
+    mutation: 'skip resource release on the exception path, leaking the workspace and the deadline',
+    killedBy: ['RO-EX-87'],
+  },
+  {
+    id: 'RO-MUT-45',
+    mutation:
+      'write the early-terminal record unconditionally, describing a run that held authority as one that never had any',
+    killedBy: ['RO-EX-86'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],
