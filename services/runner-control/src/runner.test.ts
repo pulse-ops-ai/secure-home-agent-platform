@@ -19,6 +19,7 @@ import {
   CountingAuthoritySource,
   StaticWorkspaceObserver,
   runRequest,
+  governedWrites,
   testPorts,
   withoutConsent,
 } from './testing-fixtures.js'
@@ -31,7 +32,7 @@ describe('the declared walk reaches COMPLETED with a sealed bundle', () => {
     expect(conclusion.state).toBe('COMPLETED')
     expect(conclusion.produced).toBe('evidence_bundle')
 
-    const writes = ports.evidence.writesOf('run-20260812-0001')
+    const writes = governedWrites(ports, 'run-20260812-0001')
     expect(writes).toHaveLength(1)
     expect(writes[0]?.kind).toBe('evidence_bundle')
     expect(EvidenceBundle.safeParse(writes[0]?.payload).success).toBe(true)
@@ -53,8 +54,8 @@ describe('the declared walk reaches COMPLETED with a sealed bundle', () => {
 
   it('the whole walk is reconstructable: seven declared transitions', async () => {
     const conclusion = await new Runner(testPorts()).run(runRequest())
-    expect(conclusion.transitions).toBe(7)
-    expect(conclusion.rejections).toBe(0)
+    expect(conclusion.transitions).toHaveLength(7)
+    expect(conclusion.rejections).toHaveLength(0)
   })
 })
 
@@ -94,9 +95,12 @@ describe('RO-ADV-01: eligibility without consent holds at ELIGIBLE', () => {
 
     expect(conclusion.state, 'the machine must not leave ELIGIBLE').toBe('ELIGIBLE')
     expect(conclusion.produced).toBe('none')
-    expect(conclusion.rejections, 'the held spend must be recorded, not dropped').toBeGreaterThan(0)
+    expect(
+      conclusion.rejections.length,
+      'the held spend must be recorded, not dropped',
+    ).toBeGreaterThan(0)
     expect(ports.adapter.requests).toHaveLength(0)
-    expect(ports.evidence.all).toHaveLength(0)
+    expect(governedWrites(ports)).toHaveLength(0)
   })
 })
 
@@ -112,7 +116,7 @@ describe('RO-ADV-07 / RO-MUT-05: a REQUESTED terminal never fabricates a bundle'
     expect(conclusion.state).toBe('OPERATIONAL_FAILURE')
     expect(conclusion.produced).toBe('early_termination_record')
 
-    const writes = ports.evidence.writesOf('run-20260812-0001')
+    const writes = governedWrites(ports, 'run-20260812-0001')
     expect(writes).toHaveLength(1)
     expect(writes[0]?.kind).toBe('early_termination_record')
     expect(EarlyTerminationRecord.safeParse(writes[0]?.payload).success).toBe(true)
@@ -146,7 +150,7 @@ describe('RO-EX-08 / RO-ADV-08: requester provenance', () => {
     const requester = { sub: 'human:mike', acting: { kind: 'actor' as const, sub: 'human:mike' } }
     await new Runner(ports).run(runRequest({ requester }))
 
-    const record = ports.evidence.writesOf('run-20260812-0001')[0]?.payload as {
+    const record = governedWrites(ports, 'run-20260812-0001')[0]?.payload as {
       requester: unknown
     }
     expect(record.requester).toEqual(requester)
@@ -163,7 +167,7 @@ describe('RO-EX-08 / RO-ADV-08: requester provenance', () => {
     })
     await new Runner(ports).run(runRequest())
 
-    const payload = ports.evidence.writesOf('run-20260812-0001')[0]?.payload
+    const payload = governedWrites(ports, 'run-20260812-0001')[0]?.payload
     expect((payload as { requester: { sub: string } }).requester.sub).toBe('human:mike')
     expect(JSON.stringify(payload)).not.toContain('agent:home-status')
   })

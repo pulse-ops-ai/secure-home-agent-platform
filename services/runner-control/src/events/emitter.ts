@@ -60,14 +60,19 @@ export class RunEventEmitter {
    * than becoming an unparseable line in the stream.
    */
   async emit(body: Record<string, unknown>): Promise<EmitOutcome> {
+    // The envelope is spread LAST. Spreading `body` last let a caller
+    // replace run_id, sequence, adapter, or the contract identity — so
+    // an event could be attributed to another run, or renumbered, by the
+    // code that emits it. The envelope is this emitter's to state, and
+    // no body field may override it.
     const candidate = {
+      ...body,
       contract_id: 'run-event',
       contract_version: '1.0.0',
       run_id: this.#identity.run_id,
       sequence: this.#sequence,
       timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
       adapter: this.#identity.adapter,
-      ...body,
     }
     const parsed = RunEvent.safeParse(candidate)
     if (!parsed.success) {

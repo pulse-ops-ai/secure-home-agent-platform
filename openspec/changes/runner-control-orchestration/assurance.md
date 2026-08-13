@@ -71,6 +71,16 @@ are below.
 | RO-INV-14 | Independent verification decides a run's success: the second epoch's values and a fresh artifact observation reach the core's verifier, and a negative or operational verdict prevents `COMPLETED` | trust |
 | RO-INV-15 | The success terminal is entered only after the bundle seals, and the seal is the run's last write — every event, the terminal event included, is submitted first | behavior |
 | RO-INV-16 | Every call an adapter reports is recorded as a `call.attempted`/`call.disposition` pair and as an evidence operation under its reported disposition | trust |
+| RO-INV-17 | A transition is recorded only for something that happened: `EVIDENCE_SEALED` after the write succeeds, never before | behavior |
+| RO-INV-18 | A capture the core REFUSED never travels onward as a snapshot — every required source must capture cleanly to leave `REQUESTED` | trust |
+| RO-INV-19 | A contract refusal terminates `REFUSED` and an environmental fault `OPERATIONAL_FAILURE`; neither is relabelled as the other at any layer (INV-003 at the evidence boundary) | trust |
+| RO-INV-20 | The observed workspace base is content-bound, and path containment is decided on link-resolved paths | trust |
+| RO-INV-21 | A port implementation that throws cannot end a run in no state: `run()` always resolves with a terminal state and its record | behavior |
+| RO-INV-22 | Cancellation and timeout are honoured at every non-terminal boundary, verification included | behavior |
+| RO-INV-23 | Evidence records the EXECUTION principal — the profile's agent identity acting for the requester; a profile requiring an actor refuses a requester that supplies none | trust |
+| RO-INV-24 | The transition record is durable: every run writes its walk, refusals and holds included | behavior |
+| RO-INV-25 | A write claim minted for another run cannot advance this run's machine | behavior |
+| RO-INV-26 | Event envelope fields are the emitter's: no caller body may replace `run_id`, `sequence`, `adapter`, or the contract identity | trust |
 
 ## State-Space Model
 
@@ -188,6 +198,17 @@ persistence (U11).
 | RO-EX-14 | RO-INV-14 | adversarial | each source is read exactly once per epoch and the verifier receives the verification epoch's values; authority diverging between epochs prevents `COMPLETED` |
 | RO-EX-15 | RO-INV-16 | deterministic example | a report carrying one permitted and one denied call yields two event pairs and bundle operation sets that place each call under its reported disposition |
 | RO-EX-16 | RO-INV-15 | adversarial | the terminal event precedes the seal in the recorded sequence; a terminal-emission failure seals nothing |
+| RO-EX-17 | RO-INV-17 | adversarial | an evidence sink rejecting the bundle write leaves NO transition recording `EVIDENCE_SEALED`; the successful run records it exactly once |
+| RO-EX-18 | RO-INV-18 | adversarial | a refused path policy stops the run, and a refused gate registry stops it even with no gates requested — the case with nothing downstream to notice |
+| RO-EX-19 | RO-INV-19 | adversarial | a change outside every allowed write root terminates `REFUSED`, not `OPERATIONAL_FAILURE` |
+| RO-EX-20 | RO-INV-20 | adversarial | same-size content replacement changes the observed base; an in-root symlink to an outside file is not read |
+| RO-EX-21 | RO-INV-21 | adversarial | a throwing authority source, evidence sink, and clock each resolve with a terminal state; the clock case is `INDETERMINATE` |
+| RO-EX-22 | RO-INV-22 | adversarial | a cancel raised at the verification boundary terminates `CANCELLED`, never `COMPLETED` |
+| RO-EX-23 | RO-INV-23 | deterministic example | the bundle's principal is the profile's agent identity acting for the requester; `actor_required` refuses an autonomous agent requester |
+| RO-EX-24 | RO-INV-16 | adversarial | a call-emission failure mid-sequence still carries the already-known operations into the bundle |
+| RO-EX-25 | RO-INV-24 | deterministic example | the completed run and the refused run each write exactly one transition record, and the walk is returned to the caller |
+| RO-EX-26 | RO-INV-25 | adversarial | a same-version claim minted for another run is rejected `foreign_claim` and the state is unchanged |
+| RO-EX-27 | RO-INV-26 | adversarial | a body supplying `run_id`, `sequence`, `adapter`, and `contract_id` overrides none of them |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -198,6 +219,16 @@ persistence (U11).
 | RO-MUT-11 | RO-INV-14 | mutation | discarding the verification epoch's values instead of verifying with them is killed by RO-EX-14 |
 | RO-MUT-12 | RO-INV-15 | mutation | taking the terminal transition before the seal, or emitting the terminal event after it, is killed by RO-EX-12 / RO-EX-16 |
 | RO-MUT-13 | RO-INV-16 | mutation | discarding the adapter's reported calls is killed by RO-EX-15 |
+| RO-MUT-14 | RO-INV-17 | mutation | recording `EVIDENCE_SEALED` before the write is killed by RO-EX-17 |
+| RO-MUT-15 | RO-INV-18 | mutation | passing a refused capture onward as a snapshot is killed by RO-EX-18 |
+| RO-MUT-16 | RO-INV-19 | mutation | collapsing the refusal and operational variants at the evidence boundary is killed by RO-EX-19 |
+| RO-MUT-17 | RO-INV-20 | mutation | digesting sizes instead of content, or deciding containment lexically, is killed by RO-EX-20 |
+| RO-MUT-18 | RO-INV-21 | mutation | removing the port-exception containment is killed by RO-EX-21 |
+| RO-MUT-19 | RO-INV-22 | mutation | dropping the verification-boundary cancellation check is killed by RO-EX-22 |
+| RO-MUT-20 | RO-INV-23 | mutation | recording the requester as the evidence principal is killed by RO-EX-23 |
+| RO-MUT-21 | RO-INV-24 | mutation | keeping the transition record in memory only is killed by RO-EX-25 |
+| RO-MUT-22 | RO-INV-25 | mutation | validating only the claim's version is killed by RO-EX-26 |
+| RO-MUT-23 | RO-INV-26 | mutation | spreading the caller body after the envelope is killed by RO-EX-27 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

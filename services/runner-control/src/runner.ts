@@ -39,17 +39,28 @@ import {
 import {
   AcquisitionSet,
   describeEpochFailure,
+  isCaptureRefusal,
   runEpoch,
   type EpochValue,
 } from './acquisition/index.js'
 import { decideSpendGate, type ConsentRecord } from './consent/index.js'
 import { RunEventEmitter } from './events/index.js'
 import { FinalizationLedger } from './finalization/index.js'
-import { RunMachine, type LifecycleState, type TransitionKind } from './lifecycle/index.js'
+import {
+  RunMachine,
+  type LifecycleState,
+  type RejectionEntry,
+  type TransitionEntry,
+  type TransitionKind,
+} from './lifecycle/index.js'
 import { observeArtifacts, observeWorkspace } from './observation/index.js'
 import type { AcquisitionEpoch, AuthorityBytes, EvidenceOperations, Ports } from './ports/index.js'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
-import { assembleEvidence, buildEarlyTerminationRecord } from './finalization/records.js'
+import {
+  assembleEvidence,
+  buildEarlyTerminationRecord,
+  executionPrincipal,
+} from './finalization/records.js'
 
 export interface RunRequest {
   readonly run_id: string
@@ -84,8 +95,9 @@ export interface RunConclusion {
   readonly state: LifecycleState
   readonly produced: 'evidence_bundle' | 'early_termination_record' | 'none'
   readonly detail: string
-  readonly transitions: number
-  readonly rejections: number
+  /** The full declared walk — durable, and returned to the caller (D9). */
+  readonly transitions: readonly TransitionEntry[]
+  readonly rejections: readonly RejectionEntry[]
 }
 
 export class Runner {
@@ -95,19 +107,110 @@ export class Runner {
     this.#ports = ports
   }
 
+  /**
+   * Orchestrate one run.
+   *
+   * This wrapper exists because a port is an interface someone else
+   * implements, and an implementation that THROWS is not a case the
+   * lifecycle can otherwise see: `run()` would reject and the run would
+   * end in no state at all, which the lifecycle requirement forbids
+   * outright ("never abandon a run in a non-terminal state"). An escaped
+   * exception is a run whose outcome could not be established, which is
+   * exactly what INDETERMINATE means — and INDETERMINATE classifies as a
+   * failure everywhere, so this cannot launder a fault into a success.
+   */
   async run(request: RunRequest, signals: RunSignals = {}): Promise<RunConclusion> {
+    try {
+      return await this.#walk(request, signals)
+    } catch (error) {
+      const detail = `the run's terminal state could not be established: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+      // A clock that throws is one of the ports this catch exists for,
+      // so the fallback must not call it again.
+      const safeClock = {
+        now: (scoped: { run_id: string }) => {
+          try {
+            return this.#ports.clock.now(scoped)
+          } catch {
+            return UNESTABLISHED_INSTANT
+          }
+        },
+      }
+      const machine = new RunMachine(request.run_id, safeClock)
+      machine.advance('indeterminate', detail)
+      const record = buildEarlyTerminationRecord({
+        run_id: request.run_id,
+        requester: request.requester,
+        requested_profile: request.profile_ref,
+        state: machine.state,
+        detail,
+        started_at: safeClock.now({ run_id: request.run_id }),
+        finished_at: safeClock.now({ run_id: request.run_id }),
+      })
+      if (record.ok) {
+        try {
+          await this.#ports.evidence.write({
+            run_id: request.run_id,
+            kind: 'early_termination_record',
+            record: record.record,
+          })
+        } catch {
+          // The sink is the thing that failed. The conclusion below
+          // still reports a terminal state rather than rejecting.
+        }
+      }
+      return {
+        run_id: request.run_id,
+        state: machine.state,
+        produced: record.ok ? 'early_termination_record' : 'none',
+        detail,
+        transitions: machine.transitionRecord,
+        rejections: machine.rejections,
+      }
+    }
+  }
+
+  async #walk(request: RunRequest, signals: RunSignals): Promise<RunConclusion> {
     const machine = new RunMachine(request.run_id, this.#ports.clock)
     const ledger = new FinalizationLedger(request.run_id, this.#ports.evidence)
     const startedAt = this.#ports.clock.now({ run_id: request.run_id })
 
-    const conclude = (produced: RunConclusion['produced'], detail: string): RunConclusion => ({
-      run_id: request.run_id,
-      state: machine.state,
-      produced,
-      detail,
-      transitions: machine.transitionRecord.length,
-      rejections: machine.rejections.length,
-    })
+    /**
+     * Conclude the run: persist the transition record, then report.
+     *
+     * Every exit from `run()` goes through here, so the durable walk is
+     * written on the refusal and hold paths too — those are precisely
+     * the runs whose walk someone will want to reconstruct.
+     */
+    const conclude = async (
+      produced: RunConclusion['produced'],
+      detail: string,
+    ): Promise<RunConclusion> => {
+      try {
+        await this.#ports.evidence.write({
+          run_id: request.run_id,
+          kind: 'transition_record',
+          transitions: {
+            run_id: request.run_id,
+            transitions: machine.transitionRecord,
+            rejections: machine.rejections,
+          },
+        })
+      } catch {
+        // The transition record is diagnostic. Failing to write it must
+        // not turn a concluded run into an unconcluded one — the run
+        // already reached its terminal state and its governed record.
+      }
+      return {
+        run_id: request.run_id,
+        state: machine.state,
+        produced,
+        detail,
+        transitions: machine.transitionRecord,
+        rejections: machine.rejections,
+      }
+    }
 
     /**
      * Terminate before authority completed: the early-terminal record,
@@ -132,13 +235,13 @@ export class Runner {
         started_at: startedAt,
         finished_at: this.#ports.clock.now({ run_id: request.run_id }),
       })
-      if (!record.ok) return conclude('none', record.detail)
+      if (!record.ok) return await conclude('none', record.detail)
       await this.#ports.evidence.write({
         run_id: request.run_id,
         kind: 'early_termination_record',
         record: record.record,
       })
-      return conclude('early_termination_record', detail)
+      return await conclude('early_termination_record', detail)
     }
 
     // ---- REQUESTED -------------------------------------------------
@@ -155,7 +258,10 @@ export class Runner {
     ])
     const acquired = await runEpoch(production, ['profile', 'path_policy', 'gate_registry'])
     if (!acquired.ok) {
-      return terminateEarly('operational_fault', describeEpochFailure(acquired.failure))
+      return terminateEarly(
+        isCaptureRefusal(acquired.failure) ? 'refuse' : 'operational_fault',
+        describeEpochFailure(acquired.failure),
+      )
     }
     const snapshots: AuthoritySnapshots = acquired.snapshots
     const profile = snapshots.profile
@@ -185,6 +291,14 @@ export class Runner {
         `the acquired profile is ${captured.name}@${captured.version} but the request named ${request.profile_ref.name}@${request.profile_ref.version}; a run never executes under a profile it did not request`,
       )
     }
+
+    const executing = executionPrincipal(
+      profile.value.principal.sub,
+      profile.value.principal.actor_required,
+      request.requester,
+    )
+    if (!executing.ok) return terminateEarly('refuse', executing.detail)
+    const principal = executing.principal
 
     const adapter = profile.value.runtime.adapter
     // Every emission is registered with the ledger, so "the seal is the
@@ -240,7 +354,7 @@ export class Runner {
       const assembled = assembleEvidence({
         snapshots,
         run_id: request.run_id,
-        requester: request.requester,
+        principal,
         adapter,
         terminal,
         detail,
@@ -255,24 +369,43 @@ export class Runner {
         started_at: startedAt,
         finished_at: this.#ports.clock.now({ run_id: request.run_id }),
       })
-      const failClosed = (why: string): RunConclusion => {
-        machine.advance('operational_fault', why)
+      const failClosed = async (
+        why: string,
+        as: TransitionKind = 'operational_fault',
+      ): Promise<RunConclusion> => {
+        machine.advance(as, why)
         return conclude('none', why)
       }
-      if (!assembled.ok) return failClosed(assembled.detail)
+      if (!assembled.ok) {
+        // A contract refusal terminates REFUSED; only an environmental
+        // fault terminates OPERATIONAL_FAILURE. Mapping both to the
+        // latter would relabel a policy decision as an infrastructure
+        // problem in the run's own record.
+        return await failClosed(
+          assembled.detail,
+          assembled.failure === 'refusal' ? 'refuse' : 'operational_fault',
+        )
+      }
 
       const terminated = await emit({
         event_type: 'run.terminated',
         outcome: assembled.outcome,
       })
-      if (!terminated.ok) return failClosed(emissionFailure(terminated))
+      if (!terminated.ok) return await failClosed(emissionFailure(terminated))
 
       const sealed = await ledger.seal({ bundle: assembled.bundle, outcome: assembled.outcome })
-      if (!sealed.ok) return failClosed(`${sealed.refused}: ${sealed.detail}`)
+      if (!sealed.ok) return await failClosed(`${sealed.refused}: ${sealed.detail}`)
 
-      // Sealed. Only now is the terminal state taken.
+      // Sealed. Only now are the terminal transitions taken.
+      //
+      // `seal_evidence` is part of this: recording EVIDENCE_SEALED
+      // before the write meant a sink failure left a transition record
+      // asserting the evidence was sealed when it was not. The record is
+      // supposed to be the reconstructable truth about the run, so it
+      // must never claim an event that did not happen.
+      if (kind === 'complete') machine.advance('seal_evidence', 'evidence sealed')
       machine.advance(kind, detail)
-      return conclude('evidence_bundle', detail)
+      return await conclude('evidence_bundle', detail)
     }
 
     const interrupted = (): 'cancel' | 'timeout' | undefined => signals.interrupt?.()
@@ -302,7 +435,7 @@ export class Runner {
       // ELIGIBLE and the pending state is recorded. `hold` records
       // without advancing — calling `advance` here would have spent.
       machine.hold('commit_spend', spend.detail)
-      return conclude('none', `${spend.held}: ${spend.detail}`)
+      return await conclude('none', `${spend.held}: ${spend.detail}`)
     }
     machine.advance('commit_spend', `consent recorded by ${request.consent?.by ?? 'unknown'}`)
 
@@ -386,7 +519,9 @@ export class Runner {
         operation: { name: call.tool },
       })
       if (!attempted.ok) {
-        return finish('operational_fault', emissionFailure(attempted), 'OPERATIONAL_FAILURE')
+        return finish('operational_fault', emissionFailure(attempted), 'OPERATIONAL_FAILURE', {
+          operations,
+        })
       }
       const disposed = await emit({
         event_type: 'call.disposition',
@@ -394,7 +529,12 @@ export class Runner {
         disposition: call.disposition,
       })
       if (!disposed.ok) {
-        return finish('operational_fault', emissionFailure(disposed), 'OPERATIONAL_FAILURE')
+        // The attempt is already known and already emitted; dropping it
+        // here would make the failure erase what it interrupted.
+        operations.attempted.push(operation)
+        return finish('operational_fault', emissionFailure(disposed), 'OPERATIONAL_FAILURE', {
+          operations,
+        })
       }
       operations.attempted.push(operation)
       operations[call.disposition].push(operation)
@@ -484,6 +624,23 @@ export class Runner {
       this.#ports.authority,
       ['profile', 'path_policy', 'gate_registry'],
     )
+    const duringVerification = {
+      gate_results: recorder.results(),
+      observed: observed.value,
+      artifacts,
+      operations,
+    }
+    {
+      const signal = interrupted()
+      if (signal !== undefined) {
+        return finish(
+          signal,
+          `run ${signal}led before verification`,
+          interruptTerminal[signal],
+          duringVerification,
+        )
+      }
+    }
     const reacquired = await runEpoch(verificationSet, ['profile', 'path_policy', 'gate_registry'])
     if (!reacquired.ok) {
       return finish(
@@ -503,7 +660,7 @@ export class Runner {
     const candidate = assembleEvidence({
       snapshots,
       run_id: request.run_id,
-      requester: request.requester,
+      principal,
       adapter,
       terminal: 'COMPLETED',
       detail: 'the run completed',
@@ -516,12 +673,17 @@ export class Runner {
       finished_at: this.#ports.clock.now({ run_id: request.run_id }),
     })
     if (!candidate.ok) {
-      return finish('operational_fault', candidate.detail, 'OPERATIONAL_FAILURE', {
-        gate_results: recorder.results(),
-        observed: observed.value,
-        artifacts,
-        operations,
-      })
+      return finish(
+        candidate.failure === 'refusal' ? 'refuse' : 'operational_fault',
+        candidate.detail,
+        candidate.failure === 'refusal' ? 'REFUSED' : 'OPERATIONAL_FAILURE',
+        {
+          gate_results: recorder.results(),
+          observed: observed.value,
+          artifacts,
+          operations,
+        },
+      )
     }
 
     // A FRESH artifact observation, not the production one: verification
@@ -531,6 +693,17 @@ export class Runner {
       run_id: request.run_id,
       paths: request.artifact_paths,
     })
+    {
+      const signal = interrupted()
+      if (signal !== undefined) {
+        return finish(
+          signal,
+          `run ${signal}led during verification`,
+          interruptTerminal[signal],
+          duringVerification,
+        )
+      }
+    }
     const verdict = verifyEvidence(candidate.bundle, {
       profile: valueOf(reacquired.values, 'profile'),
       path_policy: valueOf(reacquired.values, 'path_policy'),
@@ -555,7 +728,6 @@ export class Runner {
     }
     const verification = verdict.artifacts_consumed
 
-    machine.advance('seal_evidence', 'evidence assembled and sealed last')
     const completed = await finish('complete', 'the run completed', 'COMPLETED', {
       gate_results: recorder.results(),
       observed: observed.value,
@@ -568,6 +740,13 @@ export class Runner {
 }
 
 /** The empty operation set — the shape evidence expects, not a stand-in. */
+/**
+ * The timestamp used when the clock itself is what failed. A run whose
+ * time could not be read is INDETERMINATE anyway; inventing a plausible
+ * "now" would make the record look more certain than the run was.
+ */
+const UNESTABLISHED_INSTANT = '1970-01-01T00:00:00.000Z'
+
 const emptyOperations = (): EvidenceOperations => ({ attempted: [], permitted: [], denied: [] })
 
 /** The bytes one epoch acquired for a named source, for the verifier. */

@@ -35,6 +35,7 @@ export const REJECTION_REASONS = [
   'terminal_state',
   'stale_writer',
   'precondition_unmet',
+  'foreign_claim',
 ] as const
 export type RejectionReason = (typeof REJECTION_REASONS)[number]
 
@@ -107,6 +108,17 @@ export class RunMachine {
   }
 
   apply(claim: WriteClaim, kind: TransitionKind, cause: string): TransitionResult {
+    // The claim carries a run id; checking only the version let a
+    // same-version claim minted for a DIFFERENT run advance this one.
+    // A machine belongs to exactly one run, so a foreign claim is not a
+    // stale writer — it is not a writer here at all.
+    if (claim.run_id !== this.#runId) {
+      return this.#reject(
+        kind,
+        'foreign_claim',
+        `the claim was taken for run ${claim.run_id}; this machine advances run ${this.#runId}`,
+      )
+    }
     if (claim.version !== this.#version) {
       return this.#reject(
         kind,

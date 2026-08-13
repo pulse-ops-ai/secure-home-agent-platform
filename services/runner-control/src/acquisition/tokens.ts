@@ -99,7 +99,26 @@ export class AcquisitionSet<E extends AcquisitionEpoch> {
     // an acquisition fault is a run outcome, never a retry loop.
     this.#remaining.delete(source)
     this.#consumed.add(source)
-    const bytes = await this.#port.read({ run_id: this.#runId, epoch: this.#epoch, source })
-    return { ok: true, value: { epoch: this.#epoch, source, bytes } }
+    // A port that THROWS reports a failed acquisition, not an escaping
+    // exception. The token is already spent either way, and the core is
+    // entitled to see "we could not read it" as data rather than have
+    // the run vanish mid-walk.
+    try {
+      const bytes = await this.#port.read({ run_id: this.#runId, epoch: this.#epoch, source })
+      return { ok: true, value: { epoch: this.#epoch, source, bytes } }
+    } catch (error) {
+      return {
+        ok: true,
+        value: {
+          epoch: this.#epoch,
+          source,
+          bytes: {
+            ok: false,
+            source: { source },
+            failure: `the authority source threw: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        },
+      }
+    }
   }
 }

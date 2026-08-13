@@ -52,10 +52,17 @@ export interface EventSinkPort {
 }
 
 /**
- * The durable record sink. `kind` distinguishes the two governed shapes a
- * run can produce: a sealed L2 evidence bundle, or the early-terminal
- * refusal record for a run that terminated before authority completed.
- * A fabricated bundle is not a third option — it is unrepresentable here.
+ * The durable record sink.
+ *
+ * `kind` distinguishes what a run can durably produce: a sealed L2
+ * evidence bundle, the early-terminal refusal record for a run that
+ * terminated before authority completed, and the orchestration-owned
+ * TRANSITION RECORD — the full declared walk, including the states the
+ * closed event vocabulary does not represent (design D9). A record held
+ * only in memory reconstructs nothing once the process ends, so the walk
+ * is written like any other durable output.
+ *
+ * A fabricated bundle is not among the options — it is unrepresentable.
  */
 export interface EvidenceSinkPort {
   write(
@@ -63,6 +70,7 @@ export interface EvidenceSinkPort {
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
+        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
   ): Promise<void>
 }

@@ -21,6 +21,7 @@ import {
   StaticArtifactObserver,
   StaticWorkspaceObserver,
   profileDocument,
+  governedWrites,
   runRequest,
   testPorts,
 } from '../testing-fixtures.js'
@@ -243,7 +244,7 @@ describe('RO-EX-15: every reported adapter call reaches events and evidence', ()
     expect(types.filter((type) => type === 'call.attempted')).toHaveLength(2)
     expect(types.filter((type) => type === 'call.disposition')).toHaveLength(2)
 
-    const parsed = EvidenceBundle.safeParse(ports.evidence.writesOf(RUN)[0]?.payload)
+    const parsed = EvidenceBundle.safeParse(governedWrites(ports, RUN)[0]?.payload)
     expect(parsed.success).toBe(true)
     if (!parsed.success) return
     expect(parsed.data.operations.attempted).toHaveLength(2)
@@ -263,7 +264,7 @@ describe('RO-EX-15: every reported adapter call reaches events and evidence', ()
       }),
     })
     await new Runner(ports).run(runRequest())
-    const parsed = EvidenceBundle.safeParse(ports.evidence.writesOf(RUN)[0]?.payload)
+    const parsed = EvidenceBundle.safeParse(governedWrites(ports, RUN)[0]?.payload)
     if (!parsed.success) throw new Error('the bundle must validate')
     expect(parsed.data.operations.permitted).toEqual([])
   })
@@ -278,7 +279,7 @@ describe('RO-EX-16: the seal is the last write of the run', () => {
     expect(types.at(-1), 'run.terminated must be the last event').toBe('run.terminated')
     // And it was emitted before the bundle write reached the sink: the
     // evidence sink holds exactly one write, made after every event.
-    expect(ports.evidence.writesOf(RUN)).toHaveLength(1)
+    expect(governedWrites(ports, RUN)).toHaveLength(1)
   })
 
   it('a terminal-event failure fails the run closed rather than sealing without it', async () => {
@@ -302,6 +303,8 @@ describe('RO-EX-16: the seal is the last write of the run', () => {
     expect(emitted, 'the terminal emission must have been reached').toBeGreaterThan(0)
     expect(conclusion.state).not.toBe('COMPLETED')
     expect(conclusion.state).toBe('OPERATIONAL_FAILURE')
-    expect(ports.evidence.all, 'nothing is sealed when the terminal event is lost').toHaveLength(0)
+    expect(governedWrites(ports), 'nothing is sealed when the terminal event is lost').toHaveLength(
+      0,
+    )
   })
 })

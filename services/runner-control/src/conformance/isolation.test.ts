@@ -20,6 +20,7 @@ import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
   runRequest,
+  governedWrites,
   testPorts,
   type TestPorts,
 } from '../testing-fixtures.js'
@@ -37,7 +38,7 @@ const requestFor = (run_id: string, gates: readonly string[] = ['lint']) =>
 /** Everything one run observably did, filtered by its own run_id. */
 const traceOf = (ports: TestPorts, run_id: string) => ({
   events: ports.events.eventsOf(run_id),
-  writes: ports.evidence.writesOf(run_id),
+  writes: governedWrites(ports, run_id),
   reads: ports.authority.readsFor(run_id).map((read) => `${read.epoch}:${read.source}`),
   gates: ports.execution.requests
     .filter((request) => request.run_id === run_id)
@@ -85,8 +86,8 @@ describe('RO-EX-09: two runs over one shared set of port instances stay disjoint
     const isolated = testPorts()
     await new Runner(isolated).run(requestFor(RUN_A))
 
-    expect(shared.evidence.writesOf(RUN_A)[0]?.payload).toEqual(
-      isolated.evidence.writesOf(RUN_A)[0]?.payload,
+    expect(governedWrites(shared, RUN_A)[0]?.payload).toEqual(
+      governedWrites(isolated, RUN_A)[0]?.payload,
     )
   })
 })
@@ -124,7 +125,7 @@ describe('RO-PROP-04: any interleaving leaves each run identical to its isolatio
     for (const run_id of [RUN_A, RUN_B]) {
       const alone = testPorts()
       await new Runner(alone).run(requestFor(run_id))
-      baselines.set(run_id, alone.evidence.writesOf(run_id)[0]?.payload)
+      baselines.set(run_id, governedWrites(alone, run_id)[0]?.payload)
     }
 
     let checked = 0
@@ -141,7 +142,7 @@ describe('RO-PROP-04: any interleaving leaves each run identical to its isolatio
         expect(cb.state, `interleaving ${String(a)}/${String(b)} changed run B`).toBe('COMPLETED')
 
         for (const run_id of [RUN_A, RUN_B]) {
-          const filtered = shared.evidence.writesOf(run_id)
+          const filtered = governedWrites(shared, run_id)
           expect(filtered, `${run_id} must seal exactly once`).toHaveLength(1)
           expect(
             filtered[0]?.payload,
@@ -161,9 +162,9 @@ describe('RO-PROP-04: any interleaving leaves each run identical to its isolatio
 
     // Globally, run B writes after run A sealed. That is legitimate and
     // must not read as a violation — the property is per run.
-    const globalOrder = shared.evidence.all.map((write) => write.run_id)
+    const globalOrder = governedWrites(shared).map((write) => write.run_id)
     for (const run_id of [RUN_A, RUN_B]) {
-      const own = shared.evidence.writesOf(run_id)
+      const own = governedWrites(shared, run_id)
       expect(own).toHaveLength(1)
       expect(own[0]?.kind).toBe('evidence_bundle')
     }
@@ -194,6 +195,7 @@ describe('RO-MUT-07: dropping the key is observable', () => {
     const shared = testPorts({
       evidence: {
         write: (request: { run_id: string; kind: string }) => {
+          if (request.kind === 'transition_record') return Promise.resolve()
           unkeyed.last = request.run_id
           unkeyed.count += 1
           return Promise.resolve()

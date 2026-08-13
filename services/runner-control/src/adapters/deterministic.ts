@@ -71,7 +71,7 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
 
 export interface RecordedWrite {
   readonly run_id: string
-  readonly kind: 'evidence_bundle' | 'early_termination_record'
+  readonly kind: 'evidence_bundle' | 'early_termination_record' | 'transition_record'
   readonly payload: unknown
 }
 
@@ -103,12 +103,18 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
+        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
   ): Promise<void> {
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,
-      payload: request.kind === 'evidence_bundle' ? request.bundle : request.record,
+      payload:
+        request.kind === 'evidence_bundle'
+          ? request.bundle
+          : request.kind === 'early_termination_record'
+            ? request.record
+            : request.transitions,
     })
     return Promise.resolve()
   }

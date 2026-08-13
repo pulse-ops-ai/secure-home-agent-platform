@@ -33,6 +33,7 @@ import {
   type ContractDocument,
   type ExpectedContract,
   type OperationalFailure,
+  type Refusal,
 } from '@secure-home/runner-core'
 import type { AcquisitionEpoch } from '../ports/index.js'
 import type { AcquisitionError, AcquisitionSet, EpochValue } from './tokens.js'
@@ -59,17 +60,32 @@ export const AUTHORITY_SOURCE_NAMES = Object.keys(
   AUTHORITY_SOURCES,
 ) as readonly AuthoritySourceName[]
 
+/**
+ * A capture that the CORE refused: the bytes were acquired but are not
+ * valid authority. Distinct from an operational failure, because the two
+ * classify differently and terminate the run differently (INV-003).
+ */
+export interface CaptureRefusal {
+  readonly kind: 'capture_refused'
+  readonly source: string
+  readonly refusal: Refusal
+}
+
+export type EpochFailure = OperationalFailure | AcquisitionError | CaptureRefusal
+
 export type EpochResult<E extends AcquisitionEpoch> =
   | {
       readonly ok: true
       readonly snapshots: AuthoritySnapshots
       readonly values: readonly EpochValue<E>[]
     }
-  | { readonly ok: false; readonly failure: OperationalFailure | AcquisitionError }
+  | { readonly ok: false; readonly failure: EpochFailure }
 
-const isAcquisitionError = (
-  value: OperationalFailure | AcquisitionError,
-): value is AcquisitionError => 'epoch' in value
+const isAcquisitionError = (value: EpochFailure): value is AcquisitionError => 'epoch' in value
+
+/** Whether an epoch failed because the CORE refused the authority. */
+export const isCaptureRefusal = (failure: EpochFailure): failure is CaptureRefusal =>
+  'kind' in failure && failure.kind === 'capture_refused'
 
 /**
  * A capture that reported an environmental fault rather than a captured
@@ -108,6 +124,19 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
     const expected = AUTHORITY_SOURCES[name] as ExpectedContract<ContractDocument>
     const result = captureAuthority(outcome.value.bytes, expected)
     if (isCaptureFault(result)) return { ok: false, failure: result }
+    // A REFUSED capture is not a snapshot. Letting it through as one
+    // meant an epoch could report success while carrying invalid
+    // authority: only the profile was checked downstream, so a refused
+    // path policy or gate registry travelled onward, and a run with no
+    // requested gates could reach adapter invocation on an invalid
+    // registry. The epoch fails, and it fails naming the core's refusal
+    // rather than one of its own.
+    if (!result.ok) {
+      return {
+        ok: false,
+        failure: { kind: 'capture_refused', source: name, refusal: result.refusal },
+      }
+    }
     // The cast is over the source NAME, not the contract: each name's
     // expected contract is fixed above, so the capture's document type is
     // the one this key declares.
@@ -117,7 +146,9 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
   return { ok: true, snapshots: captured, values }
 }
 
-export const describeEpochFailure = (failure: OperationalFailure | AcquisitionError): string =>
-  isAcquisitionError(failure)
-    ? `${failure.kind} for ${failure.source} in the ${failure.epoch} epoch: ${failure.detail}`
-    : `acquisition failed for ${failure.source}: ${failure.detail}`
+export const describeEpochFailure = (failure: EpochFailure): string =>
+  isCaptureRefusal(failure)
+    ? `${failure.source} is not valid authority: ${failure.refusal.code} — ${failure.refusal.detail}`
+    : isAcquisitionError(failure)
+      ? `${failure.kind} for ${failure.source} in the ${failure.epoch} epoch: ${failure.detail}`
+      : `acquisition failed for ${failure.source}: ${failure.detail}`

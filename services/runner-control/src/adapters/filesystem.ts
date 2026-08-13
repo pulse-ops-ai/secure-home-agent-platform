@@ -13,7 +13,7 @@
  * becomes an empty result: the core is entitled to know the difference
  * between an empty workspace and an unreadable one.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import type {
@@ -49,13 +49,22 @@ const digestOf = (value: string): string =>
  * and the separator suffix stops `/srv/run` from admitting `/srv/runner`.
  */
 const within = (root: string, candidate: string): boolean => {
-  const rel = relative(root, candidate)
-  return (
-    rel !== '' &&
-    !rel.startsWith('..') &&
-    !rel.startsWith(sep) &&
-    !resolve(candidate).includes('\0')
-  )
+  if (candidate.includes('\0')) return false
+  // Resolve SYMLINKS before deciding containment. Lexical containment is
+  // not containment: a symlink sitting inside the root can point
+  // anywhere, and following it would read a file the root was supposed
+  // to exclude. `realpathSync` answers where the read will actually
+  // land; a path that does not resolve is not admitted.
+  let real: string
+  let realRoot: string
+  try {
+    real = realpathSync(candidate)
+    realRoot = realpathSync(root)
+  } catch {
+    return false
+  }
+  const rel = relative(realRoot, real)
+  return rel !== '' && !rel.startsWith('..') && !rel.startsWith(sep)
 }
 
 /**
@@ -90,11 +99,15 @@ export class FilesystemAuthoritySource implements AuthoritySourcePort {
 
 export class FilesystemWorkspaceObserver implements WorkspaceObserverPort {
   /**
-   * The base identity as a digest over the sorted (path, size) listing.
-   * Deliberately content-independent of the files' bytes: this landing
-   * decides nothing about what the digest MEANS — it observes, and the
-   * core compares. A stronger identity is the pinning landing's to
-   * define, and this shape does not constrain it.
+   * The base identity: a digest over the sorted (path, content-digest)
+   * listing.
+   *
+   * CONTENT-BOUND, deliberately. An earlier version hashed paths and
+   * file SIZES, so replacing a file with different bytes of the same
+   * length passed the pinned-base check — and a base check a same-size
+   * substitution survives is not a base check. The comparison itself
+   * still belongs to the core; what belongs here is observing something
+   * worth comparing.
    */
   observeBase(request: WorkspaceObserveRequest): Promise<BaseObservation> {
     const root = resolve(request.root)
@@ -104,7 +117,7 @@ export class FilesystemWorkspaceObserver implements WorkspaceObserverPort {
         if (!entry.isFile()) continue
         const absolute = join(entry.parentPath, entry.name)
         if (!within(root, absolute)) continue
-        entries.push(`${relative(root, absolute)}:${String(statSync(absolute).size)}`)
+        entries.push(`${relative(root, absolute)}:${digestOf(readFileSync(absolute, 'utf8'))}`)
       }
       return Promise.resolve({ ok: true, digest: digestOf(entries.sort().join('\n')) })
     } catch (error) {

@@ -2,8 +2,11 @@ export {
   AUTHORITY_SOURCE_NAMES,
   AUTHORITY_SOURCES,
   describeEpochFailure,
+  isCaptureRefusal,
   runEpoch,
   type AuthoritySourceName,
+  type CaptureRefusal,
+  type EpochFailure,
   type EpochResult,
 } from './epochs.js'
 export {

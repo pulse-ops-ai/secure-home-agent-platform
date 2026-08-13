@@ -16,6 +16,7 @@ import {
   RecordingEventSink,
   RecordingEvidenceSink,
   SteppingClock,
+  type RecordedWrite,
 } from './adapters/index.js'
 import type { ArtifactObservation, BaseObservation, WorkspaceObservation } from './ports/index.js'
 import type { PrincipalT } from './ports/contract-types.js'
@@ -176,6 +177,17 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts =>
     clock: new SteppingClock(),
     ...overrides,
   }) as TestPorts
+
+/**
+ * The GOVERNED durable records — the sealed bundle or the early-terminal
+ * refusal record. Excludes the transition record, which every run writes
+ * as diagnostics: a proof about "what governed record did this run
+ * produce" must not count the walk itself as one.
+ */
+export const governedWrites = (ports: TestPorts, run_id?: string): readonly RecordedWrite[] =>
+  (run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)).filter(
+    (write) => write.kind !== 'transition_record',
+  )
 
 export const requester = (): PrincipalT => ({
   sub: 'human:mike',

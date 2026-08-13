@@ -103,7 +103,15 @@ export const buildEarlyTerminationRecord = (
 export interface EvidenceAssemblyInputs {
   readonly snapshots: AuthoritySnapshots
   readonly run_id: string
-  readonly requester: PrincipalT
+  /**
+   * The EXECUTION principal — the agent identity the run authenticates
+   * as, with the requester carried as its actor. Not the requester
+   * itself: the architecture defines the evidence principal as the
+   * agent identity, and recording the human there would attribute the
+   * run's actions to the person who asked for them rather than to the
+   * identity that performed them.
+   */
+  readonly principal: PrincipalT
   readonly adapter: string
   readonly terminal: LifecycleState
   readonly detail: string
@@ -123,7 +131,17 @@ export interface EvidenceAssemblyInputs {
 
 export type AssemblyResult =
   | { readonly ok: true; readonly bundle: unknown; readonly outcome: RunOutcomeT }
-  | { readonly ok: false; readonly detail: string }
+  | {
+      readonly ok: false
+      /**
+       * WHICH KIND of failure, preserved. Collapsing these to one shape
+       * let a policy-bound contract refusal be sealed as an
+       * operational-failure bundle — the exact distinction INV-003
+       * exists to keep, erased at the last step before evidence.
+       */
+      readonly failure: 'refusal' | 'operational'
+      readonly detail: string
+    }
 
 /**
  * Assemble the bundle through the core.
@@ -137,7 +155,11 @@ export type AssemblyResult =
 export const assembleEvidence = (inputs: EvidenceAssemblyInputs): AssemblyResult => {
   const profile = inputs.snapshots.profile
   if (profile === undefined || !profile.ok) {
-    return { ok: false, detail: 'evidence assembly requires the captured execution profile' }
+    return {
+      ok: false,
+      failure: 'operational',
+      detail: 'evidence assembly requires the captured execution profile',
+    }
   }
   const outcome = outcomeFor(inputs.terminal, inputs.detail)
   const constructed = constructEvidence({
@@ -150,7 +172,7 @@ export const assembleEvidence = (inputs: EvidenceAssemblyInputs): AssemblyResult
       provider: profile.value.execution.model_route,
       adapter: inputs.adapter,
     },
-    principal: inputs.requester,
+    principal: inputs.principal,
     operations: inputs.operations,
     gate_results: inputs.gate_results,
     artifacts: inputs.artifacts,
@@ -160,13 +182,65 @@ export const assembleEvidence = (inputs: EvidenceAssemblyInputs): AssemblyResult
     timing: timingOf(inputs.started_at, inputs.finished_at),
   })
   if (isOperationalFailure(constructed)) {
-    return { ok: false, detail: `${constructed.source}: ${constructed.detail}` }
+    return {
+      ok: false,
+      failure: 'operational',
+      detail: `${constructed.source}: ${constructed.detail}`,
+    }
   }
   if (constructed.kind === 'refusal') {
-    return { ok: false, detail: `${constructed.code}: ${constructed.detail}` }
+    return {
+      ok: false,
+      failure: 'refusal',
+      detail: `${constructed.code}: ${constructed.detail}`,
+    }
   }
   return { ok: true, bundle: constructed.value, outcome }
 }
+
+export type PrincipalResult =
+  | { readonly ok: true; readonly principal: PrincipalT }
+  | { readonly ok: false; readonly detail: string }
+
+/**
+ * The execution principal for a run: the profile's declared agent
+ * identity, acting for the requester.
+ *
+ * `actor_required` is enforced here because it is the profile's own
+ * statement that this agent may not act autonomously. A run whose
+ * requester supplies no actor cannot satisfy it, and quietly recording
+ * `autonomous` would be the profile's constraint erased in the record
+ * that is supposed to evidence it.
+ */
+export const executionPrincipal = (
+  profileSub: string,
+  actorRequired: boolean,
+  requester: PrincipalT,
+): PrincipalResult => {
+  const actor =
+    requester.acting.kind === 'actor' ? requester.acting.sub : autonomousActor(requester)
+  if (actorRequired && actor === undefined) {
+    return {
+      ok: false,
+      detail: `the profile requires an actor and the request names none: ${requester.sub} is autonomous`,
+    }
+  }
+  return {
+    ok: true,
+    principal: {
+      sub: profileSub,
+      acting: actor === undefined ? { kind: 'autonomous' } : { kind: 'actor', sub: actor },
+    },
+  }
+}
+
+/**
+ * A human requester acting autonomously IS the actor for the run it
+ * requested — "autonomous" on the request means no further actor stands
+ * behind the requester, not that nobody asked.
+ */
+const autonomousActor = (requester: PrincipalT): string | undefined =>
+  requester.sub.startsWith('human:') ? requester.sub : undefined
 
 /** sha256 of the empty string — the digest of an argv that never ran. */
 const EMPTY_ARGV_DIGEST = 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'

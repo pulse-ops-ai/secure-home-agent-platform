@@ -99,6 +99,56 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-15'],
   },
   {
+    id: 'RO-MUT-14',
+    mutation: 'record EVIDENCE_SEALED before the write succeeds',
+    killedBy: ['RO-EX-17'],
+  },
+  {
+    id: 'RO-MUT-15',
+    mutation: 'pass a refused capture onward as a snapshot',
+    killedBy: ['RO-EX-18'],
+  },
+  {
+    id: 'RO-MUT-16',
+    mutation: 'collapse the refusal and operational variants at the evidence boundary',
+    killedBy: ['RO-EX-19'],
+  },
+  {
+    id: 'RO-MUT-17',
+    mutation: 'digest sizes instead of content, or decide containment lexically',
+    killedBy: ['RO-EX-20'],
+  },
+  {
+    id: 'RO-MUT-18',
+    mutation: 'remove the port-exception containment so run() can reject',
+    killedBy: ['RO-EX-21'],
+  },
+  {
+    id: 'RO-MUT-19',
+    mutation: 'drop the verification-boundary cancellation check',
+    killedBy: ['RO-EX-22'],
+  },
+  {
+    id: 'RO-MUT-20',
+    mutation: 'record the requester as the evidence principal',
+    killedBy: ['RO-EX-23'],
+  },
+  {
+    id: 'RO-MUT-21',
+    mutation: 'keep the transition record in memory only',
+    killedBy: ['RO-EX-25'],
+  },
+  {
+    id: 'RO-MUT-22',
+    mutation: "validate only the claim's version, not its run",
+    killedBy: ['RO-EX-26'],
+  },
+  {
+    id: 'RO-MUT-23',
+    mutation: 'spread the caller body after the envelope fields',
+    killedBy: ['RO-EX-27'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],
