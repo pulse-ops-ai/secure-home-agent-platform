@@ -149,6 +149,11 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-27'],
   },
   {
+    id: 'RO-MUT-24',
+    mutation: "ignore a rejected transition and run the next phase's effects anyway",
+    killedBy: ['RO-EX-28', 'RO-EX-29', 'RO-EX-31'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

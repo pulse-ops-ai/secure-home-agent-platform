@@ -103,6 +103,35 @@ Rejected: encoding the lifecycle implicitly in the call graph — that is
 exactly the donor's shape, and it cannot prove PROP-002 (every undeclared
 pair rejected).
 
+**The machine is authoritative over effects, not a recorder running
+beside them.** A declared table proves nothing if the orchestrator calls
+`advance()`, ignores the answer, and performs the next effect anyway:
+the machine could correctly reject `begin_execution`, record the
+rejection, and the adapter would still run — the state machine right, the
+orchestration wrong, and nothing failing. That shape is a second,
+procedural state machine parallel to the declarative one.
+
+So a phase is DATA: the effects performed in one state, plus the
+transition those effects EARN. A small engine runs a phase, applies the
+transition it earned, and only then permits the next phase to run at all.
+A rejected transition halts the walk and terminates the run fail-closed.
+Narrowing the table therefore narrows what executes, which is what makes
+"the walk is driven by the table" checkable — RO-EX-28/29 delete one
+transition and assert the effects downstream of it stop happening.
+
+Two consequences fall out rather than being maintained by convention:
+
+- **Ordering.** A phase's transition cannot precede the effects that earn
+  it, because the engine applies it afterwards. `EVIDENCE_SEALED` cannot
+  be recorded before the seal, and no conditional keeps it that way.
+- **The one exception is explicit.** The seal is irreversible and earns
+  its transition afterwards, so the engine's gating cannot cover it — by
+  the time a rejected `seal_evidence` could halt the walk the bundle
+  would already be written. The seal phase therefore asks
+  `machine.permits('seal_evidence')` first. That is a pure query, not a
+  second machine: it declines to perform an irreversible act the
+  authority has already said it will not honour.
+
 ### D2: Framework-free orchestration modules inside an INERT NestJS/Fastify application shell (OQ2, resolved per review)
 
 The planning review rejected an untracked post-U4 "activation landing"

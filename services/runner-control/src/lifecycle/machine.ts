@@ -19,7 +19,12 @@
  */
 import type { ClockPort } from '../ports/index.js'
 import { isTerminal, type LifecycleState } from './states.js'
-import { declaredNext, type TransitionKind } from './transitions.js'
+import {
+  declaredNext,
+  TRANSITIONS,
+  type TransitionKind,
+  type TransitionTable,
+} from './transitions.js'
 
 export interface TransitionEntry {
   readonly run_id: string
@@ -61,14 +66,24 @@ export interface WriteClaim {
 export class RunMachine {
   readonly #runId: string
   readonly #clock: ClockPort
+  readonly #table: TransitionTable
   readonly #transitions: TransitionEntry[] = []
   readonly #rejections: RejectionEntry[] = []
   #state: LifecycleState = 'REQUESTED'
   #version = 0
 
-  constructor(runId: string, clock: ClockPort) {
+  /**
+   * The transition table is a CONSTRUCTOR PARAMETER, not a module-level
+   * constant this class reaches for. That makes "the walk is driven by
+   * the declared table" a testable claim rather than an assertion: a
+   * proof can delete one transition and observe that the effects
+   * downstream of it stop happening. A machine that merely recorded
+   * would pass such a test while the orchestration ran on.
+   */
+  constructor(runId: string, clock: ClockPort, table: TransitionTable = TRANSITIONS) {
     this.#runId = runId
     this.#clock = clock
+    this.#table = table
   }
 
   get runId(): string {
@@ -87,6 +102,21 @@ export class RunMachine {
   /** Every rejected attempt. A rejection is evidence, not an error. */
   get rejections(): readonly RejectionEntry[] {
     return this.#rejections
+  }
+
+  /**
+   * Whether the machine WOULD accept this transition now — a pure query
+   * that changes nothing.
+   *
+   * The engine gates a phase's effects on the previous phase's
+   * transition, which covers every reversible boundary. It cannot cover
+   * an effect that is itself irreversible and earns its transition
+   * afterwards: the seal write. Asking first is not a second state
+   * machine — it is declining to perform an irreversible act the
+   * authority has already said it will not honour.
+   */
+  permits(kind: TransitionKind): boolean {
+    return !isTerminal(this.#state) && declaredNext(this.#table, this.#state, kind) !== undefined
   }
 
   /** Take the write capability as of the current version. */
@@ -133,7 +163,7 @@ export class RunMachine {
         `${this.#state} is terminal and accepts no further transition`,
       )
     }
-    const next = declaredNext(this.#state, kind)
+    const next = declaredNext(this.#table, this.#state, kind)
     if (next === undefined) {
       return this.#reject(
         kind,

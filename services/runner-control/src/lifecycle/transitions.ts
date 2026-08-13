@@ -55,9 +55,11 @@ const withTerminals = <T extends Partial<Record<TransitionKind, LifecycleState>>
   progress: T,
 ): T & typeof TERMINAL_BRANCHES => ({ ...progress, ...TERMINAL_BRANCHES })
 
-export const TRANSITIONS: Readonly<
+export type TransitionTable = Readonly<
   Record<ProgressState, Readonly<Partial<Record<TransitionKind, LifecycleState>>>>
-> = {
+>
+
+export const TRANSITIONS: TransitionTable = {
   REQUESTED: withTerminals({ resolve_profile: 'PROFILE_RESOLVED' }),
   PROFILE_RESOLVED: withTerminals({ decide_eligibility: 'ELIGIBLE' }),
   ELIGIBLE: withTerminals({ commit_spend: 'SANDBOX_STARTED' }),
@@ -72,11 +74,12 @@ export const TRANSITIONS: Readonly<
 
 /** The declared next state, or `undefined` when the pair is undeclared. */
 export const declaredNext = (
+  table: TransitionTable,
   state: LifecycleState,
   kind: TransitionKind,
 ): LifecycleState | undefined => {
-  const row = (
-    TRANSITIONS as Record<string, Readonly<Partial<Record<TransitionKind, LifecycleState>>>>
-  )[state]
+  const row = (table as Record<string, Readonly<Partial<Record<TransitionKind, LifecycleState>>>>)[
+    state
+  ]
   return row?.[kind]
 }

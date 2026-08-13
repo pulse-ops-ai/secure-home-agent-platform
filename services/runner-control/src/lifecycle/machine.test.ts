@@ -68,7 +68,7 @@ describe('PROP-002: the transition function is total over the whole space', () =
         const machine = machineAt(state)
         const before = machine.state
         const result = machine.advance(kind, 'exhaustive sweep')
-        const expected = isTerminal(before) ? undefined : declaredNext(before, kind)
+        const expected = isTerminal(before) ? undefined : declaredNext(TRANSITIONS, before, kind)
         if (expected === undefined) {
           expect(result.kind, `${before} × ${kind} must be rejected`).toBe('rejected')
           expect(machine.state, `${before} × ${kind} must not change state`).toBe(before)

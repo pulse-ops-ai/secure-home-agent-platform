@@ -16,4 +16,11 @@ export {
   type ProgressState,
   type TerminalState,
 } from './states.js'
-export { declaredNext, TRANSITIONS, TRANSITIONS_KINDS, type TransitionKind } from './transitions.js'
+export {
+  declaredNext,
+  TRANSITIONS,
+  TRANSITIONS_KINDS,
+  type TransitionKind,
+  type TransitionTable,
+} from './transitions.js'
+export { walk, type Phase, type PhaseCommand, type WalkOutcome } from './walk.js'

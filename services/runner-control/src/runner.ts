@@ -31,6 +31,7 @@ import {
   isProceed,
   reconcileClaims,
   verifyEvidence,
+  type AuthoritativeChangeSet,
   type AuthoritySnapshots,
   type ClaimedChange,
   type ConsumedArtifact,
@@ -47,11 +48,15 @@ import { decideSpendGate, type ConsentRecord } from './consent/index.js'
 import { RunEventEmitter } from './events/index.js'
 import { FinalizationLedger } from './finalization/index.js'
 import {
+  canConstructEvidence,
   RunMachine,
+  walk as walkPhases,
   type LifecycleState,
+  type PhaseCommand,
   type RejectionEntry,
   type TransitionEntry,
   type TransitionKind,
+  type TransitionTable,
 } from './lifecycle/index.js'
 import { observeArtifacts, observeWorkspace } from './observation/index.js'
 import type { AcquisitionEpoch, AuthorityBytes, EvidenceOperations, Ports } from './ports/index.js'
@@ -88,7 +93,20 @@ export interface RunRequest {
 export interface RunSignals {
   /** Consulted before each declared transition; the run terminates on it. */
   readonly interrupt?: () => 'cancel' | 'timeout' | undefined
+  /**
+   * The transition table this run is governed by. Defaults to the
+   * declared one; overridable so a proof can NARROW the table and
+   * observe that the effects downstream of a removed transition stop
+   * happening — which is what makes "the walk is driven by the table" a
+   * claim that can fail.
+   */
+  readonly transitions?: TransitionTable
 }
+
+/** A phase command that ends the run with a finished conclusion. */
+type Stop = { readonly kind: 'terminate'; readonly value: RunConclusion }
+
+const stop = (value: RunConclusion): Stop => ({ kind: 'terminate', value })
 
 export interface RunConclusion {
   readonly run_id: string
@@ -172,7 +190,7 @@ export class Runner {
   }
 
   async #walk(request: RunRequest, signals: RunSignals): Promise<RunConclusion> {
-    const machine = new RunMachine(request.run_id, this.#ports.clock)
+    const machine = new RunMachine(request.run_id, this.#ports.clock, signals.transitions)
     const ledger = new FinalizationLedger(request.run_id, this.#ports.evidence)
     const startedAt = this.#ports.clock.now({ run_id: request.run_id })
 
@@ -224,7 +242,7 @@ export class Runner {
         'refuse' | 'operational_fault' | 'cancel' | 'timeout' | 'indeterminate'
       >,
       detail: string,
-    ): Promise<RunConclusion> => {
+    ): Promise<Stop> => {
       machine.advance(kind, detail)
       const record = buildEarlyTerminationRecord({
         run_id: request.run_id,
@@ -235,87 +253,112 @@ export class Runner {
         started_at: startedAt,
         finished_at: this.#ports.clock.now({ run_id: request.run_id }),
       })
-      if (!record.ok) return await conclude('none', record.detail)
+      if (!record.ok) return stop(await conclude('none', record.detail))
       await this.#ports.evidence.write({
         run_id: request.run_id,
         kind: 'early_termination_record',
         record: record.record,
       })
-      return await conclude('early_termination_record', detail)
+      return stop(await conclude('early_termination_record', detail))
     }
 
-    // ---- REQUESTED -------------------------------------------------
-    if (request.profile_ref === null) {
-      // Consent is deliberately not consulted: the refusal names the
-      // missing profile, because that is what is actually wrong.
-      return terminateEarly('refuse', 'the run request names no execution profile')
-    }
-
-    const production = new AcquisitionSet(request.run_id, 'production', this.#ports.authority, [
-      'profile',
-      'path_policy',
-      'gate_registry',
-    ])
-    const acquired = await runEpoch(production, ['profile', 'path_policy', 'gate_registry'])
-    if (!acquired.ok) {
-      return terminateEarly(
-        isCaptureRefusal(acquired.failure) ? 'refuse' : 'operational_fault',
-        describeEpochFailure(acquired.failure),
-      )
-    }
-    const snapshots: AuthoritySnapshots = acquired.snapshots
-    const profile = snapshots.profile
-    if (profile === undefined || !profile.ok) {
-      return terminateEarly(
-        'refuse',
-        profile === undefined
-          ? 'the execution profile did not resolve'
-          : `the execution profile did not resolve: ${profile.refusal.detail}`,
-      )
-    }
-
-    // The captured profile must be the profile that was ASKED FOR.
-    // Without this, the configured source could return any valid
-    // profile and the run would execute under it — a request for a
-    // narrow profile silently running with a broader grant. Capture
-    // proves the bytes are a valid profile; it cannot know which one was
-    // requested, so the binding has to be checked here, before
-    // PROFILE_RESOLVED and long before spend.
-    const captured = profile.value.identity
-    if (
-      captured.name !== request.profile_ref.name ||
-      captured.version !== request.profile_ref.version
-    ) {
-      return terminateEarly(
-        'refuse',
-        `the acquired profile is ${captured.name}@${captured.version} but the request named ${request.profile_ref.name}@${request.profile_ref.version}; a run never executes under a profile it did not request`,
-      )
-    }
-
-    const executing = executionPrincipal(
-      profile.value.principal.sub,
-      profile.value.principal.actor_required,
-      request.requester,
-    )
-    if (!executing.ok) return terminateEarly('refuse', executing.detail)
-    const principal = executing.principal
-
-    const adapter = profile.value.runtime.adapter
+    // The bindings the first phase establishes. Declared here so the
+    // shared terminators can close over them: they are only ever READ
+    // after the phase that sets them earned its transition, which the
+    // engine guarantees by refusing to run a later phase otherwise.
+    let snapshots: AuthoritySnapshots = {}
+    let profile!: NonNullable<AuthoritySnapshots['profile']> & { ok: true }
+    let principal!: PrincipalT
+    let adapter = '(unresolved)'
+    let emitter!: RunEventEmitter
     // Every emission is registered with the ledger, so "the seal is the
     // final write" is a claim about the writes that actually happened.
-    // Without this the ledger's sequence was empty and seal-last held
-    // vacuously — true, and worth nothing.
     const emit = async (body: Record<string, unknown>) => {
       ledger.open('event', String(body['event_type']))
       const outcome = await emitter.emit(body)
       ledger.close()
       return outcome
     }
-    const emitter = new RunEventEmitter(
-      { run_id: request.run_id, adapter },
-      this.#ports.events,
-      this.#ports.clock,
-    )
+    /** Set by the seal step; the walked branch concludes with it. */
+    let sealedDetail: string | undefined
+    /** Set by the consent phase so a hold can report which kind it was. */
+    let held: string | undefined
+    // Accumulated while RUNNING, read while VERIFYING and at every
+    // terminal: the run's observations so far.
+    let recorder = new DispositionRecorder([])
+    let observed: AuthoritativeChangeSet = { changes: [] }
+    let artifacts: Awaited<ReturnType<typeof observeArtifacts>> = { ok: true, artifacts: [] }
+    let operations: EvidenceOperations = emptyOperations()
+
+    const requested = async (): Promise<PhaseCommand<RunConclusion>> => {
+      if (request.profile_ref === null) {
+        // Consent is deliberately not consulted: the refusal names the
+        // missing profile, because that is what is actually wrong.
+        return terminateEarly('refuse', 'the run request names no execution profile')
+      }
+
+      const production = new AcquisitionSet(request.run_id, 'production', this.#ports.authority, [
+        'profile',
+        'path_policy',
+        'gate_registry',
+      ])
+      const acquired = await runEpoch(production, ['profile', 'path_policy', 'gate_registry'])
+      if (!acquired.ok) {
+        return terminateEarly(
+          isCaptureRefusal(acquired.failure) ? 'refuse' : 'operational_fault',
+          describeEpochFailure(acquired.failure),
+        )
+      }
+      snapshots = acquired.snapshots
+      const resolved = snapshots.profile
+      if (resolved === undefined || !resolved.ok) {
+        return terminateEarly(
+          'refuse',
+          resolved === undefined
+            ? 'the execution profile did not resolve'
+            : `the execution profile did not resolve: ${resolved.refusal.detail}`,
+        )
+      }
+
+      // The captured profile must be the profile that was ASKED FOR.
+      // Without this, the configured source could return any valid
+      // profile and the run would execute under it — a request for a
+      // narrow profile silently running with a broader grant. Capture
+      // proves the bytes are a valid profile; it cannot know which one was
+      // requested, so the binding has to be checked here, before
+      // PROFILE_RESOLVED and long before spend.
+      profile = resolved
+      const captured = profile.value.identity
+      if (
+        captured.name !== request.profile_ref.name ||
+        captured.version !== request.profile_ref.version
+      ) {
+        return terminateEarly(
+          'refuse',
+          `the acquired profile is ${captured.name}@${captured.version} but the request named ${request.profile_ref.name}@${request.profile_ref.version}; a run never executes under a profile it did not request`,
+        )
+      }
+
+      const executing = executionPrincipal(
+        profile.value.principal.sub,
+        profile.value.principal.actor_required,
+        request.requester,
+      )
+      if (!executing.ok) return terminateEarly('refuse', executing.detail)
+      principal = executing.principal
+
+      adapter = profile.value.runtime.adapter
+      // Every emission is registered with the ledger, so "the seal is the
+      // final write" is a claim about the writes that actually happened.
+      // Without this the ledger's sequence was empty and seal-last held
+      // vacuously — true, and worth nothing.
+      emitter = new RunEventEmitter(
+        { run_id: request.run_id, adapter },
+        this.#ports.events,
+        this.#ports.clock,
+      )
+      return { kind: 'earned', cause: `profile ${captured.name}@${captured.version} resolved` }
+    }
 
     // Beyond this point every terminal can construct a full bundle.
     const finish = async (
@@ -335,7 +378,7 @@ export class Runner {
         readonly operations?: EvidenceOperations
         readonly verification?: readonly ConsumedArtifact[]
       } = {},
-    ): Promise<RunConclusion> => {
+    ): Promise<PhaseCommand<RunConclusion>> => {
       // ORDER MATTERS HERE, twice over.
       //
       // The terminal transition is taken LAST, after the bundle is
@@ -372,9 +415,9 @@ export class Runner {
       const failClosed = async (
         why: string,
         as: TransitionKind = 'operational_fault',
-      ): Promise<RunConclusion> => {
+      ): Promise<Stop> => {
         machine.advance(as, why)
-        return conclude('none', why)
+        return stop(await conclude('none', why))
       }
       if (!assembled.ok) {
         // A contract refusal terminates REFUSED; only an environmental
@@ -393,349 +436,448 @@ export class Runner {
       })
       if (!terminated.ok) return await failClosed(emissionFailure(terminated))
 
+      // The seal is IRREVERSIBLE and earns its transition afterwards, so
+      // the engine's gating cannot cover it: by the time a rejected
+      // `seal_evidence` could halt the walk, the bundle would already be
+      // in the sink. Ask the machine first. This is not a second state
+      // machine — it is declining to perform an irreversible act the
+      // authority has already said it will not honour.
+      if (kind === 'complete' && !machine.permits('seal_evidence')) {
+        return await failClosed(
+          'the machine does not declare seal_evidence from this state; no bundle is written',
+        )
+      }
+
       const sealed = await ledger.seal({ bundle: assembled.bundle, outcome: assembled.outcome })
       if (!sealed.ok) return await failClosed(`${sealed.refused}: ${sealed.detail}`)
 
-      // Sealed. Only now are the terminal transitions taken.
-      //
-      // `seal_evidence` is part of this: recording EVIDENCE_SEALED
-      // before the write meant a sink failure left a transition record
-      // asserting the evidence was sealed when it was not. The record is
-      // supposed to be the reconstructable truth about the run, so it
-      // must never claim an event that did not happen.
-      if (kind === 'complete') machine.advance('seal_evidence', 'evidence sealed')
+      // Sealed — and only now may EVIDENCE_SEALED be recorded. On the
+      // success path the transition is EARNED and applied by the engine,
+      // which is what keeps the record from ever claiming a seal that
+      // did not happen: there is no code path that advances it early.
+      if (kind === 'complete') {
+        // Deliberately NOT concluding here. The conclusion snapshots the
+        // machine's state, and on this path two transitions are still
+        // outstanding — `seal_evidence`, which these effects just
+        // earned, and `complete`. Concluding now would report VERIFYING
+        // for a run that goes on to complete. The engine applies them;
+        // the walked branch concludes afterwards.
+        sealedDetail = detail
+        return { kind: 'earned', cause: 'evidence sealed' }
+      }
       machine.advance(kind, detail)
-      return await conclude('evidence_bundle', detail)
+      return stop(await conclude('evidence_bundle', detail))
+    }
+
+    /**
+     * A phase earned a transition the machine REFUSED.
+     *
+     * This is the case the engine exists to make representable. The walk
+     * has stopped — no later phase ran — but the run is still sitting in
+     * a non-terminal state, and the lifecycle requirement forbids
+     * abandoning it there. So it terminates, fail-closed, and the
+     * rejection it terminates on is already in the record.
+     *
+     * `canConstructEvidence` chooses the shape: a run past REQUESTED has
+     * the authority identities a bundle needs; one still in REQUESTED
+     * does not, and gets the early-terminal record instead.
+     */
+    const terminateFromRejection = async (halt: {
+      readonly phase: string
+      readonly rejection: RejectionEntry
+    }): Promise<RunConclusion> => {
+      const why = `the ${halt.phase} phase earned ${halt.rejection.attempted}, which the machine refused from ${halt.rejection.state}: ${halt.rejection.detail}`
+      const stopped = canConstructEvidence(machine.state)
+        ? await finish('operational_fault', why, 'OPERATIONAL_FAILURE')
+        : await terminateEarly('operational_fault', why)
+      return stopped.kind === 'terminate' ? stopped.value : await conclude('none', why)
     }
 
     const interrupted = (): 'cancel' | 'timeout' | undefined => signals.interrupt?.()
 
     const interruptTerminal = { cancel: 'CANCELLED', timeout: 'TIMED_OUT' } as const
 
-    machine.advance('resolve_profile', `profile ${profile.value.identity.name} resolved`)
-
-    // ---- PROFILE_RESOLVED ------------------------------------------
-    {
-      const signal = interrupted()
-      if (signal !== undefined) {
-        return finish(signal, `run ${signal}led before eligibility`, interruptTerminal[signal])
+    const profileResolved = async (): Promise<PhaseCommand<RunConclusion>> => {
+      {
+        const signal = interrupted()
+        if (signal !== undefined) {
+          return finish(signal, `run ${signal}led before eligibility`, interruptTerminal[signal])
+        }
       }
-    }
 
-    const eligibility = decideEligibility(snapshots, request.gates)
-    if (!isProceed(eligibility)) {
-      return finish('refuse', describeRefusal(eligibility), 'REFUSED')
-    }
-    machine.advance('decide_eligibility', 'the core decided the run eligible')
-
-    // ---- ELIGIBLE: consent gates spend -----------------------------
-    const spend = decideSpendGate(request.run_id, request.consent)
-    if (!spend.ok) {
-      // HELD, not refused, and not abandoned: the machine stays at
-      // ELIGIBLE and the pending state is recorded. `hold` records
-      // without advancing — calling `advance` here would have spent.
-      machine.hold('commit_spend', spend.detail)
-      return await conclude('none', `${spend.held}: ${spend.detail}`)
-    }
-    machine.advance('commit_spend', `consent recorded by ${request.consent?.by ?? 'unknown'}`)
-
-    // The digest-bound identity, not the pre-resolution reference: the
-    // event records WHICH profile bytes governed, which is the whole
-    // point of emitting it.
-    const started = await emit({
-      event_type: 'run.started',
-      profile: { ...profile.value.identity, digest: profile.digest },
-    })
-    if (!started.ok)
-      return finish('operational_fault', emissionFailure(started), 'OPERATIONAL_FAILURE')
-    const granted = await emit({
-      event_type: 'capability.granted',
-      grant: profile.value.capability,
-    })
-    if (!granted.ok)
-      return finish('operational_fault', emissionFailure(granted), 'OPERATIONAL_FAILURE')
-
-    // ---- SANDBOX_STARTED -------------------------------------------
-    {
-      const signal = interrupted()
-      if (signal !== undefined) {
-        return finish(signal, `run ${signal}led after spend`, interruptTerminal[signal])
+      const eligibility = decideEligibility(snapshots, request.gates)
+      if (!isProceed(eligibility)) {
+        return finish('refuse', describeRefusal(eligibility), 'REFUSED')
       }
-    }
-    machine.advance('begin_execution', 'execution begins behind the execution port')
-
-    // ---- RUNNING: adapter, then gates ------------------------------
-    // BASE IDENTITY, ASSERTED BEFORE ANY PROVIDER INVOCATION.
-    //
-    // This is an ordering property, and the order is the whole point:
-    // observing a substituted workspace after the model has already run
-    // cannot un-run it. The comparison itself belongs to the core; what
-    // belongs here is doing it at the right moment — before the adapter,
-    // before spend has any effect the outside world can see.
-    const base = await this.#ports.workspace.observeBase({
-      run_id: request.run_id,
-      root: request.workspace_root,
-    })
-    if (!base.ok) {
-      return finish(
-        'operational_fault',
-        `the workspace base identity could not be observed: ${base.failure}`,
-        'OPERATIONAL_FAILURE',
-      )
-    }
-    const baseMatch = compareBaseIdentity(request.pinned_base, base.digest)
-    if (!isProceed(baseMatch)) {
-      return finish('refuse', describeRefusal(baseMatch), 'REFUSED')
+      return { kind: 'earned', cause: 'the core decided the run eligible' }
     }
 
-    const adapterStarted = await emit({ event_type: 'adapter.started' })
-    if (!adapterStarted.ok) {
-      return finish('operational_fault', emissionFailure(adapterStarted), 'OPERATIONAL_FAILURE')
-    }
-    const invocation = await this.#ports.adapter.invoke({
-      run_id: request.run_id,
-      adapter,
-      profile_ref: profile.value.identity,
-    })
-    if (invocation.outcome === 'environmental_fault') {
-      return finish(
-        'operational_fault',
-        `adapter invocation faulted: ${invocation.detail}`,
-        'OPERATIONAL_FAILURE',
-      )
-    }
-    // Every call the adapter reports becomes BOTH an event pair and an
-    // evidence operation. Discarding them would mean a permitted or
-    // denied action left no trace anywhere — the exact question the
-    // evidence bundle exists to answer ("what was this allowed to do,
-    // and what did it do?") would have no answer.
-    const operations = emptyOperations()
-    for (const [index, call] of invocation.calls.entries()) {
-      const call_id = `call-${String(index + 1).padStart(4, '0')}`
-      const operation = { call_id, operation: { name: call.tool } }
-      const attempted = await emit({
-        event_type: 'call.attempted',
-        call_id,
-        operation: { name: call.tool },
-      })
-      if (!attempted.ok) {
-        return finish('operational_fault', emissionFailure(attempted), 'OPERATIONAL_FAILURE', {
-          operations,
-        })
+    // Not async: consent is a decision over data the run already holds,
+    // so this phase performs no effect at all. Its whole content is the
+    // command it returns.
+    const eligible = (): Promise<PhaseCommand<RunConclusion>> => {
+      const spend = decideSpendGate(request.run_id, request.consent)
+      if (!spend.ok) {
+        // HELD, not refused, and not abandoned. The engine records the
+        // hold against this phase's transition and stops the walk, so the
+        // machine stays at ELIGIBLE and nothing downstream runs.
+        held = `${spend.held}: ${spend.detail}`
+        return Promise.resolve({ kind: 'hold', detail: spend.detail })
       }
-      const disposed = await emit({
-        event_type: 'call.disposition',
-        call_id,
-        disposition: call.disposition,
-      })
-      if (!disposed.ok) {
-        // The attempt is already known and already emitted; dropping it
-        // here would make the failure erase what it interrupted.
-        operations.attempted.push(operation)
-        return finish('operational_fault', emissionFailure(disposed), 'OPERATIONAL_FAILURE', {
-          operations,
-        })
-      }
-      operations.attempted.push(operation)
-      operations[call.disposition].push(operation)
-    }
-
-    const adapterCompleted = await emit({ event_type: 'adapter.completed' })
-    if (!adapterCompleted.ok) {
-      return finish('operational_fault', emissionFailure(adapterCompleted), 'OPERATIONAL_FAILURE', {
-        operations,
+      return Promise.resolve({
+        kind: 'earned',
+        cause: `consent recorded by ${request.consent?.by ?? 'unknown'}`,
       })
     }
 
-    const registry = snapshots.gate_registry
-    if (registry === undefined || !registry.ok) {
-      return finish(
-        'operational_fault',
-        'the gate registry snapshot is unavailable at scheduling',
-        'OPERATIONAL_FAILURE',
-      )
-    }
-    const plan = buildPlan(registry.value, request.gates)
-    if (!plan.ok) {
-      return finish(
-        'refuse',
-        `unknown gate identities: ${plan.unknown_gates.join(', ')}`,
-        'REFUSED',
-      )
-    }
-    const recorder = new DispositionRecorder(plan.plan.map((entry) => entry.gate_id))
-    for (const entry of plan.plan) {
-      const report = await this.#ports.execution.runGate({
+    const sandboxStarted = async (): Promise<PhaseCommand<RunConclusion>> => {
+      // The digest-bound identity, not the pre-resolution reference: the
+      // event records WHICH profile bytes governed, which is the whole
+      // point of emitting it.
+      const started = await emit({
+        event_type: 'run.started',
+        profile: { ...profile.value.identity, digest: profile.digest },
+      })
+      if (!started.ok)
+        return finish('operational_fault', emissionFailure(started), 'OPERATIONAL_FAILURE')
+      const granted = await emit({
+        event_type: 'capability.granted',
+        grant: profile.value.capability,
+      })
+      if (!granted.ok)
+        return finish('operational_fault', emissionFailure(granted), 'OPERATIONAL_FAILURE')
+
+      {
+        const signal = interrupted()
+        if (signal !== undefined) {
+          return finish(signal, `run ${signal}led after spend`, interruptTerminal[signal])
+        }
+      }
+      // BASE IDENTITY, ASSERTED BEFORE ANY PROVIDER INVOCATION.
+      //
+      // This is an ordering property, and the order is the whole point:
+      // observing a substituted workspace after the model has already run
+      // cannot un-run it. The comparison itself belongs to the core; what
+      // belongs here is doing it at the right moment — before the adapter,
+      // before spend has any effect the outside world can see.
+      const base = await this.#ports.workspace.observeBase({
         run_id: request.run_id,
-        gate_id: entry.gate_id,
-        spec: entry.spec,
+        root: request.workspace_root,
       })
-      const disposition = toDisposition(report)
-      if (disposition === undefined) {
+      if (!base.ok) {
         return finish(
           'operational_fault',
-          `gate ${entry.gate_id} could not be run: ${report.outcome === 'environmental_fault' ? report.detail : 'environmental fault'}`,
+          `the workspace base identity could not be observed: ${base.failure}`,
           'OPERATIONAL_FAILURE',
+        )
+      }
+      const baseMatch = compareBaseIdentity(request.pinned_base, base.digest)
+      if (!isProceed(baseMatch)) {
+        return finish('refuse', describeRefusal(baseMatch), 'REFUSED')
+      }
+
+      return { kind: 'earned', cause: 'the workspace base matches; execution may begin' }
+    }
+
+    const running = async (): Promise<PhaseCommand<RunConclusion>> => {
+      const adapterStarted = await emit({ event_type: 'adapter.started' })
+      if (!adapterStarted.ok) {
+        return finish('operational_fault', emissionFailure(adapterStarted), 'OPERATIONAL_FAILURE')
+      }
+      const invocation = await this.#ports.adapter.invoke({
+        run_id: request.run_id,
+        adapter,
+        profile_ref: profile.value.identity,
+      })
+      if (invocation.outcome === 'environmental_fault') {
+        return finish(
+          'operational_fault',
+          `adapter invocation faulted: ${invocation.detail}`,
+          'OPERATIONAL_FAILURE',
+        )
+      }
+      // Every call the adapter reports becomes BOTH an event pair and an
+      // evidence operation. Discarding them would mean a permitted or
+      // denied action left no trace anywhere — the exact question the
+      // evidence bundle exists to answer ("what was this allowed to do,
+      // and what did it do?") would have no answer.
+      operations = emptyOperations()
+      for (const [index, call] of invocation.calls.entries()) {
+        const call_id = `call-${String(index + 1).padStart(4, '0')}`
+        const operation = { call_id, operation: { name: call.tool } }
+        const attempted = await emit({
+          event_type: 'call.attempted',
+          call_id,
+          operation: { name: call.tool },
+        })
+        if (!attempted.ok) {
+          return finish('operational_fault', emissionFailure(attempted), 'OPERATIONAL_FAILURE', {
+            operations,
+          })
+        }
+        const disposed = await emit({
+          event_type: 'call.disposition',
+          call_id,
+          disposition: call.disposition,
+        })
+        if (!disposed.ok) {
+          // The attempt is already known and already emitted; dropping it
+          // here would make the failure erase what it interrupted.
+          operations.attempted.push(operation)
+          return finish('operational_fault', emissionFailure(disposed), 'OPERATIONAL_FAILURE', {
+            operations,
+          })
+        }
+        operations.attempted.push(operation)
+        operations[call.disposition].push(operation)
+      }
+
+      const adapterCompleted = await emit({ event_type: 'adapter.completed' })
+      if (!adapterCompleted.ok) {
+        return finish(
+          'operational_fault',
+          emissionFailure(adapterCompleted),
+          'OPERATIONAL_FAILURE',
+          {
+            operations,
+          },
+        )
+      }
+
+      const registry = snapshots.gate_registry
+      if (registry === undefined || !registry.ok) {
+        return finish(
+          'operational_fault',
+          'the gate registry snapshot is unavailable at scheduling',
+          'OPERATIONAL_FAILURE',
+        )
+      }
+      const plan = buildPlan(registry.value, request.gates)
+      if (!plan.ok) {
+        return finish(
+          'refuse',
+          `unknown gate identities: ${plan.unknown_gates.join(', ')}`,
+          'REFUSED',
+        )
+      }
+      recorder = new DispositionRecorder(plan.plan.map((entry) => entry.gate_id))
+      for (const entry of plan.plan) {
+        const report = await this.#ports.execution.runGate({
+          run_id: request.run_id,
+          gate_id: entry.gate_id,
+          spec: entry.spec,
+        })
+        const disposition = toDisposition(report)
+        if (disposition === undefined) {
+          return finish(
+            'operational_fault',
+            `gate ${entry.gate_id} could not be run: ${report.outcome === 'environmental_fault' ? report.detail : 'environmental fault'}`,
+            'OPERATIONAL_FAILURE',
+            { gate_results: recorder.results(), operations },
+          )
+        }
+        const recorded = recorder.record(entry.gate_id, disposition)
+        if (!recorded.ok) {
+          return finish('operational_fault', recorded.error.detail, 'OPERATIONAL_FAILURE', {
+            gate_results: recorder.results(),
+          })
+        }
+      }
+
+      const workspace = await observeWorkspace(this.#ports.workspace, {
+        run_id: request.run_id,
+        root: request.workspace_root,
+      })
+      if (!isProceed(workspace)) {
+        // A workspace we could not READ is operational; a workspace whose
+        // contents the core refused is a contract refusal. Keeping them
+        // apart here is the same INV-003 distinction the evidence
+        // boundary keeps.
+        const operational = workspace.kind === 'operational_failure'
+        return finish(
+          operational ? 'operational_fault' : 'refuse',
+          operational ? workspace.detail : describeRefusal(workspace),
+          operational ? 'OPERATIONAL_FAILURE' : 'REFUSED',
           { gate_results: recorder.results(), operations },
         )
       }
-      const recorded = recorder.record(entry.gate_id, disposition)
-      if (!recorded.ok) {
-        return finish('operational_fault', recorded.error.detail, 'OPERATIONAL_FAILURE', {
-          gate_results: recorder.results(),
-        })
+      observed = workspace.value
+      artifacts = await observeArtifacts(this.#ports.artifacts, {
+        run_id: request.run_id,
+        paths: request.artifact_paths,
+      })
+
+      {
+        const signal = interrupted()
+        if (signal !== undefined) {
+          return finish(signal, `run ${signal}led during execution`, interruptTerminal[signal], {
+            gate_results: recorder.results(),
+            observed,
+            artifacts,
+            operations,
+          })
+        }
       }
+      return { kind: 'earned', cause: 'independent verification begins' }
     }
 
-    const observed = await observeWorkspace(this.#ports.workspace, {
-      run_id: request.run_id,
-      root: request.workspace_root,
-    })
-    if (!isProceed(observed)) {
-      return finish(
-        'operational_fault',
-        observed.kind === 'operational_failure' ? observed.detail : describeRefusal(observed),
-        observed.kind === 'operational_failure' ? 'OPERATIONAL_FAILURE' : 'REFUSED',
-        { gate_results: recorder.results(), operations },
+    const verifying = async (): Promise<PhaseCommand<RunConclusion>> => {
+      const verificationSet = new AcquisitionSet(
+        request.run_id,
+        'verification',
+        this.#ports.authority,
+        ['profile', 'path_policy', 'gate_registry'],
       )
-    }
-    const artifacts = await observeArtifacts(this.#ports.artifacts, {
-      run_id: request.run_id,
-      paths: request.artifact_paths,
-    })
+      const duringVerification = {
+        gate_results: recorder.results(),
+        observed,
+        artifacts,
+        operations,
+      }
+      {
+        const signal = interrupted()
+        if (signal !== undefined) {
+          return finish(
+            signal,
+            `run ${signal}led before verification`,
+            interruptTerminal[signal],
+            duringVerification,
+          )
+        }
+      }
+      const reacquired = await runEpoch(verificationSet, [
+        'profile',
+        'path_policy',
+        'gate_registry',
+      ])
+      if (!reacquired.ok) {
+        return finish(
+          'operational_fault',
+          `verification re-acquisition failed: ${describeEpochFailure(reacquired.failure)}`,
+          'OPERATIONAL_FAILURE',
+          { gate_results: recorder.results(), observed, artifacts, operations },
+        )
+      }
 
-    {
-      const signal = interrupted()
-      if (signal !== undefined) {
-        return finish(signal, `run ${signal}led during execution`, interruptTerminal[signal], {
+      // The re-acquisition is only half of verification. The other half —
+      // the half that was missing — is handing the candidate bundle and
+      // the INDEPENDENTLY acquired values to the core's verifier and
+      // acting on what it says. Re-reading the sources and discarding the
+      // result would make VERIFYING a state the run passes through rather
+      // than a check it passes.
+      const candidate = assembleEvidence({
+        snapshots,
+        run_id: request.run_id,
+        principal,
+        adapter,
+        terminal: 'COMPLETED',
+        detail: 'the run completed',
+        gate_results: recorder.results(),
+        operations,
+        observed,
+        artifacts,
+        reconciliation: reconcileClaims(observed, request.claimed_changes ?? []),
+        started_at: startedAt,
+        finished_at: this.#ports.clock.now({ run_id: request.run_id }),
+      })
+      if (!candidate.ok) {
+        return finish(
+          candidate.failure === 'refusal' ? 'refuse' : 'operational_fault',
+          candidate.detail,
+          candidate.failure === 'refusal' ? 'REFUSED' : 'OPERATIONAL_FAILURE',
+          {
+            gate_results: recorder.results(),
+            observed,
+            artifacts,
+            operations,
+          },
+        )
+      }
+
+      // A FRESH artifact observation, not the production one: verification
+      // that reuses the producer's reading cannot detect an artifact that
+      // changed after production read it.
+      const freshArtifacts = await observeArtifacts(this.#ports.artifacts, {
+        run_id: request.run_id,
+        paths: request.artifact_paths,
+      })
+      {
+        const signal = interrupted()
+        if (signal !== undefined) {
+          return finish(
+            signal,
+            `run ${signal}led during verification`,
+            interruptTerminal[signal],
+            duringVerification,
+          )
+        }
+      }
+      const verdict = verifyEvidence(candidate.bundle, {
+        profile: valueOf(reacquired.values, 'profile'),
+        path_policy: valueOf(reacquired.values, 'path_policy'),
+        gate_registry: valueOf(reacquired.values, 'gate_registry'),
+        artifacts: freshArtifacts,
+      })
+      if ('kind' in verdict) {
+        return finish('operational_fault', verdict.detail, 'OPERATIONAL_FAILURE', {
           gate_results: recorder.results(),
-          observed: observed.value,
+          observed,
           artifacts,
           operations,
         })
       }
-    }
-    machine.advance('begin_verification', 'independent verification begins')
-
-    // ---- VERIFYING: a SECOND, independent acquisition epoch ---------
-    const verificationSet = new AcquisitionSet(
-      request.run_id,
-      'verification',
-      this.#ports.authority,
-      ['profile', 'path_policy', 'gate_registry'],
-    )
-    const duringVerification = {
-      gate_results: recorder.results(),
-      observed: observed.value,
-      artifacts,
-      operations,
-    }
-    {
-      const signal = interrupted()
-      if (signal !== undefined) {
-        return finish(
-          signal,
-          `run ${signal}led before verification`,
-          interruptTerminal[signal],
-          duringVerification,
-        )
-      }
-    }
-    const reacquired = await runEpoch(verificationSet, ['profile', 'path_policy', 'gate_registry'])
-    if (!reacquired.ok) {
-      return finish(
-        'operational_fault',
-        `verification re-acquisition failed: ${describeEpochFailure(reacquired.failure)}`,
-        'OPERATIONAL_FAILURE',
-        { gate_results: recorder.results(), observed: observed.value, artifacts, operations },
-      )
-    }
-
-    // The re-acquisition is only half of verification. The other half —
-    // the half that was missing — is handing the candidate bundle and
-    // the INDEPENDENTLY acquired values to the core's verifier and
-    // acting on what it says. Re-reading the sources and discarding the
-    // result would make VERIFYING a state the run passes through rather
-    // than a check it passes.
-    const candidate = assembleEvidence({
-      snapshots,
-      run_id: request.run_id,
-      principal,
-      adapter,
-      terminal: 'COMPLETED',
-      detail: 'the run completed',
-      gate_results: recorder.results(),
-      operations,
-      observed: observed.value,
-      artifacts,
-      reconciliation: reconcileClaims(observed.value, request.claimed_changes ?? []),
-      started_at: startedAt,
-      finished_at: this.#ports.clock.now({ run_id: request.run_id }),
-    })
-    if (!candidate.ok) {
-      return finish(
-        candidate.failure === 'refusal' ? 'refuse' : 'operational_fault',
-        candidate.detail,
-        candidate.failure === 'refusal' ? 'REFUSED' : 'OPERATIONAL_FAILURE',
-        {
+      if (!verdict.verified) {
+        return finish('refuse', `verification failed: ${verdict.failures.join('; ')}`, 'REFUSED', {
           gate_results: recorder.results(),
-          observed: observed.value,
+          observed,
           artifacts,
           operations,
-        },
-      )
-    }
-
-    // A FRESH artifact observation, not the production one: verification
-    // that reuses the producer's reading cannot detect an artifact that
-    // changed after production read it.
-    const freshArtifacts = await observeArtifacts(this.#ports.artifacts, {
-      run_id: request.run_id,
-      paths: request.artifact_paths,
-    })
-    {
-      const signal = interrupted()
-      if (signal !== undefined) {
-        return finish(
-          signal,
-          `run ${signal}led during verification`,
-          interruptTerminal[signal],
-          duringVerification,
-        )
+        })
       }
-    }
-    const verdict = verifyEvidence(candidate.bundle, {
-      profile: valueOf(reacquired.values, 'profile'),
-      path_policy: valueOf(reacquired.values, 'path_policy'),
-      gate_registry: valueOf(reacquired.values, 'gate_registry'),
-      artifacts: freshArtifacts,
-    })
-    if ('kind' in verdict) {
-      return finish('operational_fault', verdict.detail, 'OPERATIONAL_FAILURE', {
-        gate_results: recorder.results(),
-        observed: observed.value,
-        artifacts,
-        operations,
-      })
-    }
-    if (!verdict.verified) {
-      return finish('refuse', `verification failed: ${verdict.failures.join('; ')}`, 'REFUSED', {
-        gate_results: recorder.results(),
-        observed: observed.value,
-        artifacts,
-        operations,
-      })
-    }
-    const verification = verdict.artifacts_consumed
+      const verification = verdict.artifacts_consumed
 
-    const completed = await finish('complete', 'the run completed', 'COMPLETED', {
-      gate_results: recorder.results(),
-      observed: observed.value,
-      artifacts,
-      operations,
-      verification,
-    })
-    return completed
+      return await finish('complete', 'the run completed', 'COMPLETED', {
+        gate_results: recorder.results(),
+        observed,
+        artifacts,
+        operations,
+        verification,
+      })
+    }
+
+    /**
+     * EVIDENCE_SEALED. The bundle is written; nothing remains but to
+     * record that the run completed. The phase has no effects, which is
+     * the point — every effect happened while earning the transition
+     * into this state.
+     */
+    const evidenceSealed = (): Promise<PhaseCommand<RunConclusion>> =>
+      Promise.resolve({ kind: 'earned', cause: 'the run completed' })
+
+    const outcome = await walkPhases(machine, [
+      { name: 'requested', earns: 'resolve_profile', run: requested },
+      { name: 'profile-resolved', earns: 'decide_eligibility', run: profileResolved },
+      { name: 'eligible', earns: 'commit_spend', run: eligible },
+      { name: 'sandbox-started', earns: 'begin_execution', run: sandboxStarted },
+      { name: 'running', earns: 'begin_verification', run: running },
+      { name: 'verifying', earns: 'seal_evidence', run: verifying },
+      { name: 'evidence-sealed', earns: 'complete', run: evidenceSealed },
+    ])
+
+    switch (outcome.kind) {
+      case 'terminated':
+        return outcome.value
+      case 'held':
+        return await conclude('none', held ?? outcome.detail)
+      case 'halted':
+        return await terminateFromRejection(outcome)
+      case 'walked':
+        // Every phase earned its transition, so the bundle is sealed and
+        // the machine has reached COMPLETED. Concluding here — after the
+        // last transition — is what makes the reported state the state
+        // the run actually ended in.
+        return await conclude('evidence_bundle', sealedDetail ?? 'the run completed')
+    }
   }
 }
 

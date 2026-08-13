@@ -81,6 +81,7 @@ are below.
 | RO-INV-24 | The transition record is durable: every run writes its walk, refusals and holds included | behavior |
 | RO-INV-25 | A write claim minted for another run cannot advance this run's machine | behavior |
 | RO-INV-26 | Event envelope fields are the emitter's: no caller body may replace `run_id`, `sequence`, `adapter`, or the contract identity | trust |
+| RO-INV-27 | The machine is authoritative over effects: a phase's effects run only after the previous phase's transition was ACCEPTED, so narrowing the transition table narrows what executes | trust |
 
 ## State-Space Model
 
@@ -209,6 +210,10 @@ persistence (U11).
 | RO-EX-25 | RO-INV-24 | deterministic example | the completed run and the refused run each write exactly one transition record, and the walk is returned to the caller |
 | RO-EX-26 | RO-INV-25 | adversarial | a same-version claim minted for another run is rejected `foreign_claim` and the state is unchanged |
 | RO-EX-27 | RO-INV-26 | adversarial | a body supplying `run_id`, `sequence`, `adapter`, and `contract_id` overrides none of them |
+| RO-EX-28 | RO-INV-27 | adversarial | with `begin_execution` removed from the table the adapter never runs; with `commit_spend` removed no `run.started` is emitted; with `seal_evidence` removed no bundle reaches the sink |
+| RO-EX-29 | RO-INV-27 | property | narrowing ANY of the seven phase boundaries prevents `COMPLETED`, never abandons the run in a non-terminal state, and records the rejection naming state and transition |
+| RO-EX-30 | RO-INV-17 | adversarial | a sink rejecting the bundle write leaves the machine short of `EVIDENCE_SEALED`; the successful walk enters it exactly once |
+| RO-EX-31 | RO-INV-27 | deterministic example | the unmodified table still completes with no rejections — the guard binds the walk without blocking it |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -229,6 +234,7 @@ persistence (U11).
 | RO-MUT-21 | RO-INV-24 | mutation | keeping the transition record in memory only is killed by RO-EX-25 |
 | RO-MUT-22 | RO-INV-25 | mutation | validating only the claim's version is killed by RO-EX-26 |
 | RO-MUT-23 | RO-INV-26 | mutation | spreading the caller body after the envelope is killed by RO-EX-27 |
+| RO-MUT-24 | RO-INV-27 | mutation | ignoring a rejected transition and proceeding to the next phase's effects is killed by RO-EX-28/29/31 (verified: the mutant kills four proofs) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
