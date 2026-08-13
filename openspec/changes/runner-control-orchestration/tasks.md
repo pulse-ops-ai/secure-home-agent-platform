@@ -151,9 +151,26 @@ The landing is complete when:
   plus the pinned ADR-0012 framework set for the inert shell (D2/D8) —
   no zod, no client SDK, no container runtime; standard tooling template;
   `src/` skeleton per the proposed tree including the INERT `app/` Nest
-  module tree (no listener, no executed bootstrap). Obtain and record the
-  owner authorization for the runner-core consumer-allowlist amendment;
-  apply it as its own disclosed commit.
+  module tree (no listener, no executed bootstrap).
+
+  **Consumer-allowlist authorization — GRANTED, recorded here.** The
+  repository owner authorized the two conformance amendments on
+  2026-08-12, path-qualified variant, applied as their own disclosed
+  commit:
+
+  - `packages/contracts/src/conformance/inertness.test.ts` (C-EX-004) —
+    admit `services/runner-control` in the consumer allowlist, the same
+    ratified "inert contract × authorized first consumer arrives"
+    transition recorded for L3 in `d749da7`.
+  - `packages/runner-core/src/conformance/architecture.test.ts`
+    (RC-EX-05) — replace the bare `entry.name === 'runner-core'` skip
+    with a **path-qualified** allowlist admitting `packages/runner-core`
+    and `services/runner-control`. The owner chose this over the minimal
+    literal edit because the bare name previously exempted a directory
+    called `runner-core` in ANY group.
+
+  The authorization covers exactly these two files and no other file
+  outside this change's path authority.
 
   **Proof required** — frozen install, lint, typecheck, build green;
   direction checks accept the inward edges; `RO-EX-01` seed.
