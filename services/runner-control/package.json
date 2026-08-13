@@ -2,7 +2,7 @@
   "name": "@secure-home/runner-control",
   "version": "0.0.0",
   "private": true,
-  "description": "Runner substrate service — boundary only, no application bootstrap.",
+  "description": "Runner substrate orchestration: the typed run lifecycle, authority acquisition, gate scheduling, and evidence finalization, behind ports. No container launch.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "dist/index.js",
@@ -16,16 +16,28 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@secure-home/contracts": "workspace:*",
+    "@secure-home/events": "workspace:*",
+    "@secure-home/runner-core": "workspace:*",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
   "scripts": {
-    "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "build": "tsc -p tsconfig.build.json"
+    "lint": "pnpm run deps && eslint src",
+    "typecheck": "pnpm run deps && tsc --noEmit",
+    "test": "pnpm run deps && vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "deps": "pnpm --filter @secure-home/contracts run build && pnpm --filter @secure-home/events run build && pnpm --filter @secure-home/runner-core run build"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

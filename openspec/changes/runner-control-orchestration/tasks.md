@@ -124,6 +124,37 @@ The landing is complete when:
 - no file outside the declared path authority is modified (the anticipated
   runner-core allowlist amendment only with recorded owner authorization).
 
+## Disclosure: two tasks were checked before they were implemented
+
+Recorded here because a completion record that hides this is worse than
+no record.
+
+On commit `aa54574` this file showed **3.3 (the verification epoch)** and
+**3.4 (base-identity assertion at creation)** complete. They were not.
+`verifyEvidence`, `consumeVerified`, and `compareBaseIdentity` were
+called **zero times** in production source: 3.3 re-acquired authority and
+discarded the result, so `VERIFYING` was a state the run passed through
+rather than a check it passed, and 3.4 was absent entirely, so a
+substituted workspace reached provider invocation unchecked.
+
+The code review on that commit found both, along with five further
+authority and ordering defects (P1s on `aa54574`): the captured profile
+was never bound to the requested reference; consent was replayable across
+runs; `COMPLETED` was entered before the seal; the terminal event was
+written after it; and every adapter-reported call was discarded.
+
+All seven are fixed, each with a named regression proof — RO-EX-10…16,
+registered in `assurance.md` against RO-INV-11…16 with mutation targets
+RO-MUT-08…13. The task boxes below are re-checked only against those
+proofs.
+
+The lesson recorded for later landings: a task's proof obligation is what
+marks it done, not the presence of code that looks like it. 3.3 and 3.4
+both had plausible-looking implementations, and neither called the
+operation its requirement names.
+
+---
+
 ## 0. Post-review authorization
 
 - [x] **0.1 Flip authorization on planning-review approval**
@@ -142,7 +173,7 @@ The landing is complete when:
 
 ## 1. Service registration and boundary guards
 
-- [ ] **1.1 Fill the workspace member; record the first-consumer amendment**
+- [x] **1.1 Fill the workspace member; record the first-consumer amendment**
   <!-- agent-task: 1.1 paths=services/runner-control/**,pnpm-workspace.yaml,pnpm-lock.yaml checks=repo-check risk=medium prerequisites=0.1 -->
 
   **Implements** — Design D2/D3 scaffolding; the first-consumer arrival.
@@ -151,14 +182,31 @@ The landing is complete when:
   plus the pinned ADR-0012 framework set for the inert shell (D2/D8) —
   no zod, no client SDK, no container runtime; standard tooling template;
   `src/` skeleton per the proposed tree including the INERT `app/` Nest
-  module tree (no listener, no executed bootstrap). Obtain and record the
-  owner authorization for the runner-core consumer-allowlist amendment;
-  apply it as its own disclosed commit.
+  module tree (no listener, no executed bootstrap).
+
+  **Consumer-allowlist authorization — GRANTED, recorded here.** The
+  repository owner authorized the two conformance amendments on
+  2026-08-12, path-qualified variant, applied as their own disclosed
+  commit:
+
+  - `packages/contracts/src/conformance/inertness.test.ts` (C-EX-004) —
+    admit `services/runner-control` in the consumer allowlist, the same
+    ratified "inert contract × authorized first consumer arrives"
+    transition recorded for L3 in `d749da7`.
+  - `packages/runner-core/src/conformance/architecture.test.ts`
+    (RC-EX-05) — replace the bare `entry.name === 'runner-core'` skip
+    with a **path-qualified** allowlist admitting `packages/runner-core`
+    and `services/runner-control`. The owner chose this over the minimal
+    literal edit because the bare name previously exempted a directory
+    called `runner-core` in ANY group.
+
+  The authorization covers exactly these two files and no other file
+  outside this change's path authority.
 
   **Proof required** — frozen install, lint, typecheck, build green;
   direction checks accept the inward edges; `RO-EX-01` seed.
 
-- [ ] **1.2 Boundary guards**
+- [x] **1.2 Boundary guards**
   <!-- agent-task: 1.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — RO-INV-01/02/03/07.
@@ -169,7 +217,7 @@ The landing is complete when:
 
 ## 2. Lifecycle
 
-- [ ] **2.1 The typed state machine**
+- [x] **2.1 The typed state machine**
   <!-- agent-task: 2.1 paths=services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Requirement "A run is a typed walk through the declared
@@ -179,7 +227,7 @@ The landing is complete when:
   undeclared-pair sweep; `RO-ADV-02` (terminal is final); `RO-PROP-03`
   (single-writer serialization).
 
-- [ ] **2.2 Cancellation and timeout transitions**
+- [x] **2.2 Cancellation and timeout transitions**
   <!-- agent-task: 2.2 paths=services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — Requirements "Cancellation and timeout are declared
@@ -195,7 +243,7 @@ The landing is complete when:
   before a later acquisition fault); `RO-MUT-05` and `RO-MUT-06`
   registered.
 
-- [ ] **2.3 Consent-to-spend**
+- [x] **2.3 Consent-to-spend**
   <!-- agent-task: 2.3 paths=services/runner-control/src/consent/**,services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — Requirement "Consent gates spend and is never
@@ -205,7 +253,7 @@ The landing is complete when:
   **Proof required** — `ADV-001` (+consent variant); `RO-ADV-01`
   (eligibility without consent holds); `RO-MUT-03` registered.
 
-- [ ] **2.4 Run-event emission at transitions**
+- [x] **2.4 Run-event emission at transitions**
   <!-- agent-task: 2.4 paths=services/runner-control/src/events/** checks=repo-check risk=high prerequisites=2.1 -->
 
   **Implements** — Requirement "Lifecycle moments the closed vocabulary
@@ -219,7 +267,7 @@ The landing is complete when:
 
 ## 3. Authority acquisition
 
-- [ ] **3.1 Acquire-once tokens and the two-epoch acquisition sets**
+- [x] **3.1 Acquire-once tokens and the two-epoch acquisition sets**
   <!-- agent-task: 3.1 paths=services/runner-control/src/acquisition/**,services/runner-control/src/ports/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Requirement "Authority acquisition happens in declared
@@ -230,7 +278,7 @@ The landing is complete when:
   **Proof required** — `RO-EX-04`, `RO-PROP-01`, `RO-ADV-04` (mid-run
   mutation changes nothing); `RO-MUT-01` registered.
 
-- [ ] **3.2 Profile resolution**
+- [x] **3.2 Profile resolution**
   <!-- agent-task: 3.2 paths=services/runner-control/src/acquisition/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements** — Requirement "Profile resolution yields a versioned
@@ -239,7 +287,7 @@ The landing is complete when:
   **Proof required** — missing/invalid/mismatched resolution fixtures,
   refusal before any execution-port call.
 
-- [ ] **3.3 The verification epoch**
+- [x] **3.3 The verification epoch**
   <!-- agent-task: 3.3 paths=services/runner-control/src/acquisition/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements** — Requirement "Verification consumes only the
@@ -249,7 +297,7 @@ The landing is complete when:
   verification set; both epochs separately recorded; production-value
   injection unexpressible.
 
-- [ ] **3.4 Base-identity assertion at creation**
+- [x] **3.4 Base-identity assertion at creation**
   <!-- agent-task: 3.4 paths=services/runner-control/src/acquisition/**,services/runner-control/src/lifecycle/** checks=repo-check risk=high prerequisites=3.1 -->
 
   **Implements** — Requirement "The pinned base identity is asserted at
@@ -261,7 +309,7 @@ The landing is complete when:
 
 ## 4. Gate orchestration
 
-- [ ] **4.1 Plan construction and scheduling**
+- [x] **4.1 Plan construction and scheduling**
   <!-- agent-task: 4.1 paths=services/runner-control/src/scheduling/** checks=repo-check risk=high prerequisites=2.1,3.1 -->
 
   **Implements** — Requirement "Only declared gates are scheduled, with
@@ -272,7 +320,7 @@ The landing is complete when:
   `ADV-006` (widening unexpressible); `ADV-007` (undeclared refuses before
   spend); `RO-EX-05`; `MUT-004` registered.
 
-- [ ] **4.2 Disposition recording**
+- [x] **4.2 Disposition recording**
   <!-- agent-task: 4.2 paths=services/runner-control/src/scheduling/** checks=repo-check risk=high prerequisites=4.1 -->
 
   **Implements** — Requirements "Each gate identity receives exactly one
@@ -284,7 +332,7 @@ The landing is complete when:
 
 ## 5. Execution boundary
 
-- [ ] **5.1 Ports and shipped implementations**
+- [x] **5.1 Ports and shipped implementations**
   <!-- agent-task: 5.1 paths=services/runner-control/src/ports/**,services/runner-control/src/adapters/**,services/runner-control/src/observation/** checks=repo-check risk=high prerequisites=1.1 -->
 
   **Implements** — Requirement "Every effect passes through a declared
@@ -301,7 +349,7 @@ The landing is complete when:
   runs over ONE shared set of port instances: disjoint bundles, each
   equal to that run executed alone).
 
-- [ ] **5.2 Orchestration provenance**
+- [x] **5.2 Orchestration provenance**
   <!-- agent-task: 5.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=5.1 -->
 
   **Implements** — Requirement "Decision-bearing orchestration executes
@@ -311,7 +359,7 @@ The landing is complete when:
   **Proof required** — `ADV-018` behavioral fixture (workspace
   "orchestration" bytes ride as data); `RO-EX-03`; `MUT-010` registered.
 
-- [ ] **5.3 Evidence finalization ordering**
+- [x] **5.3 Evidence finalization ordering**
   <!-- agent-task: 5.3 paths=services/runner-control/src/finalization/** checks=repo-check risk=high prerequisites=2.1,4.2 -->
 
   **Implements** — Requirement "Evidence is sealed last, through the
@@ -324,7 +372,7 @@ The landing is complete when:
 
 ## 6. Core/control boundary
 
-- [ ] **6.1 Cannot-decide guards and decision provenance**
+- [x] **6.1 Cannot-decide guards and decision provenance**
   <!-- agent-task: 6.1 paths=services/runner-control/** checks=repo-check risk=high prerequisites=2.1,3.1,4.1,5.3 -->
 
   **Implements** — Requirement "The core/control boundary holds in both
@@ -333,7 +381,7 @@ The landing is complete when:
   **Proof required** — `RO-EX-01`; `RO-EX-06` (every recorded decision
   attributable to a core call); `RO-MUT-04` registered.
 
-- [ ] **6.2 First-consumer conformance over the L3 surface**
+- [x] **6.2 First-consumer conformance over the L3 surface**
   <!-- agent-task: 6.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=6.1 -->
 
   **Implements** — the standing first-consumer note, applied to
@@ -345,19 +393,19 @@ The landing is complete when:
 
 ## 7. Verification net for PR-1
 
-- [ ] **7.1 Cross-cutting guards over the finished tree**
+- [x] **7.1 Cross-cutting guards over the finished tree**
   <!-- agent-task: 7.1 paths=services/runner-control/** checks=repo-check risk=high prerequisites=6.2 -->
 
   **Proof required** — `RO-EX-01…07` re-run over the complete tree;
   no-bootstrap re-check; zero importers.
 
-- [ ] **7.2 Full property run**
+- [x] **7.2 Full property run**
   <!-- agent-task: 7.2 paths=services/runner-control/** checks=repo-check risk=high prerequisites=6.2 -->
 
   **Proof required** — `PROP-002`, `PROP-007`, `RO-PROP-01/02/03/04` at
   their declared breadth.
 
-- [ ] **7.3 Mutation sweep**
+- [x] **7.3 Mutation sweep**
   <!-- agent-task: 7.3 paths=services/runner-control/** checks=repo-check risk=high prerequisites=7.1,7.2 -->
 
   **Proof required** — every target (`MUT-004/005/009/010`,
@@ -366,7 +414,7 @@ The landing is complete when:
   is itself a test, and it SHALL fail if a registered target is absent
   from the sweep rather than merely passing over a shorter list.
 
-- [ ] **7.4 Report any further L3/L2 gap**
+- [x] **7.4 Report any further L3/L2 gap**
   <!-- agent-task: 7.4 paths=openspec/changes/runner-control-orchestration/** checks=repo-check risk=low prerequisites=7.3 -->
 
   **Change** — Record, in the landing's report, any contract or

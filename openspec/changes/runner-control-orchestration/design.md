@@ -103,6 +103,35 @@ Rejected: encoding the lifecycle implicitly in the call graph — that is
 exactly the donor's shape, and it cannot prove PROP-002 (every undeclared
 pair rejected).
 
+**The machine is authoritative over effects, not a recorder running
+beside them.** A declared table proves nothing if the orchestrator calls
+`advance()`, ignores the answer, and performs the next effect anyway:
+the machine could correctly reject `begin_execution`, record the
+rejection, and the adapter would still run — the state machine right, the
+orchestration wrong, and nothing failing. That shape is a second,
+procedural state machine parallel to the declarative one.
+
+So a phase is DATA: the effects performed in one state, plus the
+transition those effects EARN. A small engine runs a phase, applies the
+transition it earned, and only then permits the next phase to run at all.
+A rejected transition halts the walk and terminates the run fail-closed.
+Narrowing the table therefore narrows what executes, which is what makes
+"the walk is driven by the table" checkable — RO-EX-28/29 delete one
+transition and assert the effects downstream of it stop happening.
+
+Two consequences fall out rather than being maintained by convention:
+
+- **Ordering.** A phase's transition cannot precede the effects that earn
+  it, because the engine applies it afterwards. `EVIDENCE_SEALED` cannot
+  be recorded before the seal, and no conditional keeps it that way.
+- **The one exception is explicit.** The seal is irreversible and earns
+  its transition afterwards, so the engine's gating cannot cover it — by
+  the time a rejected `seal_evidence` could halt the walk the bundle
+  would already be written. The seal phase therefore asks
+  `machine.permits('seal_evidence')` first. That is a pure query, not a
+  second machine: it declines to perform an irreversible act the
+  authority has already said it will not honour.
+
 ### D2: Framework-free orchestration modules inside an INERT NestJS/Fastify application shell (OQ2, resolved per review)
 
 The planning review rejected an untracked post-U4 "activation landing"
@@ -145,6 +174,75 @@ Shipped implementations follow a read/execute asymmetry:
 Accepted by the planning review (OQ1): real read-only acquisition and
 observation are appropriate for L4; execution and adapter implementations
 remain deterministic fakes with no spawn or container capability.
+
+### D3b: The execution session, and cancellation that can reach work in flight
+
+`SANDBOX_STARTED` was entered by asserting it: consent succeeded, the
+machine moved, and no execution operation had occurred at all — the
+execution port's only operation was `runGate`, which has nothing to do
+with a session existing. The lifecycle spec defers the REAL sandbox
+start; it does not say the state is entered without one.
+
+So `ExecutionSessionPort` — `prepare`, `start`, `interrupt`, `close` —
+and **opening the session IS the spend**: it is what earns
+`commit_spend`, so a session that will not open never reaches
+`SANDBOX_STARTED`. That is what makes the state mean something.
+
+The same seam fixes cancellation. Polling between phases cannot interrupt
+a hung `invoke()` or `runGate()`, which are the two calls most likely to
+hang; "cancellation must be effective, not advisory" is not provable
+against a design that can only look when nothing is happening. The run
+now owns an abort signal, hands it to those calls, AND races them against
+it. Handing it over lets a well-behaved implementation stop immediately;
+racing means one that ignores it still cannot hold the run open. On
+abort the session is INTERRUPTED — abandoning the call would leave
+whatever it started still running, which is the whole difference.
+
+The deadline comes from the profile's declared wall clock, so there is no
+unbounded run.
+
+This lands before L9 deliberately. L9's scope is the real launcher,
+network and resource enforcement, and effective cancellation and
+teardown. A port with no session handle, no deadline and no interrupt
+would force L9 to invent the seam before it could enforce anything
+through it — making effective cancellation L9's problem to DESIGN rather
+than L9's problem to PROVE. This landing ships an implementation that
+starts nothing.
+
+### D3c: The observer derives the change set; it does not assume one
+
+`runner-core` treats the host observation as the AUTHORITATIVE change
+set — it is what claims are reconciled against and what the path policy
+is enforced over. The first implementation walked the current tree and
+labelled every file `modified`, because it had no baseline to compare
+against. That is not a weak observer; it is a fabricated authority.
+
+So the base observation captures a MANIFEST — path, entry kind, mode,
+size, and a digest over RAW BYTES — and the change set is derived from
+it. Three consequences, each of which was a defect before:
+
+- **A run with no baseline is refused, not guessed at.** "We could not
+  look" and "nothing changed" are different facts.
+- **Digests are over bytes, not text.** A UTF-8 read turns two different
+  binaries of the same length into the same replacement characters, so a
+  substitution could pass the pinned-base check.
+- **Entries are `lstat`ed.** A symlink is recorded AS a symlink with its
+  resolved target — the core defines `link_target` for exactly this, and
+  it cannot treat the target as the effective location if the
+  observation hides that a link was involved.
+
+Artifact observation reads the named path itself, refuses non-regular
+entries, is bounded in count and size, and refuses non-text content
+rather than corrupting it — the L3 artifact value carries a string, and
+widening it to bytes is an L2 amendment this landing does not get to
+make.
+
+**What this is not.** It is the real observer for a plain directory, not
+a Git-native one. For coding workspaces a base commit plus a
+worktree/index diff is the better instrument: it distinguishes renames,
+honours repository ignores, and does not walk the tree twice. That is a
+named refinement for a later landing, and this landing claims the
+manifest observer rather than claiming to have shipped the other.
 
 ### D4: Acquire-once is a consumed token, in declared epoch roles
 
@@ -194,7 +292,42 @@ The gate plan submitted to the execution port is constructed ONLY from the
 captured registry entry — the scheduling interface takes gate identities,
 not argv, so caller widening is unexpressible (ADV-006/MUT-004).
 
-### D7: Seal-last is enforced by an ordering component, proven by recorded sequence
+### D7: Finalization is one atomic transition, not an ordering of writes
+
+Three contracts were in tension, and ordering individual writes cannot
+resolve them:
+
+- every transition is durable;
+- `run.terminated` is truthful;
+- the evidence seal is the run's final write.
+
+Emitting the terminal event with the INTENDED outcome and then sealing
+satisfies the third and breaks the second — a failed seal leaves an event
+announcing `COMPLETED` for a run that ended `OPERATIONAL_FAILURE`. Moving
+the emission after the seal breaks the third instead. The problem is not
+which write goes first; it is that finalization was several writes.
+
+So finalization PREPARES — assemble the bundle, project the whole
+terminal transition sequence from the machine, build the terminal event
+envelope, decide seal ordering and seal eligibility — and only then
+COMMITS the journal tail, the terminal event, and the sealed bundle
+together. All three land or none is observable. The machine then adopts
+the projected entries VERBATIM, so what it reports is the committed fact
+rather than a re-derivation of the intent.
+
+What atomicity means here is this landing's to define; where the
+transaction persists is U11's. The shipped implementation applies in the
+order journal → event → bundle (the seal stays last) and retracts in
+reverse on any failure, and every participating sink must therefore be
+able to retract — required rather than optional, because a sink that
+discovers at rollback time that it cannot unwind has discovered it too
+late.
+
+Preparation refusing costs nothing, which is the property that makes the
+whole thing work: no event has been announced and no bundle written, so
+the run simply terminates on what actually happened.
+
+### D7 (superseded detail): seal-last as an ordering component
 
 `finalization/` owns the write order: it collects the run's writes, invokes
 the core's `decideSealEligibility` over the completed inputs, and submits
@@ -203,6 +336,59 @@ has been submitted and the eligibility proceeded. The port-call recorder
 (the same test seam that proves execution plans) yields the sequence
 evidence for ADV-011's ordering half. A seal attempt out of order refuses
 and is recorded.
+
+### D7b: The adapter SPI is frozen here, not at L7
+
+ADR-0013 is accepted, and the port was far narrower than it: it received
+a run id, an adapter name and a profile reference, and returned
+`completed` plus a call list. The ADR requires a platform-built
+invocation, faithful translation of the profile's tool surface, provider
+events normalized at the boundary, model output as untrusted claims,
+terminal state as observation rather than authority, usage in native
+units, and credential references rather than values. The run request also
+carried no workload at all, though the canonical runner model says a run
+request carries a profile reference, an actor, and INPUTS.
+
+Frozen now rather than at L7 because L7's authorized scope is `adapters/`
+and images — not this service. An L7 that discovered the SPI could not
+carry what the ADR requires would have to reopen L4 or widen its own
+authorization, and a landing does not get to do either to itself.
+
+Two of the shapes are structural rather than documented, which is where
+their value is: an adapter has no field in which to report that the run
+succeeded, and none in which to receive a credential value. The terminal
+observations are separate fields precisely so they can DISAGREE — the
+spike's exit-124-versus-`exitCode: 0` case — and a disagreement resolves
+to `INDETERMINATE`, a failure class, rather than to whichever observation
+was consulted first.
+
+### D3d: Materialization — who owns apply-back
+
+`decideMaterialization` had existed in the trusted core since L3 and
+orchestration never called it. That was not a missing call; it was a
+missing BOUNDARY. A run could change a workspace and nothing decided
+whether those changes were allowed to leave it — observation answers
+"what happened", never "may this be kept".
+
+The boundary, with ownership stated rather than left to be discovered:
+
+```text
+isolated writable workspace   ← provisioned through a port; L9 makes it real
+       ↓
+trusted host observes diff    ← L4 owns this, and does it
+       ↓
+materialization decision      ← the CORE decides; L4 only asks
+       ↓
+verified apply-back / refuse  ← L4 orders it; L9 performs it
+```
+
+L4 owns the lifecycle and the ORDERING: provision before execution, ask
+before applying, apply before sealing, discard on every exit, and never
+seal `COMPLETED` for a run whose changes did not land. L9 owns creating a
+genuinely isolated workspace and performing a genuinely atomic
+apply-back. This landing ships an implementation that isolates nothing
+and applies nothing, and says so — the ordering it enforces is real
+regardless.
 
 ### D8: Orchestration structurally cannot decide
 
@@ -241,6 +427,18 @@ landing wants transitions as first-class events, that is a governed L2
 amendment — deliberately not taken here. Emission failures are
 operational, never silent.
 
+**The transition record is a JOURNAL, appended as the walk happens.** A
+record assembled in memory and written once at the end is not a durable
+reconstructable record: a run that dies at `RUNNING` leaves nothing, and
+an unconsented run held at `ELIGIBLE` leaves no pending identity anything
+could resume — which is the requirement that a hold be *recorded* rather
+than silently dropped, unmet. `RunJournalPort` appends transitions,
+rejections, acquisitions and holds at the moment each occurs, and
+`readCurrentState` reconstructs the head of a run without replaying
+evidence. Where the journal persists is U11's; what it must record is
+not, and a port whose contract waits for its store is a port whose
+contract gets written by the store.
+
 ### D10: Concurrency — one run, one writer
 
 **Per run:** state is advanced by a single owner; concurrent transition
@@ -258,6 +456,19 @@ is scoped to one run**. Seal-last means last among *that run's* writes;
 concurrent runs may interleave their port calls freely, and no proof
 here depends on global ordering. The recorded-sequence evidence for
 RO-ADV-03 is therefore filtered per run.
+
+**One run, one owner — above the machine.** `RunMachine`'s single-writer
+guarantee is per machine INSTANCE, which says nothing about two
+`Runner.run()` calls handed the same `run_id`: two instances, two
+machines, both believing they own the run, both writing through the
+shared keyed sinks that cross-run isolation legitimately permits. So the
+guarantee has to exist above the machine. `RunLeasePort` claims the run
+before the first effect — a run owned elsewhere reads no authority at all
+— renews before each phase's effects, and releases on conclusion,
+including the hold and throw paths, so a fault leaves a run merely failed
+rather than unrecoverable. The generation is a fencing token: a holder
+that lost its lease and kept working can be told apart from the one that
+actually holds it, which a boolean lock cannot do.
 
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.

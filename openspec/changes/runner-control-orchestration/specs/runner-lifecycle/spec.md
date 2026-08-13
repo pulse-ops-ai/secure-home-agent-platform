@@ -75,6 +75,65 @@ profile grants.
 - **THEN** the machine does not leave `ELIGIBLE`
 - **AND** the pending state is recorded, not silently dropped
 
+### Requirement: SANDBOX_STARTED is entered by starting an execution session
+
+The transition into `SANDBOX_STARTED` SHALL be earned by an execution
+session being prepared and started through the execution-session
+boundary. A run whose session cannot be prepared or cannot be started
+SHALL NOT enter `SANDBOX_STARTED`, and SHALL invoke no adapter. Entering
+the state on consent alone — with no execution operation having occurred
+— SHALL NOT satisfy this.
+
+Every run that opens a session SHALL close it, on every exit including
+refusal, cancellation, timeout and failure. A run that opened none closes
+nothing.
+
+This requirement is about the SEAM, not about containers: the concrete
+sandbox implementation is a later landing's, and an implementation that
+starts nothing satisfies this requirement while starting nothing.
+
+#### Scenario: A session that will not open reaches no sandbox state
+
+- **GIVEN** a consented, eligible run whose execution session cannot be
+  started
+- **WHEN** the lifecycle advances
+- **THEN** the run does not enter `SANDBOX_STARTED`
+- **AND** no adapter is invoked
+
+#### Scenario: The session is closed on the way out
+
+- **GIVEN** a run that opened an execution session
+- **WHEN** it reaches any terminal state
+- **THEN** the session is closed
+
+### Requirement: Cancellation reaches work already in flight
+
+Cancellation and timeout SHALL be effective against an operation that is
+already running, not only between operations. Every run SHALL carry a
+deadline derived from its profile's declared wall clock; there is no
+unbounded run.
+
+The orchestrator SHALL pass a cancellation signal into the adapter
+invocation and gate execution, AND SHALL NOT depend on those operations
+honouring it: an operation that does not return SHALL NOT hold the run
+open. On cancellation or deadline the execution session SHALL be
+INTERRUPTED — abandoning the operation without interrupting the session
+would leave whatever it started still running.
+
+#### Scenario: A provider that never returns does not hold the run open
+
+- **GIVEN** a run whose adapter invocation never returns
+- **WHEN** the run's deadline elapses
+- **THEN** the run terminates `TIMED_OUT`
+- **AND** the execution session is interrupted and then closed
+
+#### Scenario: Cancellation during an operation reaches it
+
+- **GIVEN** a run cancelled while an operation is in flight
+- **WHEN** the cancellation is raised
+- **THEN** the in-flight operation observes the cancellation signal
+- **AND** the run terminates `CANCELLED` with the session interrupted
+
 ### Requirement: Cancellation and timeout are declared transitions with mandatory evidence
 
 Cancellation and timeout SHALL be declared transitions into `CANCELLED` and

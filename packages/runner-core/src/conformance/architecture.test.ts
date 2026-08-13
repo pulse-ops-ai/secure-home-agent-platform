@@ -142,7 +142,12 @@ describe('RC-EX-05: inert (RC-INV-07)', () => {
     }
   })
 
-  it('no repository member declares a dependency on this package', () => {
+  it('no unauthorized repository member declares a dependency on this package', () => {
+    // services/runner-control is the AUTHORIZED first consumer (L4/#27,
+    // owner-approved 2026-08-12). Path-qualified deliberately: the
+    // previous bare-name skip exempted a directory called `runner-core`
+    // in ANY group. Any OTHER importer still fails.
+    const authorized = new Set(['packages/runner-core', 'services/runner-control'])
     const offenders: string[] = []
     const membersOf = (dir: string) => {
       try {
@@ -154,7 +159,7 @@ describe('RC-EX-05: inert (RC-INV-07)', () => {
     for (const group of ['packages', 'services', 'apps', 'agents']) {
       const groupDir = join(repoRoot, group)
       for (const entry of membersOf(groupDir)) {
-        if (!entry.isDirectory() || entry.name === 'runner-core') continue
+        if (!entry.isDirectory() || authorized.has(`${group}/${entry.name}`)) continue
         let manifest: {
           dependencies?: Record<string, string>
           devDependencies?: Record<string, string>

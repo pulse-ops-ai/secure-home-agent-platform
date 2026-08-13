@@ -39,8 +39,8 @@ packages:
 # version. The lockfile records what actually resolved.
 #
 # Only what the workspace foundation and its validation genuinely need is here.
-# NestJS, Fastify, Next.js, Zod, and Winston are named by ADR-0012 but belong to
-# the issues that implement them (#26, #27, #28, and the web-shell issue).
+# Next.js and Winston are named by ADR-0012 but belong to the issues that
+# implement them (#28 and the web-shell issue).
 # ---------------------------------------------------------------------------
 catalog:
   # Node type definitions. Required: shared tooling and its tests use Node
@@ -69,6 +69,24 @@ catalog:
   # Runner domain contracts: the single authored contract source (ADR-0012
   # §7), added by L2/#51 (runner-domain-contracts).
   zod: 4.4.3
+  # The ADR-0012 application framework, added by L4/#27 for the INERT
+  # runner-control application shell (design D2/D8). Present so the module
+  # tree and composition boundary are typed and buildable; NOTHING in this
+  # repository executes a bootstrap or binds a listener — RO-EX-07 proves
+  # the shell stays inert, and activation is a later operational act.
+  #
+  # Fastify is reached only through @nestjs/platform-fastify, which pins it
+  # as its own dependency: the platform adapter is the supported seam, so
+  # naming fastify here as well would create a second version authority for
+  # the same library.
+  '@nestjs/common': 11.1.29
+  '@nestjs/core': 11.1.29
+  '@nestjs/platform-fastify': 11.1.29
+  # Nest's decorator metadata and observable peer requirements. Not a
+  # widening: both are mandatory peers of the packages above, and the
+  # orchestration modules stay framework-free regardless (D2).
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
   # Test runner and coverage. V8 coverage is built into Node — no native
   # compilation, so it works on the ARM64 Pi and on x86_64 CI alike.
   vitest: 4.1.10
