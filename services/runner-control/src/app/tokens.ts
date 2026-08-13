@@ -16,4 +16,5 @@ export const PORT_TOKENS = {
   clock: Symbol.for('runner-control.port.clock'),
   journal: Symbol.for('runner-control.port.journal'),
   lease: Symbol.for('runner-control.port.lease'),
+  session: Symbol.for('runner-control.port.session'),
 } as const

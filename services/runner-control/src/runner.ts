@@ -61,12 +61,15 @@ import {
 import { observeArtifacts, observeWorkspace } from './observation/index.js'
 import type {
   AcquisitionEpoch,
+  ArtifactObservation,
   AuthorityBytes,
   EvidenceOperations,
   Ports,
   RunInput,
+  SessionHandle,
   TerminalObservations,
 } from './ports/index.js'
+import type { GateResultsT } from '@secure-home/contracts'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
 import {
   assembleEvidence,
@@ -114,6 +117,23 @@ export interface RunSignals {
    * claim that can fail.
    */
   readonly transitions?: TransitionTable
+  /**
+   * Milliseconds before the run's deadline fires. Defaults to the
+   * profile's declared wall clock. Overridable so a proof can make a
+   * hung call time out in milliseconds rather than minutes.
+   */
+  readonly deadline_ms?: number
+  /** Raise cancellation after this many milliseconds, mid-flight. */
+  readonly cancelAfterMs?: number
+}
+
+/** What a terminal carries forward from the parts of the run that ran. */
+interface FinishPartial {
+  readonly gate_results?: GateResultsT
+  readonly observed?: AuthoritativeChangeSet
+  readonly artifacts?: ArtifactObservation
+  readonly operations?: EvidenceOperations
+  readonly verification?: readonly ConsumedArtifact[]
 }
 
 /** A phase command that ends the run with a finished conclusion. */
@@ -275,6 +295,17 @@ export class Runner {
       detail: string,
     ): Promise<RunConclusion> => {
       await journalTick()
+      disarm()
+      if (session !== undefined) {
+        const open = session
+        session = undefined
+        try {
+          await this.#ports.session.close({ run_id: request.run_id, session_ref: open.session_ref })
+        } catch {
+          // A session that will not close is reported by L9's
+          // implementation, not by failing an already-concluded run.
+        }
+      }
       try {
         await this.#ports.evidence.write({
           run_id: request.run_id,
@@ -351,6 +382,8 @@ export class Runner {
     }
     /** Set by the consent phase so a hold can report which kind it was. */
     let held: string | undefined
+    /** The open execution session, once one exists. */
+    let session: SessionHandle | undefined
     // Accumulated while RUNNING, read while VERIFYING and at every
     // terminal: the run's observations so far.
     let recorder = new DispositionRecorder([])
@@ -438,19 +471,7 @@ export class Runner {
       kind: TransitionKind,
       detail: string,
       terminal: LifecycleState,
-      partial: {
-        readonly gate_results?: ReturnType<DispositionRecorder['results']>
-        readonly observed?: {
-          readonly changes: readonly {
-            path: string
-            kind: 'created' | 'modified' | 'deleted'
-            bytes: number
-          }[]
-        }
-        readonly artifacts?: Awaited<ReturnType<typeof observeArtifacts>>
-        readonly operations?: EvidenceOperations
-        readonly verification?: readonly ConsumedArtifact[]
-      } = {},
+      partial: FinishPartial = {},
     ): Promise<PhaseCommand<RunConclusion>> => {
       // ORDER MATTERS HERE, twice over.
       //
@@ -582,7 +603,76 @@ export class Runner {
       return stopped.kind === 'terminate' ? stopped.value : await conclude('none', why)
     }
 
-    const interrupted = (): 'cancel' | 'timeout' | undefined => signals.interrupt?.()
+    /**
+     * CANCELLATION THAT CAN REACH WORK IN FLIGHT.
+     *
+     * Polling between phases cannot interrupt a hung `invoke()` or
+     * `runGate()` — the two calls most likely to hang. So the run owns an
+     * abort signal, hands it to those calls, AND races them against it.
+     * Handing it over lets an implementation stop immediately; racing it
+     * means an implementation that ignores the signal still cannot hold
+     * the run open. Effective, rather than advisory.
+     */
+    const aborter = new AbortController()
+    let abortReason: 'cancel' | 'timeout' | undefined
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const raise = (reason: 'cancel' | 'timeout'): void => {
+      if (abortReason !== undefined) return
+      abortReason = reason
+      aborter.abort()
+    }
+    const disarm = (): void => {
+      for (const timer of timers) clearTimeout(timer)
+      timers.length = 0
+    }
+
+    /**
+     * Await `work`, or give up when the run is aborted.
+     *
+     * Returns `undefined` on abort. The abandoned call may still be
+     * running — which is exactly why the session is INTERRUPTED rather
+     * than merely abandoned: stopping it is the session's job, and
+     * proving the stop worked is L9's.
+     */
+    const untilAborted = async <T>(work: Promise<T>): Promise<T | undefined> => {
+      if (aborter.signal.aborted) return undefined
+      return await Promise.race([
+        work,
+        new Promise<undefined>((resolve) => {
+          aborter.signal.addEventListener('abort', () => {
+            resolve(undefined)
+          })
+        }),
+      ])
+    }
+
+    /**
+     * Terminate a run whose in-flight work was abandoned.
+     *
+     * The session is INTERRUPTED first. Abandoning the call would leave
+     * whatever it started still running, which is the difference between
+     * cancellation that is effective and cancellation that is a note in
+     * a log. Proving the interrupt actually stops things is L9's; giving
+     * it something to prove is this landing's.
+     */
+    const abortRun = async (partial: FinishPartial = {}): Promise<PhaseCommand<RunConclusion>> => {
+      const reason = abortReason ?? 'cancel'
+      if (session !== undefined) {
+        await this.#ports.session.interrupt({
+          run_id: request.run_id,
+          session_ref: session.session_ref,
+          reason,
+        })
+      }
+      return finish(
+        reason,
+        `the run was ${reason === 'cancel' ? 'cancelled' : 'timed out'} while work was in flight`,
+        reason === 'cancel' ? 'CANCELLED' : 'TIMED_OUT',
+        partial,
+      )
+    }
+
+    const interrupted = (): 'cancel' | 'timeout' | undefined => abortReason ?? signals.interrupt?.()
 
     const interruptTerminal = { cancel: 'CANCELLED', timeout: 'TIMED_OUT' } as const
 
@@ -601,9 +691,6 @@ export class Runner {
       return { kind: 'earned', cause: 'the core decided the run eligible' }
     }
 
-    // Not async: consent is a decision over data the run already holds,
-    // so this phase performs no effect at all. Its whole content is the
-    // command it returns.
     const eligible = (): Promise<PhaseCommand<RunConclusion>> => {
       const spend = decideSpendGate(request.run_id, request.consent)
       if (!spend.ok) {
@@ -613,10 +700,64 @@ export class Runner {
         held = `${spend.held}: ${spend.detail}`
         return Promise.resolve({ kind: 'hold', detail: spend.detail })
       }
-      return Promise.resolve({
-        kind: 'earned',
-        cause: `consent recorded by ${request.consent?.by ?? 'unknown'}`,
+      return openSession()
+    }
+
+    /**
+     * Opening the session IS the spend.
+     *
+     * `commit_spend` is the transition into `SANDBOX_STARTED`, and that
+     * state means a sandbox has started. Earning it by consent alone
+     * asserted the fact; earning it by actually opening the session
+     * causes it. A session that will not open therefore never reaches
+     * the state, which is what makes the state mean something.
+     */
+    const openSession = async (): Promise<PhaseCommand<RunConclusion>> => {
+      const prepared = await this.#ports.session.prepare({
+        run_id: request.run_id,
+        profile: { ...profile.value.identity, digest: profile.digest },
+        limits: profile.value.limits,
       })
+      if (!prepared.ok) {
+        return finish(
+          'operational_fault',
+          `the execution session could not be prepared: ${prepared.detail}`,
+          'OPERATIONAL_FAILURE',
+        )
+      }
+      session = prepared.handle
+      const sessionStarted = await this.#ports.session.start({
+        run_id: request.run_id,
+        session_ref: session.session_ref,
+      })
+      if (!sessionStarted.ok) {
+        return finish(
+          'operational_fault',
+          `the execution session could not be started: ${sessionStarted.detail}`,
+          'OPERATIONAL_FAILURE',
+        )
+      }
+
+      // Arm the deadline from the session's own budget. A run with no
+      // deadline is the unbounded run the model forbids.
+      const deadlineMs = signals.deadline_ms ?? session.deadline.wall_clock_seconds * 1000
+      timers.push(
+        setTimeout(() => {
+          raise('timeout')
+        }, deadlineMs),
+      )
+      if (signals.cancelAfterMs !== undefined) {
+        timers.push(
+          setTimeout(() => {
+            raise('cancel')
+          }, signals.cancelAfterMs),
+        )
+      }
+
+      return {
+        kind: 'earned',
+        cause: `session ${session.session_ref} started; consent recorded by ${request.consent?.by ?? 'unknown'}`,
+      }
     }
 
     const sandboxStarted = async (): Promise<PhaseCommand<RunConclusion>> => {
@@ -673,23 +814,27 @@ export class Runner {
       if (!adapterStarted.ok) {
         return finish('operational_fault', emissionFailure(adapterStarted), 'OPERATIONAL_FAILURE')
       }
-      const invocation = await this.#ports.adapter.invoke({
-        run_id: request.run_id,
-        adapter,
-        profile: { ...profile.value.identity, digest: profile.digest },
-        input: request.input,
-        grant: profile.value.capability,
-        routing: profile.value.execution,
-        limits: profile.value.limits,
-        // References only — the profile's declared names, never values.
-        credentials: profile.value.capability.credentials.map((credential) => ({
-          env_var: credential.env_var,
-        })),
-        workspace: {
-          session_ref: `session:${request.run_id}`,
-          root_ref: `workspace:${request.run_id}`,
-        },
-      })
+      const invocation = await untilAborted(
+        this.#ports.adapter.invoke({
+          run_id: request.run_id,
+          adapter,
+          profile: { ...profile.value.identity, digest: profile.digest },
+          input: request.input,
+          grant: profile.value.capability,
+          routing: profile.value.execution,
+          limits: profile.value.limits,
+          // References only — the profile's declared names, never values.
+          credentials: profile.value.capability.credentials.map((credential) => ({
+            env_var: credential.env_var,
+          })),
+          workspace: {
+            session_ref: session?.session_ref ?? `session:${request.run_id}`,
+            root_ref: `workspace:${request.run_id}`,
+          },
+          signal: aborter.signal,
+        }),
+      )
+      if (invocation === undefined) return await abortRun({ operations })
       if (invocation.outcome === 'environmental_fault') {
         return finish(
           'operational_fault',
@@ -776,11 +921,18 @@ export class Runner {
       }
       recorder = new DispositionRecorder(plan.plan.map((entry) => entry.gate_id))
       for (const entry of plan.plan) {
-        const report = await this.#ports.execution.runGate({
-          run_id: request.run_id,
-          gate_id: entry.gate_id,
-          spec: entry.spec,
-        })
+        const report = await untilAborted(
+          this.#ports.execution.runGate({
+            run_id: request.run_id,
+            gate_id: entry.gate_id,
+            spec: entry.spec,
+            session_ref: session?.session_ref ?? `session:${request.run_id}`,
+            signal: aborter.signal,
+          }),
+        )
+        if (report === undefined) {
+          return await abortRun({ gate_results: recorder.results(), operations })
+        }
         const disposition = toDisposition(report)
         if (disposition === undefined) {
           return finish(

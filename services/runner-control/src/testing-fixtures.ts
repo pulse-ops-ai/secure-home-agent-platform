@@ -15,6 +15,7 @@ import {
   DeterministicExecution,
   RecordingEventSink,
   RecordingEvidenceSink,
+  InMemoryExecutionSession,
   InMemoryRunJournal,
   InMemoryRunLease,
   SteppingClock,
@@ -23,7 +24,18 @@ import {
 } from './adapters/index.js'
 import type { ArtifactObservation, BaseObservation, WorkspaceObservation } from './ports/index.js'
 import type { PrincipalT } from './ports/contract-types.js'
-import type { AdapterInvocation, AdapterObservation, AdapterReport } from './ports/index.js'
+import type {
+  AdapterInvocation,
+  AdapterObservation,
+  AdapterReport,
+  GateExecutionRequest,
+  GateReport,
+  SessionClosure,
+  SessionHandle,
+  SessionPreparation,
+  SessionPrepareRequest,
+  SessionStart,
+} from './ports/index.js'
 import type { RunRequest } from './runner.js'
 
 export const digestHex = (letter: string): string => `sha256:${letter.repeat(64)}`
@@ -183,6 +195,7 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
     clock: new SteppingClock(),
     journal: new InMemoryRunJournal(),
     lease: new InMemoryRunLease(),
+    session: new InMemoryExecutionSession(),
     ...overrides,
   } as TestPorts
   // The commit participates over whatever ports this test actually
@@ -287,6 +300,75 @@ export class ObservingAdapter {
   invoke(request: AdapterInvocation): Promise<AdapterReport> {
     this.invocations.push(request)
     return Promise.resolve({ outcome: 'observed', observation: this.observation })
+  }
+}
+
+/** Records the session lifecycle it was driven through. */
+export class RecordingSession {
+  readonly calls: string[] = []
+  prepared: SessionPrepareRequest | undefined
+  readonly handle: SessionHandle = {
+    session_ref: 'session:run-20260812-0001',
+    deadline: { wall_clock_seconds: 600 },
+  }
+  readonly #failures: { prepare?: string; start?: string }
+
+  constructor(failures: { prepare?: string; start?: string } = {}) {
+    this.#failures = failures
+  }
+
+  prepare(request: SessionPrepareRequest): Promise<SessionPreparation> {
+    this.calls.push('prepare')
+    this.prepared = request
+    const failure = this.#failures.prepare
+    return Promise.resolve(
+      failure === undefined
+        ? { ok: true, handle: { ...this.handle, session_ref: `session:${request.run_id}` } }
+        : { ok: false, detail: failure },
+    )
+  }
+
+  start(): Promise<SessionStart> {
+    this.calls.push('start')
+    const failure = this.#failures.start
+    return Promise.resolve(failure === undefined ? { ok: true } : { ok: false, detail: failure })
+  }
+
+  interrupt(): Promise<void> {
+    this.calls.push('interrupt')
+    return Promise.resolve()
+  }
+
+  close(): Promise<SessionClosure> {
+    this.calls.push('close')
+    return Promise.resolve({ torn_down: true })
+  }
+}
+
+/** An adapter that never returns, and records whether it saw the abort. */
+export class HangingAdapter {
+  aborted = false
+  readonly requests: AdapterInvocation[] = []
+
+  invoke(request: AdapterInvocation): Promise<AdapterReport> {
+    this.requests.push(request)
+    request.signal.addEventListener('abort', () => {
+      this.aborted = true
+    })
+    return new Promise<AdapterReport>(() => {
+      // Deliberately never settles: the orchestrator must not depend on
+      // a provider being well behaved.
+    })
+  }
+}
+
+/** A gate that never returns. */
+export class HangingExecution {
+  readonly requests: GateExecutionRequest[] = []
+
+  runGate(request: GateExecutionRequest): Promise<GateReport> {
+    this.requests.push(request)
+    return new Promise<GateReport>(() => {})
   }
 }
 

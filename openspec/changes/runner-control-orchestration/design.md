@@ -175,6 +175,40 @@ Accepted by the planning review (OQ1): real read-only acquisition and
 observation are appropriate for L4; execution and adapter implementations
 remain deterministic fakes with no spawn or container capability.
 
+### D3b: The execution session, and cancellation that can reach work in flight
+
+`SANDBOX_STARTED` was entered by asserting it: consent succeeded, the
+machine moved, and no execution operation had occurred at all — the
+execution port's only operation was `runGate`, which has nothing to do
+with a session existing. The lifecycle spec defers the REAL sandbox
+start; it does not say the state is entered without one.
+
+So `ExecutionSessionPort` — `prepare`, `start`, `interrupt`, `close` —
+and **opening the session IS the spend**: it is what earns
+`commit_spend`, so a session that will not open never reaches
+`SANDBOX_STARTED`. That is what makes the state mean something.
+
+The same seam fixes cancellation. Polling between phases cannot interrupt
+a hung `invoke()` or `runGate()`, which are the two calls most likely to
+hang; "cancellation must be effective, not advisory" is not provable
+against a design that can only look when nothing is happening. The run
+now owns an abort signal, hands it to those calls, AND races them against
+it. Handing it over lets a well-behaved implementation stop immediately;
+racing means one that ignores it still cannot hold the run open. On
+abort the session is INTERRUPTED — abandoning the call would leave
+whatever it started still running, which is the whole difference.
+
+The deadline comes from the profile's declared wall clock, so there is no
+unbounded run.
+
+This lands before L9 deliberately. L9's scope is the real launcher,
+network and resource enforcement, and effective cancellation and
+teardown. A port with no session handle, no deadline and no interrupt
+would force L9 to invent the seam before it could enforce anything
+through it — making effective cancellation L9's problem to DESIGN rather
+than L9's problem to PROVE. This landing ships an implementation that
+starts nothing.
+
 ### D4: Acquire-once is a consumed token, in declared epoch roles
 
 Acquisition sets exist per epoch ROLE (review blocker 1's resolution as

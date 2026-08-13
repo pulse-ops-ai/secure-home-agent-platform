@@ -184,6 +184,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-45'],
   },
   {
+    id: 'RO-MUT-31',
+    mutation: 'earn commit_spend on consent alone, without opening a session',
+    killedBy: ['RO-EX-51'],
+  },
+  {
+    id: 'RO-MUT-32',
+    mutation: 'hand the abort signal over without racing it — advisory cancellation',
+    killedBy: ['RO-EX-53', 'RO-EX-54', 'RO-EX-55'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

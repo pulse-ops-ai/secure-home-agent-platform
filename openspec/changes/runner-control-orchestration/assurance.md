@@ -92,6 +92,10 @@ are below.
 | RO-INV-35 | An adapter receives credential REFERENCES only — the invocation has no field a value could occupy | trust |
 | RO-INV-36 | An adapter cannot report a terminal state: its observations are separate fields that may disagree, and the lifecycle classifies them — a disagreement is `INDETERMINATE`, a failure class | trust |
 | RO-INV-37 | Model output enters as an untrusted claim and never reaches the authoritative change set; usage is recorded in native units and money is not modeled | trust |
+| RO-INV-38 | `SANDBOX_STARTED` is CAUSED, not asserted: the transition into it is earned by preparing and starting an execution session, and a session that will not open never reaches the state | trust |
+| RO-INV-39 | Every run that opens a session closes it, on every exit; a run that opened none closes nothing | behavior |
+| RO-INV-40 | Cancellation reaches work in flight: the abort signal is handed to the adapter and gate calls AND raced against them, so a call that ignores it cannot hold the run open, and the session is interrupted rather than merely abandoned | trust |
+| RO-INV-41 | Every run has a deadline, taken from the profile's declared wall clock; there is no unbounded run | behavior |
 
 ## State-Space Model
 
@@ -243,6 +247,13 @@ persistence (U11).
 | RO-EX-48 | RO-INV-37 | type-level | usage is `{unit, amount}` pairs, and no cost, currency, or price term is representable |
 | RO-EX-49 | RO-INV-34 | deterministic example | the run input's task and parameters reach the adapter verbatim |
 | RO-EX-50 | RO-INV-16 | deterministic example | the richer observation still carries reported calls into events and evidence under their dispositions |
+| RO-EX-51 | RO-INV-38 | adversarial | the session is prepared and started before the state is entered; a session that cannot be prepared, and one that cannot be started, each reach neither `SANDBOX_STARTED` nor the adapter |
+| RO-EX-52 | RO-INV-39 | deterministic example | a completed run and a run refused after opening one both close last; a run that never opened one calls nothing |
+| RO-EX-53 | RO-INV-40 | adversarial | a provider invocation that never returns yields `TIMED_OUT`, with the session interrupted and then closed |
+| RO-EX-54 | RO-INV-40 | adversarial | a gate that never returns does the same |
+| RO-EX-55 | RO-INV-40 | adversarial | a cancellation raised DURING a hung call cancels the run, and the in-flight call observes the abort |
+| RO-EX-56 | RO-INV-40 | deterministic example | the adapter and the gates each receive the session reference and the abort signal |
+| RO-EX-57 | RO-INV-41 | deterministic example | the prepared session carries the profile's wall clock and the run identity |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -270,6 +281,8 @@ persistence (U11).
 | RO-MUT-28 | RO-INV-32 | mutation | emitting the terminal event before the commit is killed by RO-EX-38/39 (verified: the mutant kills two proofs) |
 | RO-MUT-29 | RO-INV-36 | mutation | trusting the provider's self-reported outcome over the disagreement is killed by RO-EX-46 (verified) |
 | RO-MUT-30 | RO-INV-35 | mutation | admitting a credential value field on the invocation is killed by RO-EX-45 under `tsc` (verified: survives `vitest run` alone, which is why the aggregate gate runs types AND tests) |
+| RO-MUT-31 | RO-INV-38 | mutation | earning `commit_spend` on consent alone, without opening a session, is killed by RO-EX-51 (verified: the mutant kills ten proofs) |
+| RO-MUT-32 | RO-INV-40 | mutation | handing the abort signal over without racing it — advisory cancellation — is killed by RO-EX-53/54/55 (verified: the suite hangs and three proofs fail) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

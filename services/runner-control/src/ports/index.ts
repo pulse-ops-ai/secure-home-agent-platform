@@ -11,6 +11,7 @@
  */
 import type { FinalizationPort, Retractable } from './finalization.js'
 import type { RunJournalPort, RunLeasePort } from './journal.js'
+import type { ExecutionSessionPort } from './session.js'
 import type {
   AdapterInvocationRequest,
   AdapterReport,
@@ -104,6 +105,8 @@ export interface Ports {
   readonly lease: RunLeasePort
   /** The all-or-none terminal commit. */
   readonly finalization: FinalizationPort
+  /** The execution session: what makes SANDBOX_STARTED a caused state. */
+  readonly session: ExecutionSessionPort
   readonly workspace: WorkspaceObserverPort
   readonly artifacts: ArtifactObserverPort
   readonly execution: ExecutionPort
@@ -116,4 +119,5 @@ export interface Ports {
 export * from './values.js'
 export * from './journal.js'
 export * from './finalization.js'
+export * from './session.js'
 export type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'

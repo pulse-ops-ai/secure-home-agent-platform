@@ -77,6 +77,15 @@ export interface ArtifactObserveRequest extends RunScoped {
 export interface GateExecutionRequest extends RunScoped {
   readonly gate_id: string
   readonly spec: GateSpecT
+  /** The session this gate runs inside — L9 binds teardown to it. */
+  readonly session_ref: string
+  /**
+   * Aborted when the run is cancelled or its deadline elapses. Handed to
+   * the call rather than polled around it: an implementation that
+   * honours it stops immediately, and one that does not is raced by the
+   * orchestrator anyway, so a hung gate cannot hold the run open.
+   */
+  readonly signal: AbortSignal
 }
 
 /**
@@ -146,6 +155,8 @@ export interface AdapterInvocationRequest extends RunScoped {
   readonly credentials: readonly { readonly env_var: string }[]
   /** Opaque references. The adapter resolves nothing itself. */
   readonly workspace: { readonly session_ref: string; readonly root_ref: string }
+  /** Aborted on cancellation or deadline; see `GateExecutionRequest`. */
+  readonly signal: AbortSignal
 }
 
 /** One tool call the provider reported, with the disposition it saw. */

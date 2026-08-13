@@ -272,7 +272,7 @@ describe('RO-EX-07: the shell is inert', () => {
     const shell = await import('../app/index.js')
     expect(typeof shell.RunnerControlModule).toBe('function')
     // Importing did not construct the module, only declared it.
-    expect(Object.keys(shell.PORT_TOKENS)).toHaveLength(10)
+    expect(Object.keys(shell.PORT_TOKENS)).toHaveLength(11)
   })
 })
 
