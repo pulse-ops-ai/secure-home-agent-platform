@@ -232,13 +232,22 @@ export const governedWrites = (ports: TestPorts, run_id?: string): readonly Reco
 export const evidenceSinkFailing = (
   shouldFail: (request: { readonly kind: string }) => boolean,
   base: RecordingEvidenceSink = new RecordingEvidenceSink(),
+  /**
+   * When true the write LANDS and then reports failure — the case that
+   * actually needs retraction. A sink that rejects before writing leaves
+   * nothing to retract, so a proof built on one cannot tell whether
+   * rollback works at all.
+   */
+  landsBeforeFailing = false,
 ): RecordingEvidenceSink =>
   ({
-    write: (request: { readonly kind: string }) =>
-      shouldFail(request)
-        ? Promise.reject(new Error('evidence sink down'))
-        : base.write(request as never),
-    retractRun: base.retractRun.bind(base),
+    write: async (request: { readonly kind: string }) => {
+      if (!shouldFail(request)) return base.write(request as never)
+      if (landsBeforeFailing) await base.write(request as never)
+      throw new Error('evidence sink down')
+    },
+    mark: base.mark.bind(base),
+    retractTo: base.retractTo.bind(base),
     writesOf: base.writesOf.bind(base),
     get all() {
       return base.all
@@ -252,7 +261,8 @@ export const eventSinkFailing = (
   ({
     emit: (request: { readonly run_id: string; readonly event: { event_type: string } }) =>
       shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),
-    retractRun: base.retractRun.bind(base),
+    mark: base.mark.bind(base),
+    retractTo: base.retractTo.bind(base),
     eventsOf: base.eventsOf.bind(base),
     get runs() {
       return base.runs
@@ -271,7 +281,8 @@ export const journalFailing = (
     appendRejection: base.appendRejection.bind(base),
     appendAcquisition: base.appendAcquisition.bind(base),
     appendHold: base.appendHold.bind(base),
-    retractRun: base.retractRun.bind(base),
+    mark: base.mark.bind(base),
+    retractTo: base.retractTo.bind(base),
     readCurrentState: base.readCurrentState.bind(base),
   }) as unknown as InMemoryRunJournal
 

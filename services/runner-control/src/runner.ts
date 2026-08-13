@@ -64,6 +64,7 @@ import type {
   ArtifactObservation,
   AuthorityBytes,
   EvidenceOperations,
+  LeaseClaim,
   Ports,
   RunInput,
   SessionHandle,
@@ -179,7 +180,23 @@ export class Runner {
     // writing through the shared keyed sinks that cross-run isolation
     // legitimately permits. The claim happens before the first effect —
     // a run we do not own must not even read authority.
-    const claim = await this.#ports.lease.claim({ run_id: request.run_id })
+    let claim: LeaseClaim
+    try {
+      claim = await this.#ports.lease.claim({ run_id: request.run_id })
+    } catch (error) {
+      // A lease store that throws is not a run that failed — it is a run
+      // that never started. Reported as a conclusion rather than a
+      // rejection, because `run()` resolving is what every caller relies
+      // on to know the run is over.
+      return {
+        run_id: request.run_id,
+        state: 'REQUESTED',
+        produced: 'none',
+        detail: `the run lease could not be claimed: ${error instanceof Error ? error.message : String(error)}`,
+        transitions: [],
+        rejections: [],
+      }
+    }
     if (!claim.ok) {
       return {
         run_id: request.run_id,
@@ -196,7 +213,15 @@ export class Runner {
       // Released even on the throw path: a concluded run must not hold
       // its lease, and neither must a crashed one — otherwise a fault
       // makes the run unrecoverable rather than merely failed.
-      await this.#ports.lease.release({ run_id: request.run_id, generation: claim.generation })
+      //
+      // And a release that THROWS must not replace the run's result. The
+      // run is over either way; a stuck lease is a lease problem, not a
+      // reason to lose the conclusion that was already reached.
+      try {
+        await this.#ports.lease.release({ run_id: request.run_id, generation: claim.generation })
+      } catch {
+        // Deliberately swallowed. See above.
+      }
     }
   }
 
@@ -205,12 +230,31 @@ export class Runner {
     signals: RunSignals,
     generation: number,
   ): Promise<RunConclusion> {
+    // The open session is tracked HERE rather than only inside the walk,
+    // so a session method that throws — `start`, `interrupt` — cannot
+    // carry the reference out of scope with it. A prepared session that
+    // nobody can close is a leak, and the throw path is exactly where
+    // leaks happen.
+    const open: { handle: { session_ref: string } | undefined } = { handle: undefined }
     try {
-      return await this.#walk(request, signals, generation)
+      return await this.#walk(request, signals, generation, open)
     } catch (error) {
       const detail = `the run's terminal state could not be established: ${
         error instanceof Error ? error.message : String(error)
       }`
+      if (open.handle !== undefined) {
+        const leaked = open.handle
+        open.handle = undefined
+        try {
+          await this.#ports.session.close({
+            run_id: request.run_id,
+            session_ref: leaked.session_ref,
+          })
+        } catch {
+          // The session port is what failed. Reported through the
+          // conclusion rather than by failing to conclude.
+        }
+      }
       // A clock that throws is one of the ports this catch exists for,
       // so the fallback must not call it again.
       const safeClock = {
@@ -260,6 +304,7 @@ export class Runner {
     request: RunRequest,
     signals: RunSignals,
     generation: number,
+    open: { handle: { session_ref: string } | undefined },
   ): Promise<RunConclusion> {
     const machine = new RunMachine(request.run_id, this.#ports.clock, signals.transitions)
     const ledger = new FinalizationLedger(request.run_id)
@@ -274,12 +319,30 @@ export class Runner {
      * batched write would leave nothing.
      */
     const journalTick = async (): Promise<void> => {
-      const pending = machine.drainUnjournaled()
-      for (const transition of pending.transitions) {
-        await this.#ports.journal.appendTransition({ run_id: request.run_id, transition })
-      }
-      for (const rejection of pending.rejections) {
-        await this.#ports.journal.appendRejection({ run_id: request.run_id, rejection })
+      const pending = machine.pendingJournal()
+      let transitions = 0
+      let rejections = 0
+      try {
+        for (const transition of pending.transitions) {
+          await this.#ports.journal.appendTransition({ run_id: request.run_id, transition })
+          transitions += 1
+        }
+        for (const rejection of pending.rejections) {
+          await this.#ports.journal.appendRejection({ run_id: request.run_id, rejection })
+          rejections += 1
+        }
+      } catch {
+        // Swallowed on purpose: an append that fails leaves its entry
+        // PENDING, and the next tick retries it. Propagating would end
+        // the run over a transient journal fault, and — worse — the
+        // entry would still be unwritten. `conclude` reports anything
+        // still pending at the end, so a permanently failing journal is
+        // visible rather than silent.
+      } finally {
+        // Only what LANDED is confirmed. Anything after the failure
+        // stays pending and is retried at the next tick, so a rejected
+        // append cannot silently remove a transition from the record.
+        machine.confirmJournaled(transitions, rejections)
       }
     }
 
@@ -294,32 +357,31 @@ export class Runner {
       produced: RunConclusion['produced'],
       detail: string,
     ): Promise<RunConclusion> => {
+      // NOTE: nothing is written to the evidence sink here.
+      //
+      // A transition record written after the seal made the seal not the
+      // run's last write — and the proof could not see it, because the
+      // helper that gathered "the run's writes" filtered that kind out.
+      // The journal is the durable transition record now, so there is
+      // nothing left for this to duplicate.
+      await journalTick()
+      // One more attempt for anything a failed append left pending, so
+      // the durable record is as complete as the journal allowed.
       await journalTick()
       disarm()
       if (session !== undefined) {
-        const open = session
+        const closing = session
         session = undefined
+        open.handle = undefined
         try {
-          await this.#ports.session.close({ run_id: request.run_id, session_ref: open.session_ref })
+          await this.#ports.session.close({
+            run_id: request.run_id,
+            session_ref: closing.session_ref,
+          })
         } catch {
           // A session that will not close is reported by L9's
           // implementation, not by failing an already-concluded run.
         }
-      }
-      try {
-        await this.#ports.evidence.write({
-          run_id: request.run_id,
-          kind: 'transition_record',
-          transitions: {
-            run_id: request.run_id,
-            transitions: machine.transitionRecord,
-            rejections: machine.rejections,
-          },
-        })
-      } catch {
-        // The transition record is diagnostic. Failing to write it must
-        // not turn a concluded run into an unconcluded one — the run
-        // already reached its terminal state and its governed record.
       }
       return {
         run_id: request.run_id,
@@ -344,7 +406,13 @@ export class Runner {
       >,
       detail: string,
     ): Promise<Stop> => {
-      machine.advance(kind, detail)
+      // Checked, like every other transition. A narrowed table can
+      // reject a terminal too, and writing an early-terminal record for
+      // a refusal the machine did not authorize would record a fact
+      // that did not happen.
+      if (machine.advance(kind, detail).kind === 'rejected') {
+        return stop(await conclude('none', `the machine refused the ${kind} terminal: ${detail}`))
+      }
       const record = buildEarlyTerminationRecord({
         run_id: request.run_id,
         requester: request.requester,
@@ -658,11 +726,17 @@ export class Runner {
     const abortRun = async (partial: FinishPartial = {}): Promise<PhaseCommand<RunConclusion>> => {
       const reason = abortReason ?? 'cancel'
       if (session !== undefined) {
-        await this.#ports.session.interrupt({
-          run_id: request.run_id,
-          session_ref: session.session_ref,
-          reason,
-        })
+        try {
+          await this.#ports.session.interrupt({
+            run_id: request.run_id,
+            session_ref: session.session_ref,
+            reason,
+          })
+        } catch {
+          // An interrupt that throws is reported by the session's own
+          // implementation. It must not stop the run from terminating,
+          // or a broken teardown would also cost us the record of it.
+        }
       }
       return finish(
         reason,
@@ -726,6 +800,7 @@ export class Runner {
         )
       }
       session = prepared.handle
+      open.handle = session
       const sessionStarted = await this.#ports.session.start({
         run_id: request.run_id,
         session_ref: session.session_ref,
@@ -1156,17 +1231,20 @@ export class Runner {
         })
         return await conclude('none', held ?? outcome.detail)
       }
-      case 'lost': {
+      case 'lost':
         // Ownership moved while the run was walking. It has not failed a
-        // contract; it has simply stopped being ours, and continuing
-        // would be the second-writer problem the lease exists to
-        // prevent. Terminate operationally and say so.
-        const why = `${outcome.reason}; the ${outcome.phase} phase did not run`
-        const stopped = canConstructEvidence(machine.state)
-          ? await finish('operational_fault', why, 'OPERATIONAL_FAILURE')
-          : await terminateEarly('operational_fault', why)
-        return stopped.kind === 'terminate' ? stopped.value : await conclude('none', why)
-      }
+        // contract; it has stopped being OURS. Writing a terminal record
+        // now would be exactly the second writer the lease exists to
+        // prevent, so this path writes NOTHING — no journal tail, no
+        // event, no evidence. Whoever holds the run owns its record.
+        return {
+          run_id: request.run_id,
+          state: machine.state,
+          produced: 'none',
+          detail: `${outcome.reason}; the ${outcome.phase} phase did not run, and no further write was made`,
+          transitions: machine.transitionRecord,
+          rejections: machine.rejections,
+        }
       case 'halted':
         return await terminateFromRejection(outcome)
       case 'walked':

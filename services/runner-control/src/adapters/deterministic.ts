@@ -90,15 +90,16 @@ export class RecordingEventSink implements EventSinkPort {
     return Promise.resolve()
   }
 
-  /** Drop this run's terminal event, for a commit that did not happen. */
-  retractRun(request: RunScoped): Promise<void> {
+  mark(request: RunScoped): Promise<string> {
+    return Promise.resolve(String((this.#byRun.get(request.run_id) ?? []).length))
+  }
+
+  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
     const existing = this.#byRun.get(request.run_id) ?? []
-    this.#byRun.set(
-      request.run_id,
-      existing.filter(
-        (event) => (event as { event_type?: string }).event_type !== 'run.terminated',
-      ),
-    )
+    const keep = Number(request.token)
+    if (Number.isInteger(keep) && keep >= 0) {
+      this.#byRun.set(request.run_id, existing.slice(0, keep))
+    }
     return Promise.resolve()
   }
 
@@ -136,12 +137,27 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     return Promise.resolve()
   }
 
-  /** Drop this run's sealed bundle, for a commit that did not happen. */
-  retractRun(request: RunScoped): Promise<void> {
-    for (let index = this.#writes.length - 1; index >= 0; index -= 1) {
-      const write = this.#writes[index]
-      if (write?.run_id === request.run_id && write.kind === 'evidence_bundle') {
+  mark(request: RunScoped): Promise<string> {
+    return Promise.resolve(String(this.writesOf(request.run_id).length))
+  }
+
+  /**
+   * Discard this run's writes made after `token`.
+   *
+   * Scoped to the ATTEMPT: clearing everything the run ever wrote would
+   * let a later attempt's rollback erase an earlier attempt's committed
+   * bundle, turning a failed retry into data loss.
+   */
+  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
+    const keep = Number(request.token)
+    if (!Number.isInteger(keep) || keep < 0) return Promise.resolve()
+    let seen = 0
+    for (let index = 0; index < this.#writes.length; index += 1) {
+      if (this.#writes[index]?.run_id !== request.run_id) continue
+      seen += 1
+      if (seen > keep) {
         this.#writes.splice(index, 1)
+        index -= 1
       }
     }
     return Promise.resolve()

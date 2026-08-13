@@ -130,15 +130,29 @@ export class RunMachine {
    * moment the transition was taken. Batching would defeat the purpose:
    * a run that dies mid-walk must leave behind what actually happened.
    */
-  drainUnjournaled(): {
+  pendingJournal(): {
     readonly transitions: readonly TransitionEntry[]
     readonly rejections: readonly RejectionEntry[]
   } {
-    const transitions = this.#transitions.slice(this.#journaledTransitions)
-    const rejections = this.#rejections.slice(this.#journaledRejections)
-    this.#journaledTransitions = this.#transitions.length
-    this.#journaledRejections = this.#rejections.length
-    return { transitions, rejections }
+    return {
+      transitions: this.#transitions.slice(this.#journaledTransitions),
+      rejections: this.#rejections.slice(this.#journaledRejections),
+    }
+  }
+
+  /**
+   * Confirm that `transitions` and `rejections` entries were durably
+   * appended.
+   *
+   * Separate from reading them, because advancing the cursor before the
+   * append succeeded LOSES the entry: a rejected append would leave it
+   * outside the retry set permanently, and the durable record would be
+   * missing a transition that happened. The cursor moves only for what
+   * actually landed.
+   */
+  confirmJournaled(transitions: number, rejections: number): void {
+    this.#journaledTransitions += transitions
+    this.#journaledRejections += rejections
   }
 
   /** Take the write capability as of the current version. */

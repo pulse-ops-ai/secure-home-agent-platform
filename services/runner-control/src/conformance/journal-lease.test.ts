@@ -73,7 +73,8 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),
       appendHold: inner.appendHold.bind(inner),
-      retractRun: inner.retractRun.bind(inner),
+      mark: inner.mark.bind(inner),
+      retractTo: inner.retractTo.bind(inner),
       readCurrentState: inner.readCurrentState.bind(inner),
     }
     await new Runner(testPorts({ journal: counting })).run(runRequest())

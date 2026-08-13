@@ -28,6 +28,9 @@ export interface CommitParticipants {
   readonly evidence: EvidenceSinkPort
 }
 
+const describe = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
 export class TransactionalFinalization implements FinalizationPort {
   readonly #participants: CommitParticipants
 
@@ -37,18 +40,59 @@ export class TransactionalFinalization implements FinalizationPort {
 
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
     const { journal, events, evidence } = this.#participants
-    const undo: (() => Promise<void>)[] = []
     const scoped = { run_id: commit.run_id }
+
+    // MARK EVERY PARTICIPANT FIRST.
+    //
+    // Registering a rollback only after a write returned left three
+    // holes: a tail that failed part way through was already partly
+    // written, a sink that landed a write and then reported failure kept
+    // it, and the evidence write — the last and most consequential —
+    // had no rollback registered at all. A mark taken before anything is
+    // attempted has none of those cases, because it does not depend on
+    // any write having succeeded.
+    let marks: { journal: string; events: string; evidence: string }
+    try {
+      marks = {
+        journal: await journal.mark(scoped),
+        events: await events.mark(scoped),
+        evidence: await evidence.mark(scoped),
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        detail: `finalization could not begin: a participant could not be marked: ${describe(error)}`,
+      }
+    }
+
+    const rollback = async (why: string): Promise<CommitOutcome> => {
+      const failures: string[] = []
+      // Reverse of the apply order, so the seal is undone first.
+      for (const [participant, token] of [
+        [evidence, marks.evidence],
+        [events, marks.events],
+        [journal, marks.journal],
+      ] as const) {
+        try {
+          await participant.retractTo({ run_id: commit.run_id, token })
+        } catch (error) {
+          failures.push(describe(error))
+        }
+      }
+      return {
+        ok: false,
+        detail:
+          failures.length === 0
+            ? `finalization did not commit: ${why}`
+            : `finalization did not commit: ${why}; and the rollback did not fully unwind: ${failures.join('; ')}`,
+      }
+    }
 
     try {
       for (const transition of commit.transitions) {
         await journal.appendTransition({ run_id: commit.run_id, transition })
       }
-      undo.push(() => journal.retractRun(scoped))
-
       await events.emit({ run_id: commit.run_id, event: commit.event })
-      undo.push(() => events.retractRun(scoped))
-
       // LAST: the seal is the run's final write.
       await evidence.write({
         run_id: commit.run_id,
@@ -57,22 +101,7 @@ export class TransactionalFinalization implements FinalizationPort {
       })
       return { ok: true }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error)
-      const failures: string[] = []
-      for (const retract of undo.reverse()) {
-        try {
-          await retract()
-        } catch (unwound) {
-          failures.push(unwound instanceof Error ? unwound.message : String(unwound))
-        }
-      }
-      return {
-        ok: false,
-        detail:
-          failures.length === 0
-            ? `finalization did not commit: ${detail}`
-            : `finalization did not commit: ${detail}; and the rollback did not fully unwind: ${failures.join('; ')}`,
-      }
+      return await rollback(describe(error))
     }
   }
 }

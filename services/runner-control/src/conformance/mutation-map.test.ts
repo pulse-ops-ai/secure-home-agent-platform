@@ -209,6 +209,26 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-60', 'RO-EX-61'],
   },
   {
+    id: 'RO-MUT-36',
+    mutation: 'omit evidence from the finalization rollback set',
+    killedBy: ['RO-EX-65'],
+  },
+  {
+    id: 'RO-MUT-37',
+    mutation: 'terminate a lost-lease run by writing its terminal record',
+    killedBy: ['RO-EX-66'],
+  },
+  {
+    id: 'RO-MUT-38',
+    mutation: 'advance the journal cursor before the append lands',
+    killedBy: ['RO-EX-67'],
+  },
+  {
+    id: 'RO-MUT-39',
+    mutation: 'retract the whole run instead of the failing attempt',
+    killedBy: ['RO-EX-71'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

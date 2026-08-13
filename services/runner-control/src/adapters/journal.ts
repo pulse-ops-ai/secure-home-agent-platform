@@ -21,15 +21,6 @@ import type {
   TransitionEntry,
 } from '../ports/index.js'
 
-const TERMINAL_TAIL: ReadonlySet<string> = new Set([
-  'COMPLETED',
-  'REFUSED',
-  'OPERATIONAL_FAILURE',
-  'CANCELLED',
-  'TIMED_OUT',
-  'INDETERMINATE',
-])
-
 interface JournalPages {
   transitions: TransitionEntry[]
   rejections: RejectionEntry[]
@@ -74,18 +65,24 @@ export class InMemoryRunJournal implements RunJournalPort {
     return Promise.resolve()
   }
 
+  mark(request: RunScoped): Promise<string> {
+    return Promise.resolve(String(this.#page(request.run_id).transitions.length))
+  }
+
   /**
-   * Drop the run's FINALIZATION tail — the transitions a commit
-   * contributed — leaving the walk that preceded it. A commit that did
-   * not happen must leave no trace of having happened; the run's history
-   * up to that point did happen and stays.
+   * Rewind this run's transitions to the mark, leaving everything that
+   * preceded the attempt.
+   *
+   * Scoped to the ATTEMPT, not the run. Clearing everything a run ever
+   * journaled is wrong the moment a run is attempted twice: a later
+   * attempt's rollback would erase an earlier attempt's committed
+   * terminal, turning a failure into data loss.
    */
-  retractRun(request: RunScoped): Promise<void> {
+  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
     const page = this.#pages.get(request.run_id)
     if (page !== undefined) {
-      page.transitions = page.transitions.filter(
-        (entry) => entry.to !== 'EVIDENCE_SEALED' && !TERMINAL_TAIL.has(entry.to),
-      )
+      const keep = Number(request.token)
+      if (Number.isInteger(keep) && keep >= 0) page.transitions = page.transitions.slice(0, keep)
     }
     return Promise.resolve()
   }

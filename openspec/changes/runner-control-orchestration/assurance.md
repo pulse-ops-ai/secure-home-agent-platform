@@ -100,6 +100,12 @@ are below.
 | RO-INV-43 | Observation digests are taken over RAW BYTES, so a binary substitution cannot hash identically to what it replaced | trust |
 | RO-INV-44 | Entries are observed with `lstat`: a symlink is recorded AS a symlink with its resolved `link_target`, and an artifact read is of the named path or is refused | trust |
 | RO-INV-45 | Artifact observation is bounded by file count and file size, and refuses content it cannot carry faithfully rather than corrupting it | trust |
+| RO-INV-46 | The seal is the run's last write of ANY kind — nothing, including the transition record, follows it | trust |
+| RO-INV-47 | A failed commit retracts to a mark taken BEFORE it wrote, and the retraction is scoped to the attempt so a later attempt cannot erase an earlier commit | trust |
+| RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence | trust |
+| RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
+| RO-INV-50 | Every terminal transition is checked, on the failure paths too: a terminal the machine refuses is not recorded as having happened | trust |
+| RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
 
 ## State-Space Model
 
@@ -264,6 +270,14 @@ persistence (U11).
 | RO-EX-61 | RO-INV-44 / RO-INV-45 | adversarial | a directory, a symlink, an oversize file and an over-count request are each refused rather than read |
 | RO-EX-62 | RO-INV-45 | adversarial | a binary artifact is refused by name; a text artifact is read faithfully |
 | RO-EX-63 | RO-INV-42 | adversarial | an unwalkable root reports failure, never no-changes |
+| RO-EX-64 | RO-INV-46 | adversarial | the last write of any kind to the evidence sink is the sealed bundle — asserted UNFILTERED, because the helper that filtered "the run's writes" is what hid the violation |
+| RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; an evidence write that LANDS and then fails is retracted |
+| RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk makes no further write and journals no terminal |
+| RO-EX-67 | RO-INV-49 | adversarial | an append that fails once is retried and reaches the journal, rather than vanishing from the record |
+| RO-EX-68 | RO-INV-50 | adversarial | a table forbidding `operational_fault`, and one forbidding `refuse` from `REQUESTED`, each write nothing |
+| RO-EX-69 | RO-INV-51 | adversarial | a `start()` that throws and an `interrupt()` that throws both still close the session |
+| RO-EX-70 | RO-INV-51 | adversarial | a `claim()` that throws resolves with a conclusion and writes nothing; a `release()` that throws does not replace a completed run |
+| RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -296,6 +310,10 @@ persistence (U11).
 | RO-MUT-33 | RO-INV-42 | mutation | labelling every observed file `modified` instead of diffing the baseline is killed by RO-EX-58 (verified) |
 | RO-MUT-34 | RO-INV-43 | mutation | digesting text instead of raw bytes is killed by RO-EX-59 (verified) |
 | RO-MUT-35 | RO-INV-44 | mutation | using `stat` instead of `lstat`, so a link reads as a regular file, is killed by RO-EX-60/61 (verified) |
+| RO-MUT-36 | RO-INV-47 | mutation | omitting evidence from the rollback set is killed by RO-EX-65 (verified) |
+| RO-MUT-37 | RO-INV-48 | mutation | terminating a lost-lease run by writing its record is killed by RO-EX-66 (verified) |
+| RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
+| RO-MUT-39 | RO-INV-47 | mutation | retracting the whole run instead of the attempt is killed by RO-EX-71 (verified) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

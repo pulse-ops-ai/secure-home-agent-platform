@@ -276,13 +276,17 @@ describe('RO-EX-24: a failing call emission keeps what is already known', () => 
 })
 
 describe('RO-EX-25: the transition record is durable', () => {
-  it('every run writes its walk through the sink, refusals included', async () => {
+  it('every run journals its walk, refusals included', async () => {
+    // Read from the JOURNAL, which is the durable transition record.
+    // It used to be written a second time through the evidence sink,
+    // after the seal — which made the seal not the run's last write.
     for (const request of [runRequest(), runRequest({ profile_ref: null })]) {
       const ports = testPorts()
       await new Runner(ports).run(request)
-      const walk = ports.evidence.all.filter((write) => write.kind === 'transition_record')
-      expect(walk, 'a memory-only record reconstructs nothing').toHaveLength(1)
-      expect((walk[0]?.payload as { run_id: string }).run_id).toBe(request.run_id)
+      const journaled = await ports.journal.readCurrentState({ run_id: request.run_id })
+      expect(journaled, 'a memory-only record reconstructs nothing').toBeDefined()
+      expect(journaled?.transitions.length).toBeGreaterThan(0)
+      for (const entry of journaled?.transitions ?? []) expect(entry.run_id).toBe(request.run_id)
     }
   })
 

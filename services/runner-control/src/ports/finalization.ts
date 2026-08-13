@@ -57,13 +57,22 @@ export interface FinalizationPort {
 }
 
 /**
- * Undo a run's finalization writes.
+ * Undo the writes ONE COMMIT ATTEMPT made.
  *
- * Required on every sink a commit touches, and required rather than
- * optional on purpose: a sink that cannot say "this run's writes are not
- * observable" cannot participate in an all-or-none commit, and
- * discovering that at rollback time is discovering it too late.
+ * Scoped to an attempt, not to a run. Retracting everything a run ever
+ * wrote is wrong the moment a run is attempted twice: a later attempt's
+ * rollback would erase an earlier attempt's committed terminal record,
+ * turning a failure into data loss.
+ *
+ * So a participant is MARKED before the attempt writes anything, and
+ * retraction rewinds to that mark. Required rather than optional: a sink
+ * that cannot say "these particular writes are not observable" cannot
+ * take part in an all-or-none commit, and discovering that at rollback
+ * time is discovering it too late.
  */
 export interface Retractable {
-  retractRun(request: RunScoped): Promise<void>
+  /** A token naming this participant's state before an attempt writes. */
+  mark(request: RunScoped): Promise<string>
+  /** Discard everything this run wrote after `token`. */
+  retractTo(request: RunScoped & { readonly token: string }): Promise<void>
 }
