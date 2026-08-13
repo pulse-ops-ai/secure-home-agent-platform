@@ -261,10 +261,11 @@ export class Runner {
         error instanceof Error ? error.message : String(error)
       }`
       // The REAL machine, advanced from the state the run actually
-      // reached. Checked like any other transition: a table that does
-      // not declare `indeterminate` from here leaves the run where it
-      // was rather than recording a terminal that was refused.
-      scope.machine.advance('indeterminate', detail)
+      // reached — and CHECKED. A table that declares no terminal from
+      // here leaves the run where it was, and the conclusion must say
+      // so rather than reporting a terminal the machine never granted.
+      const reached = scope.reachTerminal('indeterminate', detail)
+      const reported = reached.ok ? detail : `${detail}; ${reached.detail}`
 
       // Flush what the walk had not journaled yet, so the durable record
       // carries the walk rather than stopping at the last tick before
@@ -294,7 +295,7 @@ export class Runner {
           requester: request.requester,
           requested_profile: request.profile_ref,
           state: scope.machine.state,
-          detail,
+          detail: reported,
           started_at: scope.startedAt,
           finished_at: safeClock.now({ run_id: request.run_id }),
         })
@@ -316,7 +317,7 @@ export class Runner {
         run_id: request.run_id,
         state: scope.machine.state,
         produced,
-        detail,
+        detail: reported,
         transitions: scope.machine.transitionRecord,
         rejections: scope.machine.rejections,
       }
@@ -668,8 +669,11 @@ export class Runner {
         why: string,
         as: TransitionKind = 'operational_fault',
       ): Promise<Stop> => {
-        machine.advance(as, why)
-        return stop(await conclude('none', why))
+        // Checked, like every other transition. Applying this and
+        // reporting `machine.state` regardless is how a refused terminal
+        // left the run concluding in VERIFYING.
+        const reached = scope.reachTerminal(as, why)
+        return stop(await conclude('none', reached.ok ? why : `${why}; ${reached.detail}`))
       }
       if (!assembled.ok) {
         // A contract refusal terminates REFUSED; only an environmental

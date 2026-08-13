@@ -29,7 +29,7 @@
  * assignment assertions the walk still relies on.
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
-import type { RunMachine } from '../lifecycle/index.js'
+import type { RunMachine, TransitionKind } from '../lifecycle/index.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -62,6 +62,48 @@ export class RunScope {
 
   loseFence(detail: string): void {
     this.fenceLost ??= detail
+  }
+
+  /**
+   * THE ONE OWNER of a terminal transition taken outside the walk engine.
+   *
+   * The engine makes the machine authoritative on the ordinary path.
+   * The failure paths were converted to check `advance()` one at a time,
+   * and two were missed — `failClosed`, and the exception handler's
+   * INDETERMINATE. Both applied a terminal, ignored the answer, and then
+   * reported `machine.state`; when the machine refused, that state was
+   * unchanged, so the run concluded in a PROGRESS state. A run abandoned
+   * mid-walk is exactly what the lifecycle requirement forbids, and it
+   * happened only on the paths that run when something already failed.
+   *
+   * Having one owner is the fix rather than three more checks: a fourth
+   * local helper would have been missed the same way.
+   *
+   * The fallback is not a workaround. A run whose declared terminal the
+   * machine refuses is a run whose terminal state cannot be established,
+   * and INDETERMINATE is exactly that — a failure class, never a quiet
+   * success. If the table grants no terminal at all, nothing is invented:
+   * the refusal is already recorded, and the caller is told so it can
+   * report the run as unterminated instead of claiming otherwise.
+   */
+  reachTerminal(
+    kind: TransitionKind,
+    why: string,
+  ):
+    | { readonly ok: true; readonly kind: TransitionKind }
+    | { readonly ok: false; readonly detail: string } {
+    const from = this.machine.state
+    if (this.machine.advance(kind, why).kind === 'advanced') return { ok: true, kind }
+    if (kind !== 'indeterminate') {
+      const cause = `${why}; and the machine declares no ${kind} from ${from}, so the terminal state cannot be established`
+      if (this.machine.advance('indeterminate', cause).kind === 'advanced') {
+        return { ok: true, kind: 'indeterminate' }
+      }
+    }
+    return {
+      ok: false,
+      detail: `the machine granted no terminal from ${this.machine.state}: ${kind} was refused, and so was indeterminate`,
+    }
   }
 
   /** Stop the deadline and cancellation timers. Safe to call twice. */

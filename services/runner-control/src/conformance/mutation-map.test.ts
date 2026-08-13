@@ -262,6 +262,12 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-86'],
   },
   {
+    id: 'RO-MUT-46',
+    mutation:
+      'apply a failure terminal without checking the machine, so a refused terminal concludes the run in a progress state',
+    killedBy: ['RO-EX-88', 'RO-EX-89'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

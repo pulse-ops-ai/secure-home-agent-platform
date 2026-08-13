@@ -104,7 +104,7 @@ are below.
 | RO-INV-47 | Finalization performs no compensating publication. All fallible participant preparation stays invisible; exactly ONE commit-visibility operation makes the journal tail, terminal event, and sealed evidence observable together; abandoning an uncommitted preparation changes no observable run state | trust |
 | RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence. Ownership is re-established at the commit marker itself, because every per-resource fence check happens during staging and the fence cannot learn of a newer holder that never reaches it | trust |
 | RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
-| RO-INV-50 | Every terminal transition is checked, on the failure paths too: a terminal the machine refuses is not recorded as having happened | trust |
+| RO-INV-50 | Every terminal transition is checked, on the failure paths too, and they go through ONE owner rather than several local helpers. A terminal the machine refuses is not recorded as having happened; the run falls back to INDETERMINATE, and if the table grants no terminal at all the conclusion reports the run as unterminated rather than claiming a state the machine never granted | trust |
 | RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
 | RO-INV-52 | A run writes into an isolated workspace provisioned before execution, and discarded on every exit | trust |
 | RO-INV-53 | Changes leave the workspace only on the trusted core's materialization decision; a refusal applies nothing, and what is applied back is exactly the AUTHORITATIVE observation | trust |
@@ -298,6 +298,8 @@ persistence (U11).
 | RO-EX-85 | RO-INV-55 | adversarial | a port that throws at `RUNNING` still reports `PROFILE_RESOLVED`, `ELIGIBLE`, `SANDBOX_STARTED` and `RUNNING`, ending `INDETERMINATE`; the journal carries the same walk, including the entries pending at the throw |
 | RO-EX-86 | RO-INV-55 | adversarial | a run that captured a profile is NOT given the early-terminal shape; a run that captured none still is |
 | RO-EX-87 | RO-INV-55 | adversarial | a workspace provisioned before execution is discarded even when a port throws, and the deadline timer is disarmed |
+| RO-EX-88 | RO-INV-50 | adversarial | a table without `operational_fault` from `VERIFYING` still ends the run in a TERMINAL state, records the refusal, and writes nothing |
+| RO-EX-89 | RO-INV-50 | adversarial | a table granting no terminal at all from `RUNNING` makes the exception handler report the run as unterminated, naming the refusal, rather than reporting a progress state as the outcome |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -336,6 +338,7 @@ persistence (U11).
 | RO-MUT-43 | RO-INV-55 | mutation | recovering through a FRESH machine, so a run that reached `RUNNING` reports one invented transition from `REQUESTED`, is killed by RO-EX-85 (verified) |
 | RO-MUT-44 | RO-INV-55 | mutation | skipping resource release on the exception path, leaking the workspace and the armed deadline, is killed by RO-EX-87 (verified) |
 | RO-MUT-45 | RO-INV-55 | mutation | writing the early-terminal record unconditionally, so a run that held authority is described as one that never had any, is killed by RO-EX-86 (verified) |
+| RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
 | RO-MUT-40 | RO-INV-53 | mutation | applying back without asking the core is killed by RO-EX-72/73 |
