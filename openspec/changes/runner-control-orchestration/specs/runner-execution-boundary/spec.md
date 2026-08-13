@@ -198,6 +198,57 @@ implementation delivered there inherits this obligation.
 - **THEN** the implementation does not satisfy this requirement, and the
   divergence is observable as a difference from the isolated execution
 
+### Requirement: The authoritative change set is derived, never assumed
+
+The change set the trusted core treats as authoritative SHALL be DERIVED
+by comparing the workspace against a baseline captured for that run. A
+run for which no baseline was captured SHALL receive an observation
+failure, not a change set: a change set derived from nothing is a
+fabrication, and everything downstream inherits it.
+
+Observation digests SHALL be taken over raw bytes, so that a
+same-length substitution of non-text content cannot produce an identical
+identity. Entries SHALL be observed without following links: a symbolic
+link SHALL be recorded as a link, carrying the target it resolves to, so
+that decisions treating the target as the effective location can be made
+at all.
+
+Artifact observation SHALL read the named path itself — never through a
+link — SHALL refuse non-regular entries, SHALL be bounded in file count
+and file size, and SHALL refuse content it cannot carry faithfully rather
+than carrying a corrupted copy of it.
+
+#### Scenario: An unchanged workspace has no changes
+
+- **GIVEN** a run whose baseline was captured and whose workspace was
+  not modified
+- **WHEN** the change set is observed
+- **THEN** it is empty
+- **AND** no file is reported as modified merely for existing
+
+#### Scenario: Created, modified and deleted are distinguishable
+
+- **GIVEN** a run whose workspace gained a file, altered a file, and
+  lost a file after its baseline
+- **WHEN** the change set is observed
+- **THEN** each change carries the kind that actually occurred
+
+#### Scenario: A substitution cannot hide behind its size
+
+- **GIVEN** a file replaced by different non-text content of the same
+  length
+- **WHEN** the base identity is observed again
+- **THEN** it differs from the identity captured before
+
+#### Scenario: A link is observed as a link
+
+- **GIVEN** a workspace containing a symbolic link
+- **WHEN** it is observed
+- **THEN** the entry records that it is a link and the target it
+  resolves to
+- **AND** an artifact read of that path is refused rather than served
+  from the target
+
 ### Requirement: The adapter invocation is platform-built and the adapter never decides
 
 The invocation an adapter receives SHALL be constructed by the platform

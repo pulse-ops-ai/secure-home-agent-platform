@@ -209,6 +209,41 @@ through it — making effective cancellation L9's problem to DESIGN rather
 than L9's problem to PROVE. This landing ships an implementation that
 starts nothing.
 
+### D3c: The observer derives the change set; it does not assume one
+
+`runner-core` treats the host observation as the AUTHORITATIVE change
+set — it is what claims are reconciled against and what the path policy
+is enforced over. The first implementation walked the current tree and
+labelled every file `modified`, because it had no baseline to compare
+against. That is not a weak observer; it is a fabricated authority.
+
+So the base observation captures a MANIFEST — path, entry kind, mode,
+size, and a digest over RAW BYTES — and the change set is derived from
+it. Three consequences, each of which was a defect before:
+
+- **A run with no baseline is refused, not guessed at.** "We could not
+  look" and "nothing changed" are different facts.
+- **Digests are over bytes, not text.** A UTF-8 read turns two different
+  binaries of the same length into the same replacement characters, so a
+  substitution could pass the pinned-base check.
+- **Entries are `lstat`ed.** A symlink is recorded AS a symlink with its
+  resolved target — the core defines `link_target` for exactly this, and
+  it cannot treat the target as the effective location if the
+  observation hides that a link was involved.
+
+Artifact observation reads the named path itself, refuses non-regular
+entries, is bounded in count and size, and refuses non-text content
+rather than corrupting it — the L3 artifact value carries a string, and
+widening it to bytes is an L2 amendment this landing does not get to
+make.
+
+**What this is not.** It is the real observer for a plain directory, not
+a Git-native one. For coding workspaces a base commit plus a
+worktree/index diff is the better instrument: it distinguishes renames,
+honours repository ignores, and does not walk the tree twice. That is a
+named refinement for a later landing, and this landing claims the
+manifest observer rather than claiming to have shipped the other.
+
 ### D4: Acquire-once is a consumed token, in declared epoch roles
 
 Acquisition sets exist per epoch ROLE (review blocker 1's resolution as

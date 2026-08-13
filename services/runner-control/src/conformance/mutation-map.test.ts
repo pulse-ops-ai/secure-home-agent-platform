@@ -194,6 +194,21 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-53', 'RO-EX-54', 'RO-EX-55'],
   },
   {
+    id: 'RO-MUT-33',
+    mutation: 'label every observed file modified instead of diffing the baseline',
+    killedBy: ['RO-EX-58'],
+  },
+  {
+    id: 'RO-MUT-34',
+    mutation: 'digest observations as text instead of raw bytes',
+    killedBy: ['RO-EX-59'],
+  },
+  {
+    id: 'RO-MUT-35',
+    mutation: 'use stat instead of lstat, so a symlink reads as a regular file',
+    killedBy: ['RO-EX-60', 'RO-EX-61'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

@@ -96,6 +96,10 @@ are below.
 | RO-INV-39 | Every run that opens a session closes it, on every exit; a run that opened none closes nothing | behavior |
 | RO-INV-40 | Cancellation reaches work in flight: the abort signal is handed to the adapter and gate calls AND raced against them, so a call that ignores it cannot hold the run open, and the session is interrupted rather than merely abandoned | trust |
 | RO-INV-41 | Every run has a deadline, taken from the profile's declared wall clock; there is no unbounded run | behavior |
+| RO-INV-42 | The authoritative change set is DERIVED from a baseline manifest captured at the run's base observation; a run with no baseline gets a refusal, never a fabricated change set | trust |
+| RO-INV-43 | Observation digests are taken over RAW BYTES, so a binary substitution cannot hash identically to what it replaced | trust |
+| RO-INV-44 | Entries are observed with `lstat`: a symlink is recorded AS a symlink with its resolved `link_target`, and an artifact read is of the named path or is refused | trust |
+| RO-INV-45 | Artifact observation is bounded by file count and file size, and refuses content it cannot carry faithfully rather than corrupting it | trust |
 
 ## State-Space Model
 
@@ -254,6 +258,12 @@ persistence (U11).
 | RO-EX-55 | RO-INV-40 | adversarial | a cancellation raised DURING a hung call cancels the run, and the in-flight call observes the abort |
 | RO-EX-56 | RO-INV-40 | deterministic example | the adapter and the gates each receive the session reference and the abort signal |
 | RO-EX-57 | RO-INV-41 | deterministic example | the prepared session carries the profile's wall clock and the run identity |
+| RO-EX-58 | RO-INV-42 | adversarial | created, modified and deleted are distinguished against the captured baseline; an unchanged workspace reports NO changes; observing with no baseline refuses; baselines are keyed by run |
+| RO-EX-59 | RO-INV-43 | adversarial | a same-length BINARY replacement changes the base identity — the case a UTF-8 read collapses |
+| RO-EX-60 | RO-INV-44 | adversarial | an in-root symlink is reported with its `link_target`; a link escaping the root is never reported as an ordinary in-root file |
+| RO-EX-61 | RO-INV-44 / RO-INV-45 | adversarial | a directory, a symlink, an oversize file and an over-count request are each refused rather than read |
+| RO-EX-62 | RO-INV-45 | adversarial | a binary artifact is refused by name; a text artifact is read faithfully |
+| RO-EX-63 | RO-INV-42 | adversarial | an unwalkable root reports failure, never no-changes |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -283,6 +293,9 @@ persistence (U11).
 | RO-MUT-30 | RO-INV-35 | mutation | admitting a credential value field on the invocation is killed by RO-EX-45 under `tsc` (verified: survives `vitest run` alone, which is why the aggregate gate runs types AND tests) |
 | RO-MUT-31 | RO-INV-38 | mutation | earning `commit_spend` on consent alone, without opening a session, is killed by RO-EX-51 (verified: the mutant kills ten proofs) |
 | RO-MUT-32 | RO-INV-40 | mutation | handing the abort signal over without racing it — advisory cancellation — is killed by RO-EX-53/54/55 (verified: the suite hangs and three proofs fail) |
+| RO-MUT-33 | RO-INV-42 | mutation | labelling every observed file `modified` instead of diffing the baseline is killed by RO-EX-58 (verified) |
+| RO-MUT-34 | RO-INV-43 | mutation | digesting text instead of raw bytes is killed by RO-EX-59 (verified) |
+| RO-MUT-35 | RO-INV-44 | mutation | using `stat` instead of `lstat`, so a link reads as a regular file, is killed by RO-EX-60/61 (verified) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
@@ -386,6 +399,16 @@ not.** `RunJournalPort` and `RunLeasePort` are defined and proven here;
 where they persist is U11's, and this landing ships in-memory
 implementations only. A port whose contract waits for its store is a port
 whose contract gets written by the store.
+
+**The workspace observer is real for a plain directory, and says so.**
+It captures a creation-time manifest — path, entry kind, mode, size, and
+a digest over raw bytes — and derives later change sets from it. It is
+NOT a Git-native observer: for coding workspaces a base commit plus a
+worktree/index diff distinguishes renames, honours repository ignores,
+and avoids walking the tree twice. That is a named refinement for a later
+landing, not a capability this one claims. Binary artifact content is
+refused rather than carried, because the L3 artifact value holds a
+string and widening it is an L2 amendment.
 
 **Scenarios intentionally deferred, each with a named landing:** EX-005B,
 MUT-007, EX-008, ADV-013, enforcement ceilings (L9); adapter conformance
