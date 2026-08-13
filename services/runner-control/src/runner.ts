@@ -26,6 +26,7 @@
  */
 import type { PrincipalT, ProfileRefT } from './ports/contract-types.js'
 import {
+  classifyTerminalObservations,
   compareBaseIdentity,
   decideEligibility,
   decideMaterialization,
@@ -68,7 +69,6 @@ import type {
   LeaseClaim,
   Ports,
   RunInput,
-  TerminalObservations,
 } from './ports/index.js'
 import type { GateResultsT } from '@secure-home/contracts'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
@@ -1049,16 +1049,22 @@ export class Runner {
       }
       const observation = invocation.observation
 
-      // THE LIFECYCLE DECIDES, from observations that may disagree.
+      // THE CORE DECIDES; THIS MODULE SEQUENCES AND OBEYS.
       //
-      // The adapter cannot say the run succeeded — its shape has no way
-      // to — so the classification happens here. Where the observations
-      // conflict, as they did at exit 124 versus exitCode 0, the run's
-      // terminal state cannot be established, and that is INDETERMINATE:
-      // a failure class, never a quiet success (ADR-0013 decision 3).
-      const disagreement = describeTerminalDisagreement(observation.terminal)
-      if (disagreement !== undefined) {
-        return finish('indeterminate', disagreement, 'INDETERMINATE', { operations })
+      // Whether a provider's terminal observations contradict each other
+      // is a trust judgement about untrusted input, so it is not made
+      // here — it was, as a local algorithm, which is what a provider
+      // adapter landing would have inherited. What belongs here is
+      // asking at the right moment: before any call is recorded, and
+      // before anything downstream treats the run as having a terminal.
+      //
+      // Where the observations conflict, as at exit 124 versus exitCode
+      // 0, the terminal state cannot be established, and that is
+      // INDETERMINATE — a failure class, never a quiet success
+      // (ADR-0013 decision 3).
+      const classified = classifyTerminalObservations(observation.terminal)
+      if (!classified.established) {
+        return finish('indeterminate', classified.detail, 'INDETERMINATE', { operations })
       }
       // Every call the adapter reports becomes BOTH an event pair and an
       // evidence operation. Discarding them would mean a permitted or
@@ -1491,26 +1497,6 @@ const valueOf = <E extends AcquisitionEpoch>(
   // Unreachable when the epoch completed, and honest if it ever is not:
   // an absent value is a failed acquisition, never an empty document.
   return { ok: false, source: { source }, failure: `the verification epoch produced no ${source}` }
-}
-
-/**
- * Whether the provider's terminal observations CONTRADICT one another.
- *
- * A clean exit alongside a kill signal is the spike's exit-124 case: the
- * provider reported success and the substrate saw it die. Neither
- * observation is authoritative, so the honest answer is that the
- * terminal cannot be established.
- */
-const describeTerminalDisagreement = (terminal: TerminalObservations): string | undefined => {
-  const clean = terminal.exit_code === 0
-  const killed = terminal.signalled !== undefined
-  if (clean && killed) {
-    return `the provider reported exit ${String(terminal.exit_code)} but was signalled ${terminal.signalled}; the terminal state cannot be established`
-  }
-  if (!clean && terminal.exit_code !== undefined && terminal.reported_outcome === 'success') {
-    return `the provider reported success but exited ${String(terminal.exit_code)}; the terminal state cannot be established`
-  }
-  return undefined
 }
 
 const emissionFailure = (outcome: {

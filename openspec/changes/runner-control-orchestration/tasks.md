@@ -43,6 +43,29 @@ outside the listed paths is out of scope; if the L3 public API proves
 insufficient, stop and report the gap — do not modify `packages/*` inside
 this landing.
 
+**Cross-authority amendment GRANTED — L3 correction, terminal
+classification.** Task 7.4 reported an L3 core-surface gap: provider
+terminal-observation classification had no owner in `runner-core`, so
+`runner.ts` carried a local `describeTerminalDisagreement` deciding, on
+orchestration's authority, that a clean exit alongside a kill signal
+means the terminal state cannot be established. That contradicts
+`runner-execution-boundary` (trust decisions originate in the core;
+orchestration decides nothing) and ADR-0013 decision 3 (provider
+terminal observations are observational input; the platform lifecycle
+owns classification), and it is what a provider-adapter landing would
+have inherited.
+
+| Field | Value |
+|---|---|
+| Granted by | repository owner (@mikegtech), in review |
+| Scope | add `classifyTerminalObservations` to `packages/runner-core`, with its own proofs; consume it from `runner-control` and delete the local algorithm |
+| Paths added | `packages/runner-core/src/outcome/**`, `packages/runner-core/src/index.ts` |
+| Not granted | any other change to `packages/**`; the decision's SHAPE stays the core's and the SPI stays frozen in `ports/values.ts` per ADR-0013 |
+
+No consumer-allowlist amendment was needed after all:
+`services/runner-control` is already the authorized first consumer in
+`packages/runner-core/src/conformance/architecture.test.ts`.
+
 ---
 
 ## Implementation Authorization

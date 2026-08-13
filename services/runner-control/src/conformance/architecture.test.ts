@@ -294,6 +294,7 @@ describe('RO-INV-06: orchestration cannot decide', () => {
       'enforceBound',
       'classifyEvidenceFailure',
       'indeterminateOutcome',
+      'classifyTerminalObservations',
     ]
     let calls = 0
     for (const file of sourceFiles()) {
@@ -303,6 +304,39 @@ describe('RO-INV-06: orchestration cannot decide', () => {
       }
     }
     expect(calls, 'the service must actually route decisions through the core').toBeGreaterThan(4)
+  })
+
+  it('RO-EX-90: no module inspects provider terminal observations to classify them', () => {
+    // `runner.ts` held a local `describeTerminalDisagreement` deciding
+    // that a clean exit alongside a kill signal means the terminal state
+    // cannot be established. Correct in substance, wrong in ownership:
+    // `runner-execution-boundary` puts trust decisions in the core, and
+    // ADR-0013 decision 3 makes provider terminal observations
+    // observational input with classification owned by the platform
+    // lifecycle. A provider-adapter landing would have inherited a local
+    // algorithm inside the orchestrator.
+    //
+    // Scanned by FIELD rather than by function name: renaming the helper
+    // would evade a name check, but any re-implementation has to read
+    // these fields to reach a verdict.
+    //
+    // Two places may name them and do not classify: `ports/values.ts`
+    // DECLARES the SPI shape, and an adapter PRODUCES an observation.
+    // Everything else is the orchestration path — where the defect was,
+    // and the only place it could come back.
+    const declaresOrProduces = (file: string): boolean =>
+      file.endsWith('ports/values.ts') || file.includes(`${srcRoot}/adapters/`)
+
+    for (const file of sourceFiles()) {
+      if (declaresOrProduces(file)) continue
+      const contents = code(file)
+      for (const field of ['exit_code', 'signalled', 'reported_outcome']) {
+        expect(
+          contents.includes(field),
+          `${file} inspects ${field}; terminal classification belongs to the core`,
+        ).toBe(false)
+      }
+    }
   })
 
   it('no module re-implements a refusal code or a terminal-success map', () => {

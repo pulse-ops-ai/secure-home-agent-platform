@@ -268,6 +268,12 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-88', 'RO-EX-89'],
   },
   {
+    id: 'RO-MUT-47',
+    mutation:
+      'reimplement provider terminal classification locally in orchestration, under any function name',
+    killedBy: ['RO-EX-90'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],
