@@ -20,7 +20,8 @@ This document is normative. It defines WHAT must hold, authored as a
 
 All host and provider effects SHALL pass through the declared port set —
 authority sources, workspace observation, artifact observation, execution,
-adapter invocation, event sink, evidence sink, clock. The service SHALL
+adapter invocation, event sink, evidence sink, clock, **run journal, and
+run lease**. The service SHALL
 carry **no container-launch capability**: no Docker socket access, no
 container runtime client, and no execution-port implementation in this
 landing that spawns a real process — the in-repo implementations of the
@@ -89,6 +90,67 @@ successful while its evidence is unsealed.
   proceeded
 - **AND** a write issued by a concurrent run through the same port instance
   is not a post-seal write for this run
+
+### Requirement: The declared walk is journaled as it happens, and a held run stays findable
+
+Every declared transition, every rejected transition, every authority
+acquisition, and every hold SHALL be appended to an orchestration-owned
+durable journal **at the moment it occurs**. A record assembled in memory
+and written once at termination SHALL NOT satisfy this: a run whose
+process ends mid-walk SHALL still be reconstructable from what the
+journal already holds.
+
+A run held at a state because a precondition is unmet SHALL leave a
+durable pending identity naming the state it is held at, so that the run
+can later be found and resumed. Where the journal persists is not decided
+by this capability; what it must record is.
+
+#### Scenario: A run that ends mid-walk is still reconstructable
+
+- **GIVEN** a run that faults partway through execution
+- **WHEN** the journal is read
+- **THEN** it holds every transition the run took up to the fault, in
+  order
+- **AND** each was appended when it was taken, not as a batch at the end
+
+#### Scenario: An unconsented run is findable, not dropped
+
+- **GIVEN** a run the trusted core decided eligible, with no consent
+  recorded
+- **WHEN** the journal is read
+- **THEN** the run's state is `ELIGIBLE` and a hold is recorded naming
+  the withheld transition and the reason
+- **AND** the hold names the state the run is held at
+
+### Requirement: A run has one owner, and ownership is enforced before effects
+
+A run SHALL be owned by exactly one orchestrator at a time. An
+orchestrator SHALL claim the run before performing any effect on its
+behalf, and an orchestrator that does not hold the run SHALL perform no
+effect for it — no authority read, no invocation, no write. Ownership
+SHALL be re-checked before each phase's effects, and an orchestrator that
+has lost it SHALL stop before acting rather than be told afterwards.
+
+Ownership SHALL carry a generation that increases on each grant, so that
+a holder which lost the run and continued can be distinguished from the
+one that holds it. Ownership SHALL be released when the run concludes,
+including when it is held and when it fails, so that a fault leaves the
+run recoverable rather than locked.
+
+#### Scenario: Two orchestrators, one run
+
+- **GIVEN** two orchestrators given the same run identity concurrently
+- **WHEN** both attempt the run
+- **THEN** exactly one performs the run
+- **AND** the other performs no effect of any kind for it
+
+#### Scenario: Ownership lost mid-walk
+
+- **GIVEN** a run whose ownership moves to another orchestrator while it
+  is walking
+- **WHEN** the next phase is reached
+- **THEN** the run stops before that phase's effects and terminates,
+  naming the lost ownership
 
 ### Requirement: Runs are isolated across shared port instances
 

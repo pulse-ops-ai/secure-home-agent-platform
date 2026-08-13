@@ -30,6 +30,8 @@ import { Module } from '@nestjs/common'
 import {
   DeterministicAdapterInvocation,
   DeterministicExecution,
+  InMemoryRunJournal,
+  InMemoryRunLease,
   RecordingEventSink,
   RecordingEvidenceSink,
   SteppingClock,
@@ -59,6 +61,8 @@ import { PORT_TOKENS } from './tokens.js'
     { provide: PORT_TOKENS.events, useClass: RecordingEventSink },
     { provide: PORT_TOKENS.evidence, useClass: RecordingEvidenceSink },
     { provide: PORT_TOKENS.clock, useClass: SteppingClock },
+    { provide: PORT_TOKENS.journal, useClass: InMemoryRunJournal },
+    { provide: PORT_TOKENS.lease, useClass: InMemoryRunLease },
   ],
   exports: [
     PORT_TOKENS.execution,
@@ -66,6 +70,8 @@ import { PORT_TOKENS } from './tokens.js'
     PORT_TOKENS.events,
     PORT_TOKENS.evidence,
     PORT_TOKENS.clock,
+    PORT_TOKENS.journal,
+    PORT_TOKENS.lease,
   ],
 })
 export class RunnerControlModule {}

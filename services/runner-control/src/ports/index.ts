@@ -9,6 +9,7 @@
  * only. No interface here can express "launch a container": there is no
  * image, no mount, no socket, and no argv anywhere in the surface.
  */
+import type { RunJournalPort, RunLeasePort } from './journal.js'
 import type {
   AdapterInvocationRequest,
   AdapterReport,
@@ -94,6 +95,10 @@ export interface ClockPort {
 
 export interface Ports {
   readonly authority: AuthoritySourcePort
+  /** The orchestration-owned durable record of the walk (D9). */
+  readonly journal: RunJournalPort
+  /** One owner per run, across processes (D10). */
+  readonly lease: RunLeasePort
   readonly workspace: WorkspaceObserverPort
   readonly artifacts: ArtifactObserverPort
   readonly execution: ExecutionPort
@@ -104,3 +109,5 @@ export interface Ports {
 }
 
 export * from './values.js'
+export * from './journal.js'
+export type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'

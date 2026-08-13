@@ -270,6 +270,18 @@ landing wants transitions as first-class events, that is a governed L2
 amendment — deliberately not taken here. Emission failures are
 operational, never silent.
 
+**The transition record is a JOURNAL, appended as the walk happens.** A
+record assembled in memory and written once at the end is not a durable
+reconstructable record: a run that dies at `RUNNING` leaves nothing, and
+an unconsented run held at `ELIGIBLE` leaves no pending identity anything
+could resume — which is the requirement that a hold be *recorded* rather
+than silently dropped, unmet. `RunJournalPort` appends transitions,
+rejections, acquisitions and holds at the moment each occurs, and
+`readCurrentState` reconstructs the head of a run without replaying
+evidence. Where the journal persists is U11's; what it must record is
+not, and a port whose contract waits for its store is a port whose
+contract gets written by the store.
+
 ### D10: Concurrency — one run, one writer
 
 **Per run:** state is advanced by a single owner; concurrent transition
@@ -287,6 +299,19 @@ is scoped to one run**. Seal-last means last among *that run's* writes;
 concurrent runs may interleave their port calls freely, and no proof
 here depends on global ordering. The recorded-sequence evidence for
 RO-ADV-03 is therefore filtered per run.
+
+**One run, one owner — above the machine.** `RunMachine`'s single-writer
+guarantee is per machine INSTANCE, which says nothing about two
+`Runner.run()` calls handed the same `run_id`: two instances, two
+machines, both believing they own the run, both writing through the
+shared keyed sinks that cross-run isolation legitimately permits. So the
+guarantee has to exist above the machine. `RunLeasePort` claims the run
+before the first effect — a run owned elsewhere reads no authority at all
+— renews before each phase's effects, and releases on conclusion,
+including the hold and throw paths, so a fault leaves a run merely failed
+rather than unrecoverable. The generation is a fencing token: a holder
+that lost its lease and kept working can be told apart from the one that
+actually holds it, which a boolean lock cannot do.
 
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.

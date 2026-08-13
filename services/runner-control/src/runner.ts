@@ -138,8 +138,42 @@ export class Runner {
    * failure everywhere, so this cannot launder a fault into a success.
    */
   async run(request: RunRequest, signals: RunSignals = {}): Promise<RunConclusion> {
+    // ONE OWNER, BEFORE ANYTHING ELSE.
+    //
+    // `RunMachine` gives one writer per machine instance, which says
+    // nothing about two `run()` calls handed the same `run_id`: two
+    // instances, two machines, both believing they own the run, both
+    // writing through the shared keyed sinks that cross-run isolation
+    // legitimately permits. The claim happens before the first effect —
+    // a run we do not own must not even read authority.
+    const claim = await this.#ports.lease.claim({ run_id: request.run_id })
+    if (!claim.ok) {
+      return {
+        run_id: request.run_id,
+        state: 'REQUESTED',
+        produced: 'none',
+        detail: `this run is owned elsewhere: ${claim.detail} (lease not acquired)`,
+        transitions: [],
+        rejections: [],
+      }
+    }
     try {
-      return await this.#walk(request, signals)
+      return await this.#walkOwned(request, signals, claim.generation)
+    } finally {
+      // Released even on the throw path: a concluded run must not hold
+      // its lease, and neither must a crashed one — otherwise a fault
+      // makes the run unrecoverable rather than merely failed.
+      await this.#ports.lease.release({ run_id: request.run_id, generation: claim.generation })
+    }
+  }
+
+  async #walkOwned(
+    request: RunRequest,
+    signals: RunSignals,
+    generation: number,
+  ): Promise<RunConclusion> {
+    try {
+      return await this.#walk(request, signals, generation)
     } catch (error) {
       const detail = `the run's terminal state could not be established: ${
         error instanceof Error ? error.message : String(error)
@@ -189,10 +223,32 @@ export class Runner {
     }
   }
 
-  async #walk(request: RunRequest, signals: RunSignals): Promise<RunConclusion> {
+  async #walk(
+    request: RunRequest,
+    signals: RunSignals,
+    generation: number,
+  ): Promise<RunConclusion> {
     const machine = new RunMachine(request.run_id, this.#ports.clock, signals.transitions)
     const ledger = new FinalizationLedger(request.run_id, this.#ports.evidence)
     const startedAt = this.#ports.clock.now({ run_id: request.run_id })
+
+    /**
+     * Append everything the machine has recorded since the last tick.
+     *
+     * Called after every machine mutation, so the journal is written AS
+     * THE WALK HAPPENS rather than assembled and flushed at the end. A
+     * run that dies at RUNNING leaves behind what actually occurred; a
+     * batched write would leave nothing.
+     */
+    const journalTick = async (): Promise<void> => {
+      const pending = machine.drainUnjournaled()
+      for (const transition of pending.transitions) {
+        await this.#ports.journal.appendTransition({ run_id: request.run_id, transition })
+      }
+      for (const rejection of pending.rejections) {
+        await this.#ports.journal.appendRejection({ run_id: request.run_id, rejection })
+      }
+    }
 
     /**
      * Conclude the run: persist the transition record, then report.
@@ -205,6 +261,7 @@ export class Runner {
       produced: RunConclusion['produced'],
       detail: string,
     ): Promise<RunConclusion> => {
+      await journalTick()
       try {
         await this.#ports.evidence.write({
           run_id: request.run_id,
@@ -302,7 +359,12 @@ export class Runner {
         'path_policy',
         'gate_registry',
       ])
-      const acquired = await runEpoch(production, ['profile', 'path_policy', 'gate_registry'])
+      const acquired = await runEpoch(
+        production,
+        ['profile', 'path_policy', 'gate_registry'],
+        (acquisition) =>
+          this.#ports.journal.appendAcquisition({ run_id: request.run_id, acquisition }),
+      )
       if (!acquired.ok) {
         return terminateEarly(
           isCaptureRefusal(acquired.failure) ? 'refuse' : 'operational_fault',
@@ -745,11 +807,12 @@ export class Runner {
           )
         }
       }
-      const reacquired = await runEpoch(verificationSet, [
-        'profile',
-        'path_policy',
-        'gate_registry',
-      ])
+      const reacquired = await runEpoch(
+        verificationSet,
+        ['profile', 'path_policy', 'gate_registry'],
+        (acquisition) =>
+          this.#ports.journal.appendAcquisition({ run_id: request.run_id, acquisition }),
+      )
       if (!reacquired.ok) {
         return finish(
           'operational_fault',
@@ -854,21 +917,59 @@ export class Runner {
     const evidenceSealed = (): Promise<PhaseCommand<RunConclusion>> =>
       Promise.resolve({ kind: 'earned', cause: 'the run completed' })
 
-    const outcome = await walkPhases(machine, [
-      { name: 'requested', earns: 'resolve_profile', run: requested },
-      { name: 'profile-resolved', earns: 'decide_eligibility', run: profileResolved },
-      { name: 'eligible', earns: 'commit_spend', run: eligible },
-      { name: 'sandbox-started', earns: 'begin_execution', run: sandboxStarted },
-      { name: 'running', earns: 'begin_verification', run: running },
-      { name: 'verifying', earns: 'seal_evidence', run: verifying },
-      { name: 'evidence-sealed', earns: 'complete', run: evidenceSealed },
-    ])
+    const outcome = await walkPhases(
+      machine,
+      [
+        { name: 'requested', earns: 'resolve_profile', run: requested },
+        { name: 'profile-resolved', earns: 'decide_eligibility', run: profileResolved },
+        { name: 'eligible', earns: 'commit_spend', run: eligible },
+        { name: 'sandbox-started', earns: 'begin_execution', run: sandboxStarted },
+        { name: 'running', earns: 'begin_verification', run: running },
+        { name: 'verifying', earns: 'seal_evidence', run: verifying },
+        { name: 'evidence-sealed', earns: 'complete', run: evidenceSealed },
+      ],
+      {
+        // The lease is checked BEFORE each phase's effects, for the same
+        // reason the machine's transition is: a run that has lost
+        // ownership must stop before it acts, not be told afterwards.
+        beforePhase: async () =>
+          (await this.#ports.lease.renew({ run_id: request.run_id, generation }))
+            ? undefined
+            : `the run lease was lost at generation ${String(generation)}`,
+        afterRecord: journalTick,
+      },
+    )
 
     switch (outcome.kind) {
       case 'terminated':
         return outcome.value
-      case 'held':
+      case 'held': {
+        // The hold is the run's PENDING IDENTITY. Recorded durably, with
+        // the state it is held at, so something can later find it and
+        // resume — "recorded rather than silently dropped" is not
+        // satisfied by an in-memory note the process takes to its grave.
+        await this.#ports.journal.appendHold({
+          run_id: request.run_id,
+          hold: {
+            state: machine.state,
+            transition: 'commit_spend',
+            detail: outcome.detail,
+            at: this.#ports.clock.now({ run_id: request.run_id }),
+          },
+        })
         return await conclude('none', held ?? outcome.detail)
+      }
+      case 'lost': {
+        // Ownership moved while the run was walking. It has not failed a
+        // contract; it has simply stopped being ours, and continuing
+        // would be the second-writer problem the lease exists to
+        // prevent. Terminate operationally and say so.
+        const why = `${outcome.reason}; the ${outcome.phase} phase did not run`
+        const stopped = canConstructEvidence(machine.state)
+          ? await finish('operational_fault', why, 'OPERATIONAL_FAILURE')
+          : await terminateEarly('operational_fault', why)
+        return stopped.kind === 'terminate' ? stopped.value : await conclude('none', why)
+      }
       case 'halted':
         return await terminateFromRejection(outcome)
       case 'walked':

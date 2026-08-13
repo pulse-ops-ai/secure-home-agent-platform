@@ -27,6 +27,8 @@ export {
   FilesystemArtifactObserver,
   FilesystemAuthoritySource,
   FilesystemWorkspaceObserver,
+  InMemoryRunJournal,
+  InMemoryRunLease,
   RecordingEventSink,
   RecordingEvidenceSink,
   SteppingClock,

@@ -42,6 +42,17 @@ export interface Phase<T> {
   run(): Promise<PhaseCommand<T>>
 }
 
+export interface WalkHooks {
+  /**
+   * Run before a phase's effects. Returning a reason HALTS the walk
+   * without running them — the seam the run lease uses to stop a run
+   * that no longer owns itself.
+   */
+  beforePhase?: (phase: string) => Promise<string | undefined>
+  /** Run after every machine mutation, so the journal keeps up. */
+  afterRecord?: () => Promise<void>
+}
+
 export type WalkOutcome<T> =
   /** Every phase earned its transition; the walk reached its end. */
   | { readonly kind: 'walked' }
@@ -55,22 +66,30 @@ export type WalkOutcome<T> =
    * for, and the one the previous shape could not represent.
    */
   | { readonly kind: 'halted'; readonly phase: string; readonly rejection: RejectionEntry }
+  /** A hook stopped the walk before a phase's effects ran. */
+  | { readonly kind: 'lost'; readonly phase: string; readonly reason: string }
 
 export const walk = async <T>(
   machine: RunMachine,
   phases: readonly Phase<T>[],
+  hooks: WalkHooks = {},
 ): Promise<WalkOutcome<T>> => {
   for (const phase of phases) {
+    const lost = await hooks.beforePhase?.(phase.name)
+    if (lost !== undefined) return { kind: 'lost', phase: phase.name, reason: lost }
+
     const command = await phase.run()
 
     if (command.kind === 'terminate') return { kind: 'terminated', value: command.value }
 
     if (command.kind === 'hold') {
       machine.hold(phase.earns, command.detail)
+      await hooks.afterRecord?.()
       return { kind: 'held', detail: command.detail }
     }
 
     const applied = machine.advance(phase.earns, command.cause)
+    await hooks.afterRecord?.()
     if (applied.kind === 'rejected') {
       // The single point where a refused transition stops the run.
       // Returning here — rather than continuing the loop — is the whole

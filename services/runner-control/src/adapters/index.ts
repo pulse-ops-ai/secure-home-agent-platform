@@ -6,6 +6,7 @@ export {
   SteppingClock,
   type RecordedWrite,
 } from './deterministic.js'
+export { InMemoryRunJournal, InMemoryRunLease } from './journal.js'
 export {
   FilesystemArtifactObserver,
   FilesystemAuthoritySource,

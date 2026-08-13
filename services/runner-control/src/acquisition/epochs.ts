@@ -108,6 +108,17 @@ const isCaptureFault = (
 export const runEpoch = async <E extends AcquisitionEpoch>(
   set: AcquisitionSet<E>,
   required: readonly AuthoritySourceName[],
+  /**
+   * Journal each consumption as it happens. An epoch that reported only
+   * its final verdict would hide WHICH source failed and in what order —
+   * the two facts an operator needs first.
+   */
+  journal: (entry: {
+    readonly epoch: AcquisitionEpoch
+    readonly source: string
+    readonly outcome: 'acquired' | 'failed' | 'refused_token'
+    readonly detail?: string
+  }) => Promise<void> = () => Promise.resolve(),
 ): Promise<EpochResult<E>> => {
   const values: EpochValue<E>[] = []
   const captured: {
@@ -118,7 +129,21 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
 
   for (const name of required) {
     const outcome = await set.consume(name)
-    if (!outcome.ok) return { ok: false, failure: outcome.error }
+    if (!outcome.ok) {
+      await journal({
+        epoch: set.epoch,
+        source: name,
+        outcome: 'refused_token',
+        detail: outcome.error.detail,
+      })
+      return { ok: false, failure: outcome.error }
+    }
+    await journal({
+      epoch: set.epoch,
+      source: name,
+      outcome: outcome.value.bytes.ok ? 'acquired' : 'failed',
+      ...(outcome.value.bytes.ok ? {} : { detail: outcome.value.bytes.failure }),
+    })
     values.push(outcome.value)
 
     const expected = AUTHORITY_SOURCES[name] as ExpectedContract<ContractDocument>

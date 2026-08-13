@@ -154,6 +154,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-28', 'RO-EX-29', 'RO-EX-31'],
   },
   {
+    id: 'RO-MUT-25',
+    mutation: 'batch the journal into a single write at conclusion',
+    killedBy: ['RO-EX-32'],
+  },
+  {
+    id: 'RO-MUT-26',
+    mutation: 'claim the run lease and then not enforce it',
+    killedBy: ['RO-EX-34'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

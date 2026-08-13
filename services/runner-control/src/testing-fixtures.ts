@@ -15,6 +15,8 @@ import {
   DeterministicExecution,
   RecordingEventSink,
   RecordingEvidenceSink,
+  InMemoryRunJournal,
+  InMemoryRunLease,
   SteppingClock,
   type RecordedWrite,
 } from './adapters/index.js'
@@ -158,6 +160,8 @@ export class StaticArtifactObserver {
 }
 
 export interface TestPorts extends Ports {
+  readonly journal: InMemoryRunJournal
+  readonly lease: InMemoryRunLease
   readonly authority: CountingAuthoritySource
   readonly execution: DeterministicExecution
   readonly adapter: DeterministicAdapterInvocation
@@ -175,6 +179,8 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts =>
     events: new RecordingEventSink(),
     evidence: new RecordingEvidenceSink(),
     clock: new SteppingClock(),
+    journal: new InMemoryRunJournal(),
+    lease: new InMemoryRunLease(),
     ...overrides,
   }) as TestPorts
 
@@ -199,6 +205,8 @@ export const withoutConsent = (request: RunRequest): RunRequest => {
   const { consent: _consent, ...rest } = request
   return rest
 }
+
+export { DeterministicExecution } from './adapters/index.js'
 
 export const runRequest = (overrides: Partial<RunRequest> = {}): RunRequest => ({
   run_id: 'run-20260812-0001',

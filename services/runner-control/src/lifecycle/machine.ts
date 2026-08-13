@@ -71,6 +71,8 @@ export class RunMachine {
   readonly #rejections: RejectionEntry[] = []
   #state: LifecycleState = 'REQUESTED'
   #version = 0
+  #journaledTransitions = 0
+  #journaledRejections = 0
 
   /**
    * The transition table is a CONSTRUCTOR PARAMETER, not a module-level
@@ -117,6 +119,26 @@ export class RunMachine {
    */
   permits(kind: TransitionKind): boolean {
     return !isTerminal(this.#state) && declaredNext(this.#table, this.#state, kind) !== undefined
+  }
+
+  /**
+   * Entries recorded since the last drain, and mark them drained.
+   *
+   * The machine does not write the journal — advancing is synchronous
+   * and a durable append is not. It reports what is outstanding, and the
+   * orchestration appends it at the next await point, which is the
+   * moment the transition was taken. Batching would defeat the purpose:
+   * a run that dies mid-walk must leave behind what actually happened.
+   */
+  drainUnjournaled(): {
+    readonly transitions: readonly TransitionEntry[]
+    readonly rejections: readonly RejectionEntry[]
+  } {
+    const transitions = this.#transitions.slice(this.#journaledTransitions)
+    const rejections = this.#rejections.slice(this.#journaledRejections)
+    this.#journaledTransitions = this.#transitions.length
+    this.#journaledRejections = this.#rejections.length
+    return { transitions, rejections }
   }
 
   /** Take the write capability as of the current version. */

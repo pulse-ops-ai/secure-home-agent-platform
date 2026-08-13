@@ -82,6 +82,9 @@ are below.
 | RO-INV-25 | A write claim minted for another run cannot advance this run's machine | behavior |
 | RO-INV-26 | Event envelope fields are the emitter's: no caller body may replace `run_id`, `sequence`, `adapter`, or the contract identity | trust |
 | RO-INV-27 | The machine is authoritative over effects: a phase's effects run only after the previous phase's transition was ACCEPTED, so narrowing the transition table narrows what executes | trust |
+| RO-INV-28 | The transition record is a JOURNAL: every transition, rejection, hold, and acquisition is appended as it happens, so a run that dies mid-walk is still reconstructable from what was written | behavior |
+| RO-INV-29 | A held run has a durable pending identity naming the state it is held at — recorded, never dropped | behavior |
+| RO-INV-30 | One run has one owner across processes: a run whose lease is held elsewhere performs no effect, and a run that loses its lease mid-walk stops before the next phase's effects | trust |
 
 ## State-Space Model
 
@@ -214,6 +217,12 @@ persistence (U11).
 | RO-EX-29 | RO-INV-27 | property | narrowing ANY of the seven phase boundaries prevents `COMPLETED`, never abandons the run in a non-terminal state, and records the rejection naming state and transition |
 | RO-EX-30 | RO-INV-17 | adversarial | a sink rejecting the bundle write leaves the machine short of `EVIDENCE_SEALED`; the successful walk enters it exactly once |
 | RO-EX-31 | RO-INV-27 | deterministic example | the unmodified table still completes with no rejections — the guard binds the walk without blocking it |
+| RO-EX-32 | RO-INV-28 | adversarial | a run faulting at a gate has journaled every transition up to the fault; the journal grows one entry at a time (1…7), never in a batch; acquisitions are journaled per epoch and source, failures included |
+| RO-EX-33 | RO-INV-29 | deterministic example | an unconsented run leaves a journal at `ELIGIBLE` carrying the hold, its transition, and its detail; the rejection is journaled too |
+| RO-EX-34 | RO-INV-30 | adversarial | two concurrent runs of ONE `run_id`: exactly one produces a bundle; the other reads no authority, invokes no adapter, writes nothing; the lease is released on conclusion and on hold |
+| RO-EX-35 | RO-INV-30 | adversarial | a run whose lease is stolen mid-walk does not complete, and names the lost lease |
+| RO-EX-36 | RO-INV-30 | adversarial | a stale generation can neither renew nor release the current holder — the fencing token is real |
+| RO-EX-37 | RO-INV-10 | deterministic example | two runs through one journal instance stay separate; an unknown run has no journal rather than an empty one |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -235,6 +244,8 @@ persistence (U11).
 | RO-MUT-22 | RO-INV-25 | mutation | validating only the claim's version is killed by RO-EX-26 |
 | RO-MUT-23 | RO-INV-26 | mutation | spreading the caller body after the envelope is killed by RO-EX-27 |
 | RO-MUT-24 | RO-INV-27 | mutation | ignoring a rejected transition and proceeding to the next phase's effects is killed by RO-EX-28/29/31 (verified: the mutant kills four proofs) |
+| RO-MUT-25 | RO-INV-28 | mutation | batching the journal to a single write at conclusion is killed by RO-EX-32 (verified: the mutant kills two proofs) |
+| RO-MUT-26 | RO-INV-30 | mutation | claiming the lease and not enforcing it is killed by RO-EX-34 (verified: the mutant kills two proofs) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
@@ -332,6 +343,12 @@ gates 0.1.
 
 **Requirements lacking proof:** none; every requirement in the four
 capability specs traces to named proofs above.
+
+**The journal's persistence location is deferred, its semantics are
+not.** `RunJournalPort` and `RunLeasePort` are defined and proven here;
+where they persist is U11's, and this landing ships in-memory
+implementations only. A port whose contract waits for its store is a port
+whose contract gets written by the store.
 
 **Scenarios intentionally deferred, each with a named landing:** EX-005B,
 MUT-007, EX-008, ADV-013, enforcement ceilings (L9); adapter conformance
