@@ -95,3 +95,15 @@ export interface RunConclusion {
   readonly transitions: readonly TransitionEntry[]
   readonly rejections: readonly RejectionEntry[]
 }
+
+/**
+ * What a phase concluded, plus whatever it ESTABLISHED.
+ *
+ * `next` is how the typestate is threaded: a phase that establishes
+ * authority returns it, and the engine hands it to the phases that need
+ * it. A phase that establishes nothing returns a plain `PhaseCommand`.
+ */
+export type PhaseOutcome<T> =
+  | { readonly kind: 'earned'; readonly cause: string; readonly next: T }
+  | { readonly kind: 'terminate'; readonly value: RunConclusion }
+  | { readonly kind: 'hold'; readonly detail: string }

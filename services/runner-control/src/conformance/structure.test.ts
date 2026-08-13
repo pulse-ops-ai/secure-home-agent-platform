@@ -61,21 +61,18 @@ const LIMITS = {
 /**
  * The RATCHET, as distinct from the target.
  *
- * `orchestration/run.ts` is still the whole walk: the six phases and the
- * terminators share state through closures, and separating them is the
- * typestate extraction — a phase that receives only the state it has
- * earned cannot read a field it has not. That work is NOT done, so the
- * file is over its target and this records by how much.
+ * EMPTY, and that is the finished state. Each entry recorded a file over
+ * its target while the typestate extraction was pending; extracting a
+ * phase lowered its number, and the last entry was deleted when
+ * `orchestration/run.ts` came under the target on its own — 926 code
+ * lines to 216.
  *
- * A ceiling here may only ever DECREASE. That is the point: the file
- * cannot grow back while the extraction is pending, and each phase moved
- * out lowers the number until the entry can be deleted and the target
- * applies on its own. An entry that is larger than the file it names is
- * itself a failure, so slack cannot be left lying around either.
+ * The machinery stays because the next thing to grow past a target
+ * should record the debt here rather than raising the target. A ceiling
+ * may only ever DECREASE, one larger than its file fails so slack cannot
+ * be parked, and one at or below the target is deleted.
  */
-const RATCHET: Readonly<Record<string, number>> = {
-  'orchestration/run.ts': 926,
-}
+const RATCHET: Readonly<Record<string, number>> = {}
 
 describe('RO-EX-93: orchestration stays small enough to see', () => {
   it('every orchestration module is within its ratchet', () => {
@@ -120,6 +117,46 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     expect(lines, `runner.ts must stay under ${LIMITS.facade} code lines`).toBeLessThanOrEqual(
       LIMITS.facade,
     )
+  })
+
+  it('RO-EX-94: a phase cannot reach state it has not earned', () => {
+    // The property the typestate exists for. `requested` establishes
+    // authority and observes nothing, so it must not be able to name an
+    // observation at all — not "must not use one", must not HAVE one.
+    //
+    // Checked by import, because that is what makes it structural: a
+    // phase that does not import `Observations` cannot construct, read
+    // or pass one, whatever its body says.
+    const requested = readFileSync(join(srcRoot, 'orchestration/phases/requested.ts'), 'utf8')
+    expect(requested.includes('Observations'), 'requested has no observations to reach').toBe(false)
+    expect(requested.includes('artifacts'), 'nor an artifact surface').toBe(false)
+
+    const profileResolved = readFileSync(
+      join(srcRoot, 'orchestration/phases/profile-resolved.ts'),
+      'utf8',
+    )
+    // It may pass `noObservations()` to a terminal — the empty set is
+    // the true record of a run that has observed nothing — but it must
+    // not receive observations from anywhere.
+    expect(profileResolved.includes('seen:'), 'nor does profile-resolved take any').toBe(false)
+  })
+
+  it('RO-EX-94: the definite-assignment assertions are gone, not relocated', () => {
+    // `let profile!: …` told the compiler to stop checking exactly the
+    // ordering the walk guaranteed. The guarantee is now carried by the
+    // parameter list, so the assertions have nothing left to assert —
+    // and a new one would mean the typestate has been worked around.
+    const offenders = sourceFiles(srcRoot)
+      .filter((file) => {
+        const code = readFileSync(file, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/\/\/[^\n]*/g, ' ')
+        // `let x!: T` and class field `x!: T`.
+        return /(?:^|\s)(?:let\s+)?[A-Za-z_$][\w$]*!\s*:/.test(code)
+      })
+      .map((file) => relative(srcRoot, file))
+
+    expect(offenders, 'definite-assignment assertions re-entered the tree').toEqual([])
   })
 
   it('no module outside the declared owners advances the machine', () => {

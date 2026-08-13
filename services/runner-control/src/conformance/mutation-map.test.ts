@@ -280,6 +280,12 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-92'],
   },
   {
+    id: 'RO-MUT-49',
+    mutation:
+      'reintroduce a definite-assignment assertion, or let a phase reach state it has not earned',
+    killedBy: ['RO-EX-94'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

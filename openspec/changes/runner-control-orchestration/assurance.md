@@ -111,6 +111,7 @@ are below.
 | RO-INV-54 | Apply-back precedes the seal, and a run whose changes did not land does not seal as `COMPLETED` | trust |
 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
 | RO-INV-57 | The transition record has ONE authority. `RunJournalPort` owns it; `EvidenceSinkPort` expresses exactly two shapes — the sealed bundle and the early-terminal record — and cannot express a transition record at all | trust |
+| RO-INV-58 | Orchestration is decomposed by PHASE and typed by what each phase has established. A phase receives only the state it earned, so reading state it has not is a compile error; no definite-assignment assertion re-enters the tree; and the module sizes are held by a ratchet that may only decrease | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -305,6 +306,8 @@ persistence (U11).
 | RO-EX-90 | RO-INV-56 | structural | no orchestration module names `exit_code`, `signalled` or `reported_outcome` — scanned by FIELD, so renaming a local helper cannot evade it; `ports/values.ts` (declares the SPI) and `adapters/**` (produce observations) are excepted because neither classifies |
 | RO-EX-91 | RO-INV-56 | deterministic example (runner-core) | exit 0 with a signal, and a success claim with a non-zero exit, are conflicts; agreeing observations, an absent exit code, and a bare `reported_outcome` are established; the classification names no terminal state |
 | RO-EX-92 | RO-INV-57 | structural + deterministic example | no production module declares a `transition_record` sink shape (scanned with comments stripped, so the doc explaining its absence is not the failure); the journal holds the full seven-transition walk while the evidence sink holds only `evidence_bundle` |
+| RO-EX-93 | RO-INV-58 | structural | every orchestration module is within its ceiling, every phase handler under 120 code lines, the facade under 200, and no module outside `lifecycle/walk.ts`, `lifecycle/machine.ts` and `run/scope.ts` advances the machine |
+| RO-EX-94 | RO-INV-58 | structural | `requested` cannot name an observation or an artifact surface — checked by IMPORT, so a phase that does not import the type cannot construct, read or pass one — and no definite-assignment assertion survives anywhere in the tree |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -345,6 +348,7 @@ persistence (U11).
 | RO-MUT-45 | RO-INV-55 | mutation | writing the early-terminal record unconditionally, so a run that held authority is described as one that never had any, is killed by RO-EX-86 (verified) |
 | RO-MUT-47 | RO-INV-56 | mutation | re-implementing terminal classification locally in orchestration, under any function name, is killed by RO-EX-90 (verified: the mutant fails the field scan) |
 | RO-MUT-48 | RO-INV-57 | mutation | restoring the `transition_record` shape to the evidence sink, giving the walk a second declared authority, is killed by RO-EX-92 (verified) |
+| RO-MUT-49 | RO-INV-58 | mutation | reintroducing a definite-assignment assertion, or letting a phase reach state it has not earned, is killed by RO-EX-94 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
