@@ -110,6 +110,7 @@ are below.
 | RO-INV-53 | Changes leave the workspace only on the trusted core's materialization decision; a refusal applies nothing, and what is applied back is exactly the AUTHORITATIVE observation | trust |
 | RO-INV-54 | Apply-back precedes the seal, and a run whose changes did not land does not seal as `COMPLETED` | trust |
 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
+| RO-INV-57 | The transition record has ONE authority. `RunJournalPort` owns it; `EvidenceSinkPort` expresses exactly two shapes — the sealed bundle and the early-terminal record — and cannot express a transition record at all | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -296,16 +297,14 @@ persistence (U11).
 | RO-EX-82 | RO-INV-47 | adversarial | an observer running inside the commit sees all three or none; the terminal tail is present in the journal store yet unreadable until the marker |
 | RO-EX-83 | RO-INV-47 | adversarial | a staged write exposes only `commitId` and `abandon`, so publication cannot fail halfway; a staging failure publishes no marker at all |
 | RO-EX-84 | RO-INV-48 | adversarial | a lease that moves AFTER the last staging fence check publishes nothing — the commit marker re-establishes ownership |
-| RO-EX-85 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | adversarial | a port that throws at `RUNNING` still reports `PROFILE_RESOLVED`, `ELIGIBLE`, `SANDBOX_STARTED` and `RUNNING`, ending `INDETERMINATE`; the journal carries the same walk, including the entries pending at the throw |
-| RO-EX-86 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | adversarial | a run that captured a profile is NOT given the early-terminal shape; a run that captured none still is |
-| RO-EX-87 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | adversarial | a workspace provisioned before execution is discarded even when a port throws, and the deadline timer is disarmed |
+| RO-EX-85 | RO-INV-55 | adversarial | a port that throws at `RUNNING` still reports `PROFILE_RESOLVED`, `ELIGIBLE`, `SANDBOX_STARTED` and `RUNNING`, ending `INDETERMINATE`; the journal carries the same walk, including the entries pending at the throw |
+| RO-EX-86 | RO-INV-55 | adversarial | a run that captured a profile is NOT given the early-terminal shape; a run that captured none still is |
+| RO-EX-87 | RO-INV-55 | adversarial | a workspace provisioned before execution is discarded even when a port throws, and the deadline timer is disarmed |
 | RO-EX-88 | RO-INV-50 | adversarial | a table without `operational_fault` from `VERIFYING` still ends the run in a TERMINAL state, records the refusal, and writes nothing |
 | RO-EX-89 | RO-INV-50 | adversarial | a table granting no terminal at all from `RUNNING` makes the exception handler report the run as unterminated, naming the refusal, rather than reporting a progress state as the outcome |
 | RO-EX-90 | RO-INV-56 | structural | no orchestration module names `exit_code`, `signalled` or `reported_outcome` — scanned by FIELD, so renaming a local helper cannot evade it; `ports/values.ts` (declares the SPI) and `adapters/**` (produce observations) are excepted because neither classifies |
 | RO-EX-91 | RO-INV-56 | deterministic example (runner-core) | exit 0 with a signal, and a success claim with a non-zero exit, are conflicts; agreeing observations, an absent exit code, and a bare `reported_outcome` are established; the classification names no terminal state |
+| RO-EX-92 | RO-INV-57 | structural + deterministic example | no production module declares a `transition_record` sink shape (scanned with comments stripped, so the doc explaining its absence is not the failure); the journal holds the full seven-transition walk while the evidence sink holds only `evidence_bundle` |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -341,13 +340,11 @@ persistence (U11).
 | RO-MUT-36 | RO-INV-47 | mutation | omitting one participant from the commit — staging it under a different id, so the marker publishes only part of the run — is killed by RO-EX-78/82 and by the commit-id agreement check |
 | RO-MUT-37 | RO-INV-48 | mutation | terminating a lost-lease run by writing its record is killed by RO-EX-66 (verified) |
 | RO-MUT-42 | RO-INV-48 | mutation | dropping the final ownership check at the commit marker, so a lease that moved after the last staging check still publishes, is killed by RO-EX-84 (verified) |
-| RO-MUT-43 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | mutation | recovering through a FRESH machine, so a run that reached `RUNNING` reports one invented transition from `REQUESTED`, is killed by RO-EX-85 (verified) |
-| RO-MUT-44 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | mutation | skipping resource release on the exception path, leaking the workspace and the armed deadline, is killed by RO-EX-87 (verified) |
-| RO-MUT-45 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
-| RO-INV-55 | mutation | writing the early-terminal record unconditionally, so a run that held authority is described as one that never had any, is killed by RO-EX-86 (verified) |
+| RO-MUT-43 | RO-INV-55 | mutation | recovering through a FRESH machine, so a run that reached `RUNNING` reports one invented transition from `REQUESTED`, is killed by RO-EX-85 (verified) |
+| RO-MUT-44 | RO-INV-55 | mutation | skipping resource release on the exception path, leaking the workspace and the armed deadline, is killed by RO-EX-87 (verified) |
+| RO-MUT-45 | RO-INV-55 | mutation | writing the early-terminal record unconditionally, so a run that held authority is described as one that never had any, is killed by RO-EX-86 (verified) |
 | RO-MUT-47 | RO-INV-56 | mutation | re-implementing terminal classification locally in orchestration, under any function name, is killed by RO-EX-90 (verified: the mutant fails the field scan) |
+| RO-MUT-48 | RO-INV-57 | mutation | restoring the `transition_record` shape to the evidence sink, giving the walk a second declared authority, is killed by RO-EX-92 (verified) |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

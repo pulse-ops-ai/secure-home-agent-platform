@@ -252,14 +252,16 @@ export const testPorts = (
 
 /**
  * The GOVERNED durable records — the sealed bundle or the early-terminal
- * refusal record. Excludes the transition record, which every run writes
- * as diagnostics: a proof about "what governed record did this run
- * produce" must not count the walk itself as one.
+ * refusal record.
+ *
+ * No filtering any more. This used to exclude the transition record,
+ * which the evidence sink could once express; the sink now has exactly
+ * two shapes and both are governed, so a filter here would only hide a
+ * write a proof should see. That filter is also how the seal-last
+ * violation stayed invisible once before.
  */
 export const governedWrites = (ports: TestPorts, run_id?: string): readonly RecordedWrite[] =>
-  (run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)).filter(
-    (write) => write.kind !== 'transition_record',
-  )
+  run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)
 
 /**
  * A sink that fails selected writes but is otherwise real — crucially

@@ -274,6 +274,12 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-90'],
   },
   {
+    id: 'RO-MUT-48',
+    mutation:
+      'restore the transition_record shape to the evidence sink, giving the walk a second declared authority',
+    killedBy: ['RO-EX-92'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],
@@ -350,5 +356,45 @@ describe('the mutation-target map is complete and live', () => {
     expect(registered, 'the sweep must cover every target the assurance artifact mints').toEqual(
       declared,
     )
+  })
+
+  it('the assurance tables are well formed — no row has lost its identifier', () => {
+    // Added because this artifact was silently corrupted twice while
+    // being edited, and neither the checks above nor the aggregate gate
+    // noticed. A bulk find-and-replace on a cell value like
+    // `| RO-INV-55 |` matches the INVARIANT row and every proof and
+    // mutation row that references it, splitting each of those in two:
+    //
+    //   | RO-EX-85 | <the inserted invariant text> |
+    //   | RO-INV-55 | adversarial | ...            |   ← lost its id
+    //
+    // The scan above reads identifiers from anywhere in the file, so the
+    // orphaned half still satisfied it. This asserts the SHAPE instead.
+    const assurance = readFileSync(
+      resolve(srcRoot, '../../../openspec/changes/runner-control-orchestration/assurance.md'),
+      'utf8',
+    )
+    const CLASSES = ['adversarial', 'mutation', 'deterministic example', 'structural', 'property']
+
+    const orphans = assurance
+      .split('\n')
+      .filter((line) => /^\| RO-INV-\d+ \|/.test(line))
+      .filter((line) => {
+        const second = line.split('|')[2]?.trim() ?? ''
+        // An invariant row's second cell is its prose. A row whose
+        // second cell is a PROOF CLASS is a proof or mutation row that
+        // lost its leading identifier.
+        return CLASSES.some((cls) => second.startsWith(cls))
+      })
+    expect(orphans, 'these rows lost their RO-EX/RO-MUT identifier').toEqual([])
+
+    // And every minted identifier appears exactly once as a row.
+    for (const prefix of ['RO-EX', 'RO-MUT', 'RO-INV']) {
+      const ids = [...new Set(assurance.match(new RegExp(`${prefix}-\\d+`, 'g')) ?? [])]
+      for (const id of ids) {
+        const rows = assurance.split('\n').filter((line) => line.startsWith(`| ${id} |`))
+        expect(rows.length, `${id} must define exactly one row`).toBe(1)
+      }
+    }
   })
 })

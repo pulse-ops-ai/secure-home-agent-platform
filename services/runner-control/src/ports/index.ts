@@ -71,14 +71,18 @@ export interface EventSinkPort {
  * The durable record sink.
  *
  * `kind` distinguishes what a run can durably produce: a sealed L2
- * evidence bundle, the early-terminal refusal record for a run that
- * terminated before authority completed, and the orchestration-owned
- * TRANSITION RECORD — the full declared walk, including the states the
- * closed event vocabulary does not represent (design D9). A record held
- * only in memory reconstructs nothing once the process ends, so the walk
- * is written like any other durable output.
+ * evidence bundle, and the early-terminal refusal record for a run that
+ * terminated before authority completed. Exactly two, and a fabricated
+ * bundle is not among them — it is unrepresentable.
  *
- * A fabricated bundle is not among the options — it is unrepresentable.
+ * The orchestration-owned TRANSITION RECORD is deliberately NOT here.
+ * The requirement is real — every declared transition must land in a
+ * durable record distinct from the L2 event stream — but `RunJournalPort`
+ * owns it, appended as the walk happens (design D9). This sink briefly
+ * declared a third `transition_record` shape as well; nothing ever wrote
+ * it, and a second declared authority for one concept is how the two
+ * drift apart. A record written here after the seal would also make the
+ * seal not the run's last write.
  */
 export interface EvidenceSinkPort {
   write(
@@ -86,7 +90,6 @@ export interface EvidenceSinkPort {
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
-        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
   ): Promise<FenceOutcome>
   /**

@@ -94,7 +94,7 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
 
 export interface RecordedWrite {
   readonly run_id: string
-  readonly kind: 'evidence_bundle' | 'early_termination_record' | 'transition_record'
+  readonly kind: 'evidence_bundle' | 'early_termination_record'
   readonly payload: unknown
   /** Present only while the write belongs to an unpublished commit. */
   readonly commit_id?: string
@@ -180,7 +180,6 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
-        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
@@ -191,12 +190,7 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,
-      payload:
-        request.kind === 'evidence_bundle'
-          ? request.bundle
-          : request.kind === 'early_termination_record'
-            ? request.record
-            : request.transitions,
+      payload: request.kind === 'evidence_bundle' ? request.bundle : request.record,
     })
     return Promise.resolve(refused)
   }
