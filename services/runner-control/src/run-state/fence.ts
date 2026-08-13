@@ -28,6 +28,13 @@
  * holder's work on top of the current holder's. The lease renewal at
  * each phase boundary remains the liveness half; this is the safety
  * half, and neither replaces the other.
+ *
+ * RO-INV-48 is stated to exactly this, deliberately. It once claimed a
+ * dispossessed run "writes nothing further", which this cannot deliver
+ * and no amount of care here would. STOPPING the dispossessed worker is
+ * a different problem, and it belongs to L9, where process and container
+ * teardown become real. A guarantee written larger than its mechanism is
+ * worse than a smaller one, because the reader stops checking.
  */
 import type { FenceOutcome, RunFence } from '../ports/values.js'
 

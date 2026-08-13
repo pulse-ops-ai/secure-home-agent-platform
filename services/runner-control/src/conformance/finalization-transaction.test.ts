@@ -139,9 +139,9 @@ describe('RO-EX-40: a committed run reflects the committed fact everywhere', () 
 describe('RO-EX-41: the machine authorizes the whole terminal sequence before committing', () => {
   it('a table without seal_evidence commits nothing', async () => {
     const ports = testPorts()
-    await new Runner(ports).run(runRequest(), {
+    await new Runner(ports, {
       transitions: withoutTransition('VERIFYING', 'seal_evidence'),
-    })
+    }).run(runRequest())
     expect(governedWrites(ports, RUN)).toHaveLength(0)
     expect(terminalEvents(ports)).toHaveLength(0)
   })
@@ -152,9 +152,9 @@ describe('RO-EX-41: the machine authorizes the whole terminal sequence before co
     // cannot be completed — exactly the intermediate state the
     // transaction exists to prevent.
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest(), {
+    const conclusion = await new Runner(ports, {
       transitions: withoutTransition('EVIDENCE_SEALED', 'complete'),
-    })
+    }).run(runRequest())
     expect(conclusion.state).not.toBe('COMPLETED')
     expect(governedWrites(ports, RUN)).toHaveLength(0)
     expect(terminalEvents(ports)).toHaveLength(0)

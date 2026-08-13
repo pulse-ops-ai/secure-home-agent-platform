@@ -103,10 +103,9 @@ describe('RO-EX-52: the session is always closed', () => {
 describe('RO-EX-53: a hung adapter invocation is interrupted', () => {
   it('the run times out rather than hanging forever', async () => {
     const session = new RecordingSession()
-    const conclusion = await new Runner(testPorts({ session, adapter: new HangingAdapter() })).run(
-      runRequest(),
-      { deadline_ms: 20 },
-    )
+    const conclusion = await new Runner(testPorts({ session, adapter: new HangingAdapter() }), {
+      deadline_ms: 20,
+    }).run(runRequest())
 
     expect(conclusion.state, 'a hung provider must not hold the run open').toBe('TIMED_OUT')
     // The session was told to interrupt — the seam L9 makes effective.
@@ -118,9 +117,9 @@ describe('RO-EX-53: a hung adapter invocation is interrupted', () => {
 describe('RO-EX-54: a hung gate is interrupted', () => {
   it('the run times out rather than waiting on the gate', async () => {
     const session = new RecordingSession()
-    const conclusion = await new Runner(
-      testPorts({ session, execution: new HangingExecution() }),
-    ).run(runRequest(), { deadline_ms: 20 })
+    const conclusion = await new Runner(testPorts({ session, execution: new HangingExecution() }), {
+      deadline_ms: 20,
+    }).run(runRequest())
 
     expect(conclusion.state).toBe('TIMED_OUT')
     expect(session.calls).toContain('interrupt')
@@ -131,10 +130,10 @@ describe('RO-EX-55: cancellation reaches work in flight', () => {
   it('an abort during a hung call cancels the run, not merely records intent', async () => {
     const session = new RecordingSession()
     const adapter = new HangingAdapter()
-    const conclusion = await new Runner(testPorts({ session, adapter })).run(runRequest(), {
+    const conclusion = await new Runner(testPorts({ session, adapter }), {
       // Fires while the adapter is hung, not between phases.
       cancelAfterMs: 20,
-    })
+    }).run(runRequest())
 
     expect(conclusion.state).toBe('CANCELLED')
     expect(session.calls).toContain('interrupt')

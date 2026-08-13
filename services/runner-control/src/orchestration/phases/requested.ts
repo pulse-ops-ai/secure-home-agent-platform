@@ -27,6 +27,15 @@ const SOURCES = ['profile', 'path_policy', 'gate_registry'] as const
 export const requested = async (env: RunEnvironment): Promise<PhaseOutcome<Authority>> => {
   const { request, ports, scope } = env
 
+  // BEFORE ANY ACQUISITION. A cancelled run must not read the authority
+  // it will never use — and REQUESTED is a cancellable state, so the
+  // interrupt is consulted here rather than first being noticed two
+  // phases later.
+  const signal = env.deadline.interrupted()
+  if (signal !== undefined) {
+    return terminateEarly(env, signal, `run ${signal}led before authority was acquired`)
+  }
+
   if (request.profile_ref === null) {
     // Consent is deliberately not consulted: the refusal names the
     // missing profile, because that is what is actually wrong.

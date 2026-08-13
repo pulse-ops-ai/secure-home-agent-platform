@@ -30,7 +30,7 @@ import { describe, expect, it } from 'vitest'
 import { Runner } from '../runner.js'
 import { RecordingEventSink, RecordingEvidenceSink, InMemoryRunJournal } from '../adapters/index.js'
 import { CommitLedger } from '../run-state/visibility.js'
-import { governedWrites, runRequest, testPorts } from '../testing-fixtures.js'
+import { governedWrites, runRequest, sharedPorts, testPorts } from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
 const here = dirname(fileURLToPath(import.meta.url))
@@ -98,13 +98,19 @@ const peekingEvidenceSink = (
 
 describe('RO-EX-78: no participant observes a half-finalized run', () => {
   it('the journal tail is not visible while the bundle is still being prepared', async () => {
-    const journal = new InMemoryRunJournal()
-    const events = new RecordingEventSink()
+    // ONE visibility authority across all three participants. Built
+    // from separate constructors, each store gets its own `CommitLedger`
+    // and can never see the marker finalization publishes — so the
+    // "nothing is visible while staging" assertions would pass because
+    // the readers are blind, not because staging is invisible.
+    const shared = sharedPorts()
+    const { journal, events } = shared
     const seen: MidCommitView = { journalStates: [], terminalEvents: -1, peeked: 0 }
     const ports = testPorts({
       journal,
       events,
       evidence: peekingEvidenceSink(journal, events, seen),
+      visibility: shared.visibility,
     })
 
     const conclusion = await new Runner(ports).run(runRequest())
@@ -121,13 +127,19 @@ describe('RO-EX-78: no participant observes a half-finalized run', () => {
   })
 
   it('the terminal event is not visible while the bundle is still being prepared', async () => {
-    const journal = new InMemoryRunJournal()
-    const events = new RecordingEventSink()
+    // ONE visibility authority across all three participants. Built
+    // from separate constructors, each store gets its own `CommitLedger`
+    // and can never see the marker finalization publishes — so the
+    // "nothing is visible while staging" assertions would pass because
+    // the readers are blind, not because staging is invisible.
+    const shared = sharedPorts()
+    const { journal, events } = shared
     const seen: MidCommitView = { journalStates: [], terminalEvents: -1, peeked: 0 }
     const ports = testPorts({
       journal,
       events,
       evidence: peekingEvidenceSink(journal, events, seen),
+      visibility: shared.visibility,
     })
 
     await new Runner(ports).run(runRequest())

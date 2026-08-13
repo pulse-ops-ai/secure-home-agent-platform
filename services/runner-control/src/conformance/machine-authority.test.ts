@@ -38,9 +38,9 @@ const effects = (ports: TestPorts) => ({
 describe('RO-EX-28: a rejected transition stops the effects that follow it', () => {
   it('removing begin_execution keeps the ADAPTER from running', async () => {
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest(), {
+    const conclusion = await new Runner(ports, {
       transitions: withoutTransition('SANDBOX_STARTED', 'begin_execution'),
-    })
+    }).run(runRequest())
 
     expect(
       ports.adapter.requests,
@@ -52,9 +52,9 @@ describe('RO-EX-28: a rejected transition stops the effects that follow it', () 
 
   it('removing commit_spend keeps the run from spending at all', async () => {
     const ports = testPorts()
-    await new Runner(ports).run(runRequest(), {
+    await new Runner(ports, {
       transitions: withoutTransition('ELIGIBLE', 'commit_spend'),
-    })
+    }).run(runRequest())
 
     const types = ports.events
       .eventsOf('run-20260812-0001')
@@ -67,9 +67,9 @@ describe('RO-EX-28: a rejected transition stops the effects that follow it', () 
 
   it('removing seal_evidence keeps the bundle from being written', async () => {
     const ports = testPorts()
-    await new Runner(ports).run(runRequest(), {
+    await new Runner(ports, {
       transitions: withoutTransition('VERIFYING', 'seal_evidence'),
-    })
+    }).run(runRequest())
     expect(
       ports.evidence.all.filter((write) => write.kind === 'evidence_bundle'),
       'a seal the machine did not authorize must not reach the sink',
@@ -78,9 +78,9 @@ describe('RO-EX-28: a rejected transition stops the effects that follow it', () 
 
   it('removing resolve_profile keeps everything downstream from running', async () => {
     const ports = testPorts()
-    await new Runner(ports).run(runRequest(), {
+    await new Runner(ports, {
       transitions: withoutTransition('REQUESTED', 'resolve_profile'),
-    })
+    }).run(runRequest())
     const observed = effects(ports)
     expect(observed.adapter).toBe(0)
     expect(observed.gates).toBe(0)
@@ -102,9 +102,9 @@ describe('RO-EX-29: every phase boundary is table-driven', () => {
   it('narrowing ANY boundary prevents the run from completing', async () => {
     for (const [from, kind] of BOUNDARIES) {
       const ports = testPorts()
-      const conclusion = await new Runner(ports).run(runRequest(), {
+      const conclusion = await new Runner(ports, {
         transitions: withoutTransition(from, kind),
-      })
+      }).run(runRequest())
       expect(
         conclusion.state,
         `removing ${from} × ${kind} still completed — the walk is not driven by the table`,
@@ -123,9 +123,9 @@ describe('RO-EX-29: every phase boundary is table-driven', () => {
       'EVIDENCE_SEALED',
     ])
     for (const [from, kind] of BOUNDARIES) {
-      const conclusion = await new Runner(testPorts()).run(runRequest(), {
+      const conclusion = await new Runner(testPorts(), {
         transitions: withoutTransition(from, kind),
-      })
+      }).run(runRequest())
       expect(
         nonTerminal.has(conclusion.state),
         `removing ${from} × ${kind} abandoned the run in ${conclusion.state}`,
@@ -134,9 +134,9 @@ describe('RO-EX-29: every phase boundary is table-driven', () => {
   })
 
   it('the rejection is recorded, naming the state and the transition', async () => {
-    const conclusion = await new Runner(testPorts()).run(runRequest(), {
+    const conclusion = await new Runner(testPorts(), {
       transitions: withoutTransition('RUNNING', 'begin_verification'),
-    })
+    }).run(runRequest())
     const rejection = conclusion.rejections.find(
       (entry) => entry.attempted === 'begin_verification',
     )

@@ -9,12 +9,11 @@
  */
 import { compareBaseIdentity, isProceed } from '@secure-home/runner-core'
 import type { PhaseCommand } from '../../lifecycle/index.js'
-import { INTERRUPT_TERMINAL } from '../deadline.js'
 import { describeRefusal, emissionFailure } from '../detail.js'
 import type { RunEnvironment } from '../environment.js'
 import type { RunConclusion } from '../result.js'
 import { noObservations, type Authority } from '../state.js'
-import { emit, finish } from '../terminate.js'
+import { abortRun, emit, finish } from '../terminate.js'
 
 export const sandboxStarted = async (
   env: RunEnvironment,
@@ -40,17 +39,11 @@ export const sandboxStarted = async (
   })
   if (!granted.ok) return fault(emissionFailure(granted))
 
-  const signal = env.deadline.interrupted()
-  if (signal !== undefined) {
-    return finish(
-      env,
-      authority,
-      nothingYet,
-      signal,
-      `run ${signal}led after spend`,
-      INTERRUPT_TERMINAL[signal],
-    )
-  }
+  // The session is OPEN by now, so this aborts rather than finishes.
+  // `finish` closes the session; only `abortRun` interrupts it first,
+  // and a session left running while the run reports CANCELLED is
+  // cancellation in name only.
+  if (env.deadline.interrupted() !== undefined) return abortRun(env, authority, nothingYet)
 
   const base = await ports.observer.observeBase({
     run_id: request.run_id,

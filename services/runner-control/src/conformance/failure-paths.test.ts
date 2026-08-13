@@ -149,7 +149,7 @@ describe('RO-EX-68: every terminal transition is checked, including on failure p
         observe: () => Promise.resolve({ ok: false as const, failure: 'unreadable' }),
       },
     })
-    const conclusion = await new Runner(ports).run(runRequest(), { transitions: table })
+    const conclusion = await new Runner(ports, { transitions: table }).run(runRequest())
 
     expect(conclusion.state).not.toBe('COMPLETED')
     expect(ports.evidence.all.filter((write) => write.kind === 'evidence_bundle')).toHaveLength(0)
@@ -158,9 +158,9 @@ describe('RO-EX-68: every terminal transition is checked, including on failure p
   it('a table that forbids refuse from REQUESTED records no refusal', async () => {
     const table = withoutTransition('REQUESTED', 'refuse')
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest({ profile_ref: null }), {
+    const conclusion = await new Runner(ports, {
       transitions: table,
-    })
+    }).run(runRequest({ profile_ref: null }))
 
     // This proof used to assert the run stayed in REQUESTED — that is,
     // that it was ABANDONED in a progress state. RO-INV-50 now forbids
@@ -213,7 +213,8 @@ describe('RO-EX-69: a session is never leaked', () => {
     // rather than after the run has already finished.
     const conclusion = await new Runner(
       testPorts({ session: throwing, adapter: new HangingAdapter() }),
-    ).run(runRequest(), { cancelAfterMs: 10 })
+      { cancelAfterMs: 10 },
+    ).run(runRequest())
 
     expect(session.calls).toContain('close')
     expect(conclusion.state).not.toBe('COMPLETED')

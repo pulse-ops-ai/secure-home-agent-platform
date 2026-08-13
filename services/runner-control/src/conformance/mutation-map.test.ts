@@ -286,6 +286,18 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-94'],
   },
   {
+    id: 'RO-MUT-50',
+    mutation:
+      'accept a caller-supplied transition table unvalidated, or arm the deadline from the session-reported value',
+    killedBy: ['RO-EX-96'],
+  },
+  {
+    id: 'RO-MUT-51',
+    mutation:
+      'remove a boundary cancellation check, or terminate a cancelled run with an open session via finish rather than abortRun',
+    killedBy: ['RO-EX-97'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

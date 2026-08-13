@@ -19,6 +19,7 @@ import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
 import { RunScope } from '../run/scope.js'
 import { RunDeadline } from './deadline.js'
+import { narrowingOnly, type RunControls } from './controls.js'
 import type { JournaledAcquisitionEntry, RunEnvironment } from './environment.js'
 import { eligible } from './phases/eligible.js'
 import { profileResolved } from './phases/profile-resolved.js'
@@ -26,18 +27,43 @@ import { requested } from './phases/requested.js'
 import { running } from './phases/running.js'
 import { sandboxStarted } from './phases/sandbox-started.js'
 import { verifying } from './phases/verifying.js'
-import type { RunConclusion, RunRequest, RunSignals } from './result.js'
+import type { RunConclusion, RunRequest, RunSignals, Stop } from './result.js'
 import { noObservations, type Authority, type Observations } from './state.js'
-import { conclude, finish, terminateEarly } from './terminate.js'
+
+import { conclude, finish, terminateEarly, writeEarlyTerminalRecord } from './terminate.js'
+
+/**
+ * What the run has established, as a value nothing can misread.
+ *
+ * A phase narrows to the variant carrying what it needs. There is no
+ * variant in which observations exist before RUNNING produced them, so
+ * the empty-then-overwrite hazard is unrepresentable rather than merely
+ * avoided by convention.
+ */
+type WalkState =
+  | { readonly at: 'requested' }
+  | { readonly at: 'authorized'; readonly authority: Authority }
+  | {
+      readonly at: 'observed'
+      readonly authority: Authority
+      readonly observations: Observations
+    }
 
 /** The timestamp used when the clock itself is what failed. */
 const UNESTABLISHED_INSTANT = '1970-01-01T00:00:00.000Z'
 
 export class Runner {
   readonly #ports: Ports
+  readonly #controls: RunControls
 
-  constructor(ports: Ports) {
+  /**
+   * `controls` are composition-time proof affordances, not part of a run
+   * request. They are validated as narrowings before they reach the
+   * machine — see `RunControls`.
+   */
+  constructor(ports: Ports, controls: RunControls = {}) {
     this.#ports = ports
+    this.#controls = controls
   }
 
   /**
@@ -96,9 +122,12 @@ export class Runner {
         }
       },
     }
+    // A table that is not a narrowing never reaches the machine. The
+    // run refuses on it rather than executing under a forged lifecycle.
+    const table = narrowingOnly(this.#controls.transitions)
     const scope = new RunScope(
       { run_id: request.run_id, generation },
-      new RunMachine(request.run_id, safeClock, signals.transitions),
+      new RunMachine(request.run_id, safeClock, table.ok ? table.table : undefined),
       safeClock.now({ run_id: request.run_id }),
     )
     const env: RunEnvironment = {
@@ -106,6 +135,7 @@ export class Runner {
       signals,
       ports: this.#ports,
       scope,
+      controls: this.#controls,
       ledger: new FinalizationLedger(request.run_id),
       deadline: new RunDeadline(scope, signals.interrupt),
       journalTick: () => this.#flushJournal(scope),
@@ -118,6 +148,12 @@ export class Runner {
       },
     }
 
+    if (!table.ok) {
+      return await this.#recover(
+        env,
+        `the supplied transition table widens lifecycle authority: ${table.detail}`,
+      )
+    }
     try {
       return await this.#walk(env)
     } catch (error) {
@@ -130,11 +166,26 @@ export class Runner {
 
   /** The declared walk. Each phase receives only what it has earned. */
   async #walk(env: RunEnvironment): Promise<RunConclusion> {
-    let authority: Authority | undefined
-    let observations: Observations = noObservations()
-    // Read only after the phase that set it earned its transition, which
-    // the engine guarantees by refusing to run a later phase otherwise.
-    const held = (): Authority => authority as Authority
+    // WHAT THE RUN HAS ESTABLISHED, as one discriminated value.
+    //
+    // This was two bindings and a cast. `authority as Authority` told
+    // the compiler to stop checking the very ordering the typestate
+    // exists to encode — the same instruction the definite-assignment
+    // assertions used to give, wearing different syntax. And
+    // `observations` existed, empty, before RUNNING had produced any, so
+    // deleting the assignment that fills it still compiled.
+    //
+    // Neither is representable now. A phase needing authority must
+    // narrow to a variant that HAS authority, there is no variant
+    // carrying observations before RUNNING, and the out-of-order branch
+    // fails closed rather than pretending.
+    let state: WalkState = { at: 'requested' }
+    const outOfOrder = (phase: string): Promise<Stop> =>
+      terminateEarly(
+        env,
+        'indeterminate',
+        `the ${phase} phase ran before the state it requires was established`,
+      )
 
     const outcome = await walkPhases<RunConclusion>(
       env.scope.machine,
@@ -144,27 +195,42 @@ export class Runner {
           earns: 'resolve_profile',
           run: async () => {
             const result = await requested(env)
-            if (result.kind === 'earned') authority = result.next
+            if (result.kind === 'earned') state = { at: 'authorized', authority: result.next }
             return result
           },
         },
         {
           name: 'profile-resolved',
           earns: 'decide_eligibility',
-          run: () => profileResolved(env, held()),
+          run: () =>
+            state.at === 'requested'
+              ? outOfOrder('profile-resolved')
+              : profileResolved(env, state.authority),
         },
-        { name: 'eligible', earns: 'commit_spend', run: () => eligible(env, held()) },
+        {
+          name: 'eligible',
+          earns: 'commit_spend',
+          run: () =>
+            state.at === 'requested' ? outOfOrder('eligible') : eligible(env, state.authority),
+        },
         {
           name: 'sandbox-started',
           earns: 'begin_execution',
-          run: () => sandboxStarted(env, held()),
+          run: () =>
+            state.at === 'requested'
+              ? outOfOrder('sandbox-started')
+              : sandboxStarted(env, state.authority),
         },
         {
           name: 'running',
           earns: 'begin_verification',
           run: async () => {
-            const result = await running(env, held())
-            if (result.kind === 'earned') observations = result.next
+            if (state.at === 'requested') return outOfOrder('running')
+            const authority = state.authority
+            const result = await running(env, authority)
+            if (result.kind === 'earned') {
+              state = { at: 'observed', authority, observations: result.next }
+            }
             return result
           },
         },
@@ -173,7 +239,10 @@ export class Runner {
         {
           name: 'verifying',
           earns: 'seal_evidence',
-          run: () => verifying(env, held(), observations),
+          run: () =>
+            state.at === 'observed'
+              ? verifying(env, state.authority, state.observations)
+              : outOfOrder('verifying'),
         },
       ],
       {
@@ -223,7 +292,7 @@ export class Runner {
           rejections: env.scope.machine.rejections,
         }
       case 'halted':
-        return await this.#terminateFromRejection(env, authority, observations, outcome)
+        return await this.#terminateFromRejection(env, state, outcome)
       case 'walked':
         // Unreachable: the final phase always terminates. Represented
         // rather than assumed — a walk that fell off the end without
@@ -243,17 +312,16 @@ export class Runner {
    */
   async #terminateFromRejection(
     env: RunEnvironment,
-    authority: Authority | undefined,
-    observations: Observations,
+    state: WalkState,
     halt: { readonly phase: string; readonly rejection: RejectionEntry },
   ): Promise<RunConclusion> {
     const why = `the ${halt.phase} phase earned ${halt.rejection.attempted}, which the machine refused from ${halt.rejection.state}: ${halt.rejection.detail}`
     const stopped: PhaseCommand<RunConclusion> =
-      canConstructEvidence(env.scope.machine.state) && authority !== undefined
+      canConstructEvidence(env.scope.machine.state) && state.at !== 'requested'
         ? await finish(
             env,
-            authority,
-            observations,
+            state.authority,
+            state.at === 'observed' ? state.observations : noObservations(),
             'operational_fault',
             why,
             'OPERATIONAL_FAILURE',
@@ -281,8 +349,21 @@ export class Runner {
 
     let produced: RunConclusion['produced'] = 'none'
     if (!scope.authorityCaptured) {
-      const early = await terminateEarly(env, 'indeterminate', reported)
-      produced = early.value.produced
+      // The machine was terminalized above, so this WRITES rather than
+      // transitioning again. Calling `terminateEarly` here asked for a
+      // second terminal, which the machine refused — and the refusal
+      // path concluded before the record was ever built, so a run with
+      // no identities produced nothing at all.
+      // Guarded: this IS the last-resort handler, and a sink that
+      // throws here is exactly the fault it exists to absorb. `run()`
+      // always resolving is what every caller relies on to know the run
+      // is over — a rejection would end the run in no state at all.
+      try {
+        const early = await writeEarlyTerminalRecord(env, reported)
+        produced = early.value.produced
+      } catch {
+        // The conclusion below still reports a terminal state.
+      }
     }
     return {
       run_id: request.run_id,

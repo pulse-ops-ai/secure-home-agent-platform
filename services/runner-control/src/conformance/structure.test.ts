@@ -141,6 +141,19 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     expect(profileResolved.includes('seen:'), 'nor does profile-resolved take any').toBe(false)
   })
 
+  it('RO-EX-94: no phase state is reached through a type assertion', () => {
+    // `authority as Authority` was the same instruction as `profile!:`
+    // wearing different syntax — and the assertion guard below could not
+    // see it. Both escapes are checked, because closing one and leaving
+    // the other open is how the property quietly stops holding.
+    const run = readFileSync(join(srcRoot, 'orchestration/run.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/\/\/[^\n]*/g, ' ')
+    for (const escape of ['as Authority', 'as Observations']) {
+      expect(run.includes(escape), `the walk reaches state through \`${escape}\``).toBe(false)
+    }
+  })
+
   it('RO-EX-94: the definite-assignment assertions are gone, not relocated', () => {
     // `let profile!: …` told the compiler to stop checking exactly the
     // ordering the walk guaranteed. The guarantee is now carried by the

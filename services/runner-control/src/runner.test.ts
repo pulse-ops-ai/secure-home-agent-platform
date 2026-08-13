@@ -24,6 +24,15 @@ import {
   withoutConsent,
 } from './testing-fixtures.js'
 
+/** Nothing for the first `checks` consultations, then the given signal. */
+const cancelAfterChecks = (checks: number, signal: 'cancel' | 'timeout' = 'cancel') => {
+  let seen = 0
+  return () => {
+    seen += 1
+    return seen > checks ? signal : undefined
+  }
+}
+
 describe('the declared walk reaches COMPLETED with a sealed bundle', () => {
   it('completes, seals exactly one bundle, and emits only representable moments', async () => {
     const ports = testPorts()
@@ -177,9 +186,11 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
   it('cancelling at the earliest cancellable state still produces a complete bundle', async () => {
     const ports = testPorts()
     const conclusion = await new Runner(ports).run(runRequest(), {
-      // Fires at the first check, which is immediately after
-      // PROFILE_RESOLVED — the earliest state that can seal.
-      interrupt: () => 'cancel',
+      // Fires at the SECOND check. The first is now in REQUESTED, which
+      // has no captured identities and can only produce the early
+      // record; this proof is about the earliest state that can SEAL,
+      // which is PROFILE_RESOLVED. (RO-EX-97 covers the REQUESTED case.)
+      interrupt: cancelAfterChecks(1),
     })
 
     expect(conclusion.state).toBe('CANCELLED')
@@ -204,7 +215,11 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
 
   it('a timeout is the same declared shape, with its own terminal state', async () => {
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest(), { interrupt: () => 'timeout' })
+    // Past the REQUESTED check, for the same reason as above: this is
+    // about the shape a SEALING state produces, not the pre-authority one.
+    const conclusion = await new Runner(ports).run(runRequest(), {
+      interrupt: cancelAfterChecks(1, 'timeout'),
+    })
     expect(conclusion.state).toBe('TIMED_OUT')
     expect(conclusion.produced).toBe('evidence_bundle')
   })

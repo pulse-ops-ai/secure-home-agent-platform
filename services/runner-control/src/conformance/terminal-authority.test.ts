@@ -45,10 +45,9 @@ const unreadableArtifacts = {
 
 describe('RO-EX-88: a refused failure terminal still ends the run', () => {
   it('the run reaches a terminal state even when its first choice is undeclared', async () => {
-    const conclusion = await new Runner(testPorts({ artifacts: unreadableArtifacts })).run(
-      runRequest(),
-      { transitions: withoutTransition('VERIFYING', 'operational_fault') },
-    )
+    const conclusion = await new Runner(testPorts({ artifacts: unreadableArtifacts }), {
+      transitions: withoutTransition('VERIFYING', 'operational_fault'),
+    }).run(runRequest())
 
     // The assertion the older proofs were missing. "Not COMPLETED" and
     // "no bundle" are both true of a run left sitting in VERIFYING.
@@ -59,10 +58,9 @@ describe('RO-EX-88: a refused failure terminal still ends the run', () => {
   })
 
   it('the refusal is recorded rather than passed over in silence', async () => {
-    const conclusion = await new Runner(testPorts({ artifacts: unreadableArtifacts })).run(
-      runRequest(),
-      { transitions: withoutTransition('VERIFYING', 'operational_fault') },
-    )
+    const conclusion = await new Runner(testPorts({ artifacts: unreadableArtifacts }), {
+      transitions: withoutTransition('VERIFYING', 'operational_fault'),
+    }).run(runRequest())
 
     expect(
       conclusion.rejections.some((entry) => entry.attempted === 'operational_fault'),
@@ -74,9 +72,9 @@ describe('RO-EX-88: a refused failure terminal still ends the run', () => {
     // The property the older proofs DID hold, kept: reaching a terminal
     // by another route must not buy the run a bundle.
     const ports = testPorts({ artifacts: unreadableArtifacts })
-    await new Runner(ports).run(runRequest(), {
+    await new Runner(ports, {
       transitions: withoutTransition('VERIFYING', 'operational_fault'),
-    })
+    }).run(runRequest())
     expect(ports.evidence.all.filter((write) => write.kind === 'evidence_bundle')).toHaveLength(0)
   })
 })
@@ -100,10 +98,9 @@ describe('RO-EX-89: the exception handler obeys the machine too', () => {
       table = { ...table, RUNNING: row }
     }
 
-    const conclusion = await new Runner(testPorts({ observer: explodingObserver })).run(
-      runRequest(),
-      { transitions: table },
-    )
+    const conclusion = await new Runner(testPorts({ observer: explodingObserver }), {
+      transitions: table,
+    }).run(runRequest())
 
     expect(
       conclusion.rejections.some((entry) => entry.attempted === 'indeterminate'),

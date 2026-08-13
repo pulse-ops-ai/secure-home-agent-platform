@@ -15,12 +15,7 @@ import type {
 import type { ConsentRecord } from '../consent/index.js'
 import type { ArtifactObservation, EvidenceOperations, RunInput } from '../ports/index.js'
 import type { GateResultsT } from '@secure-home/contracts'
-import type {
-  LifecycleState,
-  RejectionEntry,
-  TransitionEntry,
-  TransitionTable,
-} from '../lifecycle/index.js'
+import type { LifecycleState, RejectionEntry, TransitionEntry } from '../lifecycle/index.js'
 
 export interface RunRequest {
   readonly run_id: string
@@ -50,26 +45,18 @@ export interface RunRequest {
   readonly consent?: ConsentRecord
 }
 
-/** Cancellation and timeout arrive as declared signals, not exceptions. */
+/**
+ * Cancellation and timeout arrive as declared signals, not exceptions.
+ *
+ * ONE FIELD, deliberately. This carried a transition table and a
+ * deadline override as well, both described as proof affordances — and
+ * both reached live machinery through a type the package exports. A
+ * caller could forge a lifecycle by submitting a run. They are
+ * constructor-time `RunControls` now, validated as narrowings.
+ */
 export interface RunSignals {
-  /** Consulted before each declared transition; the run terminates on it. */
+  /** Consulted at every declared boundary; the run terminates on it. */
   readonly interrupt?: () => 'cancel' | 'timeout' | undefined
-  /**
-   * The transition table this run is governed by. Defaults to the
-   * declared one; overridable so a proof can NARROW the table and
-   * observe that the effects downstream of a removed transition stop
-   * happening — which is what makes "the walk is driven by the table" a
-   * claim that can fail.
-   */
-  readonly transitions?: TransitionTable
-  /**
-   * Milliseconds before the run's deadline fires. Defaults to the
-   * profile's declared wall clock. Overridable so a proof can make a
-   * hung call time out in milliseconds rather than minutes.
-   */
-  readonly deadline_ms?: number
-  /** Raise cancellation after this many milliseconds, mid-flight. */
-  readonly cancelAfterMs?: number
 }
 
 /** What a terminal carries forward from the parts of the run that ran. */

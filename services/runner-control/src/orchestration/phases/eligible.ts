@@ -9,6 +9,8 @@
  * makes the state mean something.
  */
 import { decideSpendGate } from '../../consent/index.js'
+import { boundedDeadlineMs } from '../controls.js'
+import { INTERRUPT_TERMINAL } from '../deadline.js'
 import type { PhaseCommand } from '../../lifecycle/index.js'
 import type { RunEnvironment } from '../environment.js'
 import { stop, type RunConclusion } from '../result.js'
@@ -20,6 +22,23 @@ export const eligible = async (
   authority: Authority,
 ): Promise<PhaseCommand<RunConclusion>> => {
   const { request, ports, scope } = env
+
+  // BEFORE THE SPEND. Opening the session IS the spend, and this phase
+  // provisions a workspace and starts a session — so a cancellation that
+  // became active since the last check must be seen HERE. Passing one
+  // check and then spending on the strength of it is what made
+  // cancellation advisory between phases.
+  const signal = env.deadline.interrupted()
+  if (signal !== undefined) {
+    return finish(
+      env,
+      authority,
+      noObservations(),
+      signal,
+      `run ${signal}led before spend`,
+      INTERRUPT_TERMINAL[signal],
+    )
+  }
 
   const spend = decideSpendGate(request.run_id, request.consent)
   if (!spend.ok) {
@@ -93,10 +112,21 @@ export const eligible = async (
     )
   }
 
-  // Arm the deadline from the session's own budget. A run with no
-  // deadline is the unbounded run the model forbids.
-  const deadlineMs = env.signals.deadline_ms ?? prepared.handle.deadline.wall_clock_seconds * 1000
-  env.deadline.arm(deadlineMs, env.signals.cancelAfterMs)
+  // THE PROFILE IS THE AUTHORITY ON THE WALL CLOCK.
+  //
+  // This armed the timer from the deadline the SESSION returned, and the
+  // session port is an implementation someone else supplies — so the
+  // run's budget was whatever the sandbox asserted rather than what was
+  // captured and authorized. A session may offer less; it may never
+  // grant more, and a proof control may only shorten further.
+  env.deadline.arm(
+    boundedDeadlineMs(
+      authority.profile.value.limits.wall_clock_seconds,
+      prepared.handle.deadline.wall_clock_seconds,
+      env.controls.deadline_ms,
+    ),
+    env.controls.cancelAfterMs,
+  )
 
   return {
     kind: 'earned',

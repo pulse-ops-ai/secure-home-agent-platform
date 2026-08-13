@@ -81,10 +81,30 @@ export const terminateEarly = async (
   kind: EarlyTerminal,
   detail: string,
 ): Promise<Stop> => {
-  const { scope, request, ports } = env
-  const reached = scope.reachTerminal(kind, detail)
+  const reached = env.scope.reachTerminal(kind, detail)
   if (!reached.ok) return stop(await conclude(env, 'none', `${reached.detail}: ${detail}`))
+  return writeEarlyTerminalRecord(env, detail)
+}
 
+/**
+ * Write the early-terminal record for a machine that is ALREADY terminal.
+ *
+ * Split from `terminateEarly` because terminalizing twice is not
+ * idempotent — it is refused. The exception handler advances the machine
+ * itself (it has to: the terminal must reflect the state the run
+ * actually reached), and then called `terminateEarly`, whose own
+ * transition was refused for exactly that reason. The function concluded
+ * `none` before ever building the record, so a run that terminated in
+ * REQUESTED produced no governed record at all.
+ *
+ * One terminalization, then one write. Callers do the first; this does
+ * the second.
+ */
+export const writeEarlyTerminalRecord = async (
+  env: RunEnvironment,
+  detail: string,
+): Promise<Stop> => {
+  const { scope, request, ports } = env
   const record = buildEarlyTerminationRecord({
     run_id: request.run_id,
     requester: request.requester,

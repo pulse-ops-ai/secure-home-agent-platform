@@ -102,7 +102,7 @@ are below.
 | RO-INV-45 | Artifact observation is bounded by file count and file size, and refuses content it cannot carry faithfully rather than corrupting it | trust |
 | RO-INV-46 | The seal is the run's last write of ANY kind — nothing, including the transition record, follows it | trust |
 | RO-INV-47 | Finalization performs no compensating publication. All fallible participant preparation stays invisible; exactly ONE commit-visibility operation makes the journal tail, terminal event, and sealed evidence observable together; abandoning an uncommitted preparation changes no observable run state | trust |
-| RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence. Ownership is re-established at the commit marker itself, because every per-resource fence check happens during staging and the fence cannot learn of a newer holder that never reaches it | trust |
+| RO-INV-48 | FENCING, stated to what the mechanism delivers. Once a resource has served generation N+1, generation N can never write there again — the resource itself refuses, without consulting the lease. The run additionally renews at every phase boundary, and re-establishes ownership directly before the two writes that escape: the commit marker and apply-back. What this does NOT claim is that a dispossessed holder writes nothing anywhere: a fencing token cannot be checked against a generation the resource has not yet seen, so a stale write to a resource the new owner has not touched is admitted. Terminating the dispossessed worker itself is L9's, where process and container teardown become real | trust |
 | RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
 | RO-INV-50 | Every terminal transition is checked, on the failure paths too, and they go through ONE owner rather than several local helpers. A terminal the machine refuses is not recorded as having happened; the run falls back to INDETERMINATE, and if the table grants no terminal at all the conclusion reports the run as unterminated rather than claiming a state the machine never granted | trust |
 | RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
@@ -112,6 +112,8 @@ are below.
 | RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
 | RO-INV-57 | The transition record has ONE authority. `RunJournalPort` owns it; `EvidenceSinkPort` expresses exactly two shapes — the sealed bundle and the early-terminal record — and cannot express a transition record at all | trust |
 | RO-INV-58 | Orchestration is decomposed by PHASE and typed by what each phase has established. A phase receives only the state it earned, so reading state it has not is a compile error; no definite-assignment assertion re-enters the tree; and the module sizes are held by a ratchet that may only decrease | behavior |
+| RO-INV-59 | Proof affordances are not runtime authority: `RunSignals` carries only the interrupt, transition tables are validated as NARROWINGS of the canonical lifecycle, and the armed wall clock is bounded by the captured profile — never by what the session port reports | trust |
+| RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -279,7 +281,7 @@ persistence (U11).
 | RO-EX-63 | RO-INV-42 | adversarial | an unwalkable root reports failure, never no-changes |
 | RO-EX-64 | RO-INV-46 | adversarial | the last write of any kind to the evidence sink is the sealed bundle — asserted UNFILTERED, because the helper that filtered "the run's writes" is what hid the violation |
 | RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; a participant that refuses while staging leaves no bundle, because nothing it prepared was ever observable |
-| RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk makes no further write and journals no terminal |
+| RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk stops at the next boundary, makes no further evidence write and journals no terminal — the boundary half of the guarantee, distinct from the per-resource refusal RO-EX-82 proves |
 | RO-EX-67 | RO-INV-49 | adversarial | an append that fails once is retried and reaches the journal, rather than vanishing from the record |
 | RO-EX-68 | RO-INV-50 | adversarial | a table forbidding `operational_fault`, and one forbidding `refuse` from `REQUESTED`, each write nothing |
 | RO-EX-69 | RO-INV-51 | adversarial | a `start()` that throws and an `interrupt()` that throws both still close the session |
@@ -308,6 +310,9 @@ persistence (U11).
 | RO-EX-92 | RO-INV-57 | structural + deterministic example | no production module declares a `transition_record` sink shape (scanned with comments stripped, so the doc explaining its absence is not the failure); the journal holds the full seven-transition walk while the evidence sink holds only `evidence_bundle` |
 | RO-EX-93 | RO-INV-58 | structural | every orchestration module is within its ceiling, every phase handler under 120 code lines, the facade under 200, and no module outside `lifecycle/walk.ts`, `lifecycle/machine.ts` and `run/scope.ts` advances the machine |
 | RO-EX-94 | RO-INV-58 | structural | `requested` cannot name an observation or an artifact surface — checked by IMPORT, so a phase that does not import the type cannot construct, read or pass one — and no definite-assignment assertion survives anywhere in the tree |
+| RO-EX-95 | RO-INV-55 | adversarial | a throw from OUTSIDE acquisition's catch — a lease renew, a journal append — still writes exactly one early-terminal record; terminalizing twice writes nothing, which is what the decomposition regressed |
+| RO-EX-96 | RO-INV-59 | structural + adversarial | `RunSignals` declares only the interrupt; a redirected or added transition is refused and never reaches the provider; the wall clock is `min(profile, session, override)` and the spend phase arms from the bound |
+| RO-EX-97 | RO-INV-60 | adversarial | a run cancelled at REQUESTED reads no authority; cancelled after eligibility it provisions nothing and opens no session; cancelled with a session open it is INTERRUPTED, not merely closed |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -349,6 +354,8 @@ persistence (U11).
 | RO-MUT-47 | RO-INV-56 | mutation | re-implementing terminal classification locally in orchestration, under any function name, is killed by RO-EX-90 (verified: the mutant fails the field scan) |
 | RO-MUT-48 | RO-INV-57 | mutation | restoring the `transition_record` shape to the evidence sink, giving the walk a second declared authority, is killed by RO-EX-92 (verified) |
 | RO-MUT-49 | RO-INV-58 | mutation | reintroducing a definite-assignment assertion, or letting a phase reach state it has not earned, is killed by RO-EX-94 |
+| RO-MUT-50 | RO-INV-59 | mutation | accepting a caller-supplied transition table unvalidated, or arming the deadline from the session-reported value, is killed by RO-EX-96 |
+| RO-MUT-51 | RO-INV-60 | mutation | removing a boundary cancellation check, or terminating a cancelled run with an open session via `finish` rather than `abortRun`, is killed by RO-EX-97 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

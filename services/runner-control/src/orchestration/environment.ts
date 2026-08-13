@@ -14,6 +14,7 @@
 import type { FinalizationLedger } from '../finalization/index.js'
 import type { AcquisitionEpoch, Ports } from '../ports/index.js'
 import type { RunScope } from '../run/scope.js'
+import type { RunControls } from './controls.js'
 import type { RunDeadline } from './deadline.js'
 import type { RunRequest, RunSignals } from './result.js'
 
@@ -29,6 +30,8 @@ export interface RunEnvironment {
   readonly request: RunRequest
   readonly signals: RunSignals
   readonly ports: Ports
+  /** Composition-time proof affordances; never from a run request. */
+  readonly controls: RunControls
   /** Machine, fence, held resources, and the terminal owner. */
   readonly scope: RunScope
   /** Seal order and seal eligibility, decided before any commit. */
