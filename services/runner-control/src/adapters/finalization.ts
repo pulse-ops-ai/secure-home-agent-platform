@@ -44,11 +44,13 @@
  */
 import type {
   CommitOutcome,
+  CommitVisibility,
   EventSinkPort,
   EvidenceSinkPort,
   FinalizationCommit,
   FinalizationPort,
   RunJournalPort,
+  RunLeasePort,
   StagedWrite,
 } from '../ports/index.js'
 
@@ -56,6 +58,22 @@ export interface CommitParticipants {
   readonly journal: RunJournalPort
   readonly events: EventSinkPort
   readonly evidence: EvidenceSinkPort
+  /**
+   * The visibility authority the three participants SHARE. It is the
+   * only thing they share; their stores stay separate.
+   */
+  readonly visibility: CommitVisibility
+  /**
+   * Consulted once more immediately before the commit marker.
+   *
+   * Every fence check happens during the asynchronous staging phase, so
+   * ownership can move after the last of them. The per-resource fence
+   * cannot close that window on its own — a `FenceLedger` only learns of
+   * a newer generation when that generation reaches it, and a run that
+   * simply stops writing never delivers one. This is the last moment a
+   * terminal record can still be withheld, so it is asked here.
+   */
+  readonly lease: RunLeasePort
 }
 
 const describe = (error: unknown): string =>
@@ -63,15 +81,22 @@ const describe = (error: unknown): string =>
 
 export class TransactionalFinalization implements FinalizationPort {
   readonly #participants: CommitParticipants
+  #attempts = 0
 
   constructor(participants: CommitParticipants) {
     this.#participants = participants
   }
 
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
-    const { journal, events, evidence } = this.#participants
+    const { journal, events, evidence, visibility, lease } = this.#participants
     const fence = { run_id: commit.run_id, generation: commit.generation }
     const staged: StagedWrite[] = []
+    // Deterministic and unique per attempt. The generation distinguishes
+    // holders; the counter distinguishes retries by one holder. Two
+    // finalizations must never share a commit id, or publishing one
+    // would publish the other's records too.
+    this.#attempts += 1
+    const commit_id = `${commit.run_id}#${String(commit.generation)}#${String(this.#attempts)}`
 
     const abandon = (): void => {
       // Reverse order for symmetry with publication. It makes no
@@ -87,12 +112,18 @@ export class TransactionalFinalization implements FinalizationPort {
     const preparations: readonly (readonly [string, () => Promise<unknown>])[] = [
       [
         'journal tail',
-        () => journal.stageTransitions({ ...fence, transitions: commit.transitions }),
+        () => journal.stageTransitions({ ...fence, commit_id, transitions: commit.transitions }),
       ],
-      ['terminal event', () => events.stageEmit({ ...fence, event: commit.event })],
+      ['terminal event', () => events.stageEmit({ ...fence, commit_id, event: commit.event })],
       [
         'sealed bundle',
-        () => evidence.stageWrite({ ...fence, kind: 'evidence_bundle', bundle: commit.bundle }),
+        () =>
+          evidence.stageWrite({
+            ...fence,
+            commit_id,
+            kind: 'evidence_bundle',
+            bundle: commit.bundle,
+          }),
       ],
     ]
 
@@ -117,13 +148,48 @@ export class TransactionalFinalization implements FinalizationPort {
         }
       }
       staged.push(outcome.staged)
+      // Every participant must stage under the SAME commit. Two ids in
+      // one finalization would publish half a run and leave the other
+      // half waiting for a marker that never comes.
+      if (outcome.staged.commitId !== commit_id) {
+        abandon()
+        return {
+          ok: false,
+          detail: `finalization did not commit: the ${what} staged under ${outcome.staged.commitId}, not ${commit_id}`,
+        }
+      }
+    }
+
+    // ---- FINAL OWNERSHIP CHECK -----------------------------------
+    // The last `await` before the marker, so nothing can interleave
+    // between this answer and the publication that depends on it.
+    let owned: boolean
+    try {
+      owned = await lease.renew({ run_id: commit.run_id, generation: commit.generation })
+    } catch (error) {
+      abandon()
+      return {
+        ok: false,
+        detail: `finalization did not commit: ownership could not be confirmed: ${describe(error)}`,
+      }
+    }
+    if (!owned) {
+      abandon()
+      return {
+        ok: false,
+        reason: 'stale_fence',
+        detail: `finalization did not commit: run ${commit.run_id} moved on before the commit marker`,
+      }
     }
 
     // ---- PUBLISH -------------------------------------------------
-    // NO `await` BELOW THIS LINE. Adding one would let the event loop
-    // run between two publications and reintroduce exactly the partial
-    // visibility this design exists to remove.
-    for (const write of staged) write.publish()
+    // THE ENTIRE COMMIT, IN ONE MUTATION.
+    //
+    // Not a loop over participants: a set insertion. Before this line
+    // every staged record is invisible to every reader; after it, all of
+    // them are readable. There is no sequence for an observer to catch
+    // half-done and no participant call that could throw partway.
+    visibility.publish(commit_id)
     return { ok: true }
   }
 }

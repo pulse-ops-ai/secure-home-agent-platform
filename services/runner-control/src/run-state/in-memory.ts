@@ -24,9 +24,17 @@ import type {
   TransitionEntry,
 } from '../ports/index.js'
 import { FenceLedger } from './fence.js'
+import { CommitLedger, isVisible } from './visibility.js'
+import type { CommitVisibility } from '../ports/finalization.js'
+
+/** A transition, plus the commit that must be published to see it. */
+interface StoredTransition {
+  readonly entry: TransitionEntry
+  readonly commit_id?: string
+}
 
 interface JournalPages {
-  transitions: TransitionEntry[]
+  transitions: StoredTransition[]
   rejections: RejectionEntry[]
   acquisitions: JournaledAcquisition[]
   held?: JournaledHold
@@ -35,6 +43,17 @@ interface JournalPages {
 export class InMemoryRunJournal implements RunJournalPort {
   readonly #pages = new Map<string, JournalPages>()
   readonly #fence = new FenceLedger()
+  readonly #visibility: CommitVisibility
+
+  /**
+   * The visibility authority is INJECTED and shared with the other
+   * finalization participants. A journal holding its own would publish
+   * commits nobody else could see, which is three transactions wearing
+   * one commit id.
+   */
+  constructor(visibility: CommitVisibility = new CommitLedger()) {
+    this.#visibility = visibility
+  }
 
   #page(run_id: string): JournalPages {
     const existing = this.#pages.get(run_id)
@@ -52,7 +71,8 @@ export class InMemoryRunJournal implements RunJournalPort {
     // be able to bring a journal into existence for a run it lost.
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
-    page.transitions.push(request.transition)
+    // No commit id: an ordinary append is visible on its own account.
+    page.transitions.push({ entry: request.transition })
     // A run that moves is no longer held. Leaving a stale hold would
     // advertise a pending run that has since gone somewhere else.
     delete page.held
@@ -92,30 +112,34 @@ export class InMemoryRunJournal implements RunJournalPort {
    * exactly as it was until the whole commit publishes — there is no
    * instant at which the journal says a run sealed and no bundle exists.
    */
+  /**
+   * Record the terminal tail against `commit_id`, invisibly.
+   *
+   * The entries go into the page immediately — and stay unreadable,
+   * because `readCurrentState` skips any record whose commit is
+   * unpublished. Storing them now is what lets publication be a single
+   * set insertion later, with no participant asked to do anything.
+   */
   stageTransitions(
-    request: RunFence & { readonly transitions: readonly TransitionEntry[] },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly transitions: readonly TransitionEntry[]
+    },
   ): Promise<Staging> {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined) {
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    const entries = [...request.transitions]
-    const run_id = request.run_id
+    const commit_id = request.commit_id
+    const page = this.#page(request.run_id)
+    const staged = request.transitions.map((entry) => ({ entry, commit_id }))
+    page.transitions.push(...staged)
     return Promise.resolve({
       ok: true,
       staged: {
-        publish: () => {
-          // The page is created HERE, not at staging. Creating it while
-          // staging would turn "this run has no journal" into "this run
-          // has an empty journal" — a small change, but an observable
-          // one, and staging must be observable to nobody.
-          const page = this.#page(run_id)
-          page.transitions.push(...entries)
-          // A run that moves is no longer held.
-          delete page.held
-        },
+        commitId: commit_id,
         abandon: () => {
-          // Nothing to do: the entries were never in the page.
+          page.transitions = page.transitions.filter((row) => row.commit_id !== commit_id)
         },
       },
     })
@@ -124,11 +148,26 @@ export class InMemoryRunJournal implements RunJournalPort {
   readCurrentState(request: RunScoped): Promise<JournaledState | undefined> {
     const page = this.#pages.get(request.run_id)
     if (page === undefined) return Promise.resolve(undefined)
-    const last = page.transitions.at(-1)
+    // THE READER IGNORES UNPUBLISHED RECORDS. This is the other half of
+    // the commit marker: staging may put rows in the page, but until
+    // their commit is published no reader can tell they are there.
+    const transitions = page.transitions
+      .filter((row) => isVisible(this.#visibility, row.commit_id))
+      .map((row) => row.entry)
+    const empty =
+      transitions.length === 0 &&
+      page.rejections.length === 0 &&
+      page.acquisitions.length === 0 &&
+      page.held === undefined
+    // A page holding only staged rows is not a journal yet. Reporting one
+    // would turn "this run has no journal" into "this run has an empty
+    // journal", which is a smaller lie but still an observable one.
+    if (empty) return Promise.resolve(undefined)
+    const last = transitions.at(-1)
     return Promise.resolve({
       run_id: request.run_id,
       state: last?.to ?? 'REQUESTED',
-      transitions: page.transitions,
+      transitions,
       rejections: page.rejections,
       acquisitions: page.acquisitions,
       ...(page.held === undefined ? {} : { held: page.held }),

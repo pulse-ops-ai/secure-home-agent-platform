@@ -62,7 +62,9 @@ export interface EventSinkPort {
    * observable until published — `run.terminated` must never announce an
    * outcome before the bundle recording it exists.
    */
-  stageEmit(request: RunFence & { readonly event: unknown }): Promise<Staging>
+  stageEmit(
+    request: RunFence & { readonly commit_id: string; readonly event: unknown },
+  ): Promise<Staging>
 }
 
 /**
@@ -93,7 +95,11 @@ export interface EvidenceSinkPort {
    * refusing is still free.
    */
   stageWrite(
-    request: RunFence & { readonly kind: 'evidence_bundle'; readonly bundle: unknown },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly kind: 'evidence_bundle'
+      readonly bundle: unknown
+    },
   ): Promise<Staging>
 }
 

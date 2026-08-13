@@ -13,12 +13,7 @@
  * property means, and it decided wrongly.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  InMemoryRunJournal,
-  InMemoryRunLease,
-  RecordingEventSink,
-  RecordingEvidenceSink,
-} from '../adapters/index.js'
+import { InMemoryRunLease, RecordingEvidenceSink } from '../adapters/index.js'
 import { TRANSITIONS, type ProgressState, type TransitionKind } from '../lifecycle/index.js'
 import { Runner } from '../runner.js'
 import {
@@ -27,6 +22,7 @@ import {
   evidenceSinkFailing,
   journalFailing,
   runRequest,
+  sharedPorts,
   testPorts,
 } from '../testing-fixtures.js'
 
@@ -251,14 +247,12 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
 
 describe('RO-EX-71: retraction is scoped to the attempt, not the run', () => {
   it('a failed later attempt does not erase an earlier committed terminal', async () => {
-    const sink = new RecordingEvidenceSink()
-    const journal = new InMemoryRunJournal()
-    const events = new RecordingEventSink()
+    const shared = sharedPorts()
+    const { evidence: sink, journal, events } = shared
     const lease = new InMemoryRunLease()
+    const wiring = { journal, events, lease, visibility: shared.visibility }
 
-    const first = await new Runner(testPorts({ evidence: sink, journal, events, lease })).run(
-      runRequest(),
-    )
+    const first = await new Runner(testPorts({ ...wiring, evidence: sink })).run(runRequest())
     expect(first.state).toBe('COMPLETED')
     const committed = sink.all.filter((write) => write.kind === 'evidence_bundle').length
     expect(committed).toBe(1)
@@ -270,9 +264,7 @@ describe('RO-EX-71: retraction is scoped to the attempt, not the run', () => {
     // the second attempt never wrote anything, so there is nothing it
     // could take back, correctly scoped or otherwise.
     const retry = testPorts({
-      journal,
-      events,
-      lease,
+      ...wiring,
       evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle', sink),
     })
     const second = await new Runner(retry).run(runRequest())

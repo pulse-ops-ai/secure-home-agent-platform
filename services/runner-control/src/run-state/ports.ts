@@ -74,7 +74,10 @@ export interface RunJournalPort {
    * bundle exists.
    */
   stageTransitions(
-    request: RunFence & { readonly transitions: readonly TransitionEntry[] },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly transitions: readonly TransitionEntry[]
+    },
   ): Promise<Staging>
   appendTransition(
     request: RunFence & { readonly transition: TransitionEntry },

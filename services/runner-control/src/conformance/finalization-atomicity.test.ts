@@ -1,5 +1,5 @@
 /**
- * RO-EX-44…47: finalization is ATOMIC, not compensated.
+ * RO-EX-78…81: finalization is ATOMIC, not compensated.
  *
  * `FinalizationPort` promises that after `commit` returns, either the
  * journal tail, the terminal event, and the sealed bundle are all
@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Runner } from '../runner.js'
 import { RecordingEventSink, RecordingEvidenceSink, InMemoryRunJournal } from '../adapters/index.js'
+import { CommitLedger } from '../run-state/visibility.js'
 import { governedWrites, runRequest, testPorts } from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
@@ -95,7 +96,7 @@ const peekingEvidenceSink = (
   return proxy as unknown as RecordingEvidenceSink
 }
 
-describe('RO-EX-44: no participant observes a half-finalized run', () => {
+describe('RO-EX-78: no participant observes a half-finalized run', () => {
   it('the journal tail is not visible while the bundle is still being prepared', async () => {
     const journal = new InMemoryRunJournal()
     const events = new RecordingEventSink()
@@ -159,11 +160,12 @@ describe('RO-EX-44: no participant observes a half-finalized run', () => {
   })
 })
 
-describe('RO-EX-45: staged writes are invisible until published', () => {
-  const fence = { run_id: RUN, generation: 1 }
+describe('RO-EX-79: staged writes are invisible until published', () => {
+  const fence = { run_id: RUN, generation: 1, commit_id: 'c1' }
 
   it('a staged journal tail does not appear in readCurrentState', async () => {
-    const journal = new InMemoryRunJournal()
+    const visibility = new CommitLedger()
+    const journal = new InMemoryRunJournal(visibility)
     const staging = await journal.stageTransitions({
       ...fence,
       transitions: [
@@ -179,13 +181,16 @@ describe('RO-EX-45: staged writes are invisible until published', () => {
     expect(staging.ok).toBe(true)
     if (!staging.ok) return
 
+    // The row is already IN the page — and unreadable, because its
+    // commit is unpublished. That is the commit-marker model: storage
+    // and visibility are different questions.
     expect(await journal.readCurrentState({ run_id: RUN })).toBeUndefined()
-    staging.staged.publish()
+    visibility.publish(staging.staged.commitId)
     expect((await journal.readCurrentState({ run_id: RUN }))?.transitions).toHaveLength(1)
   })
 
   it('an abandoned bundle leaves the sink exactly as it was', async () => {
-    const evidence = new RecordingEvidenceSink()
+    const evidence = new RecordingEvidenceSink(new CommitLedger())
     const staging = await evidence.stageWrite({
       ...fence,
       kind: 'evidence_bundle',
@@ -202,7 +207,7 @@ describe('RO-EX-45: staged writes are invisible until published', () => {
   })
 
   it('an abandoned event never enters the stream', async () => {
-    const events = new RecordingEventSink()
+    const events = new RecordingEventSink(new CommitLedger())
     const staging = await events.stageEmit({ ...fence, event: { event_type: 'run.terminated' } })
     expect(staging.ok).toBe(true)
     if (!staging.ok) return
@@ -213,43 +218,56 @@ describe('RO-EX-45: staged writes are invisible until published', () => {
   })
 })
 
-describe('RO-EX-46: the publication point is synchronous', () => {
-  it('publish returns nothing — it cannot be awaited, so nothing can interleave', async () => {
-    // A `publish` that returned a promise would let the event loop run
-    // between two participants' publications, and a reader scheduled in
-    // between would see exactly the partial state this design removes.
-    // The guarantee rests on this, so it is asserted rather than assumed.
-    const journal = new InMemoryRunJournal()
+describe('RO-EX-80: the commit is ONE mutation, not a sequence', () => {
+  it('a participant has no publish at all — publication is not its job', async () => {
+    // The earlier design gave each staged write a `publish()` and called
+    // them in a loop. Two holes came with it, neither about scheduling:
+    // `publish(): void` cannot express "does not throw", so the second
+    // could fail after the first had mutated; and a synchronous
+    // publication can synchronously read another participant, observing
+    // the system mid-sequence. Removing the method removes both.
+    const visibility = new CommitLedger()
+    const journal = new InMemoryRunJournal(visibility)
     const staging = await journal.stageTransitions({
       run_id: RUN,
       generation: 1,
+      commit_id: 'c-solo',
       transitions: [] as never,
     })
     expect(staging.ok).toBe(true)
     if (!staging.ok) return
 
-    expect(staging.staged.publish()).toBeUndefined()
-    expect(
-      staging.staged.publish.constructor.name,
-      'publish must not be an async function',
-    ).not.toBe('AsyncFunction')
+    expect('publish' in staging.staged, 'a participant must not be able to publish').toBe(false)
+    expect(staging.staged.commitId).toBe('c-solo')
   })
 
-  it('the commit performs no await after the publication point', () => {
-    // A structural guard, because this is an ordering property that no
-    // behavioural test can catch reliably: an `await` between the
-    // publishes would only surface under a scheduler that happened to
-    // interleave. Reading the source is decidable; racing is not.
+  it('the commit body performs exactly one visibility mutation', () => {
+    // A structural guard, because this is a shape property no
+    // behavioural test can see: a second `visibility.publish` call, or a
+    // loop around it, would still pass every observation test while
+    // making the commit a sequence again.
     const source = readFileSync(join(here, '../adapters/finalization.ts'), 'utf8')
-    const marker = source.indexOf('for (const write of staged) write.publish()')
-    expect(marker, 'the publication loop must be findable').toBeGreaterThan(0)
-    expect(source.slice(marker).includes('await'), 'no await may follow the publication').toBe(
-      false,
-    )
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+    const publications = code.match(/visibility\.publish\(/g) ?? []
+    expect(publications, 'exactly one publication site').toHaveLength(1)
+    // And nothing may follow it, so the commit cannot do more work after
+    // the run has become observable.
+    const marker = code.indexOf('visibility.publish(')
+    expect(code.slice(marker).includes('await'), 'no await may follow the publication').toBe(false)
+  })
+
+  it('ownership is confirmed before the mutation, as the last await', () => {
+    const source = readFileSync(join(here, '../adapters/finalization.ts'), 'utf8')
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+    expect(code.indexOf('lease.renew(')).toBeGreaterThan(0)
+    expect(
+      code.indexOf('lease.renew('),
+      'the final ownership check must precede the publication',
+    ).toBeLessThan(code.indexOf('visibility.publish('))
   })
 })
 
-describe('RO-EX-47: the compensating machinery is gone, not merely unused', () => {
+describe('RO-EX-81: the compensating machinery is gone, not merely unused', () => {
   it('no participant exposes retraction any more', () => {
     // Leaving `retractTo` on the surface would let a future commit
     // reach for it and quietly reintroduce the compensating design that
@@ -265,8 +283,8 @@ describe('RO-EX-47: the compensating machinery is gone, not merely unused', () =
 
   it('the finalization adapter names no rollback path', () => {
     const source = readFileSync(join(here, '../adapters/finalization.ts'), 'utf8')
-    // `abandon` is permitted and is not rollback: it discards state that
-    // was never visible. `retractTo` undoes a completed write.
+    // `abandon` is permitted and is not rollback: it discards records
+    // that were never visible. `retractTo` undoes a completed write.
     expect(source.includes('retractTo(')).toBe(false)
   })
 })

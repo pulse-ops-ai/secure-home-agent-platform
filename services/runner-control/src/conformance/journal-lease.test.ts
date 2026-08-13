@@ -18,12 +18,13 @@
  * ids; these use ONE, which is the case that was unguarded.
  */
 import { describe, expect, it } from 'vitest'
-import { InMemoryRunJournal, InMemoryRunLease } from '../adapters/index.js'
+import { InMemoryRunLease } from '../adapters/index.js'
 import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
   DeterministicExecution,
   runRequest,
+  sharedPorts,
   testPorts,
   withoutConsent,
 } from '../testing-fixtures.js'
@@ -62,7 +63,12 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
     // finalization tail is counted too. Wrapping afterwards would leave
     // the commit writing to the unwrapped journal and the proof would
     // silently observe only the engine's five.
-    const inner = new InMemoryRunJournal()
+    // Built from the SHARED visibility authority. A journal holding its
+    // own ledger would never see the commit the finalization publishes,
+    // and the tail would stay invisible for a reason that has nothing to
+    // do with what this proof is about.
+    const shared = sharedPorts()
+    const inner = shared.journal
     const length = async (run_id: string): Promise<number> =>
       (await inner.readCurrentState({ run_id }))?.transitions.length ?? 0
     const counting = {
@@ -77,28 +83,24 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
       // bundle. Counted at publication, which is the only moment it
       // becomes visible at all.
       stageTransitions: async (request: Parameters<typeof inner.stageTransitions>[0]) => {
-        const staging = await inner.stageTransitions(request)
-        if (!staging.ok) return staging
-        const staged = staging.staged
-        return {
-          ok: true as const,
-          staged: {
-            publish: () => {
-              staged.publish()
-              // Synchronous, so this reads the page directly rather than
-              // awaiting — a publication that awaited would be the bug.
-              seen.push(-1)
-            },
-            abandon: staged.abandon.bind(staged),
-          },
-        }
+        // The tail is STAGED, not appended. It becomes visible when the
+        // commit marker is published, which is why the marker below is
+        // recorded here rather than at any per-participant publication —
+        // there is no longer any such thing.
+        seen.push(-1)
+        return inner.stageTransitions(request)
       },
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),
       appendHold: inner.appendHold.bind(inner),
       readCurrentState: inner.readCurrentState.bind(inner),
     }
-    const ports = testPorts({ journal: counting })
+    const ports = testPorts({
+      journal: counting,
+      events: shared.events,
+      evidence: shared.evidence,
+      visibility: shared.visibility,
+    })
     await new Runner(ports).run(runRequest())
 
     // The walk's five transitions land one at a time, each when exactly

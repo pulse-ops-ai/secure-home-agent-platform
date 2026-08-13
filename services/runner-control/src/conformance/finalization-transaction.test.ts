@@ -24,7 +24,6 @@ import { EvidenceBundle } from '@secure-home/events'
 import { describe, expect, it } from 'vitest'
 import { Runner } from '../runner.js'
 import { TRANSITIONS, type ProgressState, type TransitionKind } from '../lifecycle/index.js'
-import { RecordingEvidenceSink } from '../adapters/index.js'
 import {
   StaticArtifactObserver,
   eventSinkFailing,
@@ -32,6 +31,7 @@ import {
   governedWrites,
   journalFailing,
   runRequest,
+  sharedPorts,
   testPorts,
   type TestPorts,
 } from '../testing-fixtures.js'
@@ -172,9 +172,15 @@ describe('RO-EX-42: eligibility is verified before the commit, not during', () =
   })
 
   it('a seal attempted with writes outstanding is refused before the commit', async () => {
-    const countingSink = new RecordingEvidenceSink()
+    // Built from the shared visibility authority: a sink with its own
+    // ledger would filter out the very commit this proof counts.
+    const shared = sharedPorts()
+    const countingSink = shared.evidence
     const ports = testPorts({
+      journal: shared.journal,
+      events: shared.events,
       evidence: evidenceSinkFailing(() => false, countingSink),
+      visibility: shared.visibility,
     })
     await new Runner(ports).run(runRequest())
     // The good path still seals exactly once — the ordering guard is a

@@ -165,8 +165,8 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-27',
-    mutation: 'apply a finalization commit without retracting on failure',
-    killedBy: ['RO-EX-38', 'RO-EX-43'],
+    mutation: 'publish a staged record before the commit marker',
+    killedBy: ['RO-EX-38', 'RO-EX-43', 'RO-EX-78', 'RO-EX-79', 'RO-EX-82'],
   },
   {
     id: 'RO-MUT-28',
@@ -210,8 +210,8 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-36',
-    mutation: 'omit evidence from the finalization rollback set',
-    killedBy: ['RO-EX-65'],
+    mutation: 'omit one participant from the commit by staging it under a different commit id',
+    killedBy: ['RO-EX-65', 'RO-EX-78', 'RO-EX-82'],
   },
   {
     id: 'RO-MUT-37',
@@ -225,8 +225,8 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-39',
-    mutation: 'retract the whole run instead of the failing attempt',
-    killedBy: ['RO-EX-71'],
+    mutation: 'make a reader ignore commit visibility, or add a second publication site',
+    killedBy: ['RO-EX-71', 'RO-EX-79', 'RO-EX-80', 'RO-EX-82'],
   },
   {
     id: 'RO-MUT-40',
@@ -237,6 +237,12 @@ const TARGETS: readonly MutationTarget[] = [
     id: 'RO-MUT-41',
     mutation: 'seal COMPLETED after an apply-back that failed',
     killedBy: ['RO-EX-74'],
+  },
+  {
+    id: 'RO-MUT-42',
+    mutation:
+      'drop the final ownership check at the commit marker, so a lease that moved after the last staging check still publishes',
+    killedBy: ['RO-EX-84'],
   },
   {
     id: 'MUT-004',

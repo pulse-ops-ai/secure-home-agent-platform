@@ -34,6 +34,8 @@ import type {
   Staging,
 } from '../ports/index.js'
 import { FenceLedger } from '../run-state/fence.js'
+import { CommitLedger, isVisible } from '../run-state/visibility.js'
+import type { CommitVisibility } from '../ports/index.js'
 
 /** Gate reports supplied per gate identity; anything unlisted passes. */
 export class DeterministicExecution implements ExecutionPort {
@@ -94,39 +96,55 @@ export interface RecordedWrite {
   readonly run_id: string
   readonly kind: 'evidence_bundle' | 'early_termination_record' | 'transition_record'
   readonly payload: unknown
+  /** Present only while the write belongs to an unpublished commit. */
+  readonly commit_id?: string
+}
+
+interface StoredEvent {
+  readonly event: unknown
+  readonly commit_id?: string
 }
 
 export class RecordingEventSink implements EventSinkPort {
-  readonly #byRun = new Map<string, unknown[]>()
+  readonly #byRun = new Map<string, StoredEvent[]>()
   readonly #fence = new FenceLedger()
+  readonly #visibility: CommitVisibility
+
+  constructor(visibility: CommitVisibility = new CommitLedger()) {
+    this.#visibility = visibility
+  }
 
   emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
     const existing = this.#byRun.get(request.run_id) ?? []
-    existing.push(request.event)
+    existing.push({ event: request.event })
     this.#byRun.set(request.run_id, existing)
     return Promise.resolve(refused)
   }
 
-  /** Prepare the terminal event. Absent from `eventsOf` until published. */
-  stageEmit(request: RunFence & { readonly event: unknown }): Promise<Staging> {
+  /** Record the terminal event against `commit_id`, invisibly. */
+  stageEmit(
+    request: RunFence & { readonly commit_id: string; readonly event: unknown },
+  ): Promise<Staging> {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined) {
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    const event = request.event
+    const commit_id = request.commit_id
     const run_id = request.run_id
+    const existing = this.#byRun.get(run_id) ?? []
+    existing.push({ event: request.event, commit_id })
+    this.#byRun.set(run_id, existing)
     return Promise.resolve({
       ok: true,
       staged: {
-        publish: () => {
-          const existing = this.#byRun.get(run_id) ?? []
-          existing.push(event)
-          this.#byRun.set(run_id, existing)
-        },
+        commitId: commit_id,
         abandon: () => {
-          // The event was never in the stream.
+          this.#byRun.set(
+            run_id,
+            (this.#byRun.get(run_id) ?? []).filter((row) => row.commit_id !== commit_id),
+          )
         },
       },
     })
@@ -134,7 +152,9 @@ export class RecordingEventSink implements EventSinkPort {
 
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */
   eventsOf(run_id: string): readonly unknown[] {
-    return this.#byRun.get(run_id) ?? []
+    return (this.#byRun.get(run_id) ?? [])
+      .filter((row) => isVisible(this.#visibility, row.commit_id))
+      .map((row) => row.event)
   }
 
   get runs(): readonly string[] {
@@ -143,8 +163,17 @@ export class RecordingEventSink implements EventSinkPort {
 }
 
 export class RecordingEvidenceSink implements EvidenceSinkPort {
-  readonly #writes: RecordedWrite[] = []
+  #writes: RecordedWrite[] = []
   readonly #fence = new FenceLedger()
+  readonly #visibility: CommitVisibility
+
+  constructor(visibility: CommitVisibility = new CommitLedger()) {
+    this.#visibility = visibility
+  }
+
+  #visibleWrites(): readonly RecordedWrite[] {
+    return this.#writes.filter((write) => isVisible(this.#visibility, write.commit_id))
+  }
 
   write(
     request: RunFence &
@@ -172,39 +201,42 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     return Promise.resolve(refused)
   }
 
-  /** Prepare the seal. Absent from `writesOf` until published. */
+  /** Record the seal against `commit_id`, invisibly. */
   stageWrite(
-    request: RunFence & { readonly kind: 'evidence_bundle'; readonly bundle: unknown },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly kind: 'evidence_bundle'
+      readonly bundle: unknown
+    },
   ): Promise<Staging> {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined) {
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    const entry: RecordedWrite = {
+    const commit_id = request.commit_id
+    this.#writes.push({
       run_id: request.run_id,
       kind: 'evidence_bundle',
       payload: request.bundle,
-    }
+      commit_id,
+    })
     return Promise.resolve({
       ok: true,
       staged: {
-        publish: () => {
-          this.#writes.push(entry)
-        },
+        commitId: commit_id,
         abandon: () => {
-          // The bundle was never in the sink, so a failed commit leaves
-          // no bundle to remove — and no removal that could itself fail.
+          this.#writes = this.#writes.filter((write) => write.commit_id !== commit_id)
         },
       },
     })
   }
 
   writesOf(run_id: string): readonly RecordedWrite[] {
-    return this.#writes.filter((write) => write.run_id === run_id)
+    return this.#visibleWrites().filter((write) => write.run_id === run_id)
   }
 
   get all(): readonly RecordedWrite[] {
-    return this.#writes
+    return this.#visibleWrites()
   }
 }
 

@@ -86,20 +86,48 @@ export interface FinalizationPort {
  */
 export interface StagedWrite {
   /**
-   * Make this participant's prepared writes observable.
-   *
-   * SYNCHRONOUS and total, by contract. Both are load-bearing. Returning
-   * a promise would let the event loop run between two participants'
-   * publications, which is exactly the partial visibility staging
-   * exists to prevent; and a publication that can fail reintroduces the
-   * broken-rollback state through the back door. An implementation that
-   * cannot promise both must fail during STAGING, where failing is free.
+   * The commit this record belongs to. A reader ignores any record whose
+   * commit is unpublished, so the record may sit in its own store from
+   * the moment it is staged without being observable.
    */
-  publish(): void
-  /** Discard the prepared writes. Nothing was ever visible. */
+  readonly commitId: string
+  /** Drop the prepared record. Nothing was ever visible. */
   abandon(): void
 }
 
 export type Staging =
   | { readonly ok: true; readonly staged: StagedWrite }
   | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
+
+/**
+ * THE SINGLE VISIBILITY AUTHORITY.
+ *
+ * Note what is NOT here: a participant has no `publish`. An earlier
+ * version gave each staged write one and published them in a loop with
+ * no `await` between. That is safe against the event loop and against
+ * nothing else — two holes survived, and neither was about scheduling:
+ *
+ *  - `publish(): void` cannot express "does not throw". The first
+ *    publication could succeed and the second throw, landing exactly on
+ *    the partial state the design exists to remove, with no
+ *    compensation available by then;
+ *  - synchronous is not unobserved. A publication that synchronously
+ *    reads another participant — directly or through anything it calls —
+ *    sees the system between two mutations. No scheduling required.
+ *
+ * Both come from finalization being three mutations. So it is one. Every
+ * fallible thing happens while invisible; the only state change that
+ * makes a run's terminal record readable is `publish(commitId)`, a set
+ * insertion with no branch, no I/O, and no participant involvement.
+ *
+ * The stores stay separate — journal, events, and evidence remain
+ * distinct concepts with distinct ports. Only VISIBILITY is shared, and
+ * a shared visibility authority is precisely what a durable
+ * implementation replaces with a database transaction (U11).
+ */
+export interface CommitVisibility {
+  /** Make every record of `commitId` observable. The one mutation. */
+  publish(commitId: string): void
+  /** Whether a record carrying `commitId` may be read. */
+  isPublished(commitId: string): boolean
+}

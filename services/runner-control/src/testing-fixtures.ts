@@ -41,6 +41,7 @@ import type {
   ApplyBackRequest,
   WorkspaceProvision,
 } from './ports/index.js'
+import { CommitLedger } from './run-state/visibility.js'
 import type { RunRequest } from './runner.js'
 
 export const digestHex = (letter: string): string => `sha256:${letter.repeat(64)}`
@@ -188,7 +189,36 @@ export interface TestPorts extends Ports {
   readonly evidence: RecordingEvidenceSink
 }
 
-export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
+/**
+ * One visibility authority per port set, shared by the three commit
+ * participants. It is created here rather than defaulted inside each
+ * store because a store holding its OWN ledger would never see a commit
+ * published through another — three transactions wearing one commit id.
+ *
+ * A test that supplies its own journal/events/evidence must build them
+ * from `visibility` too; `sharedPorts()` below does exactly that, and is
+ * what every commit-marker proof uses.
+ */
+export const sharedPorts = (): {
+  readonly visibility: CommitLedger
+  readonly journal: InMemoryRunJournal
+  readonly events: RecordingEventSink
+  readonly evidence: RecordingEvidenceSink
+} => {
+  const visibility = new CommitLedger()
+  return {
+    visibility,
+    journal: new InMemoryRunJournal(visibility),
+    events: new RecordingEventSink(visibility),
+    evidence: new RecordingEvidenceSink(visibility),
+  }
+}
+
+export const testPorts = (
+  overrides: Partial<Ports> & { readonly visibility?: CommitLedger } = {},
+): TestPorts => {
+  const shared = sharedPorts()
+  const visibility = overrides.visibility ?? shared.visibility
   const base = {
     authority: new CountingAuthoritySource(),
     observer: new StaticWorkspaceObserver(),
@@ -196,10 +226,10 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
     artifacts: new StaticArtifactObserver(),
     execution: new DeterministicExecution(),
     adapter: new DeterministicAdapterInvocation(),
-    events: new RecordingEventSink(),
-    evidence: new RecordingEvidenceSink(),
+    events: shared.events,
+    evidence: shared.evidence,
     clock: new SteppingClock(),
-    journal: new InMemoryRunJournal(),
+    journal: shared.journal,
     lease: new InMemoryRunLease(),
     session: new InMemoryExecutionSession(),
     ...overrides,
@@ -214,6 +244,8 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
         journal: base.journal,
         events: base.events,
         evidence: base.evidence,
+        visibility,
+        lease: base.lease,
       }),
   }
 }
@@ -273,6 +305,7 @@ export const eventSinkFailing = (
     stageEmit: (request: {
       readonly run_id: string
       readonly generation: number
+      readonly commit_id: string
       readonly event: { event_type: string }
     }) =>
       shouldFail(request.event)

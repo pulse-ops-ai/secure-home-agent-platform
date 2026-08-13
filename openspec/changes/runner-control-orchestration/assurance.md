@@ -101,8 +101,8 @@ are below.
 | RO-INV-44 | Entries are observed with `lstat`: a symlink is recorded AS a symlink with its resolved `link_target`, and an artifact read is of the named path or is refused | trust |
 | RO-INV-45 | Artifact observation is bounded by file count and file size, and refuses content it cannot carry faithfully rather than corrupting it | trust |
 | RO-INV-46 | The seal is the run's last write of ANY kind — nothing, including the transition record, follows it | trust |
-| RO-INV-47 | A failed commit retracts to a mark taken BEFORE it wrote, and the retraction is scoped to the attempt so a later attempt cannot erase an earlier commit | trust |
-| RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence | trust |
+| RO-INV-47 | Finalization performs no compensating publication. All fallible participant preparation stays invisible; exactly ONE commit-visibility operation makes the journal tail, terminal event, and sealed evidence observable together; abandoning an uncommitted preparation changes no observable run state | trust |
+| RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence. Ownership is re-established at the commit marker itself, because every per-resource fence check happens during staging and the fence cannot learn of a newer holder that never reaches it | trust |
 | RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
 | RO-INV-50 | Every terminal transition is checked, on the failure paths too: a terminal the machine refuses is not recorded as having happened | trust |
 | RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
@@ -274,19 +274,26 @@ persistence (U11).
 | RO-EX-62 | RO-INV-45 | adversarial | a binary artifact is refused by name; a text artifact is read faithfully |
 | RO-EX-63 | RO-INV-42 | adversarial | an unwalkable root reports failure, never no-changes |
 | RO-EX-64 | RO-INV-46 | adversarial | the last write of any kind to the evidence sink is the sealed bundle — asserted UNFILTERED, because the helper that filtered "the run's writes" is what hid the violation |
-| RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; an evidence write that LANDS and then fails is retracted |
+| RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; a participant that refuses while staging leaves no bundle, because nothing it prepared was ever observable |
 | RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk makes no further write and journals no terminal |
 | RO-EX-67 | RO-INV-49 | adversarial | an append that fails once is retried and reaches the journal, rather than vanishing from the record |
 | RO-EX-68 | RO-INV-50 | adversarial | a table forbidding `operational_fault`, and one forbidding `refuse` from `REQUESTED`, each write nothing |
 | RO-EX-69 | RO-INV-51 | adversarial | a `start()` that throws and an `interrupt()` that throws both still close the session |
 | RO-EX-70 | RO-INV-51 | adversarial | a `claim()` that throws resolves with a conclusion and writes nothing; a `release()` that throws does not replace a completed run |
-| RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact |
+| RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact — structurally, since the failed attempt published no marker and therefore wrote nothing to take back |
 | RO-EX-72 | RO-INV-53 | deterministic example | permitted changes are applied back only after the core decided they may be; a policy-refused change set applies nothing |
 | RO-EX-73 | RO-INV-53 | adversarial | changes outside the policy never leave the workspace, and the refusal names the offending path |
 | RO-EX-74 | RO-INV-54 | adversarial | the apply-back precedes the seal; an apply-back that fails terminates `OPERATIONAL_FAILURE` and the sealed bundle says so rather than `COMPLETED` |
 | RO-EX-75 | RO-INV-52 | adversarial | provisioning failure stops the run before anything executes; the workspace is discarded on refusal too; a run that never provisioned discards nothing |
 | RO-EX-76 | RO-INV-53 | deterministic example | an empty change set is not an apply-back |
 | RO-EX-77 | RO-INV-53 | deterministic example | what is applied back is exactly the observed set — not the model's claims |
+| RO-EX-78 | RO-INV-47 | adversarial | a participant observing from inside the commit sees no journal tail and no terminal event while the bundle is still being prepared |
+| RO-EX-79 | RO-INV-47 | adversarial | a staged tail, event, and bundle are absent from every reader until the marker publishes; an abandoned preparation changes no observable state |
+| RO-EX-80 | RO-INV-47 | structural | a participant has no publication step at all; the commit body contains exactly ONE visibility mutation, with no `await` after it and the ownership check before it |
+| RO-EX-81 | RO-INV-47 | structural | no participant exposes `mark` or `retractTo`, and the finalization adapter names no rollback path |
+| RO-EX-82 | RO-INV-47 | adversarial | an observer running inside the commit sees all three or none; the terminal tail is present in the journal store yet unreadable until the marker |
+| RO-EX-83 | RO-INV-47 | adversarial | a staged write exposes only `commitId` and `abandon`, so publication cannot fail halfway; a staging failure publishes no marker at all |
+| RO-EX-84 | RO-INV-48 | adversarial | a lease that moves AFTER the last staging fence check publishes nothing — the commit marker re-establishes ownership |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -310,7 +317,7 @@ persistence (U11).
 | RO-MUT-24 | RO-INV-27 | mutation | ignoring a rejected transition and proceeding to the next phase's effects is killed by RO-EX-28/29/31 (verified: the mutant kills four proofs) |
 | RO-MUT-25 | RO-INV-28 | mutation | batching the journal to a single write at conclusion is killed by RO-EX-32 (verified: the mutant kills two proofs) |
 | RO-MUT-26 | RO-INV-30 | mutation | claiming the lease and not enforcing it is killed by RO-EX-34 (verified: the mutant kills two proofs) |
-| RO-MUT-27 | RO-INV-31 | mutation | applying a commit without retracting on failure is killed by RO-EX-38/43 (verified: the mutant kills three proofs) |
+| RO-MUT-27 | RO-INV-31 | mutation | publishing a staged record before the commit marker is killed by RO-EX-78/79/82 (verified: making staged rows visible immediately kills seven proofs) |
 | RO-MUT-28 | RO-INV-32 | mutation | emitting the terminal event before the commit is killed by RO-EX-38/39 (verified: the mutant kills two proofs) |
 | RO-MUT-29 | RO-INV-36 | mutation | trusting the provider's self-reported outcome over the disagreement is killed by RO-EX-46 (verified) |
 | RO-MUT-30 | RO-INV-35 | mutation | admitting a credential value field on the invocation is killed by RO-EX-45 under `tsc` (verified: survives `vitest run` alone, which is why the aggregate gate runs types AND tests) |
@@ -319,10 +326,11 @@ persistence (U11).
 | RO-MUT-33 | RO-INV-42 | mutation | labelling every observed file `modified` instead of diffing the baseline is killed by RO-EX-58 (verified) |
 | RO-MUT-34 | RO-INV-43 | mutation | digesting text instead of raw bytes is killed by RO-EX-59 (verified) |
 | RO-MUT-35 | RO-INV-44 | mutation | using `stat` instead of `lstat`, so a link reads as a regular file, is killed by RO-EX-60/61 (verified) |
-| RO-MUT-36 | RO-INV-47 | mutation | omitting evidence from the rollback set is killed by RO-EX-65 (verified) |
+| RO-MUT-36 | RO-INV-47 | mutation | omitting one participant from the commit — staging it under a different id, so the marker publishes only part of the run — is killed by RO-EX-78/82 and by the commit-id agreement check |
 | RO-MUT-37 | RO-INV-48 | mutation | terminating a lost-lease run by writing its record is killed by RO-EX-66 (verified) |
+| RO-MUT-42 | RO-INV-48 | mutation | dropping the final ownership check at the commit marker, so a lease that moved after the last staging check still publishes, is killed by RO-EX-84 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
-| RO-MUT-39 | RO-INV-47 | mutation | retracting the whole run instead of the attempt is killed by RO-EX-71 (verified) |
+| RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
 | RO-MUT-40 | RO-INV-53 | mutation | applying back without asking the core is killed by RO-EX-72/73 |
 | RO-MUT-41 | RO-INV-54 | mutation | sealing `COMPLETED` after a failed apply-back is killed by RO-EX-74 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
