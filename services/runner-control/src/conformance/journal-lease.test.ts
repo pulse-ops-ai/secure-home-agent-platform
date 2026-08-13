@@ -66,9 +66,10 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
     const counting = {
       ...inner,
       appendTransition: async (request: Parameters<typeof inner.appendTransition>[0]) => {
-        await inner.appendTransition(request)
+        const appended = await inner.appendTransition(request)
         const state = await inner.readCurrentState({ run_id: request.run_id })
         seen.push(state?.transitions.length ?? 0)
+        return appended
       },
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),

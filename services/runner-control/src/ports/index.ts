@@ -21,8 +21,10 @@ import type {
   ArtifactObserveRequest,
   AuthorityBytes,
   AuthorityReadRequest,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
+  RunFence,
   RunScoped,
   WorkspaceObservation,
   WorkspaceObserveRequest,
@@ -54,7 +56,7 @@ export type AdapterInvocation = AdapterInvocationRequest
 
 /** One emitted run event. The shape is the L2 contract's, by instance. */
 export interface EventSinkPort extends Retractable {
-  emit(request: RunScoped & { readonly event: unknown }): Promise<void>
+  emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome>
 }
 
 /**
@@ -72,13 +74,13 @@ export interface EventSinkPort extends Retractable {
  */
 export interface EvidenceSinkPort extends Retractable {
   write(
-    request: RunScoped &
+    request: RunFence &
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
         | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
-  ): Promise<void>
+  ): Promise<FenceOutcome>
 }
 
 /**

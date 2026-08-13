@@ -16,15 +16,22 @@
 import type {
   ApplyBackOutcome,
   ApplyBackRequest,
-  RunScoped,
+  FenceOutcome,
+  RunFence,
   WorkspaceLifecyclePort,
   WorkspaceProvision,
 } from '../ports/index.js'
+import { FenceLedger } from '../run-state/fence.js'
 
 export class InMemoryWorkspaceLifecycle implements WorkspaceLifecyclePort {
   readonly #applied = new Map<string, number>()
+  readonly #fence = new FenceLedger()
 
-  provision(request: RunScoped & { readonly source_ref: string }): Promise<WorkspaceProvision> {
+  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
+    }
     return Promise.resolve({
       ok: true,
       handle: {
@@ -35,12 +42,20 @@ export class InMemoryWorkspaceLifecycle implements WorkspaceLifecyclePort {
   }
 
   applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome> {
+    const refused = this.#fence.refuse(request)
+    // The most consequential fence in the service: apply-back is how a
+    // run's changes LEAVE isolation. A dispossessed holder applying its
+    // observations over the current owner's workspace would materialize
+    // work that the run in progress never did.
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
+    }
     this.#applied.set(request.run_id, request.changes.length)
     return Promise.resolve({ ok: true, applied: request.changes.length })
   }
 
-  discard(): Promise<void> {
-    return Promise.resolve()
+  discard(request: RunFence & { readonly workspace_ref: string }): Promise<FenceOutcome> {
+    return Promise.resolve(this.#fence.outcome(request))
   }
 
   appliedFor(run_id: string): number {

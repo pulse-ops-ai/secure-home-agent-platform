@@ -27,7 +27,7 @@
 import type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
 import type { Retractable } from '../ports/finalization.js'
-import type { AcquisitionEpoch, RunScoped } from '../ports/values.js'
+import type { AcquisitionEpoch, FenceOutcome, RunFence, RunScoped } from '../ports/values.js'
 
 /** One acquisition, journaled as it happens. */
 export interface JournaledAcquisition {
@@ -59,14 +59,28 @@ export interface JournaledState {
   readonly held?: JournaledHold
 }
 
+/**
+ * Every append is FENCED: a journal is the run's durable history, and a
+ * holder that lost the run must not be able to add to it. The appends
+ * return an outcome rather than `void` because the walk has to know its
+ * entry was refused — a rejected append that looked like a successful
+ * one would leave the stale holder believing its history was recorded.
+ */
 export interface RunJournalPort extends Retractable {
-  appendTransition(request: RunScoped & { readonly transition: TransitionEntry }): Promise<void>
-  appendRejection(request: RunScoped & { readonly rejection: RejectionEntry }): Promise<void>
+  appendTransition(
+    request: RunFence & { readonly transition: TransitionEntry },
+  ): Promise<FenceOutcome>
+  appendRejection(request: RunFence & { readonly rejection: RejectionEntry }): Promise<FenceOutcome>
   appendAcquisition(
-    request: RunScoped & { readonly acquisition: JournaledAcquisition },
-  ): Promise<void>
-  appendHold(request: RunScoped & { readonly hold: JournaledHold }): Promise<void>
-  /** `undefined` when the run has no journal — it never started here. */
+    request: RunFence & { readonly acquisition: JournaledAcquisition },
+  ): Promise<FenceOutcome>
+  appendHold(request: RunFence & { readonly hold: JournaledHold }): Promise<FenceOutcome>
+  /**
+   * `undefined` when the run has no journal — it never started here.
+   * Unfenced: reading someone else's run tells a stale holder nothing it
+   * could act on, and refusing the read would disguise lost ownership as
+   * a missing journal.
+   */
   readCurrentState(request: RunScoped): Promise<JournaledState | undefined>
 }
 
@@ -75,6 +89,11 @@ export interface RunJournalPort extends Retractable {
  * successful claim, so a holder that lost its lease and kept working can
  * be told apart from the one that actually holds it. Without the token a
  * stale holder's renew would succeed after the lease moved on.
+ *
+ * The token is only a fence where it is PRESENTED — see `RunFence`. The
+ * lease hands it out; every effectful port demands it; the resource
+ * itself rejects a superseded one. `renew` alone would leave a window
+ * one phase wide in which a dispossessed holder keeps writing.
  */
 export type LeaseClaim =
   | { readonly ok: true; readonly generation: number }

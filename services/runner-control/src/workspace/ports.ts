@@ -26,7 +26,7 @@
  * implementation that isolates nothing and applies nothing, and says so.
  */
 import type { ObservedChange } from '@secure-home/runner-core'
-import type { RunScoped } from '../ports/values.js'
+import type { FenceOutcome, RunFence } from '../ports/values.js'
 
 export interface WorkspaceHandle {
   readonly workspace_ref: string
@@ -36,14 +36,14 @@ export interface WorkspaceHandle {
 
 export type WorkspaceProvision =
   | { readonly ok: true; readonly handle: WorkspaceHandle }
-  | { readonly ok: false; readonly detail: string }
+  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
 
 /**
  * What the core decided may be materialized, handed over for apply-back.
  * The change set is the AUTHORITATIVE observation — not the model's
  * claims, and not a re-derivation.
  */
-export interface ApplyBackRequest extends RunScoped {
+export interface ApplyBackRequest extends RunFence {
   readonly workspace_ref: string
   readonly changes: readonly ObservedChange[]
   /**
@@ -55,11 +55,22 @@ export interface ApplyBackRequest extends RunScoped {
 }
 
 export type ApplyBackOutcome =
-  { readonly ok: true; readonly applied: number } | { readonly ok: false; readonly detail: string }
+  | { readonly ok: true; readonly applied: number }
+  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
 
+/**
+ * All three operations are FENCED, including `discard`.
+ *
+ * Discard is the one that looks like cleanup and is not. If a stale
+ * holder could discard, it would destroy the workspace the CURRENT owner
+ * is running in — the two attempts share a `run_id`, so they may well
+ * name the same workspace. Refusing the stale discard can leak a
+ * workspace; permitting it can delete a live one. Leaking is the
+ * recoverable half of that choice.
+ */
 export interface WorkspaceLifecyclePort {
-  provision(request: RunScoped & { readonly source_ref: string }): Promise<WorkspaceProvision>
+  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision>
   applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome>
-  /** Always called, on every exit. Discards the isolated workspace. */
-  discard(request: RunScoped & { readonly workspace_ref: string }): Promise<void>
+  /** Called on every exit the fence still permits. */
+  discard(request: RunFence & { readonly workspace_ref: string }): Promise<FenceOutcome>
 }

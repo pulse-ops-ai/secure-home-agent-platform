@@ -21,13 +21,25 @@ import type { ClockPort, EventSinkPort } from '../ports/index.js'
 export interface EventIdentity {
   readonly run_id: string
   readonly adapter: string
+  /**
+   * The lease generation this emitter writes under. An emitter belongs
+   * to one run AND to one holder of it: carrying the fence here rather
+   * than at each call site means no emission can accidentally be made
+   * without it.
+   */
+  readonly generation: number
 }
 
 export type EmitOutcome =
   | { readonly ok: true; readonly event: RunEventT }
   | {
       readonly ok: false
-      readonly reason: 'contract_invalid' | 'sink_failed'
+      /**
+       * `stale_fence` is kept apart from `sink_failed`: the sink is
+       * working perfectly and is refusing this caller, which is a fact
+       * about ownership rather than about the event stream.
+       */
+      readonly reason: 'contract_invalid' | 'sink_failed' | 'stale_fence'
       readonly detail: string
     }
 
@@ -104,14 +116,25 @@ export class RunEventEmitter {
           .join('; '),
       }
     }
+    let emitted
     try {
-      await this.#sink.emit({ run_id: this.#identity.run_id, event: parsed.data })
+      emitted = await this.#sink.emit({
+        run_id: this.#identity.run_id,
+        generation: this.#identity.generation,
+        event: parsed.data,
+      })
     } catch (error) {
       return {
         ok: false,
         reason: 'sink_failed',
         detail: error instanceof Error ? error.message : String(error),
       }
+    }
+    if (!emitted.ok) {
+      // NOT counted and NOT retained. A refused emission never happened,
+      // so advancing the sequence would leave a permanent gap that reads
+      // as a lost event rather than as one that was never written.
+      return { ok: false, reason: 'stale_fence', detail: emitted.detail }
     }
     this.#sequence += 1
     this.#emitted.push(parsed.data)

@@ -32,9 +32,9 @@
  */
 import type { TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
-import type { RunScoped } from './values.js'
+import type { FenceOutcome, RunFence, RunScoped } from './values.js'
 
-export interface FinalizationCommit extends RunScoped {
+export interface FinalizationCommit extends RunFence {
   /** The terminal state this run is committing to. */
   readonly terminal: LifecycleState
   /**
@@ -50,7 +50,15 @@ export interface FinalizationCommit extends RunScoped {
   readonly bundle: unknown
 }
 
-export type CommitOutcome = { readonly ok: true } | { readonly ok: false; readonly detail: string }
+export type CommitOutcome =
+  | { readonly ok: true }
+  /**
+   * `stale_fence` is called out rather than folded into a generic
+   * failure: a commit refused because the run moved on has NOT failed a
+   * contract, and terminating it OPERATIONAL_FAILURE would write a
+   * verdict about a run this caller no longer owns.
+   */
+  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
 
 export interface FinalizationPort {
   commit(commit: FinalizationCommit): Promise<CommitOutcome>
@@ -71,8 +79,17 @@ export interface FinalizationPort {
  * time is discovering it too late.
  */
 export interface Retractable {
-  /** A token naming this participant's state before an attempt writes. */
+  /**
+   * A token naming this participant's state before an attempt writes.
+   * Unfenced: taking a mark changes nothing, and a commit whose fence is
+   * stale is refused at its first actual write regardless.
+   */
   mark(request: RunScoped): Promise<string>
-  /** Discard everything this run wrote after `token`. */
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void>
+  /**
+   * Discard everything this run wrote after `token`. FENCED — undoing a
+   * run's writes is as destructive as making them, and a stale holder
+   * rolling back the current owner's commit is the precise failure the
+   * fence exists to prevent.
+   */
+  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome>
 }

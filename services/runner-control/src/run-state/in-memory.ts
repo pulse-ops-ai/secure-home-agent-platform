@@ -10,16 +10,19 @@
  * anything.
  */
 import type {
+  FenceOutcome,
   JournaledAcquisition,
   JournaledHold,
   JournaledState,
   LeaseClaim,
   RejectionEntry,
+  RunFence,
   RunJournalPort,
   RunLeasePort,
   RunScoped,
   TransitionEntry,
 } from '../ports/index.js'
+import { FenceLedger } from './fence.js'
 
 interface JournalPages {
   transitions: TransitionEntry[]
@@ -30,6 +33,7 @@ interface JournalPages {
 
 export class InMemoryRunJournal implements RunJournalPort {
   readonly #pages = new Map<string, JournalPages>()
+  readonly #fence = new FenceLedger()
 
   #page(run_id: string): JournalPages {
     const existing = this.#pages.get(run_id)
@@ -39,30 +43,44 @@ export class InMemoryRunJournal implements RunJournalPort {
     return page
   }
 
-  appendTransition(request: RunScoped & { readonly transition: TransitionEntry }): Promise<void> {
+  appendTransition(
+    request: RunFence & { readonly transition: TransitionEntry },
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    // Checked BEFORE the page is even created: a stale holder must not
+    // be able to bring a journal into existence for a run it lost.
+    if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
     page.transitions.push(request.transition)
     // A run that moves is no longer held. Leaving a stale hold would
     // advertise a pending run that has since gone somewhere else.
     delete page.held
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
-  appendRejection(request: RunScoped & { readonly rejection: RejectionEntry }): Promise<void> {
+  appendRejection(
+    request: RunFence & { readonly rejection: RejectionEntry },
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     this.#page(request.run_id).rejections.push(request.rejection)
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   appendAcquisition(
-    request: RunScoped & { readonly acquisition: JournaledAcquisition },
-  ): Promise<void> {
+    request: RunFence & { readonly acquisition: JournaledAcquisition },
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     this.#page(request.run_id).acquisitions.push(request.acquisition)
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
-  appendHold(request: RunScoped & { readonly hold: JournaledHold }): Promise<void> {
+  appendHold(request: RunFence & { readonly hold: JournaledHold }): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     this.#page(request.run_id).held = request.hold
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   mark(request: RunScoped): Promise<string> {
@@ -78,13 +96,15 @@ export class InMemoryRunJournal implements RunJournalPort {
    * attempt's rollback would erase an earlier attempt's committed
    * terminal, turning a failure into data loss.
    */
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
+  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     const page = this.#pages.get(request.run_id)
     if (page !== undefined) {
       const keep = Number(request.token)
       if (Number.isInteger(keep) && keep >= 0) page.transitions = page.transitions.slice(0, keep)
     }
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   readCurrentState(request: RunScoped): Promise<JournaledState | undefined> {

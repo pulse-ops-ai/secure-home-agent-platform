@@ -29,6 +29,7 @@ import type {
   AdapterInvocation,
   AdapterObservation,
   AdapterReport,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
   SessionClosure,
@@ -264,7 +265,11 @@ export const eventSinkFailing = (
   base: RecordingEventSink = new RecordingEventSink(),
 ): RecordingEventSink =>
   ({
-    emit: (request: { readonly run_id: string; readonly event: { event_type: string } }) =>
+    emit: (request: {
+      readonly run_id: string
+      readonly generation: number
+      readonly event: { event_type: string }
+    }) =>
       shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),
     mark: base.mark.bind(base),
     retractTo: base.retractTo.bind(base),
@@ -350,9 +355,9 @@ export class RecordingSession {
     return Promise.resolve(failure === undefined ? { ok: true } : { ok: false, detail: failure })
   }
 
-  interrupt(): Promise<void> {
+  interrupt(): Promise<FenceOutcome> {
     this.calls.push('interrupt')
-    return Promise.resolve()
+    return Promise.resolve({ ok: true })
   }
 
   close(): Promise<SessionClosure> {
@@ -419,9 +424,9 @@ export class RecordingWorkspaceLifecycle {
     return Promise.resolve({ ok: true, applied: request.changes.length })
   }
 
-  discard(): Promise<void> {
+  discard(): Promise<FenceOutcome> {
     this.calls.push('discard')
-    return Promise.resolve()
+    return Promise.resolve({ ok: true })
   }
 }
 

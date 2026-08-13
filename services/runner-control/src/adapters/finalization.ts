@@ -41,6 +41,11 @@ export class TransactionalFinalization implements FinalizationPort {
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
     const { journal, events, evidence } = this.#participants
     const scoped = { run_id: commit.run_id }
+    // The fence travels with every write this transaction makes. It is
+    // NOT checked once up front: ownership can move between the mark and
+    // the seal, and a transaction that validated the fence and then wrote
+    // three times would have exactly the window the fence exists to close.
+    const fence = { run_id: commit.run_id, generation: commit.generation }
 
     // MARK EVERY PARTICIPANT FIRST.
     //
@@ -65,7 +70,7 @@ export class TransactionalFinalization implements FinalizationPort {
       }
     }
 
-    const rollback = async (why: string): Promise<CommitOutcome> => {
+    const rollback = async (why: string, stale = false): Promise<CommitOutcome> => {
       const failures: string[] = []
       // Reverse of the apply order, so the seal is undone first.
       for (const [participant, token] of [
@@ -74,13 +79,19 @@ export class TransactionalFinalization implements FinalizationPort {
         [journal, marks.journal],
       ] as const) {
         try {
-          await participant.retractTo({ run_id: commit.run_id, token })
+          const retracted = await participant.retractTo({ ...fence, token })
+          // A retraction the fence refuses is not a rollback failure to
+          // paper over: it means this caller may no longer touch that
+          // participant at all. Reported, because a partially unwound
+          // commit is a state the caller has to know it is in.
+          if (!retracted.ok) failures.push(retracted.detail)
         } catch (error) {
           failures.push(describe(error))
         }
       }
       return {
         ok: false,
+        ...(stale ? { reason: 'stale_fence' as const } : {}),
         detail:
           failures.length === 0
             ? `finalization did not commit: ${why}`
@@ -90,15 +101,18 @@ export class TransactionalFinalization implements FinalizationPort {
 
     try {
       for (const transition of commit.transitions) {
-        await journal.appendTransition({ run_id: commit.run_id, transition })
+        const appended = await journal.appendTransition({ ...fence, transition })
+        if (!appended.ok) return await rollback(appended.detail, true)
       }
-      await events.emit({ run_id: commit.run_id, event: commit.event })
+      const emitted = await events.emit({ ...fence, event: commit.event })
+      if (!emitted.ok) return await rollback(emitted.detail, true)
       // LAST: the seal is the run's final write.
-      await evidence.write({
-        run_id: commit.run_id,
+      const sealed = await evidence.write({
+        ...fence,
         kind: 'evidence_bundle',
         bundle: commit.bundle,
       })
+      if (!sealed.ok) return await rollback(sealed.detail, true)
       return { ok: true }
     } catch (error) {
       return await rollback(describe(error))

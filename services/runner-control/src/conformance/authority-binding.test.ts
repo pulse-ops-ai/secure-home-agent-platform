@@ -304,8 +304,14 @@ describe('RO-EX-16: the seal is the last write of the run', () => {
           // testing anything if the run gains or loses an event.
           return request.event.event_type === 'run.terminated'
             ? Promise.reject(new Error('event sink down'))
-            : Promise.resolve()
+            : Promise.resolve({ ok: true })
         },
+        // A real participant, so the run actually reaches the terminal
+        // emission. Without these the commit failed while MARKING and
+        // the proof passed without the emission it names ever being
+        // attempted — the right verdict for the wrong reason.
+        mark: () => Promise.resolve('0'),
+        retractTo: () => Promise.resolve({ ok: true }),
         eventsOf: () => [],
         runs: [],
       } as never,

@@ -118,7 +118,7 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
     readonly source: string
     readonly outcome: 'acquired' | 'failed' | 'refused_token'
     readonly detail?: string
-  }) => Promise<void> = () => Promise.resolve(),
+  }) => Promise<unknown> = () => Promise.resolve(),
 ): Promise<EpochResult<E>> => {
   const values: EpochValue<E>[] = []
   const captured: {

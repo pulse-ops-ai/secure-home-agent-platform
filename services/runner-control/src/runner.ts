@@ -250,6 +250,7 @@ export class Runner {
         try {
           await this.#ports.session.close({
             run_id: request.run_id,
+            generation,
             session_ref: leaked.session_ref,
           })
         } catch {
@@ -283,6 +284,7 @@ export class Runner {
         try {
           await this.#ports.evidence.write({
             run_id: request.run_id,
+            generation,
             kind: 'early_termination_record',
             record: record.record,
           })
@@ -313,6 +315,50 @@ export class Runner {
     const startedAt = this.#ports.clock.now({ run_id: request.run_id })
 
     /**
+     * THE FENCE, presented to every effect this run performs.
+     *
+     * Renewing the lease between phases proves the run was ours a moment
+     * ago; it cannot prove the write happening now is. So the generation
+     * travels with each effect and the receiving port refuses a
+     * superseded one — see `RunFence`.
+     */
+    const fence = { run_id: request.run_id, generation }
+
+    /**
+     * Set the first time any port refuses this run's fence.
+     *
+     * Ownership moved while this attempt was mid-phase. Every subsequent
+     * effect is a write that would be refused for the same reason, so
+     * the run stops trying: it does not retry, does not terminate the
+     * run, and does not write a verdict about a run it no longer owns.
+     * This is the same conclusion the walk's `lost` path reaches, arrived
+     * at from inside a phase rather than at its boundary.
+     */
+    let fenceLost: string | undefined
+    const loseFence = (detail: string): void => {
+      fenceLost ??= detail
+    }
+
+    /**
+     * Journal one acquisition, noticing a refusal.
+     *
+     * `runEpoch` takes this as a callback and does not inspect what it
+     * returns — an epoch's job is to acquire, not to police ownership. So
+     * the refusal is recognised HERE, where the fence is known, rather
+     * than being dropped on the floor by a callback whose result nobody
+     * reads.
+     */
+    const journalAcquisition = async (acquisition: {
+      readonly epoch: AcquisitionEpoch
+      readonly source: string
+      readonly outcome: 'acquired' | 'failed' | 'refused_token'
+      readonly detail?: string
+    }): Promise<void> => {
+      const appended = await this.#ports.journal.appendAcquisition({ ...fence, acquisition })
+      if (!appended.ok) loseFence(appended.detail)
+    }
+
+    /**
      * Append everything the machine has recorded since the last tick.
      *
      * Called after every machine mutation, so the journal is written AS
@@ -321,16 +367,23 @@ export class Runner {
      * batched write would leave nothing.
      */
     const journalTick = async (): Promise<void> => {
+      if (fenceLost !== undefined) return
       const pending = machine.pendingJournal()
       let transitions = 0
       let rejections = 0
       try {
         for (const transition of pending.transitions) {
-          await this.#ports.journal.appendTransition({ run_id: request.run_id, transition })
+          const appended = await this.#ports.journal.appendTransition({ ...fence, transition })
+          // A refused append is NOT left pending. Pending means "retry
+          // next tick", and a fence refusal is the one failure mode that
+          // retrying cannot fix — the entry would be re-offered forever
+          // to a journal that will never take it.
+          if (!appended.ok) return loseFence(appended.detail)
           transitions += 1
         }
         for (const rejection of pending.rejections) {
-          await this.#ports.journal.appendRejection({ run_id: request.run_id, rejection })
+          const appended = await this.#ports.journal.appendRejection({ ...fence, rejection })
+          if (!appended.ok) return loseFence(appended.detail)
           rejections += 1
         }
       } catch {
@@ -371,12 +424,28 @@ export class Runner {
       // the durable record is as complete as the journal allowed.
       await journalTick()
       disarm()
+      if (fenceLost !== undefined) {
+        // OWNERSHIP MOVED. Everything below this point is a write, and
+        // the fence refuses all of them — including the cleanup. That is
+        // deliberate: the workspace and session named here belong to
+        // whoever holds the run now, and discarding them would destroy
+        // the state of a run in progress. Leaking is recoverable;
+        // deleting a live workspace is not.
+        return {
+          run_id: request.run_id,
+          state: machine.state,
+          produced: 'none',
+          detail: `${fenceLost}; no further write was made (this attempt had reached: ${detail})`,
+          transitions: machine.transitionRecord,
+          rejections: machine.rejections,
+        }
+      }
       if (workspace !== undefined) {
         const discarding = workspace
         workspace = undefined
         try {
           await this.#ports.workspace.discard({
-            run_id: request.run_id,
+            ...fence,
             workspace_ref: discarding.workspace_ref,
           })
         } catch {
@@ -390,7 +459,7 @@ export class Runner {
         open.handle = undefined
         try {
           await this.#ports.session.close({
-            run_id: request.run_id,
+            ...fence,
             session_ref: closing.session_ref,
           })
         } catch {
@@ -438,11 +507,15 @@ export class Runner {
         finished_at: this.#ports.clock.now({ run_id: request.run_id }),
       })
       if (!record.ok) return stop(await conclude('none', record.detail))
-      await this.#ports.evidence.write({
-        run_id: request.run_id,
+      const written = await this.#ports.evidence.write({
+        ...fence,
         kind: 'early_termination_record',
         record: record.record,
       })
+      if (!written.ok) {
+        loseFence(written.detail)
+        return stop(await conclude('none', detail))
+      }
       return stop(await conclude('early_termination_record', detail))
     }
 
@@ -461,6 +534,9 @@ export class Runner {
       ledger.open('event', String(body['event_type']))
       const outcome = await emitter.emit(body)
       ledger.close()
+      // An emission the fence refused is not an emission failure to
+      // terminate on — it is the run ceasing to be ours mid-phase.
+      if (!outcome.ok && outcome.reason === 'stale_fence') loseFence(outcome.detail)
       return outcome
     }
     /** Set by the consent phase so a hold can report which kind it was. */
@@ -491,8 +567,7 @@ export class Runner {
       const acquired = await runEpoch(
         production,
         ['profile', 'path_policy', 'gate_registry'],
-        (acquisition) =>
-          this.#ports.journal.appendAcquisition({ run_id: request.run_id, acquisition }),
+        journalAcquisition,
       )
       if (!acquired.ok) {
         return terminateEarly(
@@ -544,7 +619,7 @@ export class Runner {
       // Without this the ledger's sequence was empty and seal-last held
       // vacuously — true, and worth nothing.
       emitter = new RunEventEmitter(
-        { run_id: request.run_id, adapter },
+        { run_id: request.run_id, adapter, generation },
         this.#ports.events,
         this.#ports.clock,
       )
@@ -558,6 +633,15 @@ export class Runner {
       terminal: LifecycleState,
       partial: FinishPartial = {},
     ): Promise<PhaseCommand<RunConclusion>> => {
+      // THE FENCE IS CHECKED BEFORE ANY TERMINAL IS ASSEMBLED.
+      //
+      // `finish` is the funnel every terminal passes through, so one
+      // guard here covers all of them. A run that lost ownership mid-
+      // phase must not assemble a bundle, decide seal eligibility, or
+      // commit — it must stop. Reaching the commit and being refused
+      // there would work too, but only by accident of which resources
+      // the new owner happened to touch first.
+      if (fenceLost !== undefined) return stop(await conclude('none', detail))
       // ORDER MATTERS HERE, twice over.
       //
       // The terminal transition is taken LAST, after the bundle is
@@ -649,13 +733,23 @@ export class Runner {
       // sealed bundle land together or not at all — so the event can
       // never announce an outcome the run did not reach.
       const committed = await this.#ports.finalization.commit({
-        run_id: request.run_id,
+        ...fence,
         terminal,
         transitions: projected.entries,
         event: emitter.envelope({ event_type: 'run.terminated', outcome: assembled.outcome }),
         bundle: eligible.bundle,
       })
-      if (!committed.ok) return await failClosed(committed.detail)
+      if (!committed.ok) {
+        // A commit the fence refused did not fail — it was declined. The
+        // run is not terminated OPERATIONAL_FAILURE on it, because that
+        // would be this attempt writing a verdict about a run that has
+        // moved to another holder.
+        if (committed.reason === 'stale_fence') {
+          loseFence(committed.detail)
+          return stop(await conclude('none', committed.detail))
+        }
+        return await failClosed(committed.detail)
+      }
       ledger.markSealed()
 
       // ---- REFLECT ------------------------------------------------
@@ -745,7 +839,7 @@ export class Runner {
       if (session !== undefined) {
         try {
           await this.#ports.session.interrupt({
-            run_id: request.run_id,
+            ...fence,
             session_ref: session.session_ref,
             reason,
           })
@@ -811,10 +905,14 @@ export class Runner {
       // decision. Provisioning after execution would make the isolation
       // decorative.
       const provisioned = await this.#ports.workspace.provision({
-        run_id: request.run_id,
+        ...fence,
         source_ref: request.workspace_root,
       })
       if (!provisioned.ok) {
+        if (provisioned.reason === 'stale_fence') {
+          loseFence(provisioned.detail)
+          return stop(await conclude('none', provisioned.detail))
+        }
         return finish(
           'operational_fault',
           `the isolated workspace could not be provisioned: ${provisioned.detail}`,
@@ -824,11 +922,15 @@ export class Runner {
       workspace = provisioned.handle
 
       const prepared = await this.#ports.session.prepare({
-        run_id: request.run_id,
+        ...fence,
         profile: { ...profile.value.identity, digest: profile.digest },
         limits: profile.value.limits,
       })
       if (!prepared.ok) {
+        if (prepared.reason === 'stale_fence') {
+          loseFence(prepared.detail)
+          return stop(await conclude('none', prepared.detail))
+        }
         return finish(
           'operational_fault',
           `the execution session could not be prepared: ${prepared.detail}`,
@@ -838,10 +940,14 @@ export class Runner {
       session = prepared.handle
       open.handle = session
       const sessionStarted = await this.#ports.session.start({
-        run_id: request.run_id,
+        ...fence,
         session_ref: session.session_ref,
       })
       if (!sessionStarted.ok) {
+        if (sessionStarted.reason === 'stale_fence') {
+          loseFence(sessionStarted.detail)
+          return stop(await conclude('none', sessionStarted.detail))
+        }
         return finish(
           'operational_fault',
           `the execution session could not be started: ${sessionStarted.detail}`,
@@ -927,7 +1033,7 @@ export class Runner {
       }
       const invocation = await untilAborted(
         this.#ports.adapter.invoke({
-          run_id: request.run_id,
+          ...fence,
           adapter,
           profile: { ...profile.value.identity, digest: profile.digest },
           input: request.input,
@@ -946,6 +1052,13 @@ export class Runner {
         }),
       )
       if (invocation === undefined) return await abortRun({ operations })
+      if (invocation.outcome === 'stale_fence') {
+        // The adapter was never engaged: the fence is checked before the
+        // provider is asked to do anything, so a run that lost ownership
+        // has not spent.
+        loseFence(invocation.detail)
+        return stop(await conclude('none', invocation.detail))
+      }
       if (invocation.outcome === 'environmental_fault') {
         return finish(
           'operational_fault',
@@ -1034,7 +1147,7 @@ export class Runner {
       for (const entry of plan.plan) {
         const report = await untilAborted(
           this.#ports.execution.runGate({
-            run_id: request.run_id,
+            ...fence,
             gate_id: entry.gate_id,
             spec: entry.spec,
             session_ref: session?.session_ref ?? `session:${request.run_id}`,
@@ -1043,6 +1156,10 @@ export class Runner {
         )
         if (report === undefined) {
           return await abortRun({ gate_results: recorder.results(), operations })
+        }
+        if (report.outcome === 'stale_fence') {
+          loseFence(report.detail)
+          return stop(await conclude('none', report.detail))
         }
         const disposition = toDisposition(report)
         if (disposition === undefined) {
@@ -1125,8 +1242,7 @@ export class Runner {
       const reacquired = await runEpoch(
         verificationSet,
         ['profile', 'path_policy', 'gate_registry'],
-        (acquisition) =>
-          this.#ports.journal.appendAcquisition({ run_id: request.run_id, acquisition }),
+        journalAcquisition,
       )
       if (!reacquired.ok) {
         return finish(
@@ -1236,8 +1352,29 @@ export class Runner {
           })
         }
         if (workspace !== undefined && policy?.ok === true) {
+          // OWNERSHIP, RE-ASKED IMMEDIATELY BEFORE THE WRITE THAT ESCAPES
+          // ISOLATION.
+          //
+          // The fence alone cannot cover this one. A resource can only
+          // refuse a generation it has already been SUPERSEDED by, and
+          // the workspace may never have served the new owner — so the
+          // stale holder's apply-back is the first thing it sees at that
+          // generation, and it is admitted. That is inherent to fencing
+          // tokens, not a gap in the ledger.
+          //
+          // Apply-back is where a run's changes leave the sandbox and
+          // become real, so it gets the belt as well as the braces: the
+          // lease is asked directly, as late as possible before the
+          // write, and the fence still guards the case where the
+          // workspace HAS seen a newer generation. Neither mechanism
+          // replaces the other.
+          if (!(await this.#ports.lease.renew({ run_id: request.run_id, generation }))) {
+            const detail = `the run lease was lost at generation ${String(generation)}; nothing was materialized`
+            loseFence(detail)
+            return stop(await conclude('none', detail))
+          }
           const applied = await this.#ports.workspace.applyBack({
-            run_id: request.run_id,
+            ...fence,
             workspace_ref: workspace.workspace_ref,
             // The AUTHORITATIVE observation — not the model's claims,
             // and not a re-derivation of them.
@@ -1248,6 +1385,13 @@ export class Runner {
             },
           })
           if (!applied.ok) {
+            if (applied.reason === 'stale_fence') {
+              // Nothing was materialized, which is the correct outcome:
+              // this attempt's observations must not be applied over a
+              // workspace another holder is now running in.
+              loseFence(applied.detail)
+              return stop(await conclude('none', applied.detail))
+            }
             // A run whose changes did not land has not completed. Sealing
             // it would describe a repository state that never happened.
             return finish(
@@ -1302,8 +1446,8 @@ export class Runner {
         // the state it is held at, so something can later find it and
         // resume — "recorded rather than silently dropped" is not
         // satisfied by an in-memory note the process takes to its grave.
-        await this.#ports.journal.appendHold({
-          run_id: request.run_id,
+        const recorded = await this.#ports.journal.appendHold({
+          ...fence,
           hold: {
             state: machine.state,
             transition: 'commit_spend',
@@ -1311,6 +1455,10 @@ export class Runner {
             at: this.#ports.clock.now({ run_id: request.run_id }),
           },
         })
+        // A hold that could not be recorded is not a pending run — it is
+        // a run this holder no longer owns. Reported as such, so nothing
+        // later goes looking for a hold that was never written.
+        if (!recorded.ok) loseFence(recorded.detail)
         return await conclude('none', held ?? outcome.detail)
       }
       case 'lost':

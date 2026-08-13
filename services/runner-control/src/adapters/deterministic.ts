@@ -26,15 +26,19 @@ import type {
   EventSinkPort,
   EvidenceSinkPort,
   ExecutionPort,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
+  RunFence,
   RunScoped,
 } from '../ports/index.js'
+import { FenceLedger } from '../run-state/fence.js'
 
 /** Gate reports supplied per gate identity; anything unlisted passes. */
 export class DeterministicExecution implements ExecutionPort {
   readonly #reports: ReadonlyMap<string, GateReport>
   readonly #requests: GateExecutionRequest[] = []
+  readonly #fence = new FenceLedger()
 
   constructor(reports: Readonly<Record<string, GateReport>> = {}) {
     this.#reports = new Map(Object.entries(reports))
@@ -46,6 +50,11 @@ export class DeterministicExecution implements ExecutionPort {
   }
 
   runGate(request: GateExecutionRequest): Promise<GateReport> {
+    const refused = this.#fence.refuse(request)
+    // Refused BEFORE the request is recorded, so a proof asserting "the
+    // stale holder ran no gate" reads the request log and finds nothing
+    // — rather than finding an attempt that merely returned an error.
+    if (refused !== undefined) return Promise.resolve({ outcome: 'stale_fence', detail: refused })
     this.#requests.push(request)
     return Promise.resolve(this.#reports.get(request.gate_id) ?? { outcome: 'passed' })
   }
@@ -54,6 +63,7 @@ export class DeterministicExecution implements ExecutionPort {
 export class DeterministicAdapterInvocation implements AdapterInvocationPort {
   readonly #report: AdapterReport
   readonly #requests: AdapterInvocationRequest[] = []
+  readonly #fence = new FenceLedger()
 
   constructor(
     report: AdapterReport = {
@@ -69,6 +79,11 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
   }
 
   invoke(request: AdapterInvocationRequest): Promise<AdapterReport> {
+    const refused = this.#fence.refuse(request)
+    // The fence is checked before the provider is engaged at all. A run
+    // that lost ownership must not spend — the whole point of fencing
+    // the invocation rather than only its result.
+    if (refused !== undefined) return Promise.resolve({ outcome: 'stale_fence', detail: refused })
     this.#requests.push(request)
     return Promise.resolve(this.#report)
   }
@@ -82,25 +97,30 @@ export interface RecordedWrite {
 
 export class RecordingEventSink implements EventSinkPort {
   readonly #byRun = new Map<string, unknown[]>()
+  readonly #fence = new FenceLedger()
 
-  emit(request: RunScoped & { readonly event: unknown }): Promise<void> {
+  emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     const existing = this.#byRun.get(request.run_id) ?? []
     existing.push(request.event)
     this.#byRun.set(request.run_id, existing)
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   mark(request: RunScoped): Promise<string> {
     return Promise.resolve(String((this.#byRun.get(request.run_id) ?? []).length))
   }
 
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
+  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     const existing = this.#byRun.get(request.run_id) ?? []
     const keep = Number(request.token)
     if (Number.isInteger(keep) && keep >= 0) {
       this.#byRun.set(request.run_id, existing.slice(0, keep))
     }
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */
@@ -115,15 +135,21 @@ export class RecordingEventSink implements EventSinkPort {
 
 export class RecordingEvidenceSink implements EvidenceSinkPort {
   readonly #writes: RecordedWrite[] = []
+  readonly #fence = new FenceLedger()
 
   write(
-    request: RunScoped &
+    request: RunFence &
       (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
         | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
-  ): Promise<void> {
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    // The seal is the run's final and most consequential write. A stale
+    // holder sealing a bundle would produce a second, contradictory
+    // record of one run — two answers to "what happened", both signed.
+    if (!refused.ok) return Promise.resolve(refused)
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,
@@ -134,7 +160,7 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
             ? request.record
             : request.transitions,
     })
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   mark(request: RunScoped): Promise<string> {
@@ -148,9 +174,11 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
    * let a later attempt's rollback erase an earlier attempt's committed
    * bundle, turning a failed retry into data loss.
    */
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
+  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
     const keep = Number(request.token)
-    if (!Number.isInteger(keep) || keep < 0) return Promise.resolve()
+    if (!Number.isInteger(keep) || keep < 0) return Promise.resolve(refused)
     let seen = 0
     for (let index = 0; index < this.#writes.length; index += 1) {
       if (this.#writes[index]?.run_id !== request.run_id) continue
@@ -160,7 +188,7 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
         index -= 1
       }
     }
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
   writesOf(run_id: string): readonly RecordedWrite[] {
