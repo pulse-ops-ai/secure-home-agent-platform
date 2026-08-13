@@ -17,7 +17,7 @@ import {
   RecordingEvidenceSink,
   SteppingClock,
 } from './adapters/index.js'
-import type { ArtifactObservation, WorkspaceObservation } from './ports/index.js'
+import type { ArtifactObservation, BaseObservation, WorkspaceObservation } from './ports/index.js'
 import type { PrincipalT } from './ports/contract-types.js'
 import type { RunRequest } from './runner.js'
 
@@ -126,13 +126,23 @@ export class CountingAuthoritySource implements AuthoritySourcePort {
   }
 }
 
+export const PINNED_BASE = `sha256:${'b'.repeat(64)}`
+
 export class StaticWorkspaceObserver {
   readonly #observation: WorkspaceObservation
-  constructor(observation: WorkspaceObservation = { ok: true, changes: [] }) {
+  readonly #base: BaseObservation
+  constructor(
+    observation: WorkspaceObservation = { ok: true, changes: [] },
+    base: BaseObservation = { ok: true, digest: PINNED_BASE },
+  ) {
     this.#observation = observation
+    this.#base = base
   }
   observe(): Promise<WorkspaceObservation> {
     return Promise.resolve(this.#observation)
+  }
+  observeBase(): Promise<BaseObservation> {
+    return Promise.resolve(this.#base)
   }
 }
 
@@ -184,6 +194,7 @@ export const runRequest = (overrides: Partial<RunRequest> = {}): RunRequest => (
   profile_ref: { name: 'home-status-read', version: '1.0.0' },
   gates: ['lint'],
   workspace_root: '/workspace',
+  pinned_base: PINNED_BASE,
   artifact_paths: [],
   consent: {
     run_id: 'run-20260812-0001',

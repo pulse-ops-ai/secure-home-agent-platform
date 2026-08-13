@@ -15,6 +15,7 @@ import {
   type RunOutcomeT,
 } from '@secure-home/events'
 import type { PrincipalT, ProfileRefT } from '../ports/contract-types.js'
+import type { EvidenceOperations } from '../ports/values.js'
 import {
   constructEvidence,
   isOperationalFailure,
@@ -107,6 +108,12 @@ export interface EvidenceAssemblyInputs {
   readonly terminal: LifecycleState
   readonly detail: string
   readonly gate_results: GateResultsT
+  /**
+   * The operations the adapter reported. Hard-coding these empty made
+   * every permitted and denied call vanish from the audit trail — the
+   * one question the bundle exists to answer.
+   */
+  readonly operations: EvidenceOperations
   readonly observed: AuthoritativeChangeSet
   readonly artifacts: ArtifactObservation
   readonly reconciliation: Reconciliation
@@ -144,7 +151,7 @@ export const assembleEvidence = (inputs: EvidenceAssemblyInputs): AssemblyResult
       adapter: inputs.adapter,
     },
     principal: inputs.requester,
-    operations: { attempted: [], permitted: [], denied: [] },
+    operations: inputs.operations,
     gate_results: inputs.gate_results,
     artifacts: inputs.artifacts,
     observed: inputs.observed,

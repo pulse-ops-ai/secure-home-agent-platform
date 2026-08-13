@@ -65,6 +65,12 @@ are below.
 | RO-INV-08 | One run has one writer: concurrent transition attempts serialize; a lost race is a recorded rejection | behavior |
 | RO-INV-09 | Requester attribution written into an early-termination record (normative in `runner-lifecycle`) comes from the `REQUESTED` run-request input — never fabricated, inferred, or taken from a captured profile | trust |
 | RO-INV-10 | Runs are isolated across the shared ports (normative in `runner-execution-boundary`): the core holds no unkeyed mutable per-run state, every run-scoped port call carries its `run_id`, and no ordering claim this landing makes is global | behavior |
+| RO-INV-11 | A run executes only under the profile its request named: a captured profile whose identity differs from the requested reference refuses before `PROFILE_RESOLVED` | trust |
+| RO-INV-12 | Consent authorizes exactly one run: a record whose `run_id` is not this run's does not open the spend gate | trust |
+| RO-INV-13 | The pinned workspace base is compared by the trusted core BEFORE any adapter invocation; a mismatch refuses with nothing invoked | trust |
+| RO-INV-14 | Independent verification decides a run's success: the second epoch's values and a fresh artifact observation reach the core's verifier, and a negative or operational verdict prevents `COMPLETED` | trust |
+| RO-INV-15 | The success terminal is entered only after the bundle seals, and the seal is the run's last write — every event, the terminal event included, is submitted first | behavior |
+| RO-INV-16 | Every call an adapter reports is recorded as a `call.attempted`/`call.disposition` pair and as an evidence operation under its reported disposition | trust |
 
 ## State-Space Model
 
@@ -116,6 +122,8 @@ Interactions that require proof:
 | RO-INV-08 × INV-004 | interleaved transitions corrupting the machine | RO-PROP-03 concurrent-attempt property |
 | RO-INV-10 × RO-ADV-03 | "seal last" read as globally last, so a concurrent run's write looks like a post-seal write | RO-PROP-04: per-run filtered sequences; seal-last holds within each run under interleaving |
 | RO-INV-10 × INV-013 | one run's evidence absorbing another's operations through a shared sink | RO-EX-09 two-run shared-port fixture; bundles disjoint by `run_id` |
+| RO-INV-13 × RO-INV-16 | a provider invocation against a substituted workspace, recorded as if it were legitimate | RO-EX-13: the assertion precedes invocation, so there is nothing to record |
+| RO-INV-14 × RO-INV-15 | a run sealing successfully on a verification that never ran | RO-EX-14 divergence fixture; RO-EX-12 seal-before-success |
 
 ## Proof Obligations
 
@@ -173,10 +181,23 @@ persistence (U11).
 | RO-PROP-03 | RO-INV-08 | property | for any interleaving of concurrent transition attempts on one run, the machine serializes; losers are recorded rejections |
 | RO-EX-09 | RO-INV-10 | deterministic example | two runs orchestrated through ONE shared set of port instances: every emission and evidence write carries its own `run_id`, the two sealed bundles are disjoint, and each equals the bundle that run produces alone |
 | RO-PROP-04 | RO-INV-10 | property | for any generated interleaving of two concurrent runs over shared port instances, each run's `run_id`-filtered recorded sequence is identical to that run executed in isolation — including seal-last, which holds per run |
+| RO-EX-10 | RO-INV-11 | adversarial | a source returning a DIFFERENT valid execution profile refuses naming both identities; no adapter or gate runs |
+| RO-EX-11 | RO-INV-12 | adversarial | an affirmative consent record carrying another run's id holds the run at `ELIGIBLE` and spends nothing |
+| RO-EX-12 | RO-INV-15 | adversarial | an evidence sink that rejects the write, and an assembly failure, both leave the run `OPERATIONAL_FAILURE` — never `COMPLETED` with nothing sealed |
+| RO-EX-13 | RO-INV-13 | adversarial | a substituted workspace base refuses and the adapter port received no invocation; an unobservable base is operational, not a pass |
+| RO-EX-14 | RO-INV-14 | adversarial | each source is read exactly once per epoch and the verifier receives the verification epoch's values; authority diverging between epochs prevents `COMPLETED` |
+| RO-EX-15 | RO-INV-16 | deterministic example | a report carrying one permitted and one denied call yields two event pairs and bundle operation sets that place each call under its reported disposition |
+| RO-EX-16 | RO-INV-15 | adversarial | the terminal event precedes the seal in the recorded sequence; a terminal-emission failure seals nothing |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
 | RO-MUT-07 | RO-INV-10 | mutation | replacing a `run_id`-keyed structure with a single unkeyed field, or dropping the `run_id` from a port call, is killed by RO-EX-09 / RO-PROP-04 |
+| RO-MUT-08 | RO-INV-11 | mutation | accepting a captured profile without comparing its identity to the requested reference is killed by RO-EX-10 |
+| RO-MUT-09 | RO-INV-12 | mutation | ignoring the consent record's `run_id` is killed by RO-EX-11 |
+| RO-MUT-10 | RO-INV-13 | mutation | moving the base-identity assertion after the adapter invocation, or removing it, is killed by RO-EX-13 |
+| RO-MUT-11 | RO-INV-14 | mutation | discarding the verification epoch's values instead of verifying with them is killed by RO-EX-14 |
+| RO-MUT-12 | RO-INV-15 | mutation | taking the terminal transition before the seal, or emitting the terminal event after it, is killed by RO-EX-12 / RO-EX-16 |
+| RO-MUT-13 | RO-INV-16 | mutation | discarding the adapter's reported calls is killed by RO-EX-15 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |
@@ -235,6 +256,7 @@ classification it did not earn.
 | Early-terminal refusal record (D11) | L4 (+ the sequenced L2 amendment) | 2.2, 5.3 | RO-ADV-07, RO-MUT-05 |
 | **Requester provenance** — attribution comes from the run request, never a captured profile (owner-directed, 2026-08-12) | L4 | 2.2, 3.2 | RO-EX-08, RO-ADV-08, RO-MUT-06 |
 | **Cross-run isolation over shared ports** — per-run ordering only; no unkeyed mutable per-run state (owner-confirmed D10, 2026-08-12) | L4 | 5.1, 5.3, 7.2 | RO-EX-09, RO-PROP-04, RO-MUT-07 |
+| **Requested-profile binding, consent binding, base-before-invocation, verification decides, seal-before-success, call recording** — the six properties the review on `aa54574` found missing | L4 | 2.1, 3.2, 3.3, 3.4, 5.1, 5.3 | RO-EX-10…16, RO-MUT-08…13 |
 | Base identity at creation (ADV-004 assertion half) | L4 | 3.4 | creation-sequenced fixture |
 | Gate scheduling (INV-009/INV-016) | L4 | 4.1, 4.2 | EX-005A, ADV-006/007/015/016/017, PROP-007, MUT-004, MUT-009, RO-PROP-02 |
 | Ports and no-launch (RO-INV-02) | L4 | 5.1 | RO-EX-02 |

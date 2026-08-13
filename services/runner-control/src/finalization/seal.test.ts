@@ -81,7 +81,7 @@ describe('RO-ADV-03 / RO-MUT-02: the seal is the final write of the run', () => 
 
 describe('RO-ADV-01 / RO-EX-05: consent gates spend and is never authority', () => {
   it('an absent consent record HOLDS the run — it is not a refusal', () => {
-    const gate = decideSpendGate(undefined)
+    const gate = decideSpendGate('run-1', undefined)
     expect(gate.ok).toBe(false)
     if (gate.ok) return
     expect(gate.held).toBe('consent_absent')
@@ -89,7 +89,7 @@ describe('RO-ADV-01 / RO-EX-05: consent gates spend and is never authority', () 
   })
 
   it('withheld consent is distinguishable from absent consent', () => {
-    const withheld = decideSpendGate({
+    const withheld = decideSpendGate('run-1', {
       run_id: 'run-1',
       granted: false,
       by: 'human:mike',
@@ -102,7 +102,7 @@ describe('RO-ADV-01 / RO-EX-05: consent gates spend and is never authority', () 
   })
 
   it('affirmative consent opens the gate and nothing else', () => {
-    const gate = decideSpendGate({
+    const gate = decideSpendGate('run-1', {
       run_id: 'run-1',
       granted: true,
       by: 'human:mike',
@@ -112,8 +112,10 @@ describe('RO-ADV-01 / RO-EX-05: consent gates spend and is never authority', () 
   })
 
   it('the consent module cannot reach authority: it takes only a consent record', () => {
-    // One parameter. There is no snapshot, capability, or profile
-    // argument, so consent has no way to widen or replace authority.
-    expect(decideSpendGate).toHaveLength(1)
+    // A run id and a consent record. There is no snapshot, capability,
+    // or profile argument, so consent has no way to widen or replace
+    // authority — and the run id is there to BIND the record, not to
+    // give consent any reach into what the run may do.
+    expect(decideSpendGate).toHaveLength(2)
   })
 })

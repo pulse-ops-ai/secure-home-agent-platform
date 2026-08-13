@@ -124,6 +124,37 @@ The landing is complete when:
 - no file outside the declared path authority is modified (the anticipated
   runner-core allowlist amendment only with recorded owner authorization).
 
+## Disclosure: two tasks were checked before they were implemented
+
+Recorded here because a completion record that hides this is worse than
+no record.
+
+On commit `aa54574` this file showed **3.3 (the verification epoch)** and
+**3.4 (base-identity assertion at creation)** complete. They were not.
+`verifyEvidence`, `consumeVerified`, and `compareBaseIdentity` were
+called **zero times** in production source: 3.3 re-acquired authority and
+discarded the result, so `VERIFYING` was a state the run passed through
+rather than a check it passed, and 3.4 was absent entirely, so a
+substituted workspace reached provider invocation unchecked.
+
+The code review on that commit found both, along with five further
+authority and ordering defects (P1s on `aa54574`): the captured profile
+was never bound to the requested reference; consent was replayable across
+runs; `COMPLETED` was entered before the seal; the terminal event was
+written after it; and every adapter-reported call was discarded.
+
+All seven are fixed, each with a named regression proof — RO-EX-10…16,
+registered in `assurance.md` against RO-INV-11…16 with mutation targets
+RO-MUT-08…13. The task boxes below are re-checked only against those
+proofs.
+
+The lesson recorded for later landings: a task's proof obligation is what
+marks it done, not the presence of code that looks like it. 3.3 and 3.4
+both had plausible-looking implementations, and neither called the
+operation its requirement names.
+
+---
+
 ## 0. Post-review authorization
 
 - [x] **0.1 Flip authorization on planning-review approval**

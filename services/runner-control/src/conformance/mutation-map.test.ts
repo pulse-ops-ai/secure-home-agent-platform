@@ -69,6 +69,36 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-09', 'RO-PROP-04'],
   },
   {
+    id: 'RO-MUT-08',
+    mutation: 'accept a captured profile without comparing its identity to the requested reference',
+    killedBy: ['RO-EX-10'],
+  },
+  {
+    id: 'RO-MUT-09',
+    mutation: "ignore the consent record's run_id, making a past grant replayable",
+    killedBy: ['RO-EX-11'],
+  },
+  {
+    id: 'RO-MUT-10',
+    mutation: 'move the base-identity assertion after the adapter invocation, or remove it',
+    killedBy: ['RO-EX-13'],
+  },
+  {
+    id: 'RO-MUT-11',
+    mutation: 'discard the verification epoch values instead of verifying with them',
+    killedBy: ['RO-EX-14'],
+  },
+  {
+    id: 'RO-MUT-12',
+    mutation: 'take the terminal transition before the seal, or emit the terminal event after it',
+    killedBy: ['RO-EX-12', 'RO-EX-16'],
+  },
+  {
+    id: 'RO-MUT-13',
+    mutation: "discard the adapter's reported calls so they reach neither events nor evidence",
+    killedBy: ['RO-EX-15'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

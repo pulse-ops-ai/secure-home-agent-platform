@@ -12,6 +12,7 @@
 import type {
   AdapterInvocationRequest,
   AdapterReport,
+  BaseObservation,
   ArtifactObservation,
   ArtifactObserveRequest,
   AuthorityBytes,
@@ -29,6 +30,8 @@ export interface AuthoritySourcePort {
 
 export interface WorkspaceObserverPort {
   observe(request: WorkspaceObserveRequest): Promise<WorkspaceObservation>
+  /** The base identity, observable before anything has run. */
+  observeBase(request: WorkspaceObserveRequest): Promise<BaseObservation>
 }
 
 export interface ArtifactObserverPort {

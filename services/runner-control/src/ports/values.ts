@@ -30,10 +30,38 @@ export interface RunScoped {
 export interface AuthorityReadRequest extends RunScoped {
   readonly epoch: AcquisitionEpoch
   readonly source: string
+  /**
+   * For the profile source, the reference the run asked for. An
+   * implementation that can resolve by reference SHOULD; the
+   * orchestrator verifies the captured identity against it regardless,
+   * so a source that ignores this cannot widen the run's authority.
+   */
+  readonly requested?: { readonly name: string; readonly version: string }
 }
 
 export interface WorkspaceObserveRequest extends RunScoped {
   readonly root: string
+}
+
+/**
+ * The observed identity of the workspace BASE, distinct from the changes
+ * observed later. It exists as its own operation because the comparison
+ * against the pinned base has to happen before the adapter runs, and a
+ * change-set observation taken afterwards cannot answer that question.
+ */
+export type BaseObservation =
+  { readonly ok: true; readonly digest: string } | { readonly ok: false; readonly failure: string }
+
+/** The evidence operation sets, as the bundle records them. */
+export interface EvidenceOperation {
+  readonly call_id: string
+  readonly operation: { readonly name: string; readonly target?: string }
+}
+
+export interface EvidenceOperations {
+  readonly attempted: EvidenceOperation[]
+  readonly permitted: EvidenceOperation[]
+  readonly denied: EvidenceOperation[]
 }
 
 export interface ArtifactObserveRequest extends RunScoped {

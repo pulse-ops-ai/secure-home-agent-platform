@@ -15,8 +15,10 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
+import { createHash } from 'node:crypto'
 import type {
   ArtifactObservation,
+  BaseObservation,
   ArtifactObserveRequest,
   ArtifactObserverPort,
   AuthorityBytes,
@@ -28,6 +30,18 @@ import type {
 } from '../ports/index.js'
 
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+/**
+ * The digest of an observation.
+ *
+ * Hashing what was observed is OBSERVING, not deciding — the value is
+ * handed to the core, which decides whether it matches the pinned base.
+ * `digestOf` is internal to runner-core and amending its public surface
+ * is outside this change's path authority, so the observer computes its
+ * own with the same algorithm and prefix.
+ */
+const digestOf = (value: string): string =>
+  `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`
 
 /**
  * Whether `candidate` stays inside `root`. Containment is decided on
@@ -75,6 +89,29 @@ export class FilesystemAuthoritySource implements AuthoritySourcePort {
 }
 
 export class FilesystemWorkspaceObserver implements WorkspaceObserverPort {
+  /**
+   * The base identity as a digest over the sorted (path, size) listing.
+   * Deliberately content-independent of the files' bytes: this landing
+   * decides nothing about what the digest MEANS — it observes, and the
+   * core compares. A stronger identity is the pinning landing's to
+   * define, and this shape does not constrain it.
+   */
+  observeBase(request: WorkspaceObserveRequest): Promise<BaseObservation> {
+    const root = resolve(request.root)
+    try {
+      const entries: string[] = []
+      for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+        if (!entry.isFile()) continue
+        const absolute = join(entry.parentPath, entry.name)
+        if (!within(root, absolute)) continue
+        entries.push(`${relative(root, absolute)}:${String(statSync(absolute).size)}`)
+      }
+      return Promise.resolve({ ok: true, digest: digestOf(entries.sort().join('\n')) })
+    } catch (error) {
+      return Promise.resolve({ ok: false, failure: reason(error) })
+    }
+  }
+
   observe(request: WorkspaceObserveRequest): Promise<WorkspaceObservation> {
     const root = resolve(request.root)
     try {

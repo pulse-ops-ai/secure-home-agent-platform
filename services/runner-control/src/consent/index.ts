@@ -27,7 +27,7 @@ export type SpendGate =
   | { readonly ok: true }
   | {
       readonly ok: false
-      readonly held: 'consent_absent' | 'consent_withheld'
+      readonly held: 'consent_absent' | 'consent_withheld' | 'consent_for_another_run'
       readonly detail: string
     }
 
@@ -40,12 +40,24 @@ export type SpendGate =
  * refusal: nothing has gone wrong, the run simply has not been permitted
  * to spend yet, and the pending state is recorded rather than dropped.
  */
-export const decideSpendGate = (consent: ConsentRecord | undefined): SpendGate => {
+export const decideSpendGate = (run_id: string, consent: ConsentRecord | undefined): SpendGate => {
   if (consent === undefined) {
     return {
       ok: false,
       held: 'consent_absent',
       detail: 'no consent record for this run; the run holds at ELIGIBLE without spending',
+    }
+  }
+  // Consent is granted for ONE run. A record carrying another run's id
+  // is not weak evidence for this one — it is evidence about a DIFFERENT
+  // run, and accepting it would make any past grant replayable against
+  // any future run. The record has always carried its `run_id`; not
+  // comparing it made the field decorative.
+  if (consent.run_id !== run_id) {
+    return {
+      ok: false,
+      held: 'consent_for_another_run',
+      detail: `the consent record was granted for run ${consent.run_id}, not ${run_id}; consent is not transferable between runs`,
     }
   }
   if (!consent.granted) {
