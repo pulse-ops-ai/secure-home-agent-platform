@@ -1,0 +1,95 @@
+/**
+ * Event emission at the moments the closed L2 vocabulary represents
+ * (design D9).
+ *
+ * The vocabulary has seven event types and this service emits exactly
+ * those seven, for exactly the moments they name. It invents nothing and
+ * overloads nothing: `PROFILE_RESOLVED`, `ELIGIBLE`, `VERIFYING` and
+ * `EVIDENCE_SEALED` have no event type, so they are NOT squeezed into a
+ * neighbouring one — they land in the transition record instead, where
+ * the full walk stays reconstructable without an L2 amendment. If a later
+ * landing wants transitions as first-class events, that is a governed
+ * contract change, and this module is where its absence is visible.
+ *
+ * Emission failure is operational and surfaces to the caller. A run whose
+ * events are silently dropped is a run nobody can audit, so "the sink
+ * threw and we carried on" is not an available behaviour here.
+ */
+import { RunEvent, type RunEventT } from '@secure-home/events'
+import type { ClockPort, EventSinkPort } from '../ports/index.js'
+
+export interface EventIdentity {
+  readonly run_id: string
+  readonly adapter: string
+}
+
+export type EmitOutcome =
+  | { readonly ok: true; readonly event: RunEventT }
+  | {
+      readonly ok: false
+      readonly reason: 'contract_invalid' | 'sink_failed'
+      readonly detail: string
+    }
+
+/**
+ * Per-run event emission. The sequence counter is per run — the emitter
+ * belongs to one run and is never shared, so concurrent runs cannot
+ * interleave into one another's numbering (RO-INV-10).
+ */
+export class RunEventEmitter {
+  readonly #identity: EventIdentity
+  readonly #sink: EventSinkPort
+  readonly #clock: ClockPort
+  readonly #emitted: RunEventT[] = []
+  #sequence = 0
+
+  constructor(identity: EventIdentity, sink: EventSinkPort, clock: ClockPort) {
+    this.#identity = identity
+    this.#sink = sink
+    this.#clock = clock
+  }
+
+  get emitted(): readonly RunEventT[] {
+    return this.#emitted
+  }
+
+  /**
+   * `body` carries the event type and its type-specific fields; the
+   * envelope is this emitter's to fill. Validating against the authored
+   * contract before the write means a malformed event fails here rather
+   * than becoming an unparseable line in the stream.
+   */
+  async emit(body: Record<string, unknown>): Promise<EmitOutcome> {
+    const candidate = {
+      contract_id: 'run-event',
+      contract_version: '1.0.0',
+      run_id: this.#identity.run_id,
+      sequence: this.#sequence,
+      timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
+      adapter: this.#identity.adapter,
+      ...body,
+    }
+    const parsed = RunEvent.safeParse(candidate)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        reason: 'contract_invalid',
+        detail: parsed.error.issues
+          .map((issue) => `${issue.path.map(String).join('.')}: ${issue.message}`)
+          .join('; '),
+      }
+    }
+    try {
+      await this.#sink.emit({ run_id: this.#identity.run_id, event: parsed.data })
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'sink_failed',
+        detail: error instanceof Error ? error.message : String(error),
+      }
+    }
+    this.#sequence += 1
+    this.#emitted.push(parsed.data)
+    return { ok: true, event: parsed.data }
+  }
+}
