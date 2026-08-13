@@ -48,6 +48,8 @@ export interface AdapterInvocationPort {
   invoke(request: AdapterInvocationRequest): Promise<AdapterReport>
 }
 
+export type AdapterInvocation = AdapterInvocationRequest
+
 /** One emitted run event. The shape is the L2 contract's, by instance. */
 export interface EventSinkPort extends Retractable {
   emit(request: RunScoped & { readonly event: unknown }): Promise<void>

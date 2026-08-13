@@ -153,9 +153,21 @@ describe('RO-EX-02: no container-launch or process-spawn capability', () => {
     // A port that cannot express "launch this image with these
     // arguments" cannot be made to launch one by a caller. The gate
     // execution request carries an identity and the registry's own spec.
+    //
+    // Compared by identifier SEGMENT, not by substring: a substring scan
+    // reads `amount` as containing `mount` and fails on an honest field,
+    // which teaches people to rename the field rather than fix the code.
     const ports = code(join(srcRoot, 'ports/index.ts')) + code(join(srcRoot, 'ports/values.ts'))
-    for (const term of ['image_digest', 'mount', 'socket', 'argv', 'command']) {
-      expect(ports.includes(term), `the port surface must not mention ${term}`).toBe(false)
+    const segments = new Set(
+      (ports.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []).flatMap((identifier) =>
+        identifier
+          .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+          .toLowerCase()
+          .split('_'),
+      ),
+    )
+    for (const term of ['image', 'mount', 'mounts', 'socket', 'argv', 'command', 'exec']) {
+      expect(segments.has(term), `the port surface must not name ${term}`).toBe(false)
     }
   })
 

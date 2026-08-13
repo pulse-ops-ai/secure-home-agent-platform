@@ -229,11 +229,17 @@ describe('RO-EX-15: every reported adapter call reaches events and evidence', ()
   it('permitted and denied calls appear as event pairs and as bundle operations', async () => {
     const ports = testPorts({
       adapter: new DeterministicAdapterInvocation({
-        outcome: 'completed',
-        calls: [
-          { tool: 'household.read', disposition: 'permitted' },
-          { tool: 'household.write', disposition: 'denied' },
-        ],
+        outcome: 'observed',
+        observation: {
+          calls: [
+            { tool: 'household.read', disposition: 'permitted' },
+            { tool: 'household.write', disposition: 'denied' },
+          ],
+          claims: [],
+          events: [],
+          terminal: { exit_code: 0 },
+          usage: [],
+        },
       }),
     })
     const conclusion = await new Runner(ports).run(runRequest())
@@ -258,8 +264,14 @@ describe('RO-EX-15: every reported adapter call reaches events and evidence', ()
   it('a denied call is never recorded as permitted', async () => {
     const ports = testPorts({
       adapter: new DeterministicAdapterInvocation({
-        outcome: 'completed',
-        calls: [{ tool: 'household.write', disposition: 'denied' }],
+        outcome: 'observed',
+        observation: {
+          calls: [{ tool: 'household.write', disposition: 'denied' }],
+          claims: [],
+          events: [],
+          terminal: { exit_code: 0 },
+          usage: [],
+        },
       }),
     })
     await new Runner(ports).run(runRequest())

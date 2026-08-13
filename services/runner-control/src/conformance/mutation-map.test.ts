@@ -174,6 +174,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-38', 'RO-EX-39'],
   },
   {
+    id: 'RO-MUT-29',
+    mutation: "trust the provider's self-reported outcome over a contradicting observation",
+    killedBy: ['RO-EX-46'],
+  },
+  {
+    id: 'RO-MUT-30',
+    mutation: 'admit a credential value field on the adapter invocation',
+    killedBy: ['RO-EX-45'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

@@ -244,11 +244,17 @@ describe('RO-EX-24: a failing call emission keeps what is already known', () => 
     const sink = new RecordingEventSink()
     const ports = testPorts({
       adapter: new DeterministicAdapterInvocation({
-        outcome: 'completed',
-        calls: [
-          { tool: 'household.read', disposition: 'permitted' },
-          { tool: 'household.write', disposition: 'denied' },
-        ],
+        outcome: 'observed',
+        observation: {
+          calls: [
+            { tool: 'household.read', disposition: 'permitted' },
+            { tool: 'household.write', disposition: 'denied' },
+          ],
+          claims: [],
+          events: [],
+          terminal: { exit_code: 0 },
+          usage: [],
+        },
       }),
       events: eventSinkFailing(() => {
         emitted += 1

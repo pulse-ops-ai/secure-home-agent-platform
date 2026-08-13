@@ -88,6 +88,10 @@ are below.
 | RO-INV-31 | Finalization is ONE transition: the journal tail, the terminal event, and the sealed bundle commit together or none of them is observable | trust |
 | RO-INV-32 | The terminal event's outcome is the COMMITTED outcome — never an intended one; no event announces a terminal the run did not reach | trust |
 | RO-INV-33 | The machine authorizes the WHOLE terminal sequence before the commit, and adopts the committed entries verbatim afterwards | trust |
+| RO-INV-34 | The adapter invocation is platform-built and carries no launch capability: no image, mount, socket, argv, or command is expressible in it | trust |
+| RO-INV-35 | An adapter receives credential REFERENCES only — the invocation has no field a value could occupy | trust |
+| RO-INV-36 | An adapter cannot report a terminal state: its observations are separate fields that may disagree, and the lifecycle classifies them — a disagreement is `INDETERMINATE`, a failure class | trust |
+| RO-INV-37 | Model output enters as an untrusted claim and never reaches the authoritative change set; usage is recorded in native units and money is not modeled | trust |
 
 ## State-Space Model
 
@@ -232,6 +236,13 @@ persistence (U11).
 | RO-EX-41 | RO-INV-33 | adversarial | a table missing `seal_evidence` OR missing `complete` commits nothing — neither half of the sequence may commit alone |
 | RO-EX-42 | RO-INV-31 | adversarial | seal ordering and seal eligibility are decided BEFORE the commit; an ineligible bundle never reaches the sink |
 | RO-EX-43 | RO-INV-31 | adversarial | an event-sink failure and a journal failure inside the commit each leave neither event nor bundle observable |
+| RO-EX-44 | RO-INV-34 | deterministic example | the invocation carries the captured profile identity with digest, the immutable run input, the grant, routing, limits, credential references and workspace refs — and the type has no image, argv, or command property |
+| RO-EX-45 | RO-INV-35 | type-level + adversarial | the credential reference type is exactly `{ env_var }`; nothing value-shaped appears anywhere in a serialized invocation |
+| RO-EX-46 | RO-INV-36 | adversarial | no terminal-vocabulary state is expressible in an observation; exit 0 alongside `SIGKILL` yields `INDETERMINATE`; agreeing observations complete normally |
+| RO-EX-47 | RO-INV-37 | adversarial | a model claiming a file change leaves the authoritative change set empty — the observed set is the host's |
+| RO-EX-48 | RO-INV-37 | type-level | usage is `{unit, amount}` pairs, and no cost, currency, or price term is representable |
+| RO-EX-49 | RO-INV-34 | deterministic example | the run input's task and parameters reach the adapter verbatim |
+| RO-EX-50 | RO-INV-16 | deterministic example | the richer observation still carries reported calls into events and evidence under their dispositions |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -257,6 +268,8 @@ persistence (U11).
 | RO-MUT-26 | RO-INV-30 | mutation | claiming the lease and not enforcing it is killed by RO-EX-34 (verified: the mutant kills two proofs) |
 | RO-MUT-27 | RO-INV-31 | mutation | applying a commit without retracting on failure is killed by RO-EX-38/43 (verified: the mutant kills three proofs) |
 | RO-MUT-28 | RO-INV-32 | mutation | emitting the terminal event before the commit is killed by RO-EX-38/39 (verified: the mutant kills two proofs) |
+| RO-MUT-29 | RO-INV-36 | mutation | trusting the provider's self-reported outcome over the disagreement is killed by RO-EX-46 (verified) |
+| RO-MUT-30 | RO-INV-35 | mutation | admitting a credential value field on the invocation is killed by RO-EX-45 under `tsc` (verified: survives `vitest run` alone, which is why the aggregate gate runs types AND tests) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

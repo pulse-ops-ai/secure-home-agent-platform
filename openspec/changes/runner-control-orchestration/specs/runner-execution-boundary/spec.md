@@ -198,6 +198,53 @@ implementation delivered there inherits this obligation.
 - **THEN** the implementation does not satisfy this requirement, and the
   divergence is observable as a difference from the isolated execution
 
+### Requirement: The adapter invocation is platform-built and the adapter never decides
+
+The invocation an adapter receives SHALL be constructed by the platform
+and SHALL carry: the run identity; the CAPTURED profile identity
+including its digest; the run's immutable input; the capability grant the
+adapter is to translate into the provider's visible tool surface and
+explicit denials; the routing and model selection; the declared limits;
+credential REFERENCES; and opaque workspace and session references.
+
+The invocation SHALL NOT be able to express a container image, a mount
+path, a socket, an argv, or a command. Credential VALUES SHALL NOT be
+expressible in it: an adapter receives names and never secrets.
+
+What an adapter returns SHALL be OBSERVATIONS. It SHALL NOT be able to
+report a terminal state from the run's closed vocabulary — the provider's
+exit code, its self-reported outcome, and its transcript's terminal event
+are carried as SEPARATE observations so that they may disagree, and the
+lifecycle classifies them. Where they disagree the run's terminal state
+cannot be established and SHALL be `INDETERMINATE`, which is a failure
+class.
+
+Model output SHALL enter as an untrusted claim and SHALL NOT reach the
+authoritative change set. Usage SHALL be recorded in the provider's
+native units; monetary cost SHALL NOT be modeled.
+
+#### Scenario: An adapter cannot widen and cannot hold a secret
+
+- **GIVEN** the invocation an adapter receives
+- **WHEN** its shape is examined
+- **THEN** no image, mount, socket, argv, or command is expressible
+- **AND** its credentials carry environment-variable names only, with no
+  field a value could occupy
+
+#### Scenario: Disagreeing observations do not become a success
+
+- **GIVEN** a provider that reports a clean exit and was also signalled
+- **WHEN** the lifecycle classifies the observations
+- **THEN** the run's terminal state is `INDETERMINATE`
+- **AND** no adapter-supplied value determined it
+
+#### Scenario: A model's claim is not a change
+
+- **GIVEN** a run whose model output claims a file was modified
+- **WHEN** the evidence bundle is examined
+- **THEN** the authoritative change set is the host's observation
+- **AND** the claim appears only as a claim
+
 ### Requirement: Finalization is a single atomic transition
 
 A run's finalization comprises the durable transition tail, the

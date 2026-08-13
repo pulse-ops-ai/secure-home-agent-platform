@@ -23,6 +23,7 @@ import {
 } from './adapters/index.js'
 import type { ArtifactObservation, BaseObservation, WorkspaceObservation } from './ports/index.js'
 import type { PrincipalT } from './ports/contract-types.js'
+import type { AdapterInvocation, AdapterObservation, AdapterReport } from './ports/index.js'
 import type { RunRequest } from './runner.js'
 
 export const digestHex = (letter: string): string => `sha256:${letter.repeat(64)}`
@@ -261,6 +262,34 @@ export const journalFailing = (
     readCurrentState: base.readCurrentState.bind(base),
   }) as unknown as InMemoryRunJournal
 
+/**
+ * An adapter that records the invocations it received and returns a
+ * chosen observation. The recording is the point: the SPI's value is in
+ * what the platform HANDS an adapter, and a fake that discarded it would
+ * prove nothing about that half.
+ */
+export class ObservingAdapter {
+  readonly invocations: AdapterInvocation[] = []
+  readonly observation: AdapterObservation
+
+  constructor(
+    observation: AdapterObservation = {
+      calls: [],
+      claims: [],
+      events: [],
+      terminal: { exit_code: 0 },
+      usage: [],
+    },
+  ) {
+    this.observation = observation
+  }
+
+  invoke(request: AdapterInvocation): Promise<AdapterReport> {
+    this.invocations.push(request)
+    return Promise.resolve({ outcome: 'observed', observation: this.observation })
+  }
+}
+
 export const requester = (): PrincipalT => ({
   sub: 'human:mike',
   acting: { kind: 'autonomous' },
@@ -279,6 +308,7 @@ export const runRequest = (overrides: Partial<RunRequest> = {}): RunRequest => (
   requester: requester(),
   profile_ref: { name: 'home-status-read', version: '1.0.0' },
   gates: ['lint'],
+  input: { kind: 'task', task: 'observe the household', parameters: {} },
   workspace_root: '/workspace',
   pinned_base: PINNED_BASE,
   artifact_paths: [],

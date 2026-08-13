@@ -59,7 +59,14 @@ import {
   type TransitionTable,
 } from './lifecycle/index.js'
 import { observeArtifacts, observeWorkspace } from './observation/index.js'
-import type { AcquisitionEpoch, AuthorityBytes, EvidenceOperations, Ports } from './ports/index.js'
+import type {
+  AcquisitionEpoch,
+  AuthorityBytes,
+  EvidenceOperations,
+  Ports,
+  RunInput,
+  TerminalObservations,
+} from './ports/index.js'
 import { buildPlan, DispositionRecorder, toDisposition } from './scheduling/index.js'
 import {
   assembleEvidence,
@@ -77,6 +84,12 @@ export interface RunRequest {
   readonly requester: PrincipalT
   /** `null` is a request naming no profile — a refusal, never a default. */
   readonly profile_ref: ProfileRefT | null
+  /**
+   * The workload. The canonical runner model says a run request carries
+   * a profile reference, an actor, and INPUTS; there was no input at
+   * all, which made every run a request to do nothing in particular.
+   */
+  readonly input: RunInput
   readonly gates: readonly string[]
   readonly workspace_root: string
   /**
@@ -663,7 +676,19 @@ export class Runner {
       const invocation = await this.#ports.adapter.invoke({
         run_id: request.run_id,
         adapter,
-        profile_ref: profile.value.identity,
+        profile: { ...profile.value.identity, digest: profile.digest },
+        input: request.input,
+        grant: profile.value.capability,
+        routing: profile.value.execution,
+        limits: profile.value.limits,
+        // References only — the profile's declared names, never values.
+        credentials: profile.value.capability.credentials.map((credential) => ({
+          env_var: credential.env_var,
+        })),
+        workspace: {
+          session_ref: `session:${request.run_id}`,
+          root_ref: `workspace:${request.run_id}`,
+        },
       })
       if (invocation.outcome === 'environmental_fault') {
         return finish(
@@ -672,13 +697,26 @@ export class Runner {
           'OPERATIONAL_FAILURE',
         )
       }
+      const observation = invocation.observation
+
+      // THE LIFECYCLE DECIDES, from observations that may disagree.
+      //
+      // The adapter cannot say the run succeeded — its shape has no way
+      // to — so the classification happens here. Where the observations
+      // conflict, as they did at exit 124 versus exitCode 0, the run's
+      // terminal state cannot be established, and that is INDETERMINATE:
+      // a failure class, never a quiet success (ADR-0013 decision 3).
+      const disagreement = describeTerminalDisagreement(observation.terminal)
+      if (disagreement !== undefined) {
+        return finish('indeterminate', disagreement, 'INDETERMINATE', { operations })
+      }
       // Every call the adapter reports becomes BOTH an event pair and an
       // evidence operation. Discarding them would mean a permitted or
       // denied action left no trace anywhere — the exact question the
       // evidence bundle exists to answer ("what was this allowed to do,
       // and what did it do?") would have no answer.
       operations = emptyOperations()
-      for (const [index, call] of invocation.calls.entries()) {
+      for (const [index, call] of observation.calls.entries()) {
         const call_id = `call-${String(index + 1).padStart(4, '0')}`
         const operation = { call_id, operation: { name: call.tool } }
         const attempted = await emit({
@@ -1009,6 +1047,26 @@ const valueOf = <E extends AcquisitionEpoch>(
   // Unreachable when the epoch completed, and honest if it ever is not:
   // an absent value is a failed acquisition, never an empty document.
   return { ok: false, source: { source }, failure: `the verification epoch produced no ${source}` }
+}
+
+/**
+ * Whether the provider's terminal observations CONTRADICT one another.
+ *
+ * A clean exit alongside a kill signal is the spike's exit-124 case: the
+ * provider reported success and the substrate saw it die. Neither
+ * observation is authoritative, so the honest answer is that the
+ * terminal cannot be established.
+ */
+const describeTerminalDisagreement = (terminal: TerminalObservations): string | undefined => {
+  const clean = terminal.exit_code === 0
+  const killed = terminal.signalled !== undefined
+  if (clean && killed) {
+    return `the provider reported exit ${String(terminal.exit_code)} but was signalled ${terminal.signalled}; the terminal state cannot be established`
+  }
+  if (!clean && terminal.exit_code !== undefined && terminal.reported_outcome === 'success') {
+    return `the provider reported success but exited ${String(terminal.exit_code)}; the terminal state cannot be established`
+  }
+  return undefined
 }
 
 const emissionFailure = (outcome: {

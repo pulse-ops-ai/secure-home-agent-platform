@@ -268,6 +268,31 @@ has been submitted and the eligibility proceeded. The port-call recorder
 evidence for ADV-011's ordering half. A seal attempt out of order refuses
 and is recorded.
 
+### D7b: The adapter SPI is frozen here, not at L7
+
+ADR-0013 is accepted, and the port was far narrower than it: it received
+a run id, an adapter name and a profile reference, and returned
+`completed` plus a call list. The ADR requires a platform-built
+invocation, faithful translation of the profile's tool surface, provider
+events normalized at the boundary, model output as untrusted claims,
+terminal state as observation rather than authority, usage in native
+units, and credential references rather than values. The run request also
+carried no workload at all, though the canonical runner model says a run
+request carries a profile reference, an actor, and INPUTS.
+
+Frozen now rather than at L7 because L7's authorized scope is `adapters/`
+and images — not this service. An L7 that discovered the SPI could not
+carry what the ADR requires would have to reopen L4 or widen its own
+authorization, and a landing does not get to do either to itself.
+
+Two of the shapes are structural rather than documented, which is where
+their value is: an adapter has no field in which to report that the run
+succeeded, and none in which to receive a credential value. The terminal
+observations are separate fields precisely so they can DISAGREE — the
+spike's exit-124-versus-`exitCode: 0` case — and a disagreement resolves
+to `INDETERMINATE`, a failure class, rather than to whichever observation
+was consulted first.
+
 ### D8: Orchestration structurally cannot decide
 
 Three mechanisms, mirroring L3's D2/D6 discipline:

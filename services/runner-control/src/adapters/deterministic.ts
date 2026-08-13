@@ -55,7 +55,12 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
   readonly #report: AdapterReport
   readonly #requests: AdapterInvocationRequest[] = []
 
-  constructor(report: AdapterReport = { outcome: 'completed', calls: [] }) {
+  constructor(
+    report: AdapterReport = {
+      outcome: 'observed',
+      observation: { calls: [], claims: [], events: [], terminal: { exit_code: 0 }, usage: [] },
+    },
+  ) {
     this.#report = report
   }
 
