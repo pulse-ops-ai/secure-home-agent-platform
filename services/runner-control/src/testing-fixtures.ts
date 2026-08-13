@@ -231,29 +231,28 @@ export const governedWrites = (ports: TestPorts, run_id?: string): readonly Reco
 
 /**
  * A sink that fails selected writes but is otherwise real — crucially
- * including retraction. A double that cannot retract cannot take part in
- * an all-or-none commit, so a proof built on one would be testing a
- * participant the production code would refuse.
+ * including STAGING, which is where a finalization participant fails
+ * now. A double that only failed the direct write would leave the commit
+ * path untouched and prove nothing about it.
+ *
+ * There is deliberately no "it landed and then failed" mode any more.
+ * That mode existed to exercise retraction, and it described a state the
+ * staged design cannot enter: nothing lands until every participant has
+ * agreed, so a failure never has anything to undo.
  */
 export const evidenceSinkFailing = (
   shouldFail: (request: { readonly kind: string }) => boolean,
   base: RecordingEvidenceSink = new RecordingEvidenceSink(),
-  /**
-   * When true the write LANDS and then reports failure — the case that
-   * actually needs retraction. A sink that rejects before writing leaves
-   * nothing to retract, so a proof built on one cannot tell whether
-   * rollback works at all.
-   */
-  landsBeforeFailing = false,
 ): RecordingEvidenceSink =>
   ({
-    write: async (request: { readonly kind: string }) => {
-      if (!shouldFail(request)) return base.write(request as never)
-      if (landsBeforeFailing) await base.write(request as never)
-      throw new Error('evidence sink down')
-    },
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
+    write: (request: { readonly kind: string }) =>
+      shouldFail(request)
+        ? Promise.reject(new Error('evidence sink down'))
+        : base.write(request as never),
+    stageWrite: (request: { readonly kind: string }) =>
+      shouldFail(request)
+        ? Promise.reject(new Error('evidence sink down'))
+        : base.stageWrite(request as never),
     writesOf: base.writesOf.bind(base),
     get all() {
       return base.all
@@ -271,8 +270,14 @@ export const eventSinkFailing = (
       readonly event: { event_type: string }
     }) =>
       shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
+    stageEmit: (request: {
+      readonly run_id: string
+      readonly generation: number
+      readonly event: { event_type: string }
+    }) =>
+      shouldFail(request.event)
+        ? Promise.reject(new Error('event sink down'))
+        : base.stageEmit(request),
     eventsOf: base.eventsOf.bind(base),
     get runs() {
       return base.runs
@@ -288,11 +293,13 @@ export const journalFailing = (
       shouldFail(request.transition)
         ? Promise.reject(new Error('journal down'))
         : base.appendTransition(request as never),
+    stageTransitions: (request: { readonly transitions: readonly { to: string }[] }) =>
+      request.transitions.some((entry) => shouldFail(entry))
+        ? Promise.reject(new Error('journal down'))
+        : base.stageTransitions(request as never),
     appendRejection: base.appendRejection.bind(base),
     appendAcquisition: base.appendAcquisition.bind(base),
     appendHold: base.appendHold.bind(base),
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
     readCurrentState: base.readCurrentState.bind(base),
   }) as unknown as InMemoryRunJournal
 

@@ -20,6 +20,7 @@ import type {
   RunJournalPort,
   RunLeasePort,
   RunScoped,
+  Staging,
   TransitionEntry,
 } from '../ports/index.js'
 import { FenceLedger } from './fence.js'
@@ -83,28 +84,41 @@ export class InMemoryRunJournal implements RunJournalPort {
     return Promise.resolve(refused)
   }
 
-  mark(request: RunScoped): Promise<string> {
-    return Promise.resolve(String(this.#page(request.run_id).transitions.length))
-  }
-
   /**
-   * Rewind this run's transitions to the mark, leaving everything that
-   * preceded the attempt.
+   * Prepare the terminal tail without making it observable.
    *
-   * Scoped to the ATTEMPT, not the run. Clearing everything a run ever
-   * journaled is wrong the moment a run is attempted twice: a later
-   * attempt's rollback would erase an earlier attempt's committed
-   * terminal, turning a failure into data loss.
+   * The entries are copied into a private array and appended only when
+   * `publish` is called. `readCurrentState` therefore sees the run
+   * exactly as it was until the whole commit publishes — there is no
+   * instant at which the journal says a run sealed and no bundle exists.
    */
-  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
-    const refused = this.#fence.outcome(request)
-    if (!refused.ok) return Promise.resolve(refused)
-    const page = this.#pages.get(request.run_id)
-    if (page !== undefined) {
-      const keep = Number(request.token)
-      if (Number.isInteger(keep) && keep >= 0) page.transitions = page.transitions.slice(0, keep)
+  stageTransitions(
+    request: RunFence & { readonly transitions: readonly TransitionEntry[] },
+  ): Promise<Staging> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    return Promise.resolve(refused)
+    const entries = [...request.transitions]
+    const run_id = request.run_id
+    return Promise.resolve({
+      ok: true,
+      staged: {
+        publish: () => {
+          // The page is created HERE, not at staging. Creating it while
+          // staging would turn "this run has no journal" into "this run
+          // has an empty journal" — a small change, but an observable
+          // one, and staging must be observable to nobody.
+          const page = this.#page(run_id)
+          page.transitions.push(...entries)
+          // A run that moves is no longer held.
+          delete page.held
+        },
+        abandon: () => {
+          // Nothing to do: the entries were never in the page.
+        },
+      },
+    })
   }
 
   readCurrentState(request: RunScoped): Promise<JournaledState | undefined> {

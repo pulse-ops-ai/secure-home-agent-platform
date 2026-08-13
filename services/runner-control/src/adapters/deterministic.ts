@@ -31,6 +31,7 @@ import type {
   GateReport,
   RunFence,
   RunScoped,
+  Staging,
 } from '../ports/index.js'
 import { FenceLedger } from '../run-state/fence.js'
 
@@ -108,19 +109,27 @@ export class RecordingEventSink implements EventSinkPort {
     return Promise.resolve(refused)
   }
 
-  mark(request: RunScoped): Promise<string> {
-    return Promise.resolve(String((this.#byRun.get(request.run_id) ?? []).length))
-  }
-
-  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
-    const refused = this.#fence.outcome(request)
-    if (!refused.ok) return Promise.resolve(refused)
-    const existing = this.#byRun.get(request.run_id) ?? []
-    const keep = Number(request.token)
-    if (Number.isInteger(keep) && keep >= 0) {
-      this.#byRun.set(request.run_id, existing.slice(0, keep))
+  /** Prepare the terminal event. Absent from `eventsOf` until published. */
+  stageEmit(request: RunFence & { readonly event: unknown }): Promise<Staging> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    return Promise.resolve(refused)
+    const event = request.event
+    const run_id = request.run_id
+    return Promise.resolve({
+      ok: true,
+      staged: {
+        publish: () => {
+          const existing = this.#byRun.get(run_id) ?? []
+          existing.push(event)
+          this.#byRun.set(run_id, existing)
+        },
+        abandon: () => {
+          // The event was never in the stream.
+        },
+      },
+    })
   }
 
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */
@@ -163,32 +172,31 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     return Promise.resolve(refused)
   }
 
-  mark(request: RunScoped): Promise<string> {
-    return Promise.resolve(String(this.writesOf(request.run_id).length))
-  }
-
-  /**
-   * Discard this run's writes made after `token`.
-   *
-   * Scoped to the ATTEMPT: clearing everything the run ever wrote would
-   * let a later attempt's rollback erase an earlier attempt's committed
-   * bundle, turning a failed retry into data loss.
-   */
-  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome> {
-    const refused = this.#fence.outcome(request)
-    if (!refused.ok) return Promise.resolve(refused)
-    const keep = Number(request.token)
-    if (!Number.isInteger(keep) || keep < 0) return Promise.resolve(refused)
-    let seen = 0
-    for (let index = 0; index < this.#writes.length; index += 1) {
-      if (this.#writes[index]?.run_id !== request.run_id) continue
-      seen += 1
-      if (seen > keep) {
-        this.#writes.splice(index, 1)
-        index -= 1
-      }
+  /** Prepare the seal. Absent from `writesOf` until published. */
+  stageWrite(
+    request: RunFence & { readonly kind: 'evidence_bundle'; readonly bundle: unknown },
+  ): Promise<Staging> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    return Promise.resolve(refused)
+    const entry: RecordedWrite = {
+      run_id: request.run_id,
+      kind: 'evidence_bundle',
+      payload: request.bundle,
+    }
+    return Promise.resolve({
+      ok: true,
+      staged: {
+        publish: () => {
+          this.#writes.push(entry)
+        },
+        abandon: () => {
+          // The bundle was never in the sink, so a failed commit leaves
+          // no bundle to remove — and no removal that could itself fail.
+        },
+      },
+    })
   }
 
   writesOf(run_id: string): readonly RecordedWrite[] {

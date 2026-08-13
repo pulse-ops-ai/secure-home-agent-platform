@@ -15,16 +15,21 @@
  * It is that finalization was several writes at all.
  *
  * WHAT ATOMICITY MEANS HERE. A finalization commit carries the journal
- * tail, the terminal event, and the sealed bundle. After `commit`
- * returns, either all three are observable or none of them are. An
- * implementation that cannot guarantee that must FAIL the commit rather
- * than apply part of it — a partially finalized run is the state every
- * one of these contracts exists to make unrepresentable.
+ * tail, the terminal event, and the sealed bundle. At no point may a
+ * reader observe some of them and not the others — not merely after
+ * `commit` returns, but at any instant during it.
  *
- * Ordering inside the commit is not free either: the seal is still the
- * run's final write, so the bundle is applied last. Retraction therefore
- * unwinds in reverse, and the seal — the write most likely to be
- * rejected — has nothing after it to undo.
+ * That rules out writing them in turn and undoing on failure. Rollback
+ * is a different guarantee: it restores the invariant afterwards instead
+ * of never breaking it, it exposes a half-finalized run for the duration
+ * of the commit, and a rollback that itself fails has nowhere to go.
+ *
+ * So participants STAGE — preparing writes no reader can see — and one
+ * publication point makes them all visible together. Ordering inside
+ * the commit stops mattering, because there is no interval in which
+ * order could be observed; the seal is still prepared last, so the
+ * participant most likely to refuse does so before anything is
+ * published.
  *
  * WHERE THE TRANSACTION PERSISTS IS NOT DECIDED HERE. That is U11's.
  * What it must guarantee is this landing's, and a port whose contract
@@ -32,7 +37,7 @@
  */
 import type { TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
-import type { FenceOutcome, RunFence, RunScoped } from './values.js'
+import type { RunFence } from './values.js'
 
 export interface FinalizationCommit extends RunFence {
   /** The terminal state this run is committing to. */
@@ -65,31 +70,36 @@ export interface FinalizationPort {
 }
 
 /**
- * Undo the writes ONE COMMIT ATTEMPT made.
+ * A write that is PREPARED but not observable.
  *
- * Scoped to an attempt, not to a run. Retracting everything a run ever
- * wrote is wrong the moment a run is attempted twice: a later attempt's
- * rollback would erase an earlier attempt's committed terminal record,
- * turning a failure into data loss.
+ * This replaces retraction, and the difference is the whole point.
+ * Compensation writes, discovers a problem, and unwrites — so there is a
+ * window in which a reader sees a half-finalized run, and a rollback
+ * that fails leaves the invariant broken with no path back. Both are
+ * properties of having written at all.
  *
- * So a participant is MARKED before the attempt writes anything, and
- * retraction rewinds to that mark. Required rather than optional: a sink
- * that cannot say "these particular writes are not observable" cannot
- * take part in an all-or-none commit, and discovering that at rollback
- * time is discovering it too late.
+ * Staging removes the window rather than shrinking it. A participant
+ * prepares its write somewhere no reader can see, and one publication
+ * point later makes every participant's prepared state visible at once.
+ * A failure before that point has nothing to undo, so "the rollback
+ * failed" is not handled better — it stops being reachable.
  */
-export interface Retractable {
+export interface StagedWrite {
   /**
-   * A token naming this participant's state before an attempt writes.
-   * Unfenced: taking a mark changes nothing, and a commit whose fence is
-   * stale is refused at its first actual write regardless.
+   * Make this participant's prepared writes observable.
+   *
+   * SYNCHRONOUS and total, by contract. Both are load-bearing. Returning
+   * a promise would let the event loop run between two participants'
+   * publications, which is exactly the partial visibility staging
+   * exists to prevent; and a publication that can fail reintroduces the
+   * broken-rollback state through the back door. An implementation that
+   * cannot promise both must fail during STAGING, where failing is free.
    */
-  mark(request: RunScoped): Promise<string>
-  /**
-   * Discard everything this run wrote after `token`. FENCED — undoing a
-   * run's writes is as destructive as making them, and a stale holder
-   * rolling back the current owner's commit is the precise failure the
-   * fence exists to prevent.
-   */
-  retractTo(request: RunFence & { readonly token: string }): Promise<FenceOutcome>
+  publish(): void
+  /** Discard the prepared writes. Nothing was ever visible. */
+  abandon(): void
 }
+
+export type Staging =
+  | { readonly ok: true; readonly staged: StagedWrite }
+  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }

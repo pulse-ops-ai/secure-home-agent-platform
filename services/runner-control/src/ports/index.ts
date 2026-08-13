@@ -9,7 +9,7 @@
  * only. No interface here can express "launch a container": there is no
  * image, no mount, no socket, and no argv anywhere in the surface.
  */
-import type { FinalizationPort, Retractable } from './finalization.js'
+import type { FinalizationPort, Staging } from './finalization.js'
 import type { RunJournalPort, RunLeasePort } from '../run-state/ports.js'
 import type { ExecutionSessionPort } from '../execution/ports.js'
 import type { WorkspaceLifecyclePort } from '../workspace/ports.js'
@@ -55,8 +55,14 @@ export interface AdapterInvocationPort {
 export type AdapterInvocation = AdapterInvocationRequest
 
 /** One emitted run event. The shape is the L2 contract's, by instance. */
-export interface EventSinkPort extends Retractable {
+export interface EventSinkPort {
   emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome>
+  /**
+   * Prepare the terminal event as part of a finalization commit. Not
+   * observable until published — `run.terminated` must never announce an
+   * outcome before the bundle recording it exists.
+   */
+  stageEmit(request: RunFence & { readonly event: unknown }): Promise<Staging>
 }
 
 /**
@@ -72,7 +78,7 @@ export interface EventSinkPort extends Retractable {
  *
  * A fabricated bundle is not among the options — it is unrepresentable.
  */
-export interface EvidenceSinkPort extends Retractable {
+export interface EvidenceSinkPort {
   write(
     request: RunFence &
       (
@@ -81,6 +87,14 @@ export interface EvidenceSinkPort extends Retractable {
         | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
   ): Promise<FenceOutcome>
+  /**
+   * Prepare the sealed bundle as part of a finalization commit. Staged
+   * last, so the participant most likely to refuse does so while
+   * refusing is still free.
+   */
+  stageWrite(
+    request: RunFence & { readonly kind: 'evidence_bundle'; readonly bundle: unknown },
+  ): Promise<Staging>
 }
 
 /**

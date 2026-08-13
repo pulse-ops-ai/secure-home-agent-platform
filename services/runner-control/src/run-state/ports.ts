@@ -26,7 +26,7 @@
  */
 import type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
-import type { Retractable } from '../ports/finalization.js'
+import type { Staging } from '../ports/finalization.js'
 import type { AcquisitionEpoch, FenceOutcome, RunFence, RunScoped } from '../ports/values.js'
 
 /** One acquisition, journaled as it happens. */
@@ -66,7 +66,16 @@ export interface JournaledState {
  * entry was refused — a rejected append that looked like a successful
  * one would leave the stale holder believing its history was recorded.
  */
-export interface RunJournalPort extends Retractable {
+export interface RunJournalPort {
+  /**
+   * Prepare the terminal tail as part of a finalization commit. The
+   * entries are NOT observable until the returned handle is published,
+   * so a reader cannot see a run whose journal says it sealed while no
+   * bundle exists.
+   */
+  stageTransitions(
+    request: RunFence & { readonly transitions: readonly TransitionEntry[] },
+  ): Promise<Staging>
   appendTransition(
     request: RunFence & { readonly transition: TransitionEntry },
   ): Promise<FenceOutcome>

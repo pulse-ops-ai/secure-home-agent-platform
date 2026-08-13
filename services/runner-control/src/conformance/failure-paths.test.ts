@@ -79,19 +79,17 @@ describe('RO-EX-65: a partial commit is fully retracted', () => {
     ).not.toContain('EVIDENCE_SEALED')
   })
 
-  it('an evidence write that fails AFTER landing is retracted', async () => {
-    // The sink accepts the write and then reports failure. Evidence
-    // retraction was never registered at all, so the bundle stayed.
+  it('an evidence participant that refuses leaves no bundle', async () => {
+    // This proof used to describe a sink that ACCEPTED the write and
+    // then reported failure, because that was the only case retraction
+    // had to handle. The staged design has no such case: the bundle is
+    // prepared where nobody can see it and published only once every
+    // participant has agreed, so a refusal leaves nothing behind rather
+    // than leaving something that must be taken back.
     const ports = testPorts({
       evidence: evidenceSinkFailing(
         (request) => request.kind === 'evidence_bundle',
         new RecordingEvidenceSink(),
-        // LANDS, then reports failure. A sink that rejects BEFORE
-        // writing leaves nothing to retract, so a proof built on one
-        // cannot tell whether rollback works — which is exactly why the
-        // first version of this proof passed with evidence retraction
-        // missing from the commit entirely.
-        true,
       ),
     })
     await new Runner(ports).run(runRequest())
@@ -265,21 +263,24 @@ describe('RO-EX-71: retraction is scoped to the attempt, not the run', () => {
     const committed = sink.all.filter((write) => write.kind === 'evidence_bundle').length
     expect(committed).toBe(1)
 
-    // A SECOND attempt on the same run id that reaches the commit and
-    // fails there, so rollback actually runs. Run-scoped retraction
-    // would wipe the first attempt's committed bundle along with it.
+    // A SECOND attempt on the same run id whose commit fails. Under the
+    // compensating design this was the dangerous case — a run-scoped
+    // retraction would wipe the FIRST attempt's committed bundle while
+    // unwinding the second. Staging removes the hazard at the root:
+    // the second attempt never wrote anything, so there is nothing it
+    // could take back, correctly scoped or otherwise.
     const retry = testPorts({
       journal,
       events,
       lease,
-      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle', sink, true),
+      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle', sink),
     })
     const second = await new Runner(retry).run(runRequest())
 
     expect(second.state).not.toBe('COMPLETED')
     expect(
       sink.all.filter((write) => write.kind === 'evidence_bundle'),
-      "a later attempt's rollback must not erase an earlier commit",
+      "a later attempt's failure must not erase an earlier commit",
     ).toHaveLength(committed)
     // And the first attempt's journal tail survives too.
     const journaled = await journal.readCurrentState({ run_id: RUN })

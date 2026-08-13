@@ -1,17 +1,46 @@
 /**
- * The all-or-none finalization commit over the journal, the event sink,
- * and the evidence sink.
+ * Finalization as ONE publication, over the journal, the event sink, and
+ * the evidence sink.
  *
- * Apply order is journal tail → terminal event → sealed bundle. That is
- * not arbitrary: the seal must remain the run's final write, so it goes
- * last, which also means the participant most likely to reject has
- * nothing after it to undo. On any failure the applied steps are
- * retracted in reverse, so what a reader can observe is either the whole
- * finalization or none of it.
+ * WHAT THIS REPLACED, AND WHY IT HAD TO GO. The previous implementation
+ * wrote the journal tail, emitted the terminal event, wrote the bundle,
+ * and undid whatever had landed if a later step failed. That is
+ * compensation, and it cannot deliver what `FinalizationPort` promises:
  *
- * A retraction that itself fails is reported, not swallowed — a commit
- * that half-unwound is a worse state than either outcome, and the caller
- * needs to know the run is in it.
+ *  - for the duration of the commit, a reader saw a new journal tail
+ *    with no terminal event and no bundle — a run sealed according to
+ *    one participant and unfinished according to the other two;
+ *  - a retraction that itself failed left the invariant broken outright,
+ *    which no amount of care in the rollback path can fix, because the
+ *    rollback path is the thing that failed.
+ *
+ * Neither is a bug in the rollback. Both follow from having written
+ * before knowing whether the commit could succeed.
+ *
+ * SO NOTHING IS WRITTEN UNTIL EVERYTHING IS READY. Each participant
+ * stages — preparing its write where no reader can reach it — and only
+ * once all three have staged does one publication make them visible.
+ *
+ *   stage journal tail      (invisible)
+ *   stage terminal event    (invisible)
+ *   stage sealed bundle     (invisible)
+ *          ↓
+ *   ONE publication point   (all three, at once)
+ *
+ * A failure at any point before publication abandons what was staged.
+ * Abandoning cannot fail in a way that matters, because it removes
+ * nothing anybody could see — "the rollback failed" is not handled
+ * better here, it is unreachable.
+ *
+ * WHY THE PUBLICATION IS ATOMIC. `publish()` is synchronous by contract
+ * and the loop below contains no `await`. JavaScript runs a synchronous
+ * block to completion, so no reader — no timer, no I/O callback, no
+ * other run — can observe the interval between the first and last
+ * publication. That is a real guarantee in one isolate, and it is the
+ * whole of the guarantee: it says nothing about a durable store, which
+ * is U11's and must reach for a genuine transaction of its own. What
+ * this ships is a deterministic in-memory implementation whose atomicity
+ * is a property of the language, disclosed rather than assumed.
  */
 import type {
   CommitOutcome,
@@ -20,6 +49,7 @@ import type {
   FinalizationCommit,
   FinalizationPort,
   RunJournalPort,
+  StagedWrite,
 } from '../ports/index.js'
 
 export interface CommitParticipants {
@@ -40,82 +70,60 @@ export class TransactionalFinalization implements FinalizationPort {
 
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
     const { journal, events, evidence } = this.#participants
-    const scoped = { run_id: commit.run_id }
-    // The fence travels with every write this transaction makes. It is
-    // NOT checked once up front: ownership can move between the mark and
-    // the seal, and a transaction that validated the fence and then wrote
-    // three times would have exactly the window the fence exists to close.
     const fence = { run_id: commit.run_id, generation: commit.generation }
+    const staged: StagedWrite[] = []
 
-    // MARK EVERY PARTICIPANT FIRST.
-    //
-    // Registering a rollback only after a write returned left three
-    // holes: a tail that failed part way through was already partly
-    // written, a sink that landed a write and then reported failure kept
-    // it, and the evidence write — the last and most consequential —
-    // had no rollback registered at all. A mark taken before anything is
-    // attempted has none of those cases, because it does not depend on
-    // any write having succeeded.
-    let marks: { journal: string; events: string; evidence: string }
-    try {
-      marks = {
-        journal: await journal.mark(scoped),
-        events: await events.mark(scoped),
-        evidence: await evidence.mark(scoped),
-      }
-    } catch (error) {
-      return {
-        ok: false,
-        detail: `finalization could not begin: a participant could not be marked: ${describe(error)}`,
-      }
+    const abandon = (): void => {
+      // Reverse order for symmetry with publication. It makes no
+      // observable difference — that is the point of abandoning state
+      // nobody could see — but a participant that holds a resource
+      // should release it in the opposite order it took it.
+      for (const write of [...staged].reverse()) write.abandon()
     }
 
-    const rollback = async (why: string, stale = false): Promise<CommitOutcome> => {
-      const failures: string[] = []
-      // Reverse of the apply order, so the seal is undone first.
-      for (const [participant, token] of [
-        [evidence, marks.evidence],
-        [events, marks.events],
-        [journal, marks.journal],
-      ] as const) {
-        try {
-          const retracted = await participant.retractTo({ ...fence, token })
-          // A retraction the fence refuses is not a rollback failure to
-          // paper over: it means this caller may no longer touch that
-          // participant at all. Reported, because a partially unwound
-          // commit is a state the caller has to know it is in.
-          if (!retracted.ok) failures.push(retracted.detail)
-        } catch (error) {
-          failures.push(describe(error))
+    // ---- STAGE ---------------------------------------------------
+    // The bundle is staged LAST, so the participant most likely to
+    // refuse refuses while refusing is still free.
+    const preparations: readonly (readonly [string, () => Promise<unknown>])[] = [
+      [
+        'journal tail',
+        () => journal.stageTransitions({ ...fence, transitions: commit.transitions }),
+      ],
+      ['terminal event', () => events.stageEmit({ ...fence, event: commit.event })],
+      [
+        'sealed bundle',
+        () => evidence.stageWrite({ ...fence, kind: 'evidence_bundle', bundle: commit.bundle }),
+      ],
+    ]
+
+    for (const [what, prepare] of preparations) {
+      let outcome
+      try {
+        outcome = (await prepare()) as
+          { ok: true; staged: StagedWrite } | { ok: false; reason?: 'stale_fence'; detail: string }
+      } catch (error) {
+        abandon()
+        return {
+          ok: false,
+          detail: `finalization did not commit: the ${what} could not be prepared: ${describe(error)}`,
         }
       }
-      return {
-        ok: false,
-        ...(stale ? { reason: 'stale_fence' as const } : {}),
-        detail:
-          failures.length === 0
-            ? `finalization did not commit: ${why}`
-            : `finalization did not commit: ${why}; and the rollback did not fully unwind: ${failures.join('; ')}`,
+      if (!outcome.ok) {
+        abandon()
+        return {
+          ok: false,
+          ...(outcome.reason === undefined ? {} : { reason: outcome.reason }),
+          detail: `finalization did not commit: the ${what} was refused: ${outcome.detail}`,
+        }
       }
+      staged.push(outcome.staged)
     }
 
-    try {
-      for (const transition of commit.transitions) {
-        const appended = await journal.appendTransition({ ...fence, transition })
-        if (!appended.ok) return await rollback(appended.detail, true)
-      }
-      const emitted = await events.emit({ ...fence, event: commit.event })
-      if (!emitted.ok) return await rollback(emitted.detail, true)
-      // LAST: the seal is the run's final write.
-      const sealed = await evidence.write({
-        ...fence,
-        kind: 'evidence_bundle',
-        bundle: commit.bundle,
-      })
-      if (!sealed.ok) return await rollback(sealed.detail, true)
-      return { ok: true }
-    } catch (error) {
-      return await rollback(describe(error))
-    }
+    // ---- PUBLISH -------------------------------------------------
+    // NO `await` BELOW THIS LINE. Adding one would let the event loop
+    // run between two publications and reintroduce exactly the partial
+    // visibility this design exists to remove.
+    for (const write of staged) write.publish()
+    return { ok: true }
   }
 }

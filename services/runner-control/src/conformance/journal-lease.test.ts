@@ -63,24 +63,50 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
     // the commit writing to the unwrapped journal and the proof would
     // silently observe only the engine's five.
     const inner = new InMemoryRunJournal()
+    const length = async (run_id: string): Promise<number> =>
+      (await inner.readCurrentState({ run_id }))?.transitions.length ?? 0
     const counting = {
       ...inner,
       appendTransition: async (request: Parameters<typeof inner.appendTransition>[0]) => {
         const appended = await inner.appendTransition(request)
-        const state = await inner.readCurrentState({ run_id: request.run_id })
-        seen.push(state?.transitions.length ?? 0)
+        seen.push(await length(request.run_id))
         return appended
+      },
+      // The finalization tail no longer arrives through `appendTransition`
+      // — it is STAGED and published with the terminal event and the
+      // bundle. Counted at publication, which is the only moment it
+      // becomes visible at all.
+      stageTransitions: async (request: Parameters<typeof inner.stageTransitions>[0]) => {
+        const staging = await inner.stageTransitions(request)
+        if (!staging.ok) return staging
+        const staged = staging.staged
+        return {
+          ok: true as const,
+          staged: {
+            publish: () => {
+              staged.publish()
+              // Synchronous, so this reads the page directly rather than
+              // awaiting — a publication that awaited would be the bug.
+              seen.push(-1)
+            },
+            abandon: staged.abandon.bind(staged),
+          },
+        }
       },
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),
       appendHold: inner.appendHold.bind(inner),
-      mark: inner.mark.bind(inner),
-      retractTo: inner.retractTo.bind(inner),
       readCurrentState: inner.readCurrentState.bind(inner),
     }
-    await new Runner(testPorts({ journal: counting })).run(runRequest())
+    const ports = testPorts({ journal: counting })
+    await new Runner(ports).run(runRequest())
 
-    expect(seen, 'the journal must grow one entry at a time').toEqual([1, 2, 3, 4, 5, 6, 7])
+    // The walk's five transitions land one at a time, each when exactly
+    // k exist. The sixth marker is the finalization tail, which is NOT
+    // incremental by design: EVIDENCE_SEALED and COMPLETED become
+    // visible together with the event and the bundle, or not at all.
+    expect(seen, 'the walk must journal incrementally').toEqual([1, 2, 3, 4, 5, -1])
+    expect(await length(RUN), 'and the tail added both entries at once').toBe(7)
   })
 
   it('acquisitions are journaled per epoch and source', async () => {
