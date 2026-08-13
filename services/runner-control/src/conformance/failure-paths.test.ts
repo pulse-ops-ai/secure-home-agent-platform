@@ -155,18 +155,26 @@ describe('RO-EX-68: every terminal transition is checked, including on failure p
     expect(ports.evidence.all.filter((write) => write.kind === 'evidence_bundle')).toHaveLength(0)
   })
 
-  it('a table that forbids refuse from REQUESTED writes no early record', async () => {
+  it('a table that forbids refuse from REQUESTED records no refusal', async () => {
     const table = withoutTransition('REQUESTED', 'refuse')
     const ports = testPorts()
     const conclusion = await new Runner(ports).run(runRequest({ profile_ref: null }), {
       transitions: table,
     })
 
-    expect(conclusion.state).toBe('REQUESTED')
-    expect(
-      ports.evidence.all,
-      'a refusal the machine did not authorize must not be recorded as one',
-    ).toHaveLength(0)
+    // This proof used to assert the run stayed in REQUESTED — that is,
+    // that it was ABANDONED in a progress state. RO-INV-50 now forbids
+    // that outright: a refused terminal falls back to INDETERMINATE,
+    // which this table does declare, so the run ends somewhere.
+    //
+    // The property the proof is actually about is unchanged and still
+    // holds: nothing records a refusal the machine did not authorize.
+    // The run terminates INDETERMINATE and its record says so.
+    expect(conclusion.state).toBe('INDETERMINATE')
+    expect(conclusion.rejections.some((entry) => entry.attempted === 'refuse')).toBe(true)
+    for (const write of ports.evidence.all) {
+      expect(JSON.stringify(write.payload)).not.toContain('REFUSED')
+    }
   })
 })
 
