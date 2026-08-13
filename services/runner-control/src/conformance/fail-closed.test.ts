@@ -30,6 +30,8 @@ import { RunEventEmitter } from '../events/index.js'
 import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
+  eventSinkFailing,
+  evidenceSinkFailing,
   governedWrites,
   policyDocument,
   profileDocument,
@@ -42,12 +44,7 @@ const RUN = 'run-20260812-0001'
 describe('RO-EX-17: EVIDENCE_SEALED is recorded only after the seal', () => {
   it('a failed seal leaves no transition claiming the evidence was sealed', async () => {
     const ports = testPorts({
-      evidence: {
-        write: (request: { kind: string }) =>
-          request.kind === 'evidence_bundle'
-            ? Promise.reject(new Error('sink down'))
-            : Promise.resolve(),
-      },
+      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle'),
     })
     const conclusion = await new Runner(ports).run(runRequest())
 
@@ -177,11 +174,7 @@ describe('RO-EX-21: a throwing port cannot leave a run in no state', () => {
       authority: new CountingAuthoritySource({
         profile: { ok: false, source: { source: 'profile' }, failure: 'gone' },
       }),
-      evidence: {
-        write: () => {
-          throw new Error('sink exploded')
-        },
-      },
+      evidence: evidenceSinkFailing(() => true),
     })
     // The contract under test is simply that this RESOLVES.
     const conclusion = await new Runner(ports).run(runRequest())
@@ -257,14 +250,11 @@ describe('RO-EX-24: a failing call emission keeps what is already known', () => 
           { tool: 'household.write', disposition: 'denied' },
         ],
       }),
-      events: {
-        emit: async (request: { run_id: string; event: unknown }) => {
-          emitted += 1
-          // Fail on the SECOND call's disposition, after the first pair.
-          if (emitted === 7) throw new Error('event sink down')
-          await sink.emit(request)
-        },
-      },
+      events: eventSinkFailing(() => {
+        emitted += 1
+        // Fail on the SECOND call's disposition, after the first pair.
+        return emitted === 7
+      }, sink),
     })
     const conclusion = await new Runner(ports).run(runRequest())
 

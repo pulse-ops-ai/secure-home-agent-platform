@@ -21,6 +21,15 @@ import type {
   TransitionEntry,
 } from '../ports/index.js'
 
+const TERMINAL_TAIL: ReadonlySet<string> = new Set([
+  'COMPLETED',
+  'REFUSED',
+  'OPERATIONAL_FAILURE',
+  'CANCELLED',
+  'TIMED_OUT',
+  'INDETERMINATE',
+])
+
 interface JournalPages {
   transitions: TransitionEntry[]
   rejections: RejectionEntry[]
@@ -62,6 +71,22 @@ export class InMemoryRunJournal implements RunJournalPort {
 
   appendHold(request: RunScoped & { readonly hold: JournaledHold }): Promise<void> {
     this.#page(request.run_id).held = request.hold
+    return Promise.resolve()
+  }
+
+  /**
+   * Drop the run's FINALIZATION tail — the transitions a commit
+   * contributed — leaving the walk that preceded it. A commit that did
+   * not happen must leave no trace of having happened; the run's history
+   * up to that point did happen and stays.
+   */
+  retractRun(request: RunScoped): Promise<void> {
+    const page = this.#pages.get(request.run_id)
+    if (page !== undefined) {
+      page.transitions = page.transitions.filter(
+        (entry) => entry.to !== 'EVIDENCE_SEALED' && !TERMINAL_TAIL.has(entry.to),
+      )
+    }
     return Promise.resolve()
   }
 

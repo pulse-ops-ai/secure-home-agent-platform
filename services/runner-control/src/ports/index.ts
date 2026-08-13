@@ -9,6 +9,7 @@
  * only. No interface here can express "launch a container": there is no
  * image, no mount, no socket, and no argv anywhere in the surface.
  */
+import type { FinalizationPort, Retractable } from './finalization.js'
 import type { RunJournalPort, RunLeasePort } from './journal.js'
 import type {
   AdapterInvocationRequest,
@@ -48,7 +49,7 @@ export interface AdapterInvocationPort {
 }
 
 /** One emitted run event. The shape is the L2 contract's, by instance. */
-export interface EventSinkPort {
+export interface EventSinkPort extends Retractable {
   emit(request: RunScoped & { readonly event: unknown }): Promise<void>
 }
 
@@ -65,7 +66,7 @@ export interface EventSinkPort {
  *
  * A fabricated bundle is not among the options — it is unrepresentable.
  */
-export interface EvidenceSinkPort {
+export interface EvidenceSinkPort extends Retractable {
   write(
     request: RunScoped &
       (
@@ -99,6 +100,8 @@ export interface Ports {
   readonly journal: RunJournalPort
   /** One owner per run, across processes (D10). */
   readonly lease: RunLeasePort
+  /** The all-or-none terminal commit. */
+  readonly finalization: FinalizationPort
   readonly workspace: WorkspaceObserverPort
   readonly artifacts: ArtifactObserverPort
   readonly execution: ExecutionPort
@@ -110,4 +113,5 @@ export interface Ports {
 
 export * from './values.js'
 export * from './journal.js'
+export * from './finalization.js'
 export type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'

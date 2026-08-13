@@ -26,6 +26,7 @@
  */
 import type { RejectionEntry, TransitionEntry } from '../lifecycle/machine.js'
 import type { LifecycleState } from '../lifecycle/states.js'
+import type { Retractable } from './finalization.js'
 import type { AcquisitionEpoch, RunScoped } from './values.js'
 
 /** One acquisition, journaled as it happens. */
@@ -58,7 +59,7 @@ export interface JournaledState {
   readonly held?: JournaledHold
 }
 
-export interface RunJournalPort {
+export interface RunJournalPort extends Retractable {
   appendTransition(request: RunScoped & { readonly transition: TransitionEntry }): Promise<void>
   appendRejection(request: RunScoped & { readonly rejection: RejectionEntry }): Promise<void>
   appendAcquisition(

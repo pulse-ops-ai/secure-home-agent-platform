@@ -18,7 +18,7 @@
  * ids; these use ONE, which is the case that was unguarded.
  */
 import { describe, expect, it } from 'vitest'
-import { InMemoryRunLease } from '../adapters/index.js'
+import { InMemoryRunJournal, InMemoryRunLease } from '../adapters/index.js'
 import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
@@ -58,8 +58,11 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
     // A batched write appends N entries with the walk already finished;
     // an incremental one appends the k-th entry when exactly k exist.
     const seen: number[] = []
-    const ports = testPorts()
-    const inner = ports.journal
+    // Wrapped BEFORE testPorts builds the commit participant, so the
+    // finalization tail is counted too. Wrapping afterwards would leave
+    // the commit writing to the unwrapped journal and the proof would
+    // silently observe only the engine's five.
+    const inner = new InMemoryRunJournal()
     const counting = {
       ...inner,
       appendTransition: async (request: Parameters<typeof inner.appendTransition>[0]) => {
@@ -70,9 +73,10 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),
       appendHold: inner.appendHold.bind(inner),
+      retractRun: inner.retractRun.bind(inner),
       readCurrentState: inner.readCurrentState.bind(inner),
     }
-    await new Runner({ ...ports, journal: counting }).run(runRequest())
+    await new Runner(testPorts({ journal: counting })).run(runRequest())
 
     expect(seen, 'the journal must grow one entry at a time').toEqual([1, 2, 3, 4, 5, 6, 7])
   })

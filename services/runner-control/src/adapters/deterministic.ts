@@ -85,6 +85,18 @@ export class RecordingEventSink implements EventSinkPort {
     return Promise.resolve()
   }
 
+  /** Drop this run's terminal event, for a commit that did not happen. */
+  retractRun(request: RunScoped): Promise<void> {
+    const existing = this.#byRun.get(request.run_id) ?? []
+    this.#byRun.set(
+      request.run_id,
+      existing.filter(
+        (event) => (event as { event_type?: string }).event_type !== 'run.terminated',
+      ),
+    )
+    return Promise.resolve()
+  }
+
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */
   eventsOf(run_id: string): readonly unknown[] {
     return this.#byRun.get(run_id) ?? []
@@ -116,6 +128,17 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
             ? request.record
             : request.transitions,
     })
+    return Promise.resolve()
+  }
+
+  /** Drop this run's sealed bundle, for a commit that did not happen. */
+  retractRun(request: RunScoped): Promise<void> {
+    for (let index = this.#writes.length - 1; index >= 0; index -= 1) {
+      const write = this.#writes[index]
+      if (write?.run_id === request.run_id && write.kind === 'evidence_bundle') {
+        this.#writes.splice(index, 1)
+      }
+    }
     return Promise.resolve()
   }
 

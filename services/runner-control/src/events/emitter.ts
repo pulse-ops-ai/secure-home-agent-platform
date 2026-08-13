@@ -59,6 +59,26 @@ export class RunEventEmitter {
    * contract before the write means a malformed event fails here rather
    * than becoming an unparseable line in the stream.
    */
+  /**
+   * The envelope this emitter would put on `body`, without emitting.
+   *
+   * Finalization needs the terminal event as DATA so it can be committed
+   * with the seal rather than sent before it. Building it here keeps the
+   * envelope the emitter's — a hand-built terminal event is how the
+   * sequence number and run id drift.
+   */
+  envelope(body: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...body,
+      contract_id: 'run-event',
+      contract_version: '1.0.0',
+      run_id: this.#identity.run_id,
+      sequence: this.#sequence,
+      timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
+      adapter: this.#identity.adapter,
+    }
+  }
+
   async emit(body: Record<string, unknown>): Promise<EmitOutcome> {
     // The envelope is spread LAST. Spreading `body` last let a caller
     // replace run_id, sequence, adapter, or the contract identity — so

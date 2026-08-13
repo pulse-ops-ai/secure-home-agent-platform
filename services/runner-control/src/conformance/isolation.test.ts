@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest'
 import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
+  evidenceSinkFailing,
   runRequest,
   governedWrites,
   testPorts,
@@ -193,14 +194,13 @@ describe('RO-MUT-07: dropping the key is observable', () => {
     // which is why the requirement demands keying rather than trusting.
     const unkeyed: { last: string | undefined; count: number } = { last: undefined, count: 0 }
     const shared = testPorts({
-      evidence: {
-        write: (request: { run_id: string; kind: string }) => {
-          if (request.kind === 'transition_record') return Promise.resolve()
+      evidence: evidenceSinkFailing((request: { run_id?: string; kind: string }) => {
+        if (request.kind !== 'transition_record') {
           unkeyed.last = request.run_id
           unkeyed.count += 1
-          return Promise.resolve()
-        },
-      },
+        }
+        return false
+      }),
     })
     const runner = new Runner(shared)
     await Promise.all([runner.run(requestFor(RUN_A)), runner.run(requestFor(RUN_B))])

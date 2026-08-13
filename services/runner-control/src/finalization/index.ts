@@ -16,7 +16,6 @@
  * when the order is right.
  */
 import { decideSealEligibility, isProceed, type SealInputs } from '@secure-home/runner-core'
-import type { EvidenceSinkPort } from '../ports/index.js'
 
 export const WRITE_KINDS = ['event', 'artifact', 'transition', 'seal'] as const
 export type WriteKind = (typeof WRITE_KINDS)[number]
@@ -27,11 +26,11 @@ export interface WriteEntry {
   readonly label: string
 }
 
-export type SealResult =
-  | { readonly ok: true; readonly sequence: readonly WriteEntry[] }
+export type SealPreparation =
+  | { readonly ok: true; readonly bundle: unknown }
   | {
       readonly ok: false
-      readonly refused: 'outstanding_writes' | 'not_eligible' | 'already_sealed' | 'sink_failed'
+      readonly refused: 'outstanding_writes' | 'not_eligible' | 'already_sealed'
       readonly detail: string
     }
 
@@ -41,14 +40,12 @@ export type SealResult =
  */
 export class FinalizationLedger {
   readonly #runId: string
-  readonly #sink: EvidenceSinkPort
   readonly #sequence: WriteEntry[] = []
   #outstanding = 0
   #sealed = false
 
-  constructor(runId: string, sink: EvidenceSinkPort) {
+  constructor(runId: string) {
     this.#runId = runId
-    this.#sink = sink
   }
 
   /** The run's writes in submission order — already run-filtered. */
@@ -71,7 +68,16 @@ export class FinalizationLedger {
     if (this.#outstanding > 0) this.#outstanding -= 1
   }
 
-  async seal(inputs: SealInputs): Promise<SealResult> {
+  /**
+   * Decide whether this run MAY seal, writing nothing.
+   *
+   * Both conditions are preconditions of the finalization commit rather
+   * than steps inside it: the run's other writes must all be in (seal
+   * ORDER, per run), and the core must find the bundle seal-eligible
+   * (seal ELIGIBILITY). Refusing here costs nothing, because nothing has
+   * been announced or written yet.
+   */
+  prepareSeal(inputs: SealInputs): SealPreparation {
     if (this.#sealed) {
       return {
         ok: false,
@@ -94,21 +100,12 @@ export class FinalizationLedger {
         detail: `${eligibility.code}: ${eligibility.detail}`,
       }
     }
-    try {
-      await this.#sink.write({
-        run_id: this.#runId,
-        kind: 'evidence_bundle',
-        bundle: eligibility.value.bundle,
-      })
-    } catch (error) {
-      return {
-        ok: false,
-        refused: 'sink_failed',
-        detail: error instanceof Error ? error.message : String(error),
-      }
-    }
+    return { ok: true, bundle: eligibility.value.bundle }
+  }
+
+  /** Record that the commit made the seal durable. */
+  markSealed(): void {
     this.#sealed = true
     this.#sequence.push({ run_id: this.#runId, kind: 'seal', label: 'evidence_bundle' })
-    return { ok: true, sequence: this.#sequence }
   }
 }

@@ -21,6 +21,7 @@ import {
   StaticArtifactObserver,
   StaticWorkspaceObserver,
   profileDocument,
+  evidenceSinkFailing,
   governedWrites,
   runRequest,
   testPorts,
@@ -91,9 +92,7 @@ describe('RO-EX-11: consent is bound to one run', () => {
 describe('RO-EX-12: COMPLETED requires a sealed bundle', () => {
   it('a sink that rejects the seal leaves the run OPERATIONAL_FAILURE, never COMPLETED', async () => {
     const ports = testPorts({
-      evidence: {
-        write: () => Promise.reject(new Error('evidence store unavailable')),
-      },
+      evidence: evidenceSinkFailing(() => true),
     })
     const conclusion = await new Runner(ports).run(runRequest())
 

@@ -85,6 +85,9 @@ are below.
 | RO-INV-28 | The transition record is a JOURNAL: every transition, rejection, hold, and acquisition is appended as it happens, so a run that dies mid-walk is still reconstructable from what was written | behavior |
 | RO-INV-29 | A held run has a durable pending identity naming the state it is held at — recorded, never dropped | behavior |
 | RO-INV-30 | One run has one owner across processes: a run whose lease is held elsewhere performs no effect, and a run that loses its lease mid-walk stops before the next phase's effects | trust |
+| RO-INV-31 | Finalization is ONE transition: the journal tail, the terminal event, and the sealed bundle commit together or none of them is observable | trust |
+| RO-INV-32 | The terminal event's outcome is the COMMITTED outcome — never an intended one; no event announces a terminal the run did not reach | trust |
+| RO-INV-33 | The machine authorizes the WHOLE terminal sequence before the commit, and adopts the committed entries verbatim afterwards | trust |
 
 ## State-Space Model
 
@@ -223,6 +226,12 @@ persistence (U11).
 | RO-EX-35 | RO-INV-30 | adversarial | a run whose lease is stolen mid-walk does not complete, and names the lost lease |
 | RO-EX-36 | RO-INV-30 | adversarial | a stale generation can neither renew nor release the current holder — the fencing token is real |
 | RO-EX-37 | RO-INV-10 | deterministic example | two runs through one journal instance stay separate; an unknown run has no journal rather than an empty one |
+| RO-EX-38 | RO-INV-31 | adversarial | an evidence sink rejecting the bundle publishes no terminal event and no bundle, and journals no `EVIDENCE_SEALED` |
+| RO-EX-39 | RO-INV-32 | property | across seal failure, assembly failure, and success, every emitted `run.terminated` outcome equals the state the run ended in |
+| RO-EX-40 | RO-INV-31 | deterministic example | on a committed run the bundle, the terminal event, the journal head, and the machine all report the same terminal |
+| RO-EX-41 | RO-INV-33 | adversarial | a table missing `seal_evidence` OR missing `complete` commits nothing — neither half of the sequence may commit alone |
+| RO-EX-42 | RO-INV-31 | adversarial | seal ordering and seal eligibility are decided BEFORE the commit; an ineligible bundle never reaches the sink |
+| RO-EX-43 | RO-INV-31 | adversarial | an event-sink failure and a journal failure inside the commit each leave neither event nor bundle observable |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -246,6 +255,8 @@ persistence (U11).
 | RO-MUT-24 | RO-INV-27 | mutation | ignoring a rejected transition and proceeding to the next phase's effects is killed by RO-EX-28/29/31 (verified: the mutant kills four proofs) |
 | RO-MUT-25 | RO-INV-28 | mutation | batching the journal to a single write at conclusion is killed by RO-EX-32 (verified: the mutant kills two proofs) |
 | RO-MUT-26 | RO-INV-30 | mutation | claiming the lease and not enforcing it is killed by RO-EX-34 (verified: the mutant kills two proofs) |
+| RO-MUT-27 | RO-INV-31 | mutation | applying a commit without retracting on failure is killed by RO-EX-38/43 (verified: the mutant kills three proofs) |
+| RO-MUT-28 | RO-INV-32 | mutation | emitting the terminal event before the commit is killed by RO-EX-38/39 (verified: the mutant kills two proofs) |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
 | RO-MUT-03 | D5 | mutation | consent-only spend (dropping the eligibility requirement) is killed by the spend-table fixtures |
 | RO-MUT-04 | RO-INV-06 | mutation | replacing a core call with a local reimplementation is killed by RO-EX-06 provenance |

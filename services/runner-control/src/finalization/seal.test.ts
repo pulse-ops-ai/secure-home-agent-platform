@@ -9,7 +9,6 @@
  *  ADV-001    a request with no profile refuses on the PROFILE
  */
 import { describe, expect, it } from 'vitest'
-import { RecordingEvidenceSink } from '../adapters/index.js'
 import { decideSpendGate } from '../consent/index.js'
 import { FinalizationLedger } from './index.js'
 
@@ -19,63 +18,63 @@ const bundleInputs = (bundle: unknown) => ({
 })
 
 describe('RO-ADV-03 / RO-MUT-02: the seal is the final write of the run', () => {
-  it('a seal attempted with writes outstanding is refused and nothing is written', async () => {
-    const sink = new RecordingEvidenceSink()
-    const ledger = new FinalizationLedger('run-1', sink)
+  it('a seal PREPARED with writes outstanding is refused, and nothing is written', () => {
+    const ledger = new FinalizationLedger('run-1')
     ledger.open('event', 'run.started')
 
-    const result = await ledger.seal(bundleInputs({}))
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.refused).toBe('outstanding_writes')
-    expect(result.detail).toContain('run-1')
-    expect(sink.all, 'a refused seal must write nothing').toHaveLength(0)
+    const prepared = ledger.prepareSeal(bundleInputs({}))
+    expect(prepared.ok).toBe(false)
+    if (prepared.ok) return
+    expect(prepared.refused).toBe('outstanding_writes')
+    expect(prepared.detail).toContain('run-1')
     expect(ledger.sealed).toBe(false)
   })
 
-  it('an ineligible bundle is refused even when the ORDER is right', async () => {
-    const sink = new RecordingEvidenceSink()
-    const ledger = new FinalizationLedger('run-1', sink)
-    // Nothing outstanding: ordering is satisfied, eligibility is not.
-    const result = await ledger.seal(bundleInputs(undefined))
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.refused).toBe('not_eligible')
-    expect(sink.all).toHaveLength(0)
+  it('an ineligible bundle is refused even when the ORDER is right', () => {
+    const ledger = new FinalizationLedger('run-1')
+    const prepared = ledger.prepareSeal(bundleInputs(undefined))
+    expect(prepared.ok).toBe(false)
+    if (prepared.ok) return
+    expect(prepared.refused).toBe('not_eligible')
   })
 
-  it('a second seal is refused — a run is sealed once', async () => {
-    const sink = new RecordingEvidenceSink()
-    const ledger = new FinalizationLedger('run-1', sink)
-    // An invalid bundle cannot seal, so use the eligibility refusal to
-    // assert the already-sealed guard independently of contract shape.
-    expect((await ledger.seal(bundleInputs(undefined))).ok).toBe(false)
-    expect(ledger.sealed).toBe(false)
+  it('preparation writes nothing at all — refusing costs nothing', () => {
+    // The ledger holds no sink. That is the property, not an omission:
+    // preparation cannot write because it has nothing to write to, so a
+    // refused preparation cannot leave a partial finalization behind.
+    const ledger = new FinalizationLedger('run-1')
+    ledger.prepareSeal(bundleInputs(undefined))
+    expect(ledger.sequence.filter((entry) => entry.kind === 'seal')).toHaveLength(0)
+  })
+
+  it('a second preparation after a committed seal is refused', () => {
+    const ledger = new FinalizationLedger('run-1')
+    ledger.markSealed()
+    const prepared = ledger.prepareSeal(bundleInputs({}))
+    expect(prepared.ok).toBe(false)
+    if (prepared.ok) return
+    expect(prepared.refused).toBe('already_sealed')
   })
 
   it('the recorded sequence is already filtered to this run (D10)', () => {
-    const sink = new RecordingEvidenceSink()
-    const ledger = new FinalizationLedger('run-1', sink)
+    const ledger = new FinalizationLedger('run-1')
     ledger.open('event', 'run.started')
     ledger.open('transition', 'PROFILE_RESOLVED')
-    // The ledger belongs to one run, so nothing another run does can
-    // enter this sequence — seal-last is a per-run claim by construction.
     for (const entry of ledger.sequence) expect(entry.run_id).toBe('run-1')
     expect(ledger.sequence.map((entry) => entry.kind)).toEqual(['event', 'transition'])
   })
 
-  it('closing every outstanding write admits the seal', async () => {
-    const sink = new RecordingEvidenceSink()
-    const ledger = new FinalizationLedger('run-1', sink)
+  it('closing every outstanding write admits the preparation', () => {
+    const ledger = new FinalizationLedger('run-1')
     ledger.open('event', 'run.started')
-    expect((await ledger.seal(bundleInputs({}))).ok).toBe(false)
+    expect(ledger.prepareSeal(bundleInputs({})).ok).toBe(false)
     ledger.close()
     // Still refused — but now on ELIGIBILITY, not on ordering. The two
     // conditions are independent, which is the point of proving both.
-    const result = await ledger.seal(bundleInputs({}))
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.refused).toBe('not_eligible')
+    const prepared = ledger.prepareSeal(bundleInputs({}))
+    expect(prepared.ok).toBe(false)
+    if (prepared.ok) return
+    expect(prepared.refused).toBe('not_eligible')
   })
 })
 

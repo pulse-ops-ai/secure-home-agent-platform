@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest'
 import { Runner } from '../runner.js'
 import { TRANSITIONS, type ProgressState, type TransitionKind } from '../lifecycle/index.js'
-import { runRequest, testPorts, type TestPorts } from '../testing-fixtures.js'
+import { evidenceSinkFailing, runRequest, testPorts, type TestPorts } from '../testing-fixtures.js'
 
 /** The declared table with exactly one transition removed. */
 const withoutTransition = (from: ProgressState, kind: TransitionKind): typeof TRANSITIONS => {
@@ -149,12 +149,7 @@ describe('RO-EX-29: every phase boundary is table-driven', () => {
 describe('RO-EX-30: the seal transition follows the seal', () => {
   it('a sink that rejects the write leaves the machine short of EVIDENCE_SEALED', async () => {
     const ports = testPorts({
-      evidence: {
-        write: (request: { kind: string }) =>
-          request.kind === 'evidence_bundle'
-            ? Promise.reject(new Error('sink down'))
-            : Promise.resolve(),
-      },
+      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle'),
     })
     const conclusion = await new Runner(ports).run(runRequest())
     expect(conclusion.transitions.map((entry) => entry.to)).not.toContain('EVIDENCE_SEALED')

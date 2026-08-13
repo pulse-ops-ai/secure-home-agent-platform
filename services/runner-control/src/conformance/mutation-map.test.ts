@@ -164,6 +164,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-34'],
   },
   {
+    id: 'RO-MUT-27',
+    mutation: 'apply a finalization commit without retracting on failure',
+    killedBy: ['RO-EX-38', 'RO-EX-43'],
+  },
+  {
+    id: 'RO-MUT-28',
+    mutation: 'emit the terminal event before the commit, binding it to an intention',
+    killedBy: ['RO-EX-38', 'RO-EX-39'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

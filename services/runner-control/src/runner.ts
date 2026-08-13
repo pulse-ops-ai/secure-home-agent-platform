@@ -229,7 +229,7 @@ export class Runner {
     generation: number,
   ): Promise<RunConclusion> {
     const machine = new RunMachine(request.run_id, this.#ports.clock, signals.transitions)
-    const ledger = new FinalizationLedger(request.run_id, this.#ports.evidence)
+    const ledger = new FinalizationLedger(request.run_id)
     const startedAt = this.#ports.clock.now({ run_id: request.run_id })
 
     /**
@@ -336,8 +336,6 @@ export class Runner {
       ledger.close()
       return outcome
     }
-    /** Set by the seal step; the walked branch concludes with it. */
-    let sealedDetail: string | undefined
     /** Set by the consent phase so a hold can report which kind it was. */
     let held: string | undefined
     // Accumulated while RUNNING, read while VERIFYING and at every
@@ -474,6 +472,12 @@ export class Runner {
         started_at: startedAt,
         finished_at: this.#ports.clock.now({ run_id: request.run_id }),
       })
+      // ---- PREPARE ------------------------------------------------
+      // Nothing below writes until every part of the finalization is in
+      // hand and the machine has authorized the whole terminal
+      // sequence. The point of preparing first is that a refusal here
+      // costs nothing: no event was announced, no bundle was written,
+      // and the run terminates on what actually happened.
       const failClosed = async (
         why: string,
         as: TransitionKind = 'operational_fault',
@@ -492,42 +496,52 @@ export class Runner {
         )
       }
 
-      const terminated = await emit({
-        event_type: 'run.terminated',
-        outcome: assembled.outcome,
-      })
-      if (!terminated.ok) return await failClosed(emissionFailure(terminated))
-
-      // The seal is IRREVERSIBLE and earns its transition afterwards, so
-      // the engine's gating cannot cover it: by the time a rejected
-      // `seal_evidence` could halt the walk, the bundle would already be
-      // in the sink. Ask the machine first. This is not a second state
-      // machine — it is declining to perform an irreversible act the
-      // authority has already said it will not honour.
-      if (kind === 'complete' && !machine.permits('seal_evidence')) {
+      // The full terminal sequence, projected but NOT applied. A run
+      // that completes takes two transitions, and both must be declared
+      // before either is committed: sealing the bundle and only then
+      // discovering `complete` is undeclared would leave a sealed run
+      // that cannot be completed.
+      const sequence =
+        kind === 'complete'
+          ? ([
+              { kind: 'seal_evidence' as const, cause: 'evidence sealed' },
+              { kind: 'complete' as const, cause: detail },
+            ] as const)
+          : ([{ kind, cause: detail }] as const)
+      const projected = machine.project([...sequence])
+      if (!projected.ok) {
         return await failClosed(
-          'the machine does not declare seal_evidence from this state; no bundle is written',
+          `the machine declares no ${projected.kind} transition from ${projected.from}; nothing is committed`,
         )
       }
 
-      const sealed = await ledger.seal({ bundle: assembled.bundle, outcome: assembled.outcome })
-      if (!sealed.ok) return await failClosed(`${sealed.refused}: ${sealed.detail}`)
+      // Seal ELIGIBILITY and seal ORDER, both decided before the commit.
+      // The ledger performs no write now: it answers whether this run's
+      // other writes are all in, and asks the core whether the bundle
+      // may be sealed at all.
+      const eligible = ledger.prepareSeal({
+        bundle: assembled.bundle,
+        outcome: assembled.outcome,
+      })
+      if (!eligible.ok) return await failClosed(`${eligible.refused}: ${eligible.detail}`)
 
-      // Sealed — and only now may EVIDENCE_SEALED be recorded. On the
-      // success path the transition is EARNED and applied by the engine,
-      // which is what keeps the record from ever claiming a seal that
-      // did not happen: there is no code path that advances it early.
-      if (kind === 'complete') {
-        // Deliberately NOT concluding here. The conclusion snapshots the
-        // machine's state, and on this path two transitions are still
-        // outstanding — `seal_evidence`, which these effects just
-        // earned, and `complete`. Concluding now would report VERIFYING
-        // for a run that goes on to complete. The engine applies them;
-        // the walked branch concludes afterwards.
-        sealedDetail = detail
-        return { kind: 'earned', cause: 'evidence sealed' }
-      }
-      machine.advance(kind, detail)
+      // ---- COMMIT -------------------------------------------------
+      // One transition. The journal tail, the terminal event, and the
+      // sealed bundle land together or not at all — so the event can
+      // never announce an outcome the run did not reach.
+      const committed = await this.#ports.finalization.commit({
+        run_id: request.run_id,
+        terminal,
+        transitions: projected.entries,
+        event: emitter.envelope({ event_type: 'run.terminated', outcome: assembled.outcome }),
+        bundle: eligible.bundle,
+      })
+      if (!committed.ok) return await failClosed(committed.detail)
+      ledger.markSealed()
+
+      // ---- REFLECT ------------------------------------------------
+      // The machine adopts the entries that were COMMITTED, verbatim.
+      machine.commitProjected(projected.entries)
       return stop(await conclude('evidence_bundle', detail))
     }
 
@@ -908,15 +922,6 @@ export class Runner {
       })
     }
 
-    /**
-     * EVIDENCE_SEALED. The bundle is written; nothing remains but to
-     * record that the run completed. The phase has no effects, which is
-     * the point — every effect happened while earning the transition
-     * into this state.
-     */
-    const evidenceSealed = (): Promise<PhaseCommand<RunConclusion>> =>
-      Promise.resolve({ kind: 'earned', cause: 'the run completed' })
-
     const outcome = await walkPhases(
       machine,
       [
@@ -925,8 +930,10 @@ export class Runner {
         { name: 'eligible', earns: 'commit_spend', run: eligible },
         { name: 'sandbox-started', earns: 'begin_execution', run: sandboxStarted },
         { name: 'running', earns: 'begin_verification', run: running },
+        // The last phase. Finalization is one transaction and owns both
+        // of the terminal transitions, so there is no phase after it —
+        // `earns` names the first of the two it commits.
         { name: 'verifying', earns: 'seal_evidence', run: verifying },
-        { name: 'evidence-sealed', earns: 'complete', run: evidenceSealed },
       ],
       {
         // The lease is checked BEFORE each phase's effects, for the same
@@ -973,11 +980,11 @@ export class Runner {
       case 'halted':
         return await terminateFromRejection(outcome)
       case 'walked':
-        // Every phase earned its transition, so the bundle is sealed and
-        // the machine has reached COMPLETED. Concluding here — after the
-        // last transition — is what makes the reported state the state
-        // the run actually ended in.
-        return await conclude('evidence_bundle', sealedDetail ?? 'the run completed')
+        // Unreachable in practice: the final phase always terminates,
+        // because finalization commits the terminal sequence itself.
+        // Represented rather than assumed — a walk that fell off the end
+        // without terminating would otherwise be a silent success.
+        return await conclude('none', 'the walk ended without a terminal commit')
     }
   }
 }

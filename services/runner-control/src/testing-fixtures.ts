@@ -18,6 +18,7 @@ import {
   InMemoryRunJournal,
   InMemoryRunLease,
   SteppingClock,
+  TransactionalFinalization,
   type RecordedWrite,
 } from './adapters/index.js'
 import type { ArtifactObservation, BaseObservation, WorkspaceObservation } from './ports/index.js'
@@ -169,8 +170,8 @@ export interface TestPorts extends Ports {
   readonly evidence: RecordingEvidenceSink
 }
 
-export const testPorts = (overrides: Partial<Ports> = {}): TestPorts =>
-  ({
+export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
+  const base = {
     authority: new CountingAuthoritySource(),
     workspace: new StaticWorkspaceObserver(),
     artifacts: new StaticArtifactObserver(),
@@ -182,7 +183,20 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts =>
     journal: new InMemoryRunJournal(),
     lease: new InMemoryRunLease(),
     ...overrides,
-  }) as TestPorts
+  } as TestPorts
+  // The commit participates over whatever ports this test actually
+  // uses — including the failing doubles, which is the point.
+  return {
+    ...base,
+    finalization:
+      overrides.finalization ??
+      new TransactionalFinalization({
+        journal: base.journal,
+        events: base.events,
+        evidence: base.evidence,
+      }),
+  }
+}
 
 /**
  * The GOVERNED durable records — the sealed bundle or the early-terminal
@@ -194,6 +208,58 @@ export const governedWrites = (ports: TestPorts, run_id?: string): readonly Reco
   (run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)).filter(
     (write) => write.kind !== 'transition_record',
   )
+
+/**
+ * A sink that fails selected writes but is otherwise real — crucially
+ * including retraction. A double that cannot retract cannot take part in
+ * an all-or-none commit, so a proof built on one would be testing a
+ * participant the production code would refuse.
+ */
+export const evidenceSinkFailing = (
+  shouldFail: (request: { readonly kind: string }) => boolean,
+  base: RecordingEvidenceSink = new RecordingEvidenceSink(),
+): RecordingEvidenceSink =>
+  ({
+    write: (request: { readonly kind: string }) =>
+      shouldFail(request)
+        ? Promise.reject(new Error('evidence sink down'))
+        : base.write(request as never),
+    retractRun: base.retractRun.bind(base),
+    writesOf: base.writesOf.bind(base),
+    get all() {
+      return base.all
+    },
+  }) as unknown as RecordingEvidenceSink
+
+export const eventSinkFailing = (
+  shouldFail: (event: { readonly event_type: string }) => boolean,
+  base: RecordingEventSink = new RecordingEventSink(),
+): RecordingEventSink =>
+  ({
+    emit: (request: { readonly run_id: string; readonly event: { event_type: string } }) =>
+      shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),
+    retractRun: base.retractRun.bind(base),
+    eventsOf: base.eventsOf.bind(base),
+    get runs() {
+      return base.runs
+    },
+  }) as unknown as RecordingEventSink
+
+export const journalFailing = (
+  shouldFail: (transition: { readonly to: string }) => boolean,
+  base: InMemoryRunJournal = new InMemoryRunJournal(),
+): InMemoryRunJournal =>
+  ({
+    appendTransition: (request: { readonly transition: { to: string } }) =>
+      shouldFail(request.transition)
+        ? Promise.reject(new Error('journal down'))
+        : base.appendTransition(request as never),
+    appendRejection: base.appendRejection.bind(base),
+    appendAcquisition: base.appendAcquisition.bind(base),
+    appendHold: base.appendHold.bind(base),
+    retractRun: base.retractRun.bind(base),
+    readCurrentState: base.readCurrentState.bind(base),
+  }) as unknown as InMemoryRunJournal
 
 export const requester = (): PrincipalT => ({
   sub: 'human:mike',

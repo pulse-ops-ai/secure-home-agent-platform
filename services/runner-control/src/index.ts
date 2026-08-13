@@ -29,6 +29,7 @@ export {
   FilesystemWorkspaceObserver,
   InMemoryRunJournal,
   InMemoryRunLease,
+  TransactionalFinalization,
   RecordingEventSink,
   RecordingEvidenceSink,
   SteppingClock,
@@ -39,7 +40,7 @@ export { RunEventEmitter, type EmitOutcome, type EventIdentity } from './events/
 export {
   FinalizationLedger,
   WRITE_KINDS,
-  type SealResult,
+  type SealPreparation,
   type WriteEntry,
   type WriteKind,
 } from './finalization/index.js'

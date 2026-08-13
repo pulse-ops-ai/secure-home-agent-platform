@@ -223,7 +223,42 @@ The gate plan submitted to the execution port is constructed ONLY from the
 captured registry entry — the scheduling interface takes gate identities,
 not argv, so caller widening is unexpressible (ADV-006/MUT-004).
 
-### D7: Seal-last is enforced by an ordering component, proven by recorded sequence
+### D7: Finalization is one atomic transition, not an ordering of writes
+
+Three contracts were in tension, and ordering individual writes cannot
+resolve them:
+
+- every transition is durable;
+- `run.terminated` is truthful;
+- the evidence seal is the run's final write.
+
+Emitting the terminal event with the INTENDED outcome and then sealing
+satisfies the third and breaks the second — a failed seal leaves an event
+announcing `COMPLETED` for a run that ended `OPERATIONAL_FAILURE`. Moving
+the emission after the seal breaks the third instead. The problem is not
+which write goes first; it is that finalization was several writes.
+
+So finalization PREPARES — assemble the bundle, project the whole
+terminal transition sequence from the machine, build the terminal event
+envelope, decide seal ordering and seal eligibility — and only then
+COMMITS the journal tail, the terminal event, and the sealed bundle
+together. All three land or none is observable. The machine then adopts
+the projected entries VERBATIM, so what it reports is the committed fact
+rather than a re-derivation of the intent.
+
+What atomicity means here is this landing's to define; where the
+transaction persists is U11's. The shipped implementation applies in the
+order journal → event → bundle (the seal stays last) and retracts in
+reverse on any failure, and every participating sink must therefore be
+able to retract — required rather than optional, because a sink that
+discovers at rollback time that it cannot unwind has discovered it too
+late.
+
+Preparation refusing costs nothing, which is the property that makes the
+whole thing work: no event has been announced and no bundle written, so
+the run simply terminates on what actually happened.
+
+### D7 (superseded detail): seal-last as an ordering component
 
 `finalization/` owns the write order: it collects the run's writes, invokes
 the core's `decideSealEligibility` over the completed inputs, and submits

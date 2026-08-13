@@ -198,6 +198,47 @@ implementation delivered there inherits this obligation.
 - **THEN** the implementation does not satisfy this requirement, and the
   divergence is observable as a difference from the isolated execution
 
+### Requirement: Finalization is a single atomic transition
+
+A run's finalization comprises the durable transition tail, the
+`run.terminated` event, and the sealed evidence bundle. These SHALL
+commit as ONE transition: after finalization is attempted, either all
+three are observable or none of them is. An implementation that cannot
+guarantee this SHALL fail the commit rather than apply part of it.
+
+The terminal event's outcome SHALL be the outcome that COMMITTED. An
+event announcing a terminal state the run did not reach SHALL NOT be
+observable, including when the seal subsequently fails.
+
+Seal ordering and seal eligibility SHALL be decided BEFORE the commit,
+and the machine SHALL authorize the entire terminal transition sequence
+before any part of it is committed. After a successful commit the run's
+state SHALL reflect the committed fact rather than a re-derivation of the
+intent.
+
+#### Scenario: A rejected seal leaves no trace of a completion
+
+- **GIVEN** a run that reaches finalization
+- **WHEN** the evidence write is rejected
+- **THEN** no sealed bundle is observable
+- **AND** no terminal event announcing completion is observable
+- **AND** the durable record contains no evidence-sealed transition
+- **AND** the run terminates on the failure
+
+#### Scenario: The terminal event never outruns the commit
+
+- **GIVEN** any run reaching a terminal state, successfully or otherwise
+- **WHEN** its emitted terminal event is compared with the state it
+  ended in
+- **THEN** they name the same terminal
+
+#### Scenario: Half a terminal sequence never commits
+
+- **GIVEN** a run whose closing transition is not declared by the machine
+- **WHEN** finalization is attempted
+- **THEN** nothing is committed — a sealed run that cannot be completed
+  is never produced
+
 ### Requirement: The core/control boundary holds in both directions
 
 Orchestration SHALL NOT decide: no module of this service may re-implement,

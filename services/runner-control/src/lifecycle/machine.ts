@@ -218,6 +218,56 @@ export class RunMachine {
     return this.#reject(kind, 'precondition_unmet', detail)
   }
 
+  /**
+   * Project a sequence of transitions WITHOUT applying it.
+   *
+   * Finalization has to know two things before it writes anything: that
+   * the machine declares the whole terminal sequence, and exactly what
+   * the journal tail will say. Projecting answers both — the entries
+   * returned here are the entries `commitProjected` will record, so the
+   * committed tail and the machine's record cannot drift apart.
+   */
+  project(
+    steps: readonly { readonly kind: TransitionKind; readonly cause: string }[],
+  ):
+    | { readonly ok: true; readonly entries: readonly TransitionEntry[] }
+    | { readonly ok: false; readonly kind: TransitionKind; readonly from: LifecycleState } {
+    const entries: TransitionEntry[] = []
+    let state = this.#state
+    for (const step of steps) {
+      if (isTerminal(state)) return { ok: false, kind: step.kind, from: state }
+      const next = declaredNext(this.#table, state, step.kind)
+      if (next === undefined) return { ok: false, kind: step.kind, from: state }
+      entries.push({
+        run_id: this.#runId,
+        from: state,
+        to: next,
+        kind: step.kind,
+        cause: step.cause,
+        at: this.#clock.now({ run_id: this.#runId }),
+      })
+      state = next
+    }
+    return { ok: true, entries }
+  }
+
+  /**
+   * Adopt a projection that has been COMMITTED.
+   *
+   * The entries are recorded verbatim rather than regenerated, so the
+   * machine reflects the fact that was committed rather than a
+   * re-derivation of it. They are marked journaled because the commit
+   * already wrote them — re-appending would duplicate the tail.
+   */
+  commitProjected(entries: readonly TransitionEntry[]): void {
+    for (const entry of entries) {
+      this.#transitions.push(entry)
+      this.#state = entry.to
+      this.#version += 1
+    }
+    this.#journaledTransitions = this.#transitions.length
+  }
+
   /** Claim and apply in one step, for the ordinary sequential path. */
   advance(kind: TransitionKind, cause: string): TransitionResult {
     return this.apply(this.claim(), kind, cause)
