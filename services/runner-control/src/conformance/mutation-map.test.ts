@@ -357,6 +357,33 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-122'],
   },
   {
+    id: 'RO-MUT-63',
+    mutation:
+      'take an already-created promise instead of a thunk, so the effect starts before the abort check',
+    killedBy: ['RO-EX-123'],
+  },
+  {
+    id: 'RO-MUT-64',
+    mutation: 'return a mutable twin of the frozen projection',
+    killedBy: ['RO-EX-124'],
+  },
+  {
+    id: 'RO-MUT-65',
+    mutation: "trust a caller's interrupt reason instead of coercing it to cancellation",
+    killedBy: ['RO-EX-125'],
+  },
+  {
+    id: 'RO-MUT-66',
+    mutation:
+      'abandon an aborted walk immediately, so its record depends on which interrupt arrived',
+    killedBy: ['RO-EX-127'],
+  },
+  {
+    id: 'RO-MUT-67',
+    mutation: 'prove the typestate with a runtime count alone, with no compile-fail fixture',
+    killedBy: ['RO-EX-128'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

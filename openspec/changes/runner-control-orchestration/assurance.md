@@ -123,6 +123,10 @@ are below.
 | RO-INV-67 | The run's budget bounds the WALK, not the call sites that remembered to ask: the walk is raced against the deadline, so a port added later cannot forget to be bounded. Acquisition — which runs before any profile is captured — is bounded by a standing budget, and arming from the captured profile REPLACES that budget rather than leaving both ticking | behavior |
 | RO-INV-68 | The submitted run's one cancellation input is effective, not advisory: `interrupt` is polled while a call is OUTSTANDING rather than only between phases, and a source enumeration re-consults it after draining as well as before each source | behavior |
 | RO-INV-69 | A structural guard is proven by EXERCISING it against a planted counterexample, never by reading its own text. A guard that names a property lexically is a proxy for it, and a suite that only greps the guard tests the proxy — so each such guard is run against something it must catch and something it must not | behavior |
+| RO-INV-70 | An effect is not STARTED once the run is aborted. The bounding mechanism takes a thunk, so the call it wraps cannot be evaluated before the abort is checked — an already-created promise had already begun, and the run then reported a timeout for work it had just set running against a provider the contract says may ignore its signal | trust |
+| RO-INV-71 | A projection has ONE representation. The entries handed to finalization ARE the entries the capability owns and the machine later adopts, frozen, so a port that edits what it was given cannot leave durable history and machine state disagreeing about what the run did | trust |
+| RO-INV-72 | TIMED_OUT's provenance is the GOVERNED wall clock. A caller's interrupt expresses cancellation only — narrowed in the type and coerced at the boundary, because a type is erased at runtime — so a requester cannot author a terminal cause the lifecycle contract assigns to the deadline mechanism | trust |
+| RO-INV-73 | An interrupted run's RECORD does not depend on which interrupt arrived. An aborted walk is given a bounded moment to conclude through its own path, which is what seals; abandoning immediately made a timed-out run write nothing where a cancelled one sealed a bundle, from the same state | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -395,12 +399,23 @@ persistence (U11).
 | RO-MUT-54 | RO-INV-59 | mutation | returning the caller's table from validation, or validating through a narrower key view than `declaredNext` reads, is killed by RO-EX-106 |
 | RO-MUT-55 | RO-INV-50 | mutation | accepting an unprojected entry list in `commitProjected` is killed by RO-EX-107 |
 | RO-MUT-56 | RO-INV-65 | mutation | binding a capability by identity alone — unfrozen entries, or no version check — is killed by RO-EX-115 |
+| RO-EX-123 | RO-INV-70 | adversarial | a deadline that fires while the preceding event is being emitted leaves the adapter uninvoked, observed after the abandoned continuation has had time to run |
+| RO-EX-124 | RO-INV-71 | structural + adversarial | the committed entries and the adopted entries are one frozen identity, and a finalization port that edits its transitions cannot reach the run record |
+| RO-EX-125 | RO-INV-72 | adversarial | a caller returning `'timeout'` through a cast obtains CANCELLED, and the wall clock still produces TIMED_OUT |
+| RO-EX-126 | RO-INV-61 | adversarial | a run that already knows it lost the fence applies nothing back, even against a lease that renews it |
+| RO-EX-127 | RO-INV-73 | adversarial | a wall-clock timeout at a sealing state produces the same declared shape as a cancellation, evidence bundle included |
+| RO-EX-128 | RO-INV-58 | structural | the invalid composition DOES NOT COMPILE — a phase demanding unearned state fails the build, asserted by `@ts-expect-error`, which fails if the line beneath it starts compiling |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-58 | RO-INV-67 | mutation | bounding only the call sites already known to hang, rather than the walk, is killed by RO-EX-118 |
 | RO-MUT-59 | RO-INV-67 | mutation | adding the profile's wall clock alongside the acquisition budget instead of replacing it is killed by RO-EX-119 |
 | RO-MUT-60 | RO-INV-68 | mutation | polling the caller's interrupt only between phases is killed by RO-EX-120 |
 | RO-MUT-61 | RO-INV-69 | mutation | proving a structural guard by scanning its own source text is killed by RO-EX-121 |
 | RO-MUT-62 | RO-INV-61 | mutation | applying workspace changes back before the fence is consulted, so a dispossessed run still writes, is killed by RO-EX-122 |
+| RO-MUT-63 | RO-INV-70 | mutation | taking an already-created promise instead of a thunk, so the effect starts before the abort is checked, is killed by RO-EX-123 |
+| RO-MUT-64 | RO-INV-71 | mutation | returning a mutable twin of the frozen projection is killed by RO-EX-124 |
+| RO-MUT-65 | RO-INV-72 | mutation | trusting a caller's interrupt reason instead of coercing it to cancellation is killed by RO-EX-125 |
+| RO-MUT-66 | RO-INV-73 | mutation | abandoning an aborted walk immediately, so its record depends on which interrupt arrived, is killed by RO-EX-127 |
+| RO-MUT-67 | RO-INV-58 | mutation | proving the typestate with a runtime count alone, which a tree that stopped holding it can still satisfy, is killed by RO-EX-128 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

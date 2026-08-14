@@ -549,6 +549,53 @@ Rejected: weakening L3 construction to accept missing authority
 unavailable until `RUNNING` (leaves early runs un-cancellable for no
 reason once acquisition is sequenced first).
 
+### D13: A timeout bounds the WAIT, and that is not the same as bounding the WRITE
+
+Raised by the round-5 review, and recorded because the fix landed here is
+deliberately partial.
+
+`RunDeadline` now bounds the whole walk rather than the call sites that
+remembered to ask, and `until()` takes a thunk so an aborted run cannot
+START the effect it was about to wrap. Both are about the WAIT. Neither
+makes an abandoned write not land:
+
+```
+read / prepare        →  a cancellable race is sufficient
+                         nothing durable happened
+
+irreversible write    →  a race is NOT sufficient
+                         "timed out" must not mean
+                         "the write may still land later"
+```
+
+`Promise.race([write(), expired()])` returns TIMED_OUT while the write it
+abandoned is still in flight. The abandoned promise can complete
+afterwards and apply its mutation, and this landing's in-memory
+implementations make that invisible — they settle immediately, so no test
+here can distinguish the two.
+
+What holds the line today, and what does not:
+
+| Boundary | Bounded | Abandoned write cannot land |
+|---|---|---|
+| `until()`-wrapped effects | yes, and not started once aborted | not applicable — not started |
+| the walk as a whole | yes, plus a bounded grace to conclude | no |
+| `workspace.applyBack`, `finalization.commit` | by the walk | **no** — the fence is what covers them |
+
+The fence is the reason this is a seam rather than a hole. A write that
+lands late arrives with a superseded generation and is refused by the
+resource, so a dispossessed run's late write does not take effect. What
+the fence does NOT give is idempotency for a run that still owns its
+generation: its own abandoned write may still land after it has reported
+a timeout.
+
+**Deferred, with the boundary named.** Closing it needs abortability or
+idempotency at the port contract — a commit protocol rather than a race —
+and that belongs with the real execution and persistence implementations
+(L9, U11), not with deterministic in-memory doubles. This landing states
+the requirement so the implementations arrive against it rather than
+discovering it.
+
 ## Decision Tables
 
 Spend transition (leaving `ELIGIBLE`):

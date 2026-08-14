@@ -296,12 +296,21 @@ export class RunMachine {
     // held capability could be edited between projection and commit —
     // authorization checked against one set of entries and applied to
     // another. Freezing each entry and the list closes that.
+    // ONE REPRESENTATION, ONE IDENTITY. This returned the frozen copies
+    // in the capability AND the mutable original as `entries` — and it
+    // was the mutable original that crossed the `FinalizationPort`
+    // boundary while the machine afterwards adopted the frozen copies.
+    // A port that edited the array it was handed before reporting
+    // success left durable history and machine state disagreeing about
+    // what the run did, with nothing able to detect it. Freezing one
+    // list and exposing an editable twin of it is not a guarantee.
+    const frozen = Object.freeze(entries.map((entry) => Object.freeze({ ...entry })))
     const capability: CommitCapability = Object.freeze({
-      entries: Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
+      entries: frozen,
       fromVersion: this.#version,
     })
     this.#projections.add(capability)
-    return { ok: true, entries, capability }
+    return { ok: true, entries: capability.entries, capability }
   }
 
   /**

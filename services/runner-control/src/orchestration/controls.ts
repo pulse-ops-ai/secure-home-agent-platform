@@ -145,6 +145,17 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
  * it exists to make "there is no unbounded run" true from the first
  * effect rather than from the fourth phase.
  */
+/**
+ * How long an ABORTED walk is given to conclude through its own path.
+ *
+ * Short: this is not more run time, it is the moment between raising the
+ * abort and giving up on the walk that was supposed to notice it. A walk
+ * whose ports respond reaches its next boundary well inside this and
+ * seals its record; one that cannot is abandoned, and the run is still
+ * bounded by `deadline + grace`.
+ */
+export const ABANDON_GRACE_MS = 250
+
 export const ACQUISITION_BUDGET_MS = 60_000
 
 export const boundedDeadlineMs = (

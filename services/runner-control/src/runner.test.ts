@@ -22,10 +22,13 @@ import {
   governedWrites,
   testPorts,
   withoutConsent,
+  HangingAdapter,
 } from './testing-fixtures.js'
 
 /** Nothing for the first `checks` consultations, then the given signal. */
-const cancelAfterChecks = (checks: number, signal: 'cancel' | 'timeout' = 'cancel') => {
+// CANCELLATION ONLY. `RunSignals.interrupt` no longer admits
+// `'timeout'`: the governed wall clock owns that terminal's provenance.
+const cancelAfterChecks = (checks: number, signal: 'cancel' = 'cancel') => {
   let seen = 0
   return () => {
     seen += 1
@@ -213,13 +216,21 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
     expect(JSON.stringify(parsed.data.outcome)).toContain('cancel')
   })
 
+  // RO-EX-127 — RO-INV-73. Kills RO-MUT-66.
   it('a timeout is the same declared shape, with its own terminal state', async () => {
     const ports = testPorts()
     // Past the REQUESTED check, for the same reason as above: this is
     // about the shape a SEALING state produces, not the pre-authority one.
-    const conclusion = await new Runner(ports).run(runRequest(), {
-      interrupt: cancelAfterChecks(1, 'timeout'),
-    })
+    // DRIVEN BY THE WALL CLOCK, not by a submitted `'timeout'`.
+    // `RunSignals.interrupt` returns cancellation only — a requester
+    // that could return `'timeout'` authored the provenance of a
+    // terminal the lifecycle contract assigns to the governed deadline.
+    // The property asserted is unchanged: a timeout produces the same
+    // declared shape as a cancellation, with its own terminal state.
+    const conclusion = await new Runner(
+      { ...ports, adapter: new HangingAdapter() },
+      { deadline_ms: 40 },
+    ).run(runRequest())
     expect(conclusion.state).toBe('TIMED_OUT')
     expect(conclusion.produced).toBe('evidence_bundle')
   })

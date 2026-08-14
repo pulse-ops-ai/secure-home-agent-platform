@@ -176,6 +176,27 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     expect(planted.length, 'a phase given observations it never earned').toBe(2)
   })
 
+  // RO-EX-128 — RO-INV-58. Kills RO-MUT-67.
+  it('RO-EX-94: the invalid composition does not compile', () => {
+    // COMPILER-SHAPED, which is what the claim says. The two checks above
+    // are runtime — arity is a number, and a number can be asserted about
+    // a tree that has stopped holding the property. RO-INV-58 says
+    // reading unearned state is a COMPILE ERROR, so the proof has to be
+    // one: `@ts-expect-error` FAILS THE BUILD if the line beneath it
+    // starts compiling.
+    //
+    // TypeScript accepts a function with fewer parameters where more are
+    // expected, and rejects one with more. So a phase that demands
+    // observations cannot be used where the walk uses `requested` — and
+    // the day someone widens `requested` to take them, this stops being
+    // an error and the suite says so.
+    // @ts-expect-error a phase cannot demand state the walk has not established
+    const invalid: typeof requested = (_env: RunEnvironment, _seen: Observations) => 0
+    expect(typeof invalid, 'the fixture exists — it is the compile check that proves it').toBe(
+      'function',
+    )
+  })
+
   it('RO-EX-94: no phase state is reached through a type assertion', () => {
     // `authority as Authority` was the same instruction as `profile!:`
     // wearing different syntax — and the assertion guard below could not

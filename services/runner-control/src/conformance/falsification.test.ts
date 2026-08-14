@@ -43,6 +43,7 @@ import {
   StaticWorkspaceObserver,
   testPorts,
   withoutConsent,
+  HangingAdapter,
 } from '../testing-fixtures.js'
 import type {
   ApplyBackOutcome,
@@ -290,38 +291,51 @@ describe('RO-EX-103: the escape scans cover the forms actually used here', () =>
 // pr82-round2.test.ts
 // ======================================================================
 
-/** Nothing for the first `checks` consultations, then `signal`. */
-const pollAfter = (checks: number, signal: 'cancel' | 'timeout') => {
+/** Nothing for the first `checks` consultations, then a cancellation. */
+const pollAfter = (checks: number) => {
   let seen = 0
   return () => {
     seen += 1
-    return seen > checks ? signal : undefined
+    return seen > checks ? ('cancel' as const) : undefined
   }
 }
 
-describe('RO-EX-104: a polled timeout keeps its own terminal at every boundary', () => {
+describe('RO-EX-104: a timeout keeps its own terminal at every boundary', () => {
+  // REWRITTEN BY THE AUTHOR, and this note is the reason.
+  //
+  // These two drove a timeout through `interrupt: () => 'timeout'` — a
+  // POLLED reason with no raise behind it, which is exactly the defect
+  // round 5's finding 7 reports: `runner-lifecycle` makes TIMED_OUT what
+  // happens when the governed wall clock elapses, and a requester that
+  // can return it authors the provenance of a terminal it has no
+  // authority over. `RunSignals.interrupt` returns cancellation only
+  // now, so the vehicle these tests used no longer exists.
+  //
+  // The PROPERTY they proved is untouched and still proved below: a
+  // boundary must carry the reason forward rather than flatten it to
+  // 'cancel'. It is driven by the wall clock, which is the only thing
+  // that may produce a timeout.
+  //
+  // Worth stating plainly: the hazard is now structural rather than
+  // guarded. `abortRun` defaults to `deadline.reason`, and a reason can
+  // only exist if it was raised — so there is no longer a signal that
+  // can be polled but not raised, which is what a boundary used to drop.
   it('SANDBOX_STARTED records TIMED_OUT, not CANCELLED', async () => {
-    // `RunDeadline.reason` is set only by `raise()`. A POLLED interrupt
-    // is merely returned by `interrupted()`, so a boundary that discards
-    // the returned signal leaves `abortRun` defaulting to 'cancel' — and
-    // the sealed terminal evidence then says a timed-out run was
-    // cancelled. Two boundaries preserve the signal; this one did not.
     const session = new RecordingSession()
-    const conclusion = await new Runner(testPorts({ session })).run(runRequest(), {
-      interrupt: pollAfter(3, 'timeout'),
-    })
+    const conclusion = await new Runner(testPorts({ session, adapter: new HangingAdapter() }), {
+      deadline_ms: 40,
+    }).run(runRequest())
 
     expect(session.calls, 'the session was open at this boundary').toContain('start')
-    expect(conclusion.state, 'a polled timeout must not be recorded as a cancellation').toBe(
-      'TIMED_OUT',
-    )
+    expect(session.calls, 'and the boundary interrupted it').toContain('interrupt')
+    expect(conclusion.state, 'a timeout must not be recorded as a cancellation').toBe('TIMED_OUT')
   })
 
-  it('the other boundaries still keep theirs — the control', async () => {
+  it('a polled cancellation still records CANCELLED — the control', async () => {
     const conclusion = await new Runner(testPorts()).run(runRequest(), {
-      interrupt: pollAfter(4, 'timeout'),
+      interrupt: pollAfter(4),
     })
-    expect(conclusion.state).toBe('TIMED_OUT')
+    expect(conclusion.state).toBe('CANCELLED')
   })
 })
 

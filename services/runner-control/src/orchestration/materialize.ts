@@ -37,6 +37,24 @@ export const materialize = async (
   }
   if (scope.workspace === undefined || policy?.ok !== true) return undefined
 
+  // WHAT THIS RUN ALREADY KNOWS, BEFORE ASKING ANYONE ELSE.
+  //
+  // `fenceLost` is a fact this attempt owns: a resource refused its
+  // generation, so ownership has moved. `renew` is a QUESTION put to a
+  // store that may be stale, partitioned, or simply wrong — and a store
+  // that answers yes cannot restore an ownership the run has already
+  // been told it lost. Asking first meant a permissive lease could talk
+  // a dispossessed run into the one write that escapes isolation.
+  //
+  // Round 4's finding 3 named two holes here and only one was closed;
+  // this is the other. No port between the verification epoch and this
+  // point can refuse a fence, so nothing reaches it today — that is what
+  // defence in depth is, and the day a port is added between them is
+  // exactly when nobody will remember to add this check.
+  if (scope.fenceLost !== undefined) {
+    return stop(await conclude(env, 'none', scope.fenceLost))
+  }
+
   // OWNERSHIP, RE-ASKED IMMEDIATELY BEFORE THE WRITE THAT ESCAPES.
   //
   // The fence alone cannot cover this one: a resource can only refuse a

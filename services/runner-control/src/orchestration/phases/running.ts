@@ -31,7 +31,7 @@ export const running = async (
   const adapterStarted = await emit(env, authority, { event_type: 'adapter.started' })
   if (!adapterStarted.ok) return fault(emissionFailure(adapterStarted), so_far())
 
-  const invocation = await env.deadline.until(
+  const invocation = await env.deadline.until(() =>
     ports.adapter.invoke({
       ...scope.fence,
       adapter: authority.adapter,

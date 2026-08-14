@@ -83,6 +83,7 @@ class SlowStartEvents {
   }
 }
 
+/** RO-EX-123 — RO-INV-70. Kills RO-MUT-63. */
 describe('an aborted run can still start the effect it was about to wrap', () => {
   it('the adapter is invoked after the deadline has already fired', async () => {
     const base = testPorts()
@@ -149,6 +150,7 @@ describe('an aborted run can still start the effect it was about to wrap', () =>
 // about what the run did, with nothing detecting it.
 // ======================================================================
 
+/** RO-EX-124 — RO-INV-71. Kills RO-MUT-64. */
 describe('the committed transition tail and the adopted one can diverge', () => {
   it('finalization cannot edit the transitions it was handed', () => {
     const machine = new RunMachine(RUN, { now: () => '2026-08-13T00:00:00.000Z' })
@@ -188,7 +190,7 @@ describe('the committed transition tail and the adopted one can diverge', () => 
         return await inner.commit(request)
       },
     }
-    const runner = new Runner({ ...ports, finalization: meddling } as unknown as TestPorts)
+    const runner = new Runner({ ...ports, finalization: meddling })
 
     const conclusion = await runner.run(runRequest())
 
@@ -217,6 +219,7 @@ describe('the committed transition tail and the adopted one can diverge', () => 
 // stated explicitly.
 // ======================================================================
 
+/** RO-EX-125 — RO-INV-72. Kills RO-MUT-65. */
 describe('a caller can author the provenance of a governed terminal', () => {
   it('a submitted `timeout` does not become a TIMED_OUT run', async () => {
     const ports = testPorts()
@@ -267,6 +270,7 @@ describe('a caller can author the provenance of a governed terminal', () => {
 // to prove defence in depth is to put the state in front of it. An
 // end-to-end fixture here would prove the earlier guard twice and this
 // one not at all.
+/** RO-EX-126 — RO-INV-61. */
 describe('a run that already knows it lost the fence still asks the lease', () => {
   const dispossessedEnvironment = (ports: TestPorts) => {
     const scope = new RunScope(
@@ -320,8 +324,8 @@ describe('a run that already knows it lost the fence still asks the lease', () =
     // the resource that refused its generation; `renew` is a question
     // asked of a store that may not know yet, or may be partitioned.
     const workspace = new RecordingWorkspaceLifecycle()
-    const ports = testPorts({ workspace }) as TestPorts
-    const permissive = { ...ports.lease, renew: async () => true }
+    const ports = testPorts({ workspace })
+    const permissive = { ...ports.lease, renew: () => Promise.resolve(true) }
     const env = dispossessedEnvironment({ ...ports, lease: permissive } as unknown as TestPorts)
     const { authority, seen } = materializableState()
 

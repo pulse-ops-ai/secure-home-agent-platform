@@ -15,6 +15,7 @@
  * because nothing owned clearing them.
  */
 import type { RunScope } from '../run/scope.js'
+import { ABANDON_GRACE_MS } from './controls.js'
 
 export type InterruptReason = 'cancel' | 'timeout'
 
@@ -35,9 +36,16 @@ export class RunDeadline {
   readonly #poll: (() => InterruptReason | undefined) | undefined
   #reason: InterruptReason | undefined
 
-  constructor(scope: RunScope, poll?: () => InterruptReason | undefined) {
+  constructor(scope: RunScope, poll?: () => 'cancel' | undefined) {
     this.#scope = scope
-    this.#poll = poll
+    // COERCED, NOT TRUSTED. `RunSignals.interrupt` is declared to return
+    // cancellation only, and a type is erased at runtime — a caller can
+    // cast and return `'timeout'`. TIMED_OUT is what the governed wall
+    // clock produces; whatever a caller says it wants, what it can
+    // obtain is a cancellation. The narrowing lives HERE because this is
+    // the one place a caller's answer becomes a run's interrupt reason.
+    this.#poll =
+      poll === undefined ? undefined : () => (poll() === undefined ? undefined : 'cancel')
   }
 
   /** Handed to the calls that may hang, so they can stop themselves. */
@@ -115,6 +123,22 @@ export class RunDeadline {
   }
 
   /**
+   * How long an ABORTED walk is given to conclude through its own path.
+   *
+   * Lives here because it is a TIMER, and every timer a run owns is this
+   * class's — spread across the engine they were four, and each one
+   * outlived every exception because nothing owned clearing them.
+   */
+  grace(): Promise<{ readonly expired: true }> {
+    return new Promise<{ readonly expired: true }>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve({ expired: true })
+      }, ABANDON_GRACE_MS)
+      timer.unref?.()
+    })
+  }
+
+  /**
    * Await `work`, or give up when the run is aborted.
    *
    * Returns `undefined` on abort. The abandoned call may still be
@@ -122,7 +146,16 @@ export class RunDeadline {
    * than merely abandoned: stopping it is the session's job, and proving
    * the stop worked is L9's.
    */
-  async until<T>(work: Promise<T>): Promise<T | undefined> {
+  async until<T>(work: () => Promise<T>): Promise<T | undefined> {
+    // A THUNK, NOT A PROMISE. This took an already-created promise, and
+    // JavaScript evaluates an argument before entering the function it
+    // is passed to — so `until(ports.adapter.invoke({…}))` STARTED the
+    // invocation, and only then checked whether the run was already
+    // aborted. A deadline that fired while the preceding event was being
+    // emitted therefore reported a timeout for work it had just set
+    // running, against a provider the contract says may ignore its
+    // signal. The type is what fixes it: an effect that has not been
+    // called cannot have started.
     if (this.#aborter.signal.aborted) return undefined
     // THE CALLER'S INTERRUPT IS POLLED WHILE WAITING, not only between
     // phases. `interrupt` is the ONLY cancellation input a submitted run
@@ -141,8 +174,12 @@ export class RunDeadline {
     // intervals exists for timers that do neither.
     ticking?.unref?.()
     try {
+      // RE-CHECKED IMMEDIATELY BEFORE STARTING IT. Arming the poll above
+      // can raise the abort, and a thunk that is called anyway would
+      // reintroduce the very gap the thunk exists to close.
+      if (this.#aborter.signal.aborted) return undefined
       return await Promise.race([
-        work,
+        work(),
         new Promise<undefined>((resolve) => {
           this.#aborter.signal.addEventListener('abort', () => {
             resolve(undefined)

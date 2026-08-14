@@ -40,7 +40,7 @@ export const runGates = async (
 
   const recorder = new DispositionRecorder(plan.plan.map((entry) => entry.gate_id))
   for (const entry of plan.plan) {
-    const report = await env.deadline.until(
+    const report = await env.deadline.until(() =>
       env.ports.execution.runGate({
         ...env.scope.fence,
         gate_id: entry.gate_id,

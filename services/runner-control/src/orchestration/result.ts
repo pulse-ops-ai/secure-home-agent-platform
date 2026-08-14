@@ -61,8 +61,19 @@ export interface RunRequest {
  * constructor-time `RunControls` now, validated as narrowings.
  */
 export interface RunSignals {
-  /** Consulted at every declared boundary; the run terminates on it. */
-  readonly interrupt?: () => 'cancel' | 'timeout' | undefined
+  /**
+   * Consulted at every declared boundary; the run terminates on it.
+   *
+   * CANCELLATION ONLY. This returned `'cancel' | 'timeout'`, so a
+   * requester could return `'timeout'` and obtain a `TIMED_OUT` run
+   * without any budget elapsing. `runner-lifecycle` defines TIMED_OUT as
+   * what happens when the DECLARED WALL-CLOCK BUDGET elapses — a
+   * governed deadline derived from the captured profile — so a caller
+   * returning it authored the provenance of a terminal cause it has no
+   * authority over. Timeout is `RunDeadline`'s alone; a caller may stop
+   * its own run and say so truthfully.
+   */
+  readonly interrupt?: () => 'cancel' | undefined
 }
 
 /** What a terminal carries forward from the parts of the run that ran. */

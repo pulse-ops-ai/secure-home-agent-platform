@@ -173,11 +173,31 @@ export class Runner {
       // and the authority reads preceded the arming entirely. A port
       // added later cannot forget to be bounded when nothing at the call
       // site is what bounds it.
+      const walking = this.#walk(env).then((conclusion) => ({ conclusion }) as const)
       const walked = await Promise.race([
-        this.#walk(env).then((conclusion) => ({ conclusion })),
-        env.deadline.expired().then((reason) => ({ reason })),
+        walking,
+        env.deadline.expired().then((reason) => ({ reason }) as const),
       ])
       if ('conclusion' in walked) return walked.conclusion
+
+      // A GRACE PERIOD, AND WHY IT IS NOT A HOLE.
+      //
+      // Abandoning the moment the clock fires made every wall-clock
+      // timeout produce `none`: `#abandon` has the scope but NOT the
+      // authority — identities, principal, emitter — so it cannot seal,
+      // and a cancelled run sealed an evidence bundle while a timed-out
+      // one wrote nothing. Same run, same state, different record,
+      // decided by which interrupt arrived.
+      //
+      // The abort is already raised, so a walk whose ports still respond
+      // reaches its next boundary and concludes through `abortRun` →
+      // `finish`, which is what seals. This waits a bounded moment for
+      // that, and abandons only a walk that genuinely cannot get there.
+      // The guarantee round 4 established is intact — a hung port still
+      // cannot hold the run open past `deadline + grace`.
+      const graced = await Promise.race([walking, env.deadline.grace()])
+      if ('conclusion' in graced) return graced.conclusion
+
       // The walk is abandoned, still running. That is why the session is
       // INTERRUPTED rather than merely dropped — stopping it is L9's, and
       // this gives it something to stop.

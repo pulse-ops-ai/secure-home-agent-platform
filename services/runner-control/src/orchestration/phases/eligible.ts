@@ -94,7 +94,7 @@ export const eligible = async (
     env.controls.cancelAfterMs,
   )
 
-  const prepared = await env.deadline.until(
+  const prepared = await env.deadline.until(() =>
     ports.session.prepare({
       ...scope.fence,
       profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
@@ -118,7 +118,7 @@ export const eligible = async (
   }
   scope.session = prepared.handle
 
-  const started = await env.deadline.until(
+  const started = await env.deadline.until(() =>
     ports.session.start({ ...scope.fence, session_ref: prepared.handle.session_ref }),
   )
   if (started === undefined) return abortRun(env, authority, noObservations())
