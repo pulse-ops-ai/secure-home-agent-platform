@@ -183,7 +183,11 @@ describe('RO-EX-34: one run, one owner — across Runner instances', () => {
   it('the run that does NOT hold the lease performs no effect at all', async () => {
     const shared = testPorts()
     const holder = new InMemoryRunLease()
-    const claimed = await holder.claim({ run_id: RUN })
+    const claimed = await holder.claim({
+      run_id: RUN,
+      attempt_id: 'holder',
+      signal: new AbortController().signal,
+    })
     expect(claimed.ok).toBe(true)
 
     const conclusion = await new Runner({ ...shared, lease: holder }).run(runRequest())
@@ -197,14 +201,22 @@ describe('RO-EX-34: one run, one owner — across Runner instances', () => {
   it('the lease is released on conclusion, so the run can be picked up again', async () => {
     const ports = testPorts()
     await new Runner(ports).run(runRequest())
-    const second = await ports.lease.claim({ run_id: RUN })
+    const second = await ports.lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     expect(second.ok, 'a concluded run must not hold its lease forever').toBe(true)
   })
 
   it('a held run releases its lease — a pending run is not a locked one', async () => {
     const ports = testPorts()
     await new Runner(ports).run(withoutConsent(runRequest()))
-    const second = await ports.lease.claim({ run_id: RUN })
+    const second = await ports.lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     expect(second.ok).toBe(true)
   })
 })
@@ -229,7 +241,11 @@ describe('RO-EX-35: a lost lease stops the run', () => {
 describe('RO-EX-36: the fencing token is real', () => {
   it('a stale generation cannot renew', async () => {
     const lease = new InMemoryRunLease()
-    const first = await lease.claim({ run_id: RUN })
+    const first = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     if (!first.ok) throw new Error('the first claim must succeed')
     seizeLease(lease, RUN)
     expect(await lease.renew({ run_id: RUN, generation: first.generation })).toBe(false)
@@ -237,7 +253,11 @@ describe('RO-EX-36: the fencing token is real', () => {
 
   it('a stale generation cannot release the current holder', async () => {
     const lease = new InMemoryRunLease()
-    const first = await lease.claim({ run_id: RUN })
+    const first = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     if (!first.ok) throw new Error('the first claim must succeed')
     const current = seizeLease(lease, RUN)
     await lease.release({ run_id: RUN, generation: first.generation })

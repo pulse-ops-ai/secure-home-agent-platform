@@ -72,6 +72,42 @@ export const emptyOperations = (): EvidenceOperations => ({
 })
 
 /**
+ * Facts that are already true and therefore must survive any terminal.
+ *
+ * Deliberately separate from `Observations`: verification still receives
+ * a total value that proves RUNNING completed. Terminalization needs an
+ * append-only projection of facts that became true before that point.
+ */
+export interface TerminalEvidence {
+  gate_results: GateResultsT
+  observed: AuthoritativeChangeSet
+  artifacts: ArtifactObservation
+  operations: EvidenceOperations
+}
+
+export const emptyTerminalEvidence = (): TerminalEvidence => ({
+  gate_results: {},
+  observed: { changes: [] },
+  artifacts: { ok: true, artifacts: [] },
+  operations: emptyOperations(),
+})
+
+const copyOperations = (operations: EvidenceOperations): EvidenceOperations => ({
+  attempted: [...operations.attempted],
+  permitted: [...operations.permitted],
+  denied: [...operations.denied],
+})
+
+export const snapshotTerminalEvidence = (evidence: TerminalEvidence): Observations => ({
+  gate_results: { ...evidence.gate_results },
+  observed: { changes: [...evidence.observed.changes] },
+  artifacts: evidence.artifacts.ok
+    ? { ok: true, artifacts: [...evidence.artifacts.artifacts] }
+    : { ok: false, failure: evidence.artifacts.failure },
+  operations: copyOperations(evidence.operations),
+})
+
+/**
  * A run that has observed nothing yet.
  *
  * Used by the terminals reachable before execution. An empty set is the
@@ -79,10 +115,7 @@ export const emptyOperations = (): EvidenceOperations => ({
  * which is why it is spelled out rather than defaulted.
  */
 export const noObservations = (): Observations => ({
-  gate_results: {},
-  observed: { changes: [] },
-  artifacts: { ok: true, artifacts: [] },
-  operations: emptyOperations(),
+  ...snapshotTerminalEvidence(emptyTerminalEvidence()),
 })
 
 /**

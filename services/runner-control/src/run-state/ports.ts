@@ -109,10 +109,27 @@ export interface RunJournalPort {
  */
 export type LeaseClaim =
   | { readonly ok: true; readonly generation: number }
-  | { readonly ok: false; readonly reason: 'already_leased'; readonly detail: string }
+  | {
+      readonly ok: false
+      readonly reason: 'already_leased' | 'claim_aborted'
+      readonly detail: string
+    }
+
+/**
+ * One ownership attempt, cancellable before it becomes current.
+ *
+ * The attempt identity lets a durable implementation bind any eventual
+ * grant to the exact pending request. The signal makes an expired attempt
+ * ineligible for ownership at the resource, rather than compensating
+ * after the caller has already concluded.
+ */
+export interface LeaseClaimRequest extends RunScoped {
+  readonly attempt_id: string
+  readonly signal: AbortSignal
+}
 
 export interface RunLeasePort {
-  claim(request: RunScoped): Promise<LeaseClaim>
+  claim(request: LeaseClaimRequest): Promise<LeaseClaim>
   /** `false` once this generation no longer holds the run. */
   renew(request: RunScoped & { readonly generation: number }): Promise<boolean>
   release(request: RunScoped & { readonly generation: number }): Promise<void>

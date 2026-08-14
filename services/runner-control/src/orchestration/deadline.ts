@@ -86,6 +86,7 @@ export class RunDeadline {
    * says nothing.
    */
   interrupted(): InterruptReason | undefined {
+    this.#raiseIfElapsed()
     if (this.#reason !== undefined) return this.#reason
     const polled = this.#poll?.()
     if (polled !== undefined) this.raise(polled)
@@ -172,6 +173,7 @@ export class RunDeadline {
     // during an outstanding call. Polling synchronously before every
     // port would turn implementation detail (how many ports a phase
     // uses) into cancellation semantics and move named boundaries.
+    this.#raiseIfElapsed()
     if (this.#aborter.signal.aborted) {
       throw new RunInterrupted(this.#reason ?? 'timeout')
     }
@@ -212,6 +214,18 @@ export class RunDeadline {
     return new RunSettlement()
   }
 
+  /**
+   * A finite recovery boundary that preserves the governed run deadline.
+   *
+   * Recovery finalization happens while the machine is still
+   * non-terminal, so caller cancellation and the profile expiry still
+   * win before publication. The independent settlement ceiling also
+   * keeps a broken recovery sink from making `run()` unbounded.
+   */
+  recovery(): RunRecovery {
+    return new RunRecovery(this)
+  }
+
   /** Stop every timer and poll owned by this run. Safe to call twice. */
   disarm(): void {
     if (this.#wallClock !== undefined) clearTimeout(this.#wallClock)
@@ -219,6 +233,16 @@ export class RunDeadline {
     this.#wallClock = undefined
     this.#cancelClock = undefined
     this.#armedUntil = undefined
+  }
+
+  #raiseIfElapsed(): void {
+    if (
+      this.#reason === undefined &&
+      this.#armedUntil !== undefined &&
+      Date.now() >= this.#armedUntil
+    ) {
+      this.raise('timeout')
+    }
   }
 }
 
@@ -266,5 +290,66 @@ export class RunSettlement implements CallGuard {
     if (this.#aborter.signal.aborted || Date.now() >= this.#expiresAt) {
       throw new RunSettlementExpired()
     }
+  }
+}
+
+export class RunRecovery implements CallGuard {
+  readonly #deadline: RunDeadline
+  readonly #settlementAborter = new AbortController()
+  readonly #aborter = new AbortController()
+  readonly #timer: ReturnType<typeof setTimeout>
+  readonly #expiresAt = Date.now() + ABANDON_GRACE_MS
+
+  constructor(deadline: RunDeadline) {
+    this.#deadline = deadline
+    this.#timer = setTimeout(() => {
+      this.#settlementAborter.abort()
+    }, ABANDON_GRACE_MS)
+    this.#timer.unref?.()
+  }
+
+  get signal(): AbortSignal {
+    return this.#aborter.signal
+  }
+
+  async call<T>(work: () => Promise<T>): Promise<T> {
+    const reason = this.#deadline.interrupted()
+    if (reason !== undefined) throw new RunInterrupted(reason)
+    if (this.#settlementAborter.signal.aborted || Date.now() >= this.#expiresAt) {
+      throw new RunSettlementExpired()
+    }
+
+    let rejectBoundary: ((error: RunInterrupted | RunSettlementExpired) => void) | undefined
+    const boundary = new Promise<never>((_resolve, reject) => {
+      rejectBoundary = reject
+    })
+    const onRunAbort = (): void => {
+      // Reject the orchestration continuation BEFORE notifying the port,
+      // so a port that resolves on signal cannot win the Promise race and
+      // relabel cancellation as an ordinary commit failure.
+      rejectBoundary?.(new RunInterrupted(this.#deadline.reason ?? 'timeout'))
+      this.#aborter.abort()
+    }
+    const onSettlementAbort = (): void => {
+      rejectBoundary?.(new RunSettlementExpired())
+      this.#aborter.abort()
+    }
+    this.#deadline.signal.addEventListener('abort', onRunAbort, { once: true })
+    this.#settlementAborter.signal.addEventListener('abort', onSettlementAbort, { once: true })
+    const ticking = setInterval(() => {
+      this.#deadline.interrupted()
+    }, POLL_INTERVAL_MS)
+    ticking.unref?.()
+    try {
+      return await Promise.race([work(), boundary])
+    } finally {
+      this.#deadline.signal.removeEventListener('abort', onRunAbort)
+      this.#settlementAborter.signal.removeEventListener('abort', onSettlementAbort)
+      clearInterval(ticking)
+    }
+  }
+
+  disarm(): void {
+    clearTimeout(this.#timer)
   }
 }

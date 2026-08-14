@@ -21,8 +21,8 @@ import type {
   FinalizationCommit,
   FinalizationPort,
   LeaseClaim,
+  LeaseClaimRequest,
   RunJournalPort,
-  RunScoped,
 } from '../ports/index.js'
 import { Runner } from '../runner.js'
 import {
@@ -482,30 +482,25 @@ describe('the active proof net has one interruption architecture', () => {
 })
 
 // =====================================================================
-// CARRY-FORWARD 1 — a timed-out lease claim may answer late, but it may
-// not acquire an orphaned lease after run() reported not_started.
+// CARRY-FORWARD 1 — an aborted claim attempt cannot become ownership.
 // =====================================================================
 
-class LateClaimLease {
+class AbortableClaimLease {
   readonly inner = new InMemoryRunLease()
-  readonly #lateDone: Promise<LeaseClaim>
-  #finishLate: ((claim: LeaseClaim) => void) | undefined
-  #allow: (() => void) | undefined
+  aborted = false
 
-  constructor() {
-    this.#lateDone = new Promise<LeaseClaim>((resolveLate) => {
-      this.#finishLate = resolveLate
-    })
-  }
-
-  claim(request: RunScoped): Promise<LeaseClaim> {
+  claim(request: LeaseClaimRequest): Promise<LeaseClaim> {
     return new Promise<LeaseClaim>((resolveClaim) => {
-      this.#allow = () => {
-        void this.inner.claim(request).then((claim) => {
-          resolveClaim(claim)
-          this.#finishLate?.(claim)
+      const abort = (): void => {
+        this.aborted = true
+        resolveClaim({
+          ok: false,
+          reason: 'claim_aborted',
+          detail: `claim attempt ${request.attempt_id} was aborted`,
         })
       }
+      if (request.signal.aborted) abort()
+      else request.signal.addEventListener('abort', abort, { once: true })
     })
   }
 
@@ -516,35 +511,25 @@ class LateClaimLease {
   release(request: Parameters<InMemoryRunLease['release']>[0]): Promise<void> {
     return this.inner.release(request)
   }
-
-  async allowLateClaim(): Promise<LeaseClaim> {
-    if (this.#allow === undefined) throw new Error('the claim was never attempted')
-    this.#allow()
-    return await this.#lateDone
-  }
 }
 
-describe('a late lease answer cannot orphan ownership', () => {
-  it('a claim resolving after not_started leaves the run immediately claimable', async () => {
-    const lease = new LateClaimLease()
+describe('an aborted lease attempt cannot become ownership', () => {
+  it('the resource observes abort and the run remains immediately claimable', async () => {
+    const lease = new AbortableClaimLease()
     const conclusion = await new Runner(testPorts({ lease }), { deadline_ms: 10 }).run(runRequest())
 
     expect(conclusion.kind, 'the control: the caller already received not_started').toBe(
       'not_started',
     )
-    const late = await lease.allowLateClaim()
-    expect(late.ok, 'the ignored underlying claim really did acquire the lease late').toBe(true)
+    expect(lease.aborted, 'the pending claim observed the governed abort').toBe(true)
 
-    const retry = await lease.inner.claim({ run_id: RUN })
-    try {
-      expect(retry.ok, 'no invisible late continuation may retain an orphaned lease').toBe(true)
-    } finally {
-      if (retry.ok) {
-        await lease.inner.release({ run_id: RUN, generation: retry.generation })
-      } else if (late.ok) {
-        await lease.inner.release({ run_id: RUN, generation: late.generation })
-      }
-    }
+    const retry = await lease.inner.claim({
+      run_id: RUN,
+      attempt_id: 'retry',
+      signal: new AbortController().signal,
+    })
+    expect(retry.ok, 'an aborted attempt never became ownership').toBe(true)
+    if (retry.ok) await lease.inner.release({ run_id: RUN, generation: retry.generation })
   })
 })
 
@@ -595,8 +580,8 @@ describe('journal and recovery work remain inside finite port boundaries', () =>
 
     expect(reached, 'the run was blocked in journal flushing').toBe(true)
     expect(conclusion, 'the flush must be rejected by a finite boundary').toBeDefined()
-    expect(conclusion?.kind, 'the bounded failure still produces a governed conclusion').toBe(
-      'terminal',
+    expect(conclusion?.kind, 'the bounded failure has an explicit governed conclusion').toBe(
+      'settlement_failed',
     )
   })
 
@@ -628,7 +613,8 @@ describe('journal and recovery work remain inside finite port boundaries', () =>
 
     expect(reached, 'the exception path reached its terminal journal stage').toBe(true)
     expect(conclusion, 'recovery must use bounded ports too').toBeDefined()
-    expect(conclusion?.state).toBe('INDETERMINATE')
+    expect(conclusion?.kind).toBe('settlement_failed')
+    expect(conclusion?.state).toBe('RUNNING')
   })
 })
 

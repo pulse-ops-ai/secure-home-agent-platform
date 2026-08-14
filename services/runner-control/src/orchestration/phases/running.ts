@@ -110,11 +110,13 @@ export const running = async (
       operational ? 'OPERATIONAL_FAILURE' : 'REFUSED',
     )
   }
+  scope.terminalEvidence.observed = changeSet.value
 
   const artifacts = await observeArtifacts(ports.artifacts, {
     run_id: request.run_id,
     paths: request.artifact_paths,
   })
+  scope.terminalEvidence.artifacts = artifacts
   operations = recorded.operations
   const observations: Observations = {
     gate_results,

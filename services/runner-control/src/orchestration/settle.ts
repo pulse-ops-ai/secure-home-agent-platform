@@ -10,16 +10,54 @@
  * No walk is raced or abandoned here. Each awaited call is guarded, so a
  * rejection unwinds at that exact call and no continuation later resumes.
  */
-import { isTerminal } from '../lifecycle/index.js'
+import { isTerminal, type TerminalState } from '../lifecycle/index.js'
 import type { Ports } from '../ports/index.js'
+import { isRunInterrupted } from '../run/interruption.js'
 import type { RunScope } from '../run/scope.js'
 import type { RunEnvironment } from './environment.js'
 import { guardPorts } from './ports.js'
 import type { RunConclusion } from './result.js'
-import { noObservations, type EstablishedRun } from './state.js'
+import { snapshotTerminalEvidence, type EstablishedRun } from './state.js'
 import { finish, terminateEarly, writeEarlyTerminalRecord } from './terminate.js'
 
 type FlushJournal = (scope: RunScope, ports: Ports) => Promise<void>
+
+const incomplete = (
+  env: RunEnvironment,
+  intended_terminal: TerminalState,
+  detail: string,
+): RunConclusion => {
+  const { scope, request } = env
+  const base = {
+    run_id: request.run_id,
+    detail,
+    transitions: scope.machine.transitionRecord,
+    rejections: scope.machine.rejections,
+  }
+  if (scope.fenceLost !== undefined) {
+    return {
+      ...base,
+      kind: 'ownership_lost',
+      state: scope.machine.state,
+      produced: 'none',
+    }
+  }
+  if (scope.recorded !== 'none' && isTerminal(scope.machine.state)) {
+    return {
+      ...base,
+      kind: 'terminal',
+      state: scope.machine.state,
+      produced: scope.recorded,
+    }
+  }
+  return {
+    ...base,
+    kind: 'settlement_failed',
+    state: scope.machine.state,
+    intended_terminal,
+    produced: 'none',
+  }
+}
 
 const cleanupEnvironment = (
   env: RunEnvironment,
@@ -76,7 +114,9 @@ export const settleInterrupt = async (
       const stopped = await finish(
         cleanupEnv,
         state.authority,
-        state.at === 'observed' ? state.observations : noObservations(),
+        state.at === 'observed'
+          ? state.observations
+          : snapshotTerminalEvidence(scope.terminalEvidence),
         reason,
         detail,
         reason === 'cancel' ? 'CANCELLED' : 'TIMED_OUT',
@@ -107,7 +147,7 @@ const interruptFallback = async (
   error: unknown,
   flushJournal: FlushJournal,
 ): Promise<RunConclusion> => {
-  const { scope, request } = env
+  const { scope } = env
   if (scope.fenceLost === undefined) scope.reachTerminal(reason, detail)
   try {
     await flushJournal(scope, env.ports)
@@ -120,31 +160,11 @@ const interruptFallback = async (
     // The settlement boundary already bounded this cleanup.
   }
 
-  let produced: RunConclusion['produced'] = 'none'
-  if (
-    !scope.authorityCaptured &&
-    scope.fenceLost === undefined &&
-    isTerminal(scope.machine.state)
-  ) {
-    try {
-      produced = (await writeEarlyTerminalRecord(env, detail)).value.produced
-    } catch {
-      // A record sink that did not settle cannot be described as written.
-    }
-  }
-
-  const base = {
-    run_id: request.run_id,
-    detail: `${detail}; terminal settlement was incomplete: ${describe(error)}`,
-    transitions: scope.machine.transitionRecord,
-    rejections: scope.machine.rejections,
-  }
-  const final = scope.machine.state
-  if (scope.fenceLost !== undefined) {
-    return { ...base, kind: 'ownership_lost', state: final, produced: 'none' }
-  }
-  if (isTerminal(final)) return { ...base, kind: 'terminal', state: final, produced }
-  return { ...base, kind: 'unterminated', state: final, produced: 'none' }
+  return incomplete(
+    env,
+    reason === 'cancel' ? 'CANCELLED' : 'TIMED_OUT',
+    `${detail}; terminal settlement was incomplete: ${describe(error)}`,
+  )
 }
 
 /**
@@ -163,68 +183,58 @@ export const recoverRun = async (
   rawPorts: Ports,
   flushJournal: FlushJournal,
 ): Promise<RunConclusion> => {
-  env.deadline.disarm()
-  const window = env.deadline.settlement()
+  const window = env.deadline.recovery()
   const ports = guardPorts(rawPorts, window)
   const cleanupEnv = cleanupEnvironment(env, ports, window.signal, flushJournal)
-  const { scope, request } = cleanupEnv
+  const { scope } = cleanupEnv
   const dispossessed = scope.fenceLost !== undefined
   let reported = detail
-  let produced: RunConclusion['produced'] = 'none'
-
-  if (!dispossessed && scope.established.at !== 'requested') {
-    try {
+  try {
+    if (!dispossessed && scope.established.at !== 'requested') {
       const stopped = await finish(
         cleanupEnv,
         scope.established.authority,
-        scope.established.at === 'observed' ? scope.established.observations : noObservations(),
+        scope.established.at === 'observed'
+          ? scope.established.observations
+          : snapshotTerminalEvidence(scope.terminalEvidence),
         'indeterminate',
         detail,
         'INDETERMINATE',
       )
       return stopped.value
-    } catch (error) {
-      reported = `${detail}; full-bundle recovery was incomplete: ${describe(error)}`
     }
-  }
 
-  const reached = dispossessed
-    ? { ok: false as const, detail: scope.fenceLost ?? 'ownership moved' }
-    : scope.reachTerminal('indeterminate', reported)
-  reported = reached.ok ? reported : `${reported}; ${reached.detail}`
+    const reached = dispossessed
+      ? { ok: false as const, detail: scope.fenceLost ?? 'ownership moved' }
+      : scope.reachTerminal('indeterminate', reported)
+    reported = reached.ok ? reported : `${reported}; ${reached.detail}`
 
-  try {
     await flushJournal(scope, ports)
-  } catch {
-    // Entries that did not land remain pending; the conclusion does not
-    // pretend otherwise.
-  }
 
-  if (!scope.authorityCaptured && !dispossessed) {
-    try {
-      produced = (await writeEarlyTerminalRecord(cleanupEnv, reported)).value.produced
-    } catch {
-      // The last-resort boundary still guarantees `run()` resolves.
+    if (!scope.authorityCaptured && !dispossessed) {
+      return (await writeEarlyTerminalRecord(cleanupEnv, reported)).value
     }
-  } else {
-    try {
-      await scope.release(ports, false)
-    } catch {
-      // The settlement window bounds a broken teardown.
+    if (dispossessed) {
+      return incomplete(cleanupEnv, 'INDETERMINATE', reported)
     }
+    return incomplete(
+      cleanupEnv,
+      'INDETERMINATE',
+      `${reported}; the recovery terminal was not durably recorded`,
+    )
+  } catch (error) {
+    if (isRunInterrupted(error)) {
+      window.disarm()
+      return settleInterrupt(env, scope.established, error.reason, rawPorts, flushJournal)
+    }
+    return incomplete(
+      cleanupEnv,
+      'INDETERMINATE',
+      `${reported}; terminal settlement was incomplete: ${describe(error)}`,
+    )
+  } finally {
+    window.disarm()
   }
-  window.disarm()
-
-  const base = {
-    run_id: request.run_id,
-    detail: reported,
-    transitions: scope.machine.transitionRecord,
-    rejections: scope.machine.rejections,
-  }
-  const final = scope.machine.state
-  if (dispossessed) return { ...base, kind: 'ownership_lost', state: final, produced: 'none' }
-  if (!isTerminal(final)) return { ...base, kind: 'unterminated', state: final, produced: 'none' }
-  return { ...base, kind: 'terminal', state: final, produced }
 }
 
 const describe = (error: unknown): string =>

@@ -15,6 +15,7 @@ import type {
   JournaledHold,
   JournaledState,
   LeaseClaim,
+  LeaseClaimRequest,
   RejectionEntry,
   RunFence,
   RunJournalPort,
@@ -180,7 +181,14 @@ export class InMemoryRunLease implements RunLeasePort {
   readonly #held = new Map<string, number>()
   #generation = 0
 
-  claim(request: RunScoped): Promise<LeaseClaim> {
+  claim(request: LeaseClaimRequest): Promise<LeaseClaim> {
+    if (request.signal.aborted) {
+      return Promise.resolve({
+        ok: false,
+        reason: 'claim_aborted',
+        detail: `claim attempt ${request.attempt_id} was aborted before ownership was granted`,
+      })
+    }
     const holder = this.#held.get(request.run_id)
     if (holder !== undefined) {
       return Promise.resolve({

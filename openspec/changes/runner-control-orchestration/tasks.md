@@ -71,6 +71,15 @@ have inherited.
 | Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` scenario "A dispossessed attempt ends without claiming a run terminal" |
 | Proven by | RO-INV-62, RO-EX-108 |
 
+**OWNER DECISION RECORDED — terminal settlement failure is an attempt conclusion.**
+
+| Field | Value |
+|---|---|
+| Granted by | repository owner (@mikegtech), through the explicit round-8 implementation task |
+| Decision | when finite terminal settlement cannot make the mandatory governed record durable, return `settlement_failed` carrying actual state, intended terminal, and `produced: none`; do not present it as a lifecycle terminal |
+| Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` requirement "Terminal settlement failure is explicit" |
+| Proven by | RO-INV-62/73, RO-EX-143/146 |
+
 Recorded here because `assurance.md` states outright that it does not
 create product requirements — a new public result vocabulary introduced
 there alone was backwards for this repository's own model.
@@ -516,6 +525,22 @@ operation its requirement names.
   describe only the port-bound architecture; complete tests, typecheck,
   lint, build, strict OpenSpec validation, and repository gate remain
   green.
+
+- [x] **7.7 Close round-8 terminal-truth and authority findings**
+  <!-- agent-task: 7.7 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.6 -->
+
+  **Implements** — incremental terminal evidence without weakening the
+  total verification typestate; lifecycle-control propagation at journal
+  boundaries; exactly-once session interruption; cancellation/timeout
+  precedence through recovery publication; guard-owned, resource-abortable
+  lease claims; explicit `settlement_failed`; and synchronous enforcement
+  of the absolute expiry.
+
+  **Proof required** — `conformance/falsification-round8.test.ts` is green
+  in full, alongside every earlier falsification round; the mutation map,
+  lifecycle delta, D13, and assurance artifact describe the same public
+  conclusion and authority model; complete tests, typecheck, lint, build,
+  strict OpenSpec validation, and repository gate remain green.
 
 ## PR-1 Completion Gate
 

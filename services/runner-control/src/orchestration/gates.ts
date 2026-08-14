@@ -55,6 +55,7 @@ export const runGates = async (
 
     const recorded = recorder.record(entry.gate_id, disposition)
     if (!recorded.ok) return { kind: 'faulted', detail: recorded.error.detail, recorder }
+    env.scope.terminalEvidence.gate_results = recorder.results()
   }
   return { kind: 'passed', recorder }
 }

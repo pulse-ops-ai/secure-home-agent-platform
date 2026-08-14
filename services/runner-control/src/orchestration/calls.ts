@@ -38,6 +38,12 @@ export const recordCalls = async (
       operation: { name: call.tool },
     })
     if (!attempted.ok) return { ok: false, detail: emissionFailure(attempted), operations }
+    operations.attempted.push(operation)
+    env.scope.terminalEvidence.operations = {
+      attempted: [...operations.attempted],
+      permitted: [...operations.permitted],
+      denied: [...operations.denied],
+    }
 
     const disposed = await emit(env, authority, {
       event_type: 'call.disposition',
@@ -45,14 +51,21 @@ export const recordCalls = async (
       disposition: call.disposition,
     })
     if (!disposed.ok) {
-      // The attempt is already known and already emitted; the record
-      // keeps it rather than losing it to the disposition's failure.
-      operations.attempted.push(operation)
+      // The attempt was recorded before disposition emission began.
+      env.scope.terminalEvidence.operations = {
+        attempted: [...operations.attempted],
+        permitted: [...operations.permitted],
+        denied: [...operations.denied],
+      }
       return { ok: false, detail: emissionFailure(disposed), operations }
     }
 
-    operations.attempted.push(operation)
     operations[call.disposition].push(operation)
+    env.scope.terminalEvidence.operations = {
+      attempted: [...operations.attempted],
+      permitted: [...operations.permitted],
+      denied: [...operations.denied],
+    }
   }
   return { ok: true, operations }
 }

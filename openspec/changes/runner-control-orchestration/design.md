@@ -431,6 +431,7 @@ conclusion IS:
 | kind | means |
 |---|---|
 | `terminal` | the run reached a lifecycle terminal under this attempt |
+| `settlement_failed` | an intended lifecycle terminal was selected, but its mandatory governed record did not become durable within the finite settlement boundary |
 | `held` | a precondition is unmet; the run waits, resumable |
 | `ownership_lost` | this attempt is over; the run is not |
 | `not_started` | the lease was never held |
@@ -443,6 +444,13 @@ very proof asserting no terminal was granted.
 `unterminated` exists because RO-INV-50 already required it: when a
 narrowed table grants no terminal, the conclusion must say so rather
 than naming a progress state as though it were one.
+
+`settlement_failed` resolves a different ambiguity. Bounded `run()`,
+mandatory evidence, and a sink that never settles cannot all be guaranteed.
+The variant reports that the ATTEMPT ended without claiming that the
+intended lifecycle terminal has a durable governed record. It carries the
+actual machine state, the intended terminal, and `produced: none`; it is
+never success and never substitutes for the required record.
 
 **Authorization.** Reviewer-proposed and owner-accepted; recorded in
 `tasks.md` under the L4 authorization section. The normative statements
@@ -575,14 +583,37 @@ provide.
 
 Three related consequences are part of the same coordinator:
 
-- ownership acquisition is guarded too, so a lease store cannot make
-  `run()` unbounded before the walk exists;
+- ownership acquisition is guard-owned too: the lease method is invoked
+  only through the thunk, receives a claim-attempt identity and the run
+  signal, and cannot turn an aborted attempt into ownership;
 - the profile wall clock is one absolute expiry established before
   session preparation; prepare/start consumes it, and the session may
-  only narrow that same expiry rather than restart it;
+  only narrow that same expiry rather than restart it. Every call also
+  checks that expiry synchronously, so a delayed timer callback grants no
+  extra execution;
 - once the governed deadline fires, terminal settlement and cleanup use a
   fresh, short guard. This permits the mandatory early/full evidence record
   and session teardown to land without making a broken sink unbounded.
+
+Terminal settlement does not pretend boundedness and mandatory evidence
+can both be guaranteed against a sink that never settles. The public
+conclusion makes that failure explicit: `settlement_failed` carries the
+intended lifecycle terminal and `produced: none`, and is not itself a
+lifecycle terminal. A consumer can therefore distinguish "the run
+terminalized and evidence is durable" from "terminal recording exhausted
+its governed settlement bound."
+
+The strict execution typestate is not widened to preserve partial facts.
+RUNNING still earns a total `Observations` value before verification may
+start. In parallel, a narrow terminal-evidence accumulator records only
+facts already made true — call operations, completed gate dispositions,
+workspace observation, artifact observation — so interruption or
+recovery cannot erase audit facts produced before RUNNING completed.
+
+Recovery finalization remains under the original caller cancellation and
+profile deadline until publication, with the independent recovery ceiling
+as an additional bound. Session interruption is attempted once in its
+dedicated stop window; evidence settlement never repeats it.
 
 Irreversible writes still require their own atomicity/idempotency contract;
 that remains D7/L9/U11. What D13 now guarantees is narrower and complete:

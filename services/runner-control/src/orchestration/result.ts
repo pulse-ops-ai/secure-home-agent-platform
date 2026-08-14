@@ -124,9 +124,9 @@ export const stop = (value: RunConclusion): Stop => ({ kind: 'terminate', value 
  * one statement — a stale holder owns its own ending, never the logical
  * run's.
  *
- * `unterminated` is the fifth because RO-INV-50 already requires it: when
- * the machine grants no terminal at all, the conclusion says so rather
- * than naming a state as though it were one.
+ * `settlement_failed` keeps an intended terminal with no durable record
+ * distinct from a terminal the run actually evidenced. `unterminated`
+ * remains the variant for a machine that granted no terminal at all.
  */
 interface ConclusionBase {
   readonly run_id: string
@@ -141,7 +141,17 @@ export type RunConclusion =
   | (ConclusionBase & {
       readonly kind: 'terminal'
       readonly state: TerminalState
-      readonly produced: 'evidence_bundle' | 'early_termination_record' | 'none'
+      readonly produced: 'evidence_bundle' | 'early_termination_record'
+    })
+  /**
+   * The intended lifecycle terminal could not be durably recorded within
+   * the finite settlement boundary.
+   */
+  | (ConclusionBase & {
+      readonly kind: 'settlement_failed'
+      readonly state: LifecycleState
+      readonly intended_terminal: TerminalState
+      readonly produced: 'none'
     })
   /** A precondition is unmet; the run waits where it is. */
   | (ConclusionBase & {

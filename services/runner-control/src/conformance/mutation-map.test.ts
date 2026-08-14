@@ -432,7 +432,7 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-77',
-    mutation: 'abandon a pending lease claim without releasing a late successful answer',
+    mutation: 'start lease claim before the guard or let an aborted attempt become ownership',
     killedBy: ['RO-EX-138'],
   },
   {
@@ -451,6 +451,38 @@ const TARGETS: readonly MutationTarget[] = [
     id: 'RO-MUT-80',
     mutation: 'make acquisition or event mechanisms depend on an orchestration interruption type',
     killedBy: ['RO-EX-141'],
+  },
+  {
+    id: 'RO-MUT-81',
+    mutation:
+      'terminalize from the strict phase typestate alone, dropping facts recorded before RUNNING completes',
+    killedBy: ['RO-EX-142'],
+  },
+  {
+    id: 'RO-MUT-82',
+    mutation: 'swallow lifecycle control at a journal boundary as a transient storage fault',
+    killedBy: ['RO-EX-143'],
+  },
+  {
+    id: 'RO-MUT-83',
+    mutation:
+      'interrupt the session again during evidence settlement, or disarm the run deadline before recovery publication',
+    killedBy: ['RO-EX-144'],
+  },
+  {
+    id: 'RO-MUT-84',
+    mutation: 'start lease claim before the guard or allow an aborted attempt to become ownership',
+    killedBy: ['RO-EX-145'],
+  },
+  {
+    id: 'RO-MUT-85',
+    mutation: 'present a lifecycle terminal with no durable record as terminal plus produced none',
+    killedBy: ['RO-EX-146'],
+  },
+  {
+    id: 'RO-MUT-86',
+    mutation: 'rely on the event-loop timer without checking absolute expiry at a call boundary',
+    killedBy: ['RO-EX-147'],
   },
   {
     id: 'MUT-004',

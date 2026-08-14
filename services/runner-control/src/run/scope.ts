@@ -28,7 +28,12 @@
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
 import type { CommitCapability, RunMachine, TransitionKind } from '../lifecycle/index.js'
 import type { RunDeadline } from '../orchestration/deadline.js'
-import type { EstablishedRun } from '../orchestration/state.js'
+import {
+  emptyTerminalEvidence,
+  type EstablishedRun,
+  type TerminalEvidence,
+} from '../orchestration/state.js'
+import type { RunConclusion } from '../orchestration/result.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -64,6 +69,12 @@ export class RunScope {
 
   /** What the walk has established, available to every terminal owner. */
   established: EstablishedRun = { at: 'requested' }
+
+  /** Incremental audit facts produced before RUNNING fully completes. */
+  terminalEvidence: TerminalEvidence = emptyTerminalEvidence()
+
+  /** The governed terminal record already made durable, if any. */
+  recorded: RunConclusion['produced'] = 'none'
 
   constructor(fence: RunFence, machine: RunMachine, startedAt: string) {
     this.fence = fence

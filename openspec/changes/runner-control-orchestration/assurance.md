@@ -115,24 +115,26 @@ are below.
 | RO-INV-59 | Proof affordances are not runtime authority: `RunSignals` carries only the interrupt, transition tables are validated as NARROWINGS of the canonical lifecycle, and the armed wall clock is bounded by the captured profile — never by what the session port reports | trust |
 | RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
 | RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
-| RO-INV-62 | A conclusion states what it IS — terminal, held, ownership_lost, or not_started — distinctly from the state it reports. An attempt that lost ownership declares its own end, never the logical run's: manufacturing a lifecycle terminal is the one verdict a stale holder may not give | trust |
+| RO-INV-62 | A conclusion states what it IS — terminal, settlement_failed, held, ownership_lost, not_started, or unterminated — distinctly from the state it reports. `settlement_failed` names an intended terminal whose governed record did not land; an attempt that lost ownership declares its own end, never the logical run's | trust |
 | RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending is an outstanding write of the run, so the walk is flushed before anything is staged and a run whose walk cannot be made durable does not seal | trust |
 | RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
 | RO-INV-65 | A commit capability is frozen at mint, one-shot, and bound to the machine VERSION it was projected from — so it cannot be edited between authorization and use, and a stale projection cannot advance a machine that has since moved | trust |
 | RO-INV-66 | The canonical transition table is deep-frozen at its source, so the default path retains immutable lifecycle authority — `RunMachine` is exported and defaults to it directly, which freezing inside `Runner` would not reach | trust |
-| RO-INV-67 | The run's budget is enforced at ONE complete asynchronous port boundary, not by abandoning the walk: every awaited port from lease claim through cleanup is guarded, so an interrupt unwinds the continuation at that call and a delayed answer cannot start the next effect. The pre-profile acquisition ceiling is replaced before session preparation by one absolute profile expiry; later narrowing preserves elapsed profile time | behavior |
+| RO-INV-67 | The run's budget is enforced at ONE complete asynchronous port boundary, not by abandoning the walk: every awaited port from lease claim through cleanup is invoked through a guard-owned thunk, so an interrupt unwinds at that call and a delayed answer cannot start the next effect. The absolute expiry is checked synchronously before every call as well as by its timer; the pre-profile ceiling is replaced before session preparation by one profile expiry and later narrowing preserves elapsed time | behavior |
 | RO-INV-68 | The submitted run's one cancellation input is effective, not advisory: `interrupt` is polled while a call is OUTSTANDING rather than only between phases, and a source enumeration re-consults it after draining as well as before each source | behavior |
 | RO-INV-69 | A structural guard is proven by EXERCISING it against a planted counterexample, never by reading its own text. A guard that names a property lexically is a proxy for it, and a suite that only greps the guard tests the proxy — so each such guard is run against something it must catch and something it must not | behavior |
 | RO-INV-70 | An effect is not STARTED once the run is aborted. Every async port method is invoked through a thunk-owning guard, so the call cannot be evaluated after the abort check; rejection unwinds the phase at that await and prevents any later phase effect from starting | trust |
 | RO-INV-71 | A projection has ONE representation. The entries handed to finalization ARE the entries the capability owns and the machine later adopts, frozen, so a port that edits what it was given cannot leave durable history and machine state disagreeing about what the run did | trust |
 | RO-INV-72 | TIMED_OUT's provenance is the GOVERNED wall clock. A caller's interrupt expresses cancellation only — narrowed in the type and coerced at the boundary, because a type is erased at runtime — so a requester cannot author a terminal cause the lifecycle contract assigns to the deadline mechanism | trust |
-| RO-INV-73 | An interrupted run's RECORD does not depend on scheduler latency or which interrupt arrived. After the ordinary port guard unwinds the phase, a fresh bounded settlement guard writes the state-appropriate early record or full bundle and releases resources; a conclusion's arrays are snapshots and cannot mutate after return | behavior |
+| RO-INV-73 | An interrupted run's RECORD does not depend on scheduler latency or which interrupt arrived. After the ordinary port guard unwinds the phase, a fresh bounded settlement guard writes the state-appropriate early record or full bundle and releases resources; if that mandatory record cannot land, the conclusion is explicitly `settlement_failed`, never a lifecycle terminal with `produced:none` | behavior |
 | RO-INV-74 | The complete run boundary is bounded: lease claim, authority reads, phase effects, terminal settlement, resource cleanup, and lease release. A shortening-only override is capped by the standing acquisition ceiling; after capture, the profile establishes one expiry before session preparation and the session may only narrow it, never restart it | behavior |
 | RO-INV-75 | A concluded attempt performs no later orchestration effect. A delayed underlying port promise may settle, but no run continuation remains attached to its value; terminal conclusions expose snapshot arrays, so reading one twice yields the same transition and rejection record | trust |
 | RO-INV-76 | Terminal settlement has its own failure identity and capability. Its expiry can make settlement incomplete, but can never manufacture `TIMED_OUT`; while the run remains non-terminal, cancellation and the governed profile expiry still interrupt finalization before publication | trust |
 | RO-INV-77 | Transition and rejection entries are immutable at mint and cross the journal boundary as frozen copies. No return value, public snapshot, pending-journal value, or defective port can rewrite the machine's private history by reference | trust |
-| RO-INV-78 | Ownership acquisition cannot succeed invisibly after the caller has concluded `not_started`: if the bounded wait ends first, a late successful claim is released under a finite cleanup boundary before it can become an orphaned owner | behavior |
-| RO-INV-79 | Every terminal at or after `PROFILE_RESOLVED`, including last-resort recovery from an escaping port fault, seals the full evidence bundle with truthful empty sets for state not produced; only a `REQUESTED` terminal may use the early-terminal record | trust |
+| RO-INV-78 | Lease acquisition is a guarded, resource-side abortable authority operation. The claim receives an attempt identity and the governed signal; an expired attempt cannot start and an outstanding attempt that observes abort cannot later become current ownership. No post-conclusion compensation continuation exists | trust |
+| RO-INV-79 | Every terminal at or after `PROFILE_RESOLVED`, including interruption or last-resort recovery from an escaping port fault, attempts the full evidence bundle with every fact already established in RUNNING. A separate append-only terminal-evidence accumulator preserves operations, gate dispositions, workspace observation, and artifact observation without weakening the total verification `Observations` typestate | trust |
+| RO-INV-80 | Journal code distinguishes lifecycle control from storage failure: `RunInterrupted` and `RunSettlementExpired` propagate to their terminal/settlement owner unchanged; only genuine journal faults remain pending for retry | trust |
+| RO-INV-81 | Interrupted settlement attempts session interruption exactly once, in its dedicated stop window; evidence settlement never repeats the stop. Generic recovery retains caller-cancellation/profile-timeout precedence until its final publication point | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked and the transitions it actually took — releases the resources it actually held, and chooses the governed record from what the run established: early-terminal before authority, full bundle afterwards. It fabricates no machine or identity | trust |
 
 ## State-Space Model
@@ -420,10 +422,16 @@ persistence (U11).
 | RO-EX-135 | RO-INV-76 | adversarial (reviewer-authored) | settlement expiry while the profile clock is healthy does not become `TIMED_OUT`; cancellation and the governed profile expiry still interrupt a pending `COMPLETED` finalization from `VERIFYING` |
 | RO-EX-136 | RO-INV-77 | adversarial (reviewer-authored) | public snapshots, direct transition/rejection results, and journal requests cannot edit the machine's history by reference |
 | RO-EX-137 | RO-INV-72 | adversarial (reviewer-authored) | a throwing public cancellation probe during an outstanding port resolves through the governed cancellation path and raises no uncaught timer exception |
-| RO-EX-138 | RO-INV-78 | adversarial (reviewer-authored) | a lease claim that succeeds after the caller received `not_started` is released, leaving the run immediately claimable |
+| RO-EX-138 | RO-INV-78 | adversarial (reviewer-authored) | an outstanding lease attempt observes the governed abort and never becomes ownership, leaving the run immediately claimable without post-conclusion compensation |
 | RO-EX-139 | RO-INV-79 | adversarial (reviewer-authored) | an escaping port fault after authority capture seals an `INDETERMINATE` full bundle; a non-returning recovery journal stage remains bounded |
 | RO-EX-140 | RO-INV-76 | structural | settlement is a fresh typed capability, not a mutable mode flag, and phase code contains no second local wrapper around the centrally guarded port set |
 | RO-EX-141 | RO-INV-77 | structural | `acquisition/**` and `events/**` import the neutral interruption seam and no `orchestration/**` module |
+| RO-EX-142 | RO-INV-79 | adversarial (reviewer-authored) | cancellation or an escaping observer fault after adapter call events preserves every already-established evidence operation in the terminal bundle |
+| RO-EX-143 | RO-INV-80 | adversarial (reviewer-authored) | a deadline interrupt during ordinary journal append remains `TIMED_OUT`, while a settlement-expired retry becomes explicit `settlement_failed`; neither is translated to `OPERATIONAL_FAILURE` |
+| RO-EX-144 | RO-INV-81 | adversarial (reviewer-authored) | interrupted settlement attempts the session stop exactly once, and cancellation during pending `INDETERMINATE` recovery finalization wins before publication |
+| RO-EX-145 | RO-INV-78 | adversarial (reviewer-authored) | an already-expired acquisition bound starts no lease call; an outstanding resource-side claim observes abort and never grants ownership |
+| RO-EX-146 | RO-INV-73 | adversarial (reviewer-authored) | a terminal record sink that never settles yields `settlement_failed` carrying the intended terminal, never `terminal + produced:none` |
+| RO-EX-147 | RO-INV-67 | adversarial (reviewer-authored) | when wall time has passed the absolute expiry but its timer callback has not run, the next guarded thunk is not invoked and `interrupted()` raises timeout synchronously |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-58 | RO-INV-67 | mutation | guarding only the call sites already known to hang, rather than the complete injected port surface, is killed by RO-EX-118 |
 | RO-MUT-59 | RO-INV-67 | mutation | adding or restarting the profile wall clock instead of establishing one absolute expiry is killed by RO-EX-119 |
@@ -444,10 +452,16 @@ persistence (U11).
 | RO-MUT-74 | RO-INV-76 | mutation | using settlement expiry as timeout provenance, or disabling cancellation/timeout while finalization remains non-terminal, is killed by RO-EX-135 |
 | RO-MUT-75 | RO-INV-77 | mutation | retaining mutable transition/rejection entry references at mint or across the journal boundary is killed by RO-EX-136 |
 | RO-MUT-76 | RO-INV-72 | mutation | letting a throwing public cancellation probe escape the polling timer is killed by RO-EX-137 |
-| RO-MUT-77 | RO-INV-78 | mutation | abandoning a pending lease claim without releasing a late successful answer is killed by RO-EX-138 |
+| RO-MUT-77 | RO-INV-78 | mutation | starting lease claim outside the guard or allowing an aborted claim attempt to become ownership is killed by RO-EX-138 |
 | RO-MUT-78 | RO-INV-79 | mutation | recovering after authority capture without the mandatory full bundle, or bypassing the finite port boundary in recovery, is killed by RO-EX-139 |
 | RO-MUT-79 | RO-INV-76 | mutation | replacing the typed settlement capability with a mutable deadline mode flag, or reintroducing local duplicate deadline wrappers, is killed by RO-EX-140 |
 | RO-MUT-80 | RO-INV-77 | mutation | making acquisition or event mechanisms depend on an orchestration-owned interruption type is killed by RO-EX-141 |
+| RO-MUT-81 | RO-INV-79 | mutation | terminalizing from the strict phase typestate alone, dropping facts recorded before RUNNING earned its transition, is killed by RO-EX-142 |
+| RO-MUT-82 | RO-INV-80 | mutation | swallowing lifecycle control at a journal boundary and treating it as transient storage failure is killed by RO-EX-143 |
+| RO-MUT-83 | RO-INV-81 | mutation | interrupting the same session again from evidence settlement, or disarming the governed deadline before recovery publication, is killed by RO-EX-144 |
+| RO-MUT-84 | RO-INV-78 | mutation | starting lease claim before the guard or allowing an aborted claim attempt to become ownership is killed by RO-EX-145 |
+| RO-MUT-85 | RO-INV-73 | mutation | presenting a terminal with no governed durable record as `terminal + produced:none` is killed by RO-EX-146 |
+| RO-MUT-86 | RO-INV-67 | mutation | relying only on the event-loop timer without synchronously checking the absolute expiry at call boundaries is killed by RO-EX-147 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
@@ -536,7 +550,7 @@ L3-arrival precedent with owner authorization.
 
 ### Falsification rounds actually run
 
-Eight recorded falsification passes ran against frozen heads, each
+Nine recorded falsification passes ran against frozen heads, each
 returning REQUEST_CHANGES and each supplying failing tests rather than
 prose. Their tests live in the package, unmodified except where noted:
 
@@ -548,6 +562,7 @@ prose. Their tests live in the package, unmodified except where noted:
 | 5 | 5 | `conformance/falsification-round5.test.ts`, as supplied |
 | 6 | 10 findings + 6 controls | `conformance/falsification-round6.test.ts`; assertions and fixtures unchanged, Prettier-only wrapping applied |
 | 7 | 7 new findings + carry-forward blockers | `conformance/falsification-round7.test.ts`; settlement provenance/precedence, immutable history, signal containment, neutral dependency direction, proof-net consistency, late ownership, bounded recovery, and full-bundle recovery |
+| 8 | 7 findings, 11 focused proofs | `conformance/falsification-round8.test.ts`; partial terminal evidence, journal control propagation, one-shot interruption, recovery precedence, abortable lease claims, explicit settlement failure, and synchronous absolute-expiry enforcement |
 
 The finding this record exists for: across rounds, the recurring verdict
 was that a fix repaired the counterexample without closing the class —

@@ -17,7 +17,7 @@ import { canConstructEvidence, RunMachine, walk as walkPhases } from '../lifecyc
 import type { PhaseCommand, RejectionEntry } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
-import { isRunInterrupted } from '../run/interruption.js'
+import { isRunControlError, isRunInterrupted } from '../run/interruption.js'
 import { RunScope } from '../run/scope.js'
 import { RunDeadline } from './deadline.js'
 import { ACQUISITION_BUDGET_MS, narrowingOnly, type RunControls } from './controls.js'
@@ -80,38 +80,15 @@ export class Runner {
     deadline.armAcquisition(
       Math.min(this.#controls.deadline_ms ?? ACQUISITION_BUDGET_MS, ACQUISITION_BUDGET_MS),
     )
-    const ports = guardPorts(this.#ports, deadline)
-
     let claim: LeaseClaim
     try {
-      const pendingClaim = this.#ports.lease.claim({ run_id: request.run_id })
-      try {
-        claim = await deadline.call(() => pendingClaim)
-      } catch (error) {
-        if (isRunInterrupted(error)) {
-          // The coordinator stopped awaiting the claim, but the store
-          // may still grant it later. Attach exactly one cleanup
-          // continuation to the original promise so a late success
-          // cannot create an owner no run is waiting for.
-          void pendingClaim
-            .then(async (late) => {
-              if (!late.ok) return
-              const cleanup = deadline.settlement()
-              try {
-                await guardPorts(this.#ports, cleanup).lease.release({
-                  run_id: request.run_id,
-                  generation: late.generation,
-                })
-              } catch {
-                // Best effort under the same finite cleanup boundary.
-              } finally {
-                cleanup.disarm()
-              }
-            })
-            .catch(() => {})
-        }
-        throw error
-      }
+      claim = await deadline.call(() =>
+        this.#ports.lease.claim({
+          run_id: request.run_id,
+          attempt_id: `${request.run_id}:claim`,
+          signal: deadline.signal,
+        }),
+      )
     } catch (error) {
       deadline.disarm()
       if (isRunInterrupted(error)) {
@@ -133,6 +110,7 @@ export class Runner {
         `this run is owned elsewhere: ${claim.detail} (lease not acquired)`,
       )
     }
+    const ports = guardPorts(this.#ports, deadline)
     try {
       return await this.#walkOwned(request, signals, claim.generation, deadline, ports)
     } finally {
@@ -449,7 +427,8 @@ export class Runner {
         if (!appended.ok) return scope.loseFence(appended.detail)
         rejections += 1
       }
-    } catch {
+    } catch (error) {
+      if (isRunControlError(error)) throw error
       // Swallowed on purpose: an append that fails leaves its entry
       // PENDING and the next tick retries it. Propagating would end the
       // run over a transient journal fault, and the entry would still be

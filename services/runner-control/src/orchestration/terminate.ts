@@ -82,7 +82,19 @@ export const conclude = async (
   // precondition is unmet and the run waits; a machine that granted no
   // terminal at all is `unterminated`, which is what RO-INV-50 requires
   // the conclusion to report and what the flat shape had no way to say.
-  if (isTerminal(state)) return { ...base, kind: 'terminal', state, produced, detail }
+  if (isTerminal(state) && produced === 'none') {
+    return {
+      ...base,
+      kind: 'settlement_failed',
+      state,
+      intended_terminal: state,
+      produced: 'none',
+      detail: `${detail}; the lifecycle terminal has no governed durable record`,
+    }
+  }
+  if (isTerminal(state) && produced !== 'none') {
+    return { ...base, kind: 'terminal', state, produced, detail }
+  }
   return {
     ...base,
     kind: scope.held ? 'held' : 'unterminated',
@@ -163,6 +175,7 @@ export const writeEarlyTerminalRecord = async (
     scope.loseFence(written.detail)
     return stop(await conclude(env, 'none', detail))
   }
+  scope.recorded = 'early_termination_record'
   return stop(await conclude(env, 'early_termination_record', detail))
 }
 
@@ -323,6 +336,7 @@ export const finish = async (
   // The machine adopts the entries that were COMMITTED, verbatim —
   // through the terminal owner, like every other machine mutation.
   scope.adoptCommitted(projected.capability)
+  scope.recorded = 'evidence_bundle'
   return stop(await conclude(env, 'evidence_bundle', detail))
 }
 

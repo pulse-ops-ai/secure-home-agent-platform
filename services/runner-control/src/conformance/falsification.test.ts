@@ -821,12 +821,24 @@ describe('the lease exposes a dispossession capability its port does not declare
   it('a caller that never claimed can seize a live run — the premise', async () => {
     const { InMemoryRunLease } = await import('../index.js')
     const lease = new InMemoryRunLease()
-    const owner = await lease.claim({ run_id: RUN })
+    const owner = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     expect(owner.ok).toBe(true)
     if (!owner.ok) return
 
     // A second CLAIM is refused: that is the one-owner rule working.
-    expect((await lease.claim({ run_id: RUN })).ok).toBe(false)
+    expect(
+      (
+        await lease.claim({
+          run_id: RUN,
+          attempt_id: 'proof',
+          signal: new AbortController().signal,
+        })
+      ).ok,
+    ).toBe(false)
 
     // The seam is the same act with the refusal taken out.
     seizeLease(lease, RUN)
