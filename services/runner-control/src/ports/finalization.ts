@@ -40,6 +40,22 @@ import type { LifecycleState } from '../lifecycle/states.js'
 import type { RunFence } from './values.js'
 
 export interface FinalizationCommit extends RunFence {
+  /**
+   * THE CALLER-OWNED LOGICAL COMMIT IDENTITY, established BEFORE the
+   * port call and stable across retries of the same intent.
+   *
+   * An implementation must not privately mint a new logical identity per
+   * call — that is precisely what made a retried commit publish a second
+   * terminal after its first acknowledgement was lost. A repeat of the
+   * SAME identity whose publication already happened is answered
+   * `ok: true` without staging or publishing anything; that answer is
+   * the reconciliation of a lost acknowledgement.
+   *
+   * When absent, the implementation derives the identity
+   * deterministically from `(run_id, generation, terminal)` — still
+   * caller-knowable, never per-call.
+   */
+  readonly commit_id?: string
   /** The terminal state this run is committing to. */
   readonly terminal: LifecycleState
   /**
@@ -76,6 +92,14 @@ export interface FinalizationCommit extends RunFence {
    * or nothing observable exists.
    */
   readonly expires_at_epoch_ms?: number
+  /**
+   * WHOSE bound `expires_at_epoch_ms` is. A `governed` expiry is the
+   * run's own wall clock — refusing on it is the run's timeout. An
+   * `attempt` expiry is a settlement/recovery recording ceiling —
+   * refusing on it means this ATTEMPT could not finish recording, and
+   * the refusal must never be relabelled into a lifecycle TIMED_OUT.
+   */
+  readonly expires_at_bound?: 'governed' | 'attempt'
 }
 
 export type CommitOutcome =
@@ -84,11 +108,20 @@ export type CommitOutcome =
    * `stale_fence` is called out rather than folded into a generic
    * failure: a commit refused because the run moved on has NOT failed a
    * contract, and terminating it OPERATIONAL_FAILURE would write a
-   * verdict about a run this caller no longer owns. `expired` likewise:
-   * a commit refused at the expiry is the run's TIMEOUT, not an
-   * infrastructure fault.
+   * verdict about a run this caller no longer owns. `expired` is the
+   * governed clock refusing — the run's TIMEOUT. `attempt_expired` is a
+   * settlement/recovery ceiling refusing — the attempt's recording
+   * failure, with the intended terminal left standing.
+   * `already_committed` reconciles the remaining unknown: this
+   * generation already published a DIFFERENT logical commit, so this
+   * intent must not publish a second terminal; the durable record holds
+   * the truth this attempt cannot see.
    */
-  | { readonly ok: false; readonly reason?: 'stale_fence' | 'expired'; readonly detail: string }
+  | {
+      readonly ok: false
+      readonly reason?: 'stale_fence' | 'expired' | 'attempt_expired' | 'already_committed'
+      readonly detail: string
+    }
 
 /**
  * AN ACKNOWLEDGED COMMIT IS A FACT. `commit` is not a read: once it
@@ -102,11 +135,16 @@ export type CommitOutcome =
  * A DURABLE implementation (U11) inherits the stronger half of this
  * contract: its publication must be a transaction that checks the expiry
  * within the same atomic step, and because its acknowledgement can be
- * lost in transit, it must make the commit's outcome discoverable — the
- * commit identity is deterministic per attempt precisely so a caller
- * that could not await the acknowledgement can later reconcile what
- * became of it, the same resolution discipline `RunLeasePort.abandon`
- * establishes for ownership.
+ * lost in transit, it must make the commit's outcome discoverable by the
+ * caller-owned commit identity. An unknown acknowledgement resolves to
+ * exactly one of: NOT COMMITTED (the identity was never published — a
+ * retry of the same identity may proceed), COMMITTED (the identity was
+ * published — the retry is answered `ok` without a second publication),
+ * or ALREADY_COMMITTED (the generation published a different identity —
+ * this intent is refused and the durable record is the truth). That is
+ * the same resolution discipline `RunLeasePort.abandon` establishes for
+ * ownership: resolved where the effect lives, never guessed at the
+ * caller.
  */
 export interface FinalizationPort {
   commit(commit: FinalizationCommit): Promise<CommitOutcome>

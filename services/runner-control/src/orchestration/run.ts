@@ -477,17 +477,22 @@ export class Runner {
     }
   }
 
-  /** One outbox entry to its journal append, by category. */
+  /**
+   * One outbox entry to its journal append, by category — carrying the
+   * entry's stable identity, so a retry of a landed-but-unacknowledged
+   * append is recognised as a replay rather than a second fact.
+   */
   #append(ports: Ports, scope: RunScope, entry: OutboxEntry): Promise<FenceOutcome> {
+    const identified = { ...scope.fence, entry_id: entry.entry_id }
     switch (entry.category) {
       case 'transition':
-        return ports.journal.appendTransition({ ...scope.fence, transition: entry.transition })
+        return ports.journal.appendTransition({ ...identified, transition: entry.transition })
       case 'rejection':
-        return ports.journal.appendRejection({ ...scope.fence, rejection: entry.rejection })
+        return ports.journal.appendRejection({ ...identified, rejection: entry.rejection })
       case 'acquisition':
-        return ports.journal.appendAcquisition({ ...scope.fence, acquisition: entry.acquisition })
+        return ports.journal.appendAcquisition({ ...identified, acquisition: entry.acquisition })
       case 'hold':
-        return ports.journal.appendHold({ ...scope.fence, hold: entry.hold })
+        return ports.journal.appendHold({ ...identified, hold: entry.hold })
     }
   }
 }

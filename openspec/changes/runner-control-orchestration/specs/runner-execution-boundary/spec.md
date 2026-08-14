@@ -118,6 +118,13 @@ and written once at termination SHALL NOT satisfy this: a run whose
 process ends mid-walk SHALL still be reconstructable from what the
 journal already holds.
 
+Every journal fact SHALL carry a stable caller-known entry identity,
+minted when the fact is recorded and identical on every retry. A journal
+implementation SHALL treat a repeated entry identity as a REPLAY of the
+same physical fact — acknowledged without appending a second durable
+fact — so an append that landed while its acknowledgement was lost is
+resolved by retrying it, never duplicated by it.
+
 All four categories SHALL pass through ONE outbox with one pending set.
 An append that faults SHALL leave its fact pending for retry at the next
 tick — the fact is neither silently dropped nor grounds to terminate the
@@ -161,6 +168,57 @@ by this capability; what it must record is.
 - **GIVEN** a journal that never accepts an acquisition or hold append
 - **WHEN** terminal finalization is attempted
 - **THEN** no evidence bundle seals over the missing fact
+
+#### Scenario: A late acknowledgement does not duplicate a journal fact
+
+- **GIVEN** an acquisition append that landed while its acknowledgement
+  was lost
+- **WHEN** the pending fact is retried with its same entry identity
+- **THEN** the journal holds exactly one durable fact for it
+
+### Requirement: Every asynchronous port operation has an explicit effect class
+
+Every asynchronous method of the complete orchestration port surface
+SHALL be classified as exactly one of: discardable read/result;
+acknowledged durable or externally observable effect; resource
+acquisition with uncertain-outcome resolution; irreversible atomic
+finalization; cleanup/teardown. The complete per-method classification
+SHALL be recorded in the governed design and enforced structurally at
+the composition boundary — computed from the port types so an
+unclassified method cannot compile, and refused at the boundary so one
+cannot cross under type erasure. Classification SHALL NOT depend on
+naming convention, comments, or call-site discipline.
+
+An acknowledged effect's fact SHALL be accounted before or independently
+of its acknowledgement; a lost, late, cancelled, or timed-out
+acknowledgement SHALL never cause orchestration to assume the effect did
+not occur. Result-discard semantics are permitted only where ignoring a
+late result cannot leave meaningful external state.
+
+The finalization commit SHALL use a stable CALLER-known commit identity
+established before the port call; the implementation SHALL NOT mint a
+new logical identity per call. A retry or reconciliation with the same
+logical identity SHALL never publish a second terminal: a published
+identity reconciles to `ok` without staging or publishing again, and a
+different intent for an already-finalized ownership generation refuses
+rather than publishing. The port contract SHALL let a durable
+implementation resolve an unknown acknowledgement to committed, not
+committed, or explicitly unresolved.
+
+#### Scenario: A durable event fact survives its interrupted acknowledgement
+
+- **GIVEN** a `call.attempted` event that landed in the stream while its
+  acknowledgement was interrupted by cancellation
+- **WHEN** the run's terminal evidence is sealed
+- **THEN** the bundle's operations include the attempted call
+
+#### Scenario: A lost commit acknowledgement is reconciled, not repeated
+
+- **GIVEN** a finalization commit that published before its
+  acknowledgement was lost
+- **WHEN** the same logical commit identity is retried
+- **THEN** the retry is answered `ok`
+- **AND** exactly one terminal remains published
 
 ### Requirement: A run has one owner, and ownership is enforced before effects
 

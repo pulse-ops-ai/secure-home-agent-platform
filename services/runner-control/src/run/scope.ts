@@ -45,7 +45,7 @@ export class RunScope {
    * Every journal fact of every category, pending until it lands.
    * The pre-seal gate asks this one queue; see `JournalOutbox`.
    */
-  readonly outbox = new JournalOutbox()
+  readonly outbox: JournalOutbox
 
   /** Acquired during the spend phase; released on every exit. */
   session: SessionHandle | undefined
@@ -87,6 +87,10 @@ export class RunScope {
     this.fence = fence
     this.machine = machine
     this.startedAt = startedAt
+    // Entry identities are scoped to this run AND this ownership
+    // generation, so two attempts at one run can never replay each
+    // other's facts.
+    this.outbox = new JournalOutbox(`${fence.run_id}#g${String(fence.generation)}`)
   }
 
   loseFence(detail: string): void {

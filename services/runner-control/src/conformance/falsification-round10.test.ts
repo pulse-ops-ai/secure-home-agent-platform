@@ -211,15 +211,25 @@ describe('RO-EX-154: the journal outbox covers every category the journal record
   })
 
   it('a hold append that throws does not turn a held run into a sealed INDETERMINATE', async () => {
+    // Round 11's owner decision sharpened what this proof may expect:
+    // `held` means a DURABLE resumable identity actually exists, not
+    // merely that an in-process object remembers a hold. A journal that
+    // never accepts the hold fact therefore cannot yield a `held`
+    // conclusion — and it still must not crash the run into recovery
+    // and seal an INDETERMINATE bundle for a run that is merely
+    // waiting. The conclusion claims no durability it does not have.
     const { shared, journal } = journalWith({
       appendHold: () => Promise.reject(new Error('journal down')),
     })
     const ports = testPorts({ ...shared, journal })
     const conclusion = await new Runner(ports).run(withoutConsent(runRequest()))
 
-    expect(conclusion.kind, 'the run is HELD; a journal fault does not change what it is').toBe(
-      'held',
-    )
+    expect(
+      conclusion.kind,
+      'an in-process hold with no durable identity is not a held run',
+    ).not.toBe('held')
+    expect(conclusion.state, 'and the fault does not terminalize the waiting run').toBe('ELIGIBLE')
+    expect(conclusion.produced).toBe('none')
     expect(
       governedWrites(ports, RUN).filter((write) => write.kind === 'evidence_bundle'),
       'no terminal evidence may seal over the missing hold fact',

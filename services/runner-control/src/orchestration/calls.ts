@@ -28,44 +28,44 @@ export const recordCalls = async (
   calls: readonly AdapterCall[],
 ): Promise<CallRecording> => {
   const operations = emptyOperations()
+  const account = (): void => {
+    env.scope.terminalEvidence.operations = {
+      attempted: [...operations.attempted],
+      permitted: [...operations.permitted],
+      denied: [...operations.denied],
+    }
+  }
   for (const [index, call] of calls.entries()) {
     const call_id = `call-${String(index + 1).padStart(4, '0')}`
     const operation = { call_id, operation: { name: call.tool } }
 
+    // THE FACT PRECEDES ITS ACKNOWLEDGEMENT. The operation is a fact of
+    // the ADAPTER OBSERVATION orchestration already holds; the event is
+    // its durable projection. Recording the fact only after the emit
+    // acknowledged meant an event that LANDED — while its
+    // acknowledgement was interrupted — coexisted with an evidence
+    // bundle that omitted the very call the event stream records. An
+    // acknowledged effect's fact is accounted before the
+    // acknowledgement is awaited, so no interruption can erase it.
+    operations.attempted.push(operation)
+    account()
     const attempted = await emit(env, authority, {
       event_type: 'call.attempted',
       call_id,
       operation: { name: call.tool },
     })
     if (!attempted.ok) return { ok: false, detail: emissionFailure(attempted), operations }
-    operations.attempted.push(operation)
-    env.scope.terminalEvidence.operations = {
-      attempted: [...operations.attempted],
-      permitted: [...operations.permitted],
-      denied: [...operations.denied],
-    }
 
+    // The disposition is equally the observation's fact, accounted
+    // before its own emission for the same reason.
+    operations[call.disposition].push(operation)
+    account()
     const disposed = await emit(env, authority, {
       event_type: 'call.disposition',
       call_id,
       disposition: call.disposition,
     })
-    if (!disposed.ok) {
-      // The attempt was recorded before disposition emission began.
-      env.scope.terminalEvidence.operations = {
-        attempted: [...operations.attempted],
-        permitted: [...operations.permitted],
-        denied: [...operations.denied],
-      }
-      return { ok: false, detail: emissionFailure(disposed), operations }
-    }
-
-    operations[call.disposition].push(operation)
-    env.scope.terminalEvidence.operations = {
-      attempted: [...operations.attempted],
-      permitted: [...operations.permitted],
-      denied: [...operations.denied],
-    }
+    if (!disposed.ok) return { ok: false, detail: emissionFailure(disposed), operations }
   }
   return { ok: true, operations }
 }

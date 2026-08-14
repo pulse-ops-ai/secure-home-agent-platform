@@ -96,6 +96,30 @@ export const conclude = async (
       detail: `${scope.fenceLost}; no further write was made (this attempt had reached: ${detail})`,
     }
   }
+  // A CONCLUSION MAY CLAIM ONLY DURABLE FACTS. Every conclusion below
+  // this line makes a durability claim — `terminal` says the governed
+  // record is complete, `held` says a durable resumable identity exists
+  // — and the one outbox knows whether the durable walk actually
+  // landed. A run whose required journal facts are still pending
+  // reports the authorized settlement-failure semantics instead,
+  // WHATEVER else physically landed: a written early-terminal record
+  // over a journal missing an acquisition is not a durable terminal,
+  // and an in-process object remembering a hold is not a held run.
+  if (!scope.outbox.isEmpty()) {
+    const missing =
+      'a required durable journal fact is still pending; the conclusion cannot claim a durable record it does not have'
+    if (isTerminal(state)) {
+      return {
+        ...base,
+        kind: 'settlement_failed',
+        state,
+        intended_terminal: state,
+        produced: 'none',
+        detail: `${detail}; ${missing}`,
+      }
+    }
+    return { ...base, kind: 'unterminated', state, produced: 'none', detail: `${detail}; ${missing}` }
+  }
   // A NON-TERMINAL CONCLUSION IS NOT AUTOMATICALLY A HOLD. `held` means a
   // precondition is unmet and the run waits; a machine that granted no
   // terminal at all is `unterminated`, which is what RO-INV-50 requires
@@ -336,6 +360,12 @@ export const finish = async (
 
   const committed = await ports.finalization.commit({
     ...scope.fence,
+    // THE LOGICAL COMMIT IDENTITY IS ESTABLISHED HERE, at the caller
+    // boundary, before the port is called — stable across retries of
+    // this same intent, distinct across intents. It is what lets a
+    // commit whose acknowledgement was lost be reconciled instead of
+    // published twice.
+    commit_id: `${request.run_id}#g${String(scope.fence.generation)}#${terminal}`,
     terminal,
     transitions: projected.entries,
     event: authority.emitter.envelope({
@@ -353,9 +383,27 @@ export const finish = async (
       scope.loseFence(committed.detail)
       return stop(await conclude(env, 'none', committed.detail))
     }
-    // A commit the EXPIRY refused is the run's timeout, not an
-    // infrastructure fault — the publication point declining to publish
-    // after the budget is exactly what the wall clock means.
+    // AN ATTEMPT BOUND EXPIRING IS NOT THE RUN TIMING OUT. The
+    // settlement/recovery ceiling bounds RECORDING; the lifecycle
+    // terminal this commit intended still stands. The machine reaches
+    // that intended terminal and the attempt reports the authorized
+    // settlement-failure semantics — never a manufactured TIMED_OUT.
+    // `already_committed` concludes the same way: the run has a durable
+    // terminal this attempt cannot verify, and inventing another would
+    // be the second-terminal bug wearing a reconciliation outcome.
+    if (committed.reason === 'attempt_expired' || committed.reason === 'already_committed') {
+      const reached = scope.reachTerminal(kind, committed.detail)
+      return stop(
+        await conclude(
+          env,
+          'none',
+          reached.ok ? committed.detail : `${committed.detail}; ${reached.detail}`,
+        ),
+      )
+    }
+    // A commit the GOVERNED expiry refused is the run's timeout — the
+    // publication point declining to publish after the run's own budget
+    // is exactly what the wall clock means.
     return await failClosed(
       committed.detail,
       committed.reason === 'expired' ? 'timeout' : undefined,

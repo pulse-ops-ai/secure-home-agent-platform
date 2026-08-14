@@ -20,14 +20,39 @@
 import type { RejectionEntry, RunMachine, TransitionEntry } from '../lifecycle/index.js'
 import type { JournaledAcquisition, JournaledHold } from '../ports/index.js'
 
-export type OutboxEntry =
+/** One journal fact, by category, before it is given its identity. */
+export type OutboxFact =
   | { readonly category: 'transition'; readonly transition: TransitionEntry }
   | { readonly category: 'rejection'; readonly rejection: RejectionEntry }
   | { readonly category: 'acquisition'; readonly acquisition: JournaledAcquisition }
   | { readonly category: 'hold'; readonly hold: JournaledHold }
 
+/**
+ * A fact plus its STABLE, CALLER-KNOWN identity.
+ *
+ * The identity is minted when the fact is RECORDED, not when it is
+ * appended — so every retry of the same fact presents the same identity,
+ * and a journal whose first append landed while its acknowledgement was
+ * lost can recognise the retry as a replay instead of a second fact.
+ * One physical fact, one durable fact, however many acknowledgements it
+ * takes.
+ */
+export type OutboxEntry = OutboxFact & { readonly entry_id: string }
+
 export class JournalOutbox {
   readonly #pending: OutboxEntry[] = []
+  readonly #prefix: string
+  #minted = 0
+
+  /** `prefix` scopes identities to one run and one ownership generation. */
+  constructor(prefix: string) {
+    this.#prefix = prefix
+  }
+
+  #mint(): string {
+    this.#minted += 1
+    return `${this.#prefix}#j${String(this.#minted)}`
+  }
 
   /**
    * Pull everything the machine has recorded since the last drain.
@@ -40,17 +65,17 @@ export class JournalOutbox {
   drainMachine(machine: RunMachine): void {
     const pending = machine.pendingJournal()
     for (const transition of pending.transitions) {
-      this.#pending.push({ category: 'transition', transition })
+      this.#pending.push({ entry_id: this.#mint(), category: 'transition', transition })
     }
     for (const rejection of pending.rejections) {
-      this.#pending.push({ category: 'rejection', rejection })
+      this.#pending.push({ entry_id: this.#mint(), category: 'rejection', rejection })
     }
     machine.confirmJournaled(pending.transitions.length, pending.rejections.length)
   }
 
   /** Enqueue an orchestration-recorded fact (acquisition or hold). */
-  record(entry: OutboxEntry): void {
-    this.#pending.push(entry)
+  record(fact: OutboxFact): void {
+    this.#pending.push({ entry_id: this.#mint(), ...fact })
   }
 
   /** The oldest unlanded fact, or undefined when the record is complete. */

@@ -540,6 +540,41 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-155'],
   },
   {
+    id: 'RO-MUT-98',
+    mutation: 'record the operation fact only after its event acknowledgement returns',
+    killedBy: ['RO-EX-158'],
+  },
+  {
+    id: 'RO-MUT-99',
+    mutation: "mint the logical commit identity per call instead of taking the caller's",
+    killedBy: ['RO-EX-160'],
+  },
+  {
+    id: 'RO-MUT-100',
+    mutation: 'skip the published-identity reconciliation before staging',
+    killedBy: ['RO-EX-160'],
+  },
+  {
+    id: 'RO-MUT-101',
+    mutation: "ignore the journal's replay ledger and append a repeated entry identity again",
+    killedBy: ['RO-EX-161'],
+  },
+  {
+    id: 'RO-MUT-102',
+    mutation: 'let a conclusion claim a durable terminal or hold while the outbox holds a pending fact',
+    killedBy: ['RO-EX-157', 'RO-EX-154'],
+  },
+  {
+    id: 'RO-MUT-103',
+    mutation: 'relabel an attempt-bound commit expiry as the lifecycle timeout',
+    killedBy: ['RO-EX-159'],
+  },
+  {
+    id: 'RO-MUT-104',
+    mutation: 'cross the finalization commit through the result-discarding call boundary',
+    killedBy: ['RO-EX-153'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

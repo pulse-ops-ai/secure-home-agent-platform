@@ -321,6 +321,22 @@ actually reached, the intended terminal, and `produced: none`.
 `settlement_failed` is an attempt conclusion, not a lifecycle terminal and
 not success.
 
+More generally, A CONCLUSION MAY CLAIM ONLY DURABLE FACTS: no conclusion
+claims a durable property until every durable fact that conclusion
+requires has landed. A successful early-terminal-record write SHALL NOT
+yield a `terminal` conclusion while required journal facts — an
+acquisition, a rejection, any category — remain pending; the conclusion
+is `settlement_failed`. `held` SHALL mean a durable resumable identity
+actually exists; an in-process object remembering a hold whose journal
+fact never landed SHALL NOT be reported as `held`, and the fault SHALL
+NOT terminalize the merely waiting run either.
+
+Settlement and recovery windows are ATTEMPT bounds, not the run's wall
+clock. A commit refused because an attempt bound elapsed SHALL leave the
+intended lifecycle terminal standing and report `settlement_failed`
+naming that intended terminal; it SHALL NOT be relabelled into lifecycle
+`TIMED_OUT`. Only the governed run clock produces the timeout terminal.
+
 Lifecycle control failures SHALL retain their identity through journal
 operations: `RunInterrupted` and settlement expiry SHALL propagate to
 their terminal/settlement owner; only genuine journal faults remain
@@ -328,6 +344,31 @@ pending for retry. Interrupted settlement SHALL attempt session
 interruption exactly once before record settlement. Generic recovery
 finalization SHALL retain public cancellation and profile-timeout
 precedence until publication.
+
+#### Scenario: A written record does not outrank a pending journal fact
+
+- **GIVEN** a refused run whose early-terminal record was written
+- **AND** a required acquisition fact remains pending in the journal
+  outbox
+- **WHEN** the run concludes
+- **THEN** the conclusion is `settlement_failed` with `produced: none`
+- **AND** it does not claim a durable terminal
+
+#### Scenario: A hold that never became durable is not a held run
+
+- **GIVEN** an eligible, unconsented run whose hold append never lands
+- **WHEN** the run concludes
+- **THEN** the conclusion does not claim `held`
+- **AND** the run is not terminalized and no evidence bundle seals
+
+#### Scenario: An attempt bound cannot manufacture the timeout terminal
+
+- **GIVEN** a run cancelled while work was in flight
+- **AND** its CANCELLED terminal commit misses the settlement window
+- **WHEN** the attempt concludes
+- **THEN** the conclusion is `settlement_failed` with intended terminal
+  `CANCELLED`
+- **AND** the run is not reported `TIMED_OUT`
 
 #### Scenario: Mandatory evidence cannot be written
 

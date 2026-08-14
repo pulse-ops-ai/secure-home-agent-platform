@@ -40,6 +40,8 @@ interface JournalPages {
   rejections: RejectionEntry[]
   acquisitions: JournaledAcquisition[]
   held?: JournaledHold
+  /** Entry identities already landed — the replay ledger. */
+  seen: Set<string>
 }
 
 export class InMemoryRunJournal implements RunJournalPort {
@@ -60,19 +62,41 @@ export class InMemoryRunJournal implements RunJournalPort {
   #page(run_id: string): JournalPages {
     const existing = this.#pages.get(run_id)
     if (existing !== undefined) return existing
-    const page: JournalPages = { transitions: [], rejections: [], acquisitions: [] }
+    const page: JournalPages = {
+      transitions: [],
+      rejections: [],
+      acquisitions: [],
+      seen: new Set(),
+    }
     this.#pages.set(run_id, page)
     return page
   }
 
+  /**
+   * Whether this append is a REPLAY of a fact that already landed.
+   *
+   * The physical append and its acknowledgement are separate events: the
+   * first append can land while its acknowledgement is lost, and the
+   * caller's only correct move is to retry the SAME identity. Answering
+   * `ok` without appending again is what makes that retry a resolution
+   * instead of a duplication — one physical fact, one durable fact.
+   */
+  #replayed(page: JournalPages, entry_id: string | undefined): boolean {
+    if (entry_id === undefined) return false
+    if (page.seen.has(entry_id)) return true
+    page.seen.add(entry_id)
+    return false
+  }
+
   appendTransition(
-    request: RunFence & { readonly transition: TransitionEntry },
+    request: RunFence & { readonly entry_id?: string; readonly transition: TransitionEntry },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     // Checked BEFORE the page is even created: a stale holder must not
     // be able to bring a journal into existence for a run it lost.
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
+    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
     // No commit id: an ordinary append is visible on its own account.
     page.transitions.push({ entry: request.transition })
     // A run that moves is no longer held. Leaving a stale hold would
@@ -82,27 +106,35 @@ export class InMemoryRunJournal implements RunJournalPort {
   }
 
   appendRejection(
-    request: RunFence & { readonly rejection: RejectionEntry },
+    request: RunFence & { readonly entry_id?: string; readonly rejection: RejectionEntry },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
-    this.#page(request.run_id).rejections.push(request.rejection)
+    const page = this.#page(request.run_id)
+    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    page.rejections.push(request.rejection)
     return Promise.resolve(refused)
   }
 
   appendAcquisition(
-    request: RunFence & { readonly acquisition: JournaledAcquisition },
+    request: RunFence & { readonly entry_id?: string; readonly acquisition: JournaledAcquisition },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
-    this.#page(request.run_id).acquisitions.push(request.acquisition)
+    const page = this.#page(request.run_id)
+    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    page.acquisitions.push(request.acquisition)
     return Promise.resolve(refused)
   }
 
-  appendHold(request: RunFence & { readonly hold: JournaledHold }): Promise<FenceOutcome> {
+  appendHold(
+    request: RunFence & { readonly entry_id?: string; readonly hold: JournaledHold },
+  ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
-    this.#page(request.run_id).held = request.hold
+    const page = this.#page(request.run_id)
+    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    page.held = request.hold
     return Promise.resolve(refused)
   }
 

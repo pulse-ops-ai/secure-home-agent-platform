@@ -65,6 +65,15 @@ export interface JournaledState {
  * return an outcome rather than `void` because the walk has to know its
  * entry was refused — a rejected append that looked like a successful
  * one would leave the stale holder believing its history was recorded.
+ *
+ * Every append is an ACKNOWLEDGED DURABLE EFFECT, not a discardable
+ * result: the fact may be durable before the acknowledgement returns.
+ * `entry_id` is the fact's stable caller-known identity, minted when the
+ * fact was recorded and identical on every retry. An implementation
+ * MUST treat a repeated `entry_id` as a replay of the same physical
+ * fact — acknowledged `ok` without appending a second durable fact — so
+ * a landed-but-unacknowledged append is resolved by retrying it, never
+ * duplicated by it.
  */
 export interface RunJournalPort {
   /**
@@ -80,13 +89,17 @@ export interface RunJournalPort {
     },
   ): Promise<Staging>
   appendTransition(
-    request: RunFence & { readonly transition: TransitionEntry },
+    request: RunFence & { readonly entry_id?: string; readonly transition: TransitionEntry },
   ): Promise<FenceOutcome>
-  appendRejection(request: RunFence & { readonly rejection: RejectionEntry }): Promise<FenceOutcome>
+  appendRejection(
+    request: RunFence & { readonly entry_id?: string; readonly rejection: RejectionEntry },
+  ): Promise<FenceOutcome>
   appendAcquisition(
-    request: RunFence & { readonly acquisition: JournaledAcquisition },
+    request: RunFence & { readonly entry_id?: string; readonly acquisition: JournaledAcquisition },
   ): Promise<FenceOutcome>
-  appendHold(request: RunFence & { readonly hold: JournaledHold }): Promise<FenceOutcome>
+  appendHold(
+    request: RunFence & { readonly entry_id?: string; readonly hold: JournaledHold },
+  ): Promise<FenceOutcome>
   /**
    * `undefined` when the run has no journal — it never started here.
    * Unfenced: reading someone else's run tells a stale holder nothing it

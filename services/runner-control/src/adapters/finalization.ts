@@ -81,7 +81,8 @@ const describe = (error: unknown): string =>
 
 export class TransactionalFinalization implements FinalizationPort {
   readonly #participants: CommitParticipants
-  #attempts = 0
+  /** Which logical commit each generation PUBLISHED, for reconciliation. */
+  readonly #finalized = new Map<string, string>()
 
   constructor(participants: CommitParticipants) {
     this.#participants = participants
@@ -100,16 +101,51 @@ export class TransactionalFinalization implements FinalizationPort {
     return commit.expires_at_epoch_ms !== undefined && Date.now() >= commit.expires_at_epoch_ms
   }
 
+  /**
+   * The expiry refusal, carrying its PROVENANCE. A governed expiry is
+   * the run's timeout; an attempt-scoped ceiling is a recording bound
+   * whose refusal must never be relabelled into lifecycle TIMED_OUT.
+   */
+  static #expiredOutcome(commit: FinalizationCommit, what: string): CommitOutcome {
+    return {
+      ok: false,
+      reason: commit.expires_at_bound === 'attempt' ? 'attempt_expired' : 'expired',
+      detail: `finalization did not commit: the ${
+        commit.expires_at_bound === 'attempt' ? "attempt's recording bound" : "run's budget"
+      } elapsed before ${what}`,
+    }
+  }
+
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
     const { journal, events, evidence, visibility, lease } = this.#participants
     const fence = { run_id: commit.run_id, generation: commit.generation }
     const staged: StagedWrite[] = []
-    // Deterministic and unique per attempt. The generation distinguishes
-    // holders; the counter distinguishes retries by one holder. Two
-    // finalizations must never share a commit id, or publishing one
-    // would publish the other's records too.
-    this.#attempts += 1
-    const commit_id = `${commit.run_id}#${String(commit.generation)}#${String(this.#attempts)}`
+    // THE LOGICAL COMMIT IDENTITY IS THE CALLER'S, never minted per
+    // call. A per-call counter is what turned a lost acknowledgement
+    // into a second terminal: the retry arrived wearing a fresh
+    // identity, so nothing could recognise it as the same commit. When
+    // the caller supplies none, the identity derives deterministically
+    // from (run, generation, terminal) — still stable across retries.
+    const commit_id =
+      commit.commit_id ??
+      `${commit.run_id}#g${String(commit.generation)}#${String(commit.terminal)}`
+    const holder = `${commit.run_id}#g${String(commit.generation)}`
+
+    // ---- RECONCILE BEFORE ANYTHING ELSE --------------------------
+    // A repeat of an identity that already PUBLISHED is a lost
+    // acknowledgement being resolved: the effect exists, so the answer
+    // is `ok` — with nothing staged and nothing published again.
+    if (visibility.isPublished(commit_id)) return { ok: true }
+    // A DIFFERENT logical commit for a generation that already
+    // published one may never publish a second terminal. The durable
+    // record holds the truth this caller cannot see.
+    if (this.#finalized.has(holder)) {
+      return {
+        ok: false,
+        reason: 'already_committed',
+        detail: `finalization did not commit: generation ${String(commit.generation)} of run ${commit.run_id} already published commit ${this.#finalized.get(holder) ?? ''}`,
+      }
+    }
 
     const abandon = (): void => {
       // Reverse order for symmetry with publication. It makes no
@@ -150,11 +186,7 @@ export class TransactionalFinalization implements FinalizationPort {
       }
       if (TransactionalFinalization.#expired(commit)) {
         abandon()
-        return {
-          ok: false,
-          reason: 'expired',
-          detail: `finalization did not commit: the run's budget elapsed before the ${what} was prepared`,
-        }
+        return TransactionalFinalization.#expiredOutcome(commit, `the ${what} was prepared`)
       }
       let outcome
       try {
@@ -232,11 +264,7 @@ export class TransactionalFinalization implements FinalizationPort {
     // nothing — the write-side twin of the lease's abandoned attempt.
     if (TransactionalFinalization.#expired(commit)) {
       abandon()
-      return {
-        ok: false,
-        reason: 'expired',
-        detail: "finalization did not commit: the run's budget elapsed before the commit marker",
-      }
+      return TransactionalFinalization.#expiredOutcome(commit, 'the commit marker')
     }
 
     // ---- PUBLISH -------------------------------------------------
@@ -247,6 +275,7 @@ export class TransactionalFinalization implements FinalizationPort {
     // them are readable. There is no sequence for an observer to catch
     // half-done and no participant call that could throw partway.
     visibility.publish(commit_id)
+    this.#finalized.set(holder, commit_id)
     return { ok: true }
   }
 }

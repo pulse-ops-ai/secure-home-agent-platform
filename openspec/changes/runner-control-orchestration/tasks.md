@@ -608,6 +608,46 @@ operation its requirement names.
   killed by its named proof; complete tests, typecheck, lint, build,
   strict OpenSpec validation, and repository gate remain green.
 
+- [x] **7.11 Close round-11 asynchronous-effect-semantics findings**
+  <!-- agent-task: 7.11 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.9 -->
+
+  **Authorized by** — the repository owner's decision record on PR #82,
+  "asynchronous effect semantics and durable conclusions (L4)",
+  2026-08-14: <https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5298925660>.
+  The reviewer-authored round-11 REDs (RO-EX-157…161, commit `2bc7258`)
+  were consumed unmodified; implementation began only after the owner
+  record existed — the missing-record case was reported as
+  OWNER_AUTHORITY_MISSING first, per the protocol.
+
+  **Implements** — the five owner decisions as semantic classes: the
+  complete per-method effect table (`orchestration/effects.ts`, design
+  D14) computed from `Ports` and consumed by the composition boundary;
+  stable caller-known identities with idempotent replay for journal
+  facts (outbox `entry_id`, journal replay ledger); fact-before-
+  acknowledgement accounting for call operations; the caller-owned
+  finalization `commit_id` with published-identity reconciliation and
+  the `already_committed` refusal; the conclusion-durability gate in
+  `conclude()` (terminal, early-terminal, and held alike); and
+  attempt-vs-governed expiry provenance (`expires_at_bound`,
+  `attempt_expired`) so a settlement/recovery ceiling reports
+  settlement failure with the intended terminal standing instead of
+  manufacturing TIMED_OUT.
+
+  **Disclosure** — one round-10 proof was updated under the owner
+  decision it predated: RO-EX-154's hold case asserted `kind: 'held'`
+  for a hold whose journal fact never landed; decision 4 defines `held`
+  as a durable resumable identity, so the proof now asserts the
+  conclusion claims neither `held` nor a terminal, with its reasoning
+  recorded in place. The reviewer-authored round-11 file was not
+  modified.
+
+  **Proof required** — `conformance/falsification-round11.test.ts` is
+  green in full and unmodified, alongside every earlier falsification
+  round; RO-INV-85…89, RO-EX-157…161, and RO-MUT-98…104 are registered
+  and each hand-applied mutant is killed by its named proof; complete
+  tests, typecheck, lint, build, strict OpenSpec validation, and
+  repository gate remain green.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

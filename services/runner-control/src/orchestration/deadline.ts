@@ -40,6 +40,16 @@ export interface CallGuard {
   commit<T>(work: () => Promise<T>): Promise<T>
   /** The absolute instant this boundary expires at, for the commit to check. */
   expiresAtEpoch(): number | undefined
+  /**
+   * WHOSE bound `expiresAtEpoch` is — expiry provenance, structurally.
+   *
+   * `governed` is the run's own wall clock: its expiry IS the lifecycle
+   * timeout. `attempt` is a settlement/recovery recording ceiling: its
+   * expiry means THIS ATTEMPT could not finish recording, and it must
+   * never manufacture a lifecycle TIMED_OUT for a run whose intended
+   * terminal was something else.
+   */
+  bound(): 'governed' | 'attempt'
 }
 
 /**
@@ -229,6 +239,11 @@ export class RunDeadline {
     return this.#armedUntil
   }
 
+  /** The governed run clock: its expiry is the lifecycle timeout. */
+  bound(): 'governed' | 'attempt' {
+    return 'governed'
+  }
+
   async #race<T>(work: () => Promise<T>): Promise<T> {
     let rejectAbort: ((error: RunInterrupted) => void) | undefined
     const aborted = new Promise<never>((_resolve, reject) => {
@@ -333,6 +348,11 @@ export class RunSettlement implements CallGuard {
     return this.#expiresAt
   }
 
+  /** An attempt-scoped recording ceiling — never the lifecycle timeout. */
+  bound(): 'governed' | 'attempt' {
+    return 'attempt'
+  }
+
   async #race<T>(work: () => Promise<T>): Promise<T> {
     let rejectAbort: ((error: RunSettlementExpired) => void) | undefined
     const aborted = new Promise<never>((_resolve, reject) => {
@@ -399,6 +419,15 @@ export class RunRecovery implements CallGuard {
   expiresAtEpoch(): number | undefined {
     const governed = this.#deadline.expiresAtEpoch()
     return governed === undefined ? this.#expiresAt : Math.min(governed, this.#expiresAt)
+  }
+
+  /**
+   * An attempt-scoped ceiling. The governed deadline stays live through
+   * recovery via `interrupted()`; what THIS boundary's expiry stamp may
+   * refuse is the attempt's recording, never the run's lifecycle.
+   */
+  bound(): 'governed' | 'attempt' {
+    return 'attempt'
   }
 
   #raiseIfStopped(): void {

@@ -346,10 +346,19 @@ budget or publishes nothing — and once it acknowledges, the machine
 adopts the committed terminal regardless of what the wall clock says by
 the time the acknowledgement lands. The boundary stamps the expiry into
 the request because it is the party that knows it; a durable
-implementation (U11) inherits the same rule inside its transaction, plus
-discoverability by commit identity so an unawaited acknowledgement can
-be reconciled rather than guessed — the same resolution discipline the
-lease's abandoned attempt established for ownership.
+implementation (U11) inherits the same rule inside its transaction.
+
+The logical commit identity belongs to the CALLER, established before
+the port call and stable across retries of one intent — the
+implementation mints nothing per call, because a per-call identity is
+what turned a lost acknowledgement into a second published terminal. A
+replay of a published identity reconciles to `ok` with nothing staged
+and nothing published again; a different intent for a generation that
+already finalized refuses as `already_committed`. A durable
+implementation (U11) inherits discoverability by that identity, so an
+unawaited acknowledgement resolves to committed / not committed /
+explicitly unresolved rather than being guessed — the same resolution
+discipline the lease's abandoned attempt established for ownership.
 
 ### D7 (superseded detail): seal-last as an ordering component
 
@@ -519,7 +528,11 @@ every journal fact enters it, a fault leaves the entry pending for
 retry at the next tick, and the seal gate asks the one question — is
 the outbox empty — that cannot be asked per category. A category added
 later joins the gate by existing, because there is nowhere else for it
-to go. Proven by RO-INV-63, RO-EX-150/154, RO-MUT-95/96.
+to go. Every entry carries a stable identity minted when the fact is
+recorded, so a retry of an append that landed while its acknowledgement
+was lost is recognised by the journal as a REPLAY — one physical fact,
+one durable fact, however many acknowledgements it takes. Proven by
+RO-INV-63/86, RO-EX-150/154/161, RO-MUT-95/96/101.
 
 ### D10: Concurrency — one run, one writer
 
@@ -749,6 +762,78 @@ imports the service; CI builds and proves it. Rollback is non-reference.
 
 **Authority posture: additive.** No enforcement flip; L9 remains the single
 enforcement flip of the program.
+
+### D14: Asynchronous effect semantics — every port method has a class (owner decision)
+
+**Authorized by the repository owner's decision record on PR #82
+(2026-08-14):** every asynchronous method in the complete L4 `Ports`
+surface carries exactly one effect class, recorded here and enforced
+structurally — the table below is mirrored by `orchestration/effects.ts`,
+whose `PortEffectTable` type is COMPUTED from `Ports`, so an
+unclassified method fails to compile and the boundary proxy refuses one
+at runtime.
+
+The classes and their boundary semantics:
+
+- **discardable read/result** — a late result is thrown away; ordinary
+  call boundary (expiry checked at entry and on return).
+- **acknowledged effect** — execution can create durable/external state
+  before the acknowledgement arrives. Still promptly unwound (raced),
+  because its safety is its obligations: the FACT is accounted before
+  or independently of the acknowledgement, retryable effects carry a
+  stable caller-known identity whose repeat is a replay, and
+  maybe-performed work is resolved by teardown. A lost acknowledgement
+  never means "did not occur".
+- **acquisition** — ownership/resource creation resolved AT THE
+  RESOURCE (abandon/close/discard), never compensated at the caller.
+- **finalization** — the irreversible atomic commit and its staging;
+  crosses `CallGuard.commit` (acknowledgement accepted), under a
+  caller-owned commit identity, with the expiry and its BOUND stamped
+  by the boundary and enforced synchronously at the publication point.
+- **cleanup/teardown** — best-effort, idempotent at the resource.
+
+| Port.method | Class | Identity / resolution |
+|---|---|---|
+| `authority.read` | discardable read | the consumed epoch token accounts the read |
+| `journal.appendTransition` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
+| `journal.appendRejection` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
+| `journal.appendAcquisition` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
+| `journal.appendHold` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
+| `journal.stageTransitions` | finalization | staged under the caller-owned `commit_id`; abandon/publish |
+| `journal.readCurrentState` | discardable read | — |
+| `lease.claim` | acquisition | unique `attempt_id`; `abandon`; same-attempt replay while current |
+| `lease.abandon` | cleanup | idempotent resolution |
+| `lease.renew` | discardable read | fencing answer re-asked at the next boundary |
+| `lease.release` | cleanup | generation-guarded, idempotent |
+| `finalization.commit` | finalization | caller-owned `commit_id`; publication-point expiry; reconciliation |
+| `session.prepare` | acquisition | deterministic session identity per run; resolved by `close` |
+| `session.start` | acknowledged effect | resolved by interrupt/close; a late `ok` earns no transition |
+| `session.interrupt` | cleanup | idempotent teardown |
+| `session.close` | cleanup | idempotent teardown |
+| `workspace.provision` | acquisition | `workspace_ref`; resolved by `discard` |
+| `workspace.applyBack` | acknowledged effect | fenced observed change set; unknown ack = unconfirmed, never "not applied" |
+| `workspace.discard` | cleanup | idempotent |
+| `observer.observeBase` | discardable read | — |
+| `observer.observe` | discardable read | — |
+| `artifacts.observe` | discardable read | — |
+| `execution.runGate` | discardable read | side effects governed by session/workspace observation, not the ack |
+| `adapter.invoke` | acknowledged effect | resolved via session interrupt/close; partial facts via TerminalEvidence |
+| `events.emit` | acknowledged effect | emitter-owned (run_id, sequence) envelope; fact accounted before the ack |
+| `events.stageEmit` | finalization | staged under the caller-owned `commit_id` |
+| `evidence.write` | acknowledged effect | one governed record per (run, kind); unknown ack = settlement failure, never denial |
+| `evidence.stageWrite` | finalization | staged under the caller-owned `commit_id` |
+
+`clock.now` is synchronous and outside the table — it cannot outlive a
+boundary.
+
+The same owner decision fixes the CONCLUSION side: a conclusion claims a
+durable property only after every durable fact it requires has landed
+(terminal, early-terminal record, and held alike — `held` means the
+durable resumable identity exists), and expiry provenance stays
+structurally distinct — settlement/recovery ceilings are attempt bounds
+that report the authorized settlement-failure semantics with the
+intended terminal standing, never a manufactured lifecycle TIMED_OUT.
+Proven by RO-INV-85…89, RO-EX-153/157…161, RO-MUT-98…104.
 
 ## Open Questions
 
