@@ -9,20 +9,13 @@
  * both. What a terminal can say is now visible in its signature.
  */
 import { reconcileClaims } from '@secure-home/runner-core'
-import {
-  canConstructEvidence,
-  isTerminal,
-  type LifecycleState,
-  type PhaseCommand,
-  type RejectionEntry,
-  type TransitionKind,
-} from '../lifecycle/index.js'
+import { isTerminal, type LifecycleState, type TransitionKind } from '../lifecycle/index.js'
 import { assembleEvidence, buildEarlyTerminationRecord } from '../finalization/records.js'
 import type { EmitOutcome } from '../events/index.js'
 import type { RunEnvironment } from './environment.js'
+import { guardPorts } from './ports.js'
 import { stop, type RunConclusion, type Stop } from './result.js'
 import type { Authority, Observations } from './state.js'
-import { noObservations, type WalkState } from './state.js'
 
 /** The terminals a run without authority can reach. */
 export type EarlyTerminal = Extract<
@@ -46,19 +39,25 @@ export const conclude = async (
   produced: RunConclusion['produced'],
   detail: string,
 ): Promise<RunConclusion> => {
-  // THE RUN IS WRITING ITS ENDING. Its ports stop being bound by
-  // the interruption they are recording, and are bounded by the
-  // cleanup budget instead — see `RunDeadline.settle`.
-  env.deadline.settle()
   const { scope, request } = env
-  await env.journalTick()
-  // One more attempt for anything a failed append left pending, so the
-  // durable record is as complete as the journal allowed.
-  await env.journalTick()
-  // One release path, shared with the exception handler. Releasing here
-  // and separately there is how the two drifted: the handler's version
-  // discarded nothing, so every throw leaked the workspace and timer.
-  await scope.release(env.ports)
+  // The terminal has already been established and its governed record
+  // written (or atomically committed). From here, a late run timeout must
+  // not relabel it. Journal completion and cleanup move to their own
+  // finite settlement boundary instead.
+  env.deadline.disarm()
+  const settlement = env.deadline.settlement()
+  const ports =
+    env.cleanupPorts === undefined ? env.ports : guardPorts(env.cleanupPorts, settlement)
+  const journalTick = env.journalTickThrough ?? (() => env.journalTick())
+  try {
+    await journalTick(ports)
+    // One more attempt for anything a failed append left pending, so the
+    // durable record is as complete as the journal allowed.
+    await journalTick(ports)
+    await scope.release(ports, false)
+  } finally {
+    settlement.disarm()
+  }
   const base = {
     run_id: request.run_id,
     transitions: scope.machine.transitionRecord,
@@ -106,10 +105,6 @@ export const terminateEarly = async (
   kind: EarlyTerminal,
   detail: string,
 ): Promise<Stop> => {
-  // THE RUN IS WRITING ITS ENDING. Its ports stop being bound by
-  // the interruption they are recording, and are bounded by the
-  // cleanup budget instead — see `RunDeadline.settle`.
-  env.deadline.settle()
   // OWNERSHIP FIRST, BEFORE THE MACHINE IS TOUCHED.
   //
   // The write guard further down caught the record; it did not catch the
@@ -142,10 +137,6 @@ export const writeEarlyTerminalRecord = async (
   env: RunEnvironment,
   detail: string,
 ): Promise<Stop> => {
-  // THE RUN IS WRITING ITS ENDING. Its ports stop being bound by
-  // the interruption they are recording, and are bounded by the
-  // cleanup budget instead — see `RunDeadline.settle`.
-  env.deadline.settle()
   const { scope, request, ports } = env
   // THE SAME GUARD `finish` HAS. Without it a dispossessed run wrote its
   // governed record and then reported, in the same conclusion, that no
@@ -188,22 +179,19 @@ export const emit = async (
   body: Record<string, unknown>,
 ): Promise<EmitOutcome> => {
   env.ledger.open('event', String(body['event_type']))
-  // CLOSED EVEN WHEN THE EMIT RAISES. An abort reaching an outstanding
-  // emission left the entry open forever, so the run's own terminal path
-  // then found an outstanding write, refused to seal, and reported
-  // OPERATIONAL_FAILURE — a run that timed out describing itself as
-  // broken. An emission that raised is not a write still in flight from
-  // this run's point of view; it is a write that did not land.
-  let outcome: EmitOutcome
   try {
-    outcome = await authority.emitter.emit(body)
+    const outcome = await authority.emitter.emit(body)
+    // An emission the fence refused is not an emission failure to
+    // terminate on — it is the run ceasing to be ours mid-phase.
+    if (!outcome.ok && outcome.reason === 'stale_fence') env.scope.loseFence(outcome.detail)
+    return outcome
   } finally {
+    // An interrupted or throwing emission is no longer outstanding from
+    // orchestration's perspective. Leaving the ledger open would make
+    // the interrupt's own evidence fail seal-ordering and relabel a
+    // truthful TIMED_OUT/CANCELLED terminal as OPERATIONAL_FAILURE.
     env.ledger.close()
   }
-  // An emission the fence refused is not an emission failure to
-  // terminate on — it is the run ceasing to be ours mid-phase.
-  if (!outcome.ok && outcome.reason === 'stale_fence') env.scope.loseFence(outcome.detail)
-  return outcome
 }
 
 /**
@@ -223,10 +211,6 @@ export const finish = async (
   // is what lets a phase return `finish(...)` directly, whatever that
   // phase's own outcome type promises to establish.
 ): Promise<Stop> => {
-  // THE RUN IS WRITING ITS ENDING. Its ports stop being bound by
-  // the interruption they are recording, and are bounded by the
-  // cleanup budget instead — see `RunDeadline.settle`.
-  env.deadline.settle()
   const { scope, request, ports, ledger } = env
   // THE FENCE IS CHECKED BEFORE ANY TERMINAL IS ASSEMBLED. One guard
   // here covers every terminal, because they all funnel through this.
@@ -323,6 +307,7 @@ export const finish = async (
       outcome: assembled.outcome,
     }),
     bundle: eligible.bundle,
+    signal: env.commitSignal ?? env.deadline.signal,
   })
   if (!committed.ok) {
     // A commit the fence refused did not fail — it was declined. The run
@@ -342,48 +327,13 @@ export const finish = async (
 }
 
 /**
- * Terminate a run whose in-flight work was abandoned.
+ * Terminate a run interrupted while work was in flight.
  *
- * The session is INTERRUPTED first. Abandoning the call would leave
- * whatever it started still running, which is the difference between
- * cancellation that is effective and cancellation that is a note in a
- * log. Proving the interrupt stops things is L9's; giving it something
- * to prove is this landing's.
+ * The session is INTERRUPTED first. Merely unwinding the orchestration
+ * call would leave whatever the session started still running. Proving
+ * the interrupt stops things is L9's; giving it something to prove is
+ * this landing's.
  */
-/**
- * Conclude a run whose budget or cancellation reached an outstanding
- * call, with the governed record its established state owes.
- *
- * Failure semantics: a termination in REQUESTED owes an early-terminal
- * refusal record; one at or after PROFILE_RESOLVED owes a fully sealed
- * bundle, with empty sets where nothing ran. The path that used to
- * handle this held the scope and neither an `Authority` nor
- * `Observations`, so it wrote NEITHER — and which record a run received
- * came down to whether a hung port answered inside a grace window.
- * `scope.established` is the value that decides it.
- */
-export const concludeAborted = async (
-  env: RunEnvironment,
-  reason: 'cancel' | 'timeout',
-): Promise<RunConclusion> => {
-  const established = env.scope.established
-  if (established.at === 'requested') {
-    return (await terminateEarly(env, reason, `the run was ${describeReason(reason)}`)).value
-  }
-  return (
-    await abortRun(
-      env,
-      established.authority,
-      established.at === 'observed' ? established.observations : noObservations(),
-      reason,
-    )
-  ).value
-}
-
-/** How a run states the reason it stopped. */
-export const describeReason = (reason: 'cancel' | 'timeout'): string =>
-  reason === 'cancel' ? 'cancelled' : 'timed out'
-
 export const abortRun = async (
   env: RunEnvironment,
   authority: Authority,
@@ -393,10 +343,6 @@ export const abortRun = async (
   // 'cancel' would report a timeout as a cancellation.
   reason: 'cancel' | 'timeout' = env.deadline.reason ?? 'cancel',
 ): Promise<Stop> => {
-  // THE RUN IS WRITING ITS ENDING. Its ports stop being bound by
-  // the interruption they are recording, and are bounded by the
-  // cleanup budget instead — see `RunDeadline.settle`.
-  env.deadline.settle()
   const { scope, ports } = env
   if (scope.session !== undefined) {
     try {
@@ -419,37 +365,4 @@ export const abortRun = async (
     `the run was ${reason === 'cancel' ? 'cancelled' : 'timed out'} while work was in flight`,
     reason === 'cancel' ? 'CANCELLED' : 'TIMED_OUT',
   )
-}
-
-/**
- * Terminate a run halted by a REJECTED transition, with the record its
- * established state can construct.
- */
-/**
- * A phase earned a transition the machine REFUSED.
- *
- * The walk has stopped and no later phase ran, but the run is still in
- * a non-terminal state and the lifecycle requirement forbids
- * abandoning it there. `canConstructEvidence` chooses the shape: a run
- * past REQUESTED has the identities a bundle needs; one still in
- * REQUESTED does not.
- */
-export const terminateFromRejection = async (
-  env: RunEnvironment,
-  state: WalkState,
-  halt: { readonly phase: string; readonly rejection: RejectionEntry },
-): Promise<RunConclusion> => {
-  const why = `the ${halt.phase} phase earned ${halt.rejection.attempted}, which the machine refused from ${halt.rejection.state}: ${halt.rejection.detail}`
-  const stopped: PhaseCommand<RunConclusion> =
-    canConstructEvidence(env.scope.machine.state) && state.at !== 'requested'
-      ? await finish(
-          env,
-          state.authority,
-          state.at === 'observed' ? state.observations : noObservations(),
-          'operational_fault',
-          why,
-          'OPERATIONAL_FAILURE',
-        )
-      : await terminateEarly(env, 'operational_fault', why)
-  return stopped.kind === 'terminate' ? stopped.value : await conclude(env, 'none', why)
 }

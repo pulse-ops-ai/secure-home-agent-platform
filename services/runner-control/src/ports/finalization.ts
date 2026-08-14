@@ -53,6 +53,15 @@ export interface FinalizationCommit extends RunFence {
   readonly event: Record<string, unknown>
   /** The contract-valid, seal-eligible bundle. */
   readonly bundle: unknown
+  /**
+   * Aborted when the run's wall clock or caller cancellation fires.
+   *
+   * Staging and the final ownership check are async. An implementation
+   * must observe this signal before publication so an expired attempt
+   * cannot make a terminal commit visible after the orchestrator has
+   * moved on to interruption settlement.
+   */
+  readonly signal: AbortSignal
 }
 
 export type CommitOutcome =

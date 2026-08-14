@@ -14,9 +14,16 @@
  * a procedure they were four, and the timers outlived every exception
  * because nothing owned clearing them.
  */
+import { RunInterrupted, RunSettlementExpired } from '../run/interruption.js'
 import type { RunScope } from '../run/scope.js'
+import { ABANDON_GRACE_MS } from './controls.js'
 
 export type InterruptReason = 'cancel' | 'timeout'
+
+/** A boundary that can reject an awaited call without abandoning its continuation. */
+export interface CallGuard {
+  call<T>(work: () => Promise<T>): Promise<T>
+}
 
 /**
  * How often an in-flight call re-consults the caller's interrupt.
@@ -31,15 +38,15 @@ export const INTERRUPT_TERMINAL = { cancel: 'CANCELLED', timeout: 'TIMED_OUT' } 
 
 export class RunDeadline {
   readonly #aborter = new AbortController()
-  readonly #scope: RunScope
-  readonly #poll: (() => InterruptReason | undefined) | undefined
-  /** When the run started. Every budget is measured from here. */
-  readonly #origin = Date.now()
+  #poll: (() => InterruptReason | undefined) | undefined
+  readonly #startedAt = Date.now()
+  #armedUntil: number | undefined
+  #wallClock: ReturnType<typeof setTimeout> | undefined
+  #cancelClock: ReturnType<typeof setTimeout> | undefined
   #reason: InterruptReason | undefined
-  #settling = false
 
-  constructor(scope: RunScope, poll?: () => 'cancel' | undefined) {
-    this.#scope = scope
+  constructor(scope?: RunScope, poll?: () => 'cancel' | undefined) {
+    if (scope !== undefined) scope.deadline = this
     // COERCED, NOT TRUSTED. `RunSignals.interrupt` is declared to return
     // cancellation only, and a type is erased at runtime — a caller can
     // cast and return `'timeout'`. TIMED_OUT is what the governed wall
@@ -47,7 +54,18 @@ export class RunDeadline {
     // obtain is a cancellation. The narrowing lives HERE because this is
     // the one place a caller's answer becomes a run's interrupt reason.
     this.#poll =
-      poll === undefined ? undefined : () => (poll() === undefined ? undefined : 'cancel')
+      poll === undefined
+        ? undefined
+        : () => {
+            try {
+              return poll() === undefined ? undefined : 'cancel'
+            } catch {
+              // A caller-owned cancellation probe must never be able to
+              // crash the timer callback. Treat a broken probe as the
+              // caller withdrawing its run: fail closed as cancellation.
+              return 'cancel'
+            }
+          }
   }
 
   /** Handed to the calls that may hang, so they can stop themselves. */
@@ -68,28 +86,10 @@ export class RunDeadline {
    * says nothing.
    */
   interrupted(): InterruptReason | undefined {
-    return this.#reason ?? this.#poll?.()
-  }
-
-  /**
-   * The run is now writing its ending, and its ports stop being bound by
-   * the abort they are recording.
-   *
-   * Without this the fix eats itself: once the deadline fires, every
-   * bound port refuses, INCLUDING the ones the terminal path uses to
-   * write the governed record — so a run interrupted at any point could
-   * not write down that it had been interrupted. Concluding is bounded
-   * too, by the cleanup budget, because an unbounded seal is the hole
-   * this round is closing. It is simply not bounded by the interruption
-   * it exists to record.
-   */
-  settle(): void {
-    this.#settling = true
-  }
-
-  /** Whether the run has begun writing its ending. */
-  get settling(): boolean {
-    return this.#settling
+    if (this.#reason !== undefined) return this.#reason
+    const polled = this.#poll?.()
+    if (polled !== undefined) this.raise(polled)
+    return this.#reason
   }
 
   /** Raise the abort. The first reason wins; later ones are ignored. */
@@ -99,87 +99,90 @@ export class RunDeadline {
     this.#aborter.abort()
   }
 
+  /** Bound ownership and acquisition before a profile can be captured. */
+  armAcquisition(deadlineMs: number): void {
+    this.#setWallClock(this.#startedAt + Math.max(0, deadlineMs))
+  }
+
   /**
-   * Arm the wall clock, and optionally a mid-flight cancellation.
+   * Establish the profile-authorized wall clock once.
    *
-   * The timers are registered with the scope, which is what clears them
-   * — including on the exception path, where nothing used to.
+   * This replaces the standing acquisition ceiling: that ceiling exists
+   * only because no profile is available yet. Once authority is captured,
+   * the profile owns the budget. Every later narrowing is anchored to this
+   * same instant, so prepare/start time cannot be bought twice.
    */
-  arm(deadlineMs: number, cancelAfterMs?: number): void {
-    // AN ABSOLUTE EXPIRY, MEASURED FROM THE RUN'S START.
-    //
-    // This started a fresh DURATION from now, and `eligible` arms the
-    // profile's budget twice — once before `session.prepare` and again
-    // after `session.start` returns. A profile granting one second
-    // therefore bought one second PLUS however long prepare and start
-    // took, which is a wall clock the profile did not declare. The
-    // budget is now what the profile granted minus what the run has
-    // already spent, so re-arming can only ever move the expiry EARLIER.
-    //
-    // Still REPLACES rather than adds: a run has one wall clock, and
-    // leaving the acquisition ceiling ticking would cut short a run the
-    // profile granted longer.
-    this.#scope.disarm()
-    const spent = Date.now() - this.#origin
-    const remaining = Math.max(0, deadlineMs - spent)
-    this.#scope.timers.push(
-      setTimeout(() => {
-        this.raise('timeout')
-      }, remaining),
-    )
-    if (cancelAfterMs !== undefined) {
-      this.#scope.timers.push(
-        setTimeout(() => {
+  armProfile(deadlineMs: number, cancelAfterMs?: number): void {
+    this.#setWallClock(this.#startedAt + Math.max(0, deadlineMs))
+    if (cancelAfterMs !== undefined && this.#cancelClock === undefined) {
+      const cancelAt = this.#startedAt + Math.max(0, cancelAfterMs)
+      if (cancelAt <= Date.now()) {
+        this.raise('cancel')
+        return
+      }
+      this.#cancelClock = setTimeout(
+        () => {
           this.raise('cancel')
-        }, cancelAfterMs),
+        },
+        Math.max(0, cancelAt - Date.now()),
       )
+      this.#cancelClock.unref?.()
     }
   }
 
-  /**
-   * A promise that settles when the run is aborted, and never otherwise.
-   *
-   * The walk is raced against this, which is what makes the budget cover
-   * EVERY port rather than the handful whose call sites remembered to
-   * ask. A port added later cannot forget to be bounded, because nothing
-   * at the call site is what bounds it.
-   */
-  expired(): Promise<InterruptReason> {
-    return new Promise<InterruptReason>((resolve) => {
-      if (this.#aborter.signal.aborted) {
-        resolve(this.#reason ?? 'timeout')
-        return
-      }
-      this.#aborter.signal.addEventListener('abort', () => {
-        resolve(this.#reason ?? 'timeout')
-      })
-    })
+  /** Narrow the established profile clock without restarting it. */
+  narrowProfile(deadlineMs: number): void {
+    const proposed = this.#startedAt + Math.max(0, deadlineMs)
+    this.#setWallClock(
+      this.#armedUntil === undefined ? proposed : Math.min(this.#armedUntil, proposed),
+    )
+  }
+
+  #setWallClock(expiresAt: number): void {
+    // Do not clear and recreate an identical timer. A very short proof
+    // override may already be armed from run start; recreating it at the
+    // profile boundary moves the timer callback ahead of continuations
+    // that were already queued and changes observable boundary semantics.
+    if (this.#armedUntil === expiresAt && this.#wallClock !== undefined) return
+    this.#armedUntil = expiresAt
+    if (this.#wallClock !== undefined) clearTimeout(this.#wallClock)
+    if (expiresAt <= Date.now()) {
+      this.#wallClock = undefined
+      this.raise('timeout')
+      return
+    }
+    this.#wallClock = setTimeout(
+      () => {
+        this.raise('timeout')
+      },
+      Math.max(0, this.#armedUntil - Date.now()),
+    )
+    this.#wallClock.unref?.()
   }
 
   /**
-   * Await `work`, or give up when the run is aborted.
+   * Await one port call, or reject its awaiting continuation on abort.
    *
-   * Returns `undefined` on abort. The abandoned call may still be
-   * running — which is exactly why the session is INTERRUPTED rather
-   * than merely abandoned: stopping it is the session's job, and proving
-   * the stop worked is L9's.
+   * The port's own promise may settle later. No orchestration continuation
+   * remains attached to it, so no later effect in the phase can start.
    */
-  async until<T>(work: () => Promise<T>): Promise<T | undefined> {
-    // A THUNK, NOT A PROMISE. This took an already-created promise, and
-    // JavaScript evaluates an argument before entering the function it
-    // is passed to — so `until(ports.adapter.invoke({…}))` STARTED the
-    // invocation, and only then checked whether the run was already
-    // aborted. A deadline that fired while the preceding event was being
-    // emitted therefore reported a timeout for work it had just set
-    // running, against a provider the contract says may ignore its
-    // signal. The type is what fixes it: an effect that has not been
-    // called cannot have started.
-    if (this.#aborter.signal.aborted) return undefined
-    // THE CALLER'S INTERRUPT IS POLLED WHILE WAITING, not only between
-    // phases. `interrupt` is the ONLY cancellation input a submitted run
-    // has — the constructor-time affordances belong to composition — and
-    // polling it only at boundaries meant it could never reach a call
-    // already in flight, which is the one case cancellation exists for.
+  async call<T>(work: () => Promise<T>): Promise<T> {
+    // Do not POLL here. Explicit lifecycle boundaries consult the
+    // submitted interrupt, while the call-local interval raises it
+    // during an outstanding call. Polling synchronously before every
+    // port would turn implementation detail (how many ports a phase
+    // uses) into cancellation semantics and move named boundaries.
+    if (this.#aborter.signal.aborted) {
+      throw new RunInterrupted(this.#reason ?? 'timeout')
+    }
+    let rejectAbort: ((error: RunInterrupted) => void) | undefined
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject
+    })
+    const listener = (): void => {
+      rejectAbort?.(new RunInterrupted(this.#reason ?? 'timeout'))
+    }
+    this.#aborter.signal.addEventListener('abort', listener, { once: true })
     const ticking =
       this.#poll === undefined
         ? undefined
@@ -187,25 +190,81 @@ export class RunDeadline {
             const signal = this.#poll?.()
             if (signal !== undefined) this.raise(signal)
           }, POLL_INTERVAL_MS)
-    // Unref'd so a poll can never be the reason a process stays alive,
-    // and cleared the moment the call settles. The blanket ban on
-    // intervals exists for timers that do neither.
     ticking?.unref?.()
     try {
-      // RE-CHECKED IMMEDIATELY BEFORE STARTING IT. Arming the poll above
-      // can raise the abort, and a thunk that is called anyway would
-      // reintroduce the very gap the thunk exists to close.
-      if (this.#aborter.signal.aborted) return undefined
-      return await Promise.race([
-        work(),
-        new Promise<undefined>((resolve) => {
-          this.#aborter.signal.addEventListener('abort', () => {
-            resolve(undefined)
-          })
-        }),
-      ])
+      return await Promise.race([work(), aborted])
     } finally {
+      this.#aborter.signal.removeEventListener('abort', listener)
       if (ticking !== undefined) clearInterval(ticking)
+    }
+  }
+
+  /**
+   * A fresh, short boundary for governed terminal settlement.
+   *
+   * The run deadline is already aborted at this point. Cleanup and
+   * evidence still need to run, but no broken sink may make `run()`
+   * unbounded. Each awaited call is rejected at the SAME absolute
+   * settlement expiry, so the continuation unwinds at that call rather
+   * than a whole terminal procedure being abandoned.
+   */
+  settlement(): RunSettlement {
+    return new RunSettlement()
+  }
+
+  /** Stop every timer and poll owned by this run. Safe to call twice. */
+  disarm(): void {
+    if (this.#wallClock !== undefined) clearTimeout(this.#wallClock)
+    if (this.#cancelClock !== undefined) clearTimeout(this.#cancelClock)
+    this.#wallClock = undefined
+    this.#cancelClock = undefined
+    this.#armedUntil = undefined
+  }
+}
+
+export class RunSettlement implements CallGuard {
+  readonly #aborter = new AbortController()
+  readonly #timer: ReturnType<typeof setTimeout>
+  readonly #expiresAt = Date.now() + ABANDON_GRACE_MS
+
+  constructor() {
+    this.#timer = setTimeout(() => {
+      this.#aborter.abort()
+    }, ABANDON_GRACE_MS)
+    this.#timer.unref?.()
+  }
+
+  /** Passed to fallible terminal work that must stop before publication. */
+  get signal(): AbortSignal {
+    return this.#aborter.signal
+  }
+
+  async call<T>(work: () => Promise<T>): Promise<T> {
+    this.#raiseIfElapsed()
+    let rejectAbort: ((error: RunSettlementExpired) => void) | undefined
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject
+    })
+    const listener = (): void => {
+      rejectAbort?.(new RunSettlementExpired())
+    }
+    this.#aborter.signal.addEventListener('abort', listener, { once: true })
+    try {
+      const value = await Promise.race([work(), aborted])
+      this.#raiseIfElapsed()
+      return value
+    } finally {
+      this.#aborter.signal.removeEventListener('abort', listener)
+    }
+  }
+
+  disarm(): void {
+    clearTimeout(this.#timer)
+  }
+
+  #raiseIfElapsed(): void {
+    if (this.#aborter.signal.aborted || Date.now() >= this.#expiresAt) {
+      throw new RunSettlementExpired()
     }
   }
 }

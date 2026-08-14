@@ -17,7 +17,7 @@
  */
 import { RunEvent, type RunEventT } from '@secure-home/events'
 import type { ClockPort, EventSinkPort } from '../ports/index.js'
-import { RunAborted } from '../orchestration/bound-ports.js'
+import { isRunControlError } from '../run/interruption.js'
 
 export interface EventIdentity {
   readonly run_id: string
@@ -125,13 +125,10 @@ export class RunEventEmitter {
         event: parsed.data,
       })
     } catch (error) {
-      // AN ABORT IS NOT A SINK FAILURE. The run's budget reaching an
-      // outstanding emit means the RUN is over, not that the sink is
-      // broken — reporting it as `sink_failed` made a timed-out run
-      // terminate OPERATIONAL_FAILURE, describing a defect in the event
-      // system for something the run's own clock did. It unwinds to the
-      // handler that knows what the run established.
-      if (error instanceof RunAborted) throw error
+      // A run interrupt rejects the awaiting continuation at the shared
+      // port boundary. It is not an event-sink fault and must reach the
+      // lifecycle's one terminal owner unchanged.
+      if (isRunControlError(error)) throw error
       return {
         ok: false,
         reason: 'sink_failed',

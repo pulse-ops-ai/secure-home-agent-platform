@@ -146,24 +146,14 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
  * effect rather than from the fourth phase.
  */
 /**
- * How long the calls OUTSIDE a run's deadline are given.
+ * The bounded terminal-settlement window after the run deadline fires.
  *
- * The lease claim precedes the scope the deadline is built from, and
- * cleanup follows the disarm. A run hung in either never resolved at
- * all: `run()` resolving is what every caller relies on to know the run
- * is over, and it was unbounded at both ends of the mechanism that
- * exists to bound it.
+ * This is not more execution time. The interrupted phase has already
+ * unwound at its awaited port; the window exists only to interrupt/close
+ * the session and write the mandatory governed record without letting a
+ * broken teardown or sink make `run()` unbounded.
  */
-export const CLEANUP_BUDGET_MS = 250
-
-/**
- * RETAINED NAME. The abandonment this named is gone — the walk is never
- * abandoned now, because every port is bounded and the walk concludes
- * through its own path. Kept as an alias because round 6's proofs import
- * it, and renaming a constant out from under a reviewer's tests hides
- * the change rather than making it.
- */
-export const ABANDON_GRACE_MS = CLEANUP_BUDGET_MS
+export const ABANDON_GRACE_MS = 250
 
 export const ACQUISITION_BUDGET_MS = 60_000
 

@@ -486,6 +486,37 @@ operation its requirement names.
   packages are outside this landing's path authority (the allowlist
   amendment excepted, per its recorded authorization).
 
+- [x] **7.5 Close round-6 interruption-coordinator findings**
+  <!-- agent-task: 7.5 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.4 -->
+
+  **Implements** — the `runner-lifecycle` rule that a non-returning
+  operation cannot hold the run open, without abandoning a continuation
+  that can later resume; the deadline covers ownership, the walk,
+  terminal settlement, and cleanup; the profile budget is absolute and
+  shortening-only.
+
+  **Proof required** — the reviewer-supplied
+  `conformance/falsification-round6.test.ts` keeps every assertion and
+  fixture unchanged and is green: all ten findings plus six controls.
+  Formatting-only line wrapping is permitted so the repository format
+  gate remains honest. The complete pre-existing suite, typecheck, lint,
+  build, strict OpenSpec validation, and repository gate remain green.
+
+- [x] **7.6 Close round-7 settlement, history, ownership, and recovery findings**
+  <!-- agent-task: 7.6 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.5 -->
+
+  **Implements** — truthful settlement provenance; cancellation/timeout
+  precedence while a run remains non-terminal; mint-time immutable
+  transition/rejection history; neutral interruption identity; late lease
+  cleanup; bounded recovery; and D11's full-bundle rule for every
+  post-authority terminal.
+
+  **Proof required** — `conformance/falsification-round7.test.ts` is green
+  in full, alongside the unchanged round-6 suite; the mutation map and D13
+  describe only the port-bound architecture; complete tests, typecheck,
+  lint, build, strict OpenSpec validation, and repository gate remain
+  green.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

@@ -7,6 +7,7 @@
  */
 import { decideEligibility, isProceed } from '@secure-home/runner-core'
 import type { PhaseCommand } from '../../lifecycle/index.js'
+import { boundedDeadlineMs } from '../controls.js'
 import { INTERRUPT_TERMINAL } from '../deadline.js'
 import { describeRefusal } from '../detail.js'
 import type { RunEnvironment } from '../environment.js'
@@ -18,6 +19,18 @@ export const profileResolved = async (
   env: RunEnvironment,
   authority: Authority,
 ): Promise<PhaseCommand<RunConclusion>> => {
+  // AUTHORITY NOW EXISTS, so the captured profile replaces the standing
+  // acquisition ceiling before the first post-capture effect. Its
+  // absolute expiry is anchored at run start; session narrowing later
+  // retains the time already spent.
+  env.deadline.armProfile(
+    boundedDeadlineMs(
+      authority.profile.value.limits.wall_clock_seconds,
+      authority.profile.value.limits.wall_clock_seconds,
+      env.controls.deadline_ms,
+    ),
+  )
+
   const signal = env.deadline.interrupted()
   if (signal !== undefined) {
     return finish(

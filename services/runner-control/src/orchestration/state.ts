@@ -86,6 +86,21 @@ export const noObservations = (): Observations => ({
 })
 
 /**
+ * What the walk has established so far.
+ *
+ * Kept on the run scope so interruption and last-resort recovery can
+ * construct the governed record owed by the real state the run reached.
+ */
+export type EstablishedRun =
+  | { readonly at: 'requested' }
+  | { readonly at: 'authorized'; readonly authority: Authority }
+  | {
+      readonly at: 'observed'
+      readonly authority: Authority
+      readonly observations: Observations
+    }
+
+/**
  * What the run has established, as a value nothing can misread.
  *
  * On the SCOPE rather than in the walk's local scope, for the same

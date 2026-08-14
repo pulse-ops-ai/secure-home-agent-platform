@@ -20,8 +20,6 @@ export type GateRun =
   | { readonly kind: 'unknown_gates'; readonly detail: string }
   /** A gate could not be run at all, or its disposition was refused. */
   | { readonly kind: 'faulted'; readonly detail: string; readonly recorder: DispositionRecorder }
-  /** The run was aborted mid-gate. */
-  | { readonly kind: 'aborted'; readonly recorder: DispositionRecorder }
   /** Ownership moved; the caller must stop writing. */
   | { readonly kind: 'stale_fence'; readonly detail: string }
 
@@ -40,16 +38,13 @@ export const runGates = async (
 
   const recorder = new DispositionRecorder(plan.plan.map((entry) => entry.gate_id))
   for (const entry of plan.plan) {
-    const report = await env.deadline.until(() =>
-      env.ports.execution.runGate({
-        ...env.scope.fence,
-        gate_id: entry.gate_id,
-        spec: entry.spec,
-        session_ref,
-        signal: env.deadline.signal,
-      }),
-    )
-    if (report === undefined) return { kind: 'aborted', recorder }
+    const report = await env.ports.execution.runGate({
+      ...env.scope.fence,
+      gate_id: entry.gate_id,
+      spec: entry.spec,
+      session_ref,
+      signal: env.deadline.signal,
+    })
     if (report.outcome === 'stale_fence') return { kind: 'stale_fence', detail: report.detail }
 
     const disposition = toDisposition(report)

@@ -127,13 +127,13 @@ export class RunMachine {
     // record watched it gain entries afterwards. D9 has the transition
     // record "durable, and returned to the caller"; a record that gives
     // two different answers to the same question is neither.
-    return Object.freeze([...this.#transitions])
+    return Object.freeze(this.#transitions.map((entry) => ({ ...entry })))
   }
 
   /** Every rejected attempt. A rejection is evidence, not an error. */
   get rejections(): readonly RejectionEntry[] {
     // A snapshot, for the same reason as `transitionRecord` above.
-    return Object.freeze([...this.#rejections])
+    return Object.freeze(this.#rejections.map((entry) => ({ ...entry })))
   }
 
   /**
@@ -165,8 +165,16 @@ export class RunMachine {
     readonly rejections: readonly RejectionEntry[]
   } {
     return {
-      transitions: this.#transitions.slice(this.#journaledTransitions),
-      rejections: this.#rejections.slice(this.#journaledRejections),
+      transitions: Object.freeze(
+        this.#transitions
+          .slice(this.#journaledTransitions)
+          .map((entry) => Object.freeze({ ...entry })),
+      ),
+      rejections: Object.freeze(
+        this.#rejections
+          .slice(this.#journaledRejections)
+          .map((entry) => Object.freeze({ ...entry })),
+      ),
     }
   }
 
@@ -191,16 +199,16 @@ export class RunMachine {
   }
 
   #reject(attempted: TransitionKind, reason: RejectionReason, detail: string): TransitionResult {
-    const entry: RejectionEntry = {
+    const entry: RejectionEntry = Object.freeze({
       run_id: this.#runId,
       state: this.#state,
       attempted,
       reason,
       detail,
       at: this.#clock.now({ run_id: this.#runId }),
-    }
+    })
     this.#rejections.push(entry)
-    return { kind: 'rejected', state: this.#state, entry }
+    return { kind: 'rejected', state: this.#state, entry: { ...entry } }
   }
 
   apply(claim: WriteClaim, kind: TransitionKind, cause: string): TransitionResult {
@@ -237,18 +245,18 @@ export class RunMachine {
         `the machine declares no ${kind} transition for ${this.#state}`,
       )
     }
-    const entry: TransitionEntry = {
+    const entry: TransitionEntry = Object.freeze({
       run_id: this.#runId,
       from: this.#state,
       to: next,
       kind,
       cause,
       at: this.#clock.now({ run_id: this.#runId }),
-    }
+    })
     this.#state = next
     this.#version += 1
     this.#transitions.push(entry)
-    return { kind: 'advanced', state: next, entry }
+    return { kind: 'advanced', state: next, entry: { ...entry } }
   }
 
   /**

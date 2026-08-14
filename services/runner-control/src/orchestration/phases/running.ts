@@ -31,24 +31,21 @@ export const running = async (
   const adapterStarted = await emit(env, authority, { event_type: 'adapter.started' })
   if (!adapterStarted.ok) return fault(emissionFailure(adapterStarted), so_far())
 
-  const invocation = await env.deadline.until(() =>
-    ports.adapter.invoke({
-      ...scope.fence,
-      adapter: authority.adapter,
-      profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
-      input: request.input,
-      grant: authority.profile.value.capability,
-      routing: authority.profile.value.execution,
-      limits: authority.profile.value.limits,
-      // References only — the profile's declared names, never values.
-      credentials: authority.profile.value.capability.credentials.map((c) => ({
-        env_var: c.env_var,
-      })),
-      workspace: { session_ref, root_ref: `workspace:${request.run_id}` },
-      signal: env.deadline.signal,
-    }),
-  )
-  if (invocation === undefined) return abortRun(env, authority, so_far())
+  const invocation = await ports.adapter.invoke({
+    ...scope.fence,
+    adapter: authority.adapter,
+    profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
+    input: request.input,
+    grant: authority.profile.value.capability,
+    routing: authority.profile.value.execution,
+    limits: authority.profile.value.limits,
+    // References only — the profile's declared names, never values.
+    credentials: authority.profile.value.capability.credentials.map((c) => ({
+      env_var: c.env_var,
+    })),
+    workspace: { session_ref, root_ref: `workspace:${request.run_id}` },
+    signal: env.deadline.signal,
+  })
   if (invocation.outcome === 'stale_fence') {
     // The adapter was never engaged: the fence is checked before the
     // provider is asked to do anything, so this run has not spent.
@@ -89,8 +86,6 @@ export const running = async (
     case 'stale_fence':
       scope.loseFence(gates.detail)
       return stop(await conclude(env, 'none', gates.detail))
-    case 'aborted':
-      return abortRun(env, authority, seen)
     case 'faulted':
       return fault(gates.detail, seen)
     case 'passed':

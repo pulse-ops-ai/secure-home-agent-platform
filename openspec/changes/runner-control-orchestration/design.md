@@ -549,52 +549,46 @@ Rejected: weakening L3 construction to accept missing authority
 unavailable until `RUNNING` (leaves early runs un-cancellable for no
 reason once acquisition is sequenced first).
 
-### D13: A timeout bounds the WAIT, and that is not the same as bounding the WRITE
+### D13: The call boundary owns interruption; the walk is never abandoned
 
-Raised by the round-5 review, and recorded because the fix landed here is
-deliberately partial.
+Round 6 falsified the partial round-5 answer. Racing the WHOLE walk bounded
+only the caller's wait: the JavaScript continuation remained live, and when
+a delayed port eventually answered it resumed authority acquisition,
+emitted later events, and mutated the conclusion already returned to the
+caller. `Promise.race` was not cancellation.
 
-`RunDeadline` now bounds the whole walk rather than the call sites that
-remembered to ask, and `until()` takes a thunk so an aborted run cannot
-START the effect it was about to wrap. Both are about the WAIT. Neither
-makes an abandoned write not land:
+The replacement is one guarded asynchronous port boundary:
 
+```text
+phase continuation
+      ↓ await
+guarded port call ── interrupt ──> reject at this await
+      ↓ settles                    continuation unwinds
+next effect may run                no later effect can start
 ```
-read / prepare        →  a cancellable race is sufficient
-                         nothing durable happened
 
-irreversible write    →  a race is NOT sufficient
-                         "timed out" must not mean
-                         "the write may still land later"
-```
+Every asynchronous method of every declared port is reached through the
+same proxy. An interrupt rejects the awaiting continuation at that call;
+the underlying promise may still settle, but no orchestration code remains
+attached to its result. That is the property the whole-walk race could not
+provide.
 
-`Promise.race([write(), expired()])` returns TIMED_OUT while the write it
-abandoned is still in flight. The abandoned promise can complete
-afterwards and apply its mutation, and this landing's in-memory
-implementations make that invisible — they settle immediately, so no test
-here can distinguish the two.
+Three related consequences are part of the same coordinator:
 
-What holds the line today, and what does not:
+- ownership acquisition is guarded too, so a lease store cannot make
+  `run()` unbounded before the walk exists;
+- the profile wall clock is one absolute expiry established before
+  session preparation; prepare/start consumes it, and the session may
+  only narrow that same expiry rather than restart it;
+- once the governed deadline fires, terminal settlement and cleanup use a
+  fresh, short guard. This permits the mandatory early/full evidence record
+  and session teardown to land without making a broken sink unbounded.
 
-| Boundary | Bounded | Abandoned write cannot land |
-|---|---|---|
-| `until()`-wrapped effects | yes, and not started once aborted | not applicable — not started |
-| the walk as a whole | yes, plus a bounded grace to conclude | no |
-| `workspace.applyBack`, `finalization.commit` | by the walk | **no** — the fence is what covers them |
-
-The fence is the reason this is a seam rather than a hole. A write that
-lands late arrives with a superseded generation and is refused by the
-resource, so a dispossessed run's late write does not take effect. What
-the fence does NOT give is idempotency for a run that still owns its
-generation: its own abandoned write may still land after it has reported
-a timeout.
-
-**Deferred, with the boundary named.** Closing it needs abortability or
-idempotency at the port contract — a commit protocol rather than a race —
-and that belongs with the real execution and persistence implementations
-(L9, U11), not with deterministic in-memory doubles. This landing states
-the requirement so the implementations arrive against it rather than
-discovering it.
+Irreversible writes still require their own atomicity/idempotency contract;
+that remains D7/L9/U11. What D13 now guarantees is narrower and complete:
+the orchestrator itself never abandons a continuation that can later start
+another effect, and every awaited port is bounded from claim through
+cleanup.
 
 ## Decision Tables
 

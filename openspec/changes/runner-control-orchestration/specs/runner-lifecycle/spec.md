@@ -120,6 +120,16 @@ open. On cancellation or deadline the execution session SHALL be
 INTERRUPTED — abandoning the operation without interrupting the session
 would leave whatever it started still running.
 
+The orchestrator SHALL NOT satisfy the bound by abandoning a still-live
+walk. Once cancellation or timeout interrupts an awaited port, the phase
+continuation SHALL unwind at that call; it SHALL NOT resume and start a
+later effect if the port eventually answers. The deadline SHALL cover
+lease acquisition, the declared walk, governed terminal settlement, and
+resource cleanup. Replacing the pre-profile acquisition ceiling with the
+captured profile's wall clock SHALL establish one expiry before session
+preparation; later session narrowing SHALL preserve elapsed profile time
+rather than restart the budget.
+
 #### Scenario: A provider that never returns does not hold the run open
 
 - **GIVEN** a run whose adapter invocation never returns
@@ -133,6 +143,21 @@ would leave whatever it started still running.
 - **WHEN** the cancellation is raised
 - **THEN** the in-flight operation observes the cancellation signal
 - **AND** the run terminates `CANCELLED` with the session interrupted
+
+#### Scenario: A delayed port cannot resume a concluded walk
+
+- **GIVEN** a port call that remains in flight when cancellation or timeout
+  fires
+- **WHEN** the port later answers
+- **THEN** no subsequent phase effect is started
+- **AND** the already-returned conclusion is unchanged
+
+#### Scenario: Ownership and cleanup are bounded
+
+- **GIVEN** a lease claim or cleanup port that never returns
+- **WHEN** its applicable bound elapses
+- **THEN** `run()` still resolves
+- **AND** the run starts no effect after the bound
 
 ### Requirement: Cancellation and timeout are declared transitions with mandatory evidence
 

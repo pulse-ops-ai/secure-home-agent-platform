@@ -128,6 +128,13 @@ export class TransactionalFinalization implements FinalizationPort {
     ]
 
     for (const [what, prepare] of preparations) {
+      if (commit.signal.aborted) {
+        abandon()
+        return {
+          ok: false,
+          detail: `finalization did not commit: the run was interrupted before the ${what} was prepared`,
+        }
+      }
       let outcome
       try {
         outcome = (await prepare()) as
@@ -160,6 +167,15 @@ export class TransactionalFinalization implements FinalizationPort {
       }
     }
 
+    if (commit.signal.aborted) {
+      abandon()
+      return {
+        ok: false,
+        detail:
+          'finalization did not commit: the run was interrupted before ownership confirmation',
+      }
+    }
+
     // ---- FINAL OWNERSHIP CHECK -----------------------------------
     // The last `await` before the marker, so nothing can interleave
     // between this answer and the publication that depends on it.
@@ -179,6 +195,14 @@ export class TransactionalFinalization implements FinalizationPort {
         ok: false,
         reason: 'stale_fence',
         detail: `finalization did not commit: run ${commit.run_id} moved on before the commit marker`,
+      }
+    }
+
+    if (commit.signal.aborted) {
+      abandon()
+      return {
+        ok: false,
+        detail: 'finalization did not commit: the run was interrupted before the commit marker',
       }
     }
 

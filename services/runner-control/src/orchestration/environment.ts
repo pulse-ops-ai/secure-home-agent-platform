@@ -38,8 +38,14 @@ export interface RunEnvironment {
   readonly ledger: FinalizationLedger
   /** Cancellation, the wall clock, and the race that makes both real. */
   readonly deadline: RunDeadline
+  /** Abort boundary that governs terminal publication in this environment. */
+  readonly commitSignal?: AbortSignal
+  /** Raw ports used only behind a fresh, bounded terminal-settlement guard. */
+  readonly cleanupPorts?: Ports
   /** Append what the machine has recorded since the last tick. */
   readonly journalTick: () => Promise<void>
+  /** The same append operation through a replacement bounded port set. */
+  readonly journalTickThrough?: (ports: Ports) => Promise<void>
   /**
    * Journal one acquisition, noticing a refusal.
    *

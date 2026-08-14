@@ -18,19 +18,17 @@
  * reach. So the state is here, and the handler is handed the run that
  * actually happened.
  *
- * WHAT IS AND IS NOT HERE. This holds what the RECOVERY path needs: the
- * machine, the resources to release, the fence, and whether authority
- * was ever established. The walk's accumulated observations
- * (dispositions, change set, artifacts, operations) stay in the walk,
- * because recovery deliberately seals no bundle — see `#walkOwned`.
- * Moving those out too, and passing the captured authority to phases as
- * a parameter rather than sharing it through closures, is the next
- * decomposition step; it is what will finally delete the definite-
- * assignment assertions the walk still relies on.
+ * WHAT IS AND IS NOT HERE. This holds what every terminal owner needs:
+ * the machine, resources, fence, deadline, and the typed value describing
+ * what the run has established so far. Keeping captured authority and
+ * observations reachable here is what lets interruption and last-resort
+ * recovery produce the state-appropriate governed record instead of
+ * fabricating an early shape or returning none.
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
 import type { CommitCapability, RunMachine, TransitionKind } from '../lifecycle/index.js'
-import type { WalkState } from '../orchestration/state.js'
+import type { RunDeadline } from '../orchestration/deadline.js'
+import type { EstablishedRun } from '../orchestration/state.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -40,7 +38,7 @@ export class RunScope {
   /** Acquired during the spend phase; released on every exit. */
   session: SessionHandle | undefined
   workspace: WorkspaceHandle | undefined
-  readonly timers: ReturnType<typeof setTimeout>[] = []
+  deadline: RunDeadline | undefined
 
   /**
    * Set when a precondition holds the run where it is.
@@ -64,14 +62,14 @@ export class RunScope {
    */
   authorityCaptured = false
 
+  /** What the walk has established, available to every terminal owner. */
+  established: EstablishedRun = { at: 'requested' }
+
   constructor(fence: RunFence, machine: RunMachine, startedAt: string) {
     this.fence = fence
     this.machine = machine
     this.startedAt = startedAt
   }
-
-  /** What the walk has established so far. See `WalkState`. */
-  established: WalkState = { at: 'requested' }
 
   loseFence(detail: string): void {
     this.fenceLost ??= detail
@@ -135,8 +133,7 @@ export class RunScope {
 
   /** Stop the deadline and cancellation timers. Safe to call twice. */
   disarm(): void {
-    for (const timer of this.timers) clearTimeout(timer)
-    this.timers.length = 0
+    this.deadline?.disarm()
   }
 
   /**
@@ -152,28 +149,39 @@ export class RunScope {
    * session named here belong to whoever holds the run now, and
    * discarding them would destroy the state of a run in progress.
    */
-  async release(ports: Ports): Promise<void> {
-    this.disarm()
+  async release(ports: Ports, disarm = true): Promise<void> {
     const workspace = this.workspace
     const session = this.session
     this.workspace = undefined
     this.session = undefined
-    if (this.fenceLost !== undefined) return
-    if (workspace !== undefined) {
-      try {
-        await ports.workspace.discard({ ...this.fence, workspace_ref: workspace.workspace_ref })
-      } catch {
-        // Reported by the implementation; never a reason to fail a run
-        // that has already concluded.
+    try {
+      if (this.fenceLost !== undefined) return
+      // Start both independent cleanup operations before awaiting either.
+      // A workspace implementation that never answers must not prevent
+      // the session close from even being attempted (and vice versa).
+      const cleanup: Promise<unknown>[] = []
+      if (workspace !== undefined) {
+        cleanup.push(
+          ports.workspace.discard({
+            ...this.fence,
+            workspace_ref: workspace.workspace_ref,
+          }),
+        )
       }
-    }
-    if (session !== undefined) {
-      try {
-        await ports.session.close({ ...this.fence, session_ref: session.session_ref })
-      } catch {
-        // A session that will not close is reported by L9's
-        // implementation, not by failing an already-concluded run.
+      if (session !== undefined) {
+        cleanup.push(
+          ports.session.close({
+            ...this.fence,
+            session_ref: session.session_ref,
+          }),
+        )
       }
+      await Promise.allSettled(cleanup)
+    } finally {
+      // Keep the wall clock alive THROUGH cleanup. Disarming before an
+      // awaited discard or close made teardown the one unbounded part of
+      // `run()`.
+      if (disarm) this.disarm()
     }
   }
 }

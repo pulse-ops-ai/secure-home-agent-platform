@@ -332,7 +332,7 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-58',
-    mutation: 'bound only the call sites already known to hang, rather than the walk itself',
+    mutation: 'guard only named call sites rather than the complete port surface',
     killedBy: ['RO-EX-118'],
   },
   {
@@ -385,39 +385,72 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-68',
-    mutation:
-      'bound the walk instead of the ports, so the abandoned continuation keeps performing effects',
+    mutation: 'race and abandon the whole walk instead of rejecting the awaited port call',
     killedBy: ['RO-EX-129'],
   },
   {
     id: 'RO-MUT-69',
-    mutation: 'conclude an interrupted run from a path holding neither authority nor observations',
+    mutation: 'omit bounded terminal settlement so interrupted records depend on port latency',
     killedBy: ['RO-EX-130'],
   },
   {
     id: 'RO-MUT-70',
-    mutation: "leave the terminal path's writes bound by the abort they record",
+    mutation: 'guard only named provider/gate calls rather than the complete port surface',
     killedBy: ['RO-EX-131'],
   },
   {
     id: 'RO-MUT-71',
-    mutation: "return the machine's live arrays in a conclusion",
+    mutation: 'start the next effect in a phase after the run has aborted',
     killedBy: ['RO-EX-132'],
   },
   {
     id: 'RO-MUT-72',
-    mutation: 'arm a fresh duration instead of an absolute expiry',
+    mutation: 'leave ownership acquisition or resource cleanup outside every finite boundary',
     killedBy: ['RO-EX-133'],
   },
   {
     id: 'RO-MUT-73',
-    mutation: 'leave the lease claim or the cleanup unbounded',
+    mutation: 'restart the profile clock or let the proof override widen acquisition',
     killedBy: ['RO-EX-134'],
   },
   {
     id: 'RO-MUT-74',
-    mutation: 'apply deadline_ms with ?? rather than Math.min',
+    mutation:
+      'use settlement expiry as timeout provenance, or disable interruption during non-terminal finalization',
     killedBy: ['RO-EX-135'],
+  },
+  {
+    id: 'RO-MUT-75',
+    mutation:
+      'retain mutable transition or rejection entries at mint or across the journal boundary',
+    killedBy: ['RO-EX-136'],
+  },
+  {
+    id: 'RO-MUT-76',
+    mutation: 'let a throwing public cancellation probe escape from the polling timer',
+    killedBy: ['RO-EX-137'],
+  },
+  {
+    id: 'RO-MUT-77',
+    mutation: 'abandon a pending lease claim without releasing a late successful answer',
+    killedBy: ['RO-EX-138'],
+  },
+  {
+    id: 'RO-MUT-78',
+    mutation:
+      'recover after authority capture without a full bundle, or bypass the finite recovery boundary',
+    killedBy: ['RO-EX-139'],
+  },
+  {
+    id: 'RO-MUT-79',
+    mutation:
+      'replace the typed settlement capability with a mutable mode flag, or add duplicate local wrappers',
+    killedBy: ['RO-EX-140'],
+  },
+  {
+    id: 'RO-MUT-80',
+    mutation: 'make acquisition or event mechanisms depend on an orchestration interruption type',
+    killedBy: ['RO-EX-141'],
   },
   {
     id: 'MUT-004',
