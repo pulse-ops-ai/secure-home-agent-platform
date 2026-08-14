@@ -10,7 +10,7 @@
  * architecture the implementation deleted.
  */
 import { readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { InMemoryRunLease } from '../adapters/index.js'
@@ -121,7 +121,7 @@ describe('RO-EX-148: an attempt identity identifies ONE attempt', () => {
 describe('RO-EX-149: an unacknowledged grant is resolved at the resource', () => {
   it('a grant committed before the deadline, acknowledged after it, is not orphaned', async () => {
     const lease = new AckDelayedLease()
-    const conclusion = await new Runner(testPorts({ lease: lease as never }), {
+    const conclusion = await new Runner(testPorts({ lease }), {
       deadline_ms: 10,
     }).run(runRequest())
 
