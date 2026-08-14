@@ -62,6 +62,19 @@ have inherited.
 | Paths added | `packages/runner-core/src/outcome/**`, `packages/runner-core/src/index.ts` |
 | Not granted | any other change to `packages/**`; the decision's SHAPE stays the core's and the SPI stays frozen in `ports/values.ts` per ADR-0013 |
 
+**OWNER DECISION RECORDED — attempt outcome vs logical-run lifecycle.**
+
+| Field | Value |
+|---|---|
+| Granted by | repository owner (@mikegtech), in review |
+| Decision | an orchestration ATTEMPT that loses ownership ends `ownership_lost` without manufacturing a lifecycle terminal; the logical run's terminal belongs to the new holder |
+| Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` scenario "A dispossessed attempt ends without claiming a run terminal" |
+| Proven by | RO-INV-62, RO-EX-108 |
+
+Recorded here because `assurance.md` states outright that it does not
+create product requirements — a new public result vocabulary introduced
+there alone was backwards for this repository's own model.
+
 **REPORTED L3 GAP — established provider failure has no representation.**
 Task 7.4, reported and NOT fixed here.
 

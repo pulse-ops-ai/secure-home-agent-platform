@@ -81,6 +81,9 @@ const reachableKeys = (value: object): readonly string[] => {
  * The machine never sees the original.
  */
 export const narrowingOnly = (candidate: TransitionTable | undefined): TableCheck => {
+  // The canonical table is deep-frozen at its source, so this branch
+  // hands back immutable authority rather than a mutable default — the
+  // hole the supplied-table path closed while the default kept open.
   if (candidate === undefined) return { ok: true, table: TRANSITIONS }
   const canonical = TRANSITIONS as unknown as Record<string, Record<string, string>>
   const supplied = candidate as unknown as Record<string, Record<string, string> | undefined>

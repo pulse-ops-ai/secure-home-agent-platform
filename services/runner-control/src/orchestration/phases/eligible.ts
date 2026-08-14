@@ -45,6 +45,11 @@ export const eligible = async (
     // HELD, not refused, and not abandoned. The engine records the hold
     // against this phase's transition and stops the walk, so the machine
     // stays at ELIGIBLE and nothing downstream runs.
+    //
+    // Recorded on the scope so the conclusion can tell a HOLD from a run
+    // the machine simply granted no terminal for — two different
+    // non-terminal endings that the flat shape called the same thing.
+    scope.held = spend.detail
     return { kind: 'hold', detail: spend.detail }
   }
 

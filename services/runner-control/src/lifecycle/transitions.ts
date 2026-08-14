@@ -59,7 +59,22 @@ export type TransitionTable = Readonly<
   Record<ProgressState, Readonly<Partial<Record<TransitionKind, LifecycleState>>>>
 >
 
-export const TRANSITIONS: TransitionTable = {
+/**
+ * Deep-freeze a table so it cannot become mutable authority.
+ *
+ * `TRANSITIONS` is exported from the package root and `RunMachine`
+ * defaults to it directly, so an ordinary object here is lifecycle
+ * authority any holder can widen mid-run — the same time-of-check hole
+ * the supplied-table path closes, surviving on the canonical branch.
+ * Freezing inside `Runner` would not reach the public machine path;
+ * freezing at the source does.
+ */
+const frozen = (table: TransitionTable): TransitionTable => {
+  for (const row of Object.values(table)) Object.freeze(row)
+  return Object.freeze(table)
+}
+
+export const TRANSITIONS: TransitionTable = frozen({
   REQUESTED: withTerminals({ resolve_profile: 'PROFILE_RESOLVED' }),
   PROFILE_RESOLVED: withTerminals({ decide_eligibility: 'ELIGIBLE' }),
   ELIGIBLE: withTerminals({ commit_spend: 'SANDBOX_STARTED' }),
@@ -70,7 +85,7 @@ export const TRANSITIONS: TransitionTable = {
   // COMPLETED is terminal; it is a progress state only because the
   // vocabulary lists it as the successful end of the walk.
   COMPLETED: {},
-}
+})
 
 /** The declared next state, or `undefined` when the pair is undeclared. */
 export const declaredNext = (

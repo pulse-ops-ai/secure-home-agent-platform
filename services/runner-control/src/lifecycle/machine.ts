@@ -63,6 +63,15 @@ export interface RejectionEntry {
  */
 export interface CommitCapability {
   readonly entries: readonly TransitionEntry[]
+  /**
+   * The machine version this was projected FROM.
+   *
+   * Identity alone made a capability permanently valid: two projections from one
+   * version both committed, the second moving a machine that had already
+   * reached a terminal. A capability describes a transition FROM a
+   * specific state; once the machine has moved, it describes nothing.
+   */
+  readonly fromVersion: number
 }
 
 export type TransitionResult =
@@ -283,7 +292,14 @@ export class RunMachine {
     // remembers it. That is what makes committed adoption a capability
     // rather than a public mutator: a caller cannot forge one, and one
     // minted by another machine is not accepted by this one.
-    const capability: CommitCapability = { entries: [...entries] }
+    // FROZEN AT MINT. `readonly` is erased at runtime, so a legitimately
+    // held capability could be edited between projection and commit —
+    // authorization checked against one set of entries and applied to
+    // another. Freezing each entry and the list closes that.
+    const capability: CommitCapability = Object.freeze({
+      entries: Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
+      fromVersion: this.#version,
+    })
     this.#projections.add(capability)
     return { ok: true, entries, capability }
   }
@@ -307,6 +323,17 @@ export class RunMachine {
     if (!this.#projections.delete(capability)) {
       throw new Error(
         'commitProjected requires a capability minted by project() on this machine; an unprojected entry list cannot advance it',
+      )
+    }
+    // AND IT MUST STILL DESCRIBE THIS MACHINE. A capability projected
+    // from an earlier version is stale: the machine has moved, so the
+    // `from` state it was computed against is no longer where the run
+    // is. Without this, two projections from one version both committed
+    // — the second walking a machine out of a terminal state, which the
+    // totality rule forbids outright.
+    if (capability.fromVersion !== this.#version) {
+      throw new Error(
+        `this capability was projected from version ${String(capability.fromVersion)} and the machine is at ${String(this.#version)}; a stale projection cannot advance it`,
       )
     }
     for (const entry of capability.entries) {

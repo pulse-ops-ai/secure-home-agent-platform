@@ -15,7 +15,13 @@ import type {
 import type { ConsentRecord } from '../consent/index.js'
 import type { ArtifactObservation, EvidenceOperations, RunInput } from '../ports/index.js'
 import type { GateResultsT } from '@secure-home/contracts'
-import type { LifecycleState, RejectionEntry, TransitionEntry } from '../lifecycle/index.js'
+import type {
+  LifecycleState,
+  ProgressState,
+  RejectionEntry,
+  TerminalState,
+  TransitionEntry,
+} from '../lifecycle/index.js'
 
 export interface RunRequest {
   readonly run_id: string
@@ -91,26 +97,67 @@ export const stop = (value: RunConclusion): Stop => ({ kind: 'terminate', value 
  * Additive on purpose: `state` and `produced` keep their meanings, so
  * nothing reading them has to change to benefit from the distinction.
  */
-export type ConclusionKind =
-  /** The run reached a lifecycle terminal under this attempt. */
-  | 'terminal'
-  /** A precondition is unmet; the run waits at a progress state. */
-  | 'held'
-  /** Ownership moved. This attempt is finished; the run is not. */
-  | 'ownership_lost'
-  /** The attempt never began — the lease was never held. */
-  | 'not_started'
-
-export interface RunConclusion {
+/**
+ * WHAT A CONCLUSION IS, with the state it may carry.
+ *
+ * A flat `{ kind, state }` let every impossible pairing type-check, and
+ * two paths produced them: a dispossessed attempt reporting a terminal
+ * it had no authority to declare, and the recovery path reporting
+ * `terminal` alongside `RUNNING` in the very proof that no terminal was
+ * granted.
+ *
+ * The vocabulary problem underneath: `runner-lifecycle` says a run is
+ * never abandoned in a non-terminal state, and the ownership rule says a
+ * run that loses ownership stops without writing. Both hold only if
+ * "this attempt finished" and "the run reached a terminal" stop being
+ * one statement — a stale holder owns its own ending, never the logical
+ * run's.
+ *
+ * `unterminated` is the fifth because RO-INV-50 already requires it: when
+ * the machine grants no terminal at all, the conclusion says so rather
+ * than naming a state as though it were one.
+ */
+interface ConclusionBase {
   readonly run_id: string
-  readonly kind: ConclusionKind
-  readonly state: LifecycleState
-  readonly produced: 'evidence_bundle' | 'early_termination_record' | 'none'
   readonly detail: string
   /** The full declared walk — durable, and returned to the caller (D9). */
   readonly transitions: readonly TransitionEntry[]
   readonly rejections: readonly RejectionEntry[]
 }
+
+export type RunConclusion =
+  /** The run reached a lifecycle terminal under this attempt. */
+  | (ConclusionBase & {
+      readonly kind: 'terminal'
+      readonly state: TerminalState
+      readonly produced: 'evidence_bundle' | 'early_termination_record' | 'none'
+    })
+  /** A precondition is unmet; the run waits where it is. */
+  | (ConclusionBase & {
+      readonly kind: 'held'
+      readonly state: ProgressState
+      readonly produced: 'none'
+    })
+  /** Ownership moved. This attempt is over; the run is not. */
+  | (ConclusionBase & {
+      readonly kind: 'ownership_lost'
+      readonly state: LifecycleState
+      readonly produced: 'none'
+    })
+  /** The attempt never began — the lease was never held. */
+  | (ConclusionBase & {
+      readonly kind: 'not_started'
+      readonly state: 'REQUESTED'
+      readonly produced: 'none'
+    })
+  /** The machine granted no terminal; the run ends unterminated. */
+  | (ConclusionBase & {
+      readonly kind: 'unterminated'
+      readonly state: ProgressState
+      readonly produced: 'none'
+    })
+
+export type ConclusionKind = RunConclusion['kind']
 
 /**
  * What a phase concluded, plus whatever it ESTABLISHED.

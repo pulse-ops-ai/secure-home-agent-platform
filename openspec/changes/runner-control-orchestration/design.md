@@ -410,6 +410,44 @@ Three mechanisms, mirroring L3's D2/D6 discipline:
   a source scan in the conformance suite, plus the behavioral fixture: a
   workspace carrying modified "orchestration" bytes executes nothing.
 
+### D12: An orchestration ATTEMPT is not the logical run (owner decision)
+
+Two accepted rules were in tension. `runner-lifecycle` says the
+lifecycle never abandons a run in a non-terminal state.
+`runner-execution-boundary` says an orchestrator that has lost ownership
+stops before acting and writes nothing. A dispossessed attempt satisfies
+both only if "this attempt finished" and "the run reached a terminal"
+stop being one statement.
+
+They are separated. A stale holder owns the ending of ITS ATTEMPT; the
+logical run's terminal belongs to whoever holds the run now. Inventing
+`INDETERMINATE` after losing ownership would be precisely the verdict a
+dispossessed holder has no authority to give, and reporting nothing at
+all would abandon the caller.
+
+`RunConclusion` is therefore a discriminated union over what the
+conclusion IS:
+
+| kind | means |
+|---|---|
+| `terminal` | the run reached a lifecycle terminal under this attempt |
+| `held` | a precondition is unmet; the run waits, resumable |
+| `ownership_lost` | this attempt is over; the run is not |
+| `not_started` | the lease was never held |
+| `unterminated` | the machine granted no terminal (RO-INV-50) |
+
+Each variant constrains the state it may carry, so a conclusion cannot
+pair `terminal` with a progress state — a lie the flat shape told in the
+very proof asserting no terminal was granted.
+
+`unterminated` exists because RO-INV-50 already required it: when a
+narrowed table grants no terminal, the conclusion must say so rather
+than naming a progress state as though it were one.
+
+**Authorization.** Reviewer-proposed and owner-accepted; recorded in
+`tasks.md` under the L4 authorization section. The normative statements
+below follow from it.
+
 ### D9: Events at the representable moments; a transition record for the rest (OQ3 + review blocker 3)
 
 The closed L2 vocabulary represents specific lifecycle moments, and this

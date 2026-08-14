@@ -241,6 +241,18 @@ the L2 event stream, so the full walk is reconstructable without widening
 the closed vocabulary. Provider-native event names SHALL ride only as
 opaque data fields, never as event types.
 
+#### Scenario: A dispossessed attempt ends without claiming a run terminal
+
+- **GIVEN** an orchestration attempt that has lost ownership of its run
+- **WHEN** it concludes
+- **THEN** it reports that THIS ATTEMPT ended, naming the last state it
+  observed, and produces no governed record
+- **AND** it does not advance its machine to a terminal, because the
+  logical run's terminal belongs to whoever holds the run now
+- **AND** the requirement that an OWNED run never rests in a
+  non-terminal state is unaffected: it binds the holder, not a stale
+  attempt
+
 #### Scenario: The grant event carries the profile's grant
 
 - **GIVEN** a run whose profile was resolved and captured

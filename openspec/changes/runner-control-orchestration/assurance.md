@@ -118,6 +118,8 @@ are below.
 | RO-INV-62 | A conclusion states what it IS — terminal, held, ownership_lost, or not_started — distinctly from the state it reports. An attempt that lost ownership declares its own end, never the logical run's: manufacturing a lifecycle terminal is the one verdict a stale holder may not give | trust |
 | RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending is an outstanding write of the run, so the walk is flushed before anything is staged and a run whose walk cannot be made durable does not seal | trust |
 | RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
+| RO-INV-65 | A commit capability is frozen at mint, one-shot, and bound to the machine VERSION it was projected from — so it cannot be edited between authorization and use, and a stale projection cannot advance a machine that has since moved | trust |
+| RO-INV-66 | The canonical transition table is deep-frozen at its source, so the default path retains immutable lifecycle authority — `RunMachine` is exported and defaults to it directly, which freezing inside `Runner` would not reach | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -334,6 +336,9 @@ persistence (U11).
 | RO-EX-112 | RO-INV-22 | adversarial (reviewer-authored) | cancellation during apply-back terminates CANCELLED; the last check precedes the terminal, not merely the verification |
 | RO-EX-113 | RO-INV-64 | adversarial (reviewer-authored) | a session port that never settles times out on the profile's budget rather than leaving the run unresolved at ELIGIBLE |
 | RO-EX-114 | RO-INV-30 | structural (reviewer-authored) | the exported lease surface is exactly the port; the seize affordance a proof needs is not a method on it |
+| RO-EX-115 | RO-INV-65 | adversarial | a minted capability's entries cannot be edited before commit, and a second projection from the same version is refused once the first has moved the machine |
+| RO-EX-116 | RO-INV-66 | adversarial | mutating the exported canonical table does not widen a default run |
+| RO-EX-117 | RO-INV-62 | structural + adversarial | every conclusion variant constrains the state it may carry; a dispossessed attempt does not terminalize its machine, and a machine granted no terminal reports `unterminated` rather than `terminal` |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -381,6 +386,8 @@ persistence (U11).
 | RO-MUT-53 | RO-INV-50 | mutation | mutating the machine through an entry point the owner does not expose, or narrowing an escape scan to one syntactic form, is killed by RO-EX-103 |
 | RO-MUT-54 | RO-INV-59 | mutation | returning the caller's table from validation, or validating through a narrower key view than `declaredNext` reads, is killed by RO-EX-106 |
 | RO-MUT-55 | RO-INV-50 | mutation | accepting an unprojected entry list in `commitProjected` is killed by RO-EX-107 |
+| RO-MUT-56 | RO-INV-65 | mutation | binding a capability by identity alone — unfrozen entries, or no version check — is killed by RO-EX-115 |
+| RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

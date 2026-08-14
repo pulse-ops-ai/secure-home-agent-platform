@@ -13,7 +13,12 @@
  * phase reading state it has not is a compile error rather than a
  * hazard the next review has to find.
  */
-import { canConstructEvidence, RunMachine, walk as walkPhases } from '../lifecycle/index.js'
+import {
+  canConstructEvidence,
+  isTerminal,
+  RunMachine,
+  walk as walkPhases,
+} from '../lifecycle/index.js'
 import type { PhaseCommand, RejectionEntry } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
@@ -361,14 +366,23 @@ export class Runner {
    */
   async #recover(env: RunEnvironment, detail: string): Promise<RunConclusion> {
     const { scope, request } = env
-    const reached = scope.reachTerminal('indeterminate', detail)
+    // OWNERSHIP IS CHECKED BEFORE THE MACHINE IS TOUCHED.
+    //
+    // A stale holder terminalizing is the one verdict it may not give,
+    // and this reached for a terminal first and consulted the fence
+    // afterwards — so a dispossessed attempt minted OPERATIONAL_FAILURE
+    // locally and then reported `ownership_lost` carrying it.
+    const dispossessed = scope.fenceLost !== undefined
+    const reached = dispossessed
+      ? { ok: false as const, detail: scope.fenceLost ?? 'ownership moved' }
+      : scope.reachTerminal('indeterminate', detail)
     const reported = reached.ok ? detail : `${detail}; ${reached.detail}`
 
     await this.#flushJournal(scope)
     await scope.release(this.#ports)
 
-    let produced: RunConclusion['produced'] = 'none'
-    if (!scope.authorityCaptured) {
+    let produced: 'evidence_bundle' | 'early_termination_record' | 'none' = 'none'
+    if (!scope.authorityCaptured && !dispossessed) {
       // The machine was terminalized above, so this WRITES rather than
       // transitioning again. Calling `terminateEarly` here asked for a
       // second terminal, which the machine refused — and the refusal
@@ -385,15 +399,20 @@ export class Runner {
         // The conclusion below still reports a terminal state.
       }
     }
-    return {
+    const base = {
       run_id: request.run_id,
-      kind: scope.fenceLost === undefined ? 'terminal' : 'ownership_lost',
-      state: scope.machine.state,
-      produced,
       detail: reported,
       transitions: scope.machine.transitionRecord,
       rejections: scope.machine.rejections,
     }
+    const state = scope.machine.state
+    if (dispossessed) return { ...base, kind: 'ownership_lost', state, produced: 'none' }
+    // A machine that granted no terminal did not reach one, and saying
+    // `terminal` alongside a progress state is the lie the union exists
+    // to make unrepresentable — it was being told in the very proof that
+    // asserts no terminal was granted.
+    if (!isTerminal(state)) return { ...base, kind: 'unterminated', state, produced: 'none' }
+    return { ...base, kind: 'terminal', state, produced }
   }
 
   /**

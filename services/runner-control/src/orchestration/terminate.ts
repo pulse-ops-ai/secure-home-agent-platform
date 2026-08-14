@@ -49,11 +49,10 @@ export const conclude = async (
   await scope.release(env.ports)
   const base = {
     run_id: request.run_id,
-    kind: isTerminal(scope.machine.state) ? ('terminal' as const) : ('held' as const),
-    state: scope.machine.state,
     transitions: scope.machine.transitionRecord,
     rejections: scope.machine.rejections,
   }
+  const state = scope.machine.state
   if (scope.fenceLost !== undefined) {
     // OWNERSHIP MOVED. Everything a conclusion would write is refused by
     // the fence — including the cleanup, which `release` therefore
@@ -62,12 +61,24 @@ export const conclude = async (
     // is recoverable; deleting a live workspace is not.
     return {
       ...base,
-      kind: 'ownership_lost' as const,
+      kind: 'ownership_lost',
+      state,
       produced: 'none',
       detail: `${scope.fenceLost}; no further write was made (this attempt had reached: ${detail})`,
     }
   }
-  return { ...base, produced, detail }
+  // A NON-TERMINAL CONCLUSION IS NOT AUTOMATICALLY A HOLD. `held` means a
+  // precondition is unmet and the run waits; a machine that granted no
+  // terminal at all is `unterminated`, which is what RO-INV-50 requires
+  // the conclusion to report and what the flat shape had no way to say.
+  if (isTerminal(state)) return { ...base, kind: 'terminal', state, produced, detail }
+  return {
+    ...base,
+    kind: scope.held ? 'held' : 'unterminated',
+    state,
+    produced: 'none',
+    detail,
+  }
 }
 
 /**
@@ -83,6 +94,15 @@ export const terminateEarly = async (
   kind: EarlyTerminal,
   detail: string,
 ): Promise<Stop> => {
+  // OWNERSHIP FIRST, BEFORE THE MACHINE IS TOUCHED.
+  //
+  // The write guard further down caught the record; it did not catch the
+  // TRANSITION. So a run that already knew it had been dispossessed
+  // still minted a terminal locally — OPERATIONAL_FAILURE on its own
+  // machine — and then reported `ownership_lost` carrying that state.
+  // Declaring the logical run's terminal is the one thing a stale holder
+  // may not do, and it was doing it before anything asked.
+  if (env.scope.fenceLost !== undefined) return stop(await conclude(env, 'none', detail))
   const reached = env.scope.reachTerminal(kind, detail)
   if (!reached.ok) return stop(await conclude(env, 'none', `${reached.detail}: ${detail}`))
   return writeEarlyTerminalRecord(env, detail)

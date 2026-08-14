@@ -321,6 +321,16 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-107'],
   },
   {
+    id: 'RO-MUT-56',
+    mutation: 'bind a commit capability by identity alone — unfrozen entries, or no version check',
+    killedBy: ['RO-EX-115'],
+  },
+  {
+    id: 'RO-MUT-57',
+    mutation: 'leave the canonical transition table mutable while freezing only supplied ones',
+    killedBy: ['RO-EX-116'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

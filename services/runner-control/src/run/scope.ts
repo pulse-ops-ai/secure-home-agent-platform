@@ -41,6 +41,15 @@ export class RunScope {
   workspace: WorkspaceHandle | undefined
   readonly timers: ReturnType<typeof setTimeout>[] = []
 
+  /**
+   * Set when a precondition holds the run where it is.
+   *
+   * Distinguishes a HOLD — the run waits, resumable — from a run the
+   * machine granted no terminal for, which is `unterminated`. Both leave
+   * the machine at a progress state, and only this tells them apart.
+   */
+  held: string | undefined
+
   /** Set the first time any port refuses this run's fence. */
   fenceLost: string | undefined
 
