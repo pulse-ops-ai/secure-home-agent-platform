@@ -57,7 +57,7 @@ have inherited.
 
 | Field | Value |
 |---|---|
-| Granted by | repository owner (@mikegtech), in review |
+| Granted by | repository owner (@mikegtech) — owner decision record, PR #82 comment of 2026-08-14: <https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5296490942>, item 3 |
 | Scope | add `classifyTerminalObservations` to `packages/runner-core`, with its own proofs; consume it from `runner-control` and delete the local algorithm |
 | Paths added | `packages/runner-core/src/outcome/**`, `packages/runner-core/src/index.ts` |
 | Not granted | any other change to `packages/**`; the decision's SHAPE stays the core's and the SPI stays frozen in `ports/values.ts` per ADR-0013 |
@@ -66,7 +66,7 @@ have inherited.
 
 | Field | Value |
 |---|---|
-| Granted by | repository owner (@mikegtech), in review |
+| Granted by | repository owner (@mikegtech) — owner decision record, PR #82 comment of 2026-08-14: <https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5296490942>, item 1 |
 | Decision | an orchestration ATTEMPT that loses ownership ends `ownership_lost` without manufacturing a lifecycle terminal; the logical run's terminal belongs to the new holder |
 | Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` scenario "A dispossessed attempt ends without claiming a run terminal" |
 | Proven by | RO-INV-62, RO-EX-108 |
@@ -75,7 +75,7 @@ have inherited.
 
 | Field | Value |
 |---|---|
-| Granted by | repository owner (@mikegtech), by external review direction — not by the implementation task. The owner's relayed round-8 review of PR #82 specified the behaviour as a reviewer-authored RED: a terminal record sink that never settles must yield an explicit conclusion carrying the intended terminal, never `terminal + produced:none` (that RED is RO-EX-146). The owner's round-9 review of head `fc578153` (2026-08-14) ratified the resulting model verbatim: "`settlement_failed` resolves the impossible three-way guarantee cleanly … The public result now says exactly which guarantee failed instead of lying that an unevidenced terminal completed. … I approve that model technically." |
+| Granted by | repository owner (@mikegtech) — owner decision record, PR #82 comment of 2026-08-14: <https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5296490942>, item 2. An earlier revision of this cell quoted relayed third-party assessment text as the grant; an assessor's recommendation is not owner authority, so the owner recorded the decision in their own verifiable comment and this cell points there. |
 | Decision | when finite terminal settlement cannot make the mandatory governed record durable, return `settlement_failed` carrying actual state, intended terminal, and `produced: none`; do not present it as a lifecycle terminal |
 | Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` requirement "Terminal settlement failure is explicit" |
 | Proven by | RO-INV-62/73, RO-EX-143/146 |
@@ -579,6 +579,34 @@ operation its requirement names.
   are registered and each hand-applied mutant is killed by its named
   proof; complete tests, typecheck, lint, build, strict OpenSpec
   validation, and repository gate remain green.
+
+- [x] **7.9 Close round-10 acknowledged-effect, outbox, and provenance findings**
+  <!-- agent-task: 7.9 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.8 -->
+
+  **Authorized by** — the repository owner's round-10 relay on PR #82 head
+  `8d9c580` (2026-08-14): REQUEST_CHANGES with three P1s at the edges of
+  round 9's own abstractions (the post-return expiry rule applied to the
+  irreversible finalization commit; "every journal category" still meaning
+  only transitions and rejections; a released attempt's replay minting a
+  fresh generation) and one governance blocker (owner authority recorded
+  from reviewer text).
+
+  **Implements** — finalization as an acknowledged effect: `CallGuard`
+  split into `call` (late results discarded) and `commit` (entry-checked,
+  raced for boundedness, acknowledgement accepted), with the absolute
+  expiry stamped into the commit by the boundary and enforced
+  synchronously at the publication point inside `TransactionalFinalization`;
+  one `JournalOutbox` through which all four journal categories flow, with
+  per-entry retry and the seal gate asking the single pending set;
+  spent-attempt resolution at the in-memory lease (a replay after release
+  refuses; it never mints); and the RO-EX-156 structural check that every
+  `Granted by` entry cites a verifiable owner-authenticated record.
+
+  **Proof required** — `conformance/falsification-round10.test.ts`
+  (RO-EX-153…156) is green in full, alongside every earlier falsification
+  round; RO-MUT-93…97 are registered and each hand-applied mutant is
+  killed by its named proof; complete tests, typecheck, lint, build,
+  strict OpenSpec validation, and repository gate remain green.
 
 ## PR-1 Completion Gate
 

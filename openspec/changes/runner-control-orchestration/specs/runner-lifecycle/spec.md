@@ -139,6 +139,22 @@ rejected as the timeout it is, and SHALL earn no lifecycle transition.
 Recovery call boundaries SHALL apply the same symmetry against both the
 governed deadline and their own settlement ceiling.
 
+The post-return rejection applies to calls whose late result can be
+DISCARDED — reads, preparation, reversible operations. It SHALL NOT be
+applied to the finalization commit, whose `ok` acknowledgement means an
+irreversible publication already happened: discarding that
+acknowledgement discards nothing and invents a second terminal for a
+run whose first is visible. For the commit, the expiry SHALL instead be
+enforced INSIDE the commit, synchronously at its publication point —
+either the commit publishes within the budget or nothing observable
+exists — and once the commit acknowledges, the orchestrator SHALL adopt
+the committed terminal, whatever the wall clock says by the time the
+acknowledgement arrives. A commit the publication point refuses on
+expiry is the run's timeout, not an infrastructure fault. A durable
+implementation SHALL additionally make a commit's outcome discoverable
+by its deterministic commit identity, so a caller that could not await
+the acknowledgement can reconcile what became of it rather than assume.
+
 Lease acquisition SHALL be invoked through that guard and SHALL carry a
 claim-attempt identity plus the governed signal so an aborted attempt
 cannot later become current ownership. The attempt identity SHALL be
@@ -208,6 +224,24 @@ never arrives.
 - **WHEN** the call resolves before its timer callback executes
 - **THEN** the result is rejected as `timeout`
 - **AND** no lifecycle transition is earned on it
+
+#### Scenario: An acknowledged commit stays committed
+
+- **GIVEN** a finalization commit that publishes inside the budget
+- **AND** wall time crosses the absolute expiry before its
+  acknowledgement returns
+- **WHEN** the orchestrator receives the acknowledgement
+- **THEN** the run reports the COMMITTED terminal
+- **AND** no second terminal settlement is attempted over the published
+  commit
+
+#### Scenario: The publication point refuses an expired commit
+
+- **GIVEN** a finalization commit whose staging completes as wall time
+  crosses its absolute expiry, with no abort yet raised
+- **WHEN** the publication point is reached
+- **THEN** the commit refuses synchronously as expired
+- **AND** no participant's record is observable anywhere
 
 #### Scenario: Attempt identities are unique per attempt
 

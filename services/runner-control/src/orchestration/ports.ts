@@ -16,7 +16,7 @@
  * `clock.now()` is synchronous and deliberately unwrapped. It cannot hold
  * the run open, and keeping it direct preserves the clock port's contract.
  */
-import type { Ports } from '../ports/index.js'
+import type { FinalizationPort, Ports } from '../ports/index.js'
 import type { CallGuard } from './deadline.js'
 
 const guarded = <T extends object>(port: T, boundary: CallGuard): T =>
@@ -32,6 +32,29 @@ const guarded = <T extends object>(port: T, boundary: CallGuard): T =>
   })
 
 /**
+ * The finalization port crosses the boundary as an ACKNOWLEDGED EFFECT,
+ * not a read — `boundary.commit`, never `boundary.call`. A late read is
+ * discarded; a late acknowledgement describes a publication that already
+ * happened, and discarding it invents a second terminal for a run whose
+ * first is visible.
+ *
+ * The boundary also STAMPS its absolute expiry into the request, because
+ * it is the one party that knows it: the commit's publication point
+ * enforces the expiry synchronously, which is the only place "not after
+ * the deadline" can be enforced for an irreversible write.
+ */
+const committed = (port: FinalizationPort, boundary: CallGuard): FinalizationPort => ({
+  commit: (request) => {
+    const expires_at_epoch_ms = request.expires_at_epoch_ms ?? boundary.expiresAtEpoch()
+    return boundary.commit(() =>
+      port.commit(
+        expires_at_epoch_ms === undefined ? request : { ...request, expires_at_epoch_ms },
+      ),
+    )
+  },
+})
+
+/**
  * Decorate the complete asynchronous port set.
  *
  * Adding a method to an existing port is covered automatically. Adding a
@@ -42,7 +65,7 @@ export const guardPorts = (ports: Ports, boundary: CallGuard): Ports => ({
   authority: guarded(ports.authority, boundary),
   journal: guarded(ports.journal, boundary),
   lease: guarded(ports.lease, boundary),
-  finalization: guarded(ports.finalization, boundary),
+  finalization: committed(ports.finalization, boundary),
   session: guarded(ports.session, boundary),
   workspace: guarded(ports.workspace, boundary),
   observer: guarded(ports.observer, boundary),

@@ -515,6 +515,31 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-149'],
   },
   {
+    id: 'RO-MUT-93',
+    mutation: 'skip the synchronous expiry check at the publication point inside the commit',
+    killedBy: ['RO-EX-153'],
+  },
+  {
+    id: 'RO-MUT-94',
+    mutation: 'route the finalization port through the ordinary result-discarding call boundary',
+    killedBy: ['RO-EX-153'],
+  },
+  {
+    id: 'RO-MUT-95',
+    mutation: 'write acquisitions or holds directly at their call sites, outside the outbox',
+    killedBy: ['RO-EX-154'],
+  },
+  {
+    id: 'RO-MUT-96',
+    mutation: 'gate the seal on pending transitions alone rather than the whole outbox',
+    killedBy: ['RO-EX-150', 'RO-EX-154'],
+  },
+  {
+    id: 'RO-MUT-97',
+    mutation: 'mint a new generation for a replayed attempt whose grant was released',
+    killedBy: ['RO-EX-155'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

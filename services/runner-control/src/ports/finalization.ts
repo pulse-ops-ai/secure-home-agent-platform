@@ -62,6 +62,20 @@ export interface FinalizationCommit extends RunFence {
    * moved on to interruption settlement.
    */
   readonly signal: AbortSignal
+  /**
+   * The absolute wall-clock instant after which this commit must not
+   * publish, in epoch milliseconds.
+   *
+   * A signal alone cannot close the last window: the abort is raised by
+   * a timer callback, and wall time can cross the expiry before that
+   * callback has an event-loop turn. The boundary rejecting the RESULT
+   * after the fact — the rule that is correct for reads — is exactly
+   * wrong here, because by then publication has happened. So the
+   * implementation consults this instant SYNCHRONOUSLY, immediately
+   * before publication: either the commit publishes inside the budget,
+   * or nothing observable exists.
+   */
+  readonly expires_at_epoch_ms?: number
 }
 
 export type CommitOutcome =
@@ -70,10 +84,30 @@ export type CommitOutcome =
    * `stale_fence` is called out rather than folded into a generic
    * failure: a commit refused because the run moved on has NOT failed a
    * contract, and terminating it OPERATIONAL_FAILURE would write a
-   * verdict about a run this caller no longer owns.
+   * verdict about a run this caller no longer owns. `expired` likewise:
+   * a commit refused at the expiry is the run's TIMEOUT, not an
+   * infrastructure fault.
    */
-  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
+  | { readonly ok: false; readonly reason?: 'stale_fence' | 'expired'; readonly detail: string }
 
+/**
+ * AN ACKNOWLEDGED COMMIT IS A FACT. `commit` is not a read: once it
+ * resolves `ok: true`, publication has occurred and the caller must
+ * treat the terminal as committed — it cannot re-classify the run as
+ * timed out because the acknowledgement arrived late. The expiry is
+ * enforced INSIDE the commit, at the publication point, which is the
+ * only place it can be enforced without pretending a published record
+ * does not exist.
+ *
+ * A DURABLE implementation (U11) inherits the stronger half of this
+ * contract: its publication must be a transaction that checks the expiry
+ * within the same atomic step, and because its acknowledgement can be
+ * lost in transit, it must make the commit's outcome discoverable — the
+ * commit identity is deterministic per attempt precisely so a caller
+ * that could not await the acknowledgement can later reconcile what
+ * became of it, the same resolution discipline `RunLeasePort.abandon`
+ * establishes for ownership.
+ */
 export interface FinalizationPort {
   commit(commit: FinalizationCommit): Promise<CommitOutcome>
 }

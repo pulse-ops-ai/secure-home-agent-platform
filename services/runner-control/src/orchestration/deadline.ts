@@ -23,6 +23,23 @@ export type InterruptReason = 'cancel' | 'timeout'
 /** A boundary that can reject an awaited call without abandoning its continuation. */
 export interface CallGuard {
   call<T>(work: () => Promise<T>): Promise<T>
+  /**
+   * The boundary for an ACKNOWLEDGED EFFECT — a call whose `ok` answer
+   * means an irreversible publication already happened.
+   *
+   * `call()` may reject a result that resolves after the expiry, because
+   * a read's late result can simply be discarded. Discarding a commit's
+   * acknowledgement discards nothing: the publication stands, and
+   * treating it as a timeout invents a second terminal for a run whose
+   * first is already visible. So this boundary checks expiry on ENTRY,
+   * races the in-flight call so a hung implementation cannot hold the
+   * run open, and accepts a resolved answer unconditionally — expiry
+   * DURING the commit is enforced inside the commit, synchronously at
+   * its publication point, where refusing still publishes nothing.
+   */
+  commit<T>(work: () => Promise<T>): Promise<T>
+  /** The absolute instant this boundary expires at, for the commit to check. */
+  expiresAtEpoch(): number | undefined
 }
 
 /**
@@ -177,6 +194,42 @@ export class RunDeadline {
     if (this.#aborter.signal.aborted) {
       throw new RunInterrupted(this.#reason ?? 'timeout')
     }
+    const value = await this.#race(work)
+    // THE CHECK IS SYMMETRIC. Expiry is enforced before the work
+    // starts AND when its result arrives, because a result can resolve
+    // after wall time crossed the expiry but before the timer callback
+    // had an event-loop turn. Accepting it would let synchronous phase
+    // logic consume the value — and earn a transition — inside a
+    // budget that is already spent.
+    this.#raiseIfElapsed()
+    if (this.#aborter.signal.aborted) {
+      throw new RunInterrupted(this.#reason ?? 'timeout')
+    }
+    return value
+  }
+
+  /**
+   * The acknowledged-effect boundary — see `CallGuard.commit`.
+   *
+   * Entry checks and the in-flight race are `call()`'s; the post-return
+   * discard deliberately is not. A resolved acknowledgement means the
+   * publication happened, and the expiry that binds it was enforced
+   * synchronously at the publication point inside the commit.
+   */
+  async commit<T>(work: () => Promise<T>): Promise<T> {
+    this.#raiseIfElapsed()
+    if (this.#aborter.signal.aborted) {
+      throw new RunInterrupted(this.#reason ?? 'timeout')
+    }
+    return await this.#race(work)
+  }
+
+  /** The armed absolute expiry, for a commit to enforce at publication. */
+  expiresAtEpoch(): number | undefined {
+    return this.#armedUntil
+  }
+
+  async #race<T>(work: () => Promise<T>): Promise<T> {
     let rejectAbort: ((error: RunInterrupted) => void) | undefined
     const aborted = new Promise<never>((_resolve, reject) => {
       rejectAbort = reject
@@ -194,18 +247,7 @@ export class RunDeadline {
           }, POLL_INTERVAL_MS)
     ticking?.unref?.()
     try {
-      const value = await Promise.race([work(), aborted])
-      // THE CHECK IS SYMMETRIC. Expiry is enforced before the work
-      // starts AND when its result arrives, because a result can resolve
-      // after wall time crossed the expiry but before the timer callback
-      // had an event-loop turn. Accepting it would let synchronous phase
-      // logic consume the value — and earn a transition — inside a
-      // budget that is already spent.
-      this.#raiseIfElapsed()
-      if (this.#aborter.signal.aborted) {
-        throw new RunInterrupted(this.#reason ?? 'timeout')
-      }
-      return value
+      return await Promise.race([work(), aborted])
     } finally {
       this.#aborter.signal.removeEventListener('abort', listener)
       if (ticking !== undefined) clearInterval(ticking)
@@ -276,6 +318,22 @@ export class RunSettlement implements CallGuard {
 
   async call<T>(work: () => Promise<T>): Promise<T> {
     this.#raiseIfElapsed()
+    const value = await this.#race(work)
+    this.#raiseIfElapsed()
+    return value
+  }
+
+  /** Acknowledged-effect boundary: no post-return discard. See `CallGuard.commit`. */
+  async commit<T>(work: () => Promise<T>): Promise<T> {
+    this.#raiseIfElapsed()
+    return await this.#race(work)
+  }
+
+  expiresAtEpoch(): number | undefined {
+    return this.#expiresAt
+  }
+
+  async #race<T>(work: () => Promise<T>): Promise<T> {
     let rejectAbort: ((error: RunSettlementExpired) => void) | undefined
     const aborted = new Promise<never>((_resolve, reject) => {
       rejectAbort = reject
@@ -285,9 +343,7 @@ export class RunSettlement implements CallGuard {
     }
     this.#aborter.signal.addEventListener('abort', listener, { once: true })
     try {
-      const value = await Promise.race([work(), aborted])
-      this.#raiseIfElapsed()
-      return value
+      return await Promise.race([work(), aborted])
     } finally {
       this.#aborter.signal.removeEventListener('abort', listener)
     }
@@ -324,12 +380,36 @@ export class RunRecovery implements CallGuard {
   }
 
   async call<T>(work: () => Promise<T>): Promise<T> {
+    this.#raiseIfStopped()
+    const value = await this.#race(work)
+    // Symmetric with the entry checks, against BOTH ceilings: a result
+    // resolving after the governed deadline or the recovery ceiling —
+    // but before either timer callback was serviced — must not be
+    // consumed by recovery logic whose budget is already spent.
+    this.#raiseIfStopped()
+    return value
+  }
+
+  /** Acknowledged-effect boundary: no post-return discard. See `CallGuard.commit`. */
+  async commit<T>(work: () => Promise<T>): Promise<T> {
+    this.#raiseIfStopped()
+    return await this.#race(work)
+  }
+
+  expiresAtEpoch(): number | undefined {
+    const governed = this.#deadline.expiresAtEpoch()
+    return governed === undefined ? this.#expiresAt : Math.min(governed, this.#expiresAt)
+  }
+
+  #raiseIfStopped(): void {
     const reason = this.#deadline.interrupted()
     if (reason !== undefined) throw new RunInterrupted(reason)
     if (this.#settlementAborter.signal.aborted || Date.now() >= this.#expiresAt) {
       throw new RunSettlementExpired()
     }
+  }
 
+  async #race<T>(work: () => Promise<T>): Promise<T> {
     let rejectBoundary: ((error: RunInterrupted | RunSettlementExpired) => void) | undefined
     const boundary = new Promise<never>((_resolve, reject) => {
       rejectBoundary = reject
@@ -352,17 +432,7 @@ export class RunRecovery implements CallGuard {
     }, POLL_INTERVAL_MS)
     ticking.unref?.()
     try {
-      const value = await Promise.race([work(), boundary])
-      // Symmetric with the entry checks, against BOTH ceilings: a result
-      // resolving after the governed deadline or the recovery ceiling —
-      // but before either timer callback was serviced — must not be
-      // consumed by recovery logic whose budget is already spent.
-      const late = this.#deadline.interrupted()
-      if (late !== undefined) throw new RunInterrupted(late)
-      if (this.#settlementAborter.signal.aborted || Date.now() >= this.#expiresAt) {
-        throw new RunSettlementExpired()
-      }
-      return value
+      return await Promise.race([work(), boundary])
     } finally {
       this.#deadline.signal.removeEventListener('abort', onRunAbort)
       this.#settlementAborter.signal.removeEventListener('abort', onSettlementAbort)

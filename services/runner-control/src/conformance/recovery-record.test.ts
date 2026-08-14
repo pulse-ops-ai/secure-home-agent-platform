@@ -66,15 +66,24 @@ describe('RO-EX-95: recovery before authority produces the governed record', () 
     expect(EarlyTerminationRecord.safeParse(early[0]?.payload).success).toBe(true)
   })
 
-  it('a journal that throws mid-acquisition records exactly one terminal', async () => {
+  it('a journal that throws mid-acquisition fails closed without sealing', async () => {
+    // This proof used to expect the acquisition-append throw to ABORT
+    // the epoch and recover INDETERMINATE. The journal outbox changed
+    // what the fault means: the fact stays pending for retry — the same
+    // contract transitions have always had — the epoch continues, and a
+    // journal that NEVER accepts the fact is caught where incomplete
+    // durable records are caught: the seal gate. What must still hold is
+    // that the run neither completes nor writes any governed record over
+    // the incomplete history — and that nothing is written twice.
     const base = testPorts()
     const ports = testPorts({ journal: throwingAcquisitionJournal(base.journal) })
     const conclusion = await new Runner(ports).run(runRequest())
 
-    expect(conclusion.state).toBe('INDETERMINATE')
+    expect(conclusion.state).not.toBe('COMPLETED')
+    expect(conclusion.produced).toBe('none')
     expect(
-      ports.evidence.all.filter((write) => write.kind === 'early_termination_record'),
-      'exactly one — terminalizing twice must not write twice either',
-    ).toHaveLength(1)
+      ports.evidence.all,
+      'no governed record may seal over a durable history missing its acquisitions',
+    ).toHaveLength(0)
   })
 })

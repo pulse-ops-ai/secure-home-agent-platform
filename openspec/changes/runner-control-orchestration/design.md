@@ -335,6 +335,22 @@ Preparation refusing costs nothing, which is the property that makes the
 whole thing work: no event has been announced and no bundle written, so
 the run simply terminates on what actually happened.
 
+The commit crosses the orchestration call boundary as an ACKNOWLEDGED
+EFFECT, not a read. The boundary that rejects a late-resolving result is
+correct for calls whose result can be discarded; a commit's late
+acknowledgement describes a publication that already exists, and
+discarding it would invent a second terminal for a run whose first is
+visible. So the absolute expiry is enforced INSIDE the commit,
+synchronously at the publication point — the commit publishes within its
+budget or publishes nothing — and once it acknowledges, the machine
+adopts the committed terminal regardless of what the wall clock says by
+the time the acknowledgement lands. The boundary stamps the expiry into
+the request because it is the party that knows it; a durable
+implementation (U11) inherits the same rule inside its transaction, plus
+discoverability by commit identity so an unawaited acknowledgement can
+be reconciled rather than guessed — the same resolution discipline the
+lease's abandoned attempt established for ownership.
+
 ### D7 (superseded detail): seal-last as an ordering component
 
 `finalization/` owns the write order: it collects the run's writes, invokes
@@ -493,6 +509,18 @@ evidence. Where the journal persists is U11's; what it must record is
 not, and a port whose contract waits for its store is a port whose
 contract gets written by the store.
 
+**All four categories pass through ONE outbox.** The pre-seal gate kept
+losing one category at a time — it checked transitions while a rejection
+pended outside it, learned rejections while acquisitions and holds were
+still written directly at their call sites, where a fault either dropped
+the fact or killed the run. Category-specific tracking keeps leaving the
+next category outside the proof, so there is a single `JournalOutbox`:
+every journal fact enters it, a fault leaves the entry pending for
+retry at the next tick, and the seal gate asks the one question — is
+the outbox empty — that cannot be asked per category. A category added
+later joins the gate by existing, because there is nowhere else for it
+to go. Proven by RO-INV-63, RO-EX-150/154, RO-MUT-95/96.
+
 ### D10: Concurrency — one run, one writer
 
 **Per run:** state is advanced by a single owner; concurrent transition
@@ -534,11 +562,16 @@ grant only to the attempt that earned it — which is what makes durable
 idempotency safe — and an attempt whose outcome the runner could not
 await is resolved AT THE RESOURCE through `abandon`: a pending attempt
 becomes ineligible for a grant, and a granted one whose generation still
-holds the run is released. The caller's abandon and the resource's own
-ownership expiry are the two halves of resolving uncertain acquisition;
-a durable implementation (U11) must supply both, and the in-memory lease
-ships the attempt-state semantics as the reference. Proven by RO-INV-82,
-RO-EX-148/149, RO-MUT-90…92.
+holds the run is released. And an attempt that has ever produced a grant
+stays RESOLVED once that grant is no longer current: a delayed duplicate
+of a released attempt refuses rather than minting a fresh generation
+nobody is waiting to hold — the same orphaned-ownership hazard arriving
+as a duplicate request instead of a delayed acknowledgement. The
+caller's abandon and the resource's own ownership expiry are the two
+halves of resolving uncertain acquisition; a durable implementation
+(U11) must supply both, and the in-memory lease ships the attempt-state
+semantics as the reference. Proven by RO-INV-82, RO-EX-148/149/155,
+RO-MUT-90…92/97.
 
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.

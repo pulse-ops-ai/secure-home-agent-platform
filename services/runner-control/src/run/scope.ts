@@ -27,6 +27,7 @@
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
 import type { CommitCapability, RunMachine, TransitionKind } from '../lifecycle/index.js'
+import { JournalOutbox } from '../run-state/outbox.js'
 import type { RunDeadline } from '../orchestration/deadline.js'
 import {
   emptyTerminalEvidence,
@@ -39,6 +40,12 @@ export class RunScope {
   readonly fence: RunFence
   readonly machine: RunMachine
   readonly startedAt: string
+
+  /**
+   * Every journal fact of every category, pending until it lands.
+   * The pre-seal gate asks this one queue; see `JournalOutbox`.
+   */
+  readonly outbox = new JournalOutbox()
 
   /** Acquired during the spend phase; released on every exit. */
   session: SessionHandle | undefined

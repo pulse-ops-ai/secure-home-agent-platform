@@ -87,6 +87,19 @@ export class TransactionalFinalization implements FinalizationPort {
     this.#participants = participants
   }
 
+  /**
+   * Whether the commit's absolute expiry has passed.
+   *
+   * Consulted SYNCHRONOUSLY at every checkpoint and — decisively —
+   * immediately before publication. The signal cannot carry this: its
+   * abort is raised by a timer callback, and wall time crosses the
+   * expiry before the callback runs. A boundary rejecting the RESULT
+   * instead would be rejecting a publication that already happened.
+   */
+  static #expired(commit: FinalizationCommit): boolean {
+    return commit.expires_at_epoch_ms !== undefined && Date.now() >= commit.expires_at_epoch_ms
+  }
+
   async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
     const { journal, events, evidence, visibility, lease } = this.#participants
     const fence = { run_id: commit.run_id, generation: commit.generation }
@@ -133,6 +146,14 @@ export class TransactionalFinalization implements FinalizationPort {
         return {
           ok: false,
           detail: `finalization did not commit: the run was interrupted before the ${what} was prepared`,
+        }
+      }
+      if (TransactionalFinalization.#expired(commit)) {
+        abandon()
+        return {
+          ok: false,
+          reason: 'expired',
+          detail: `finalization did not commit: the run's budget elapsed before the ${what} was prepared`,
         }
       }
       let outcome
@@ -203,6 +224,18 @@ export class TransactionalFinalization implements FinalizationPort {
       return {
         ok: false,
         detail: 'finalization did not commit: the run was interrupted before the commit marker',
+      }
+    }
+    // THE LAST CHECK, SYNCHRONOUS WITH THE PUBLICATION IT GUARDS.
+    // Nothing can interleave between this answer and the marker, so
+    // either the commit publishes inside its budget or it publishes
+    // nothing — the write-side twin of the lease's abandoned attempt.
+    if (TransactionalFinalization.#expired(commit)) {
+      abandon()
+      return {
+        ok: false,
+        reason: 'expired',
+        detail: "finalization did not commit: the run's budget elapsed before the commit marker",
       }
     }
 

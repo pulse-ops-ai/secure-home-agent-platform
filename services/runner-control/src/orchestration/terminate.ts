@@ -316,11 +316,13 @@ export const finish = async (
   // So the pending set is flushed here, before anything is staged, and
   // a run whose walk cannot be made durable does not seal. That is the
   // same rule the ledger already applies to the run's other writes.
-  // EVERY category counts: a pending rejection is as much a hole in the
-  // reconstructable record as a pending transition, and a retry landing
+  // EVERY category counts — transitions, rejections, acquisitions,
+  // holds — which is why the gate asks the ONE outbox they all pass
+  // through rather than enumerating categories: a pending entry of any
+  // kind is a hole in the reconstructable record, and a retry landing
   // it after the seal would violate seal-last from the other side.
   await env.journalTick()
-  if (!scope.machine.pendingJournalIsEmpty()) {
+  if (!scope.outbox.isEmpty()) {
     return await failClosed(
       'the run walk could not be made durable; an entry is missing from the journal and the seal would describe an incomplete record',
     )
@@ -351,7 +353,13 @@ export const finish = async (
       scope.loseFence(committed.detail)
       return stop(await conclude(env, 'none', committed.detail))
     }
-    return await failClosed(committed.detail)
+    // A commit the EXPIRY refused is the run's timeout, not an
+    // infrastructure fault — the publication point declining to publish
+    // after the budget is exactly what the wall clock means.
+    return await failClosed(
+      committed.detail,
+      committed.reason === 'expired' ? 'timeout' : undefined,
+    )
   }
   ledger.markSealed()
   // The machine adopts the entries that were COMMITTED, verbatim —

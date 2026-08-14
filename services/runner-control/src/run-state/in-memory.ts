@@ -210,8 +210,21 @@ export class InMemoryRunLease implements RunLeasePort {
     // still holds. This is the affordance that makes unique attempt ids
     // load-bearing — replayed to a second caller sharing the id, this
     // would be a duplicated grant.
-    if (attempt?.state === 'granted' && this.#held.get(request.run_id) === attempt.generation) {
-      return Promise.resolve({ ok: true, generation: attempt.generation as number })
+    if (attempt?.state === 'granted') {
+      if (this.#held.get(request.run_id) === attempt.generation) {
+        return Promise.resolve({ ok: true, generation: attempt.generation as number })
+      }
+      // The grant this attempt earned has been released or superseded.
+      // The attempt is SPENT: a delayed duplicate arriving now has no
+      // caller waiting for its answer, so minting a new generation for
+      // it would recreate orphaned ownership through a duplicate request
+      // instead of a delayed acknowledgement. The run stays claimable —
+      // by a NEW attempt, with an owner who will hold what it is granted.
+      return Promise.resolve({
+        ok: false,
+        reason: 'claim_aborted',
+        detail: `claim attempt ${request.attempt_id} was already resolved; its grant is no longer current`,
+      })
     }
     if (request.signal.aborted) {
       return Promise.resolve({

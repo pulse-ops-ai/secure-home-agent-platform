@@ -118,6 +118,15 @@ and written once at termination SHALL NOT satisfy this: a run whose
 process ends mid-walk SHALL still be reconstructable from what the
 journal already holds.
 
+All four categories SHALL pass through ONE outbox with one pending set.
+An append that faults SHALL leave its fact pending for retry at the next
+tick — the fact is neither silently dropped nor grounds to terminate the
+run by itself — and the pre-seal completeness gate asks that single
+pending set, so a category cannot sit outside the gate the way
+category-specific tracking repeatedly allowed. A fact that NEVER lands
+is caught where incomplete durable records are caught: no evidence seals
+over it.
+
 A run held at a state because a precondition is unmet SHALL leave a
 durable pending identity naming the state it is held at, so that the run
 can later be found and resumed. Where the journal persists is not decided
@@ -139,6 +148,19 @@ by this capability; what it must record is.
 - **THEN** the run's state is `ELIGIBLE` and a hold is recorded naming
   the withheld transition and the reason
 - **AND** the hold names the state the run is held at
+
+#### Scenario: A faulted acquisition append is retried, not dropped and not fatal
+
+- **GIVEN** an acquisition whose journal append faults transiently
+- **WHEN** the next journal tick runs
+- **THEN** the acquisition lands in the durable record
+- **AND** the run's outcome is unchanged by the transient fault
+
+#### Scenario: An unjournalable fact blocks the seal
+
+- **GIVEN** a journal that never accepts an acquisition or hold append
+- **WHEN** terminal finalization is attempted
+- **THEN** no evidence bundle seals over the missing fact
 
 ### Requirement: A run has one owner, and ownership is enforced before effects
 

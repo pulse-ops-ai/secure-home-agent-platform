@@ -17,9 +17,10 @@ import { randomUUID } from 'node:crypto'
 import { canConstructEvidence, RunMachine, walk as walkPhases } from '../lifecycle/index.js'
 import type { PhaseCommand, RejectionEntry } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
-import type { LeaseClaim, Ports } from '../ports/index.js'
+import type { FenceOutcome, LeaseClaim, Ports } from '../ports/index.js'
 import { isRunControlError, isRunInterrupted } from '../run/interruption.js'
 import { RunScope } from '../run/scope.js'
+import type { OutboxEntry } from '../run-state/outbox.js'
 import { RunDeadline, RunSettlement } from './deadline.js'
 import { ACQUISITION_BUDGET_MS, narrowingOnly, type RunControls } from './controls.js'
 import type { JournaledAcquisitionEntry, RunEnvironment } from './environment.js'
@@ -207,11 +208,13 @@ export class Runner {
       journalTick: () => this.#flushJournal(scope, ports),
       journalTickThrough: (through) => this.#flushJournal(scope, through),
       journalAcquisition: async (acquisition: JournaledAcquisitionEntry) => {
-        const appended = await ports.journal.appendAcquisition({
-          ...scope.fence,
-          acquisition,
-        })
-        if (!appended.ok) scope.loseFence(appended.detail)
+        // Into the outbox, then flushed immediately — appended at the
+        // moment it occurs, like every other journal fact, but a fault
+        // leaves it PENDING for retry instead of killing the epoch or
+        // silently dropping the fact. The flush recognises a fence
+        // refusal and stops the run's writes.
+        scope.outbox.record({ category: 'acquisition', acquisition })
+        await this.#flushJournal(scope, ports)
       },
     }
     scope.deadline = deadline
@@ -359,8 +362,12 @@ export class Runner {
       case 'held': {
         // The hold is the run's PENDING IDENTITY, recorded durably with
         // the state it is held at, so something can later resume it.
-        const recorded = await env.ports.journal.appendHold({
-          ...env.scope.fence,
+        // Through the outbox: a journal fault leaves it pending — and
+        // `conclude`'s ticks retry it — instead of crashing a HELD run
+        // into recovery, which would seal an INDETERMINATE bundle for a
+        // run that is merely waiting.
+        env.scope.outbox.record({
+          category: 'hold',
           hold: {
             state: env.scope.machine.state,
             transition: 'commit_spend',
@@ -368,7 +375,7 @@ export class Runner {
             at: env.ports.clock.now({ run_id: env.request.run_id }),
           },
         })
-        if (!recorded.ok) env.scope.loseFence(recorded.detail)
+        await env.journalTick()
         return await conclude(env, 'none', outcome.detail)
       }
       case 'lost': {
@@ -437,29 +444,29 @@ export class Runner {
   }
 
   /**
-   * Append everything the machine has recorded since the last tick.
+   * Land everything the run has recorded since the last tick — every
+   * category, through the ONE outbox.
    *
-   * Called after every machine mutation during the walk, and again by
-   * the exception handler — so a run that died mid-phase leaves the same
-   * durable trail as one that concluded.
+   * Called after every machine mutation during the walk, when an
+   * acquisition or hold is recorded, and again by the exception handler
+   * — so a run that died mid-phase leaves the same durable trail as one
+   * that concluded. A fault leaves the entry at the head of the outbox
+   * and the next tick retries it; only what LANDED is removed.
    */
   async #flushJournal(scope: RunScope, ports: Ports = this.#ports): Promise<void> {
     if (scope.fenceLost !== undefined) return
-    const pending = scope.machine.pendingJournal()
-    let transitions = 0
-    let rejections = 0
+    scope.outbox.drainMachine(scope.machine)
     try {
-      for (const transition of pending.transitions) {
-        const appended = await ports.journal.appendTransition({ ...scope.fence, transition })
-        // A refused append is NOT left pending: pending means "retry",
-        // and a fence refusal is the one failure retrying cannot fix.
+      for (;;) {
+        const entry = scope.outbox.head()
+        if (entry === undefined) return
+        const appended = await this.#append(ports, scope, entry)
+        // A refused append is NOT retried: retrying cannot fix a fence
+        // refusal, and a dispossessed run makes no further write. The
+        // entry stays where it is, which the seal gate reads correctly —
+        // this run's durable record is incomplete.
         if (!appended.ok) return scope.loseFence(appended.detail)
-        transitions += 1
-      }
-      for (const rejection of pending.rejections) {
-        const appended = await ports.journal.appendRejection({ ...scope.fence, rejection })
-        if (!appended.ok) return scope.loseFence(appended.detail)
-        rejections += 1
+        scope.outbox.landed()
       }
     } catch (error) {
       if (isRunControlError(error)) throw error
@@ -467,10 +474,20 @@ export class Runner {
       // PENDING and the next tick retries it. Propagating would end the
       // run over a transient journal fault, and the entry would still be
       // unwritten.
-    } finally {
-      // Only what LANDED is confirmed, so a rejected append cannot
-      // silently remove a transition from the record.
-      scope.machine.confirmJournaled(transitions, rejections)
+    }
+  }
+
+  /** One outbox entry to its journal append, by category. */
+  #append(ports: Ports, scope: RunScope, entry: OutboxEntry): Promise<FenceOutcome> {
+    switch (entry.category) {
+      case 'transition':
+        return ports.journal.appendTransition({ ...scope.fence, transition: entry.transition })
+      case 'rejection':
+        return ports.journal.appendRejection({ ...scope.fence, rejection: entry.rejection })
+      case 'acquisition':
+        return ports.journal.appendAcquisition({ ...scope.fence, acquisition: entry.acquisition })
+      case 'hold':
+        return ports.journal.appendHold({ ...scope.fence, hold: entry.hold })
     }
   }
 }

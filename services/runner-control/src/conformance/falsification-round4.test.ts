@@ -199,7 +199,11 @@ describe('a cancellation raised while the provider is in flight reaches nothing'
 
   it('the DEADLINE aborts the same call — the control that proves the fixture is reachable', async () => {
     const adapter = new HangingAdapter()
-    const conclusion = await new Runner(testPorts({ adapter }), { deadline_ms: 5 }).run(
+    // Long enough that the phases BEFORE the provider deterministically
+    // fit inside it — expiry is enforced at every call boundary now, so
+    // a knife-edge budget times out at an earlier port and the hung call
+    // this control exists to abort is never reached.
+    const conclusion = await new Runner(testPorts({ adapter }), { deadline_ms: 50 }).run(
       runRequest(),
     )
 
