@@ -84,3 +84,22 @@ export const noObservations = (): Observations => ({
   artifacts: { ok: true, artifacts: [] },
   operations: emptyOperations(),
 })
+
+/**
+ * What the run has established, as a value nothing can misread.
+ *
+ * On the SCOPE rather than in the walk's local scope, for the same
+ * reason the machine is: the handler that concludes an interrupted or
+ * failed run has to know what the run had established, and a `let`
+ * inside the walk is invisible to it. That was how an abandoned terminal
+ * came to write no governed record at all — the path that concluded it
+ * held the scope and neither an `Authority` nor `Observations`.
+ */
+export type WalkState =
+  | { readonly at: 'requested' }
+  | { readonly at: 'authorized'; readonly authority: Authority }
+  | {
+      readonly at: 'observed'
+      readonly authority: Authority
+      readonly observations: Observations
+    }

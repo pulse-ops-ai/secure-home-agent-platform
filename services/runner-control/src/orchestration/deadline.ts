@@ -15,7 +15,6 @@
  * because nothing owned clearing them.
  */
 import type { RunScope } from '../run/scope.js'
-import { ABANDON_GRACE_MS } from './controls.js'
 
 export type InterruptReason = 'cancel' | 'timeout'
 
@@ -34,7 +33,10 @@ export class RunDeadline {
   readonly #aborter = new AbortController()
   readonly #scope: RunScope
   readonly #poll: (() => InterruptReason | undefined) | undefined
+  /** When the run started. Every budget is measured from here. */
+  readonly #origin = Date.now()
   #reason: InterruptReason | undefined
+  #settling = false
 
   constructor(scope: RunScope, poll?: () => 'cancel' | undefined) {
     this.#scope = scope
@@ -69,6 +71,27 @@ export class RunDeadline {
     return this.#reason ?? this.#poll?.()
   }
 
+  /**
+   * The run is now writing its ending, and its ports stop being bound by
+   * the abort they are recording.
+   *
+   * Without this the fix eats itself: once the deadline fires, every
+   * bound port refuses, INCLUDING the ones the terminal path uses to
+   * write the governed record — so a run interrupted at any point could
+   * not write down that it had been interrupted. Concluding is bounded
+   * too, by the cleanup budget, because an unbounded seal is the hole
+   * this round is closing. It is simply not bounded by the interruption
+   * it exists to record.
+   */
+  settle(): void {
+    this.#settling = true
+  }
+
+  /** Whether the run has begun writing its ending. */
+  get settling(): boolean {
+    return this.#settling
+  }
+
   /** Raise the abort. The first reason wins; later ones are ignored. */
   raise(reason: InterruptReason): void {
     if (this.#reason !== undefined) return
@@ -83,15 +106,26 @@ export class RunDeadline {
    * — including on the exception path, where nothing used to.
    */
   arm(deadlineMs: number, cancelAfterMs?: number): void {
-    // REPLACES rather than adds. A run has ONE wall clock; arming twice —
-    // once for acquisition, once from the captured profile — must not
-    // leave the first still ticking, or the earlier bound would cut the
-    // run short regardless of what the profile granted.
+    // AN ABSOLUTE EXPIRY, MEASURED FROM THE RUN'S START.
+    //
+    // This started a fresh DURATION from now, and `eligible` arms the
+    // profile's budget twice — once before `session.prepare` and again
+    // after `session.start` returns. A profile granting one second
+    // therefore bought one second PLUS however long prepare and start
+    // took, which is a wall clock the profile did not declare. The
+    // budget is now what the profile granted minus what the run has
+    // already spent, so re-arming can only ever move the expiry EARLIER.
+    //
+    // Still REPLACES rather than adds: a run has one wall clock, and
+    // leaving the acquisition ceiling ticking would cut short a run the
+    // profile granted longer.
     this.#scope.disarm()
+    const spent = Date.now() - this.#origin
+    const remaining = Math.max(0, deadlineMs - spent)
     this.#scope.timers.push(
       setTimeout(() => {
         this.raise('timeout')
-      }, deadlineMs),
+      }, remaining),
     )
     if (cancelAfterMs !== undefined) {
       this.#scope.timers.push(
@@ -119,22 +153,6 @@ export class RunDeadline {
       this.#aborter.signal.addEventListener('abort', () => {
         resolve(this.#reason ?? 'timeout')
       })
-    })
-  }
-
-  /**
-   * How long an ABORTED walk is given to conclude through its own path.
-   *
-   * Lives here because it is a TIMER, and every timer a run owns is this
-   * class's — spread across the engine they were four, and each one
-   * outlived every exception because nothing owned clearing them.
-   */
-  grace(): Promise<{ readonly expired: true }> {
-    return new Promise<{ readonly expired: true }>((resolve) => {
-      const timer = setTimeout(() => {
-        resolve({ expired: true })
-      }, ABANDON_GRACE_MS)
-      timer.unref?.()
     })
   }
 

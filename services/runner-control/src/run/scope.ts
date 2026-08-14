@@ -30,6 +30,7 @@
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
 import type { CommitCapability, RunMachine, TransitionKind } from '../lifecycle/index.js'
+import type { WalkState } from '../orchestration/state.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -68,6 +69,9 @@ export class RunScope {
     this.machine = machine
     this.startedAt = startedAt
   }
+
+  /** What the walk has established so far. See `WalkState`. */
+  established: WalkState = { at: 'requested' }
 
   loseFence(detail: string): void {
     this.fenceLost ??= detail

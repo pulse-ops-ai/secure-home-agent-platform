@@ -121,12 +121,19 @@ export class RunMachine {
 
   /** Every declared transition this run actually took, in order (D9). */
   get transitionRecord(): readonly TransitionEntry[] {
-    return this.#transitions
+    // A SNAPSHOT, not the live array. `readonly` is a compile-time view
+    // of a mutable array, and `conclude` puts this reference straight
+    // into the `RunConclusion` — so a caller holding a finished run's
+    // record watched it gain entries afterwards. D9 has the transition
+    // record "durable, and returned to the caller"; a record that gives
+    // two different answers to the same question is neither.
+    return Object.freeze([...this.#transitions])
   }
 
   /** Every rejected attempt. A rejection is evidence, not an error. */
   get rejections(): readonly RejectionEntry[] {
-    return this.#rejections
+    // A snapshot, for the same reason as `transitionRecord` above.
+    return Object.freeze([...this.#rejections])
   }
 
   /**

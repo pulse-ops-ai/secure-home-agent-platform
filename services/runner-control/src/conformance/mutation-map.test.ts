@@ -384,6 +384,42 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-128'],
   },
   {
+    id: 'RO-MUT-68',
+    mutation:
+      'bound the walk instead of the ports, so the abandoned continuation keeps performing effects',
+    killedBy: ['RO-EX-129'],
+  },
+  {
+    id: 'RO-MUT-69',
+    mutation: 'conclude an interrupted run from a path holding neither authority nor observations',
+    killedBy: ['RO-EX-130'],
+  },
+  {
+    id: 'RO-MUT-70',
+    mutation: "leave the terminal path's writes bound by the abort they record",
+    killedBy: ['RO-EX-131'],
+  },
+  {
+    id: 'RO-MUT-71',
+    mutation: "return the machine's live arrays in a conclusion",
+    killedBy: ['RO-EX-132'],
+  },
+  {
+    id: 'RO-MUT-72',
+    mutation: 'arm a fresh duration instead of an absolute expiry',
+    killedBy: ['RO-EX-133'],
+  },
+  {
+    id: 'RO-MUT-73',
+    mutation: 'leave the lease claim or the cleanup unbounded',
+    killedBy: ['RO-EX-134'],
+  },
+  {
+    id: 'RO-MUT-74',
+    mutation: 'apply deadline_ms with ?? rather than Math.min',
+    killedBy: ['RO-EX-135'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

@@ -127,6 +127,12 @@ are below.
 | RO-INV-71 | A projection has ONE representation. The entries handed to finalization ARE the entries the capability owns and the machine later adopts, frozen, so a port that edits what it was given cannot leave durable history and machine state disagreeing about what the run did | trust |
 | RO-INV-72 | TIMED_OUT's provenance is the GOVERNED wall clock. A caller's interrupt expresses cancellation only — narrowed in the type and coerced at the boundary, because a type is erased at runtime — so a requester cannot author a terminal cause the lifecycle contract assigns to the deadline mechanism | trust |
 | RO-INV-73 | An interrupted run's RECORD does not depend on which interrupt arrived. An aborted walk is given a bounded moment to conclude through its own path, which is what seals; abandoning immediately made a timed-out run write nothing where a cancelled one sealed a bundle, from the same state | behavior |
+| RO-INV-74 | THE BOUND LIVES AT THE PORT. Every port call a run makes is bounded by the run's budget, because the ports the walk holds are bound ones — a call site cannot forget, and a port added later inherits the bound without anyone remembering to give it one. Racing the walk and abandoning the loser bounded the CALLER'S WAIT and nothing else: a JavaScript continuation cannot be cancelled, so the abandoned walk kept reading authority, kept emitting, and kept mutating the conclusion already returned | trust |
+| RO-INV-75 | THE WALK IS ALWAYS WHAT CONCLUDES. An interrupted call raises, and the raise unwinds to the one handler that knows what the run established — so a termination in REQUESTED writes the early-terminal refusal record and one at or after PROFILE_RESOLVED seals a full bundle, rather than the record depending on whether a hung port answered inside a grace window | behavior |
+| RO-INV-76 | A run's ENDING is bounded by the cleanup budget, never by the interruption it is recording. Once the run begins writing its terminal record its ports stop refusing on the abort — otherwise a run interrupted at any point could not write down that it had been interrupted — and an abort reaching an outstanding write is not reported as a failure OF that write | trust |
+| RO-INV-77 | The record handed to a caller does not change afterwards. The machine returns snapshots, not its live arrays; D9 has the transition record durable and returned to the caller, and a record giving two different answers to one question is neither | trust |
+| RO-INV-78 | A budget is an ABSOLUTE EXPIRY measured from the run's start, so re-arming can only move it earlier. Arming restarted a fresh duration, and the profile's clock is armed twice around the session boundary — so a profile granting one second bought one second PLUS whatever prepare and start consumed | behavior |
+| RO-INV-79 | `run()` RESOLVING is bounded at both ends, not only in the middle. The lease claim precedes the scope the deadline is built from and cleanup follows the disarm; a store that never answered at either end left the run unresolved forever, which is the one thing every caller relies on | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -405,12 +411,26 @@ persistence (U11).
 | RO-EX-126 | RO-INV-61 | adversarial | a run that already knows it lost the fence applies nothing back, even against a lease that renews it |
 | RO-EX-127 | RO-INV-73 | adversarial | a wall-clock timeout at a sealing state produces the same declared shape as a cancellation, evidence bundle included |
 | RO-EX-128 | RO-INV-58 | structural | the invalid composition DOES NOT COMPILE — a phase demanding unearned state fails the build, asserted by `@ts-expect-error`, which fails if the line beneath it starts compiling |
+| RO-EX-129 | RO-INV-74 | adversarial | a concluded run reads no further authority source, and emits no `capability.granted` after the abort, observed after the continuation has had time to run |
+| RO-EX-130 | RO-INV-75 | adversarial | a timeout in REQUESTED produces the early-terminal refusal record and a timeout past PROFILE_RESOLVED seals a bundle, from ports nothing at the call site wraps |
+| RO-EX-131 | RO-INV-76 | adversarial | a run interrupted while a governed write is outstanding still writes its terminal record, and does not report the interruption as an operational failure |
+| RO-EX-132 | RO-INV-77 | adversarial | a conclusion read twice after the run returned gives the same transition and rejection counts |
+| RO-EX-133 | RO-INV-78 | adversarial | a one-second profile expires within one second whether or not prepare and start were slow |
+| RO-EX-134 | RO-INV-79 | adversarial | a lease store that never answers, at claim and at release, still lets `run()` resolve |
+| RO-EX-135 | RO-INV-59 | adversarial | `deadline_ms` above the standing acquisition ceiling does not lengthen it |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-58 | RO-INV-67 | mutation | bounding only the call sites already known to hang, rather than the walk, is killed by RO-EX-118 |
 | RO-MUT-59 | RO-INV-67 | mutation | adding the profile's wall clock alongside the acquisition budget instead of replacing it is killed by RO-EX-119 |
 | RO-MUT-60 | RO-INV-68 | mutation | polling the caller's interrupt only between phases is killed by RO-EX-120 |
 | RO-MUT-61 | RO-INV-69 | mutation | proving a structural guard by scanning its own source text is killed by RO-EX-121 |
 | RO-MUT-62 | RO-INV-61 | mutation | applying workspace changes back before the fence is consulted, so a dispossessed run still writes, is killed by RO-EX-122 |
+| RO-MUT-68 | RO-INV-74 | mutation | bounding the walk instead of the ports, so the abandoned continuation keeps performing effects, is killed by RO-EX-129 |
+| RO-MUT-69 | RO-INV-75 | mutation | concluding an interrupted run from a path that holds neither authority nor observations is killed by RO-EX-130 |
+| RO-MUT-70 | RO-INV-76 | mutation | leaving the terminal path's writes bound by the abort they record is killed by RO-EX-131 |
+| RO-MUT-71 | RO-INV-77 | mutation | returning the machine's live arrays in a conclusion is killed by RO-EX-132 |
+| RO-MUT-72 | RO-INV-78 | mutation | arming a fresh duration instead of an absolute expiry is killed by RO-EX-133 |
+| RO-MUT-73 | RO-INV-79 | mutation | leaving the lease claim or the cleanup unbounded is killed by RO-EX-134 |
+| RO-MUT-74 | RO-INV-59 | mutation | applying `deadline_ms` with `??` rather than `Math.min` is killed by RO-EX-135 |
 | RO-MUT-63 | RO-INV-70 | mutation | taking an already-created promise instead of a thunk, so the effect starts before the abort is checked, is killed by RO-EX-123 |
 | RO-MUT-64 | RO-INV-71 | mutation | returning a mutable twin of the frozen projection is killed by RO-EX-124 |
 | RO-MUT-65 | RO-INV-72 | mutation | trusting a caller's interrupt reason instead of coercing it to cancellation is killed by RO-EX-125 |

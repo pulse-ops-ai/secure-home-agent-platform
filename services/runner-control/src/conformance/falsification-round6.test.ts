@@ -30,11 +30,7 @@ import {
   testPorts,
   type TestPorts,
 } from '../testing-fixtures.js'
-import type {
-  AuthorityBytes,
-  AuthorityReadRequest,
-  SessionPrepareRequest,
-} from '../ports/index.js'
+import type { AuthorityBytes, AuthorityReadRequest, SessionPrepareRequest } from '../ports/index.js'
 
 /**
  * The fixture's run id. `runRequest`'s consent record is bound to it, and
@@ -103,6 +99,7 @@ class HangingBaseObserver {
 // control-plane continuation reading authority.
 // ======================================================================
 
+/** RO-EX-129, RO-EX-132 — RO-INV-74, RO-INV-77. Kills RO-MUT-68, RO-MUT-71. */
 describe('a concluded run keeps performing control-plane effects', () => {
   it('the abandoned walk reads the remaining authority sources after run() returned', async () => {
     const authority = new GatedAuthority()
@@ -190,6 +187,8 @@ describe('a concluded run keeps performing control-plane effects', () => {
 // inside `ABANDON_GRACE_MS`.
 // ======================================================================
 
+/** RO-EX-130, RO-EX-131 — RO-INV-75, RO-INV-76. Kills RO-MUT-69, RO-MUT-70. */
+/** RO-EX-130, RO-EX-131 — RO-INV-75, RO-INV-76. Kills RO-MUT-69, RO-MUT-70. */
 describe('an abandoned walk reaches a terminal and writes no governed record', () => {
   it('a timeout in REQUESTED produces no early-terminal refusal record', async () => {
     const authority = new GatedAuthority() // never released
@@ -267,6 +266,8 @@ describe('an abandoned walk reaches a terminal and writes no governed record', (
 // nothing — and the run waits out the entire wall clock instead.
 // ======================================================================
 
+/** RO-EX-129 — RO-INV-74. */
+/** RO-EX-129 — RO-INV-74. */
 describe('public cancellation is not effective against every outstanding call', () => {
   it('a cancellation raised during an unwrapped call is not seen until the wall clock', async () => {
     const observer = new HangingBaseObserver()
@@ -344,6 +345,7 @@ class SlowRunStartedEvents {
   }
 }
 
+/** RO-EX-129 — RO-INV-74. */
 describe('an aborted run still starts the next effect of the phase it is in', () => {
   it('capability.granted is emitted after the deadline has already fired', async () => {
     const base = testPorts()
@@ -363,10 +365,9 @@ describe('an aborted run still starts the next effect of the phase it is in', ()
     await settle(300)
 
     // THE FINDING. A capability grant published by an aborted run.
-    expect(
-      events.emitted,
-      'an aborted run emitted a capability grant',
-    ).not.toContain('capability.granted')
+    expect(events.emitted, 'an aborted run emitted a capability grant').not.toContain(
+      'capability.granted',
+    )
   })
 
   it('the same fixture DOES emit capability.granted when nothing aborts it — the control', async () => {
@@ -401,6 +402,7 @@ describe('an aborted run still starts the next effect of the phase it is in', ()
 // there is no timer left running that could ever fire.
 // ======================================================================
 
+/** RO-EX-134 — RO-INV-79. Kills RO-MUT-73. */
 describe('the run budget does not bound ownership or cleanup', () => {
   it('a lease store that never answers leaves run() unresolved forever', async () => {
     const ports = {
@@ -519,6 +521,8 @@ class SlowSession {
   }
 }
 
+/** RO-EX-133 — RO-INV-78. Kills RO-MUT-72. */
+/** RO-EX-133 — RO-INV-78. Kills RO-MUT-72. */
 describe('the profile wall clock is restarted rather than held', () => {
   it('a one-second profile outlives one second when prepare and start are slow', async () => {
     vi.useFakeTimers()
@@ -600,6 +604,8 @@ describe('the profile wall clock is restarted rather than held', () => {
 // contract says it cannot do.
 // ======================================================================
 
+/** RO-EX-135 — RO-INV-59. Kills RO-MUT-74. */
+/** RO-EX-135 — RO-INV-59. Kills RO-MUT-74. */
 describe('a shortening-only control lengthens the acquisition ceiling', () => {
   it('a deadline_ms above the standing budget outlives the standing budget', async () => {
     vi.useFakeTimers()
@@ -618,7 +624,9 @@ describe('a shortening-only control lengthens the acquisition ceiling', () => {
 
       // The control: the run really is hung in acquisition, under the
       // standing ceiling and before any profile exists to narrow it.
-      expect(authority.requested, 'the run is hung on the first authority read').toEqual(['profile'])
+      expect(authority.requested, 'the run is hung on the first authority read').toEqual([
+        'profile',
+      ])
 
       // THE FINDING.
       expect(

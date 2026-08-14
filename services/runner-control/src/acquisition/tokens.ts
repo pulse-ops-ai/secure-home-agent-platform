@@ -17,6 +17,7 @@
  * place (RO-ADV-05).
  */
 import type { AuthoritySourcePort, AcquisitionEpoch, AuthorityBytes } from '../ports/index.js'
+import { RunAborted } from '../orchestration/bound-ports.js'
 
 /** Authority bytes that remember which epoch acquired them. */
 export interface EpochValue<E extends AcquisitionEpoch> {
@@ -107,6 +108,12 @@ export class AcquisitionSet<E extends AcquisitionEpoch> {
       const bytes = await this.#port.read({ run_id: this.#runId, epoch: this.#epoch, source })
       return { ok: true, value: { epoch: this.#epoch, source, bytes } }
     } catch (error) {
+      // AN ABORT IS NOT A REFUSED SOURCE. The run's budget reaching an
+      // outstanding read means the RUN is over, not that authority
+      // declined — recording it as a refusal would put a fabricated
+      // authority failure into the run's evidence for something the
+      // run's own clock did.
+      if (error instanceof RunAborted) throw error
       return {
         ok: true,
         value: {

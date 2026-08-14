@@ -146,15 +146,24 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
  * effect rather than from the fourth phase.
  */
 /**
- * How long an ABORTED walk is given to conclude through its own path.
+ * How long the calls OUTSIDE a run's deadline are given.
  *
- * Short: this is not more run time, it is the moment between raising the
- * abort and giving up on the walk that was supposed to notice it. A walk
- * whose ports respond reaches its next boundary well inside this and
- * seals its record; one that cannot is abandoned, and the run is still
- * bounded by `deadline + grace`.
+ * The lease claim precedes the scope the deadline is built from, and
+ * cleanup follows the disarm. A run hung in either never resolved at
+ * all: `run()` resolving is what every caller relies on to know the run
+ * is over, and it was unbounded at both ends of the mechanism that
+ * exists to bound it.
  */
-export const ABANDON_GRACE_MS = 250
+export const CLEANUP_BUDGET_MS = 250
+
+/**
+ * RETAINED NAME. The abandonment this named is gone — the walk is never
+ * abandoned now, because every port is bounded and the walk concludes
+ * through its own path. Kept as an alias because round 6's proofs import
+ * it, and renaming a constant out from under a reviewer's tests hides
+ * the change rather than making it.
+ */
+export const ABANDON_GRACE_MS = CLEANUP_BUDGET_MS
 
 export const ACQUISITION_BUDGET_MS = 60_000
 

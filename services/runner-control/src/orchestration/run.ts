@@ -13,18 +13,18 @@
  * phase reading state it has not is a compile error rather than a
  * hazard the next review has to find.
  */
-import {
-  canConstructEvidence,
-  isTerminal,
-  RunMachine,
-  walk as walkPhases,
-} from '../lifecycle/index.js'
-import type { PhaseCommand, RejectionEntry, TerminalState } from '../lifecycle/index.js'
+import { isTerminal, RunMachine, walk as walkPhases } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
 import { RunScope } from '../run/scope.js'
 import { RunDeadline } from './deadline.js'
-import { ACQUISITION_BUDGET_MS, narrowingOnly, type RunControls } from './controls.js'
+import {
+  ACQUISITION_BUDGET_MS,
+  CLEANUP_BUDGET_MS,
+  narrowingOnly,
+  type RunControls,
+} from './controls.js'
+import { boundPorts, RunAborted, withinBudget } from './bound-ports.js'
 import type { JournaledAcquisitionEntry, RunEnvironment } from './environment.js'
 import { eligible } from './phases/eligible.js'
 import { profileResolved } from './phases/profile-resolved.js'
@@ -33,26 +33,14 @@ import { running } from './phases/running.js'
 import { sandboxStarted } from './phases/sandbox-started.js'
 import { verifying } from './phases/verifying.js'
 import type { RunConclusion, RunRequest, RunSignals, Stop } from './result.js'
-import { noObservations, type Authority, type Observations } from './state.js'
 
-import { conclude, finish, terminateEarly, writeEarlyTerminalRecord } from './terminate.js'
-
-/**
- * What the run has established, as a value nothing can misread.
- *
- * A phase narrows to the variant carrying what it needs. There is no
- * variant in which observations exist before RUNNING produced them, so
- * the empty-then-overwrite hazard is unrepresentable rather than merely
- * avoided by convention.
- */
-type WalkState =
-  | { readonly at: 'requested' }
-  | { readonly at: 'authorized'; readonly authority: Authority }
-  | {
-      readonly at: 'observed'
-      readonly authority: Authority
-      readonly observations: Observations
-    }
+import {
+  conclude,
+  concludeAborted,
+  terminateEarly,
+  terminateFromRejection,
+  writeEarlyTerminalRecord,
+} from './terminate.js'
 
 /** The timestamp used when the clock itself is what failed. */
 const UNESTABLISHED_INSTANT = '1970-01-01T00:00:00.000Z'
@@ -82,7 +70,21 @@ export class Runner {
   async run(request: RunRequest, signals: RunSignals = {}): Promise<RunConclusion> {
     let claim: LeaseClaim
     try {
-      claim = await this.#ports.lease.claim({ run_id: request.run_id })
+      // BOUNDED, THOUGH IT PRECEDES THE DEADLINE. The claim happens
+      // before the scope the run's deadline is built from, so it had no
+      // budget at all: a lease store that never answered left `run()`
+      // unresolved forever, and `run()` resolving is the whole of what a
+      // caller relies on to know the run is over.
+      const claimed = await withinBudget(CLEANUP_BUDGET_MS, () =>
+        this.#ports.lease.claim({ run_id: request.run_id }),
+      )
+      if (!claimed.ok) {
+        return unstarted(
+          request.run_id,
+          'the run lease could not be claimed: the store did not answer within its budget',
+        )
+      }
+      claim = claimed.value
     } catch (error) {
       // A lease store that throws is not a run that failed — it is a run
       // that never started. Reported as a conclusion rather than a
@@ -104,7 +106,13 @@ export class Runner {
       // must not replace the run's result either — the run is over, and
       // a stuck lease is a lease problem.
       try {
-        await this.#ports.lease.release({ run_id: request.run_id, generation: claim.generation })
+        // BOUNDED, THOUGH IT FOLLOWS THE DISARM. The run's timers are
+        // cleared by this point, so a release that never answered held
+        // `run()` open with no clock left to stop it — the same hole as
+        // the claim, at the other end.
+        await withinBudget(CLEANUP_BUDGET_MS, () =>
+          this.#ports.lease.release({ run_id: request.run_id, generation: claim.generation }),
+        )
       } catch {
         // Deliberately swallowed. See above.
       }
@@ -135,17 +143,21 @@ export class Runner {
       new RunMachine(request.run_id, safeClock, table.ok ? table.table : undefined),
       safeClock.now({ run_id: request.run_id }),
     )
+    // EVERY PORT, BOUND ONCE, before the environment exists — so there
+    // is no unbound path to a port from anywhere inside a run.
+    const deadline = new RunDeadline(scope, signals.interrupt)
+    const bound = boundPorts(this.#ports, deadline)
     const env: RunEnvironment = {
       request,
       signals,
-      ports: this.#ports,
+      ports: bound,
       scope,
       controls: this.#controls,
       ledger: new FinalizationLedger(request.run_id),
-      deadline: new RunDeadline(scope, signals.interrupt),
+      deadline,
       journalTick: () => this.#flushJournal(scope),
       journalAcquisition: async (acquisition: JournaledAcquisitionEntry) => {
-        const appended = await this.#ports.journal.appendAcquisition({
+        const appended = await bound.journal.appendAcquisition({
           ...scope.fence,
           acquisition,
         })
@@ -156,7 +168,13 @@ export class Runner {
     // BOUNDED FROM THE FIRST EFFECT. The profile cannot bound the read
     // that captures it, so acquisition has its own ceiling and the
     // profile narrows it in ELIGIBLE.
-    env.deadline.arm(this.#controls.deadline_ms ?? ACQUISITION_BUDGET_MS)
+    // SHORTENING ONLY. This was `??`, so a control of 120_000 DOUBLED
+    // the standing 60-second ceiling — a control whose contract says it
+    // "never lengthens" doing the one thing it says it cannot. Every
+    // other arming site already honours that through `boundedDeadlineMs`.
+    env.deadline.arm(
+      Math.min(this.#controls.deadline_ms ?? ACQUISITION_BUDGET_MS, ACQUISITION_BUDGET_MS),
+    )
 
     if (!table.ok) {
       return await this.#recover(
@@ -165,44 +183,29 @@ export class Runner {
       )
     }
     try {
-      // THE WALK IS RACED, not each call site.
+      // THE WALK IS AWAITED, not raced.
       //
-      // RO-INV-64 claims every port that can hang is bounded, and the
-      // budget covered the handful whose call sites remembered to ask —
-      // so a hung `observeBase` outlived an armed and FIRED deadline,
-      // and the authority reads preceded the arming entirely. A port
-      // added later cannot forget to be bounded when nothing at the call
-      // site is what bounds it.
-      const walking = this.#walk(env).then((conclusion) => ({ conclusion }) as const)
-      const walked = await Promise.race([
-        walking,
-        env.deadline.expired().then((reason) => ({ reason }) as const),
-      ])
-      if ('conclusion' in walked) return walked.conclusion
-
-      // A GRACE PERIOD, AND WHY IT IS NOT A HOLE.
-      //
-      // Abandoning the moment the clock fires made every wall-clock
-      // timeout produce `none`: `#abandon` has the scope but NOT the
-      // authority — identities, principal, emitter — so it cannot seal,
-      // and a cancelled run sealed an evidence bundle while a timed-out
-      // one wrote nothing. Same run, same state, different record,
-      // decided by which interrupt arrived.
-      //
-      // The abort is already raised, so a walk whose ports still respond
-      // reaches its next boundary and concludes through `abortRun` →
-      // `finish`, which is what seals. This waits a bounded moment for
-      // that, and abandons only a walk that genuinely cannot get there.
-      // The guarantee round 4 established is intact — a hung port still
-      // cannot hold the run open past `deadline + grace`.
-      const graced = await Promise.race([walking, env.deadline.grace()])
-      if ('conclusion' in graced) return graced.conclusion
-
-      // The walk is abandoned, still running. That is why the session is
-      // INTERRUPTED rather than merely dropped — stopping it is L9's, and
-      // this gives it something to stop.
-      return await this.#abandon(env, walked.reason)
+      // Racing it and abandoning the loser bounded the CALLER'S WAIT and
+      // nothing else: a JavaScript continuation cannot be cancelled, so
+      // the abandoned walk kept reading authority, kept emitting
+      // `capability.granted` after the abort, and kept mutating the
+      // conclusion already handed back. The bound lives at the PORTS now
+      // — see `boundPorts` — where a call site cannot forget it and a
+      // port added later inherits it. Every call the walk makes settles
+      // or raises, so the walk itself is always what concludes, and the
+      // walk is what writes the governed record.
+      return await this.#walk(env)
     } catch (error) {
+      // THE ABORT, CONCLUDED WITH WHAT THE RUN ESTABLISHED.
+      //
+      // Failure semantics: a termination in REQUESTED owes an
+      // early-terminal refusal record; one at or after PROFILE_RESOLVED
+      // owes a fully sealed bundle. The abandoning path had the scope
+      // and neither an `Authority` nor `Observations`, so it wrote
+      // NEITHER — and which record a run received came down to whether a
+      // hung port answered inside a grace window. `scope.established` is
+      // the value that decides it, and it is reachable from here.
+      if (error instanceof RunAborted) return await concludeAborted(env, error.reason)
       return await this.#recover(
         env,
         `the run's terminal state could not be established: ${describe(error)}`,
@@ -225,7 +228,6 @@ export class Runner {
     // narrow to a variant that HAS authority, there is no variant
     // carrying observations before RUNNING, and the out-of-order branch
     // fails closed rather than pretending.
-    let state: WalkState = { at: 'requested' }
     const outOfOrder = (phase: string): Promise<Stop> =>
       terminateEarly(
         env,
@@ -241,7 +243,8 @@ export class Runner {
           earns: 'resolve_profile',
           run: async () => {
             const result = await requested(env)
-            if (result.kind === 'earned') state = { at: 'authorized', authority: result.next }
+            if (result.kind === 'earned')
+              env.scope.established = { at: 'authorized', authority: result.next }
             return result
           },
         },
@@ -249,33 +252,35 @@ export class Runner {
           name: 'profile-resolved',
           earns: 'decide_eligibility',
           run: () =>
-            state.at === 'requested'
+            env.scope.established.at === 'requested'
               ? outOfOrder('profile-resolved')
-              : profileResolved(env, state.authority),
+              : profileResolved(env, env.scope.established.authority),
         },
         {
           name: 'eligible',
           earns: 'commit_spend',
           run: () =>
-            state.at === 'requested' ? outOfOrder('eligible') : eligible(env, state.authority),
+            env.scope.established.at === 'requested'
+              ? outOfOrder('eligible')
+              : eligible(env, env.scope.established.authority),
         },
         {
           name: 'sandbox-started',
           earns: 'begin_execution',
           run: () =>
-            state.at === 'requested'
+            env.scope.established.at === 'requested'
               ? outOfOrder('sandbox-started')
-              : sandboxStarted(env, state.authority),
+              : sandboxStarted(env, env.scope.established.authority),
         },
         {
           name: 'running',
           earns: 'begin_verification',
           run: async () => {
-            if (state.at === 'requested') return outOfOrder('running')
-            const authority = state.authority
+            if (env.scope.established.at === 'requested') return outOfOrder('running')
+            const authority = env.scope.established.authority
             const result = await running(env, authority)
             if (result.kind === 'earned') {
-              state = { at: 'observed', authority, observations: result.next }
+              env.scope.established = { at: 'observed', authority, observations: result.next }
             }
             return result
           },
@@ -286,8 +291,8 @@ export class Runner {
           name: 'verifying',
           earns: 'seal_evidence',
           run: () =>
-            state.at === 'observed'
-              ? verifying(env, state.authority, state.observations)
+            env.scope.established.at === 'observed'
+              ? verifying(env, env.scope.established.authority, env.scope.established.observations)
               : outOfOrder('verifying'),
         },
       ],
@@ -358,90 +363,12 @@ export class Runner {
         }
       }
       case 'halted':
-        return await this.#terminateFromRejection(env, state, outcome)
+        return await terminateFromRejection(env, env.scope.established, outcome)
       case 'walked':
         // Unreachable: the final phase always terminates. Represented
         // rather than assumed — a walk that fell off the end without
         // terminating would otherwise be a silent success.
         return await conclude(env, 'none', 'the walk ended without a terminal commit')
-    }
-  }
-
-  /**
-   * A phase earned a transition the machine REFUSED.
-   *
-   * The walk has stopped and no later phase ran, but the run is still in
-   * a non-terminal state and the lifecycle requirement forbids
-   * abandoning it there. `canConstructEvidence` chooses the shape: a run
-   * past REQUESTED has the identities a bundle needs; one still in
-   * REQUESTED does not.
-   */
-  async #terminateFromRejection(
-    env: RunEnvironment,
-    state: WalkState,
-    halt: { readonly phase: string; readonly rejection: RejectionEntry },
-  ): Promise<RunConclusion> {
-    const why = `the ${halt.phase} phase earned ${halt.rejection.attempted}, which the machine refused from ${halt.rejection.state}: ${halt.rejection.detail}`
-    const stopped: PhaseCommand<RunConclusion> =
-      canConstructEvidence(env.scope.machine.state) && state.at !== 'requested'
-        ? await finish(
-            env,
-            state.authority,
-            state.at === 'observed' ? state.observations : noObservations(),
-            'operational_fault',
-            why,
-            'OPERATIONAL_FAILURE',
-          )
-        : await terminateEarly(env, 'operational_fault', why)
-    return stopped.kind === 'terminate' ? stopped.value : await conclude(env, 'none', why)
-  }
-
-  /**
-   * The budget elapsed while a port was still in flight.
-   *
-   * Distinct from `#recover`: nothing threw and nothing is unknown — the
-   * run simply ran out of the time its profile granted. It terminates on
-   * that, interrupting the session first so the abandoned call has
-   * something stopping it.
-   */
-  async #abandon(env: RunEnvironment, reason: 'cancel' | 'timeout'): Promise<RunConclusion> {
-    const { scope, request } = env
-    const detail = `the run was ${reason === 'cancel' ? 'cancelled' : 'timed out'} while a port was still in flight`
-    if (scope.session !== undefined) {
-      try {
-        await env.ports.session.interrupt({
-          ...scope.fence,
-          session_ref: scope.session.session_ref,
-          reason,
-        })
-      } catch {
-        // Reported by the session's own implementation; never a reason
-        // to fail to conclude.
-      }
-    }
-    const reached =
-      scope.fenceLost !== undefined ? { ok: false as const } : scope.reachTerminal(reason, detail)
-    await this.#flushJournal(scope)
-    await scope.release(env.ports)
-
-    const base = {
-      run_id: request.run_id,
-      detail,
-      transitions: scope.machine.transitionRecord,
-      rejections: scope.machine.rejections,
-    }
-    const state = scope.machine.state
-    if (scope.fenceLost !== undefined) {
-      return { ...base, kind: 'ownership_lost', state, produced: 'none' }
-    }
-    if (reached.ok && isTerminal(state)) {
-      return { ...base, kind: 'terminal', state, produced: 'none' }
-    }
-    return {
-      ...base,
-      kind: 'unterminated',
-      state: state as Exclude<typeof state, TerminalState>,
-      produced: 'none',
     }
   }
 
