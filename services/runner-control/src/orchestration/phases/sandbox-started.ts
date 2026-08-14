@@ -43,7 +43,12 @@ export const sandboxStarted = async (
   // `finish` closes the session; only `abortRun` interrupts it first,
   // and a session left running while the run reports CANCELLED is
   // cancellation in name only.
-  if (env.deadline.interrupted() !== undefined) return abortRun(env, authority, nothingYet)
+  // And the SIGNAL is carried through. `RunDeadline.reason` is set only
+  // by `raise()`, so a POLLED interrupt is known nowhere but here.
+  // Discarding it left `abortRun` defaulting to 'cancel', and a polled
+  // timeout sealed terminal evidence saying the run was cancelled.
+  const signal = env.deadline.interrupted()
+  if (signal !== undefined) return abortRun(env, authority, nothingYet, signal)
 
   const base = await ports.observer.observeBase({
     run_id: request.run_id,

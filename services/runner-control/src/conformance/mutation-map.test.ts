@@ -310,6 +310,17 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-103'],
   },
   {
+    id: 'RO-MUT-54',
+    mutation:
+      "return the caller's table from validation, or validate through a narrower key view than declaredNext reads",
+    killedBy: ['RO-EX-106'],
+  },
+  {
+    id: 'RO-MUT-55',
+    mutation: 'accept an unprojected entry list in commitProjected',
+    killedBy: ['RO-EX-107'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

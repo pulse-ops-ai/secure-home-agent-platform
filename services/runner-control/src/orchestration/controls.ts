@@ -48,17 +48,47 @@ export type TableCheck =
  * state. Removing a pair is the whole point of the control; adding one,
  * or redirecting one, is forging lifecycle authority.
  */
+/**
+ * Every string key REACHABLE by plain lookup — own or inherited,
+ * enumerable or not.
+ *
+ * `Object.entries` sees own enumerable properties; `for...in` adds
+ * inherited ones but still skips non-enumerable. `declaredNext` reads
+ * `table[state]?.[kind]`, which honours none of those distinctions. A
+ * validator that looks through a narrower window than its consumer is
+ * not a validator — it is a second, more optimistic reader.
+ */
+const reachableKeys = (value: object): readonly string[] => {
+  const keys = new Set<string>()
+  let node: object | null = value
+  while (node !== null && node !== Object.prototype) {
+    for (const key of Object.getOwnPropertyNames(node)) keys.add(key)
+    node = Object.getPrototypeOf(node) as object | null
+  }
+  return [...keys]
+}
+
+/**
+ * Validate a table AND materialize a fresh one.
+ *
+ * Returning the caller's object was a time-of-check/time-of-use hole:
+ * the machine retained the reference, so a table that validated clean
+ * could widen at any later moment — mid-run mutable authority, which is
+ * exactly what the runner model exists to remove.
+ *
+ * So nothing the caller supplied is retained. What comes back is a new
+ * null-prototype object holding only validated values, deeply frozen.
+ * The machine never sees the original.
+ */
 export const narrowingOnly = (candidate: TransitionTable | undefined): TableCheck => {
   if (candidate === undefined) return { ok: true, table: TRANSITIONS }
   const canonical = TRANSITIONS as unknown as Record<string, Record<string, string>>
-  const supplied = candidate as unknown as Record<string, Record<string, string>>
+  const supplied = candidate as unknown as Record<string, Record<string, string> | undefined>
 
-  // `for...in`, NOT `Object.entries`. Entries sees own enumerable
-  // properties; `declaredNext` resolves `table[state]?.[kind]` through
-  // the prototype chain. Validating one view and consuming another let a
-  // widening carried on a prototype pass as a narrowing.
-  for (const state in supplied) {
-    const row = supplied[state] ?? {}
+  const table = Object.create(null) as Record<string, Record<string, string>>
+  for (const state of reachableKeys(candidate)) {
+    const row = supplied[state]
+    if (row === undefined || typeof row !== 'object') continue
     const declared = canonical[state]
     if (declared === undefined) {
       return {
@@ -66,8 +96,10 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
         detail: `the table declares state ${state}, which the lifecycle does not`,
       }
     }
-    for (const kind in row) {
-      const to = row[kind]
+    const copied = Object.create(null) as Record<string, string>
+    for (const kind of reachableKeys(row)) {
+      const to: string | undefined = (row as Record<string, string | undefined>)[kind]
+      if (to === undefined) continue
       if (!(kind in declared)) {
         return {
           ok: false,
@@ -80,9 +112,11 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
           detail: `the table redirects ${state}.${kind} to ${to}; the lifecycle declares ${String(declared[kind])}`,
         }
       }
+      copied[kind] = to
     }
+    table[state] = Object.freeze(copied)
   }
-  return { ok: true, table: candidate }
+  return { ok: true, table: Object.freeze(table) as unknown as TransitionTable }
 }
 
 /**

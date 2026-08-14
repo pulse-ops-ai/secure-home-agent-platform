@@ -115,6 +115,7 @@ are below.
 | RO-INV-59 | Proof affordances are not runtime authority: `RunSignals` carries only the interrupt, transition tables are validated as NARROWINGS of the canonical lifecycle, and the armed wall clock is bounded by the captured profile — never by what the session port reports | trust |
 | RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
 | RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
+| RO-INV-62 | A conclusion states what it IS — terminal, held, ownership_lost, or not_started — distinctly from the state it reports. An attempt that lost ownership declares its own end, never the logical run's: manufacturing a lifecycle terminal is the one verdict a stale holder may not give | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -320,6 +321,11 @@ persistence (U11).
 | RO-EX-101 | RO-INV-59 | adversarial | a widening transition table is refused whether carried as an own property or on a PROTOTYPE — the validator reads what `declaredNext` reads |
 | RO-EX-102 | RO-INV-55 | adversarial | the lost-lease exit disarms the run's timers; a stolen run leaves nothing armed, measured against a control run that leaves nothing either |
 | RO-EX-103 | RO-INV-50 | structural | EVERY machine-mutating entry point is owned — `advance`, `commitProjected` and `hold` — and the escape scans cover bracket access and private-field assertions, the forms this tree actually uses |
+| RO-EX-104 | RO-INV-60 | adversarial | a POLLED timeout keeps its own terminal at every boundary, including SANDBOX_STARTED, where the returned signal was discarded and `abortRun` defaulted to cancel |
+| RO-EX-105 | RO-INV-61 | adversarial | authority reads stop AT the fence refusal, not at the next phase — the epoch is told to stop rather than reading its two remaining sources |
+| RO-EX-106 | RO-INV-59 | adversarial | a validated table is a frozen null-prototype COPY, so it cannot widen after validation; a non-enumerable widening is refused, because the validator reads every key `declaredNext` can |
+| RO-EX-107 | RO-INV-50 | adversarial | `commitProjected` accepts only a capability `project()` minted on THAT machine; an unprojected entry list cannot advance it, so the ownership rule is enforced by the class rather than by a scan of this repository |
+| RO-EX-108 | RO-INV-62 | deterministic example | a dispossessed attempt concludes `ownership_lost` producing nothing; an ordinary run concludes `terminal`, a consent-held run `held` |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -365,6 +371,8 @@ persistence (U11).
 | RO-MUT-51 | RO-INV-60 | mutation | removing a boundary cancellation check, or terminating a cancelled run with an open session via `finish` rather than `abortRun`, is killed by RO-EX-97 |
 | RO-MUT-52 | RO-INV-61 | mutation | halting on a lost lease but not on a fence refusal, so a dispossessed run spends anyway, is killed by RO-EX-99/100 |
 | RO-MUT-53 | RO-INV-50 | mutation | mutating the machine through an entry point the owner does not expose, or narrowing an escape scan to one syntactic form, is killed by RO-EX-103 |
+| RO-MUT-54 | RO-INV-59 | mutation | returning the caller's table from validation, or validating through a narrower key view than `declaredNext` reads, is killed by RO-EX-106 |
+| RO-MUT-55 | RO-INV-50 | mutation | accepting an unprojected entry list in `commitProjected` is killed by RO-EX-107 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

@@ -65,6 +65,7 @@ export const verifying = async (
     new AcquisitionSet(request.run_id, 'verification', ports.authority, [...SOURCES]),
     [...SOURCES],
     env.journalAcquisition,
+    () => env.scope.fenceLost,
   )
   if (!reacquired.ok) {
     return fault(`verification re-acquisition failed: ${describeEpochFailure(reacquired.failure)}`)

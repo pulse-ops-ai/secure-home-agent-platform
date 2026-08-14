@@ -53,6 +53,18 @@ export interface RejectionEntry {
   readonly at: string
 }
 
+/**
+ * A projection this machine minted, and the only thing it will commit.
+ *
+ * Opaque on purpose: the entries are carried INSIDE it, so a caller
+ * cannot substitute a different list for a capability it legitimately
+ * holds. Held in a private set rather than validated by shape, because
+ * shape is forgeable and identity is not.
+ */
+export interface CommitCapability {
+  readonly entries: readonly TransitionEntry[]
+}
+
 export type TransitionResult =
   | { readonly kind: 'advanced'; readonly state: LifecycleState; readonly entry: TransitionEntry }
   | { readonly kind: 'rejected'; readonly state: LifecycleState; readonly entry: RejectionEntry }
@@ -72,6 +84,8 @@ export class RunMachine {
   #state: LifecycleState = 'REQUESTED'
   #version = 0
   #journaledTransitions = 0
+  /** Projections minted by this machine and not yet committed. */
+  readonly #projections = new Set<CommitCapability>()
   #journaledRejections = 0
 
   /**
@@ -241,10 +255,13 @@ export class RunMachine {
    * returned here are the entries `commitProjected` will record, so the
    * committed tail and the machine's record cannot drift apart.
    */
-  project(
-    steps: readonly { readonly kind: TransitionKind; readonly cause: string }[],
-  ):
-    | { readonly ok: true; readonly entries: readonly TransitionEntry[] }
+  project(steps: readonly { readonly kind: TransitionKind; readonly cause: string }[]):
+    | {
+        readonly ok: true
+        readonly entries: readonly TransitionEntry[]
+        /** The ONLY value `commitProjected` accepts — see below. */
+        readonly capability: CommitCapability
+      }
     | { readonly ok: false; readonly kind: TransitionKind; readonly from: LifecycleState } {
     const entries: TransitionEntry[] = []
     let state = this.#state
@@ -262,7 +279,13 @@ export class RunMachine {
       })
       state = next
     }
-    return { ok: true, entries }
+    // The capability is minted HERE and nowhere else, and this machine
+    // remembers it. That is what makes committed adoption a capability
+    // rather than a public mutator: a caller cannot forge one, and one
+    // minted by another machine is not accepted by this one.
+    const capability: CommitCapability = { entries: [...entries] }
+    this.#projections.add(capability)
+    return { ok: true, entries, capability }
   }
 
   /**
@@ -273,8 +296,20 @@ export class RunMachine {
    * re-derivation of it. They are marked journaled because the commit
    * already wrote them — re-appending would duplicate the tail.
    */
-  commitProjected(entries: readonly TransitionEntry[]): void {
-    for (const entry of entries) {
+  commitProjected(capability: CommitCapability): void {
+    // UNPROJECTED ENTRIES ARE REFUSED. This used to take an arbitrary
+    // array and set the state, append a transition and bump the version
+    // for whatever it was handed — no claim, no terminal check, no table
+    // lookup — while `RunMachine` is exported from the package root. The
+    // guard that "only the declared owners advance the machine" was
+    // therefore a fact about this repository's source, not about the
+    // class. Now the class enforces it.
+    if (!this.#projections.delete(capability)) {
+      throw new Error(
+        'commitProjected requires a capability minted by project() on this machine; an unprojected entry list cannot advance it',
+      )
+    }
+    for (const entry of capability.entries) {
       this.#transitions.push(entry)
       this.#state = entry.to
       this.#version += 1

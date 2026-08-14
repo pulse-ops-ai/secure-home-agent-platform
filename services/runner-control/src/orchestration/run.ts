@@ -301,6 +301,9 @@ export class Runner {
         await env.scope.release(env.ports)
         return {
           run_id: env.request.run_id,
+          // NOT a terminal. This attempt is over; the logical run is
+          // not, and whoever holds it now owns its eventual terminal.
+          kind: 'ownership_lost',
           state: env.scope.machine.state,
           produced: 'none',
           detail: `${outcome.reason}; the ${outcome.phase} phase did not run, and no further write was made`,
@@ -384,6 +387,7 @@ export class Runner {
     }
     return {
       run_id: request.run_id,
+      kind: scope.fenceLost === undefined ? 'terminal' : 'ownership_lost',
       state: scope.machine.state,
       produced,
       detail: reported,
@@ -436,6 +440,7 @@ const describe = (error: unknown): string =>
 /** A run that never started: no state, no record, no walk. */
 const unstarted = (run_id: string, detail: string): RunConclusion => ({
   run_id,
+  kind: 'not_started',
   state: 'REQUESTED',
   produced: 'none',
   detail,

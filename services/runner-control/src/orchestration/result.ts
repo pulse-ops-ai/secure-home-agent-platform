@@ -73,8 +73,37 @@ export type Stop = { readonly kind: 'terminate'; readonly value: RunConclusion }
 
 export const stop = (value: RunConclusion): Stop => ({ kind: 'terminate', value })
 
+/**
+ * WHAT THIS CONCLUSION IS, as distinct from what state the run reached.
+ *
+ * The vocabulary problem this names: `runner-lifecycle` says a run is
+ * never abandoned in a non-terminal state, and the ownership rule says a
+ * run that loses ownership stops without writing. A dispossessed
+ * attempt satisfies both only if "the attempt finished" and "the run
+ * reached a terminal" stop being the same statement — the stale holder
+ * has no authority to declare what happened to the logical run, and
+ * inventing INDETERMINATE would be exactly that.
+ *
+ * So `ownership_lost` means THIS ATTEMPT is over; the new owner owns the
+ * logical run's eventual terminal. `state` still reports the last state
+ * this attempt actually observed, which is a fact it does own.
+ *
+ * Additive on purpose: `state` and `produced` keep their meanings, so
+ * nothing reading them has to change to benefit from the distinction.
+ */
+export type ConclusionKind =
+  /** The run reached a lifecycle terminal under this attempt. */
+  | 'terminal'
+  /** A precondition is unmet; the run waits at a progress state. */
+  | 'held'
+  /** Ownership moved. This attempt is finished; the run is not. */
+  | 'ownership_lost'
+  /** The attempt never began — the lease was never held. */
+  | 'not_started'
+
 export interface RunConclusion {
   readonly run_id: string
+  readonly kind: ConclusionKind
   readonly state: LifecycleState
   readonly produced: 'evidence_bundle' | 'early_termination_record' | 'none'
   readonly detail: string

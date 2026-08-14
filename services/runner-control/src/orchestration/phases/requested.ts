@@ -43,7 +43,12 @@ export const requested = async (env: RunEnvironment): Promise<PhaseOutcome<Autho
   }
 
   const production = new AcquisitionSet(request.run_id, 'production', ports.authority, [...SOURCES])
-  const acquired = await runEpoch(production, [...SOURCES], env.journalAcquisition)
+  const acquired = await runEpoch(
+    production,
+    [...SOURCES],
+    env.journalAcquisition,
+    () => env.scope.fenceLost,
+  )
   if (!acquired.ok) {
     return terminateEarly(
       env,

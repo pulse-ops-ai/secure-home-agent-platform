@@ -62,6 +62,34 @@ have inherited.
 | Paths added | `packages/runner-core/src/outcome/**`, `packages/runner-core/src/index.ts` |
 | Not granted | any other change to `packages/**`; the decision's SHAPE stays the core's and the SPI stays frozen in `ports/values.ts` per ADR-0013 |
 
+**REPORTED L3 GAP — established provider failure has no representation.**
+Task 7.4, reported and NOT fixed here.
+
+`classifyTerminalObservations` answers one question — do these
+observations contradict each other — and returns `{ established: true }`
+for everything else. Its own comment says a non-zero exit with no
+success claim is "a run that failed", and then that fact has nowhere to
+go: `running.ts` reads `established: true` as permission to continue, so
+a provider that exited 3 can still seal `COMPLETED` if the gates and
+verification pass.
+
+L4 must not invent the answer. ADR-0013 decision 3 makes the provider's
+values observations and gives the terminal vocabulary to the lifecycle,
+and the terminal an established failure deserves — probably
+`OPERATIONAL_FAILURE` — is a core decision, not an orchestration one.
+
+What the core surface needs is a third answer, not a boolean:
+
+| Result | Meaning |
+|---|---|
+| contradictory | the terminal cannot be established (today's `established: false`) |
+| established failure | the observations agree the run failed |
+| established non-failure | the observations agree, and do not say it failed |
+
+Unchanged from the merge base, so this is a pre-existing gap surfaced by
+the decomposition rather than a regression. Recorded for the owner; no
+`packages/**` change is made under this landing's authority.
+
 No consumer-allowlist amendment was needed after all:
 `services/runner-control` is already the authorized first consumer in
 `packages/runner-core/src/conformance/architecture.test.ts`.

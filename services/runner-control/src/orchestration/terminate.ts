@@ -9,7 +9,7 @@
  * both. What a terminal can say is now visible in its signature.
  */
 import { reconcileClaims } from '@secure-home/runner-core'
-import type { LifecycleState, TransitionKind } from '../lifecycle/index.js'
+import { isTerminal, type LifecycleState, type TransitionKind } from '../lifecycle/index.js'
 import { assembleEvidence, buildEarlyTerminationRecord } from '../finalization/records.js'
 import type { EmitOutcome } from '../events/index.js'
 import type { RunEnvironment } from './environment.js'
@@ -49,6 +49,7 @@ export const conclude = async (
   await scope.release(env.ports)
   const base = {
     run_id: request.run_id,
+    kind: isTerminal(scope.machine.state) ? ('terminal' as const) : ('held' as const),
     state: scope.machine.state,
     transitions: scope.machine.transitionRecord,
     rejections: scope.machine.rejections,
@@ -61,6 +62,7 @@ export const conclude = async (
     // is recoverable; deleting a live workspace is not.
     return {
       ...base,
+      kind: 'ownership_lost' as const,
       produced: 'none',
       detail: `${scope.fenceLost}; no further write was made (this attempt had reached: ${detail})`,
     }
@@ -262,7 +264,7 @@ export const finish = async (
   ledger.markSealed()
   // The machine adopts the entries that were COMMITTED, verbatim —
   // through the terminal owner, like every other machine mutation.
-  scope.adoptCommitted(projected.entries)
+  scope.adoptCommitted(projected.capability)
   return stop(await conclude(env, 'evidence_bundle', detail))
 }
 

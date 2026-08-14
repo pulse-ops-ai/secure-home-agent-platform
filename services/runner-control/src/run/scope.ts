@@ -29,7 +29,7 @@
  * assignment assertions the walk still relies on.
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
-import type { RunMachine, TransitionEntry, TransitionKind } from '../lifecycle/index.js'
+import type { CommitCapability, RunMachine, TransitionKind } from '../lifecycle/index.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -116,8 +116,8 @@ export class RunScope {
    * same weakness the landing rejected when it made the terminal-
    * classification guard a FIELD scan.
    */
-  adoptCommitted(entries: readonly TransitionEntry[]): void {
-    this.machine.commitProjected(entries)
+  adoptCommitted(capability: CommitCapability): void {
+    this.machine.commitProjected(capability)
   }
 
   /** Stop the deadline and cancellation timers. Safe to call twice. */
