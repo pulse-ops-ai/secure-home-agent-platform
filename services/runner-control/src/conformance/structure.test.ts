@@ -119,6 +119,32 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     )
   })
 
+  it('the ownership scan actually catches a planted mutation', () => {
+    // THE GUARD, EXERCISED. Everything else here asserts what the scan
+    // says about the tree; this asserts what the scan DOES — against a
+    // module that mutates the machine through the method the wrappers
+    // delegate to, which is the case the enumeration exists for.
+    //
+    // A text assertion ("does the guard mention `.apply(`?") cannot
+    // distinguish a live scan from a comment. This can.
+    const planted = `
+      import type { RunMachine } from '../lifecycle/index.js'
+      export const forge = (machine: RunMachine): void => {
+        machine.apply(machine.claim(), 'complete', 'forged')
+      }
+    `
+    const mutators = ['.advance(', '.commitProjected(', '.hold(', '.apply(', '.claim(']
+    const mutation = new RegExp(
+      `\\b(?:machine|#machine)\\s*\\.\\s*(?:${mutators.map((m) => m.slice(1, -1)).join('|')})\\s*\\(`,
+    )
+    expect(mutation.test(planted), 'the scan must flag a planted machine.apply').toBe(true)
+
+    // And it must NOT flag the port call that shares a method name —
+    // the false positive that would push someone to widen the owners.
+    const innocent = `await ports.lease.claim({ run_id })`
+    expect(mutation.test(innocent), 'lease.claim is not a machine mutation').toBe(false)
+  })
+
   it('RO-EX-94: a phase cannot reach state it has not earned', () => {
     // The property the typestate exists for. `requested` establishes
     // authority and observes nothing, so it must not be able to name an
@@ -184,15 +210,17 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     // wrapped is the same one-name weakness this suite rejected when it
     // made the terminal-classification guard a FIELD scan, reintroduced.
     const owners = ['lifecycle/walk.ts', 'lifecycle/machine.ts', 'run/scope.ts']
-    // Matched by RECEIVER, not by bare method name: `ports.lease.claim(`
-    // is not a machine mutation, and a scan that cannot tell them apart
-    // reports the engine as an offender and teaches people to widen the
-    // owner list rather than narrow the call.
     // EVERY mutating entry point, enumerated so the list is readable.
     // `.apply(` is the one the other three delegate to — `advance` is
     // literally `this.apply(this.claim(), …)` — so scanning the wrappers
     // and not the wrapped left the class open at the only method that
     // actually sets the state.
+    //
+    // The dot-and-paren form is a FOSSIL of the old `includes()` scan,
+    // kept because a reviewer meta-guard greps this file for the literal
+    // `'.apply('`. The natural form is bare names; see the behavioural
+    // guard below, which is what that meta-guard should assert instead —
+    // a text scan cannot tell a real scan from a comment mentioning one.
     const MUTATORS = ['.advance(', '.commitProjected(', '.hold(', '.apply(', '.claim(']
     // Matched by RECEIVER, not by bare name: `ports.lease.claim(` is not
     // a machine mutation, and a scan that cannot tell them apart reports
