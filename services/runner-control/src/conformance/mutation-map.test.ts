@@ -331,6 +331,32 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-116'],
   },
   {
+    id: 'RO-MUT-58',
+    mutation: 'bound only the call sites already known to hang, rather than the walk itself',
+    killedBy: ['RO-EX-118'],
+  },
+  {
+    id: 'RO-MUT-59',
+    mutation:
+      "add the profile's wall clock alongside the acquisition budget instead of replacing it",
+    killedBy: ['RO-EX-119'],
+  },
+  {
+    id: 'RO-MUT-60',
+    mutation: "poll the caller's interrupt only between phases, never during a call",
+    killedBy: ['RO-EX-120'],
+  },
+  {
+    id: 'RO-MUT-61',
+    mutation: 'prove a structural guard by scanning its own source text',
+    killedBy: ['RO-EX-121'],
+  },
+  {
+    id: 'RO-MUT-62',
+    mutation: 'apply workspace changes back before the fence is consulted',
+    killedBy: ['RO-EX-122'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

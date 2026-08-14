@@ -24,6 +24,10 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { requested } from '../orchestration/phases/requested.js'
+import { profileResolved } from '../orchestration/phases/profile-resolved.js'
+import type { RunEnvironment } from '../orchestration/environment.js'
+import type { Observations } from '../orchestration/state.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const srcRoot = resolve(here, '..')
@@ -146,25 +150,30 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
   })
 
   it('RO-EX-94: a phase cannot reach state it has not earned', () => {
-    // The property the typestate exists for. `requested` establishes
-    // authority and observes nothing, so it must not be able to name an
-    // observation at all — not "must not use one", must not HAVE one.
+    // ARITY, not text. This was two substring tests over one file —
+    // `includes('Observations')` and `includes('artifacts')` — and
+    // TypeScript can name a type structurally, so a `requested` that
+    // RECEIVES observations through `Parameters<typeof verifying>[2]`
+    // type-checks and the scan reports the tree clean. A lexical proxy
+    // for a structural property is not the property.
     //
-    // Checked by import, because that is what makes it structural: a
-    // phase that does not import `Observations` cannot construct, read
-    // or pass one, whatever its body says.
-    const requested = readFileSync(join(srcRoot, 'orchestration/phases/requested.ts'), 'utf8')
-    expect(requested.includes('Observations'), 'requested has no observations to reach').toBe(false)
-    expect(requested.includes('artifacts'), 'nor an artifact surface').toBe(false)
+    // What a phase HAS is its parameter list, and that is countable.
+    // `requested` establishes authority from the environment alone, so
+    // anything it could read beyond that arrives as an argument.
+    expect(requested.length, 'requested takes the environment and nothing else').toBe(1)
+    expect(profileResolved.length, 'and profile-resolved the environment and authority').toBe(2)
 
-    const profileResolved = readFileSync(
-      join(srcRoot, 'orchestration/phases/profile-resolved.ts'),
-      'utf8',
-    )
-    // It may pass `noObservations()` to a terminal — the empty set is
-    // the true record of a run that has observed nothing — but it must
-    // not receive observations from anywhere.
-    expect(profileResolved.includes('seen:'), 'nor does profile-resolved take any').toBe(false)
+    // The type-level half, which a runtime count cannot express: the one
+    // parameter IS the environment. Assigning proves it at compile time;
+    // a `requested` that took anything else would not build.
+    const _shape: (env: RunEnvironment) => unknown = requested
+    expect(typeof _shape).toBe('function')
+
+    // And the guard is EXERCISED, like the ownership scan above it: the
+    // planted phase that reads state it did not earn has arity 2, which
+    // is what the count catches and the substring scan did not.
+    const planted = (_env: RunEnvironment, _seen: Observations): number => 0
+    expect(planted.length, 'a phase given observations it never earned').toBe(2)
   })
 
   it('RO-EX-94: no phase state is reached through a type assertion', () => {

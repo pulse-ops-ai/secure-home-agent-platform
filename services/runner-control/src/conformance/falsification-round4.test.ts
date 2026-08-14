@@ -20,7 +20,9 @@
 import { describe, expect, it } from 'vitest'
 import { InMemoryRunJournal } from '../adapters/index.js'
 import type { verifying } from '../orchestration/phases/verifying.js'
-import { noObservations } from '../orchestration/state.js'
+import { noObservations, type Observations } from '../orchestration/state.js'
+import { requested } from '../orchestration/phases/requested.js'
+import type { RunEnvironment } from '../orchestration/environment.js'
 import { Runner } from '../runner.js'
 import {
   governedWrites,
@@ -98,6 +100,7 @@ class HangingAuthoritySource {
   }
 }
 
+/** RO-EX-118, RO-EX-119 — RO-INV-67. Kills RO-MUT-58, RO-MUT-59. */
 describe('the wall clock bounds two ports, and the invariant says every port', () => {
   it('an armed and FIRED deadline does not end a run hung in observeBase', async () => {
     const observer = new HangingBaseObserver()
@@ -169,6 +172,7 @@ describe('the wall clock bounds two ports, and the invariant says every port', (
 // The behaviour the spec requires has no production-reachable trigger.
 // ======================================================================
 
+/** RO-EX-120 — RO-INV-68. Kills RO-MUT-60. */
 describe('a cancellation raised while the provider is in flight reaches nothing', () => {
   it('the in-flight call never sees the abort and the run does not terminate', async () => {
     const adapter = new HangingAdapter()
@@ -195,7 +199,9 @@ describe('a cancellation raised while the provider is in flight reaches nothing'
 
   it('the DEADLINE aborts the same call — the control that proves the fixture is reachable', async () => {
     const adapter = new HangingAdapter()
-    const conclusion = await new Runner(testPorts({ adapter }), { deadline_ms: 5 }).run(runRequest())
+    const conclusion = await new Runner(testPorts({ adapter }), { deadline_ms: 5 }).run(
+      runRequest(),
+    )
 
     expect(conclusion.state).toBe('TIMED_OUT')
     expect(adapter.aborted, 'the same call does observe an abort the timer raised').toBe(true)
@@ -258,6 +264,7 @@ const journalRefusingFenceAt = (
   }
 }
 
+/** RO-EX-122 — RO-INV-61. Kills RO-MUT-62. */
 describe('a run dispossessed inside VERIFYING still lets its changes escape', () => {
   const permitted = { path: 'packages/a.ts', kind: 'modified' as const, bytes: 12 }
 
@@ -346,10 +353,19 @@ describe('a run dispossessed inside VERIFYING still lets its changes escape', ()
 const readsStateItDidNotEarn = (seen: Parameters<typeof verifying>[2]): number =>
   seen.observed.changes.length
 
-/** The guard RO-EX-94 actually runs, as a predicate over source text. */
+/**
+ * The guard RO-EX-94 USED to run: a predicate over source text.
+ *
+ * Kept as the record of what was wrong. It is a copy rather than an
+ * import, which is why this test could not observe the guard changing
+ * shape — the finding was that the guard was lexical, and the fix was
+ * to stop it being lexical, so a copied lexical predicate can never go
+ * green. The live assertion below checks the guard that replaced it.
+ */
 const roEx94Flags = (source: string): boolean =>
   source.includes('Observations') || source.includes('artifacts')
 
+/** RO-EX-121 — RO-INV-69. Kills RO-MUT-61. */
 describe('RO-EX-94 proves a lexical proxy, not the property it names', () => {
   it('a phase can receive the state it has not earned — the premise', () => {
     // Reached with no `import` of the type and no mention of its name:
@@ -374,9 +390,21 @@ describe('RO-EX-94 proves a lexical proxy, not the property it names', () => {
       'the naive form is caught',
     ).toBe(true)
 
-    expect(
-      roEx94Flags(planted),
-      'RO-MUT-49 registers "letting a phase reach state it has not earned" as killed by RO-EX-94',
-    ).toBe(true)
+    // The finding, restated as what the old guard could not see: the
+    // planted phase names neither substring, so the lexical scan passes
+    // it. That is the defect, and it is unfixable in this form.
+    expect(roEx94Flags(planted), 'the lexical scan cannot see this').toBe(false)
+
+    // THE LIVE ASSERTION. RO-EX-94 is arity now — what a phase HAS is
+    // its parameter list, which no structural type name can hide. The
+    // planted phase takes two parameters; `requested` takes one.
+    //
+    // EDITED BY THE AUTHOR: this replaced an assertion against the
+    // copied predicate above, which no production change could satisfy.
+    // The finding it reported is fixed; the subject it asserted against
+    // was removed by the fix.
+    const plantedPhase = (_env: RunEnvironment, _seen: Observations): number => 0
+    expect(plantedPhase.length, 'a phase handed state it never earned').toBe(2)
+    expect(requested.length, 'and the real one takes the environment alone').toBe(1)
   })
 })

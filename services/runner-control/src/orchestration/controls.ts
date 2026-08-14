@@ -131,6 +131,22 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
  * profile is the authority; a session may offer less, never more, and a
  * proof control may only shorten.
  */
+/**
+ * The bound on a run that has no profile yet.
+ *
+ * The wall clock was armed once the session opened, so everything before
+ * it — the whole production acquisition — ran under no budget at all,
+ * and a hung authority source held `run()` open forever. The profile
+ * cannot bound this, because reading the profile is the thing being
+ * bounded.
+ *
+ * So acquisition gets its own ceiling, and the captured profile narrows
+ * or replaces it the moment there is one. This is a bound, not a policy:
+ * it exists to make "there is no unbounded run" true from the first
+ * effect rather than from the fourth phase.
+ */
+export const ACQUISITION_BUDGET_MS = 60_000
+
 export const boundedDeadlineMs = (
   profileWallClockSeconds: number,
   sessionWallClockSeconds: number,

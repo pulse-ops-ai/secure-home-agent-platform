@@ -187,6 +187,18 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
     ;(captured as Record<string, unknown>)[name] = result
   }
 
+  // CHECKED AFTER THE LOOP TOO. The hook ran before each source, so a
+  // refusal raised while journaling the LAST one was never seen: the
+  // epoch reported success, the phase continued, and a dispossessed run
+  // went on to apply its changes back before reporting that no further
+  // write was made.
+  const after = shouldStop()
+  if (after !== undefined) {
+    return {
+      ok: false,
+      failure: { kind: 'operational_failure', source: 'epoch', detail: after },
+    }
+  }
   return { ok: true, snapshots: captured, values }
 }
 

@@ -19,12 +19,12 @@ import {
   RunMachine,
   walk as walkPhases,
 } from '../lifecycle/index.js'
-import type { PhaseCommand, RejectionEntry } from '../lifecycle/index.js'
+import type { PhaseCommand, RejectionEntry, TerminalState } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
 import { RunScope } from '../run/scope.js'
 import { RunDeadline } from './deadline.js'
-import { narrowingOnly, type RunControls } from './controls.js'
+import { ACQUISITION_BUDGET_MS, narrowingOnly, type RunControls } from './controls.js'
 import type { JournaledAcquisitionEntry, RunEnvironment } from './environment.js'
 import { eligible } from './phases/eligible.js'
 import { profileResolved } from './phases/profile-resolved.js'
@@ -153,6 +153,11 @@ export class Runner {
       },
     }
 
+    // BOUNDED FROM THE FIRST EFFECT. The profile cannot bound the read
+    // that captures it, so acquisition has its own ceiling and the
+    // profile narrows it in ELIGIBLE.
+    env.deadline.arm(this.#controls.deadline_ms ?? ACQUISITION_BUDGET_MS)
+
     if (!table.ok) {
       return await this.#recover(
         env,
@@ -160,7 +165,23 @@ export class Runner {
       )
     }
     try {
-      return await this.#walk(env)
+      // THE WALK IS RACED, not each call site.
+      //
+      // RO-INV-64 claims every port that can hang is bounded, and the
+      // budget covered the handful whose call sites remembered to ask —
+      // so a hung `observeBase` outlived an armed and FIRED deadline,
+      // and the authority reads preceded the arming entirely. A port
+      // added later cannot forget to be bounded when nothing at the call
+      // site is what bounds it.
+      const walked = await Promise.race([
+        this.#walk(env).then((conclusion) => ({ conclusion })),
+        env.deadline.expired().then((reason) => ({ reason })),
+      ])
+      if ('conclusion' in walked) return walked.conclusion
+      // The walk is abandoned, still running. That is why the session is
+      // INTERRUPTED rather than merely dropped — stopping it is L9's, and
+      // this gives it something to stop.
+      return await this.#abandon(env, walked.reason)
     } catch (error) {
       return await this.#recover(
         env,
@@ -353,6 +374,55 @@ export class Runner {
           )
         : await terminateEarly(env, 'operational_fault', why)
     return stopped.kind === 'terminate' ? stopped.value : await conclude(env, 'none', why)
+  }
+
+  /**
+   * The budget elapsed while a port was still in flight.
+   *
+   * Distinct from `#recover`: nothing threw and nothing is unknown — the
+   * run simply ran out of the time its profile granted. It terminates on
+   * that, interrupting the session first so the abandoned call has
+   * something stopping it.
+   */
+  async #abandon(env: RunEnvironment, reason: 'cancel' | 'timeout'): Promise<RunConclusion> {
+    const { scope, request } = env
+    const detail = `the run was ${reason === 'cancel' ? 'cancelled' : 'timed out'} while a port was still in flight`
+    if (scope.session !== undefined) {
+      try {
+        await env.ports.session.interrupt({
+          ...scope.fence,
+          session_ref: scope.session.session_ref,
+          reason,
+        })
+      } catch {
+        // Reported by the session's own implementation; never a reason
+        // to fail to conclude.
+      }
+    }
+    const reached =
+      scope.fenceLost !== undefined ? { ok: false as const } : scope.reachTerminal(reason, detail)
+    await this.#flushJournal(scope)
+    await scope.release(env.ports)
+
+    const base = {
+      run_id: request.run_id,
+      detail,
+      transitions: scope.machine.transitionRecord,
+      rejections: scope.machine.rejections,
+    }
+    const state = scope.machine.state
+    if (scope.fenceLost !== undefined) {
+      return { ...base, kind: 'ownership_lost', state, produced: 'none' }
+    }
+    if (reached.ok && isTerminal(state)) {
+      return { ...base, kind: 'terminal', state, produced: 'none' }
+    }
+    return {
+      ...base,
+      kind: 'unterminated',
+      state: state as Exclude<typeof state, TerminalState>,
+      produced: 'none',
+    }
   }
 
   /**

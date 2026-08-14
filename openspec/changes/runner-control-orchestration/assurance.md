@@ -120,6 +120,9 @@ are below.
 | RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
 | RO-INV-65 | A commit capability is frozen at mint, one-shot, and bound to the machine VERSION it was projected from — so it cannot be edited between authorization and use, and a stale projection cannot advance a machine that has since moved | trust |
 | RO-INV-66 | The canonical transition table is deep-frozen at its source, so the default path retains immutable lifecycle authority — `RunMachine` is exported and defaults to it directly, which freezing inside `Runner` would not reach | trust |
+| RO-INV-67 | The run's budget bounds the WALK, not the call sites that remembered to ask: the walk is raced against the deadline, so a port added later cannot forget to be bounded. Acquisition — which runs before any profile is captured — is bounded by a standing budget, and arming from the captured profile REPLACES that budget rather than leaving both ticking | behavior |
+| RO-INV-68 | The submitted run's one cancellation input is effective, not advisory: `interrupt` is polled while a call is OUTSTANDING rather than only between phases, and a source enumeration re-consults it after draining as well as before each source | behavior |
+| RO-INV-69 | A structural guard is proven by EXERCISING it against a planted counterexample, never by reading its own text. A guard that names a property lexically is a proxy for it, and a suite that only greps the guard tests the proxy — so each such guard is run against something it must catch and something it must not | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -339,6 +342,11 @@ persistence (U11).
 | RO-EX-115 | RO-INV-65 | adversarial | a minted capability's entries cannot be edited before commit, and a second projection from the same version is refused once the first has moved the machine |
 | RO-EX-116 | RO-INV-66 | adversarial | mutating the exported canonical table does not widen a default run |
 | RO-EX-117 | RO-INV-62 | structural + adversarial | every conclusion variant constrains the state it may carry; a dispossessed attempt does not terminalize its machine, and a machine granted no terminal reports `unterminated` rather than `terminal` |
+| RO-EX-118 | RO-INV-67 | adversarial | a port with no per-call bound that never settles still cannot hold the run open — the walk itself is raced against the deadline |
+| RO-EX-119 | RO-INV-67 | adversarial | acquisition is bounded before any profile is captured, and arming from the captured profile leaves exactly one wall clock rather than two |
+| RO-EX-120 | RO-INV-68 | adversarial | an `interrupt` raised while a call is in flight reaches it, and an enumeration cancelled after its last source stops rather than proceeding |
+| RO-EX-121 | RO-INV-69 | structural + adversarial | RO-EX-94 is arity, not substring: it is exercised against a phase reaching unearned state through another phase's signature, which no substring of the type's name appears in |
+| RO-EX-122 | RO-INV-61 | adversarial | a run dispossessed inside VERIFYING applies nothing back to the workspace, and the same run applies back when it is not dispossessed |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -388,6 +396,11 @@ persistence (U11).
 | RO-MUT-55 | RO-INV-50 | mutation | accepting an unprojected entry list in `commitProjected` is killed by RO-EX-107 |
 | RO-MUT-56 | RO-INV-65 | mutation | binding a capability by identity alone — unfrozen entries, or no version check — is killed by RO-EX-115 |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
+| RO-MUT-58 | RO-INV-67 | mutation | bounding only the call sites already known to hang, rather than the walk, is killed by RO-EX-118 |
+| RO-MUT-59 | RO-INV-67 | mutation | adding the profile's wall clock alongside the acquisition budget instead of replacing it is killed by RO-EX-119 |
+| RO-MUT-60 | RO-INV-68 | mutation | polling the caller's interrupt only between phases is killed by RO-EX-120 |
+| RO-MUT-61 | RO-INV-69 | mutation | proving a structural guard by scanning its own source text is killed by RO-EX-121 |
+| RO-MUT-62 | RO-INV-61 | mutation | applying workspace changes back before the fence is consulted, so a dispossessed run still writes, is killed by RO-EX-122 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
@@ -473,6 +486,33 @@ per the standing first-consumer note, its suite re-validates the L3
 surface it consumes rather than trusting L3's passing suite (task 6.2),
 and the anticipated runner-core allowlist amendment follows the recorded
 L3-arrival precedent with owner authorization.
+
+### Falsification rounds actually run
+
+Five independent falsification passes ran against the frozen head, each
+returning REQUEST_CHANGES and each supplying failing tests rather than
+prose. Their tests live in the package, unmodified except where noted:
+
+| Round | Findings | Where the tests live |
+|---|---|---|
+| 1–3 | 5 P1 + 1 P2, then 6, then 6 | merged into `conformance/falsification.test.ts` |
+| second reviewer | 3 P1 + 1 P2 | merged into `conformance/falsification.test.ts` |
+| 4 | 5 | `conformance/falsification-round4.test.ts`, as supplied |
+
+The finding this record exists for: across rounds, the recurring verdict
+was that a fix repaired the counterexample without closing the class —
+signal preserved at two boundaries of three, the walk halted at the next
+phase but not the current one, a prototype closed while the mutable
+reference stayed open. Round 4's last finding is the same shape aimed at
+the suite itself: RO-EX-94 was a substring scan standing in for a
+structural property, and nothing exercised it against something it had to
+catch. RO-INV-69 is that lesson stated as an invariant.
+
+**One reviewer assertion was edited**, and only this one. Round 4's
+RO-EX-94 test asserted against a *copy* of the guard's substring
+predicate, so it could go green only if the guard stayed lexical — the
+defect it reported. The finding is fixed and the edit is annotated in
+place; the reviewer's premise assertion is untouched and still passes.
 
 ## Rollout and Rollback
 

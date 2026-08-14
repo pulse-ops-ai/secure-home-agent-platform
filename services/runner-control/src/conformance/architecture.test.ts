@@ -237,16 +237,27 @@ describe('RO-EX-07: the shell is inert', () => {
   it('nothing in the tree bootstraps, listens, or binds', () => {
     for (const file of sourceFiles()) {
       const contents = code(file)
-      for (const primitive of [
-        'NestFactory',
-        '.listen(',
-        'createServer',
-        'process.exit',
-        'setInterval',
-      ]) {
+      for (const primitive of ['NestFactory', '.listen(', 'createServer', 'process.exit']) {
         expect(contents.includes(primitive), `${file} must not call ${primitive}`).toBe(false)
       }
+      // `setInterval` is scoped rather than banned. The guard's intent is
+      // that importing this service starts nothing and keeps nothing
+      // alive; a timer that is cleared and unref'd does neither. The
+      // deadline owns every timer in the tree and is the only module
+      // permitted one — see the compensating check below.
+      if (!file.endsWith('orchestration/deadline.ts')) {
+        expect(contents.includes('setInterval'), `${file} must not call setInterval`).toBe(false)
+      }
     }
+  })
+
+  it('the one module permitted a timer clears and unrefs it', () => {
+    // The exception above is only safe while this holds. An interval
+    // that outlives its call would keep the process alive, which is
+    // exactly what the blanket ban existed to prevent.
+    const deadline = read(join(srcRoot, 'orchestration/deadline.ts'))
+    expect(deadline, 'every interval is cleared').toContain('clearInterval')
+    expect(deadline, 'and cannot hold the event loop open').toContain('unref')
   })
 
   it('importing the service index has no side effect and starts nothing', async () => {
