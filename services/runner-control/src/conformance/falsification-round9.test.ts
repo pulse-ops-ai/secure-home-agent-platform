@@ -17,12 +17,7 @@ import { InMemoryRunLease } from '../adapters/index.js'
 import { TRANSITIONS, type ProgressState, type TransitionKind } from '../lifecycle/index.js'
 import { ABANDON_GRACE_MS } from '../orchestration/controls.js'
 import { RunDeadline } from '../orchestration/deadline.js'
-import type {
-  LeaseClaim,
-  LeaseClaimRequest,
-  RunJournalPort,
-  RunScoped,
-} from '../ports/index.js'
+import type { LeaseClaim, LeaseClaimRequest, RunJournalPort, RunScoped } from '../ports/index.js'
 import { Runner } from '../runner.js'
 import {
   governedWrites,
