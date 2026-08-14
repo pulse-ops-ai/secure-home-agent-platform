@@ -22,6 +22,7 @@ import {
   evidenceSinkFailing,
   journalFailing,
   runRequest,
+  seizeLease,
   sharedPorts,
   testPorts,
 } from '../testing-fixtures.js'
@@ -102,7 +103,7 @@ describe('RO-EX-66: a run that lost its lease writes nothing more', () => {
     const conclusion = await runner.run(runRequest(), {
       interrupt: () => {
         // Steal the lease; the next phase boundary must stop the run.
-        lease.steal(RUN)
+        seizeLease(lease, RUN)
         return undefined
       },
     })

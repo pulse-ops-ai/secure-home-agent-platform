@@ -15,7 +15,7 @@ import type { PhaseCommand } from '../../lifecycle/index.js'
 import type { RunEnvironment } from '../environment.js'
 import { stop, type RunConclusion } from '../result.js'
 import { noObservations, type Authority } from '../state.js'
-import { conclude, finish } from '../terminate.js'
+import { abortRun, conclude, finish } from '../terminate.js'
 
 export const eligible = async (
   env: RunEnvironment,
@@ -72,11 +72,31 @@ export const eligible = async (
   }
   scope.workspace = provisioned.handle
 
-  const prepared = await ports.session.prepare({
-    ...scope.fence,
-    profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
-    limits: authority.profile.value.limits,
-  })
+  // ARMED BEFORE THE FIRST CALL THAT CAN HANG, not after the last one.
+  //
+  // The wall clock used to start once `session.start()` had returned, so
+  // a session port that never settled left `run()` unresolved forever
+  // with the machine stuck at ELIGIBLE and no terminal recorded — the
+  // unbounded run the model forbids. There is no chicken-and-egg here:
+  // the profile's budget is already captured, and it is the authority on
+  // the wall clock anyway.
+  env.deadline.arm(
+    boundedDeadlineMs(
+      authority.profile.value.limits.wall_clock_seconds,
+      authority.profile.value.limits.wall_clock_seconds,
+      env.controls.deadline_ms,
+    ),
+    env.controls.cancelAfterMs,
+  )
+
+  const prepared = await env.deadline.until(
+    ports.session.prepare({
+      ...scope.fence,
+      profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
+      limits: authority.profile.value.limits,
+    }),
+  )
+  if (prepared === undefined) return abortRun(env, authority, noObservations())
   if (!prepared.ok) {
     if (prepared.reason === 'stale_fence') {
       scope.loseFence(prepared.detail)
@@ -93,10 +113,10 @@ export const eligible = async (
   }
   scope.session = prepared.handle
 
-  const started = await ports.session.start({
-    ...scope.fence,
-    session_ref: prepared.handle.session_ref,
-  })
+  const started = await env.deadline.until(
+    ports.session.start({ ...scope.fence, session_ref: prepared.handle.session_ref }),
+  )
+  if (started === undefined) return abortRun(env, authority, noObservations())
   if (!started.ok) {
     if (started.reason === 'stale_fence') {
       scope.loseFence(started.detail)
@@ -112,13 +132,9 @@ export const eligible = async (
     )
   }
 
-  // THE PROFILE IS THE AUTHORITY ON THE WALL CLOCK.
-  //
-  // This armed the timer from the deadline the SESSION returned, and the
-  // session port is an implementation someone else supplies — so the
-  // run's budget was whatever the sandbox asserted rather than what was
-  // captured and authorized. A session may offer less; it may never
-  // grant more, and a proof control may only shorten further.
+  // The session may narrow the budget it was armed with; it may never
+  // widen it. Re-arming with the minimum keeps the profile authoritative
+  // while honouring a sandbox that offers less.
   env.deadline.arm(
     boundedDeadlineMs(
       authority.profile.value.limits.wall_clock_seconds,

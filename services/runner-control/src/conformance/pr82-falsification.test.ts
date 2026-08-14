@@ -21,6 +21,7 @@ import {
   CountingAuthoritySource,
   RecordingSession,
   runRequest,
+  seizeLease,
   testPorts,
 } from '../testing-fixtures.js'
 
@@ -180,7 +181,7 @@ describe('RO-EX-102: the lost-lease exit releases what the run held', () => {
           let seen = 0
           return () => {
             seen += 1
-            if (seen === 4) lease.steal(RUN)
+            if (seen === 4) seizeLease(lease, RUN)
             return undefined
           }
         })(),
@@ -202,7 +203,10 @@ describe('RO-EX-103: only the declared owners advance the machine', () => {
     // name is the same weakness the landing rejected when it made
     // RO-EX-90 a field scan.
     const owners = ['lifecycle/walk.ts', 'lifecycle/machine.ts', 'run/scope.ts']
-    const mutators = ['.advance(', '.commitProjected(', '.hold(']
+    // `.apply(` and `.claim(` added: `advance` is `this.apply(this.claim(),
+    // …)`, so this scanned the wrappers and not the wrapped — the very
+    // one-name weakness the block above was written to close.
+    const mutators = ['.advance(', '.commitProjected(', '.hold(', '.apply(', '.claim(']
     const files: string[] = []
     for (const entry of readdirSync(srcRoot, { recursive: true, withFileTypes: true })) {
       if (!entry.isFile() || !entry.name.endsWith('.ts')) continue
@@ -215,7 +219,11 @@ describe('RO-EX-103: only the declared owners advance the machine', () => {
         const code = readFileSync(file, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, ' ')
           .replace(/\/\/[^\n]*/g, ' ')
-        return mutators.some((m) => code.includes(m))
+        // Scoped by RECEIVER: `ports.lease.claim(` is not a machine
+        // mutation, and matching bare names reports the engine itself.
+        return new RegExp(
+          `\\b(?:machine|#machine)\\s*\\.\\s*(?:${mutators.map((m) => m.slice(1, -1)).join('|')})\\s*\\(`,
+        ).test(code)
       })
       .map((file) => relative(srcRoot, file))
 

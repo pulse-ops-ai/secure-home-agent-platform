@@ -235,6 +235,25 @@ export const finish = async (
     )
   }
 
+  // THE DURABLE RECORD MUST BE COMPLETE BEFORE THE SEAL.
+  //
+  // A journal append that failed stays pending for retry, and the
+  // cursor that tracks it is a PREFIX marker — it cannot represent
+  // "journaled, pending, journaled". The commit used to assign the
+  // total, which marked the pending entry journaled and dropped it: the
+  // run completed with its durable walk silently short one transition,
+  // no rejection and no hold marking the gap.
+  //
+  // So the pending set is flushed here, before anything is staged, and
+  // a run whose walk cannot be made durable does not seal. That is the
+  // same rule the ledger already applies to the run's other writes.
+  await env.journalTick()
+  if (scope.machine.pendingJournal().transitions.length > 0) {
+    return await failClosed(
+      'the run walk could not be made durable; a transition is missing from the journal and the seal would describe an incomplete record',
+    )
+  }
+
   // Seal ELIGIBILITY and seal ORDER, both decided before the commit. The
   // ledger writes nothing now: it answers whether this run's other
   // writes are all in, and asks the core whether the bundle may seal.

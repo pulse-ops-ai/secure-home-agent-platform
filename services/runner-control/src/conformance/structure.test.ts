@@ -179,15 +179,36 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
     // The walk engine applies a phase's earned transition; `RunScope`
     // owns every terminal taken outside it. A third caller is how the
     // checked-machine rule was bypassed twice.
+    // `apply` is the one the others delegate to — `advance` is literally
+    // `this.apply(this.claim(), …)`. Scanning the wrappers and not the
+    // wrapped is the same one-name weakness this suite rejected when it
+    // made the terminal-classification guard a FIELD scan, reintroduced.
     const owners = ['lifecycle/walk.ts', 'lifecycle/machine.ts', 'run/scope.ts']
+    // Matched by RECEIVER, not by bare method name: `ports.lease.claim(`
+    // is not a machine mutation, and a scan that cannot tell them apart
+    // reports the engine as an offender and teaches people to widen the
+    // owner list rather than narrow the call.
+    // EVERY mutating entry point, enumerated so the list is readable.
+    // `.apply(` is the one the other three delegate to — `advance` is
+    // literally `this.apply(this.claim(), …)` — so scanning the wrappers
+    // and not the wrapped left the class open at the only method that
+    // actually sets the state.
+    const MUTATORS = ['.advance(', '.commitProjected(', '.hold(', '.apply(', '.claim(']
+    // Matched by RECEIVER, not by bare name: `ports.lease.claim(` is not
+    // a machine mutation, and a scan that cannot tell them apart reports
+    // the engine itself as an offender — which teaches people to widen
+    // the owner list rather than narrow the call.
+    const mutation = new RegExp(
+      `\\b(?:machine|#machine)\\s*\\.\\s*(?:${MUTATORS.map((m) => m.slice(1, -1)).join('|')})\\s*\\(`,
+    )
     const offenders = sourceFiles(srcRoot)
       .filter((file) => !owners.some((owner) => file.endsWith(owner)))
-      .filter((file) =>
-        readFileSync(file, 'utf8')
+      .filter((file) => {
+        const code = readFileSync(file, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, ' ')
           .replace(/\/\/[^\n]*/g, ' ')
-          .includes('.advance('),
-      )
+        return mutation.test(code)
+      })
       .map((file) => relative(srcRoot, file))
 
     expect(offenders, 'terminal transitions have declared owners').toEqual([])

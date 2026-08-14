@@ -42,6 +42,7 @@ import type {
   WorkspaceProvision,
 } from './ports/index.js'
 import { CommitLedger } from './run-state/visibility.js'
+import { SEIZE } from './run-state/seize.js'
 import type { RunRequest } from './runner.js'
 
 export const digestHex = (letter: string): string => `sha256:${letter.repeat(64)}`
@@ -502,3 +503,17 @@ export const runRequest = (overrides: Partial<RunRequest> = {}): RunRequest => (
   },
   ...overrides,
 })
+
+/**
+ * Move a lease on, as a competing holder would.
+ *
+ * This was `InMemoryRunLease.steal()` — a public method on production
+ * source, exported at the package root, that seized any run by id with
+ * no claim and no fence. It is a PROOF affordance, so it lives here,
+ * where the package's exports cannot reach it.
+ */
+export const seizeLease = (lease: InMemoryRunLease, run_id: string): number => {
+  const seize = (lease as unknown as Record<symbol, ((id: string) => number) | undefined>)[SEIZE]
+  if (seize === undefined) throw new Error('this lease exposes no seize affordance')
+  return seize.call(lease, run_id)
+}

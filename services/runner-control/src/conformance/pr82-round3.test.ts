@@ -24,6 +24,7 @@ import {
   StaticWorkspaceObserver,
   journalFailing,
   runRequest,
+  seizeLease,
   sharedPorts,
   testPorts,
 } from '../testing-fixtures.js'
@@ -338,7 +339,7 @@ describe('a hung session port holds the run open past its declared budget', () =
  *
  * `RunLeasePort` declares `claim`, `renew`, `release`, and `claim` refuses
  * a run that is already leased — that refusal is the whole of the
- * one-owner rule (RO-INV-30). `InMemoryRunLease.steal()` is the same
+ * one-owner rule (RO-INV-30). `seizeLease(InMemoryRunLease, )` is the same
  * capability with the refusal removed: it takes a `run_id`, bumps the
  * generation and seizes the run, with no claim, no generation to present
  * and no fence to satisfy.
@@ -363,7 +364,7 @@ describe('the lease exposes a dispossession capability its port does not declare
     expect((await lease.claim({ run_id: RUN })).ok).toBe(false)
 
     // The seam is the same act with the refusal taken out.
-    lease.steal(RUN)
+    seizeLease(lease, RUN)
     expect(
       await lease.renew({ run_id: RUN, generation: owner.generation }),
       'the legitimate holder was dispossessed by a caller that never claimed',

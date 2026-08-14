@@ -40,7 +40,13 @@ import type {
   RecordingEventSink,
   RecordingEvidenceSink,
 } from '../adapters/index.js'
-import { governedWrites, runRequest, sharedPorts, testPorts } from '../testing-fixtures.js'
+import {
+  governedWrites,
+  runRequest,
+  seizeLease,
+  sharedPorts,
+  testPorts,
+} from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
 
@@ -217,7 +223,7 @@ describe('RO-EX-84: ownership is re-established at the commit marker', () => {
       stageWrite: async (request: Parameters<typeof evidence.stageWrite>[0]) => {
         const staging = await evidence.stageWrite(request)
         // The bundle is staged LAST, so this is after every fence check.
-        lease.steal(RUN)
+        seizeLease(lease, RUN)
         return staging
       },
       get all() {

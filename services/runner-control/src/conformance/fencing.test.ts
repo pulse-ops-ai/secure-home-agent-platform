@@ -37,6 +37,7 @@ import {
   StaticWorkspaceObserver,
   governedWrites,
   runRequest,
+  seizeLease,
   testPorts,
   type TestPorts,
 } from '../testing-fixtures.js'
@@ -241,7 +242,7 @@ class UsurpingArtifactObserver {
   async observe(request: { run_id: string }): Promise<ArtifactObservation> {
     this.#calls += 1
     if (this.#calls === this.strikeOn) {
-      const generation = this.lease.steal(request.run_id)
+      const generation = seizeLease(this.lease, request.run_id)
       await this.journal.appendTransition({
         run_id: request.run_id,
         generation,

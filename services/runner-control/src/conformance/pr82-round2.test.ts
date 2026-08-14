@@ -20,7 +20,13 @@ import { RunMachine, TRANSITIONS, type TransitionTable } from '../lifecycle/inde
 import { narrowingOnly } from '../orchestration/controls.js'
 import { Runner } from '../runner.js'
 import { InMemoryRunJournal, InMemoryRunLease, SteppingClock } from '../adapters/index.js'
-import { RecordingSession, runRequest, testPorts, withoutConsent } from '../testing-fixtures.js'
+import {
+  RecordingSession,
+  runRequest,
+  seizeLease,
+  testPorts,
+  withoutConsent,
+} from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
 const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -196,7 +202,7 @@ describe('RO-EX-108: a conclusion says what it IS, not only where it stopped', (
         let seen = 0
         return () => {
           seen += 1
-          if (seen === 2) lease.steal(RUN)
+          if (seen === 2) seizeLease(lease, RUN)
           return undefined
         }
       })(),

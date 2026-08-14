@@ -36,6 +36,7 @@ export interface TerminalObservationInput {
 export const TERMINAL_CONFLICTS = [
   'clean_exit_with_signal',
   'success_claim_with_failure_exit',
+  'transcript_contradicts_exit',
 ] as const
 export type TerminalConflict = (typeof TERMINAL_CONFLICTS)[number]
 
@@ -52,7 +53,7 @@ const ESTABLISHED: TerminalClassification = { established: true }
 export const classifyTerminalObservations = (
   observations: TerminalObservationInput,
 ): TerminalClassification => {
-  const { exit_code, reported_outcome, signalled } = observations
+  const { exit_code, reported_outcome, signalled, transcript_terminal } = observations
 
   // A clean exit alongside a kill signal. The provider reported success
   // and the substrate saw it die; neither observation outranks the
@@ -73,6 +74,20 @@ export const classifyTerminalObservations = (
       established: false,
       conflict: 'success_claim_with_failure_exit',
       detail: `the provider reported success but exited ${String(exit_code)}; the terminal state cannot be established`,
+    }
+  }
+
+  // THE TRANSCRIPT IS THE THIRD OBSERVATION, and it was declared and
+  // never read. ADR-0013 carries these apart "precisely so they can
+  // DISAGREE" — a transcript ending in error while the exit code says 0
+  // is exactly such a disagreement, and reading two of the three pairs
+  // let it seal COMPLETED. An observation nothing classifies is not an
+  // observation; it is a field.
+  if (transcript_terminal !== undefined && exit_code === 0 && transcript_terminal !== 'success') {
+    return {
+      established: false,
+      conflict: 'transcript_contradicts_exit',
+      detail: `the provider reported exit ${String(exit_code)} but its transcript terminated ${transcript_terminal}; the terminal state cannot be established`,
     }
   }
 

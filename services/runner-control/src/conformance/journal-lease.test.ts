@@ -24,6 +24,7 @@ import {
   CountingAuthoritySource,
   DeterministicExecution,
   runRequest,
+  seizeLease,
   sharedPorts,
   testPorts,
   withoutConsent,
@@ -216,7 +217,7 @@ describe('RO-EX-35: a lost lease stops the run', () => {
     const conclusion = await new Runner({ ...ports, execution }).run(runRequest(), {
       interrupt: () => {
         // Steal the lease out from under the run at the first check.
-        lease.steal(RUN)
+        seizeLease(lease, RUN)
         return undefined
       },
     })
@@ -230,7 +231,7 @@ describe('RO-EX-36: the fencing token is real', () => {
     const lease = new InMemoryRunLease()
     const first = await lease.claim({ run_id: RUN })
     if (!first.ok) throw new Error('the first claim must succeed')
-    lease.steal(RUN)
+    seizeLease(lease, RUN)
     expect(await lease.renew({ run_id: RUN, generation: first.generation })).toBe(false)
   })
 
@@ -238,7 +239,7 @@ describe('RO-EX-36: the fencing token is real', () => {
     const lease = new InMemoryRunLease()
     const first = await lease.claim({ run_id: RUN })
     if (!first.ok) throw new Error('the first claim must succeed')
-    const current = lease.steal(RUN)
+    const current = seizeLease(lease, RUN)
     await lease.release({ run_id: RUN, generation: first.generation })
     expect(
       await lease.renew({ run_id: RUN, generation: current }),

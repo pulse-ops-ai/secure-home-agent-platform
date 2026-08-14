@@ -126,8 +126,26 @@ export const verifying = async (
     )
   }
 
+  // THE LAST CHECK BEFORE THE LAST EFFECTS. Verification is done; what
+  // follows is apply-back — the write that escapes isolation — and then
+  // the seal. Stopping at line 108 left a run cancelled during
+  // materialization sealing COMPLETED, its terminal event announcing a
+  // completion for a run that had been cancelled.
+  const beforeEffects = interrupt()
+  if (beforeEffects !== undefined) return beforeEffects
+
   const materialized = await materialize(env, authority, seen)
   if (materialized !== undefined) return materialized
+
+  // AFTER the last effect and BEFORE the terminal transition.
+  //
+  // Apply-back is itself an await, and cancellation can become active
+  // during it. Checking only before verification left the run sealing
+  // COMPLETED — its terminal event announcing a completion for a run
+  // that had been cancelled — because the last check preceded the last
+  // effects rather than the terminal they lead to.
+  const beforeTerminal = interrupt()
+  if (beforeTerminal !== undefined) return beforeTerminal
 
   return await finish(
     env,

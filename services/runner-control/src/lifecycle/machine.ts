@@ -314,7 +314,14 @@ export class RunMachine {
       this.#state = entry.to
       this.#version += 1
     }
-    this.#journaledTransitions = this.#transitions.length
+    // ADVANCED BY WHAT THIS COMMIT WROTE, not to the total. Assigning
+    // the length marked every pending entry journaled — including an
+    // append that had FAILED and was waiting for the next tick to retry
+    // it. The run then completed with that transition missing from its
+    // durable record, no rejection and no hold marking the gap, which is
+    // precisely what `confirmJournaled` advancing incrementally exists
+    // to prevent.
+    this.#journaledTransitions += capability.entries.length
   }
 
   /** Claim and apply in one step, for the ordinary sequential path. */

@@ -116,6 +116,8 @@ are below.
 | RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
 | RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
 | RO-INV-62 | A conclusion states what it IS — terminal, held, ownership_lost, or not_started — distinctly from the state it reports. An attempt that lost ownership declares its own end, never the logical run's: manufacturing a lifecycle terminal is the one verdict a stale holder may not give | trust |
+| RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending is an outstanding write of the run, so the walk is flushed before anything is staged and a run whose walk cannot be made durable does not seal | trust |
+| RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -326,6 +328,12 @@ persistence (U11).
 | RO-EX-106 | RO-INV-59 | adversarial | a validated table is a frozen null-prototype COPY, so it cannot widen after validation; a non-enumerable widening is refused, because the validator reads every key `declaredNext` can |
 | RO-EX-107 | RO-INV-50 | adversarial | `commitProjected` accepts only a capability `project()` minted on THAT machine; an unprojected entry list cannot advance it, so the ownership rule is enforced by the class rather than by a scan of this repository |
 | RO-EX-108 | RO-INV-62 | deterministic example | a dispossessed attempt concludes `ownership_lost` producing nothing; an ordinary run concludes `terminal`, a consent-held run `held` |
+| RO-EX-109 | RO-INV-36 | adversarial (reviewer-authored) | a transcript terminating in error against a clean exit and a success claim is a disagreement: the run is INDETERMINATE, not COMPLETED |
+| RO-EX-110 | RO-INV-63 | adversarial (reviewer-authored) | a transient append failure at VERIFYING does not vanish from the durable walk; the journal equals the machine's transitions |
+| RO-EX-111 | RO-INV-50 | structural (reviewer-authored) | the ownership scan covers `apply` — the mutator the other three delegate to — matched by receiver so `lease.claim(` is not mistaken for a machine advance |
+| RO-EX-112 | RO-INV-22 | adversarial (reviewer-authored) | cancellation during apply-back terminates CANCELLED; the last check precedes the terminal, not merely the verification |
+| RO-EX-113 | RO-INV-64 | adversarial (reviewer-authored) | a session port that never settles times out on the profile's budget rather than leaving the run unresolved at ELIGIBLE |
+| RO-EX-114 | RO-INV-30 | structural (reviewer-authored) | the exported lease surface is exactly the port; the seize affordance a proof needs is not a method on it |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |

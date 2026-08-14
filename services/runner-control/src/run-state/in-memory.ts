@@ -24,6 +24,7 @@ import type {
   TransitionEntry,
 } from '../ports/index.js'
 import { FenceLedger } from './fence.js'
+import { SEIZE } from './seize.js'
 import { CommitLedger, isVisible } from './visibility.js'
 import type { CommitVisibility } from '../ports/finalization.js'
 
@@ -205,8 +206,23 @@ export class InMemoryRunLease implements RunLeasePort {
     return Promise.resolve()
   }
 
-  /** Test seam: forcibly move the lease on, simulating a lost lease. */
-  steal(run_id: string): number {
+  /**
+   * Move the lease on, as a competing holder claiming an already-held
+   * run would.
+   *
+   * NOT a method. `steal()` was `claim()` with the refusal removed —
+   * seize any run by id, no claim, no generation to present, no fence —
+   * declared in production source and exported from the package root.
+   * A capability that dispossesses the legitimate owner is authority no
+   * composition granted, and calling it a test seam does not change what
+   * it is: tests are its main consumer, which is the argument for
+   * keeping it OUT of the shipped surface, not for shipping it.
+   *
+   * It lives in `testing-fixtures.ts` now, which is excluded from the
+   * package's exports, using the same private state through a symbol
+   * this class publishes to nobody.
+   */
+  [SEIZE](run_id: string): number {
     this.#generation += 1
     this.#held.set(run_id, this.#generation)
     return this.#generation
