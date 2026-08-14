@@ -44,11 +44,7 @@
 import type { Ports } from '../ports/index.js'
 
 export type EffectClass =
-  | 'discardable_read'
-  | 'acknowledged_effect'
-  | 'acquisition'
-  | 'finalization'
-  | 'cleanup'
+  'discardable_read' | 'acknowledged_effect' | 'acquisition' | 'finalization' | 'cleanup'
 
 /** The asynchronous methods of one port — everything returning a Promise. */
 type AsyncMethodNames<T> = {

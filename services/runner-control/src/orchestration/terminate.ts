@@ -118,7 +118,13 @@ export const conclude = async (
         detail: `${detail}; ${missing}`,
       }
     }
-    return { ...base, kind: 'unterminated', state, produced: 'none', detail: `${detail}; ${missing}` }
+    return {
+      ...base,
+      kind: 'unterminated',
+      state,
+      produced: 'none',
+      detail: `${detail}; ${missing}`,
+    }
   }
   // A NON-TERMINAL CONCLUSION IS NOT AUTOMATICALLY A HOLD. `held` means a
   // precondition is unmet and the run waits; a machine that granted no

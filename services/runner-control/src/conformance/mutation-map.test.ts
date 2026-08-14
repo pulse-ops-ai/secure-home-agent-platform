@@ -561,7 +561,8 @@ const TARGETS: readonly MutationTarget[] = [
   },
   {
     id: 'RO-MUT-102',
-    mutation: 'let a conclusion claim a durable terminal or hold while the outbox holds a pending fact',
+    mutation:
+      'let a conclusion claim a durable terminal or hold while the outbox holds a pending fact',
     killedBy: ['RO-EX-157', 'RO-EX-154'],
   },
   {
