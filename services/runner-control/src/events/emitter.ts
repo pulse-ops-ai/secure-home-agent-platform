@@ -81,13 +81,25 @@ export class RunEventEmitter {
    * sequence number and run id drift.
    */
   envelope(body: Record<string, unknown>): Record<string, unknown> {
+    // The TERMINAL envelope reads the clock through a fallback, unlike
+    // `emit` below. An ordinary emission failing on a broken clock is a
+    // port fault the run terminates on; this envelope is built while
+    // RECORDING that terminal, and a record that dies of the fault it
+    // records leaves the run with no governed record at all. The machine
+    // substitutes the same unestablished instant for the same reason.
+    let timestamp: string
+    try {
+      timestamp = this.#clock.now({ run_id: this.#identity.run_id })
+    } catch {
+      timestamp = '1970-01-01T00:00:00.000Z'
+    }
     return {
       ...body,
       contract_id: 'run-event',
       contract_version: '1.0.0',
       run_id: this.#identity.run_id,
       sequence: this.#sequence,
-      timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
+      timestamp,
       adapter: this.#identity.adapter,
     }
   }

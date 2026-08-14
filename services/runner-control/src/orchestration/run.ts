@@ -13,13 +13,14 @@
  * phase reading state it has not is a compile error rather than a
  * hazard the next review has to find.
  */
+import { randomUUID } from 'node:crypto'
 import { canConstructEvidence, RunMachine, walk as walkPhases } from '../lifecycle/index.js'
 import type { PhaseCommand, RejectionEntry } from '../lifecycle/index.js'
 import { FinalizationLedger } from '../finalization/index.js'
 import type { LeaseClaim, Ports } from '../ports/index.js'
 import { isRunControlError, isRunInterrupted } from '../run/interruption.js'
 import { RunScope } from '../run/scope.js'
-import { RunDeadline } from './deadline.js'
+import { RunDeadline, RunSettlement } from './deadline.js'
 import { ACQUISITION_BUDGET_MS, narrowingOnly, type RunControls } from './controls.js'
 import type { JournaledAcquisitionEntry, RunEnvironment } from './environment.js'
 import { guardPorts } from './ports.js'
@@ -80,17 +81,30 @@ export class Runner {
     deadline.armAcquisition(
       Math.min(this.#controls.deadline_ms ?? ACQUISITION_BUDGET_MS, ACQUISITION_BUDGET_MS),
     )
+    // UNIQUE PER ATTEMPT, not per run. A durable lease may answer a
+    // replayed attempt id with the same successful generation — that is
+    // its idempotency, and it is only safe because no two attempts ever
+    // share an id. Derived from the run id alone, a retry or a competing
+    // runner would present the SAME attempt and could both be granted.
+    const attempt_id = `${request.run_id}:${randomUUID()}`
     let claim: LeaseClaim
     try {
       claim = await deadline.call(() =>
         this.#ports.lease.claim({
           run_id: request.run_id,
-          attempt_id: `${request.run_id}:claim`,
+          attempt_id,
           signal: deadline.signal,
         }),
       )
     } catch (error) {
       deadline.disarm()
+      // THE ATTEMPT'S OUTCOME IS UNKNOWN, so it is resolved AT THE
+      // RESOURCE. The resource may have committed a generation whose
+      // acknowledgement never arrived; returning `not_started` while
+      // that grant stands would park the run id with no holder. Only
+      // the resource knows which case this is — it is told the answer
+      // is "no" either way.
+      await this.#abandonClaim(request.run_id, attempt_id)
       if (isRunInterrupted(error)) {
         return unstarted(
           request.run_id,
@@ -131,6 +145,26 @@ export class Runner {
       } catch {
         // Deliberately swallowed. See above.
       }
+    }
+  }
+
+  /**
+   * Tell the lease an attempt this caller can no longer await is over.
+   *
+   * Bounded by its own settlement ceiling — a lease store that cannot
+   * answer must not hold `run()` open either — and best-effort by
+   * construction: when even the abandon cannot be delivered, the
+   * resource's own ownership expiry is the backstop (see RunLeasePort).
+   */
+  async #abandonClaim(run_id: string, attempt_id: string): Promise<void> {
+    const settlement = new RunSettlement()
+    try {
+      await settlement.call(() => this.#ports.lease.abandon({ run_id, attempt_id }))
+    } catch {
+      // Deliberately swallowed: the conclusion below reports the run
+      // that never started, and a broken abandon must not replace it.
+    } finally {
+      settlement.disarm()
     }
   }
 

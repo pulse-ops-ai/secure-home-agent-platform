@@ -79,6 +79,15 @@ through the evidence sink only after that decision proceeds and after all
 other writes for the run have been submitted. A run SHALL NOT be classified
 successful while its evidence is unsealed.
 
+The seal SHALL additionally require the run's durable journal to be
+COMPLETE: no journal append of ANY category — a rejection as much as a
+transition — may remain pending for retry when the seal is submitted.
+The gate SHALL derive from the pending set itself rather than an
+enumerated category list, so a journal category added later joins the
+gate by existing. A pending entry landing after the seal would violate
+seal-last from the other side; a pending entry never landing would seal
+a run whose reconstructable history is incomplete.
+
 #### Scenario: The seal is the final write
 
 - **GIVEN** a run producing artifacts, events, and evidence
@@ -90,6 +99,15 @@ successful while its evidence is unsealed.
   proceeded
 - **AND** a write issued by a concurrent run through the same port instance
   is not a post-seal write for this run
+
+#### Scenario: A pending rejection blocks the seal
+
+- **GIVEN** a run that recorded a rejected transition whose journal
+  append keeps faulting
+- **WHEN** terminal finalization is attempted
+- **THEN** no evidence bundle is sealed
+- **AND** the conclusion reports the incomplete durable record rather
+  than a completed run
 
 ### Requirement: The declared walk is journaled as it happens, and a held run stays findable
 
@@ -136,6 +154,14 @@ a holder which lost the run and continued can be distinguished from the
 one that holds it. Ownership SHALL be released when the run concludes,
 including when it is held and when it fails, so that a fault leaves the
 run recoverable rather than locked.
+
+A lease MAY answer a replayed claim of the SAME attempt with its
+original grant; it SHALL NOT hold grants for two attempts of one run
+concurrently. This is why every claim presents an attempt identity
+unique to that attempt, and why an attempt whose acknowledgement the
+claimant could not await is abandoned at the resource — resolved where
+the grant lives — rather than compensated at the caller
+(`runner-lifecycle` states the claimant's obligations).
 
 #### Scenario: Two orchestrators, one run
 

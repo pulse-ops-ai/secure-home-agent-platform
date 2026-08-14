@@ -194,7 +194,18 @@ export class RunDeadline {
           }, POLL_INTERVAL_MS)
     ticking?.unref?.()
     try {
-      return await Promise.race([work(), aborted])
+      const value = await Promise.race([work(), aborted])
+      // THE CHECK IS SYMMETRIC. Expiry is enforced before the work
+      // starts AND when its result arrives, because a result can resolve
+      // after wall time crossed the expiry but before the timer callback
+      // had an event-loop turn. Accepting it would let synchronous phase
+      // logic consume the value — and earn a transition — inside a
+      // budget that is already spent.
+      this.#raiseIfElapsed()
+      if (this.#aborter.signal.aborted) {
+        throw new RunInterrupted(this.#reason ?? 'timeout')
+      }
+      return value
     } finally {
       this.#aborter.signal.removeEventListener('abort', listener)
       if (ticking !== undefined) clearInterval(ticking)
@@ -341,7 +352,17 @@ export class RunRecovery implements CallGuard {
     }, POLL_INTERVAL_MS)
     ticking.unref?.()
     try {
-      return await Promise.race([work(), boundary])
+      const value = await Promise.race([work(), boundary])
+      // Symmetric with the entry checks, against BOTH ceilings: a result
+      // resolving after the governed deadline or the recovery ceiling —
+      // but before either timer callback was serviced — must not be
+      // consumed by recovery logic whose budget is already spent.
+      const late = this.#deadline.interrupted()
+      if (late !== undefined) throw new RunInterrupted(late)
+      if (this.#settlementAborter.signal.aborted || Date.now() >= this.#expiresAt) {
+        throw new RunSettlementExpired()
+      }
+      return value
     } finally {
       this.#deadline.signal.removeEventListener('abort', onRunAbort)
       this.#settlementAborter.signal.removeEventListener('abort', onSettlementAbort)

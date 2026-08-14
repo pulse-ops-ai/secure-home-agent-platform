@@ -485,6 +485,36 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-147'],
   },
   {
+    id: 'RO-MUT-87',
+    mutation: 'accept a raced result without re-checking absolute expiry when the call returns',
+    killedBy: ['RO-EX-151'],
+  },
+  {
+    id: 'RO-MUT-88',
+    mutation: 'let recovery consume a result that resolved past either of its ceilings',
+    killedBy: ['RO-EX-151'],
+  },
+  {
+    id: 'RO-MUT-89',
+    mutation: 'narrow the pre-seal journal gate back to pending transitions only',
+    killedBy: ['RO-EX-150'],
+  },
+  {
+    id: 'RO-MUT-90',
+    mutation: 'derive the lease attempt id from the run id alone',
+    killedBy: ['RO-EX-148'],
+  },
+  {
+    id: 'RO-MUT-91',
+    mutation: 'return not_started without resolving the unacknowledged claim attempt',
+    killedBy: ['RO-EX-149'],
+  },
+  {
+    id: 'RO-MUT-92',
+    mutation: 'grant an abandoned attempt at the in-memory lease',
+    killedBy: ['RO-EX-149'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

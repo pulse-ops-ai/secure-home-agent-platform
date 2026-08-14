@@ -179,6 +179,21 @@ export class RunMachine {
   }
 
   /**
+   * Whether EVERY recorded entry, of every category, has landed in the
+   * durable journal.
+   *
+   * The seal gate consults this rather than a category list, because a
+   * category list is how the last hole opened: the gate checked pending
+   * transitions, rejections pended independently, and a run sealed with
+   * its durable record short one rejection. Derived from the shape of
+   * `pendingJournal()` itself, so a new category joins the gate by
+   * existing instead of by being remembered.
+   */
+  pendingJournalIsEmpty(): boolean {
+    return Object.values(this.pendingJournal()).every((entries) => entries.length === 0)
+  }
+
+  /**
    * Confirm that `transitions` and `rejections` entries were durably
    * appended.
    *

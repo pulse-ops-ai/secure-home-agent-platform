@@ -9,6 +9,7 @@
  * both. What a terminal can say is now visible in its signature.
  */
 import { reconcileClaims } from '@secure-home/runner-core'
+import type { Ports } from '../ports/index.js'
 import { isTerminal, type LifecycleState, type TransitionKind } from '../lifecycle/index.js'
 import { assembleEvidence, buildEarlyTerminationRecord } from '../finalization/records.js'
 import type { EmitOutcome } from '../events/index.js'
@@ -16,6 +17,23 @@ import type { RunEnvironment } from './environment.js'
 import { guardPorts } from './ports.js'
 import { stop, type RunConclusion, type Stop } from './result.js'
 import type { Authority, Observations } from './state.js'
+
+/**
+ * The clock, as terminalization may consult it.
+ *
+ * A throwing clock is one of the port faults these paths exist to
+ * record. Reading it raw while BUILDING the record made the recording
+ * die of the fault it was recording — the machine already substitutes
+ * this instant for exactly that reason, and the terminal record follows
+ * the same rule rather than a stricter one it cannot honour.
+ */
+const safeNow = (ports: Ports, run_id: string): string => {
+  try {
+    return ports.clock.now({ run_id })
+  } catch {
+    return '1970-01-01T00:00:00.000Z'
+  }
+}
 
 /** The terminals a run without authority can reach. */
 export type EarlyTerminal = Extract<
@@ -82,17 +100,17 @@ export const conclude = async (
   // precondition is unmet and the run waits; a machine that granted no
   // terminal at all is `unterminated`, which is what RO-INV-50 requires
   // the conclusion to report and what the flat shape had no way to say.
-  if (isTerminal(state) && produced === 'none') {
-    return {
-      ...base,
-      kind: 'settlement_failed',
-      state,
-      intended_terminal: state,
-      produced: 'none',
-      detail: `${detail}; the lifecycle terminal has no governed durable record`,
+  if (isTerminal(state)) {
+    if (produced === 'none') {
+      return {
+        ...base,
+        kind: 'settlement_failed',
+        state,
+        intended_terminal: state,
+        produced: 'none',
+        detail: `${detail}; the lifecycle terminal has no governed durable record`,
+      }
     }
-  }
-  if (isTerminal(state) && produced !== 'none') {
     return { ...base, kind: 'terminal', state, produced, detail }
   }
   return {
@@ -162,7 +180,7 @@ export const writeEarlyTerminalRecord = async (
     state: scope.machine.state,
     detail,
     started_at: scope.startedAt,
-    finished_at: ports.clock.now({ run_id: request.run_id }),
+    finished_at: safeNow(ports, request.run_id),
   })
   if (!record.ok) return stop(await conclude(env, 'none', record.detail))
 
@@ -247,7 +265,7 @@ export const finish = async (
     artifacts: observations.artifacts,
     reconciliation: reconcileClaims(observations.observed, request.claimed_changes ?? []),
     started_at: scope.startedAt,
-    finished_at: ports.clock.now({ run_id: request.run_id }),
+    finished_at: safeNow(ports, request.run_id),
   })
 
   const failClosed = async (
@@ -298,10 +316,13 @@ export const finish = async (
   // So the pending set is flushed here, before anything is staged, and
   // a run whose walk cannot be made durable does not seal. That is the
   // same rule the ledger already applies to the run's other writes.
+  // EVERY category counts: a pending rejection is as much a hole in the
+  // reconstructable record as a pending transition, and a retry landing
+  // it after the seal would violate seal-last from the other side.
   await env.journalTick()
-  if (scope.machine.pendingJournal().transitions.length > 0) {
+  if (!scope.machine.pendingJournalIsEmpty()) {
     return await failClosed(
-      'the run walk could not be made durable; a transition is missing from the journal and the seal would describe an incomplete record',
+      'the run walk could not be made durable; an entry is missing from the journal and the seal would describe an incomplete record',
     )
   }
 

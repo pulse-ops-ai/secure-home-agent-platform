@@ -31,6 +31,7 @@ const throwingRenew = () => {
   const lease = new InMemoryRunLease()
   return {
     claim: lease.claim.bind(lease),
+    abandon: lease.abandon.bind(lease),
     release: lease.release.bind(lease),
     renew: () => {
       throw new Error('the lease store exploded')

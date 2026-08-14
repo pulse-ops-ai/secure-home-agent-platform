@@ -778,9 +778,12 @@ describe('a hung session port holds the run open past its declared budget', () =
   it('the run resolves on its own budget rather than hanging in ELIGIBLE', async () => {
     const session = new HangingSession()
     const ports = testPorts({ session })
-    // A one-millisecond wall clock: a control may only SHORTEN the
-    // profile's grant, so this is the shortest budget the run can have.
-    const runner = new Runner(ports, { deadline_ms: 1 })
+    // Short, but long enough for the phases BEFORE the session to finish
+    // inside it. A one-millisecond budget stopped proving anything about
+    // the session once expiry became enforced at every call boundary:
+    // the run timed out at an earlier port and `prepare` was never
+    // reached, so the hang this test exists to interrupt never started.
+    const runner = new Runner(ports, { deadline_ms: 50 })
 
     const outcome = await Promise.race([
       runner.run(runRequest()).then((conclusion) => conclusion.state),
@@ -802,7 +805,7 @@ describe('a hung session port holds the run open past its declared budget', () =
 /**
  * FINDING 6 — the lease's test seam is on the production surface.
  *
- * `RunLeasePort` declares `claim`, `renew`, `release`, and `claim` refuses
+ * `RunLeasePort` declares `claim`, `abandon`, `renew`, `release`, and `claim` refuses
  * a run that is already leased — that refusal is the whole of the
  * one-owner rule (RO-INV-30). `seizeLease(InMemoryRunLease, )` is the same
  * capability with the refusal removed: it takes a `run_id`, bumps the
@@ -829,12 +832,15 @@ describe('the lease exposes a dispossession capability its port does not declare
     expect(owner.ok).toBe(true)
     if (!owner.ok) return
 
-    // A second CLAIM is refused: that is the one-owner rule working.
+    // A second CLAIM is refused: that is the one-owner rule working. A
+    // DISTINCT attempt id, because a repeat of the SAME attempt is the
+    // holder's own retransmission and is answered with its own grant —
+    // that replay affordance is why attempt ids must never be shared.
     expect(
       (
         await lease.claim({
           run_id: RUN,
-          attempt_id: 'proof',
+          attempt_id: 'proof-competitor',
           signal: new AbortController().signal,
         })
       ).ok,
@@ -850,7 +856,7 @@ describe('the lease exposes a dispossession capability its port does not declare
 
   it('and the exported surface is exactly the port', async () => {
     const { InMemoryRunLease } = await import('../index.js')
-    const declared = ['claim', 'renew', 'release']
+    const declared = ['claim', 'abandon', 'renew', 'release']
     const exposed = Object.getOwnPropertyNames(InMemoryRunLease.prototype).filter(
       (name) => name !== 'constructor',
     )

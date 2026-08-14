@@ -116,7 +116,7 @@ are below.
 | RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
 | RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
 | RO-INV-62 | A conclusion states what it IS — terminal, settlement_failed, held, ownership_lost, not_started, or unterminated — distinctly from the state it reports. `settlement_failed` names an intended terminal whose governed record did not land; an attempt that lost ownership declares its own end, never the logical run's | trust |
-| RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending is an outstanding write of the run, so the walk is flushed before anything is staged and a run whose walk cannot be made durable does not seal | trust |
+| RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending — of EVERY category the journal records, rejections as much as transitions — is an outstanding write of the run, so the walk is flushed before anything is staged, the gate derives from the pending set's own shape rather than a category list, and a run whose walk cannot be made durable does not seal | trust |
 | RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
 | RO-INV-65 | A commit capability is frozen at mint, one-shot, and bound to the machine VERSION it was projected from — so it cannot be edited between authorization and use, and a stale projection cannot advance a machine that has since moved | trust |
 | RO-INV-66 | The canonical transition table is deep-frozen at its source, so the default path retains immutable lifecycle authority — `RunMachine` is exported and defaults to it directly, which freezing inside `Runner` would not reach | trust |
@@ -135,6 +135,7 @@ are below.
 | RO-INV-79 | Every terminal at or after `PROFILE_RESOLVED`, including interruption or last-resort recovery from an escaping port fault, attempts the full evidence bundle with every fact already established in RUNNING. A separate append-only terminal-evidence accumulator preserves operations, gate dispositions, workspace observation, and artifact observation without weakening the total verification `Observations` typestate | trust |
 | RO-INV-80 | Journal code distinguishes lifecycle control from storage failure: `RunInterrupted` and `RunSettlementExpired` propagate to their terminal/settlement owner unchanged; only genuine journal faults remain pending for retry | trust |
 | RO-INV-81 | Interrupted settlement attempts session interruption exactly once, in its dedicated stop window; evidence settlement never repeats the stop. Generic recovery retains caller-cancellation/profile-timeout precedence until its final publication point | trust |
+| RO-INV-82 | An acquisition attempt has its own identity and its own resolution: every claim presents an attempt id unique to that attempt, a lease may replay a grant only to its own attempt, and an attempt whose outcome the runner could not await is resolved AT THE RESOURCE — abandoned, so a pending grant can never confer ownership and a committed one is released — never left as ownership with no holder | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked and the transitions it actually took — releases the resources it actually held, and chooses the governed record from what the run established: early-terminal before authority, full bundle afterwards. It fabricates no machine or identity | trust |
 
 ## State-Space Model
@@ -432,6 +433,11 @@ persistence (U11).
 | RO-EX-145 | RO-INV-78 | adversarial (reviewer-authored) | an already-expired acquisition bound starts no lease call; an outstanding resource-side claim observes abort and never grants ownership |
 | RO-EX-146 | RO-INV-73 | adversarial (reviewer-authored) | a terminal record sink that never settles yields `settlement_failed` carrying the intended terminal, never `terminal + produced:none` |
 | RO-EX-147 | RO-INV-67 | adversarial (reviewer-authored) | when wall time has passed the absolute expiry but its timer callback has not run, the next guarded thunk is not invoked and `interrupted()` raises timeout synchronously |
+| RO-EX-148 | RO-INV-82 | adversarial (reviewer-authored) | two concurrent runners and a later retry for the same run present pairwise-distinct lease attempt identities |
+| RO-EX-149 | RO-INV-82 | adversarial (reviewer-authored) | a grant the resource commits before the caller's deadline and acknowledges after it is resolved at the resource: `not_started` is never returned with ownership standing, an abandoned attempt is never granted, a replayed attempt receives its original generation, and a stale abandon cannot dispossess the current holder |
+| RO-EX-150 | RO-INV-63 | adversarial (reviewer-authored) | evidence does not seal while a REJECTION append remains pending; the pre-seal gate derives from every pending journal category rather than a transitions-only check |
+| RO-EX-151 | RO-INV-67 | adversarial (reviewer-authored) | a port result resolving after absolute expiry — before any timer callback runs — is rejected at both the ordinary and recovery call boundaries and earns no lifecycle transition |
+| RO-EX-152 | RO-INV-47 | structural | design D7 prescribes staged publication behind one shared visibility marker and contains no undo-after-visibility architecture for U11 to inherit |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-58 | RO-INV-67 | mutation | guarding only the call sites already known to hang, rather than the complete injected port surface, is killed by RO-EX-118 |
 | RO-MUT-59 | RO-INV-67 | mutation | adding or restarting the profile wall clock instead of establishing one absolute expiry is killed by RO-EX-119 |
@@ -462,6 +468,12 @@ persistence (U11).
 | RO-MUT-84 | RO-INV-78 | mutation | starting lease claim before the guard or allowing an aborted claim attempt to become ownership is killed by RO-EX-145 |
 | RO-MUT-85 | RO-INV-73 | mutation | presenting a terminal with no governed durable record as `terminal + produced:none` is killed by RO-EX-146 |
 | RO-MUT-86 | RO-INV-67 | mutation | relying only on the event-loop timer without synchronously checking the absolute expiry at call boundaries is killed by RO-EX-147 |
+| RO-MUT-87 | RO-INV-67 | mutation | accepting a raced result without re-checking absolute expiry when the ordinary call returns is killed by RO-EX-151 |
+| RO-MUT-88 | RO-INV-67 | mutation | letting recovery consume a result that resolved past the governed deadline or its own settlement ceiling is killed by RO-EX-151 |
+| RO-MUT-89 | RO-INV-63 | mutation | narrowing the pre-seal journal gate back to pending transitions only is killed by RO-EX-150 |
+| RO-MUT-90 | RO-INV-82 | mutation | deriving the lease attempt id from the run id alone is killed by RO-EX-148 |
+| RO-MUT-91 | RO-INV-82 | mutation | returning `not_started` without resolving the unacknowledged claim attempt at the resource is killed by RO-EX-149 |
+| RO-MUT-92 | RO-INV-82 | mutation | granting an abandoned attempt at the in-memory lease is killed by RO-EX-149 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

@@ -75,7 +75,7 @@ have inherited.
 
 | Field | Value |
 |---|---|
-| Granted by | repository owner (@mikegtech), through the explicit round-8 implementation task |
+| Granted by | repository owner (@mikegtech), by external review direction — not by the implementation task. The owner's relayed round-8 review of PR #82 specified the behaviour as a reviewer-authored RED: a terminal record sink that never settles must yield an explicit conclusion carrying the intended terminal, never `terminal + produced:none` (that RED is RO-EX-146). The owner's round-9 review of head `fc578153` (2026-08-14) ratified the resulting model verbatim: "`settlement_failed` resolves the impossible three-way guarantee cleanly … The public result now says exactly which guarantee failed instead of lying that an unevidenced terminal completed. … I approve that model technically." |
 | Decision | when finite terminal settlement cannot make the mandatory governed record durable, return `settlement_failed` carrying actual state, intended terminal, and `produced: none`; do not present it as a lifecycle terminal |
 | Recorded in | `design.md` D12; `specs/runner-lifecycle/spec.md` requirement "Terminal settlement failure is explicit" |
 | Proven by | RO-INV-62/73, RO-EX-143/146 |
@@ -541,6 +541,44 @@ operation its requirement names.
   lifecycle delta, D13, and assurance artifact describe the same public
   conclusion and authority model; complete tests, typecheck, lint, build,
   strict OpenSpec validation, and repository gate remain green.
+
+- [x] **7.8 Close round-9 acquisition-protocol and boundary-symmetry findings**
+  <!-- agent-task: 7.8 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.7 -->
+
+  **Authorized by** — the repository owner's round-9 review of PR #82 head
+  `fc578153` (2026-08-14): REQUEST_CHANGES with the `terminate.ts` type
+  regression, four P1s (lease attempt identity and grant-before-ack
+  resolution; pending rejections gating the seal; absolute expiry enforced
+  when a call returns; D7 still describing the removed compensation
+  architecture) and the `settlement_failed` provenance cleanup.
+
+  **Implements** — per-attempt unique lease claim identities;
+  `RunLeasePort.abandon` so an unawaited claim is resolved at the
+  resource, with attempt-state and idempotent-replay semantics in the
+  in-memory lease; the pre-seal journal gate derived from every pending
+  category (`pendingJournalIsEmpty`); post-return expiry symmetry at the
+  ordinary and recovery call boundaries; the D7 rewrite to the staged
+  shared-visibility model with a structural design guard; and the
+  narrowed-terminal-result fix that restores the exact-head typecheck.
+
+  **Disclosure** — the reviewed head `fc578153` failed `tsc` in CI, so its
+  test job never ran; running its suite locally exposed two additional
+  regressions that commit had introduced and CI never caught (a throwing
+  clock killed the very recovery path recording it, reaching
+  `settlement_failed` at `SANDBOX_STARTED` instead of `INDETERMINATE`; the
+  hung-session proof's one-millisecond budget expired at an earlier call
+  boundary once expiry became enforced everywhere, so the hang under test
+  was never reached). Both are fixed in this task: terminalization and the
+  terminal envelope read the clock through the machine's unestablished
+  fallback, and the hung-session proof uses a budget the pre-session
+  phases fit inside.
+
+  **Proof required** — `conformance/falsification-round9.test.ts`
+  (RO-EX-148…152, including the in-memory lease's attempt-state proofs) is
+  green in full, alongside every earlier falsification round; RO-MUT-87…92
+  are registered and each hand-applied mutant is killed by its named
+  proof; complete tests, typecheck, lint, build, strict OpenSpec
+  validation, and repository gate remain green.
 
 ## PR-1 Completion Gate
 

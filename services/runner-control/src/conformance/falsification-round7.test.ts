@@ -504,6 +504,10 @@ class AbortableClaimLease {
     })
   }
 
+  abandon(request: Parameters<InMemoryRunLease['abandon']>[0]): Promise<void> {
+    return this.inner.abandon(request)
+  }
+
   renew(request: Parameters<InMemoryRunLease['renew']>[0]): Promise<boolean> {
     return this.inner.renew(request)
   }

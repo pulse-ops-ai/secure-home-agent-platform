@@ -229,6 +229,7 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
         claim: () => {
           throw new Error('lease store down')
         },
+        abandon: () => Promise.resolve(),
         renew: () => Promise.resolve(true),
         release: () => Promise.resolve(),
       },
@@ -243,6 +244,7 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
     const ports = testPorts({
       lease: {
         claim: base.claim.bind(base),
+        abandon: base.abandon.bind(base),
         renew: base.renew.bind(base),
         release: () => Promise.reject(new Error('release exploded')),
       },

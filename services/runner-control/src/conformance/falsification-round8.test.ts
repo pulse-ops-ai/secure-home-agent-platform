@@ -271,6 +271,10 @@ class AbortAwareLease {
     })
   }
 
+  abandon(request: Parameters<InMemoryRunLease['abandon']>[0]) {
+    return this.inner.abandon(request)
+  }
+
   renew(request: Parameters<InMemoryRunLease['renew']>[0]) {
     return this.inner.renew(request)
   }

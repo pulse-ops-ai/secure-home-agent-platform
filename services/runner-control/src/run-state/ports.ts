@@ -118,10 +118,18 @@ export type LeaseClaim =
 /**
  * One ownership attempt, cancellable before it becomes current.
  *
- * The attempt identity lets a durable implementation bind any eventual
- * grant to the exact pending request. The signal makes an expired attempt
- * ineligible for ownership at the resource, rather than compensating
- * after the caller has already concluded.
+ * The attempt identity is UNIQUE PER ATTEMPT — never derived from the
+ * run id alone. It is what lets a durable implementation be idempotent
+ * safely: a store may answer a REPLAYED claim of the same attempt with
+ * the same successful generation, so two callers sharing an attempt id
+ * would both be told they own the run. Unique ids make the replay
+ * affordance safe and make every retry a new attempt with its own
+ * resolution.
+ *
+ * The signal makes a not-yet-granted attempt ineligible for ownership at
+ * the resource. It cannot resolve the other half of the ambiguity — a
+ * grant the resource committed whose acknowledgement never reached the
+ * caller — which is what `abandon` below exists for.
  */
 export interface LeaseClaimRequest extends RunScoped {
   readonly attempt_id: string
@@ -130,6 +138,26 @@ export interface LeaseClaimRequest extends RunScoped {
 
 export interface RunLeasePort {
   claim(request: LeaseClaimRequest): Promise<LeaseClaim>
+  /**
+   * Resolve an attempt whose outcome the caller can no longer await.
+   *
+   * A distributed claim has a window the signal cannot close: the
+   * resource commits a generation, the acknowledgement is delayed, and
+   * the caller's deadline expires before it arrives. Only the resource
+   * knows what became of the attempt, so the caller TELLS it the answer
+   * is "no": after `abandon`, a pending attempt must never be granted,
+   * and a granted attempt whose generation still holds the run is
+   * released. Idempotent — abandoning a refused, expired, or already
+   * abandoned attempt is a no-op.
+   *
+   * This is the caller's half of resolving uncertain acquisition. The
+   * resource's half is its own ownership expiry: a durable
+   * implementation must bound how long an unrenewed generation holds the
+   * run, so an abandon that never arrives cannot park the run id
+   * forever. The in-process implementation has no such window; a durable
+   * one (U11) must declare its bound.
+   */
+  abandon(request: RunScoped & { readonly attempt_id: string }): Promise<void>
   /** `false` once this generation no longer holds the run. */
   renew(request: RunScoped & { readonly generation: number }): Promise<boolean>
   release(request: RunScoped & { readonly generation: number }): Promise<void>

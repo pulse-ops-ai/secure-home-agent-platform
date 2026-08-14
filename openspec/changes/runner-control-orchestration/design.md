@@ -316,12 +316,20 @@ the projected entries VERBATIM, so what it reports is the committed fact
 rather than a re-derivation of the intent.
 
 What atomicity means here is this landing's to define; where the
-transaction persists is U11's. The shipped implementation applies in the
-order journal → event → bundle (the seal stays last) and retracts in
-reverse on any failure, and every participating sink must therefore be
-able to retract — required rather than optional, because a sink that
-discovers at rollback time that it cannot unwind has discovered it too
-late.
+transaction persists is U11's. The shipped implementation orders no
+observable writes at all: each participant STAGES its part of the commit
+— the journal tail, the terminal event, the sealed bundle — where no
+reader can see it, and one shared visibility marker publishes all three
+in a single step. Publication is the only point at which the commit
+exists. A participant that refuses to stage costs nothing, because
+nothing staged is observable; there is no partially visible state to
+compensate for, and no participant is required to be able to undo a
+write, because no write becomes visible until every participant has
+agreed. An earlier revision of this section required exactly that
+undo capability of every sink; it was removed for cause — a sink that
+cannot unwind discovers it only after another participant's write is
+already public, which is precisely the partial visibility the claimed
+atomicity forbids. U11 inherits the staging contract, not a write order.
 
 Preparation refusing costs nothing, which is the property that makes the
 whole thing work: no event has been announced and no bundle written, so
@@ -515,6 +523,22 @@ including the hold and throw paths, so a fault leaves a run merely failed
 rather than unrecoverable. The generation is a fencing token: a holder
 that lost its lease and kept working can be told apart from the one that
 actually holds it, which a boolean lock cannot do.
+
+**Acquisition is a protocol, not a call.** A distributed claim has a
+window an abort signal cannot close: the resource commits a generation,
+the acknowledgement is delayed, and the caller's deadline expires before
+it arrives — the grant now stands with no holder to ever renew or
+release it. So every claim carries an attempt identity UNIQUE to that
+attempt (never derived from the run id alone), a lease may replay a
+grant only to the attempt that earned it — which is what makes durable
+idempotency safe — and an attempt whose outcome the runner could not
+await is resolved AT THE RESOURCE through `abandon`: a pending attempt
+becomes ineligible for a grant, and a granted one whose generation still
+holds the run is released. The caller's abandon and the resource's own
+ownership expiry are the two halves of resolving uncertain acquisition;
+a durable implementation (U11) must supply both, and the in-memory lease
+ships the attempt-state semantics as the reference. Proven by RO-INV-82,
+RO-EX-148/149, RO-MUT-90…92.
 
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.

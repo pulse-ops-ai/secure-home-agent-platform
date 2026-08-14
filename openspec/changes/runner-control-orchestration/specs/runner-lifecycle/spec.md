@@ -131,11 +131,29 @@ preparation; later session narrowing SHALL preserve elapsed profile time
 rather than restart the budget.
 
 The absolute expiry SHALL be checked synchronously before every guarded
-call and whenever an explicit interruption boundary is consulted; timer
-callback latency SHALL NOT authorize an effect after the declared wall
-clock elapsed. Lease acquisition SHALL be invoked through that guard and
-SHALL carry a claim-attempt identity plus the governed signal so an
-aborted attempt cannot later become current ownership.
+call, again when the guarded call RETURNS, and whenever an explicit
+interruption boundary is consulted; timer callback latency SHALL NOT
+authorize an effect after the declared wall clock elapsed. A result that
+resolves after the expiry — before its timer callback has run — SHALL be
+rejected as the timeout it is, and SHALL earn no lifecycle transition.
+Recovery call boundaries SHALL apply the same symmetry against both the
+governed deadline and their own settlement ceiling.
+
+Lease acquisition SHALL be invoked through that guard and SHALL carry a
+claim-attempt identity plus the governed signal so an aborted attempt
+cannot later become current ownership. The attempt identity SHALL be
+unique to that attempt — never derived from the run identity alone — so
+a lease's idempotent replay of a grant can only ever answer the attempt
+that earned it. When the claim's outcome cannot be awaited — the
+acknowledgement may be delayed past the caller's deadline while the
+resource has already committed a generation — the orchestrator SHALL
+resolve the attempt AT THE RESOURCE by abandoning it: an abandoned
+attempt SHALL never subsequently be granted, a granted attempt whose
+generation still holds the run SHALL be released, and the caller SHALL
+NOT conclude `not_started` while leaving ownership standing unresolved.
+A durable lease implementation SHALL additionally bound how long an
+unrenewed generation holds a run, as the backstop for an abandon that
+never arrives.
 
 #### Scenario: A provider that never returns does not hold the run open
 
@@ -182,6 +200,30 @@ aborted attempt cannot later become current ownership.
 - **WHEN** the next guarded port is reached
 - **THEN** the port method is not invoked
 - **AND** the run observes `timeout`
+
+#### Scenario: A result arriving after expiry authorizes nothing
+
+- **GIVEN** a guarded port call started inside the budget
+- **AND** wall time crosses the absolute expiry while it runs
+- **WHEN** the call resolves before its timer callback executes
+- **THEN** the result is rejected as `timeout`
+- **AND** no lifecycle transition is earned on it
+
+#### Scenario: Attempt identities are unique per attempt
+
+- **GIVEN** two competing `run()` calls for the same run id, or a retry
+  after an earlier attempt
+- **WHEN** each claims the lease
+- **THEN** every claim presents a distinct attempt identity
+
+#### Scenario: An unacknowledged grant is resolved at the resource
+
+- **GIVEN** a lease that commits a generation before the caller's
+  deadline and delays its acknowledgement past it
+- **WHEN** the caller's deadline interrupts the claim
+- **THEN** the attempt is abandoned at the resource
+- **AND** the committed grant is released rather than left with no holder
+- **AND** the abandoned attempt can never subsequently be granted
 
 ### Requirement: Cancellation and timeout are declared transitions with mandatory evidence
 
