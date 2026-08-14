@@ -298,6 +298,18 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-97'],
   },
   {
+    id: 'RO-MUT-52',
+    mutation:
+      'halt on a lost lease but not on a fence refusal, so a dispossessed run spends anyway',
+    killedBy: ['RO-EX-99', 'RO-EX-100'],
+  },
+  {
+    id: 'RO-MUT-53',
+    mutation:
+      'mutate the machine through an entry point the owner does not expose, or narrow an escape scan to one syntactic form',
+    killedBy: ['RO-EX-103'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

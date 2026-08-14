@@ -329,11 +329,20 @@ describe('RO-INV-06: orchestration cannot decide', () => {
 
     for (const file of sourceFiles()) {
       if (declaresOrProduces(file)) continue
-      const contents = code(file)
+      // BOTH views. `code()` strips string literals, so a bracket
+      // access — `observation['exit_code']` — reads as `observation[""]`
+      // and the scan sees nothing. The raw text catches that form; the
+      // stripped text keeps honest prose from failing the guard.
+      const stripped = code(file)
+      const raw = read(file)
       for (const field of ['exit_code', 'signalled', 'reported_outcome']) {
         expect(
-          contents.includes(field),
+          stripped.includes(field),
           `${file} inspects ${field}; terminal classification belongs to the core`,
+        ).toBe(false)
+        expect(
+          new RegExp(`\\[\\s*['"\`]${field}['"\`]\\s*\\]`).test(raw),
+          `${file} reaches ${field} by bracket access, which the stripped scan cannot see`,
         ).toBe(false)
       }
     }

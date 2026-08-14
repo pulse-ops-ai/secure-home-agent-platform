@@ -114,6 +114,7 @@ are below.
 | RO-INV-58 | Orchestration is decomposed by PHASE and typed by what each phase has established. A phase receives only the state it earned, so reading state it has not is a compile error; no definite-assignment assertion re-enters the tree; and the module sizes are held by a ratchet that may only decrease | behavior |
 | RO-INV-59 | Proof affordances are not runtime authority: `RunSignals` carries only the interrupt, transition tables are validated as NARROWINGS of the canonical lifecycle, and the armed wall clock is bounded by the captured profile — never by what the session port reports | trust |
 | RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
+| RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
 | RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked, the transitions it actually took — releases the resources it actually held, and chooses its record from whether authority was actually captured. It fabricates no machine and seals no bundle | trust |
 
 ## State-Space Model
@@ -313,6 +314,12 @@ persistence (U11).
 | RO-EX-95 | RO-INV-55 | adversarial | a throw from OUTSIDE acquisition's catch — a lease renew, a journal append — still writes exactly one early-terminal record; terminalizing twice writes nothing, which is what the decomposition regressed |
 | RO-EX-96 | RO-INV-59 | structural + adversarial | `RunSignals` declares only the interrupt; a redirected or added transition is refused and never reaches the provider; the wall clock is `min(profile, session, override)` and the spend phase arms from the bound |
 | RO-EX-97 | RO-INV-60 | adversarial | a run cancelled at REQUESTED reads no authority; cancelled after eligibility it provisions nothing and opens no session; cancelled with a session open it is INTERRUPTED, not merely closed |
+| RO-EX-98 | RO-INV-60 | adversarial | a run cancelled at the RUNNING and both VERIFYING boundaries interrupts its open session, not merely closes it — the three boundaries the single earlier fixture did not reach |
+| RO-EX-99 | RO-INV-61 | adversarial | a journal refusing the fence in REQUESTED halts the walk: no session opened, no provider invoked, no gate run |
+| RO-EX-100 | RO-INV-61 | adversarial | a dispossessed run writes no early-terminal record, so its conclusion's "no further write was made" is true of the sinks |
+| RO-EX-101 | RO-INV-59 | adversarial | a widening transition table is refused whether carried as an own property or on a PROTOTYPE — the validator reads what `declaredNext` reads |
+| RO-EX-102 | RO-INV-55 | adversarial | the lost-lease exit disarms the run's timers; a stolen run leaves nothing armed, measured against a control run that leaves nothing either |
+| RO-EX-103 | RO-INV-50 | structural | EVERY machine-mutating entry point is owned — `advance`, `commitProjected` and `hold` — and the escape scans cover bracket access and private-field assertions, the forms this tree actually uses |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -356,6 +363,8 @@ persistence (U11).
 | RO-MUT-49 | RO-INV-58 | mutation | reintroducing a definite-assignment assertion, or letting a phase reach state it has not earned, is killed by RO-EX-94 |
 | RO-MUT-50 | RO-INV-59 | mutation | accepting a caller-supplied transition table unvalidated, or arming the deadline from the session-reported value, is killed by RO-EX-96 |
 | RO-MUT-51 | RO-INV-60 | mutation | removing a boundary cancellation check, or terminating a cancelled run with an open session via `finish` rather than `abortRun`, is killed by RO-EX-97 |
+| RO-MUT-52 | RO-INV-61 | mutation | halting on a lost lease but not on a fence refusal, so a dispossessed run spends anyway, is killed by RO-EX-99/100 |
+| RO-MUT-53 | RO-INV-50 | mutation | mutating the machine through an entry point the owner does not expose, or narrowing an escape scan to one syntactic form, is killed by RO-EX-103 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

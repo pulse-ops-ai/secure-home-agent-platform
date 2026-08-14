@@ -105,6 +105,11 @@ export const writeEarlyTerminalRecord = async (
   detail: string,
 ): Promise<Stop> => {
   const { scope, request, ports } = env
+  // THE SAME GUARD `finish` HAS. Without it a dispossessed run wrote its
+  // governed record and then reported, in the same conclusion, that no
+  // further write was made — the record landing strictly after ownership
+  // moved.
+  if (scope.fenceLost !== undefined) return stop(await conclude(env, 'none', detail))
   const record = buildEarlyTerminationRecord({
     run_id: request.run_id,
     requester: request.requester,
@@ -255,8 +260,9 @@ export const finish = async (
     return await failClosed(committed.detail)
   }
   ledger.markSealed()
-  // The machine adopts the entries that were COMMITTED, verbatim.
-  scope.machine.commitProjected(projected.entries)
+  // The machine adopts the entries that were COMMITTED, verbatim —
+  // through the terminal owner, like every other machine mutation.
+  scope.adoptCommitted(projected.entries)
   return stop(await conclude(env, 'evidence_bundle', detail))
 }
 
@@ -273,9 +279,12 @@ export const abortRun = async (
   env: RunEnvironment,
   authority: Authority,
   observations: Observations,
+  // The raised deadline knows its own reason; a POLLED interrupt does
+  // not set one, so the caller passes what it was told. Defaulting to
+  // 'cancel' would report a timeout as a cancellation.
+  reason: 'cancel' | 'timeout' = env.deadline.reason ?? 'cancel',
 ): Promise<Stop> => {
   const { scope, ports } = env
-  const reason = env.deadline.reason ?? 'cancel'
   if (scope.session !== undefined) {
     try {
       await ports.session.interrupt({

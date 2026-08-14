@@ -22,11 +22,10 @@ import { assembleEvidence } from '../../finalization/records.js'
 import type { PhaseCommand } from '../../lifecycle/index.js'
 import { observeArtifacts } from '../../workspace/index.js'
 import type { AcquisitionEpoch, AuthorityBytes } from '../../ports/index.js'
-import { INTERRUPT_TERMINAL } from '../deadline.js'
 import type { RunEnvironment } from '../environment.js'
 import type { RunConclusion } from '../result.js'
 import type { Authority, Observations } from '../state.js'
-import { finish } from '../terminate.js'
+import { abortRun, finish } from '../terminate.js'
 import { materialize } from '../materialize.js'
 
 const SOURCES = ['profile', 'path_policy', 'gate_registry'] as const
@@ -51,14 +50,15 @@ export const verifying = async (
   const { request, ports, scope } = env
   const fault = (detail: string) =>
     finish(env, authority, seen, 'operational_fault', detail, 'OPERATIONAL_FAILURE')
-  const interrupt = (when: string) => {
+  // ABORTS rather than finishes: the session is still open through
+  // verification, and closing one without interrupting it leaves
+  // whatever it started still running.
+  const interrupt = () => {
     const signal = env.deadline.interrupted()
-    return signal === undefined
-      ? undefined
-      : finish(env, authority, seen, signal, `run ${signal}led ${when}`, INTERRUPT_TERMINAL[signal])
+    return signal === undefined ? undefined : abortRun(env, authority, seen, signal)
   }
 
-  const before = interrupt('before verification')
+  const before = interrupt()
   if (before !== undefined) return before
 
   const reacquired = await runEpoch(
@@ -104,7 +104,7 @@ export const verifying = async (
     run_id: request.run_id,
     paths: request.artifact_paths,
   })
-  const during = interrupt('during verification')
+  const during = interrupt()
   if (during !== undefined) return during
 
   const verdict = verifyEvidence(candidate.bundle, {

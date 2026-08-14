@@ -29,7 +29,7 @@
  * assignment assertions the walk still relies on.
  */
 import type { Ports, RunFence, SessionHandle, WorkspaceHandle } from '../ports/index.js'
-import type { RunMachine, TransitionKind } from '../lifecycle/index.js'
+import type { RunMachine, TransitionEntry, TransitionKind } from '../lifecycle/index.js'
 
 export class RunScope {
   readonly fence: RunFence
@@ -104,6 +104,20 @@ export class RunScope {
       ok: false,
       detail: `the machine granted no terminal from ${this.machine.state}: ${kind} was refused, and so was indeterminate`,
     }
+  }
+
+  /**
+   * Adopt the entries a finalization commit made durable.
+   *
+   * Also a machine advance — it sets the state, appends a transition and
+   * bumps the version — so it lives with the other one. The guard that
+   * asserts "only the declared owners advance the machine" scanned for
+   * `.advance(` alone and could not see this; scanning one name is the
+   * same weakness the landing rejected when it made the terminal-
+   * classification guard a FIELD scan.
+   */
+  adoptCommitted(entries: readonly TransitionEntry[]): void {
+    this.machine.commitProjected(entries)
   }
 
   /** Stop the deadline and cancellation timers. Safe to call twice. */

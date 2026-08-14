@@ -249,13 +249,20 @@ export class Runner {
         // The lease is checked BEFORE each phase's effects, for the same
         // reason the machine's transition is: a run that has lost
         // ownership must stop before it acts, not be told afterwards.
-        beforePhase: async () =>
-          (await env.ports.lease.renew({
+        beforePhase: async (phase: string) => {
+          // TWO WAYS OWNERSHIP IS LOST, and this consulted only one. A
+          // fence refusal — a resource telling this run it has been
+          // superseded — set `fenceLost` and nothing looked at it until
+          // the final commit, so a dispossessed run went on to
+          // provision, spend, invoke the provider and run gates.
+          if (env.scope.fenceLost !== undefined) return env.scope.fenceLost
+          return (await env.ports.lease.renew({
             run_id: env.request.run_id,
             generation: env.scope.fence.generation,
           }))
             ? undefined
-            : `the run lease was lost at generation ${String(env.scope.fence.generation)}`,
+            : `the run lease was lost at generation ${String(env.scope.fence.generation)} before ${phase}`
+        },
         afterRecord: env.journalTick,
       },
     )
@@ -278,11 +285,20 @@ export class Runner {
         if (!recorded.ok) env.scope.loseFence(recorded.detail)
         return await conclude(env, 'none', outcome.detail)
       }
-      case 'lost':
+      case 'lost': {
         // Ownership moved while the run was walking. It has not failed a
         // contract; it has stopped being OURS. Writing a terminal record
         // now would be exactly the second writer the lease prevents, so
         // this path writes NOTHING.
+        //
+        // It must still let go. Marking the fence lost makes `release`
+        // disarm the wall clock — a local timer, belonging to this
+        // process — while skipping the workspace and session, which
+        // belong to whoever holds the run now. This was the one exit
+        // that reached neither, so a stolen run left its deadline armed
+        // for the rest of the profile's budget.
+        env.scope.loseFence(outcome.reason)
+        await env.scope.release(env.ports)
         return {
           run_id: env.request.run_id,
           state: env.scope.machine.state,
@@ -291,6 +307,7 @@ export class Runner {
           transitions: env.scope.machine.transitionRecord,
           rejections: env.scope.machine.rejections,
         }
+      }
       case 'halted':
         return await this.#terminateFromRejection(env, state, outcome)
       case 'walked':

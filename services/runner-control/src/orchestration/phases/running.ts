@@ -8,7 +8,6 @@
 import { classifyTerminalObservations, isProceed } from '@secure-home/runner-core'
 import { observeArtifacts, observeWorkspace } from '../../workspace/index.js'
 import { recordCalls } from '../calls.js'
-import { INTERRUPT_TERMINAL } from '../deadline.js'
 import { describeRefusal, emissionFailure } from '../detail.js'
 import type { RunEnvironment } from '../environment.js'
 import { runGates } from '../gates.js'
@@ -130,15 +129,9 @@ export const running = async (
   }
 
   const signal = env.deadline.interrupted()
-  if (signal !== undefined) {
-    return finish(
-      env,
-      authority,
-      observations,
-      signal,
-      `run ${signal}led during execution`,
-      INTERRUPT_TERMINAL[signal],
-    )
-  }
+  // A session is open here, so this ABORTS. `finish` closes a session
+  // without ever asking it to stop, and a session still running while
+  // the run reports CANCELLED is cancellation in name only.
+  if (signal !== undefined) return abortRun(env, authority, observations, signal)
   return { kind: 'earned', cause: 'independent verification begins', next: observations }
 }

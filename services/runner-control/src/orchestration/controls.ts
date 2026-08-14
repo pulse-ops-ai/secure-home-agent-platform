@@ -53,7 +53,12 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
   const canonical = TRANSITIONS as unknown as Record<string, Record<string, string>>
   const supplied = candidate as unknown as Record<string, Record<string, string>>
 
-  for (const [state, row] of Object.entries(supplied)) {
+  // `for...in`, NOT `Object.entries`. Entries sees own enumerable
+  // properties; `declaredNext` resolves `table[state]?.[kind]` through
+  // the prototype chain. Validating one view and consuming another let a
+  // widening carried on a prototype pass as a narrowing.
+  for (const state in supplied) {
+    const row = supplied[state] ?? {}
     const declared = canonical[state]
     if (declared === undefined) {
       return {
@@ -61,7 +66,8 @@ export const narrowingOnly = (candidate: TransitionTable | undefined): TableChec
         detail: `the table declares state ${state}, which the lifecycle does not`,
       }
     }
-    for (const [kind, to] of Object.entries(row)) {
+    for (const kind in row) {
+      const to = row[kind]
       if (!(kind in declared)) {
         return {
           ok: false,

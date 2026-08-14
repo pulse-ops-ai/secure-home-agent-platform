@@ -164,8 +164,11 @@ describe('RO-EX-93: orchestration stays small enough to see', () => {
         const code = readFileSync(file, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, ' ')
           .replace(/\/\/[^\n]*/g, ' ')
-        // `let x!: T` and class field `x!: T`.
-        return /(?:^|\s)(?:let\s+)?[A-Za-z_$][\w$]*!\s*:/.test(code)
+        // `let x!: T`, class field `x!: T`, and `#x!: T` — the private
+        // form is the dominant field style in this tree, and the
+        // previous pattern required an identifier character after
+        // start-or-whitespace, so `#` broke the match entirely.
+        return /(?:^|\s)(?:let\s+)?#?[A-Za-z_$][\w$]*!\s*:/.test(code)
       })
       .map((file) => relative(srcRoot, file))
 
