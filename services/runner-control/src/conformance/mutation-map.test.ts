@@ -641,6 +641,21 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-177'],
   },
   {
+    id: 'RO-MUT-118',
+    mutation: 'stage a terminal event without consulting the event-domain identity authority',
+    killedBy: ['RO-EX-178'],
+  },
+  {
+    id: 'RO-MUT-119',
+    mutation: 'report a staged event conflict as stale_fence',
+    killedBy: ['RO-EX-178'],
+  },
+  {
+    id: 'RO-MUT-120',
+    mutation: 'restore the optional commit identity and its derivation fallback',
+    killedBy: ['RO-EX-179'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

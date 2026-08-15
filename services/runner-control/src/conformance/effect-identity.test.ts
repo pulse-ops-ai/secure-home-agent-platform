@@ -23,9 +23,13 @@ const RUN = 'run-20260812-0001'
 // Assurance aliases for the reviewer-authored round-13 proofs
 // (falsification-round13.test.ts): RO-EX-172 (journal conflicting
 // replay), RO-EX-173 (evidence conflicting replay), RO-EX-174
-// (boundary-owned expiry stamp) — and the round-14 proof
+// (boundary-owned expiry stamp) — the round-14 proof
 // (falsification-round14.test.ts): RO-EX-177 (a conflicting event
-// replay consumes its identity and never rewinds the sequence).
+// replay consumes its identity and never rewinds the sequence) — and
+// the round-15 proofs (falsification-round15.test.ts): RO-EX-178 (a
+// staged terminal event answers to the same event-domain identity
+// authority) and RO-EX-179 (the finalization commit identity is
+// required by the public type).
 
 const LIMITS = {
   wall_clock_seconds: 600,

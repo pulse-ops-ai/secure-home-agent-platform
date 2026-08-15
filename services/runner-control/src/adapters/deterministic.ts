@@ -111,9 +111,30 @@ export class RecordingEventSink implements EventSinkPort {
   readonly #visibility: CommitVisibility
   /** (run, sequence) → canonical landed event: the replay ledger. */
   readonly #landed = new Map<string, string>()
+  /** (run, sequence) → unpublished staged reservation of that identity. */
+  readonly #reserved = new Map<string, { readonly commit_id: string; readonly canonical: string }>()
 
   constructor(visibility: CommitVisibility = new CommitLedger()) {
     this.#visibility = visibility
+  }
+
+  /**
+   * THE ONE EVENT-DOMAIN IDENTITY AUTHORITY. What durably occupies
+   * (run, sequence) is either an ordinarily-landed event or a STAGED
+   * event whose commit has published — `commit_id` names the atomic
+   * transaction, never the event's own identity, so a staged terminal
+   * event answers to the same ledger as every ordinary emission.
+   */
+  #durableCanonical(run_id: string, sequence: number): string | undefined {
+    const identity = `${run_id}#e${String(sequence)}`
+    const landed = this.#landed.get(identity)
+    if (landed !== undefined) return landed
+    for (const row of this.#byRun.get(run_id) ?? []) {
+      if (row.commit_id === undefined || !isVisible(this.#visibility, row.commit_id)) continue
+      const staged = row.event as { readonly sequence?: unknown }
+      if (staged.sequence === sequence) return JSON.stringify(row.event)
+    }
+    return undefined
   }
 
   emit(
@@ -128,9 +149,9 @@ export class RecordingEventSink implements EventSinkPort {
     // one identity, whatever went wrong with the first acknowledgement.
     const identity = `${request.run_id}#e${String(request.sequence)}`
     const canonical = JSON.stringify(request.event)
-    const landed = this.#landed.get(identity)
-    if (landed !== undefined) {
-      if (landed === canonical) return Promise.resolve(refused)
+    const durable = this.#durableCanonical(request.run_id, request.sequence)
+    if (durable !== undefined) {
+      if (durable === canonical) return Promise.resolve(refused)
       // The typed refusal, not a throw: a caller must be able to tell
       // "this identity already carries a different event" apart from a
       // broken sink — the emitter advances past an occupied identity,
@@ -148,7 +169,19 @@ export class RecordingEventSink implements EventSinkPort {
     return Promise.resolve(refused)
   }
 
-  /** Record the terminal event against `commit_id`, invisibly. */
+  /**
+   * Record the terminal event against `commit_id`, invisibly — under
+   * the SAME event-domain identity authority as `emit`.
+   *
+   * The staged state machine, explicit: staging a new fact RESERVES its
+   * (run, sequence) identity invisibly; an exact staged replay is the
+   * same logical fact and stages no duplicate; a DIFFERENT event whose
+   * identity is durably occupied or reserved refuses as a conflicting
+   * replay before anything can publish; `abandon` removes only the
+   * unpublished reservation, so an abandoned stage never poisons a
+   * valid retry; and once published, the identity is durable through
+   * `#durableCanonical` and can never be reused.
+   */
   stageEmit(
     request: RunFence & { readonly commit_id: string; readonly event: unknown },
   ): Promise<Staging> {
@@ -158,6 +191,42 @@ export class RecordingEventSink implements EventSinkPort {
     }
     const commit_id = request.commit_id
     const run_id = request.run_id
+    const staged = request.event as { readonly sequence?: unknown }
+    const sequence = typeof staged.sequence === 'number' ? staged.sequence : undefined
+    const canonical = JSON.stringify(request.event)
+    const identity = sequence === undefined ? undefined : `${run_id}#e${String(sequence)}`
+    if (sequence !== undefined && identity !== undefined) {
+      const durable = this.#durableCanonical(run_id, sequence)
+      if (durable !== undefined && durable !== canonical) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} already carries a different durable event; the terminal event cannot occupy it`,
+        })
+      }
+      const reserved = this.#reserved.get(identity)
+      if (
+        reserved !== undefined &&
+        reserved.commit_id !== commit_id &&
+        !isVisible(this.#visibility, reserved.commit_id) &&
+        reserved.canonical !== canonical
+      ) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} is reserved by another staged commit with a different event`,
+        })
+      }
+      if (durable === canonical) {
+        // The same logical fact is already durable: stage nothing, so
+        // publication cannot duplicate it, and abandon has nothing to do.
+        return Promise.resolve({
+          ok: true,
+          staged: { commitId: commit_id, abandon: () => undefined },
+        })
+      }
+      this.#reserved.set(identity, { commit_id, canonical })
+    }
     const existing = this.#byRun.get(run_id) ?? []
     existing.push({ event: request.event, commit_id })
     this.#byRun.set(run_id, existing)
@@ -166,6 +235,10 @@ export class RecordingEventSink implements EventSinkPort {
       staged: {
         commitId: commit_id,
         abandon: () => {
+          if (identity !== undefined) {
+            const reservation = this.#reserved.get(identity)
+            if (reservation?.commit_id === commit_id) this.#reserved.delete(identity)
+          }
           this.#byRun.set(
             run_id,
             (this.#byRun.get(run_id) ?? []).filter((row) => row.commit_id !== commit_id),

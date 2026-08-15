@@ -64,6 +64,9 @@ const cancelledTransition = (detail: string): TransitionEntry => ({
 const commitFor = (generation: number, detail: string): FinalizationCommit => ({
   run_id: RUN,
   generation,
+  // One identity per generation, DELIBERATELY shared across intents:
+  // RO-EX-162's aliasing probe needs A and B to wear the same identity.
+  commit_id: `commit-round12-g${String(generation)}`,
   terminal: 'CANCELLED',
   transitions: [cancelledTransition(detail)],
   event: {

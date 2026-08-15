@@ -777,6 +777,50 @@ operation its requirement names.
   build, strict OpenSpec validation, and repository gate green at the
   pushed head.
 
+- [x] **7.15 Close round-15 terminal-staging identity findings**
+  <!-- agent-task: 7.15 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.14 -->
+
+  **Authorized by** — the same owner decision record (mechanical D14
+  conformance). Both reviewer-only commits were preserved as distinct
+  provenance: `64e26c0396d3e5a1dc4f888182746d98412f1571` (round-15
+  REDs) and `9162915cb2863728704549f931222b75f7ec5fb3` (their SPI
+  correction), consumed unmodified.
+
+  **Implements** — the staged terminal event answers to the SAME
+  (run, sequence) event-domain identity authority as ordinary emission:
+  `stageEmit` consults the one durable ledger (`#durableCanonical`,
+  covering ordinary landings AND published staged events), reserves the
+  identity invisibly on staging, refuses a conflicting stage as
+  `conflicting_replay` before publication, stages nothing for an exact
+  already-durable replay, and releases only the unpublished reservation
+  on abandon. `Staging` and `CommitOutcome` both represent
+  `conflicting_replay`, preserved from participant to commit caller.
+  `FinalizationCommit.commit_id` is REQUIRED by the public type; the
+  adapter's `(run, generation, terminal)` derivation fallback is
+  removed.
+
+  **Disclosures** — (1) Four older reviewer proof files
+  (rounds 10…13) construct `FinalizationCommit` literals; the mandated
+  required-identity change added exactly one `commit_id` field to each
+  (round-12's deliberately shared per-generation so RO-EX-162's
+  aliasing probe still exercises the same-identity/different-intent
+  branch); no assertion changed. (2) Sibling-path audit per
+  instruction: `journal.stageTransitions` stages the terminal tail
+  without entry identities and `evidence.stageWrite` stages the bundle
+  without a record identity — in both, replay protection comes from the
+  commit's canonical intent rather than the store's own domain ledger.
+  No executable or normative proof currently requires those staged
+  facts to carry store-domain identities, so per instruction they were
+  NOT changed; the observation is disclosed here for fresh
+  falsification.
+
+  **Proof required** — the reviewer round-15 file green and unmodified
+  (`git diff 9162915 -- …round15.test.ts` empty); RO-EX-178/179 and
+  RO-MUT-118…120 registered, each mutant hand-applied and killed
+  (RO-MUT-120 at typecheck); every prior falsification round green;
+  complete tests, typecheck, lint, build, strict OpenSpec validation,
+  and repository gate green at the pushed head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

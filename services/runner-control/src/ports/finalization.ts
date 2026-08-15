@@ -42,20 +42,20 @@ import type { RunFence } from './values.js'
 export interface FinalizationCommit extends RunFence {
   /**
    * THE CALLER-OWNED LOGICAL COMMIT IDENTITY, established BEFORE the
-   * port call and stable across retries of the same intent.
+   * port call and stable across retries of the same intent — REQUIRED,
+   * never derived by the implementation.
    *
-   * An implementation must not privately mint a new logical identity per
-   * call — that is precisely what made a retried commit publish a second
-   * terminal after its first acknowledgement was lost. A repeat of the
-   * SAME identity whose publication already happened is answered
-   * `ok: true` without staging or publishing anything; that answer is
-   * the reconciliation of a lost acknowledgement.
-   *
-   * When absent, the implementation derives the identity
-   * deterministically from `(run_id, generation, terminal)` — still
-   * caller-knowable, never per-call.
+   * An implementation must not mint a logical identity per call, and it
+   * must not derive one from `(run_id, generation, terminal)` either:
+   * the owner decision requires the identity to exist before the
+   * request crosses `FinalizationPort.commit`, so retry and
+   * reconciliation of one logical finalization reuse one identity by
+   * construction. A repeat of the SAME identity whose publication
+   * already happened is answered `ok: true` without staging or
+   * publishing anything; that answer is the reconciliation of a lost
+   * acknowledgement.
    */
-  readonly commit_id?: string
+  readonly commit_id: string
   /** The terminal state this run is committing to. */
   readonly terminal: LifecycleState
   /**
@@ -124,7 +124,8 @@ export type CommitOutcome =
    */
   | {
       readonly ok: false
-      readonly reason?: 'stale_fence' | 'expired' | 'attempt_expired' | 'already_committed'
+      readonly reason?:
+        'stale_fence' | 'expired' | 'attempt_expired' | 'already_committed' | 'conflicting_replay'
       readonly detail: string
     }
 
@@ -183,7 +184,18 @@ export interface StagedWrite {
 
 export type Staging =
   | { readonly ok: true; readonly staged: StagedWrite }
-  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
+  /**
+   * `conflicting_replay` from a STAGING participant means the fact this
+   * commit would publish already exists durably under its domain
+   * identity with different content — the transaction identity
+   * (`commit_id`) does not replace the fact's own identity, and a
+   * terminal event cannot occupy a sequence another durable event holds.
+   */
+  | {
+      readonly ok: false
+      readonly reason?: 'stale_fence' | 'conflicting_replay'
+      readonly detail: string
+    }
 
 /**
  * THE SINGLE VISIBILITY AUTHORITY.

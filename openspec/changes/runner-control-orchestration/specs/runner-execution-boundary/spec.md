@@ -228,6 +228,27 @@ boundary stamps the winning expiry — instant and provenance as one
 value — UNCONDITIONALLY into the finalization commit, and
 request-supplied expiry metadata never survives the guard.
 
+A staged terminal event SHALL answer to the SAME event-domain identity
+authority as ordinary emission: the transaction identity (`commit_id`)
+names the atomic finalization, never the event's own (run, sequence)
+identity. Staging a terminal event whose sequence is durably occupied by
+a different event SHALL refuse as a conflicting replay before anything
+publishes, with the refusal preserved through both the staging result
+and the commit outcome; an abandoned stage releases only its
+unpublished reservation, and a published identity is never reusable.
+The finalization commit identity SHALL be required by the public type —
+established by the caller before the request crosses the port, with no
+implementation-side derivation.
+
+#### Scenario: A staged terminal event cannot occupy another event's identity
+
+- **GIVEN** a durable event occupying a sequence identity
+- **WHEN** a finalization stages a different terminal event at that
+  identity
+- **THEN** staging refuses as a conflicting replay and the commit
+  publishes nothing
+- **AND** the first durable event stands unchanged
+
 #### Scenario: A conflicting event replay never rewinds the sequence
 
 - **GIVEN** a durable event occupying a sequence identity

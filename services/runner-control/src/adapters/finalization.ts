@@ -142,15 +142,12 @@ export class TransactionalFinalization implements FinalizationPort {
     const { journal, events, evidence, visibility, lease } = this.#participants
     const fence = { run_id: commit.run_id, generation: commit.generation }
     const staged: StagedWrite[] = []
-    // THE LOGICAL COMMIT IDENTITY IS THE CALLER'S, never minted per
-    // call. A per-call counter is what turned a lost acknowledgement
-    // into a second terminal: the retry arrived wearing a fresh
-    // identity, so nothing could recognise it as the same commit. When
-    // the caller supplies none, the identity derives deterministically
-    // from (run, generation, terminal) — still stable across retries.
-    const commit_id =
-      commit.commit_id ??
-      `${commit.run_id}#g${String(commit.generation)}#${String(commit.terminal)}`
+    // THE LOGICAL COMMIT IDENTITY IS THE CALLER'S — required by the
+    // contract, never minted and never derived here. A per-call counter
+    // is what turned a lost acknowledgement into a second terminal, and
+    // a derived (run, generation, terminal) identity is what let two
+    // different intents alias one another; both fallbacks are gone.
+    const commit_id = commit.commit_id
     const holder = `${commit.run_id}#g${String(commit.generation)}`
 
     // ---- RECONCILE BEFORE ANYTHING ELSE --------------------------
@@ -227,7 +224,12 @@ export class TransactionalFinalization implements FinalizationPort {
       let outcome
       try {
         outcome = (await prepare()) as
-          { ok: true; staged: StagedWrite } | { ok: false; reason?: 'stale_fence'; detail: string }
+          | { ok: true; staged: StagedWrite }
+          // The participant's reason is PRESERVED to the caller — a
+          // conflicting replay from staging must reach the commit's
+          // public outcome as itself, never as generic failure or
+          // ownership loss.
+          | { ok: false; reason?: 'stale_fence' | 'conflicting_replay'; detail: string }
       } catch (error) {
         abandon()
         return {

@@ -154,6 +154,7 @@ describe('finalization expiry provenance is boundary-owned', () => {
     const outcome = await guarded.finalization.commit({
       run_id: RUN,
       generation: claim.generation,
+      commit_id: 'commit-round13-boundary',
       terminal: 'CANCELLED',
       transitions: [transitionA],
       event: { event_type: 'run.terminated' },

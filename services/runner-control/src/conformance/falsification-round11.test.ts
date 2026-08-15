@@ -245,6 +245,7 @@ describe('RO-EX-160: a lost finalization acknowledgement is reconciliable', () =
   const commitFor = (generation: number): FinalizationCommit => ({
     run_id: RUN,
     generation,
+    commit_id: `commit-round11-g${String(generation)}`,
     terminal: 'COMPLETED',
     transitions: [],
     event: { event_type: 'run.terminated', outcome: 'success' },

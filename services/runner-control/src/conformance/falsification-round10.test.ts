@@ -123,6 +123,7 @@ describe('RO-EX-153: an acknowledged commit is a fact, not a candidate', () => {
       const outcome = await finalization.commit({
         run_id: RUN,
         generation: claim.generation,
+        commit_id: 'commit-round10-publication-expiry',
         terminal: 'EVIDENCE_SEALED',
         transitions: [tail],
         event: { event_type: 'run.terminated' },
