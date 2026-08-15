@@ -9,11 +9,14 @@ answer to "why is it like this?" eighteen months from now.
 > accepted file.
 >
 > **Neither foundational acceptance resolved anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** One
-> item has closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
-> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12 — the
-> only item of the tracked set **U1–U11** ever closed. Every other item still
-> blocks the work that depends on it. See
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
+> items have closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
+> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12, and
+> **[U7](../architecture/unresolved-decisions.md#u7)**, by
+> [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) on
+> 2026-08-15 — two of the tracked set **U1–U11**. Every other item still
+> blocks the work that depends on it, and U7's closure decided the knowledge
+> format without opening knowledge authoring. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
 This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
@@ -75,7 +78,7 @@ questions the ADRs deliberately left open:
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
 | Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Authoring a real knowledge bundle | [U7](../architecture/unresolved-decisions.md#u7) |
+| Authoring a real knowledge bundle | the ADR-0010 toolchain gate — [ADR-0015 §12](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md); [U7](../architecture/unresolved-decisions.md#u7) is **RESOLVED** and is not this gate |
 | Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
 | Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |
 | Giving `action-gateway` a Home Assistant credential | [U10](../architecture/unresolved-decisions.md#u10) |
@@ -120,7 +123,7 @@ implementation-neutral. These decide how it is built.
 | [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
 | [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
 | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
-| [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Proposed | [`knowledge/`](../../knowledge/), the knowledge toolchain |
+| [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -135,7 +138,7 @@ implementation-neutral. These decide how it is built.
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0013 in full: the ten SPI decisions, including the cross-layer capability split and the terminal-state posture |
 | **Review** | issue #11 (U6 gate); PR #74, drafted from the L6 spike evidence in PR #73 |
-| **Unresolved decisions resolved** | **[U6](../architecture/unresolved-decisions.md#u6)** — the first item ever to leave `unresolved-decisions.md`. Every other item remains open |
+| **Unresolved decisions resolved** | **[U6](../architecture/unresolved-decisions.md#u6)** — the first item ever to leave `unresolved-decisions.md`. [U7](../architecture/unresolved-decisions.md#u7) followed on 2026-08-15 |
 
 **What was accepted.** Adapters translate and report, never decide or enforce ·
 capability is a **cross-layer** property — the adapter narrows the
@@ -220,8 +223,12 @@ to deploy, and it does not make any unresolved decision decided.
 - **No OpenFGA runtime is deployed** — [U8](../architecture/unresolved-decisions.md#u8).
 - **No runner workload identity is selected** — [U2](../architecture/unresolved-decisions.md#u2).
 - **`BOUNDED` still behaves as `FAIL CLOSED`** — [U1](../architecture/unresolved-decisions.md#u1).
-- U3, U4, U5, U6, U7, U9 likewise remain open and still block the work that
-  depends on them.
+- U3, U4, U5, and U9 likewise remain open and still block the work that depends
+  on them. **U6 and U7 have since closed** — U6 by ADR-0013 on 2026-08-12, U7 by
+  ADR-0015 on 2026-08-15. Neither closure came from ADR-0012's acceptance, which
+  is the point this list was making; both came from a later ADR that answered
+  the question. U7's closure decided the knowledge format and did **not** open
+  knowledge authoring.
 
 ### ADR-0014 acceptance record
 
@@ -231,7 +238,7 @@ to deploy, and it does not make any unresolved decision decided.
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0014 in full: the canonical-home taxonomy by kind of truth, the projection semantics, the provider-artifact limit, the four-layer split, and the determination obligation |
 | **Review** | PR #83, across two correction rounds |
-| **Unresolved decisions resolved** | **none.** This ADR closes no item. [U7](../architecture/unresolved-decisions.md#u7) remains open, and authoring knowledge remains blocked because the ADR-0010 validator and toolchain do not exist |
+| **Unresolved decisions resolved** | **none.** This ADR closed no item. [U7](../architecture/unresolved-decisions.md#u7) was open at the time and was resolved later the same day by [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md). Authoring knowledge remains blocked, because the ADR-0010 toolchain does not exist |
 
 **What was accepted.** A durable truth has ONE canonical home, chosen by its
 **kind** — architecture to ADRs and `docs/architecture/`; governance,
@@ -252,6 +259,46 @@ satisfies it.
 [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) and remains
 `Proposed`. No knowledge module may be authored: that is gated on the ADR-0010
 toolchain, not on this decision.
+
+### ADR-0015 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-15 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0015 in full: OKF v0.2 as source representation only, pinned; the admission/consumption split; the repository profile; the catalog-as-authority reconciliation; the refusal of execution-bearing content; raw-byte digest identity with a normative manifest format; the trust/authority prohibition; and the implementation obligation |
+| **Dependency** | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md), accepted 2026-08-15 — satisfied before this acceptance, as ADR-0015 §3a required |
+| **Unresolved decisions resolved** | **[U7](../architecture/unresolved-decisions.md#u7)** — the second item ever to leave `unresolved-decisions.md` |
+
+**What was accepted.** OKF v0.2 is the source representation and nothing else,
+pinned rather than floating · admission **rejects** while consumption
+**tolerates**, because every field this repository requires is optional in OKF ·
+the catalog stays authoritative for module metadata and frontmatter mirrors it,
+with a material disagreement an admission failure · execution-bearing content —
+`Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is
+**refused**, so a Skill, script, or container cannot enter through the knowledge
+plane · digest identity is over raw bytes through a normative, versioned manifest
+serialization · and **no OKF trust signal is an input to execution authority,
+capability, authorization, safety policy, or live state** — `human-reviewed`
+confers exactly what `unverified` does, which is nothing.
+
+**What this acceptance does NOT do.**
+
+| | |
+|---|---|
+| **Toolchain implementation obligation** | **UNSATISFIED.** compile / validate / package / query do not exist, and neither does the §12 conformance suite |
+| **Knowledge authoring** | **BLOCKED.** Recorded structurally as `blockedByToolchain: true` on every registered module and set, asserted by `scripts/check-knowledge.mjs` — not merely required as a field |
+| **Runtime or deployment authority** | **NONE GRANTED.** `knowledge/` remains non-runtime-authoritative |
+
+**What it does unblock.** The implementation of that obligation — the next
+landing — is now eligible to begin against a decided architecture.
+
+**Why U7 closing is not permission.** U7 asked whether the format architecture
+was decided. It was the wrong variable to carry authoring readiness, and the two
+were separated deliberately in the same commit that closed it: `blockedByU7`
+became `blockedByToolchain` across every registry entry and consumer, and the
+validator now asserts it is `true`. Opening authoring is an explicit reviewed
+transition, not a side effect of an item closing.
 
 ## Which ADRs apply to what I am changing?
 

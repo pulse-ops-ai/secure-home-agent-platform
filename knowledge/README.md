@@ -9,7 +9,10 @@ that agents read to *understand* the house.
 > The validator must exist **before** the first real bundle is authored.
 >
 > **`knowledge/` is not runtime-authoritative**
-> ([U7](../docs/architecture/unresolved-decisions.md#u7)).
+> — the ADR-0010 toolchain does not exist. The FORMAT is decided
+> ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
+> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
+> toolchain is not built, which is what `blockedByToolchain` records.
 
 ## Start here
 

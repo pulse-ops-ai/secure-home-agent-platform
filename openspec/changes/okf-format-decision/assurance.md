@@ -1,7 +1,9 @@
 # Assurance Plan: okf-format-decision
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0015 is `Proposed`; the invariants below
-> describe what it would establish.
+> **In force.** ADR-0015 was accepted 2026-08-15 and U7 is RESOLVED. The
+> **structural** invariants below are established. Every **behavioural** one
+> remains unproven and is deferred to the implementation landing — the toolchain
+> does not exist, and a decision cannot prove a behaviour it has not built.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ ADR-0010 exists to prevent. The invariants are aimed there.
 | KF-INV-04 | Admission rejects; consumption tolerates. Neither posture is applied at the other's layer | behavior |
 | KF-INV-05 | Digest identity is over raw bytes; envelope violations are rejected, not normalized | behavior |
 | KF-INV-06 | **No OKF trust, provenance, or lifecycle signal is an input to execution authority, capability, authorization, safety policy, or live-state interpretation** | trust |
-| KF-INV-07 | U7 tracks whether the question is ANSWERED and closes on acceptance; the implementation obligation tracks whether authoring is SAFE. One state variable never stands for both | trust |
+| KF-INV-07 | U7 tracks whether the question is ANSWERED — closed 2026-08-15. `blockedByToolchain` tracks whether authoring is SAFE — still `true`. One state variable never stands for both, and the migration proving it was atomic with the closure | trust |
 | KF-INV-09 | `as_of` (factual currency) is distinct from `generated.at` (production time); regeneration never advances factual currency | behavior |
 | KF-INV-10 | Execution-bearing OKF content — `Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is refused at admission, by field as well as by type, and the refusal is proven by EXECUTABLE negative tests before the gate opens | trust |
 | KF-INV-11 | The manifest's byte serialization is normative and versioned, so two conforming implementations agree on a bundle digest | behavior |

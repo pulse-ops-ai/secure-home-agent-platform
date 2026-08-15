@@ -10,7 +10,7 @@
  *
  * **This is not the ADR-0010 bundle validator.** That validator machine-checks
  * the prohibited-content rules over real bundle content, and it does not exist:
- * it is gated on U7, and it is the deliverable that must land BEFORE the first
+ * it is the deliverable that must land BEFORE the first
  * real module content is authored.
  *
  * What this checks is that the repository's *specification* is coherent — that
@@ -42,7 +42,8 @@
  *      prose view cannot drift from the machine-readable one;
  *   6. no module directory contains authored content — a specification directory
  *      holds its README and nothing else;
- *   7. no module or set claims a publishable status while U7 is open;
+ *   7. no module or set claims a publishable status, and every entry carries
+ *      blockedByToolchain: true, while the toolchain does not exist;
  *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
  *      for sets. Module IDs are recognised by shape, since they always contain a
  *      slash. Set IDs cannot be — `Planned`, `warn`, and `catalog.json` are
@@ -78,7 +79,7 @@ const REQUIRED_MODULE_FIELDS = [
   'governingSources',
   'sensitivity',
   'freshnessPolicy',
-  'blockedByU7',
+  'blockedByToolchain',
 ]
 
 /**
@@ -102,7 +103,7 @@ const REQUIRED_SET_FIELDS = [
   'governingSources',
   'sensitivity',
   'freshnessPolicy',
-  'blockedByU7',
+  'blockedByToolchain',
   'required',
   'optional',
   'deny',
@@ -132,7 +133,7 @@ const DENY_PATTERN = /^[a-z][a-z0-9-]*\/(?:\*|[a-z][a-z0-9-]*)$/
 /**
  * Addresses prohibited by ADR-0010 and by the module READMEs. Deliberately
  * narrow: these have unambiguous shapes. Semantic prohibitions are the bundle
- * validator's job (U7), not this file's.
+ * validator's job, not this file's.
  */
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
 const MAC = /\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b/
@@ -233,7 +234,21 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (publishable.has(m.status)) {
       fail(
         `module "${id}": status "${m.status}" claims a published artifact, but the ` +
-          'ADR-0010 validator does not exist (U7). Nothing may be published yet',
+          'ADR-0010 toolchain does not exist. Nothing may be published yet',
+      )
+    }
+    // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT.
+    //
+    // U7 asked whether the format architecture was decided; ADR-0015 answered
+    // it and U7 is RESOLVED. Authoring readiness is a DIFFERENT fact, and this
+    // is where it lives. Requiring only that the field exist would have let
+    // `false` pass on the day U7 closed — turning "the question is answered"
+    // into "the work is done" by omission. Opening authoring is an explicit
+    // reviewed transition: someone edits every entry, and the diff shows it.
+    if (m.blockedByToolchain !== true) {
+      fail(
+        `module "${id}": blockedByToolchain must be true until the ADR-0010 ` +
+          'toolchain exists and its conformance suite passes (ADR-0015 §12)',
       )
     }
     for (const source of m.governingSources ?? []) {
@@ -301,7 +316,17 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       fail(`set "${id}": sensitivity "${s.sensitivity}" is not in the sensitivity vocabulary`)
     }
     if (publishable.has(s.status)) {
-      fail(`set "${id}": status "${s.status}" claims a published artifact while U7 is open`)
+      fail(
+        `set "${id}": status "${s.status}" claims a published artifact, but the ` +
+          'ADR-0010 toolchain does not exist',
+      )
+    }
+    // The same gate, for sets. See the module check above.
+    if (s.blockedByToolchain !== true) {
+      fail(
+        `set "${id}": blockedByToolchain must be true until the ADR-0010 ` +
+          'toolchain exists and its conformance suite passes (ADR-0015 §12)',
+      )
     }
     for (const source of s.governingSources ?? []) {
       if (!existsSync(join(root, source))) {
@@ -392,7 +417,7 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (extra.length > 0) {
       fail(
         `module "${m.id}": specification directory contains ${JSON.stringify(extra)} — ` +
-          'only README.md is permitted until the ADR-0010 validator exists (U7)',
+          'only README.md is permitted until the ADR-0010 toolchain exists',
       )
     }
 

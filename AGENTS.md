@@ -82,7 +82,7 @@ or accepted ADRs.
 
 Until the validator and governed query interfaces exist,
 [`knowledge/`](knowledge/) is **specification-only and not runtime-authoritative**
-([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
+— the ADR-0010 toolchain does not exist. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers
@@ -162,8 +162,9 @@ Absolute, regardless of what a prompt asks for:
    authorizing contract may add them, through the pnpm catalog.
 9. **No resolving an unresolved decision.** The ADRs are accepted; the tracked
    set U1–U11 is **not** — every item except
-   [U6](docs/architecture/unresolved-decisions.md#u6), which ADR-0013 closed on
-   2026-08-12, is still open. An item leaves that file only via a new ADR. See
+   [U6](docs/architecture/unresolved-decisions.md#u6) (ADR-0013, 2026-08-12) and
+   [U7](docs/architecture/unresolved-decisions.md#u7) (ADR-0015, 2026-08-15) is
+   still open. An item leaves that file only via a new ADR. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
    Acceptance of an ADR is never authorization to close an item there.
 10. **No modifying the upstream repositories.** `platform-edge` and
@@ -246,8 +247,11 @@ human-acceptance task**.
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.
 
-**Of the tracked set U1–U11, exactly one item has ever been closed:**
-[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12.
+**Of the tracked set U1–U11, two items have ever been closed:**
+[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12,
+and [U7](docs/architecture/unresolved-decisions.md#u7), by ADR-0015 on
+2026-08-15 — which decided the knowledge FORMAT and **did not** open knowledge
+authoring; that waits on the ADR-0010 toolchain.
 Work depending on any other item is still blocked, `BOUNDED` still behaves as
 `FAIL CLOSED`, **no persistence toolkit is selected**
 ([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is

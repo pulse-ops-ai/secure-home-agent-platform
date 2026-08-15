@@ -42,7 +42,7 @@ ADR-0014 as "accepted". **At the time this change was written it was
 "depends on nothing that requires ADR-0014's acceptance." That was wrong. §5's
 `governs` field depends on ADR-0014's canonical-source model for its meaning, so
 §3a now states the ordering constraint: ADR-0014 must be `Accepted` before
-ADR-0015 may be. Both may remain `Proposed` together, and the decisions stay
+ADR-0015 may be. Both could remain `Proposed` together, and the decisions stayed
 separately reviewable.
 
 ---
@@ -236,11 +236,41 @@ reader concludes authoring is open because the item it names is no longer open.
 - [x] **7.5 `blockedByToolchain` wording fixed** — the validator requires
       `blockedByU7` today; the rename has not happened.
 
+## 8. Acceptance and migration (C-accept)
+
+- [x] **8.1 ADR-0015 accepted** — `Proposed` → `Accepted`, 2026-08-15, by the
+      repository owner. ADR-0014's dependency (§3a) was satisfied first.
+- [x] **8.2 U7 RESOLVED in place** — following the U6/ADR-0013 precedent, with
+      the original question preserved, the summary row updated, and an explicit
+      statement that resolution is **not** evidence the toolchain exists and
+      **not** permission to author.
+- [x] **8.3 Migration executed atomically** — 27 renames of `blockedByU7` →
+      `blockedByToolchain`: catalog 23, checker 2, Python test 2. No
+      compatibility alias; one representation of the gate.
+- [x] **8.4 Gate strengthened from present to TRUE** — `check-knowledge.mjs`
+      now fails any module or set whose `blockedByToolchain` is not `true`.
+      Three deterministic tests prove it: a module that unblocks itself is
+      rejected, a set that unblocks itself is rejected, and every live registry
+      entry is asserted `true`.
+- [x] **8.5 Vocabulary migrated** — `knowledge/INDEX.md`, `README.md`,
+      `AGENTS.md`, root `AGENTS.md`, `knowledge-selection-model.md`,
+      `docs/decisions/INDEX.md`, plus the two closed-item counts that U7's
+      closure falsified.
+- [x] **8.6 Acceptance record** — `docs/decisions/INDEX.md`, stating what was
+      accepted and, explicitly, that the toolchain obligation is UNSATISFIED and
+      authoring remains BLOCKED.
+
+**Deliberately NOT marked satisfied.** Every behavioural and toolchain proof
+obligation in this change's assurance remains open. Nothing was built, and a
+decision cannot prove a behaviour it has not implemented. Those belong to the
+implementation landing.
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0015 exists, is `Proposed`, carries every section `docs/AGENTS.md` requires.
 - [x] No accepted ADR edited; no status line changed.
-- [x] U7 remains OPEN; the pointer says so explicitly.
+- [x] *(at the time of the proposing landing)* U7 remained OPEN and the pointer
+      said so. U7 was resolved later, in the acceptance landing recorded in §8.
 - [x] No knowledge module, set, or catalog entry added.
 - [x] No compile/validate/package/query implementation added.
 - [x] The spike is outside the repository and uncommitted.

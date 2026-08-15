@@ -54,7 +54,7 @@ value be different in ten minutes?** If yes, it is state.
 - **Nothing reads a bundle file directly.** Access is through the `query`
   interface, so the format stays replaceable.
 - **Do not invent an OKF schema.** The format is experimental and unvalidated
-  ([U7](../docs/architecture/unresolved-decisions.md#u7)).
+  (the ADR-0010 toolchain does not exist).
 - **No secrets in examples either.** An example token is still a token-shaped
   string in the repository.
 
@@ -66,7 +66,7 @@ value be different in ten minutes?** If yes, it is state.
   is accepted, which makes *building* the validator in scope under a task
   contract — the validator still comes first.
 - Choose the knowledge format — that is
-  [U7](../docs/architecture/unresolved-decisions.md#u7) and requires an ADR.
+  the ADR-0010 toolchain gate and requires an ADR.
 - Copy household member names, device identifiers, or network addresses into
   this directory.
 
@@ -95,7 +95,7 @@ node scripts/check-knowledge.mjs
 metadata completeness, set references, status claims, and that no specification
 directory contains authored content. **It is not the ADR-0010 bundle validator**,
 which machine-checks prohibited content over real content and does not exist yet
-([U7](../docs/architecture/unresolved-decisions.md#u7)).
+(the ADR-0010 toolchain does not exist).
 
 Future: `validate` fails on prohibited content, missing metadata, or schema
 violations — as a gate, not a warning.

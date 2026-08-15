@@ -45,7 +45,7 @@ here so that nobody silently answers them by writing code.
 | [U4](#u4) | `runner-control` placement — Pi vs. VPS | runner substrate implementation | medium |
 | [U5](#u5) | Automation persistence and scheduler | automation service | medium |
 | [U6](#u6) | The framework-adapter SPI | ~~every adapter~~ | **RESOLVED** — [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), 2026-08-12 |
-| [U7](#u7) | OKF validator and toolchain | any real knowledge bundle | medium |
+| [U7](#u7) | OKF validator and toolchain | ~~any real knowledge bundle~~ — still blocked, by the toolchain gate | **RESOLVED** — [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md), 2026-08-15 |
 | [U8](#u8) | Whether shared and household OpenFGA share a runtime | household authorization deployment | medium |
 | [U9](#u9) | Policy-decision caching semantics | authorization performance and U1 | high |
 | [U10](#u10) | Home Assistant credential strategy | action mediation | high |
@@ -209,18 +209,30 @@ and a plain deterministic loop) rather than against the most convenient one.
 
 ### First OKF validator and toolchain
 
-> **STILL OPEN.** A *proposed* answer exists —
-> [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
-> — and it is `Proposed`, so it closes nothing yet. An item leaves this file only
-> via an **accepted** ADR. **On acceptance, this item closes**: the architectural
-> question will have an answer, which is what U7 tracks.
+> **RESOLVED 2026-08-15 by
+> [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md).**
+> The question below is kept as written, because the answer only makes sense
+> against it.
 >
-> **Closing U7 is not permission to author.** That is a separate fact, recorded
-> separately: ADR-0015 §12 carries an implementation obligation —
-> compile/validate/package/query behind the ADR-0010 interfaces, a conformance
-> suite with a failing negative case per prohibited-content class, and
-> demonstrated digest reproducibility. Authoring opens when that is satisfied,
-> not when this item closes. One state variable must not stand for both facts.
+> U7 asked one thing: **is the knowledge source-format architecture decided?**
+> It is. OKF v0.2 is adopted as the source representation only, pinned rather
+> than floating; packaging, digest identity, query, and admission stay this
+> repository's; OKF trust metadata grants no authority; and execution-bearing
+> content is refused at admission.
+>
+> **THIS RESOLUTION IS NOT EVIDENCE THAT THE TOOLCHAIN EXISTS, AND IS NOT
+> PERMISSION TO AUTHOR KNOWLEDGE.** It never was: the two facts were separated
+> deliberately, because one state variable standing for both is how "the
+> question is answered" quietly becomes "the work is done."
+>
+> Authoring readiness is recorded independently, as `blockedByToolchain` on
+> every registered module and set, asserted **`true`** by
+> `scripts/check-knowledge.mjs` until ADR-0015 §12 is discharged —
+> compile/validate/package/query behind the ADR-0010 interfaces, plus a
+> conformance suite with a failing negative case per prohibited-content class
+> and per execution-bearing field, and demonstrated digest reproducibility.
+> None of that exists. Opening authoring is an explicit reviewed transition,
+> not a consequence of this item closing.
 
 **The problem.** [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 requires compile, validate, package, and query interfaces and a machine-checked

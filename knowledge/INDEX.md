@@ -4,7 +4,7 @@ The canonical registry of knowledge **modules** and **sets**.
 
 > **Specification only, and not runtime-authoritative.** No module content is
 > authored, nothing is packaged, and nothing is published. The ADR-0010 validator
-> does not exist — it is [U7](../docs/architecture/unresolved-decisions.md#u7),
+> does not exist — the ADR-0010 toolchain is unbuilt,
 > and it is the gating deliverable that must land *before* any real content.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
@@ -19,7 +19,7 @@ nothing appears here that is not registered. They cannot drift apart quietly.
 |---|---|---|---|
 | **Knowledge module** | one independently versioned body of portable knowledge | yes, independently | as a specification directory only |
 | **Knowledge set** | a named, profile-oriented composition of allowed modules | yes | as a specification entry only |
-| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — blocked on U7 |
+| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — blocked on the toolchain |
 
 A profile selects a **set**. The runner resolves that set to exact module
 versions and produces a **packaged bundle**, whose digest is recorded in run
@@ -47,7 +47,7 @@ fields are specified in
 | `Retired` | no longer resolvable |
 
 **Everything below is `Planned`.** `Validated`, `Packaged`, and `Published` are
-unreachable while U7 is open, and `check-knowledge.mjs` fails if anything claims
+unreachable while the toolchain is unbuilt, and `check-knowledge.mjs` fails if anything claims
 one of them.
 
 ## Modules
@@ -85,7 +85,7 @@ one of them.
 | [`runbooks/safe-escalation`](runbooks/safe-escalation/) | when to stop, and how to hand over to a human | coding · household |
 
 Full metadata for each — owner, version, as-of date, limitations, governing
-sources, sensitivity, freshness policy, and U7 blocking — is in
+sources, sensitivity, freshness policy, and toolchain blocking — is in
 [`catalog.json`](catalog.json). Each module's own README states its intended
 facts, prohibited facts, expected queries, and update trigger.
 
@@ -108,7 +108,7 @@ point.
 
 A set carries the **same metadata contract as a module** — owner, status,
 version, as-of date, limitations, governing sources, sensitivity, freshness
-policy, and U7 blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
+policy, and toolchain blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
 its intended-consumer field.
 
 Two of those need care:
@@ -142,7 +142,7 @@ Three worth stating here:
 
 **None.** There is no packaged bundle, no digest, and no resolver.
 
-When U7 closes, a packaged bundle will be registered here by ID, version, and
+When the toolchain exists, a packaged bundle will be registered here by ID, version, and
 digest, and the compile → validate → package → query interfaces required by
 [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 will own its lifecycle. Nothing reads a bundle file directly, then or now.

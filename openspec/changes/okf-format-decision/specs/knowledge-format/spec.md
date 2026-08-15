@@ -1,9 +1,9 @@
 # Spec Delta: knowledge-format
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0015 is `Proposed`; nothing below is an
-> obligation today, and no lower-precedence artifact may make it one. These
-> requirements take effect on acceptance, and even then authoring stays blocked
-> until the implementation gate is satisfied.
+> **In force.** ADR-0015 was accepted 2026-08-15. These requirements bind the
+> implementation that discharges the toolchain obligation. **Authoring is still
+> blocked**: none of the behaviour below is implemented yet, which is exactly why
+> `blockedByToolchain` is `true` on every registered entry.
 
 ## ADDED Requirements
 

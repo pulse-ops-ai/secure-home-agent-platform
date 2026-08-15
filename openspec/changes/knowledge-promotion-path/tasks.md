@@ -173,7 +173,7 @@ contract every agent reads, and nothing is authored under it.
 - [x] ADR-0014 exists and carries every section `docs/AGENTS.md` requires. It
       was authored `Proposed`; acceptance came later, in its own commit (§6).
 - [x] No accepted ADR is edited; no status line changes.
-- [x] `unresolved-decisions.md` is unmodified; U7 remains open and is cited as
+- [x] *(at the time of this landing)* `unresolved-decisions.md` unmodified; U7 open and cited as
       the block on authoring.
 - [x] No knowledge module, set, or catalog entry is added.
 - [x] No `skills/` directory and no provider-native skill is created.

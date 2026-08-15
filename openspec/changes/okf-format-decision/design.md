@@ -1,7 +1,7 @@
 # Design: okf-format-decision
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0015 is `Proposed`; nothing here is an
-> obligation today.
+> **In force.** ADR-0015 was accepted 2026-08-15; U7 is RESOLVED. The toolchain
+> does not exist, so authoring remains blocked by `blockedByToolchain`.
 
 ## Context
 

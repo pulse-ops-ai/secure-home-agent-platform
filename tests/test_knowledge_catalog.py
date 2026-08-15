@@ -2,8 +2,10 @@
 
 **This validates the specification, not knowledge content.** The ADR-0010 bundle
 validator — the one that machine-checks the prohibited-content rules over real
-module content — does not exist. It is gated on U7 and it is the deliverable that
-must land *before* any content is authored.
+module content — does not exist. It is the deliverable that must land *before*
+any content is authored, and ``blockedByToolchain`` is where that fact is
+recorded. U7 asked a different question — whether the format architecture was
+decided — and ADR-0015 answered it.
 
 The distinction matters enough to be asserted: a green run on the registry check
 could otherwise be mistaken for evidence that content was checked. There is no
@@ -75,7 +77,7 @@ def test_every_module_has_every_required_metadata_field() -> None:
         "governingSources",
         "sensitivity",
         "freshnessPolicy",
-        "blockedByU7",
+        "blockedByToolchain",
     }
     for module in _catalog()["modules"]:
         missing = required - set(module)
@@ -111,12 +113,13 @@ def test_no_set_references_a_file_path() -> None:
 
 
 def test_every_status_is_from_the_vocabulary_and_nothing_is_published() -> None:
-    """Until U7 closes there is no validator, so nothing can have earned publication."""
+    """Without the toolchain there is no validator, so nothing can have earned publication."""
     catalog = _catalog()
     for entry in [*catalog["modules"], *catalog["sets"]]:
         assert entry["status"] in STATUSES, f"{entry['id']}: unknown status {entry['status']}"
         assert entry["status"] not in PUBLISHABLE, (
-            f"{entry['id']}: status {entry['status']} claims a published artifact while U7 is open"
+            f"{entry['id']}: status {entry['status']} claims a published artifact "
+            "without a toolchain"
         )
 
 
@@ -304,6 +307,44 @@ def test_a_duplicate_set_id_is_rejected(tmp_path: Path) -> None:
     assert "duplicate set id" in _output(result)
 
 
+def test_a_module_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
+    """The authoring gate is ENFORCED as true, not merely required as a field.
+
+    This is the test that stops U7's resolution from becoming permission to
+    author. Before ADR-0015, ``blockedByU7`` had to be *present* and its value
+    was never read — so the day U7 closed, flipping it to ``false`` would have
+    opened authoring silently, with no validator objecting and no diff that read
+    as a decision. Opening authoring must be an explicit reviewed transition.
+    """
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["blockedByToolchain"] = False
+
+    result = _run(_fixture(tmp_path, "module-unblocked", mutate))
+    assert result.returncode != 0
+    assert "blockedByToolchain must be true" in _output(result)
+
+
+def test_a_set_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
+    """The same gate for sets: a set is selectable, so an unblocked one matters."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["sets"][0]["blockedByToolchain"] = False
+
+    result = _run(_fixture(tmp_path, "set-unblocked", mutate))
+    assert result.returncode != 0
+    assert "blockedByToolchain must be true" in _output(result)
+
+
+def test_the_gate_is_true_for_every_registered_entry() -> None:
+    """The live registry, not a fixture: nothing has quietly unblocked itself."""
+    catalog = _catalog()
+    for entry in [*catalog["modules"], *catalog["sets"]]:
+        assert entry["blockedByToolchain"] is True, (
+            f"{entry['id']}: authoring is not blocked, but the ADR-0010 toolchain does not exist"
+        )
+
+
 def test_a_missing_metadata_field_is_rejected(tmp_path: Path) -> None:
     def mutate(catalog: Any, root: Path) -> None:
         del catalog["modules"][0]["owner"]
@@ -357,15 +398,15 @@ def test_a_status_outside_the_vocabulary_is_rejected(tmp_path: Path) -> None:
 
 
 def test_claiming_a_published_status_is_rejected(tmp_path: Path) -> None:
-    """U7 is open, so nothing has been validated, packaged, or published."""
+    """No toolchain exists, so nothing has been validated, packaged, or published."""
     for index, status in enumerate(sorted(PUBLISHABLE)):
 
         def mutate(catalog: Any, root: Path, status: str = status) -> None:
             catalog["modules"][0]["status"] = status
 
         result = _run(_fixture(tmp_path, f"published-{index}", mutate))
-        assert result.returncode != 0, f"{status} was accepted while U7 is open"
-        assert "U7" in _output(result)
+        assert result.returncode != 0, f"{status} was accepted without a toolchain"
+        assert "does not exist" in _output(result)
 
 
 def test_authored_content_in_a_specification_directory_is_rejected(tmp_path: Path) -> None:
@@ -454,7 +495,7 @@ def test_every_set_has_every_required_metadata_field() -> None:
         "governingSources",
         "sensitivity",
         "freshnessPolicy",
-        "blockedByU7",
+        "blockedByToolchain",
     }
     for s in _catalog()["sets"]:
         missing = required - set(s)

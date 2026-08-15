@@ -1,12 +1,13 @@
 # ADR-0015: Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-15
+- **Accepted:** 2026-08-15
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
 - **Acceptance depends on:** [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — **`Accepted` 2026-08-15, so this precondition is now satisfied.** The ordering constraint stands on the record: ADR-0014 had to be accepted first, because `governs` has no meaning without its canonical-source model. See §3a.
-- **Answers:** [U7](../architecture/unresolved-decisions.md#u7) — **closed on acceptance of this ADR**, which is when the architectural question has an answer. Authoring stays blocked afterwards by the separate implementation obligation in §12; that obligation is not U7's state.
+- **Closes:** [U7](../architecture/unresolved-decisions.md#u7) — **RESOLVED on acceptance, 2026-08-15.** U7 asked whether the knowledge source-format architecture is decided; it now is. Authoring remains blocked by the separate implementation obligation in §12, which is **not** U7's state and is **not** discharged.
 
 ---
 
@@ -16,11 +17,13 @@
 knowledge only* and named OKF a **candidate**, explicitly not chosen. It
 required four interfaces — compile, validate, package, query — and a
 machine-checked prohibited-content rule. [U7](../architecture/unresolved-decisions.md#u7)
-gates the first real bundle on the validator existing, so that authoring cannot
-make an unvalidated format load-bearing by accident.
+asked which format, and the ADR-0010 gate on authoring — the validator existing
+first, so that authoring cannot make an unvalidated format load-bearing by
+accident — has always been a separate condition. This ADR answered U7; the
+authoring gate is §12 and is still shut.
 
-This ADR answers whether OKF is that format. It was written against the current
-upstream specification, read directly rather than from recollection.
+This ADR was written against the current upstream specification, read directly
+rather than from recollection.
 
 ### Evidence examined
 
@@ -231,7 +234,7 @@ That sentence is the reason this section exists. It would let a **Skill, a
 script, or a container** enter this platform through the knowledge plane, as
 ordinary project knowledge, selected by a profile — the precise inversion
 [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
-(`Proposed`) was written to prevent, and a direct contradiction of
+was written to prevent, and a direct contradiction of
 `knowledge/README.md`, which says code does not belong in a bundle: "the
 toolchain will live in a package or service, not here."
 
@@ -428,13 +431,21 @@ project publishes no validator, no conformance suite, and no machine-readable
 schema; `okf/tests` exercises the reference *agent*, not the format. We build
 this, or it does not exist.
 
-**U7 closes when this ADR is accepted.** Authoring opens when the obligation
-above is satisfied. Those are different events and neither implies the other:
+**U7 closed when this ADR was accepted, on 2026-08-15.** Authoring opens when
+the obligation above is satisfied, which it is not. Those are different events and neither implies the other:
 acceptance is not permission to author, and a closed U7 is not evidence that the
 toolchain exists. This obligation is discharged in its own change, and the
 conformance suite is what evidences it — not a checkbox here.
 
 ### 13. THE ACCEPTANCE MIGRATION — separating U7's state from the authoring gate
+
+> **EXECUTED 2026-08-15**, in the same commit that accepted this ADR and closed
+> U7. **27 renames** across `knowledge/catalog.json` (23), the two required-field
+> lists in `scripts/check-knowledge.mjs` (2), and `tests/test_knowledge_catalog.py`
+> (2) — the last of which the inventory below did not name, and the
+> stale-semantics sweep found. That is the reason the sweep was made mandatory.
+> No compatibility alias was left: there is one representation of the authoring
+> gate.
 
 The repository encodes one fact where §12 needs two. `blockedByU7` is a
 **required field on every module and every set** in `knowledge/catalog.json`,
@@ -444,9 +455,10 @@ false or stale — and the dangerous reading is the first one: a closed U7 with
 `blockedByU7` still in the schema invites the conclusion that authoring is now
 open.
 
-So the acceptance commit **must migrate these atomically**, in the same commit
-that closes U7. Not before — that would make a `Proposed` decision operative —
-and not after, which would leave a window in which nothing names the block.
+The acceptance commit therefore migrated these **atomically**, in the same
+commit that closed U7. Not before — that would have made a proposal operative —
+and not after, which would have left a window in which nothing named the
+block.
 
 **ADR-0014 is deliberately absent from this list.** It must already be
 `Accepted` when this ADR is accepted (§3a), and an accepted ADR is immutable —
@@ -583,23 +595,24 @@ yet exist.
    committed.
 3. `bash scripts/validate-scaffold.sh`, `node scripts/check-knowledge.mjs`,
    `bash scripts/check.sh`.
-4. **Nothing in this ADR is operative while it is `Proposed`**, and no
-   lower-precedence artifact may make it operative.
-5. This ADR changes **no** existing ADR's status. It does not close U7 *now* —
-   it closes it **on acceptance**, which is a human act in its own change. The
-   §12 obligation is separate and does not gate U7's state.
-6. **The acceptance commit must carry the §13 migration atomically**, and must
-   not be merged with U7 closed and `blockedByU7` still naming U7 as the reason
-   authoring is blocked.
-7. **ADR-0014 must be `Accepted` first** (§3a).
+4. **This ADR is operative.** Its behavioural requirements bind the
+   implementation that discharges §12; until that exists, §12 holds and nothing
+   may be authored.
+5. This ADR changes no other ADR's status. It closed U7 on acceptance.
+6. **The §13 migration was carried atomically in the acceptance commit** — U7 is
+   not closed anywhere without the authoring gate being named independently of
+   it.
+7. **ADR-0014 was `Accepted` first** (§3a), satisfying the ordering constraint.
 
 ## Links
 
 - [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) — portable
   knowledge only; the four interfaces; knowledge is never an authority
 - [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
-  (`Proposed`) — a module projects a canonical source and names it (§5 `governs`)
-- [U7](../architecture/unresolved-decisions.md#u7) — the question this answers
+  — a module projects a canonical source and names it (§5 `governs`); `Accepted`
+  2026-08-15, which this ADR's acceptance required
+- [U7](../architecture/unresolved-decisions.md#u7) — the question this answered;
+  **RESOLVED** 2026-08-15, and not a record of toolchain readiness
 - [`knowledge-selection-model.md`](../architecture/knowledge-selection-model.md)
   — how a profile selects a set and what a run records
 - Upstream: `GoogleCloudPlatform/knowledge-catalog`, `okf/SPEC.md` (OKF v0.2)

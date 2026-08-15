@@ -30,7 +30,7 @@ is its decision record. The invariants below are aimed at exactly that.
 | KP-INV-04 | Promotion confers no authority: a projected module never overrides its canonical source, and grants no tool or capability | trust |
 | KP-INV-05 | The obligation is to DETERMINE. A recorded negative answer satisfies it | behavior |
 | KP-INV-06 | This change resolves no unresolved decision and changes no ADR status; U7 still gates all authoring | trust |
-| KP-INV-07 | **A `Proposed` decision does not bind through a lower-precedence artifact.** Held while ADR-0014 was `Proposed`; still held by ADR-0015, which is `Proposed` today | trust |
+| KP-INV-07 | **A `Proposed` decision does not bind through a lower-precedence artifact.** Held while ADR-0014 was `Proposed`, and again while ADR-0015 was; both are `Accepted` as of 2026-08-15, so the invariant is discharged for this change and stands as a rule for the next proposal | trust |
 
 ## State-Space Model
 
@@ -49,7 +49,7 @@ terminates at canonical architecture regardless of the other dimensions.
 | ID | Invariant | Class | Proof |
 |---|---|---|---|
 | KP-EX-01 | KP-INV-06 | structural | ADR-0014 was authored `Proposed` and no other status line changed in the proposing diff; acceptance happened in its own reviewed commit, which is the only place a status may change |
-| KP-EX-02 | KP-INV-06 | structural | `unresolved-decisions.md` is unmodified; U7 remains open |
+| KP-EX-02 | KP-INV-06 | structural | *(as of the proposing change)* `unresolved-decisions.md` was unmodified and U7 was open. U7 was later resolved by ADR-0015, not by this change |
 | KP-EX-03 | KP-INV-01 | structural | the new ADR and the new architecture document appear in their indexes; `validate-scaffold.sh` fails otherwise |
 | KP-EX-04 | KP-INV-04 | review | ADR-0014 §7 and the architecture document both state that a projection is never authoritative for what it projects |
 | KP-EX-05 | KP-INV-02 | review | the rule is stated in root `AGENTS.md`, which governs every agent, rather than in any provider adapter |
