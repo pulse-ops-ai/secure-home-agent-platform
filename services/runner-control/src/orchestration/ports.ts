@@ -80,8 +80,15 @@ const classified = <T extends object>(
  */
 const committed = (port: FinalizationPort, boundary: CallGuard): FinalizationPort => ({
   commit: (request) => {
-    const expires_at_epoch_ms = request.expires_at_epoch_ms ?? boundary.expiresAtEpoch()
-    const expires_at_bound = request.expires_at_bound ?? boundary.bound()
+    // BOTH stamps come from the ONE winning-expiry value, so the
+    // instant and its provenance cannot disagree — a governed deadline
+    // that wins the minimum is refused as the run's timeout, and an
+    // attempt ceiling that wins is refused as the attempt's bound.
+    const winning = boundary.expiry()
+    const expires_at_epoch_ms = request.expires_at_epoch_ms ?? winning?.at
+    const expires_at_bound =
+      request.expires_at_bound ??
+      (winning !== undefined && winning.source !== 'governed' ? 'attempt' : 'governed')
     return boundary.commit(() =>
       port.commit({
         ...request,

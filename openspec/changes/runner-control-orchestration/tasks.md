@@ -648,6 +648,55 @@ operation its requirement names.
   tests, typecheck, lint, build, strict OpenSpec validation, and
   repository gate remain green.
 
+- [ ] **7.12 Close round-12 D14 public-contract findings** *(three reviewer
+  REDs remain open — see disclosure)*
+  <!-- agent-task: 7.12 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.11 -->
+
+  **Authorized by** — the same owner decision record as 7.11
+  ("asynchronous effect semantics and durable conclusions",
+  <https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5298925660>);
+  round 12 makes the accepted semantics exact, minting no new policy.
+  The reviewer-authored RED commit `48f28e38ee9c17db59d1091a695dc75a8fc9e585`
+  (based exactly on the reviewed head `aed223e`) was consumed unmodified.
+
+  **Implements** — the winning deadline as one typed value
+  (`WinningExpiry`; every stamp a projection, RO-EX-163); canonical
+  logical-intent replay equivalence in finalization (RO-EX-162); event
+  sequence identity allocated before the durable effect and carried as
+  an explicit sink-request field (RO-EX-164); evidence `record_id` with
+  sink-side replay (RO-EX-165); required-by-type effect identities
+  across the SPI with compiler-shaped proofs (RO-EX-169) — journal
+  `entry_id`, event `sequence`, evidence `record_id`, caller-minted
+  `session_ref`/`workspace_ref` acquisition identities, non-empty
+  materialization change sets, identified terminal-event bodies — and
+  caller-identity resource binding in the reference implementations
+  with interrupted-acquisition resolution at teardown
+  (RO-EX-170/171, `RunScope.sessionAttempt`/`workspaceAttempt`).
+
+  **Disclosure — three reviewer REDs remain RED, for reasons in the
+  fixtures rather than in production.** They were not weakened,
+  modified, or bypassed; they fail today for exactly these reasons:
+  RO-EX-166/167 assert that teardown addresses the resource by the name
+  the FIXTURE minted internally (`session-random-1` /
+  `workspace-random-1`) — a name that, by each test's own construction,
+  exists only inside the acknowledgement that was lost, and that the
+  fixture does not derive from the caller-known identity the corrected
+  contract now requires and orchestration now passes (teardown provably
+  resolves `session:<run>#g1` / `workspace:<run>#g1`). RO-EX-168
+  invokes the fixture's `applyBack` twice DIRECTLY, with no production
+  code between the test and the fixture's unconditional recording of
+  every invocation, then asserts one recording. No production change
+  can make these three assertions pass; the class corrections behind
+  them are implemented and separately proven. Reviewer adjudication of
+  the fixtures is requested.
+
+  **Proof required** — RO-EX-162…165 and 169…171 green with the
+  reviewer file unmodified (`git diff 48f28e3 -- …round12.test.ts`
+  empty); RO-INV-90…92 and RO-MUT-105…110 registered, each mutant
+  hand-applied and killed by its named proof; every prior falsification
+  round green; complete tests, typecheck, lint, build, strict OpenSpec
+  validation, and repository gate green at the pushed head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

@@ -109,14 +109,35 @@ export class RecordingEventSink implements EventSinkPort {
   readonly #byRun = new Map<string, StoredEvent[]>()
   readonly #fence = new FenceLedger()
   readonly #visibility: CommitVisibility
+  /** (run, sequence) → canonical landed event: the replay ledger. */
+  readonly #landed = new Map<string, string>()
 
   constructor(visibility: CommitVisibility = new CommitLedger()) {
     this.#visibility = visibility
   }
 
-  emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome> {
+  emit(
+    request: RunFence & { readonly sequence: number; readonly event: unknown },
+  ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
+    // (run_id, sequence) is the event's identity. A repeat carrying the
+    // SAME event is a lost acknowledgement resolved — acknowledged
+    // without a second physical event. A DIFFERENT event wearing a
+    // landed identity is refused outright: two events must never share
+    // one identity, whatever went wrong with the first acknowledgement.
+    const identity = `${request.run_id}#e${String(request.sequence)}`
+    const canonical = JSON.stringify(request.event)
+    const landed = this.#landed.get(identity)
+    if (landed !== undefined) {
+      if (landed === canonical) return Promise.resolve(refused)
+      // Not a fence outcome — a corrupted identity is an exceptional
+      // refusal: two different events must never share one identity.
+      return Promise.reject(
+        new Error(`event identity ${identity} already carries a different event`),
+      )
+    }
+    this.#landed.set(identity, canonical)
     const existing = this.#byRun.get(request.run_id) ?? []
     existing.push({ event: request.event })
     this.#byRun.set(request.run_id, existing)
@@ -175,9 +196,11 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     return this.#writes.filter((write) => isVisible(this.#visibility, write.commit_id))
   }
 
+  /** Landed logical record identities: the replay ledger. */
+  readonly #landed = new Set<string>()
+
   write(
-    request: RunFence &
-      (
+    request: RunFence & { readonly record_id: string } & (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
       ),
@@ -187,6 +210,12 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     // holder sealing a bundle would produce a second, contradictory
     // record of one run — two answers to "what happened", both signed.
     if (!refused.ok) return Promise.resolve(refused)
+    // A repeated logical record identity is a lost acknowledgement being
+    // resolved: the record already exists, so the retry is acknowledged
+    // without appending a second copy. The FIRST landed version stands —
+    // same logical record, however many acknowledgements it took.
+    if (this.#landed.has(request.record_id)) return Promise.resolve(refused)
+    this.#landed.add(request.record_id)
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,

@@ -20,6 +20,22 @@ import { ABANDON_GRACE_MS } from './controls.js'
 
 export type InterruptReason = 'cancel' | 'timeout'
 
+/**
+ * THE DEADLINE THAT ACTUALLY WINS, as one typed value.
+ *
+ * The instant and its provenance were two independently derived facts —
+ * `expiresAtEpoch()` took the MINIMUM of the governed clock and a
+ * recovery ceiling while `bound()` unconditionally answered `attempt`,
+ * so a governed deadline that won the minimum was refused under the
+ * attempt's provenance. One value cannot disagree with itself:
+ * whichever bound wins carries both its instant and its source, and the
+ * projections below are derived from it.
+ */
+export type WinningExpiry = {
+  readonly at: number
+  readonly source: 'governed' | 'settlement' | 'recovery'
+}
+
 /** A boundary that can reject an awaited call without abandoning its continuation. */
 export interface CallGuard {
   call<T>(work: () => Promise<T>): Promise<T>
@@ -38,17 +54,16 @@ export interface CallGuard {
    * its publication point, where refusing still publishes nothing.
    */
   commit<T>(work: () => Promise<T>): Promise<T>
-  /** The absolute instant this boundary expires at, for the commit to check. */
-  expiresAtEpoch(): number | undefined
   /**
-   * WHOSE bound `expiresAtEpoch` is — expiry provenance, structurally.
-   *
-   * `governed` is the run's own wall clock: its expiry IS the lifecycle
-   * timeout. `attempt` is a settlement/recovery recording ceiling: its
-   * expiry means THIS ATTEMPT could not finish recording, and it must
-   * never manufacture a lifecycle TIMED_OUT for a run whose intended
-   * terminal was something else.
+   * The deadline that wins at this boundary — instant and provenance as
+   * ONE value, so they cannot disagree. `governed` expiry is the run's
+   * lifecycle timeout; a `settlement`/`recovery` ceiling is an attempt
+   * bound whose expiry must never manufacture TIMED_OUT.
    */
+  expiry(): WinningExpiry | undefined
+  /** Projection of `expiry()`: the winning absolute instant. */
+  expiresAtEpoch(): number | undefined
+  /** Projection of `expiry()`: governed clock, or an attempt-scoped bound. */
   bound(): 'governed' | 'attempt'
 }
 
@@ -234,12 +249,15 @@ export class RunDeadline {
     return await this.#race(work)
   }
 
-  /** The armed absolute expiry, for a commit to enforce at publication. */
-  expiresAtEpoch(): number | undefined {
-    return this.#armedUntil
+  /** The governed run clock: its expiry is the lifecycle timeout. */
+  expiry(): WinningExpiry | undefined {
+    return this.#armedUntil === undefined ? undefined : { at: this.#armedUntil, source: 'governed' }
   }
 
-  /** The governed run clock: its expiry is the lifecycle timeout. */
+  expiresAtEpoch(): number | undefined {
+    return this.expiry()?.at
+  }
+
   bound(): 'governed' | 'attempt' {
     return 'governed'
   }
@@ -344,11 +362,15 @@ export class RunSettlement implements CallGuard {
     return await this.#race(work)
   }
 
-  expiresAtEpoch(): number | undefined {
-    return this.#expiresAt
+  /** An attempt-scoped recording ceiling — never the lifecycle timeout. */
+  expiry(): WinningExpiry | undefined {
+    return { at: this.#expiresAt, source: 'settlement' }
   }
 
-  /** An attempt-scoped recording ceiling — never the lifecycle timeout. */
+  expiresAtEpoch(): number | undefined {
+    return this.expiry()?.at
+  }
+
   bound(): 'governed' | 'attempt' {
     return 'attempt'
   }
@@ -416,18 +438,29 @@ export class RunRecovery implements CallGuard {
     return await this.#race(work)
   }
 
-  expiresAtEpoch(): number | undefined {
-    const governed = this.#deadline.expiresAtEpoch()
-    return governed === undefined ? this.#expiresAt : Math.min(governed, this.#expiresAt)
+  /**
+   * The deadline that WINS during recovery, with its provenance intact.
+   *
+   * The governed clock stays live through recovery; the recovery
+   * ceiling merely bounds the attempt's recording. When the governed
+   * deadline is the earlier of the two, refusing on it IS the run's
+   * timeout — reporting it as the attempt's ceiling was exactly the
+   * disagreement two independently derived facts allowed. Ties go to
+   * the governed clock: the run's own budget takes precedence over a
+   * bookkeeping bound.
+   */
+  expiry(): WinningExpiry | undefined {
+    const governed = this.#deadline.expiry()
+    const ceiling: WinningExpiry = { at: this.#expiresAt, source: 'recovery' }
+    return governed !== undefined && governed.at <= ceiling.at ? governed : ceiling
   }
 
-  /**
-   * An attempt-scoped ceiling. The governed deadline stays live through
-   * recovery via `interrupted()`; what THIS boundary's expiry stamp may
-   * refuse is the attempt's recording, never the run's lifecycle.
-   */
+  expiresAtEpoch(): number | undefined {
+    return this.expiry()?.at
+  }
+
   bound(): 'governed' | 'attempt' {
-    return 'attempt'
+    return this.expiry()?.source === 'governed' ? 'governed' : 'attempt'
   }
 
   #raiseIfStopped(): void {

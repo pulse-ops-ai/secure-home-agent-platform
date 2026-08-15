@@ -216,6 +216,11 @@ export const writeEarlyTerminalRecord = async (
 
   const written = await ports.evidence.write({
     ...scope.fence,
+    // ONE logical early-terminal record per holder, whatever the retry
+    // count. The record can land while its acknowledgement is lost; the
+    // settlement retry then carries this same identity and the sink
+    // answers it as a replay instead of appending a second record.
+    record_id: `${request.run_id}#g${String(scope.fence.generation)}#early_termination_record`,
     kind: 'early_termination_record',
     record: record.record,
   })

@@ -195,6 +195,27 @@ acknowledgement SHALL never cause orchestration to assume the effect did
 not occur. Result-discard semantics are permitted only where ignoring a
 late result cannot leave meaningful external state.
 
+Required identities SHALL be required by the public port types, never by
+caller discipline: the journal entry identity, the event's
+(run, sequence) identity as an explicit request field allocated BEFORE
+the durable effect, the evidence record's logical identity, and the
+caller-minted session and workspace identities present in the
+acquisition request. A conforming implementation SHALL bind the resource
+it creates to the caller-known identity — a resource named only inside
+an acknowledgement is unresolvable once that acknowledgement is lost —
+and SHALL answer a repeated identity carrying the same fact as a replay
+while refusing a different fact wearing a landed identity.
+
+The deadline that wins at a call boundary SHALL be one typed value
+carrying both its instant and its provenance, with every derived stamp a
+projection of it: a governed deadline that wins a settlement or recovery
+minimum is refused as the run's timeout, and an attempt ceiling that
+wins is refused as the attempt's bound. Finalization replay equivalence
+SHALL be established by the commit's canonical logical intent — an
+exact replay of a published commit reconciles `ok`; a different intent,
+even one sharing the terminal state, refuses rather than aliasing the
+publication.
+
 The finalization commit SHALL use a stable CALLER-known commit identity
 established before the port call; the implementation SHALL NOT mint a
 new logical identity per call. A retry or reconciliation with the same
@@ -219,6 +240,29 @@ committed, or explicitly unresolved.
 - **WHEN** the same logical commit identity is retried
 - **THEN** the retry is answered `ok`
 - **AND** exactly one terminal remains published
+
+#### Scenario: A different intent never aliases a published commit
+
+- **GIVEN** a published commit for a generation
+- **WHEN** a different logical intent with the same terminal state is
+  committed for that generation
+- **THEN** the commit refuses as already committed
+- **AND** every durable store still describes the first intent
+
+#### Scenario: A landed event never lends its identity to the next one
+
+- **GIVEN** an event that physically lands while its acknowledgement is
+  lost
+- **WHEN** the next event is emitted
+- **THEN** it carries the next sequence, not the landed event's identity
+
+#### Scenario: An interrupted acquisition is resolvable by its caller-known identity
+
+- **GIVEN** a session or workspace acquisition whose acknowledgement
+  never arrives
+- **WHEN** the run concludes
+- **THEN** teardown addresses the maybe-created resource by the identity
+  the caller minted before the call
 
 ### Requirement: A run has one owner, and ownership is enforced before effects
 

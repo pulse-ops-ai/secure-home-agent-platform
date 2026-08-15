@@ -80,7 +80,9 @@ export class RunEventEmitter {
    * envelope the emitter's — a hand-built terminal event is how the
    * sequence number and run id drift.
    */
-  envelope(body: Record<string, unknown>): Record<string, unknown> {
+  envelope(
+    body: Record<string, unknown> & { readonly event_type: string },
+  ): Record<string, unknown> & { readonly event_type: string } {
     // The TERMINAL envelope reads the clock through a fallback, unlike
     // `emit` below. An ordinary emission failing on a broken clock is a
     // port fault the run terminates on; this envelope is built while
@@ -129,17 +131,30 @@ export class RunEventEmitter {
           .join('; '),
       }
     }
+    // THE IDENTITY IS ALLOCATED BEFORE THE DURABLE EFFECT. The event can
+    // physically land while its acknowledgement is lost, and a sequence
+    // advanced only on acknowledgement would hand the LANDED event's
+    // identity to the next event — two different events wearing one
+    // (run_id, sequence). Allocation happens after validation (no sink
+    // attempt, no possible event) and before the sink call; only a
+    // DEFINITIVE refusal — the sink answering that it wrote nothing —
+    // reclaims it, so acknowledged emission stays contiguous while an
+    // unknown outcome keeps the identity it may have used.
+    const sequence = this.#sequence
+    this.#sequence += 1
     let emitted
     try {
       emitted = await this.#sink.emit({
         run_id: this.#identity.run_id,
         generation: this.#identity.generation,
+        sequence,
         event: parsed.data,
       })
     } catch (error) {
       // A run interrupt rejects the awaiting continuation at the shared
       // port boundary. It is not an event-sink fault and must reach the
-      // lifecycle's one terminal owner unchanged.
+      // lifecycle's one terminal owner unchanged. Either way the outcome
+      // is UNKNOWN, so the sequence stays consumed.
       if (isRunControlError(error)) throw error
       return {
         ok: false,
@@ -148,12 +163,12 @@ export class RunEventEmitter {
       }
     }
     if (!emitted.ok) {
-      // NOT counted and NOT retained. A refused emission never happened,
-      // so advancing the sequence would leave a permanent gap that reads
-      // as a lost event rather than as one that was never written.
+      // A definitive fence refusal wrote nothing, by the sink's own
+      // contract — the allocation is reclaimed rather than leaving a
+      // permanent gap that reads as a lost event.
+      this.#sequence = sequence
       return { ok: false, reason: 'stale_fence', detail: emitted.detail }
     }
-    this.#sequence += 1
     this.#emitted.push(parsed.data)
     return { ok: true, event: parsed.data }
   }

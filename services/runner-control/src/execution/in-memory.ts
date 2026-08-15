@@ -28,10 +28,15 @@ export class InMemoryExecutionSession implements ExecutionSessionPort {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined)
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
+    // THE CALLER'S IDENTITY IS THE SESSION'S IDENTITY. Binding the
+    // created resource to the caller-known ref is what lets teardown
+    // resolve a session whose prepare acknowledgement never arrived —
+    // an implementation minting its own opaque name here would strand
+    // the resource inside the lost response.
     return Promise.resolve({
       ok: true,
       handle: {
-        session_ref: `session:${request.run_id}`,
+        session_ref: request.session_ref,
         deadline: { wall_clock_seconds: request.limits.wall_clock_seconds },
       } satisfies SessionHandle,
     })

@@ -302,6 +302,7 @@ export const eventSinkFailing = (
     emit: (request: {
       readonly run_id: string
       readonly generation: number
+      readonly sequence: number
       readonly event: { event_type: string }
     }) =>
       shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),

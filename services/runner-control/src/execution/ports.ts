@@ -42,6 +42,14 @@ export interface SessionLimits {
 }
 
 export interface SessionPrepareRequest extends RunFence {
+  /**
+   * The CALLER-KNOWN session identity, minted before the call. The
+   * resource can exist before the acknowledgement carrying its handle
+   * arrives; a conforming implementation binds the session it creates to
+   * this identity, so `interrupt`/`close` can resolve the maybe-created
+   * resource even when the original acknowledgement never arrived.
+   */
+  readonly session_ref: string
   readonly profile: { readonly name: string; readonly version: string; readonly digest: string }
   readonly limits: SessionLimits
 }

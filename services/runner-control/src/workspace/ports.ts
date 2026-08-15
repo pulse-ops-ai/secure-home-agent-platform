@@ -45,7 +45,15 @@ export type WorkspaceProvision =
  */
 export interface ApplyBackRequest extends RunFence {
   readonly workspace_ref: string
-  readonly changes: readonly ObservedChange[]
+  /**
+   * NON-EMPTY by type. An empty change set is never an apply-back
+   * (RO-EX-76) — applying nothing would claim an effect the run did not
+   * have — so a request that could carry zero changes has no logical
+   * materialization to identify. The observed change set, with the
+   * fence, workspace identity and authorizing policy, IS the
+   * materialization this request names; a replay carries it verbatim.
+   */
+  readonly changes: readonly [ObservedChange, ...ObservedChange[]]
   /**
    * The identity of the path policy that authorized this. Carried so an
    * implementation can record WHICH authority permitted the write, and
@@ -69,7 +77,17 @@ export type ApplyBackOutcome =
  * recoverable half of that choice.
  */
 export interface WorkspaceLifecyclePort {
-  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision>
+  /**
+   * `workspace_ref` is the CALLER-KNOWN workspace identity, minted
+   * before the call. The isolated workspace can exist before the
+   * acknowledgement carrying its handle arrives; a conforming
+   * implementation creates the workspace under this identity, so
+   * `discard` can resolve the maybe-created resource even when the
+   * original acknowledgement never arrived.
+   */
+  provision(
+    request: RunFence & { readonly workspace_ref: string; readonly source_ref: string },
+  ): Promise<WorkspaceProvision>
   applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome>
   /** Called on every exit the fence still permits. */
   discard(request: RunFence & { readonly workspace_ref: string }): Promise<FenceOutcome>

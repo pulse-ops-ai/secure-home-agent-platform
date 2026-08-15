@@ -27,15 +27,20 @@ export class InMemoryWorkspaceLifecycle implements WorkspaceLifecyclePort {
   readonly #applied = new Map<string, number>()
   readonly #fence = new FenceLedger()
 
-  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision> {
+  provision(
+    request: RunFence & { readonly workspace_ref: string; readonly source_ref: string },
+  ): Promise<WorkspaceProvision> {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined) {
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
+    // The caller's identity is the workspace's identity — a resource
+    // created under a name minted only in the response would be
+    // unresolvable once that response is lost.
     return Promise.resolve({
       ok: true,
       handle: {
-        workspace_ref: `workspace:${request.run_id}`,
+        workspace_ref: request.workspace_ref,
         root: request.source_ref,
       },
     })

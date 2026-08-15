@@ -56,7 +56,16 @@ export type AdapterInvocation = AdapterInvocationRequest
 
 /** One emitted run event. The shape is the L2 contract's, by instance. */
 export interface EventSinkPort {
-  emit(request: RunFence & { readonly event: unknown }): Promise<FenceOutcome>
+  /**
+   * `sequence` is the event's stable identity within its run, allocated
+   * by the emitter BEFORE the durable effect. A sink must treat a
+   * repeated (run_id, sequence) carrying the same event as a replay —
+   * acknowledged without a second physical event — and must refuse a
+   * DIFFERENT event wearing a landed identity.
+   */
+  emit(
+    request: RunFence & { readonly sequence: number; readonly event: unknown },
+  ): Promise<FenceOutcome>
   /**
    * Prepare the terminal event as part of a finalization commit. Not
    * observable until published — `run.terminated` must never announce an
@@ -85,9 +94,16 @@ export interface EventSinkPort {
  * seal not the run's last write.
  */
 export interface EvidenceSinkPort {
+  /**
+   * `record_id` is the governed record's stable LOGICAL identity, owned
+   * by the caller and identical on every retry of the same record. The
+   * record can physically land while its acknowledgement is lost; a
+   * sink must answer a repeated identity as a replay — acknowledged
+   * without a second record — which is what makes a settlement retry a
+   * resolution instead of a duplication.
+   */
   write(
-    request: RunFence &
-      (
+    request: RunFence & { readonly record_id: string } & (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
       ),

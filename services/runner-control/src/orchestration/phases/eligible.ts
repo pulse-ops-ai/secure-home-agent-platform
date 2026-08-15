@@ -57,11 +57,22 @@ export const eligible = async (
   // writes into a workspace that is not the source of truth, and what it
   // did there leaves only through a materialization decision.
   // Provisioning after execution would make the isolation decorative.
+  //
+  // THE RESOURCE IDENTITY EXISTS BEFORE THE CALL. The workspace can be
+  // created before the acknowledgement carrying its handle arrives;
+  // recording the caller-known identity on the scope FIRST is what lets
+  // teardown resolve the maybe-created resource when that
+  // acknowledgement is lost. A definitive refusal clears it — the
+  // contract says a refusal created nothing.
+  const workspaceAttempt = `workspace:${request.run_id}#g${String(scope.fence.generation)}`
+  scope.workspaceAttempt = workspaceAttempt
   const provisioned = await ports.workspace.provision({
     ...scope.fence,
+    workspace_ref: workspaceAttempt,
     source_ref: request.workspace_root,
   })
   if (!provisioned.ok) {
+    scope.workspaceAttempt = undefined
     if (provisioned.reason === 'stale_fence') {
       scope.loseFence(provisioned.detail)
       return stop(await conclude(env, 'none', provisioned.detail))
@@ -76,6 +87,7 @@ export const eligible = async (
     )
   }
   scope.workspace = provisioned.handle
+  scope.workspaceAttempt = undefined
 
   // ESTABLISH THE PROFILE CLOCK BEFORE SESSION PREPARE. The pre-profile
   // acquisition ceiling has done its job; from here the captured profile
@@ -90,12 +102,19 @@ export const eligible = async (
     env.controls.cancelAfterMs,
   )
 
+  // The same discipline for the session: caller-known identity before
+  // the call, resolvable by teardown if the acknowledgement is lost,
+  // cleared on a definitive refusal.
+  const sessionAttempt = `session:${request.run_id}#g${String(scope.fence.generation)}`
+  scope.sessionAttempt = sessionAttempt
   const prepared = await ports.session.prepare({
     ...scope.fence,
+    session_ref: sessionAttempt,
     profile: { ...authority.profile.value.identity, digest: authority.profile.digest },
     limits: authority.profile.value.limits,
   })
   if (!prepared.ok) {
+    scope.sessionAttempt = undefined
     if (prepared.reason === 'stale_fence') {
       scope.loseFence(prepared.detail)
       return stop(await conclude(env, 'none', prepared.detail))
@@ -110,6 +129,7 @@ export const eligible = async (
     )
   }
   scope.session = prepared.handle
+  scope.sessionAttempt = undefined
 
   const started = await ports.session.start({
     ...scope.fence,

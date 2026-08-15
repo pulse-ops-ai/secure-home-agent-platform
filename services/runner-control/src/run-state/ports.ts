@@ -89,16 +89,16 @@ export interface RunJournalPort {
     },
   ): Promise<Staging>
   appendTransition(
-    request: RunFence & { readonly entry_id?: string; readonly transition: TransitionEntry },
+    request: RunFence & { readonly entry_id: string; readonly transition: TransitionEntry },
   ): Promise<FenceOutcome>
   appendRejection(
-    request: RunFence & { readonly entry_id?: string; readonly rejection: RejectionEntry },
+    request: RunFence & { readonly entry_id: string; readonly rejection: RejectionEntry },
   ): Promise<FenceOutcome>
   appendAcquisition(
-    request: RunFence & { readonly entry_id?: string; readonly acquisition: JournaledAcquisition },
+    request: RunFence & { readonly entry_id: string; readonly acquisition: JournaledAcquisition },
   ): Promise<FenceOutcome>
   appendHold(
-    request: RunFence & { readonly entry_id?: string; readonly hold: JournaledHold },
+    request: RunFence & { readonly entry_id: string; readonly hold: JournaledHold },
   ): Promise<FenceOutcome>
   /**
    * `undefined` when the run has no journal — it never started here.

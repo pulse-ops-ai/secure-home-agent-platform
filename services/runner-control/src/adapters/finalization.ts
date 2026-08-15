@@ -83,9 +83,31 @@ export class TransactionalFinalization implements FinalizationPort {
   readonly #participants: CommitParticipants
   /** Which logical commit each generation PUBLISHED, for reconciliation. */
   readonly #finalized = new Map<string, string>()
+  /** The canonical intent each published identity carried. */
+  readonly #intents = new Map<string, string>()
 
   constructor(participants: CommitParticipants) {
     this.#participants = participants
+  }
+
+  /**
+   * The commit's CANONICAL LOGICAL INTENT — everything the commit would
+   * make durable, serialized deterministically.
+   *
+   * The identity alone cannot establish equivalence: two different
+   * intents from one generation can wear the same derived identity
+   * merely because both end CANCELLED. Reconciliation therefore compares
+   * the stored canonical intent of the published identity: an exact
+   * replay is the same intent and reconciles `ok`; anything else is a
+   * DIFFERENT commit that must never be answered as a replay.
+   */
+  static #canonical(commit: FinalizationCommit): string {
+    return JSON.stringify({
+      terminal: commit.terminal,
+      transitions: commit.transitions,
+      event: commit.event,
+      bundle: commit.bundle,
+    })
   }
 
   /**
@@ -132,10 +154,24 @@ export class TransactionalFinalization implements FinalizationPort {
     const holder = `${commit.run_id}#g${String(commit.generation)}`
 
     // ---- RECONCILE BEFORE ANYTHING ELSE --------------------------
-    // A repeat of an identity that already PUBLISHED is a lost
-    // acknowledgement being resolved: the effect exists, so the answer
-    // is `ok` — with nothing staged and nothing published again.
-    if (visibility.isPublished(commit_id)) return { ok: true }
+    // A repeat of an identity that already PUBLISHED is only a lost
+    // acknowledgement being resolved when it is THE SAME LOGICAL
+    // INTENT. Equivalence is established by the stored canonical
+    // intent, not by the identity string: a different intent wearing
+    // the same derived identity — same generation, same terminal state,
+    // different content — is a different commit, and answering it `ok`
+    // would report success over durable records describing something
+    // else.
+    if (visibility.isPublished(commit_id)) {
+      if (this.#intents.get(commit_id) === TransactionalFinalization.#canonical(commit)) {
+        return { ok: true }
+      }
+      return {
+        ok: false,
+        reason: 'already_committed',
+        detail: `finalization did not commit: identity ${commit_id} is already published with a different logical intent; the durable record is the truth`,
+      }
+    }
     // A DIFFERENT logical commit for a generation that already
     // published one may never publish a second terminal. The durable
     // record holds the truth this caller cannot see.
@@ -276,6 +312,7 @@ export class TransactionalFinalization implements FinalizationPort {
     // half-done and no participant call that could throw partway.
     visibility.publish(commit_id)
     this.#finalized.set(holder, commit_id)
+    this.#intents.set(commit_id, TransactionalFinalization.#canonical(commit))
     return { ok: true }
   }
 }

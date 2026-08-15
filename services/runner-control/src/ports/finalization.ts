@@ -65,8 +65,13 @@ export interface FinalizationCommit extends RunFence {
    * the same entries rather than two derivations of one intention.
    */
   readonly transitions: readonly TransitionEntry[]
-  /** The `run.terminated` event body — its outcome IS the committed one. */
-  readonly event: Record<string, unknown>
+  /**
+   * The `run.terminated` event body — its outcome IS the committed one.
+   * It must at least identify itself: an intent whose terminal event has
+   * no `event_type` is not a nameable logical commit, and the canonical
+   * intent that establishes replay equivalence is built from it.
+   */
+  readonly event: Record<string, unknown> & { readonly event_type: string }
   /** The contract-valid, seal-eligible bundle. */
   readonly bundle: unknown
   /**

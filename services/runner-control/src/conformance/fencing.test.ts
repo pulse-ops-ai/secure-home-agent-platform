@@ -76,9 +76,19 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
 
   it('the event sink refuses, and the refused event is not in the stream', async () => {
     const events = new RecordingEventSink()
-    await events.emit({ run_id: RUN, generation: 2, event: { event_type: 'run.started' } })
+    await events.emit({
+      run_id: RUN,
+      generation: 2,
+      sequence: 0,
+      event: { event_type: 'run.started' },
+    })
 
-    const stale = await events.emit({ run_id: RUN, generation: 1, event: { event_type: 'forged' } })
+    const stale = await events.emit({
+      run_id: RUN,
+      generation: 1,
+      sequence: 1,
+      event: { event_type: 'forged' },
+    })
     expect(stale.ok).toBe(false)
     expect(events.eventsOf(RUN)).toHaveLength(1)
   })
@@ -88,6 +98,7 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
     await evidence.write({
       run_id: RUN,
       generation: 2,
+      record_id: 'fence-proof#real',
       kind: 'evidence_bundle',
       bundle: { real: true },
     })
@@ -95,6 +106,7 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
     const stale = await evidence.write({
       run_id: RUN,
       generation: 1,
+      record_id: 'fence-proof#forged',
       kind: 'evidence_bundle',
       bundle: { forged: true },
     })
@@ -105,7 +117,12 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
 
   it('apply-back refuses: a stale holder cannot materialize over a live workspace', async () => {
     const workspace = new InMemoryWorkspaceLifecycle()
-    await workspace.provision({ run_id: RUN, generation: 2, source_ref: '/workspace' })
+    await workspace.provision({
+      run_id: RUN,
+      generation: 2,
+      workspace_ref: `workspace:${RUN}`,
+      source_ref: '/workspace',
+    })
 
     const stale = await workspace.applyBack({
       run_id: RUN,
@@ -121,7 +138,12 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
 
   it('discard refuses: cleanup must not delete the current holder’s workspace', async () => {
     const workspace = new InMemoryWorkspaceLifecycle()
-    await workspace.provision({ run_id: RUN, generation: 2, source_ref: '/workspace' })
+    await workspace.provision({
+      run_id: RUN,
+      generation: 2,
+      workspace_ref: `workspace:${RUN}`,
+      source_ref: '/workspace',
+    })
     const stale = await workspace.discard({ run_id: RUN, generation: 1, workspace_ref: 'w' })
     expect(stale.ok).toBe(false)
   })
@@ -131,6 +153,7 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
     await session.prepare({
       run_id: RUN,
       generation: 2,
+      session_ref: 'session:fence-proof',
       profile: { name: 'p', version: '1.0.0', digest: 'sha256:a' },
       limits: {
         wall_clock_seconds: 600,

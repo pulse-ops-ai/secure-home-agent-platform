@@ -792,39 +792,52 @@ The classes and their boundary semantics:
   by the boundary and enforced synchronously at the publication point.
 - **cleanup/teardown** — best-effort, idempotent at the resource.
 
-| Port.method | Class | Identity / resolution |
+| Port.method | Class | Identity / resolution (REQUIRED by the public types) |
 |---|---|---|
 | `authority.read` | discardable read | the consumed epoch token accounts the read |
-| `journal.appendTransition` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
-| `journal.appendRejection` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
-| `journal.appendAcquisition` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
-| `journal.appendHold` | acknowledged effect | outbox `entry_id`; replay answered without a second fact |
-| `journal.stageTransitions` | finalization | staged under the caller-owned `commit_id`; abandon/publish |
+| `journal.appendTransition` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendRejection` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendAcquisition` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendHold` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.stageTransitions` | finalization | staged under the commit identity; abandon/publish |
 | `journal.readCurrentState` | discardable read | — |
-| `lease.claim` | acquisition | unique `attempt_id`; `abandon`; same-attempt replay while current |
+| `lease.claim` | acquisition | required unique `attempt_id`; `abandon`; same-attempt replay while current |
 | `lease.abandon` | cleanup | idempotent resolution |
 | `lease.renew` | discardable read | fencing answer re-asked at the next boundary |
 | `lease.release` | cleanup | generation-guarded, idempotent |
-| `finalization.commit` | finalization | caller-owned `commit_id`; publication-point expiry; reconciliation |
-| `session.prepare` | acquisition | deterministic session identity per run; resolved by `close` |
+| `finalization.commit` | finalization | caller-boundary identity; CANONICAL-INTENT replay equivalence; publication-point expiry with winning-bound provenance |
+| `session.prepare` | acquisition | required caller-minted `session_ref` in the request; resolved by `close` even when the acknowledgement is lost |
 | `session.start` | acknowledged effect | resolved by interrupt/close; a late `ok` earns no transition |
 | `session.interrupt` | cleanup | idempotent teardown |
 | `session.close` | cleanup | idempotent teardown |
-| `workspace.provision` | acquisition | `workspace_ref`; resolved by `discard` |
-| `workspace.applyBack` | acknowledged effect | fenced observed change set; unknown ack = unconfirmed, never "not applied" |
+| `workspace.provision` | acquisition | required caller-minted `workspace_ref` in the request; resolved by `discard` even when the acknowledgement is lost |
+| `workspace.applyBack` | acknowledged effect | the fenced, identified request — non-empty-by-type observed change set + workspace identity + authorizing policy; unknown ack = unconfirmed, never "not applied" |
 | `workspace.discard` | cleanup | idempotent |
 | `observer.observeBase` | discardable read | — |
 | `observer.observe` | discardable read | — |
 | `artifacts.observe` | discardable read | — |
 | `execution.runGate` | discardable read | side effects governed by session/workspace observation, not the ack |
 | `adapter.invoke` | acknowledged effect | resolved via session interrupt/close; partial facts via TerminalEvidence |
-| `events.emit` | acknowledged effect | emitter-owned (run_id, sequence) envelope; fact accounted before the ack |
-| `events.stageEmit` | finalization | staged under the caller-owned `commit_id` |
-| `evidence.write` | acknowledged effect | one governed record per (run, kind); unknown ack = settlement failure, never denial |
-| `evidence.stageWrite` | finalization | staged under the caller-owned `commit_id` |
+| `events.emit` | acknowledged effect | required (run, `sequence`) identity in the request, allocated BEFORE the effect; fact accounted before the ack; a landed identity is never reused |
+| `events.stageEmit` | finalization | staged under the commit identity |
+| `evidence.write` | acknowledged effect | required logical `record_id`; replay answered without a second record; unknown ack = settlement failure, never denial |
+| `evidence.stageWrite` | finalization | staged under the commit identity |
 
 `clock.now` is synchronous and outside the table — it cannot outlive a
 boundary.
+
+**Round-12 exactness (same owner decision, made structural).** The
+table's identity column stopped being aspiration: every identity above
+is REQUIRED by the public TypeScript contract, proven by
+compiler-shaped conformance (RO-EX-169), and honoured by the reference
+implementations (RO-EX-170/171). The deadline that wins at a boundary
+is ONE typed value carrying instant and provenance — every stamp is a
+projection of it, so the governed clock winning a recovery minimum is
+refused as the run's timeout, never as the attempt's ceiling
+(RO-INV-90). And finalization replay equivalence is established by the
+commit's stored CANONICAL LOGICAL INTENT, not by the identity string:
+an exact replay reconciles; a different intent sharing a terminal state
+refuses instead of aliasing the publication (RO-INV-91).
 
 The same owner decision fixes the CONCLUSION side: a conclusion claims a
 durable property only after every durable fact it requires has landed

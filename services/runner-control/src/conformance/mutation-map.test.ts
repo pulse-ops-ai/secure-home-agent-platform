@@ -576,6 +576,36 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-153'],
   },
   {
+    id: 'RO-MUT-105',
+    mutation: 'make the finalization identity terminal-only, treating every repeat as a replay',
+    killedBy: ['RO-EX-162'],
+  },
+  {
+    id: 'RO-MUT-106',
+    mutation: 'derive the recovery expiry instant and its provenance independently',
+    killedBy: ['RO-EX-163'],
+  },
+  {
+    id: 'RO-MUT-107',
+    mutation: 'increment the event sequence only after the acknowledgement',
+    killedBy: ['RO-EX-164'],
+  },
+  {
+    id: 'RO-MUT-108',
+    mutation: 'accept a duplicate evidence record identity as a new append',
+    killedBy: ['RO-EX-165'],
+  },
+  {
+    id: 'RO-MUT-109',
+    mutation: 'generate the resource identity only in the acquisition response',
+    killedBy: ['RO-EX-170'],
+  },
+  {
+    id: 'RO-MUT-110',
+    mutation: 'keep a different event that wears a landed identity',
+    killedBy: ['RO-EX-171'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

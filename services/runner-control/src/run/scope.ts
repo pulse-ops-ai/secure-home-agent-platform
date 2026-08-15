@@ -53,6 +53,17 @@ export class RunScope {
   deadline: RunDeadline | undefined
 
   /**
+   * ACQUISITIONS WHOSE OUTCOME IS UNKNOWN. Set to the caller-known
+   * resource identity immediately before prepare/provision, cleared on
+   * a definitive answer (a handle, or a refusal that by contract
+   * created nothing). While set, the resource MAY exist with no handle
+   * to name it — so teardown resolves it by this identity, which is why
+   * the identity had to exist before the call.
+   */
+  sessionAttempt: string | undefined
+  workspaceAttempt: string | undefined
+
+  /**
    * Set when a precondition holds the run where it is.
    *
    * Distinguishes a HOLD — the run waits, resumable — from a run the
@@ -174,27 +185,35 @@ export class RunScope {
   async release(ports: Ports, disarm = true): Promise<void> {
     const workspace = this.workspace
     const session = this.session
+    // A handle is the definitive name; an unresolved ATTEMPT identity is
+    // the fallback — the resource may exist even though the
+    // acknowledgement carrying its handle never arrived, and the
+    // caller-known identity is the only name teardown has for it.
+    const workspaceRef = workspace?.workspace_ref ?? this.workspaceAttempt
+    const sessionRef = session?.session_ref ?? this.sessionAttempt
     this.workspace = undefined
     this.session = undefined
+    this.workspaceAttempt = undefined
+    this.sessionAttempt = undefined
     try {
       if (this.fenceLost !== undefined) return
       // Start both independent cleanup operations before awaiting either.
       // A workspace implementation that never answers must not prevent
       // the session close from even being attempted (and vice versa).
       const cleanup: Promise<unknown>[] = []
-      if (workspace !== undefined) {
+      if (workspaceRef !== undefined) {
         cleanup.push(
           ports.workspace.discard({
             ...this.fence,
-            workspace_ref: workspace.workspace_ref,
+            workspace_ref: workspaceRef,
           }),
         )
       }
-      if (session !== undefined) {
+      if (sessionRef !== undefined) {
         cleanup.push(
           ports.session.close({
             ...this.fence,
-            session_ref: session.session_ref,
+            session_ref: sessionRef,
           }),
         )
       }

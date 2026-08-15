@@ -24,7 +24,12 @@ export const materialize = async (
   seen: Observations,
 ): Promise<PhaseCommand<RunConclusion> | undefined> => {
   const { scope, ports, request } = env
-  if (seen.observed.changes.length === 0) return undefined
+  // The type-level narrowing that matches RO-EX-76: an empty change set
+  // is never an apply-back, and `ApplyBackRequest.changes` is non-empty
+  // BY TYPE — a materialization with nothing in it is unrepresentable
+  // rather than merely skipped.
+  const [head, ...rest] = seen.observed.changes
+  if (head === undefined) return undefined
 
   const policy = authority.snapshots.path_policy
   const decision = decideMaterialization(policy, seen.observed, [
@@ -72,7 +77,7 @@ export const materialize = async (
     ...scope.fence,
     workspace_ref: scope.workspace.workspace_ref,
     // The AUTHORITATIVE observation — not the model's claims.
-    changes: seen.observed.changes,
+    changes: [head, ...rest],
     authorized_by: { contract_id: policy.contract.contract_id, digest: policy.digest },
   })
   if (!applied.ok) {
