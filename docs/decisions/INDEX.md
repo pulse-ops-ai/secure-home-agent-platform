@@ -120,6 +120,7 @@ implementation-neutral. These decide how it is built.
 | [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
 | [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
 | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Proposed | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
+| [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Proposed | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -236,6 +237,7 @@ to deploy, and it does not make any unresolved decision decided.
 | availability, offline, or failure behaviour | ADR-0002, ADR-0007, ADR-0009 |
 | a knowledge bundle | ADR-0010 |
 | a knowledge module, set, or the selection contract | ADR-0010, ADR-0003, ADR-0006 + [`../architecture/knowledge-selection-model.md`](../architecture/knowledge-selection-model.md) |
+| the knowledge format, validator, packaging, or query interfaces | ADR-0010, **ADR-0015** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |

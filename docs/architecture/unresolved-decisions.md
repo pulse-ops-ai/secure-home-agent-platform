@@ -209,6 +209,18 @@ and a plain deterministic loop) rather than against the most convenient one.
 
 ### First OKF validator and toolchain
 
+> **STILL OPEN.** A *proposed* answer exists —
+> [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+> — and it is `Proposed`, so **it closes nothing**. An item leaves this file only
+> via an **accepted** ADR.
+>
+> Read it for the proposed direction, not for permission. Two gates stand
+> between it and authoring, and both must fall: human acceptance, and the
+> implementation gate in its §12 — compile/validate/package/query behind the
+> ADR-0010 interfaces, a conformance suite with a failing negative case per
+> prohibited-content class, and demonstrated digest reproducibility. Acceptance
+> alone is **not** permission to author.
+
 **The problem.** [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 requires compile, validate, package, and query interfaces and a machine-checked
 prohibited-content rule. Whether OKF is the right format is unvalidated, and no
