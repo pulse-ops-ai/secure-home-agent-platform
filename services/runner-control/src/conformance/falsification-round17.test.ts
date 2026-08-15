@@ -359,3 +359,57 @@ describe('D17 staged abandon controls', () => {
     expect(recording.eventsOf(run_id)).toEqual([event])
   })
 })
+
+describe('D17 ordinary emission shares staged event identity authority', () => {
+  it('refuses an ordinary conflicting event while an exact staged identity is unpublished', async () => {
+    const run_id = 'run-20260815-round17-staged-vs-ordinary'
+    const commit_id = 'commit-round17-staged-vs-ordinary'
+    const visibility = new CommitLedger()
+    const recording = new RecordingEventSink(visibility)
+    const eventA = terminalEvent(run_id, 'staged event A')
+    const eventB = terminalEvent(run_id, 'ordinary event B')
+
+    expect(RunEvent.safeParse(eventA).success).toBe(true)
+    expect(RunEvent.safeParse(eventB).success).toBe(true)
+    expect(eventA).not.toEqual(eventB)
+
+    const staged = await recording.stageEmit({
+      run_id,
+      generation: 1,
+      commit_id,
+      event: eventA,
+    })
+    expect(staged).toMatchObject({ ok: true, staged: { commitId: commit_id } })
+    if (!staged.ok) return
+
+    const unpublishedBeforeOrdinaryEmit = !visibility.isPublished(commit_id)
+    const visibleBeforeOrdinaryEmit = recording.eventsOf(run_id)
+    const ordinary = await recording.emit({
+      run_id,
+      generation: 1,
+      sequence: 0,
+      event: eventB,
+    })
+    const visibleAfterOrdinaryEmit = recording.eventsOf(run_id)
+
+    visibility.publish(commit_id)
+
+    expect({
+      stagedReachedSink: staged.ok,
+      unpublishedBeforeOrdinaryEmit,
+      visibleBeforeOrdinaryEmit,
+      ordinaryOk: ordinary.ok,
+      ordinaryReason: ordinary.ok ? undefined : ordinary.reason,
+      visibleAfterOrdinaryEmit,
+      visibleAfterPublish: recording.eventsOf(run_id),
+    }).toEqual({
+      stagedReachedSink: true,
+      unpublishedBeforeOrdinaryEmit: true,
+      visibleBeforeOrdinaryEmit: [],
+      ordinaryOk: false,
+      ordinaryReason: 'conflicting_replay',
+      visibleAfterOrdinaryEmit: [],
+      visibleAfterPublish: [eventA],
+    })
+  })
+})
