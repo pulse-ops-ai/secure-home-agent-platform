@@ -15,6 +15,7 @@ import type {
   ClockPort,
   EventSinkPort,
   FenceOutcome,
+  CommitOutcome,
   FinalizationCommit,
   Staging,
 } from '../ports/index.js'
@@ -134,15 +135,26 @@ describe('D14 terminal staging shares event identity replay authority', () => {
 })
 
 describe('D14 staging result must represent a conflicting replay', () => {
-  it('control: the current public Staging union cannot express the required refusal', () => {
-    const conflicting = {
-      ok: false as const,
-      reason: 'conflicting_replay' as const,
+  it('allows staging to represent a conflicting replay refusal', () => {
+    const refusal: Staging = {
+      ok: false,
+      reason: 'conflicting_replay',
       detail: 'same event identity, different terminal event',
     }
-    // @ts-expect-error The current SPI exposes only stale_fence here; a terminal identity conflict needs its own result.
-    const refusal: Staging = conflicting
-    expect(refusal.ok).toBe(false)
+    if (refusal.ok) throw new Error('the refusal must be a failed staging result')
+    expect(refusal.reason).toBe('conflicting_replay')
+  })
+})
+
+describe('D14 finalization outcome must propagate a conflicting replay', () => {
+  it('allows CommitOutcome to represent a conflicting replay refusal', () => {
+    const outcome: CommitOutcome = {
+      ok: false,
+      reason: 'conflicting_replay',
+      detail: 'terminal event sequence is already occupied',
+    }
+    if (outcome.ok) throw new Error('the outcome must be a failed commit result')
+    expect(outcome.reason).toBe('conflicting_replay')
   })
 })
 
