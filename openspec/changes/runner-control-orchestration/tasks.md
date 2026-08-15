@@ -648,8 +648,7 @@ operation its requirement names.
   tests, typecheck, lint, build, strict OpenSpec validation, and
   repository gate remain green.
 
-- [ ] **7.12 Close round-12 D14 public-contract findings** *(three reviewer
-  REDs remain open — see disclosure)*
+- [x] **7.12 Close round-12 D14 public-contract findings**
   <!-- agent-task: 7.12 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.11 -->
 
   **Authorized by** — the same owner decision record as 7.11
@@ -673,22 +672,26 @@ operation its requirement names.
   with interrupted-acquisition resolution at teardown
   (RO-EX-170/171, `RunScope.sessionAttempt`/`workspaceAttempt`).
 
-  **Disclosure — three reviewer REDs remain RED, for reasons in the
-  fixtures rather than in production.** They were not weakened,
-  modified, or bypassed; they fail today for exactly these reasons:
-  RO-EX-166/167 assert that teardown addresses the resource by the name
-  the FIXTURE minted internally (`session-random-1` /
-  `workspace-random-1`) — a name that, by each test's own construction,
-  exists only inside the acknowledgement that was lost, and that the
-  fixture does not derive from the caller-known identity the corrected
-  contract now requires and orchestration now passes (teardown provably
-  resolves `session:<run>#g1` / `workspace:<run>#g1`). RO-EX-168
-  invokes the fixture's `applyBack` twice DIRECTLY, with no production
-  code between the test and the fixture's unconditional recording of
-  every invocation, then asserts one recording. No production change
-  can make these three assertions pass; the class corrections behind
-  them are implemented and separately proven. Reviewer adjudication of
-  the fixtures is requested.
+  **Disclosure and adjudication.** Three reviewer REDs
+  (RO-EX-166/167/168) initially remained RED for reasons in their
+  fixtures rather than in production: 166/167 asserted teardown by a
+  name the fixture minted internally — existing only inside the lost
+  acknowledgement, ignoring the caller-known identity the corrected
+  contract requires — and 168 invoked a deliberately non-conforming
+  port body directly, with no production seam between the test and its
+  unconditional recording. They were not weakened or bypassed; the
+  implementation was pushed with them failing and reviewer
+  adjudication requested. The reviewer adjudicated all three as
+  `REVIEWER_FIXTURE_INVALIDATED_BY_CONTRACT_FIX` and issued the
+  reviewer-only correction
+  `7eb9d34f3e0dd341799cd5e6e7507d21345840e9` (parent `6093b83`)
+  touching only
+  `falsification-round12.test.ts`: the session/workspace fixtures now
+  bind their physically-created resources to the caller-supplied
+  identities while still losing the acknowledgement, and the apply-back
+  proof wraps the shipped reference implementation in a
+  lost-acknowledgement decorator. All nineteen round-12 proofs are
+  green with no production change.
 
   **Proof required** — RO-EX-162…165 and 169…171 green with the
   reviewer file unmodified (`git diff 48f28e3 -- …round12.test.ts`
