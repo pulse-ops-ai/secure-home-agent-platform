@@ -69,8 +69,9 @@ contract every agent reads, and nothing is authored under it.
 
 - [x] **1.3 Record what follows, without duplicating the ADR**
 
-  `docs/architecture/knowledge-promotion-model.md` — the path, the four-layer
-  table, why not provider skills, and what is blocked.
+  `docs/architecture/knowledge-promotion-model.md` — the canonical-home taxonomy
+  by KIND of truth, the path, the four-layer table, why not provider skills, and
+  what is blocked. Carries the same `Proposed`/non-operative posture.
 
 - [x] **1.4 Update both indexes**
 
@@ -86,10 +87,12 @@ contract every agent reads, and nothing is authored under it.
   portable knowledge rather than leaving it only in the change archive, tests,
   PR discussion, or provider instructions."
 
-  Placed with the knowledge-selection rules it extends, cross-referencing the
-  architecture document rather than restating it, and carrying the two
-  consequences that bind now: provider artifacts are never canonical, and
-  authoring is blocked by U7.
+  Placed with the knowledge-selection rules it relates to, cross-referencing the
+  architecture document rather than restating it, and **explicitly marked
+  non-operative**: ADR-0014 is `Proposed`, and a proposed decision must not
+  become binding through a lower-precedence artifact. The section separates what
+  is already true independently of ADR-0014 — provider instruction files are
+  adapters, and U7 blocks authoring — from what the proposal would add.
 
 ## 3. Verification Net for PR-1
 
@@ -99,6 +102,33 @@ contract every agent reads, and nothing is authored under it.
       specification is untouched: no module, no set, no catalog entry.
 - [x] **3.3 `bash scripts/check.sh`** — the aggregate gate.
 - [x] **3.4 Confirm U7 is unmodified and no ADR status line changed** — by diff.
+
+## 4. Correction round (post-review)
+
+- [x] **4.1 Proposed does not bind through a lower artifact**
+
+  Root `AGENTS.md` no longer says "two consequences bind now"; the section is
+  marked non-operative and states that acceptance is what makes it binding.
+  ADR-0014 no longer claims the `AGENTS.md` rule is "the enforcement surface
+  today". The architecture document carries an explicit non-operative banner.
+
+- [x] **4.2 Canonical-source model made type-aware**
+
+  Five kinds of durable truth, each with its canonical home: architecture →
+  ADRs and `docs/architecture/`; governance, coding-agent obligations and review
+  policy → the applicable governed repository contract; human operational
+  procedures → `docs/operations/`; normative platform contracts → their
+  specification owner; portable agent-facing representation → `knowledge/`, as a
+  projection. `knowledge/` is never the sole original for any of them, and every
+  module names its governing canonical source. The provider-replacement test is
+  restated so it cannot make knowledge an origin.
+
+- [x] **4.3 Unstable PR #82 wording removed**
+
+  No "reached its final state", no round count, and no claim that the identified
+  L4 lessons are complete. That landing is cited as evidence the promotion
+  problem exists, and its lessons as examples/candidates while it remains under
+  falsification.
 
 ## PR-1 Completion Gate
 
@@ -110,16 +140,23 @@ contract every agent reads, and nothing is authored under it.
 - [x] No knowledge module, set, or catalog entry is added.
 - [x] No `skills/` directory and no provider-native skill is created.
 - [x] Validation above run, with real output reported.
+- [x] No artifact in this change presents a `Proposed` consequence as binding.
+- [x] No temporal or finality claim about the in-flight L4 landing remains.
 
 ## Promotion determination for this change
 
 Required by the rule this change introduces, and answered for it:
 
-| Truth | Durable? | Must an agent reason from it? | Outcome |
+| Truth | Kind | Canonical home | Projection outcome |
 |---|---|---|---|
-| Canonical homes and the promotion path | yes | yes — an agent deciding where a finding goes needs it | **promote when U7 opens**, as a `knowledge/platform/` module projecting ADR-0014 |
-| The four-layer image/profile/knowledge/task split | yes | yes | **promote when U7 opens**, likely into the existing `runner-model` module rather than a new one |
-| The determination obligation itself | yes | yes | **promote when U7 opens**, as a `knowledge/runbooks/` procedure |
+| Canonical homes and the promotion path | architecture | ADR-0014 + `knowledge-promotion-model.md` | **project when U7 opens**, as a `knowledge/platform/` module naming ADR-0014 as its source |
+| The four-layer image/profile/knowledge/task split | architecture | ADR-0011 + `knowledge-promotion-model.md` | **project when U7 opens**, likely into the existing `runner-model` module rather than a new one |
+| The determination obligation itself | governance / coding-agent obligation | root `AGENTS.md` | **project when U7 opens**, as a `knowledge/runbooks/` procedure naming that contract as its source |
 
-All three are blocked by U7 and none is authored here. Recording the
-determination is what the rule requires; acting on it is what U7 gates.
+Note the third row: its canonical home is the governed contract, **not**
+`docs/architecture/` and not the runbook that would project it. That is the
+type-aware taxonomy applied to this change's own content.
+
+All three are blocked by U7 and none is authored here. This determination is
+recorded, not acted on — and it is recorded voluntarily, since the rule
+requiring it is not operative while ADR-0014 is `Proposed`.

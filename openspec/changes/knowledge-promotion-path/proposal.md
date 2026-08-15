@@ -6,17 +6,19 @@ The repository says where knowledge lives, what it may contain, and that it
 grants nothing. It does not say **what happens to a durable architectural truth
 discovered during implementation or review.**
 
-The L4 orchestration landing made that gap expensive. Fifteen falsification
-rounds did not mainly find coding mistakes; they found durable engineering
-truths — fencing checked at the resource rather than at the lease store,
+The L4 orchestration landing has made that gap expensive. It has already
+produced repeated falsification rounds that exposed recurring architectural
+classes rather than isolated coding mistakes — fencing checked at the resource
+rather than at the lease store,
 publication as one visibility change rather than several compensating writes, a
 bound owned by the port rather than by the call site, effect identity with exact
 replay distinguished from conflicting replay, and a proof exercised against
 something it must catch rather than standing as a lexical proxy for the property
 it names.
 
-Every one of those is a fact about how this platform is built, and none is
-peculiar to Claude, Codex, or Copilot. Each currently survives only in a change
+That landing is still under falsification, so those are examples rather than a
+complete or final set. Every one of them is a fact about how this platform is
+built, and none is peculiar to Claude, Codex, or Copilot. Each currently survives only in a change
 archive, a test file, a PR discussion, or a provider instruction file — four
 places that are, respectively, historical, incidental, ephemeral, and
 provider-scoped.
@@ -31,10 +33,17 @@ repository has spent thirteen ADRs avoiding that class of question.
 
 ## Proposed Capability
 
-Establish the promotion path as a governed rule: canonical homes for durable
-architecture, an agent-facing projection in `knowledge/`, provider artifacts
-confined to runtime integration, and an explicit obligation to *determine*
-whether a discovered truth should be promoted.
+**Propose** the promotion path as a governed rule: a canonical home chosen by
+the KIND of durable truth — architecture, governance contract, operational
+procedure, or normative contract — an agent-facing projection in `knowledge/`
+that is never the sole original, provider artifacts confined to runtime
+integration, and an obligation to *determine* whether a discovered truth should
+be promoted.
+
+**Nothing here becomes operative in this change.** ADR-0014 is authored
+`Proposed`, and the root `AGENTS.md` section describing it says explicitly that
+it is non-operative until acceptance. A proposed decision must not become
+binding through a lower-precedence artifact.
 
 ## Scope
 
@@ -92,8 +101,10 @@ This change grants no capability, no tool, and no authority to any agent.
 
 ## Existing Evidence
 
-- `openspec/changes/runner-control-orchestration/` — the landing that produced
-  the candidate truths, and the demonstration that they had nowhere to go
+- `openspec/changes/runner-control-orchestration/` — an in-flight landing
+  producing candidate truths, and the demonstration that they have nowhere to
+  go. Cited as evidence that the problem exists, not as a settled register of
+  lessons; it is still under falsification
 - `knowledge/INDEX.md` — `architecture-default` already exists, and
   `platform/` and `runbooks/` already hold exactly the two kinds of content the
   model names
@@ -108,9 +119,10 @@ U7 for any authoring. Nothing else. No package, no dependency, no runtime path.
 
 ## Success
 
-The rule is stated once, canonically; both indexes resolve; the scaffold
-validator passes; and a future change that discovers a durable truth has a named
-obligation and a named destination.
+The proposal is stated once, canonically; both indexes resolve; the scaffold
+validator passes; and — on acceptance — a change that discovers a durable truth
+would have a named obligation and a destination chosen by the kind of truth.
+Until acceptance the rule is discoverable and non-operative.
 
 ## Non-Goals
 

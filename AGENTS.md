@@ -85,31 +85,43 @@ Until the validator and governed query interfaces exist,
 ([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
-## Promoting what a change discovers
+## Promoting what a change discovers — PROPOSED, not yet binding
 
-**When a change or falsification review discovers a durable architectural truth,
-determine whether it must be promoted into canonical architecture and portable
-knowledge rather than leaving it only in the change archive, tests, PR
-discussion, or provider instructions.**
+> **Non-operative.** The decision behind this section,
+> [ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
+> is `Proposed`. **Nothing in this section is an obligation today.** A proposed
+> decision cannot become binding through this file — precedence runs the other
+> way, and a lower artifact that operationalised a proposal would invert it.
+> This section exists so the proposal is discoverable while it is reviewed, and
+> becomes binding only if and when ADR-0014 is `Accepted` in its own reviewed
+> change.
 
-The determination is the obligation — not the promotion. Most findings are
-specific to their change and correctly stop at the first step. Record the answer
-in the change that found the truth.
+The rule under review:
 
-Where each layer's authority ends, and the path a promoted truth takes, are in
-[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md)
-([ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
-`Proposed`). Two consequences bind now:
+> When a change or falsification review discovers a durable architectural truth,
+> determine whether it must be promoted into canonical architecture and portable
+> knowledge rather than leaving it only in the change archive, tests, PR
+> discussion, or provider instructions.
 
-- **A provider-native skill or instruction file is never the canonical home** of
-  an architectural invariant, engineering policy, review policy, or operational
-  procedure. If the information should survive replacing Claude with Codex or
-  Copilot, it belongs in architecture, knowledge, a runbook, or a platform
-  contract.
-- **Authoring a knowledge module is still blocked** by
-  [U7](docs/architecture/unresolved-decisions.md#u7). Until it closes, the path
-  terminates at canonical architecture and the determination is recorded rather
-  than acted on.
+The obligation it would create is the *determination*, not the promotion: most
+findings are specific to their change and correctly stop at the first step, and
+a recorded negative answer would satisfy it.
+
+The canonical-source taxonomy, the promotion path, and where each layer's
+authority ends are in
+[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md),
+which carries the same `Proposed` posture.
+
+Two things are already true independently of ADR-0014, and are stated here
+because they are easy to misread as new:
+
+- **Provider instruction files are adapters.** `CLAUDE.md`,
+  `.github/copilot-instructions.md`, and `.github/agents/*.agent.md` route an
+  agent to the right documents and never change what those documents say — see
+  *Instruction precedence* above. That rule predates ADR-0014.
+- **Authoring a knowledge module is blocked** by
+  [U7](docs/architecture/unresolved-decisions.md#u7), which is independent of
+  ADR-0014 and unaffected by it.
 
 ## Two kinds of agent — do not confuse them
 

@@ -20,9 +20,10 @@ What it does not say is **what happens to a durable architectural truth that is
 discovered during implementation or review.**
 
 That gap has a cost, and the cost is now observable. The L4 orchestration
-landing (`openspec/changes/runner-control-orchestration`) reached its final
-state through repeated falsification rounds. Those rounds did not mainly find
-coding mistakes. They found durable engineering truths — that a fencing token
+landing (`openspec/changes/runner-control-orchestration`) has already produced
+repeated falsification rounds that exposed recurring architectural classes
+rather than isolated coding mistakes. Examples of the durable engineering
+truths they surfaced — that a fencing token
 must be checked at the resource rather than by consulting the lease store; that
 publication must be one visibility change rather than several compensating
 writes; that a bound belongs at the port rather than at the call site, because a
@@ -32,8 +33,10 @@ a stable caller-known identity, with exact replay distinguished from conflicting
 replay; that a proof must be exercised against something it must catch, or it is
 a lexical proxy for the property it names.
 
-Every one of those is a fact about how this platform is built. None of them is
-peculiar to Claude, Codex, or Copilot. Yet each currently survives only in a
+That landing is still under falsification, so the list above is illustrative
+rather than complete — further classes may emerge, and this ADR is deliberately
+not a register of them. Every one of those is a fact about how this platform is
+built. None of them is peculiar to Claude, Codex, or Copilot. Yet each currently survives only in a
 change archive, a test file, a PR discussion, or a provider instruction file —
 four places that are, respectively, historical, incidental, ephemeral, and
 provider-scoped.
@@ -60,23 +63,45 @@ be considered, and where each layer's authority ends.**
 
 ## Decision
 
-### 1. `docs/architecture/` and accepted ADRs are the canonical home of durable system architecture
+### 1. Every durable truth has ONE canonical home, and the home depends on the KIND of truth
 
-An architectural invariant, boundary, model, or vocabulary term is canonically
-stated once, in `docs/decisions/` (why) or `docs/architecture/` (what follows).
-Every other layer references that statement. Two copies of a rule become two
-different rules.
+A durable truth is canonically stated once. Which artifact is canonical depends
+on what kind of truth it is — architecture is not the only legitimate origin,
+and treating it as one would either misfile governance and operations or leave
+them with no canonical home at all:
+
+| Kind of truth | Canonical home |
+|---|---|
+| durable system architecture, architectural invariants | accepted ADRs (why) and `docs/architecture/` (what follows) |
+| repository governance, coding-agent obligations, review policy | the applicable governed repository contract — root or nested `AGENTS.md`, `CONTRIBUTING.md`, or another explicitly authoritative contract |
+| human operational procedures | `docs/operations/` |
+| executable or normative platform contracts | their existing governed contract or specification owner — `schemas/`, `openspec/specs/`, or the owning package's contract |
+| portable, agent-facing representation of any of the above | `knowledge/platform/` or `knowledge/runbooks/`, **as a projection** |
+
+Every other layer references the canonical statement rather than restating it.
+Two copies of a rule become two different rules.
 
 ### 2. `knowledge/` is the portable, agent-facing projection of durable truths and procedures
 
-Knowledge is not a second architecture. It is the form in which a *subset* of
-canonical truth is packaged so an agent can reason from it — versioned,
-validated, digest-addressed, and selected by profile.
+Knowledge is not a second architecture, and it is not a second anything else.
+It is the form in which a *subset* of canonical truth is packaged so an agent
+can reason from it — versioned, validated, digest-addressed, and selected by
+profile.
 
-Not every architectural truth becomes a knowledge module. Promotion is a
-judgement, and the criterion is whether an agent must reason **from** the truth
-in order to do its work correctly. A truth that only humans act on stays in
-`docs/`.
+**A knowledge module or runbook is never the sole original.** This holds for
+every kind of truth in §1, not only architecture: a procedure does not become
+canonically owned by `knowledge/runbooks/` merely because it is a procedure
+rather than an invariant. Its canonical home is whichever row of §1 it belongs
+to — a governed contract, `docs/operations/`, or a specification owner — and the
+runbook projects it.
+
+**Every knowledge module and runbook SHALL identify its governing canonical
+source or sources.** A module that names none is either a projection of nothing
+or an original in the wrong place, and both are defects.
+
+Not every durable truth becomes a knowledge module. Promotion is a judgement,
+and the criterion is whether an agent must reason **from** the truth in order to
+do its work correctly. A truth that only humans act on stays where §1 puts it.
 
 ### 3. `knowledge/platform/` holds models, invariants, vocabulary, semantics, and cross-cutting engineering truths
 
@@ -98,9 +123,17 @@ and queries the knowledge that was selected for the run. It may never be the
 sole canonical home of an architectural invariant, an engineering policy, a
 review policy, or an operational procedure.
 
-**The test:** if the information should survive replacing Claude with Codex or
-Copilot, it is not a provider skill. It belongs in architecture, knowledge, a
-runbook, or a platform contract.
+**The test, in the form that does not leak:**
+
+> If information must survive replacing a provider or runtime, its **canonical
+> source must be provider-neutral**. Where agents need to reason from it,
+> project the appropriate subset into portable knowledge.
+
+The earlier, weaker phrasing — "it belongs in architecture, knowledge, a
+runbook, or a platform contract" — offers `knowledge/` as one origin among
+several, which permits a module to become the original. It does not. Knowledge
+is where a provider-neutral canonical source is *projected to*, never where a
+truth first becomes canonical.
 
 This extends the existing root-`AGENTS.md` rule about provider instruction files
 from *routing* to *content*, and it is the reason this ADR exists rather than a
@@ -139,12 +172,18 @@ Authorization, safety bounds, and live state are owned elsewhere
 ```text
 change / review finding
      │
+     │  which KIND of truth is this?  (§1)
      ▼
-canonical architecture or ADR          ← docs/architecture, docs/decisions
+canonical home
+     architecture / invariant   → docs/decisions, docs/architecture
+     governance / review policy → AGENTS.md, CONTRIBUTING.md, other contract
+     human procedure            → docs/operations
+     normative contract         → schemas, openspec/specs, contract owner
      │
+     │  must an agent reason FROM it?
      ▼
 portable knowledge module or runbook   ← knowledge/platform, knowledge/runbooks
-     │   (where an agent must reason from it)
+     │   naming its governing canonical source
      ▼
 knowledge set                          ← knowledge/INDEX.md
      │
@@ -170,7 +209,8 @@ directory, and specifically **no `skills/` directory**.
 **Negative.** Every substantial change now carries an extra determination, and
 determinations cost review attention. Some will be answered "no" and will look,
 in hindsight, like ceremony. Accepted deliberately: the alternative is losing
-the truths, which the L4 landing demonstrates is the more expensive failure.
+the truths, which the L4 landing is demonstrating is the more expensive
+failure.
 
 **Neutral.** This decision changes no runtime behaviour and adds no dependency.
 
@@ -191,10 +231,10 @@ unanswerable authority question. It also inverts the dependency: the platform
 would depend on a runtime's extension mechanism to state its own architecture.
 
 **Leave lessons in the change archive and tests.** Rejected, on evidence. The L4
-landing produced fifteen review rounds, and the recurring verdict was that a fix
-repaired the reported instance without closing the class. A truth that lives
-only in the test that caught it is available to whoever reads that test, which
-is nobody, later.
+landing has gone through repeated review rounds in which the recurring verdict
+was that a fix repaired the reported instance without closing the class. A truth
+that lives only in the test that caught it is available to whoever reads that
+test, which is nobody, later.
 
 **A new top-level `skills/` or `lessons/` directory.** Rejected. The repository
 already has the two homes this needs, with a registry, a validator, a selection
@@ -239,13 +279,19 @@ nothing at run time.
    new architecture document.
 2. `node scripts/check-knowledge.mjs` — unchanged expectations; this ADR adds no
    module, and the specification-only invariants must still hold.
-3. The root `AGENTS.md` promotion rule is the enforcement surface today. It is a
-   determination obligation, deliberately not automated: no validator can decide
-   whether a truth is durable.
-4. **On U7 closing** — the L4 lessons named in Context are the first candidates
-   for authoring, and the determination recorded in this change is the input to
-   that work. They are candidates, not commitments; each is subject to §2's
-   criterion.
+3. **Nothing in this ADR is operative while it is `Proposed`.** There is no
+   enforcement surface today, and none may be created by a lower-precedence
+   artifact: the root `AGENTS.md` section describing this proposal is explicitly
+   non-operative, and a `Proposed` decision that became binding through a file
+   below it in the precedence order would invert the order. **On acceptance**,
+   the determination obligation takes effect through root `AGENTS.md`. It is
+   deliberately not automated: no validator can decide whether a truth is
+   durable, and one that claimed to would report success.
+4. **On U7 closing** — the L4 lessons named in Context are candidate material
+   for authoring, and the determination recorded in the accompanying change is
+   an input to that work. They are examples, not a complete or final set: that
+   landing is still under falsification, and further classes may emerge. Each
+   candidate is subject to §2's criterion when it is considered.
 5. This ADR proposes **no** status change to any existing ADR and resolves **no**
    item in `unresolved-decisions.md`.
 

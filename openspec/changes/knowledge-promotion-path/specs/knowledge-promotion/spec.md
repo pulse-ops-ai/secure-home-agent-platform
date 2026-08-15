@@ -1,12 +1,25 @@
 # Spec Delta: knowledge-promotion
 
+> **These requirements are PROPOSED and take effect only on acceptance of
+> ADR-0014.** While that ADR is `Proposed`, nothing below is an obligation, and
+> nothing below may be made binding by a lower-precedence artifact.
+
 ## ADDED Requirements
 
-### Requirement: Canonical home for a durable architectural truth
+### Requirement: Canonical home chosen by the kind of durable truth
 
-A durable architectural truth SHALL be canonically stated exactly once, in an
-accepted ADR (why) or a `docs/architecture/` document (what follows). Every other
-layer SHALL reference that statement rather than restate it.
+A durable truth SHALL be canonically stated exactly once, in the home determined
+by its kind:
+
+| Kind of truth | Canonical home |
+|---|---|
+| durable system architecture, architectural invariants | accepted ADRs and `docs/architecture/` |
+| repository governance, coding-agent obligations, review policy | the applicable governed repository contract — `AGENTS.md`, `CONTRIBUTING.md`, or another explicitly authoritative contract |
+| human operational procedures | `docs/operations/` |
+| executable or normative platform contracts | their existing governed contract or specification owner |
+| portable, agent-facing representation of any of the above | `knowledge/platform/` or `knowledge/runbooks/`, as a projection |
+
+Every other layer SHALL reference that statement rather than restate it.
 
 #### Scenario: A review discovers a durable engineering truth
 
@@ -29,6 +42,33 @@ layer SHALL reference that statement rather than restate it.
 - **THEN** the change is incorrect
 - **AND** the module SHALL project the canonical statement and reference it
 
+#### Scenario: A procedure is not owned by the runbook that projects it
+
+- **WHEN** a durable operational procedure is projected into
+  `knowledge/runbooks/`
+- **THEN** its canonical home remains the governed contract or
+  `docs/operations/` document it belongs to
+- **AND** the runbook SHALL NOT become the original merely because the content
+  is a procedure rather than an invariant
+
+### Requirement: A knowledge module names its governing canonical source
+
+Every knowledge module and runbook SHALL identify the canonical source or
+sources it projects.
+
+#### Scenario: A module projecting a governance contract
+
+- **WHEN** a module projects a coding-agent obligation
+- **THEN** it names the governed repository contract that owns it
+- **AND** that contract remains canonical
+
+#### Scenario: A module naming no source (negative)
+
+- **WHEN** a module identifies no governing canonical source
+- **THEN** it is either a projection of nothing or an original in the wrong
+  place
+- **AND** both are defects
+
 ### Requirement: Provider artifacts are never the canonical home
 
 A provider-native skill or provider instruction file SHALL NOT be the sole
@@ -38,10 +78,10 @@ that runtime discovers and queries the knowledge selected for a run.
 
 #### Scenario: Information that must survive a runtime swap
 
-- **WHEN** information would still be required after replacing Claude with Codex
-  or Copilot
-- **THEN** it belongs in architecture, knowledge, a runbook, or a platform
-  contract
+- **WHEN** information must survive replacing a provider or runtime
+- **THEN** its canonical source SHALL be provider-neutral
+- **AND** where agents must reason from it, the appropriate subset is projected
+  into portable knowledge
 - **AND** it SHALL NOT be recorded only in a provider artifact
 
 #### Scenario: A runtime integration detail
@@ -113,4 +153,23 @@ negative answer satisfies it.
 - **WHEN** a change would author a knowledge module before the OKF validator
   exists
 - **THEN** the change is blocked by U7
-- **AND** the promotion path terminates at canonical architecture
+- **AND** the promotion path terminates at the canonical home
+
+### Requirement: A proposed decision does not bind through a lower artifact
+
+While ADR-0014 is `Proposed`, no obligation derived from it SHALL be operative,
+and no lower-precedence artifact SHALL make it operative.
+
+#### Scenario: The contract describes a proposal
+
+- **WHEN** root `AGENTS.md` describes the promotion rule while ADR-0014 is
+  `Proposed`
+- **THEN** it states explicitly that the rule is non-operative
+- **AND** the obligation takes effect only on acceptance
+
+#### Scenario: A proposal made binding by a contract file (negative)
+
+- **WHEN** a repository contract would present a `Proposed` decision's
+  consequences as binding today
+- **THEN** the instruction precedence order is inverted
+- **AND** the change is incorrect

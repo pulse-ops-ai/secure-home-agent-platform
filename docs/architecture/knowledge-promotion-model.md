@@ -1,13 +1,20 @@
 # Knowledge promotion model
 
-> **Status: proposed, and nothing is authored under it yet.** The decision this
-> document follows from is
+> **Status: PROPOSED and NON-OPERATIVE.** The decision this document follows
+> from is
 > [ADR-0014](../decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
-> which is `Proposed`. Authoring any knowledge module remains blocked by
-> [U7](unresolved-decisions.md#u7).
+> which is `Proposed`. **Nothing here is an obligation today**, and nothing here
+> may become one through this document or through root `AGENTS.md` — a proposed
+> decision cannot be made binding by an artifact below it in the precedence
+> order. This document describes the model under review; it takes effect if and
+> when ADR-0014 is `Accepted` in its own reviewed change.
+>
+> Separately and independently: authoring any knowledge module remains blocked
+> by [U7](unresolved-decisions.md#u7), which ADR-0014 neither resolves nor
+> weakens.
 
-This document records **what follows** from ADR-0014: where a durable
-architectural truth lives, and how it reaches an agent. The ADR records *why*.
+This document records **what would follow** from ADR-0014: where a durable
+truth lives, by kind, and how it reaches an agent. The ADR records *why*.
 Where the two appear to disagree, the ADR wins and this document is the defect.
 
 ## The problem this solves
@@ -24,19 +31,28 @@ up by default, and all four lose it:
 
 None of those is a home. The promotion model gives one.
 
-## Canonical homes
+## Canonical homes, by kind of truth
 
-| Artifact | Is canonical for |
+Architecture is not the only legitimate origin. Which artifact is canonical
+depends on **what kind of truth** it is:
+
+| Kind of truth | Canonical home |
 |---|---|
-| `docs/decisions/` (accepted ADRs) | **why** a durable decision was taken |
-| `docs/architecture/` | **what follows** — models, boundaries, flows |
-| `knowledge/platform/` | the agent-facing **projection** of models, invariants, vocabulary, semantics, cross-cutting engineering truths |
-| `knowledge/runbooks/` | the agent-facing **projection** of ordered procedures for applying them |
-| provider instruction files and provider-native skills | **runtime integration only** — how one runtime routes to or queries what it was given |
+| durable system architecture, architectural invariants | accepted ADRs (why) and `docs/architecture/` (what follows) |
+| repository governance, coding-agent obligations, review policy | the applicable governed repository contract — root or nested `AGENTS.md`, `CONTRIBUTING.md`, or another explicitly authoritative contract |
+| human operational procedures | `docs/operations/` |
+| executable or normative platform contracts | their existing governed contract or specification owner — `schemas/`, `openspec/specs/`, or the owning package |
+| portable, agent-facing representation of any of the above | `knowledge/platform/` or `knowledge/runbooks/`, **as a projection** |
+| how one runtime discovers or queries what it was given | provider instruction files and provider-native skills — **runtime integration only** |
 
-A knowledge module is a projection, never a second original. The canonical
-statement stays in `docs/`; the module references it and states it in the form an
-agent reasons from.
+**A knowledge module or runbook is never the sole original**, and this holds for
+every row above — not only for architecture. A procedure does not become
+canonically owned by `knowledge/runbooks/` merely because it is a procedure: its
+canonical home is whichever row it belongs to, and the runbook projects it.
+
+**Every module and runbook identifies its governing canonical source or
+sources.** One that names none is either a projection of nothing or an original
+in the wrong place.
 
 ## The path
 
@@ -44,10 +60,15 @@ agent reasons from.
 change / review finding
      │  is this durable, or specific to this change?
      ▼
-canonical architecture or ADR
+canonical home — chosen by KIND of truth
+     architecture / invariant   → docs/decisions, docs/architecture
+     governance / review policy → AGENTS.md, CONTRIBUTING.md, other contract
+     human procedure            → docs/operations
+     normative contract         → schemas, openspec/specs, contract owner
      │  must an agent reason FROM it to work correctly?
      ▼
 portable knowledge module or runbook
+     │  naming its governing canonical source
      │  which profiles need it — and which deny it?
      ▼
 knowledge set
@@ -88,14 +109,21 @@ and [`knowledge-selection-model.md`](knowledge-selection-model.md).
 
 The test, stated once:
 
-> If the information should survive replacing Claude with Codex or Copilot, it
-> is **not** a provider skill.
+> If information must survive replacing a provider or runtime, its **canonical
+> source must be provider-neutral**. Where agents need to reason from it,
+> project the appropriate subset into portable knowledge.
+
+Note what this does *not* say. "It belongs in architecture, knowledge, a
+runbook, or a platform contract" would offer `knowledge/` as one origin among
+several, and so permit a module to become the original. Knowledge is where a
+provider-neutral canonical source is projected *to*.
 
 A skill is an adapter *to* knowledge — how one runtime discovers and queries what
 was selected for the run. Making it the home of the knowledge would require a
 twin per provider and then an answer to "which twin is canonical?". The root
 [`AGENTS.md`](../../AGENTS.md) already says provider instruction files never
-change what the documents say; this extends that from routing to content.
+change what the documents say — that rule is in force independently of
+ADR-0014; what ADR-0014 would add is the extension from routing to content.
 
 The payoff is concrete. Two profiles differing only in runtime:
 
@@ -120,22 +148,25 @@ capability, and no permission to override live state or an accepted ADR
 
 Promotion also does not create an exception to the prohibited-content rules. A
 truth that cannot be stated without a secret, a live reading, an authorization
-tuple, or an exploitable specific stays in `docs/` and is not promoted.
+tuple, or an exploitable specific stays in its canonical home and is not
+promoted.
 
 ## What is blocked today
 
 **Authoring.** [U7](unresolved-decisions.md#u7) gates the first real bundle on
 the OKF validator and toolchain existing, precisely so an unvalidated format does
-not become load-bearing by accident. Until U7 closes, the path terminates at
-canonical architecture: a change determines whether a truth should be promoted
-and records the determination, and no module is written.
+not become load-bearing by accident. Until U7 closes, the path terminates at the
+canonical home: a change would determine whether a truth should be promoted and
+record the determination, and no module is written.
 
 The L4 orchestration landing
 ([`openspec/changes/runner-control-orchestration`](../../openspec/changes/runner-control-orchestration/))
-is the first substantial source of candidates — effect classification and
-identity, replay semantics, boundary ownership, and proof construction. They are
-candidates. Each is subject to the "must an agent reason from it?" criterion when
-U7 opens, and some will not survive it.
+is a substantial source of candidates — effect classification and identity,
+replay semantics, boundary ownership, and proof construction among them. That
+landing is still under falsification, so those are examples rather than a
+complete or final set, and further classes may emerge. Each candidate is subject
+to the "must an agent reason from it?" criterion when U7 opens, and some will
+not survive it.
 
 ## Governed by
 

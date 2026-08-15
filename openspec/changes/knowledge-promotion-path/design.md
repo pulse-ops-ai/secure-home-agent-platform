@@ -1,15 +1,24 @@
 # Design: knowledge-promotion-path
 
+> **PROPOSED and NON-OPERATIVE.** ADR-0014 is `Proposed`; nothing described here
+> is an obligation today, and nothing may become one through a lower-precedence
+> artifact.
+
 ## Context
 
-`docs/` is canonical, `knowledge/` is the agent-facing projection, and provider
-files are adapters. All three already exist. What does not exist is the rule
+Canonical homes already exist for several kinds of durable truth — accepted ADRs
+and `docs/architecture/` for architecture, governed repository contracts for
+governance and review policy, `docs/operations/` for human procedures,
+specification owners for normative contracts. `knowledge/` is the agent-facing
+projection, and provider files are adapters. What does not exist is the rule
 that connects them when a change discovers something durable — so discovered
 truths stay where they were found, and are found again later at review cost.
 
 ## Goals
 
-- One canonical statement per durable truth, referenced rather than copied.
+- One canonical statement per durable truth, in the home its KIND determines,
+  referenced rather than copied.
+- `knowledge/` as projection only — never the sole original for any kind.
 - A named destination and a named obligation for a discovered truth.
 - Provider neutrality preserved structurally, not by convention.
 
@@ -25,6 +34,11 @@ truths stay where they were found, and are found again later at review cost.
 ```text
 docs/decisions/     why — accepted ADRs, highest authority
 docs/architecture/  what follows
+AGENTS.md, CONTRIBUTING.md
+                    governance, coding-agent obligations, review policy
+docs/operations/    human operational procedures
+schemas/, openspec/specs/
+                    normative platform contracts
 knowledge/platform/ platform self-description modules (registered, unauthored)
 knowledge/runbooks/ ordered procedures (registered, unauthored)
 CLAUDE.md, .github/ provider adapters — routing only
@@ -39,7 +53,8 @@ tests, or the PR conversation. Nothing routes it further.
 change / review finding
      │  durable, or specific to this change?
      ▼
-canonical architecture or ADR
+canonical home — chosen by KIND (architecture · governance contract ·
+                 operations · normative contract)
      │  must an agent reason FROM it?
      ▼
 portable knowledge module or runbook
@@ -69,6 +84,22 @@ cross-referencing beats duplication. ADR-0014 carries the decision and its
 rationale; `knowledge-promotion-model.md` carries the path, the layer table, and
 what is blocked. Neither restates the other.
 
+### D2b: The taxonomy is type-aware, and knowledge is never an origin
+
+An earlier draft named only architecture as the canonical home. That would have
+misfiled governance, review policy, and operational procedure — or, worse, left
+them with no home and let a `knowledge/runbooks/` module become their original
+by default. A procedure does not change its owner by being projected. So the
+canonical home is chosen by the KIND of truth, and every module names the source
+it projects.
+
+The provider-replacement test is stated in the form that does not leak: *if
+information must survive replacing a provider or runtime, its canonical source
+must be provider-neutral; where agents need to reason from it, project the
+appropriate subset into portable knowledge.* The weaker phrasing — "it belongs
+in architecture, knowledge, a runbook, or a platform contract" — offers
+`knowledge/` as one origin among several.
+
 ### D3: The obligation is to determine, not to promote
 
 A rule that required promotion would produce ceremonial modules for truths no
@@ -89,19 +120,22 @@ constraint travels with the ADR when this change is archived.
 
 ## Decision Tables
 
-| Discovered thing | Canonical home | Promoted to knowledge? |
+| Discovered thing | Canonical home | Projected to knowledge? |
 |---|---|---|
-| a durable invariant an agent must reason from | ADR or architecture doc | yes, when U7 opens |
-| a durable invariant only humans act on | architecture doc | no |
-| a procedure an agent executes | architecture doc | yes, as a runbook, when U7 opens |
+| a durable invariant an agent must reason from | ADR or `docs/architecture/` | yes, when U7 opens |
+| a durable invariant only humans act on | ADR or `docs/architecture/` | no |
+| a coding-agent obligation or review policy | governed repository contract | yes, when U7 opens |
+| a human operational procedure | `docs/operations/` | only if an agent executes it |
+| a normative contract | its specification owner | as semantics, when U7 opens |
 | a defect specific to one change | the change archive | no |
 | how one runtime queries knowledge | provider artifact | not applicable |
 
 ## Interfaces and Contracts
 
-No code interface. The contract surfaces are: root `AGENTS.md` (the obligation),
-`docs/decisions/INDEX.md` (the mapping table rows that route a future author),
-and `docs/architecture/INDEX.md`.
+No code interface. The contract surfaces are: root `AGENTS.md` (which would
+carry the obligation on acceptance, and today carries an explicitly
+non-operative description of it), `docs/decisions/INDEX.md` (the mapping rows
+that route a future author), and `docs/architecture/INDEX.md`.
 
 ## Failure Classification Boundaries
 
