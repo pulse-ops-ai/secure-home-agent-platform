@@ -255,31 +255,45 @@ const claimedFinalization = async (run_id: string) => {
 }
 
 describe('D16 same-identity finalization is serialized while in flight', () => {
-  it('does not allow two different intents with one commit_id to both stage and succeed', async () => {
+  it('does not allow two different intents with one commit_id to both succeed while the first is in flight', async () => {
     const run_id = 'run-20260815-round16-d'
+    const commit_id = 'commit-round16-d'
     const { shared, lease } = await claimedFinalization(run_id)
     const events = new BarrierEventSink(shared.events)
     const finalization = new TransactionalFinalization({ ...shared, events, lease })
     const firstEvent = terminalEvent(run_id, 0, 'first intent')
-    const secondEvent = terminalEvent(run_id, 0, 'second intent')
+    const secondEvent = terminalEvent(run_id, 1, 'second intent')
     expect(RunEvent.safeParse(firstEvent).success).toBe(true)
     expect(RunEvent.safeParse(secondEvent).success).toBe(true)
 
-    const firstPromise = finalization.commit(commitFor(run_id, 'commit-round16-d', firstEvent))
+    const firstPromise = finalization.commit(
+      commitFor(run_id, commit_id, firstEvent, { label: 'A' }),
+    )
     await events.firstStaged
-    const secondPromise = finalization.commit(commitFor(run_id, 'commit-round16-d', secondEvent))
-    await events.secondStaged
+    expect(shared.visibility.isPublished(commit_id)).toBe(false)
+    const secondPromise = finalization.commit(
+      commitFor(run_id, commit_id, secondEvent, { label: 'B' }),
+    )
+    const second = await secondPromise
+    const visibleBeforeRelease = shared.events.eventsOf(run_id)
+    const publishedBeforeRelease = shared.visibility.isPublished(commit_id)
     events.releaseFirst()
-    const [first, second] = await Promise.all([firstPromise, secondPromise])
+    const first = await firstPromise
 
     expect({
-      stageCalls: events.stageRequests.length,
-      successes: [first, second].filter((outcome) => outcome.ok).length,
-      visible: shared.events.eventsOf(run_id),
+      firstOk: first.ok,
+      secondOk: second.ok,
+      secondReason: second.ok ? undefined : second.reason,
+      publishedBeforeRelease,
+      visibleBeforeRelease,
+      visibleAfterRelease: shared.events.eventsOf(run_id),
     }).toEqual({
-      stageCalls: 2,
-      successes: 1,
-      visible: [firstEvent],
+      firstOk: true,
+      secondOk: false,
+      secondReason: 'conflicting_replay',
+      publishedBeforeRelease: false,
+      visibleBeforeRelease: [],
+      visibleAfterRelease: [firstEvent],
     })
   })
 })
