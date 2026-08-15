@@ -30,7 +30,7 @@ contract — never this file, and never the assurance artifact.
 **`AUTHORIZED`**
 
 The authority names the landing exactly and is not narrower than it. The
-constraints are honoured: ADR-0014 is `Proposed` and no existing status line
+constraints are honoured: ADR-0014 was authored `Proposed` and no existing status line
 changes; no module, set, or catalog entry is added; U7 is untouched and is cited
 as the block.
 
@@ -89,8 +89,9 @@ contract every agent reads, and nothing is authored under it.
 
   Placed with the knowledge-selection rules it relates to, cross-referencing the
   architecture document rather than restating it, and **explicitly marked
-  non-operative**: ADR-0014 is `Proposed`, and a proposed decision must not
-  become binding through a lower-precedence artifact. The section separates what
+  non-operative** at the time: ADR-0014 was then `Proposed`, and a proposed
+  decision must not become binding through a lower-precedence artifact. The
+  posture was lifted in §6, on acceptance. The section separates what
   is already true independently of ADR-0014 — provider instruction files are
   adapters, and U7 blocks authoring — from what the proposal would add.
 
@@ -143,10 +144,34 @@ contract every agent reads, and nothing is authored under it.
   The line is authority, not wording. Applied to ADR-0014,
   `knowledge-promotion-model.md`, and this change's spec, design, and assurance.
 
+## 6. Acceptance (C6)
+
+- [x] **6.1 ADR-0014 accepted** — `Proposed` → `Accepted`, 2026-08-15, by the
+      repository owner, on explicit authorization. Mechanical: the decision text
+      was not rewritten in the acceptance commit.
+- [x] **6.2 Index row and acceptance record** — `docs/decisions/INDEX.md`, in the
+      format ADR-0012 and ADR-0013 use, recording what was accepted and what was
+      NOT: nothing about the knowledge format, and no permission to author.
+- [x] **6.3 The obligation made operative** — root `AGENTS.md` drops the
+      non-operative posture and keeps the distinction that matters:
+      determination is mandatory, promotion is not.
+- [x] **6.4 The architecture document made operative** — banner replaced with
+      "In force", preserving the separate toolchain block.
+- [x] **6.5 OpenSpec artifacts reconciled** — spec, design, assurance, and
+      proposal no longer describe ADR-0014 as `Proposed`. The
+      proposed-decisions-do-not-bind requirement is generalized rather than
+      deleted, because ADR-0015 is `Proposed` under it today.
+- [x] **6.6 Immutability range corrected** — `AGENTS.md`, `docs/AGENTS.md`, and
+      `CLAUDE.md` said ADR-0001 … ADR-0012 are accepted and immutable. That
+      already omitted ADR-0013; accepting ADR-0014 made the gap load-bearing,
+      since the ADR-0015 migration turns on ADR-0014 being immutable.
+- [x] **6.7 Left alone deliberately** — ADR-0015 stays `Proposed`, U7 stays
+      open, no `blockedByU7` migration, no knowledge authored, no toolchain.
+
 ## PR-1 Completion Gate
 
-- [x] ADR-0014 exists, is `Proposed`, and carries every section `docs/AGENTS.md`
-      requires.
+- [x] ADR-0014 exists and carries every section `docs/AGENTS.md` requires. It
+      was authored `Proposed`; acceptance came later, in its own commit (§6).
 - [x] No accepted ADR is edited; no status line changes.
 - [x] `unresolved-decisions.md` is unmodified; U7 remains open and is cited as
       the block on authoring.
@@ -170,6 +195,7 @@ Note the third row: its canonical home is the governed contract, **not**
 `docs/architecture/` and not the runbook that would project it. That is the
 type-aware taxonomy applied to this change's own content.
 
-All three are blocked by U7 and none is authored here. This determination is
-recorded, not acted on — and it is recorded voluntarily, since the rule
-requiring it is not operative while ADR-0014 is `Proposed`.
+All three are blocked on the toolchain and none is authored here. This
+determination is recorded, not acted on. It was recorded voluntarily, before the
+rule requiring it was operative; the rule is operative since ADR-0014's
+acceptance on 2026-08-15.

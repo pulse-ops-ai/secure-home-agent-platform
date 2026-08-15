@@ -56,7 +56,7 @@ to `knowledge/INDEX.md`, `catalog.json`, or `check-knowledge.mjs`. Closing U7.
 
 **Governing ADRs.** ADR-0010 (the requirements this evaluates against and the
 authority-separation rule), ADR-0003 and ADR-0006 (a profile selects a named
-set), ADR-0014 (`Proposed` — a module names the canonical source it projects;
+set), ADR-0014 (accepted 2026-08-15 — a module names the canonical source it projects;
 ADR-0015 §5 provides the field, and depends on nothing that is not already true
 independently).
 

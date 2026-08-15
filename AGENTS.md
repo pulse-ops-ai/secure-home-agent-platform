@@ -85,43 +85,38 @@ Until the validator and governed query interfaces exist,
 ([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
-## Promoting what a change discovers — PROPOSED, not yet binding
+## Promoting what a change discovers
 
-> **Non-operative.** The decision behind this section,
-> [ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
-> is `Proposed`. **Nothing in this section is an obligation today.** A proposed
-> decision cannot become binding through this file — precedence runs the other
-> way, and a lower artifact that operationalised a proposal would invert it.
-> This section exists so the proposal is discoverable while it is reviewed, and
-> becomes binding only if and when ADR-0014 is `Accepted` in its own reviewed
-> change.
+**When a change or falsification review discovers a durable architectural truth,
+determine whether it must be promoted into canonical architecture and portable
+knowledge rather than leaving it only in the change archive, tests, PR
+discussion, or provider instructions.**
 
-The rule under review:
+**The determination is the obligation — not the promotion.** Most findings are
+specific to their change and correctly stop at the first step. A recorded
+negative answer satisfies this rule. Record the answer in the change that found
+the truth.
 
-> When a change or falsification review discovers a durable architectural truth,
-> determine whether it must be promoted into canonical architecture and portable
-> knowledge rather than leaving it only in the change archive, tests, PR
-> discussion, or provider instructions.
+The canonical home depends on the **kind** of truth — architecture, a governed
+contract, an operational procedure, a normative contract — and portable
+knowledge is a *projection* of one of those, never a second original. The
+taxonomy and the promotion path are in
+[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md)
+([ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)).
 
-The obligation it would create is the *determination*, not the promotion: most
-findings are specific to their change and correctly stop at the first step, and
-a recorded negative answer would satisfy it.
+Two consequences:
 
-The canonical-source taxonomy, the promotion path, and where each layer's
-authority ends are in
-[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md),
-which carries the same `Proposed` posture.
-
-Two things are already true independently of ADR-0014, and are stated here
-because they are easy to misread as new:
-
-- **Provider instruction files are adapters.** `CLAUDE.md`,
-  `.github/copilot-instructions.md`, and `.github/agents/*.agent.md` route an
-  agent to the right documents and never change what those documents say — see
-  *Instruction precedence* above. That rule predates ADR-0014.
-- **Authoring a knowledge module is blocked** by
-  [U7](docs/architecture/unresolved-decisions.md#u7), which is independent of
-  ADR-0014 and unaffected by it.
+- **A provider-native skill or instruction file is never the canonical home** of
+  an architectural invariant, engineering policy, review policy, or operational
+  procedure. If information must survive replacing a provider or runtime, its
+  canonical source must be provider-neutral; where agents need to reason from
+  it, project the appropriate subset into portable knowledge.
+- **Authoring a knowledge module is still blocked.** The ADR-0010 validator and
+  toolchain do not exist — a block
+  [U7](docs/architecture/unresolved-decisions.md#u7) currently tracks. ADR-0014
+  decides *where a truth goes*; it does not open the knowledge layer. Until the
+  toolchain exists, the path terminates at the canonical home and the
+  determination is recorded rather than acted on.
 
 ## Two kinds of agent — do not confuse them
 
@@ -243,7 +238,7 @@ Documentation, governance, and workspace scaffolding. **There is no runtime.**
 No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
 credentials, no database connection.
 
-**ADR-0001 … ADR-0012 are `Accepted`** and **immutable** — the foundational set
+**ADR-0001 … ADR-0014 are `Accepted`** and **immutable** — the foundational set
 on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06. Supersede,
 never edit, and **never change an ADR's status without an explicit
 human-acceptance task**.

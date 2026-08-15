@@ -82,8 +82,8 @@ explicitly out of scope; what this change lands is the *rule about where a truth
 goes*, which U7 does not gate. No other unresolved item is touched.
 
 **ADR status.** This change proposes **no** status change to any existing ADR.
-ADR-0014 is authored as `Proposed` and is accepted, if at all, by a human in its
-own reviewed change.
+ADR-0014 was authored as `Proposed` and accepted by the repository owner on
+2026-08-15, in its own reviewed commit — the only place a status may change.
 
 ## Trust / Security / Data Considerations
 

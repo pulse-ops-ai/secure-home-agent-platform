@@ -1,8 +1,7 @@
 # Design: knowledge-promotion-path
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0014 is `Proposed`; nothing described here
-> is an obligation today, and nothing may become one through a lower-precedence
-> artifact.
+> **In force.** ADR-0014 was accepted 2026-08-15. Authoring knowledge remains
+> blocked separately, on the ADR-0010 toolchain.
 
 ## Context
 

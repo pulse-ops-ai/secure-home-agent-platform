@@ -1,8 +1,8 @@
 # Spec Delta: knowledge-promotion
 
-> **These requirements are PROPOSED and take effect only on acceptance of
-> ADR-0014.** While that ADR is `Proposed`, nothing below is an obligation, and
-> nothing below may be made binding by a lower-precedence artifact.
+> **In force.** ADR-0014 was accepted 2026-08-15, so these requirements are
+> obligations. The projection step remains blocked separately: no knowledge
+> module may be authored until the ADR-0010 toolchain exists.
 
 ## ADDED Requirements
 
@@ -172,12 +172,14 @@ negative answer satisfies it.
 
 ### Requirement: A proposed decision does not bind through a lower artifact
 
-While ADR-0014 is `Proposed`, no obligation derived from it SHALL be operative,
-and no lower-precedence artifact SHALL make it operative.
+While a decision is `Proposed`, no obligation derived from it SHALL be
+operative, and no lower-precedence artifact SHALL make it operative. Stated
+generally: the rule outlives the instance that produced it, and ADR-0015 is
+`Proposed` under it today.
 
 #### Scenario: The contract describes a proposal
 
-- **WHEN** root `AGENTS.md` describes the promotion rule while ADR-0014 is
+- **WHEN** a repository contract describes a rule whose decision is still
   `Proposed`
 - **THEN** it states explicitly that the rule is non-operative
 - **AND** the obligation takes effect only on acceptance

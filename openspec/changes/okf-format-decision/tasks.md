@@ -34,7 +34,9 @@ The authority names this landing exactly. Constraints honoured: ADR-0015 is
 repository and is not committed.
 
 **One discrepancy, recorded rather than assumed away.** The task described
-ADR-0014 as "accepted". It is `Proposed`, and PR #83 is open and unmerged.
+ADR-0014 as "accepted". **At the time this change was written it was
+`Proposed`**, and PR #83 was open and unmerged. ADR-0014 was accepted
+2026-08-15 in its own commit, satisfying §3a's precondition.
 
 **Corrected on review:** an earlier version of this note claimed ADR-0015
 "depends on nothing that requires ADR-0014's acceptance." That was wrong. §5's
@@ -64,7 +66,8 @@ boundary is a prohibition, and authoring is visibly still blocked.
 ## 1. Evidence
 
 - [x] **1.1 Read the governing material** — root `AGENTS.md`, `knowledge/AGENTS.md`,
-      `docs/AGENTS.md`, `openspec/AGENTS.md`, ADR-0010, ADR-0014 (`Proposed`),
+      `docs/AGENTS.md`, `openspec/AGENTS.md`, ADR-0010, ADR-0014 (`Proposed`
+      when read; accepted 2026-08-15),
       `knowledge-selection-model.md`, U7, `knowledge/README.md`, `INDEX.md`,
       `catalog.json`, `scripts/check-knowledge.mjs`.
 

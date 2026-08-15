@@ -119,7 +119,7 @@ implementation-neutral. These decide how it is built.
 |---|---|---|---|
 | [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
 | [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
-| [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Proposed | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
+| [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
 | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Proposed | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
@@ -222,6 +222,36 @@ to deploy, and it does not make any unresolved decision decided.
 - **`BOUNDED` still behaves as `FAIL CLOSED`** — [U1](../architecture/unresolved-decisions.md#u1).
 - U3, U4, U5, U6, U7, U9 likewise remain open and still block the work that
   depends on them.
+
+### ADR-0014 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-15 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0014 in full: the canonical-home taxonomy by kind of truth, the projection semantics, the provider-artifact limit, the four-layer split, and the determination obligation |
+| **Review** | PR #83, across two correction rounds |
+| **Unresolved decisions resolved** | **none.** This ADR closes no item. [U7](../architecture/unresolved-decisions.md#u7) remains open, and authoring knowledge remains blocked because the ADR-0010 validator and toolchain do not exist |
+
+**What was accepted.** A durable truth has ONE canonical home, chosen by its
+**kind** — architecture to ADRs and `docs/architecture/`; governance,
+coding-agent obligations and review policy to the applicable governed contract;
+human procedures to `docs/operations/`; normative contracts to their
+specification owner; and the agent-facing form to `knowledge/`, **as a
+projection** · a projection MAY summarize, subset, transform, reorganize, or
+restate, and MUST name its governing sources, claim no independent authority,
+remain subordinate, and is defective when it materially disagrees · a
+provider-native skill or instruction file is **runtime integration only**, never
+the canonical home of an invariant, policy, or procedure · the image carries a
+runtime, the profile carries the knowledge set · promotion confers no authority ·
+and a change that discovers a durable truth **must determine** whether to
+promote it — the determination is the obligation, and a recorded negative answer
+satisfies it.
+
+**What was NOT accepted.** Nothing about the knowledge *format*, which is
+[ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) and remains
+`Proposed`. No knowledge module may be authored: that is gated on the ADR-0010
+toolchain, not on this decision.
 
 ## Which ADRs apply to what I am changing?
 

@@ -1,20 +1,17 @@
 # Knowledge promotion model
 
-> **Status: PROPOSED and NON-OPERATIVE.** The decision this document follows
-> from is
+> **In force.** This document follows from
 > [ADR-0014](../decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
-> which is `Proposed`. **Nothing here is an obligation today**, and nothing here
-> may become one through this document or through root `AGENTS.md` — a proposed
-> decision cannot be made binding by an artifact below it in the precedence
-> order. This document describes the model under review; it takes effect if and
-> when ADR-0014 is `Accepted` in its own reviewed change.
+> accepted 2026-08-15.
 >
-> Separately and independently: authoring any knowledge module remains blocked
-> by [U7](unresolved-decisions.md#u7), which ADR-0014 neither resolves nor
-> weakens.
+> **Authoring a knowledge module remains blocked**, separately and for a
+> different reason: the ADR-0010 validator and toolchain do not exist, a block
+> [U7](unresolved-decisions.md#u7) currently tracks. ADR-0014 neither resolves
+> nor weakens it. The promotion path is operative up to the canonical home; the
+> projection step waits for the toolchain.
 
-This document records **what would follow** from ADR-0014: where a durable
-truth lives, by kind, and how it reaches an agent. The ADR records *why*.
+This document records **what follows** from ADR-0014: where a durable truth
+lives, by kind, and how it reaches an agent. The ADR records *why*.
 Where the two appear to disagree, the ADR wins and this document is the defect.
 
 ## The problem this solves
@@ -141,7 +138,7 @@ was selected for the run. Making it the home of the knowledge would require a
 twin per provider and then an answer to "which twin is canonical?". The root
 [`AGENTS.md`](../../AGENTS.md) already says provider instruction files never
 change what the documents say — that rule is in force independently of
-ADR-0014; what ADR-0014 would add is the extension from routing to content.
+ADR-0014; what ADR-0014 adds is the extension from routing to content.
 
 The payoff is concrete. Two profiles differing only in runtime:
 

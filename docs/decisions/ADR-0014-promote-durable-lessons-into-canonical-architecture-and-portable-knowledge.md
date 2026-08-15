@@ -1,11 +1,12 @@
 # ADR-0014: Promote durable lessons into canonical architecture and portable knowledge
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-15
+- **Accepted:** 2026-08-15
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)
-- **Closes:** nothing. Authoring knowledge is blocked because the ADR-0010 validator and toolchain do not exist — a block [U7](../architecture/unresolved-decisions.md#u7) currently tracks. [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) (`Proposed`) would separate the two, so that U7 records whether the format question is answered and a named toolchain gate records whether authoring is safe.
+- **Closes:** no unresolved decision. Authoring knowledge remains blocked because the ADR-0010 validator and toolchain do not exist — a block [U7](../architecture/unresolved-decisions.md#u7) currently tracks. [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) (`Proposed`) would separate the two, so that U7 records whether the format question is answered and a named toolchain gate records whether authoring is safe.
 
 ## Context
 

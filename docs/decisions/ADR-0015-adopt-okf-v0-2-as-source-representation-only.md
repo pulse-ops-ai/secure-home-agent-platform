@@ -4,8 +4,8 @@
 - **Date:** 2026-08-15
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
-- **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) (`Proposed`)
-- **Acceptance depends on:** [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — **ADR-0014 MUST be `Accepted` before this ADR may be `Accepted`.** Both may remain `Proposed` together; this is an ordering constraint on acceptance, not a requirement to combine the decisions. See §3a.
+- **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
+- **Acceptance depends on:** [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — **`Accepted` 2026-08-15, so this precondition is now satisfied.** The ordering constraint stands on the record: ADR-0014 had to be accepted first, because `governs` has no meaning without its canonical-source model. See §3a.
 - **Answers:** [U7](../architecture/unresolved-decisions.md#u7) — **closed on acceptance of this ADR**, which is when the architectural question has an answer. Authoring stays blocked afterwards by the separate implementation obligation in §12; that obligation is not U7's state.
 
 ---
@@ -109,12 +109,15 @@ claim are all decided by
 Without it, `governs` names a concept the repository has not adopted, and the
 validator would be enforcing a field whose meaning is undecided.
 
-**ADR-0014 MUST be `Accepted` before this ADR may be `Accepted`.**
+**ADR-0014 MUST be `Accepted` before this ADR may be `Accepted`** — and it was,
+on 2026-08-15, so the precondition is satisfied.
 
-Both may sit `Proposed` at the same time — proposing in either order is fine,
-and this ADR was in fact written first. The constraint binds only at acceptance,
-and it does not require the two decisions to be combined: they answer different
-questions and should be reviewed separately.
+The constraint is recorded rather than deleted because it explains the ordering
+and would bind again if this ADR were ever superseded. Both sat `Proposed` at
+the same time, which was fine: proposing in either order is allowed, this ADR
+was in fact written first, and the constraint binds only at acceptance. It never
+required combining the two decisions, which answer different questions and were
+reviewed separately.
 
 An earlier draft of this ADR claimed it "depends on nothing requiring ADR-0014's
 acceptance," on the grounds that the citation was marked `Proposed`. That was
@@ -145,7 +148,7 @@ Beyond OKF's single required `type`, admission requires, per module:
 | stated limitations | a `limitations` field — **no OKF equivalent exists**; this is ours |
 | lifecycle | `status` stated explicitly, never defaulted |
 | staleness | `stale_after`, present and absolute |
-| canonical source | `governs` — the canonical artifact this module projects, per ADR-0014 §2 (`Proposed`) |
+| canonical source | `governs` — the canonical artifact this module projects, per ADR-0014 §2 |
 
 **`as_of` is NOT `generated.at`, and conflating them would corrupt freshness.**
 The spec defines `generated.at` as "an ISO 8601 datetime marking the content's
@@ -314,7 +317,7 @@ failure, never a warning and never a skip.
 The spec: "Consumers MUST tolerate broken links: a link whose target does not
 exist in the bundle is not malformed." That is correct for a consumer and wrong
 for admission — a knowledge module citing a canonical source that does not exist
-is a projection of nothing (ADR-0014 §2, `Proposed`).
+is a projection of nothing (ADR-0014 §2).
 
 **Admission rejects** an unresolvable bundle-internal link or an unresolvable
 `governs` reference. **Reading tolerates** a broken link.
