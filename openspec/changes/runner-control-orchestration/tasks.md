@@ -737,6 +737,46 @@ operation its requirement names.
   typecheck, lint, build, strict OpenSpec validation, and repository
   gate green at the pushed head.
 
+- [x] **7.14 Close round-14 conflicting-event-replay finding**
+  <!-- agent-task: 7.14 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.13 -->
+
+  **Authorized by** — the same owner decision record as 7.11…7.13
+  (mechanical D14 conformance). The reviewer-authored RED commit
+  `d2c8db60d024c04c7d324753c3cb2595ee77850c` (parent `8b2a52b`, the
+  reviewed head) was fast-forwarded onto the branch as its own commit
+  and consumed unmodified.
+
+  **Implements** — `EmitOutcome` widened with the type-visible
+  `conflicting_replay` reason; the emitter's sequence state machine made
+  explicit per outcome (validation failure allocates nothing; a
+  definitive stale-fence refusal reclaims; a throw or lost
+  acknowledgement keeps the allocation; an exact replay succeeds at the
+  occupied identity; a conflicting replay keeps the identity consumed
+  and moves the emission to the next fresh identity — never rewinding,
+  never masquerading as ownership loss). The reference event sink now
+  answers a conflicting replay with the typed refusal instead of
+  throwing, so callers can tell an occupied identity from a broken
+  sink. Consumer audit found no other FenceOutcome collapse: every
+  fence-loss site already keys on `stale_fence` specifically
+  (round-13's work), and only the emitter had the defect.
+
+  **Disclosure** — one deviation from the round-14 instruction prose:
+  "propagate conflicting_replay as its own event-emission failure" and
+  the RED's requirement that the very emission which discovers the
+  occupied identity SUCCEEDS at N+1 cannot both hold; the RED is
+  authoritative, so the emitter advances past occupied identities and
+  the typed reason remains in the public vocabulary for sinks and
+  alternative emitters. One prior proof of mine (RO-EX-171's conflict
+  case in `effect-identity.test.ts`) was updated from expecting a throw
+  to expecting the typed refusal, with the reasoning recorded in place.
+
+  **Proof required** — the reviewer round-14 file green and unmodified
+  (`git diff d2c8db60 -- …round14.test.ts` empty); RO-EX-177 and
+  RO-MUT-117 registered, the mutant hand-applied and killed; every
+  prior falsification round green; complete tests, typecheck, lint,
+  build, strict OpenSpec validation, and repository gate green at the
+  pushed head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

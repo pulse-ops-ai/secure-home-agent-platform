@@ -131,11 +131,15 @@ export class RecordingEventSink implements EventSinkPort {
     const landed = this.#landed.get(identity)
     if (landed !== undefined) {
       if (landed === canonical) return Promise.resolve(refused)
-      // Not a fence outcome — a corrupted identity is an exceptional
-      // refusal: two different events must never share one identity.
-      return Promise.reject(
-        new Error(`event identity ${identity} already carries a different event`),
-      )
+      // The typed refusal, not a throw: a caller must be able to tell
+      // "this identity already carries a different event" apart from a
+      // broken sink — the emitter advances past an occupied identity,
+      // which a thrown error would hide as an unknown outcome.
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `event identity ${identity} already carries a different event`,
+      })
     }
     this.#landed.set(identity, canonical)
     const existing = this.#byRun.get(request.run_id) ?? []

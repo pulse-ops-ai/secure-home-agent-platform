@@ -23,7 +23,9 @@ const RUN = 'run-20260812-0001'
 // Assurance aliases for the reviewer-authored round-13 proofs
 // (falsification-round13.test.ts): RO-EX-172 (journal conflicting
 // replay), RO-EX-173 (evidence conflicting replay), RO-EX-174
-// (boundary-owned expiry stamp).
+// (boundary-owned expiry stamp) — and the round-14 proof
+// (falsification-round14.test.ts): RO-EX-177 (a conflicting event
+// replay consumes its identity and never rewinds the sequence).
 
 const LIMITS = {
   wall_clock_seconds: 600,
@@ -149,11 +151,20 @@ describe('RO-EX-171: an event identity names exactly one event', () => {
   })
 
   it('a DIFFERENT event wearing a landed identity is refused, never silently kept', async () => {
+    // Round 14 sharpened the refusal's SHAPE: the conforming sink
+    // answers with the typed conflicting_replay outcome rather than
+    // throwing, so a caller can tell an occupied identity from a broken
+    // sink and advance past it.
     const sink = new RecordingEventSink()
     await sink.emit({ run_id: RUN, generation: 1, sequence: 0, event: { event_type: 'a' } })
-    await expect(
-      sink.emit({ run_id: RUN, generation: 1, sequence: 0, event: { event_type: 'b' } }),
-    ).rejects.toThrow('already carries a different event')
+    const conflict = await sink.emit({
+      run_id: RUN,
+      generation: 1,
+      sequence: 0,
+      event: { event_type: 'b' },
+    })
+    expect(conflict.ok).toBe(false)
+    expect(!conflict.ok && conflict.reason).toBe('conflicting_replay')
     expect(sink.eventsOf(RUN)).toHaveLength(1)
   })
 })

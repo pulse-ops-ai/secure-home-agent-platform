@@ -636,6 +636,11 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-176'],
   },
   {
+    id: 'RO-MUT-117',
+    mutation: 'collapse a conflicting event replay into stale_fence and rewind the sequence',
+    killedBy: ['RO-EX-177'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

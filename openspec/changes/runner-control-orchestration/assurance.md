@@ -470,6 +470,7 @@ persistence (U11).
 | RO-EX-174 | RO-INV-90 | adversarial (reviewer-authored) | caller-supplied expiry metadata never survives the boundary: the finalizer receives the boundary's winning instant and provenance unconditionally |
 | RO-EX-175 | RO-INV-93 | deterministic example | the journal's replay rule is one mechanism across categories: an acquisition conflict refuses, and a cross-category collision under one identity is a conflict, never a fresh append |
 | RO-EX-176 | RO-INV-93 | deterministic example | a materialization replays by identity and canonical change set: an exact replay applies once and a different change set at a landed identity refuses |
+| RO-EX-177 | RO-INV-93 | adversarial (reviewer-authored) | a conflicting event replay is never ownership loss and never reclaims its sequence: the occupied identity stays consumed, the durable event stands, and the emission lands at the next fresh identity |
 | RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
 | RO-MUT-58 | RO-INV-67 | mutation | guarding only the call sites already known to hang, rather than the complete injected port surface, is killed by RO-EX-118 |
 | RO-MUT-59 | RO-INV-67 | mutation | adding or restarting the profile wall clock instead of establishing one absolute expiry is killed by RO-EX-119 |
@@ -530,6 +531,7 @@ persistence (U11).
 | RO-MUT-114 | RO-INV-90 | mutation | preferring caller-supplied expiry metadata over the boundary's winning value is killed by RO-EX-174 |
 | RO-MUT-115 | RO-INV-90 | mutation | taking the expiry provenance from the caller rather than the winning value is killed by RO-EX-174 |
 | RO-MUT-116 | RO-INV-93 | mutation | re-applying or accepting a different materialization at a landed identity is killed by RO-EX-176 |
+| RO-MUT-117 | RO-INV-93 | mutation | collapsing a conflicting event replay into stale_fence and rewinding the sequence is killed by RO-EX-177 |
 | RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
 | RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |

@@ -216,12 +216,28 @@ materialization change set — is a CONFLICTING replay: it SHALL be
 refused without mutating the first durable fact, SHALL be distinguished
 from ownership loss, and the caller SHALL fail closed — the conflicting
 entry is not treated as landed and no conclusion claims durability over
-it.
+it. A conflicting replay consumes no new effect identity and SHALL NOT
+make a previously occupied identity reusable: an emitter whose
+allocation is behind the durable stream advances past each occupied
+identity it is refused at, and only a definitive nothing-was-written
+refusal may reclaim an allocation.
+
 
 Boundary-owned metadata SHALL NOT be caller-authorable: the composition
 boundary stamps the winning expiry — instant and provenance as one
 value — UNCONDITIONALLY into the finalization commit, and
 request-supplied expiry metadata never survives the guard.
+
+#### Scenario: A conflicting event replay never rewinds the sequence
+
+- **GIVEN** a durable event occupying a sequence identity
+- **WHEN** a different event is emitted at that identity and the sink
+  refuses it as a conflicting replay
+- **THEN** the refusal is not reported as ownership loss
+- **AND** the occupied identity stays consumed and the durable event
+  stands
+- **AND** the emission lands at the next fresh identity
+
 
 The deadline that wins at a call boundary SHALL be one typed value
 carrying both its instant and its provenance, with every derived stamp a
