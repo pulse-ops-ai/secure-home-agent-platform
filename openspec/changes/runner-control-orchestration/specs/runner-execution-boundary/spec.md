@@ -206,6 +206,23 @@ an acknowledgement is unresolvable once that acknowledgement is lost —
 and SHALL answer a repeated identity carrying the same fact as a replay
 while refusing a different fact wearing a landed identity.
 
+Stable identity is necessary but not sufficient: identity equality SHALL
+imply fact equality. A replay is valid only when the identity AND the
+canonical logical intent both match, so a replay ledger SHALL retain
+canonical content, never identity membership alone. A repeated identity
+carrying a different fact — a different payload, a different governed
+record kind, a different journal category, or a different
+materialization change set — is a CONFLICTING replay: it SHALL be
+refused without mutating the first durable fact, SHALL be distinguished
+from ownership loss, and the caller SHALL fail closed — the conflicting
+entry is not treated as landed and no conclusion claims durability over
+it.
+
+Boundary-owned metadata SHALL NOT be caller-authorable: the composition
+boundary stamps the winning expiry — instant and provenance as one
+value — UNCONDITIONALLY into the finalization commit, and
+request-supplied expiry metadata never survives the guard.
+
 The deadline that wins at a call boundary SHALL be one typed value
 carrying both its instant and its provenance, with every derived stamp a
 projection of it: a governed deadline that wins a settlement or recovery
@@ -232,6 +249,24 @@ committed, or explicitly unresolved.
   acknowledgement was interrupted by cancellation
 - **WHEN** the run's terminal evidence is sealed
 - **THEN** the bundle's operations include the attempted call
+
+#### Scenario: A conflicting replay refuses without touching the landed fact
+
+- **GIVEN** a durable fact landed under an effect identity
+- **WHEN** a different fact arrives wearing that identity
+- **THEN** the write is refused as a conflicting replay, not as
+  ownership loss
+- **AND** the first durable fact is unchanged
+- **AND** the caller fails closed rather than treating the conflict as
+  landed
+
+#### Scenario: The boundary's expiry stamp cannot be caller-overridden
+
+- **GIVEN** a finalization request carrying a later expiry or a forged
+  provenance
+- **WHEN** it crosses the composition boundary
+- **THEN** the commit receives the boundary's winning instant and
+  provenance, unconditionally
 
 #### Scenario: A lost commit acknowledgement is reconciled, not repeated
 

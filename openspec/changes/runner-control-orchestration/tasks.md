@@ -700,6 +700,43 @@ operation its requirement names.
   round green; complete tests, typecheck, lint, build, strict OpenSpec
   validation, and repository gate green at the pushed head.
 
+- [x] **7.13 Close round-13 conflicting-replay and boundary-authority findings**
+  <!-- agent-task: 7.13 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.12 -->
+
+  **Authorized by** — the same owner decision record as 7.11/7.12
+  (<https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82#issuecomment-5298925660>);
+  all three findings are mechanical conformance to D14. The
+  reviewer-authored RED commit
+  `9d382a19c5c1a3436fb64b2a86e7d34b69c293c8` (parent `d3ed530`, the
+  reviewed head) was preserved as its own commit and consumed
+  unmodified.
+
+  **Implements** — replay validity as identity AND canonical intent,
+  one shared mechanism per store: the journal classifies every append
+  across all four categories (cross-category collisions conflict), the
+  evidence sink canonicalizes kind + payload, and the materialization
+  reference applies the identical rule (the same ID-only class defect
+  found one port over during the mandated audit). `FenceOutcome` and
+  `ApplyBackOutcome` gained the narrow `conflicting_replay` refusal —
+  distinct from `stale_fence` — with fail-closed handling: a
+  conflicting journal entry stays pending (the durability gate blocks),
+  and a conflicting evidence write concludes without a durability claim
+  and without declaring the fence lost. The early-terminal record is
+  built once per attempt and retried verbatim so legitimate settlement
+  retries stay exact replays. `guardPorts` stamps the winning expiry
+  UNCONDITIONALLY — caller-supplied expiry metadata is stripped, never
+  preferred. Audit: events and finalization already canonical
+  (preserved); the only production `finalization.commit` call site
+  crosses the guarded seam.
+
+  **Proof required** — the reviewer round-13 file green and unmodified
+  (`git diff 9d382a19 -- …round13.test.ts` empty); RO-INV-93 and the
+  RO-INV-90 amendment registered with RO-EX-172…176 and
+  RO-MUT-111…116, each mutant hand-applied and killed by its named
+  proof; every prior falsification round green; complete tests,
+  typecheck, lint, build, strict OpenSpec validation, and repository
+  gate green at the pushed head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

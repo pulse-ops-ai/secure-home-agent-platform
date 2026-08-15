@@ -58,12 +58,20 @@ describe('RO-FENCE-01: every effectful port refuses a superseded generation', ()
   it('the journal refuses an append from the generation it has moved past', async () => {
     const journal = new InMemoryRunJournal()
     expect(
-      (await journal.appendTransition({ run_id: RUN, generation: 2, transition: transition() })).ok,
+      (
+        await journal.appendTransition({
+          run_id: RUN,
+          generation: 2,
+          entry_id: 'fence-append-1',
+          transition: transition(),
+        })
+      ).ok,
     ).toBe(true)
 
     const stale = await journal.appendTransition({
       run_id: RUN,
       generation: 1,
+      entry_id: 'fence-append-3',
       transition: transition(),
     })
     expect(stale.ok).toBe(false)
@@ -216,6 +224,9 @@ describe('RO-FENCE-02: the current holder is not locked out by its own writes', 
       const appended = await journal.appendTransition({
         run_id: RUN,
         generation: 7,
+        // Distinct facts get distinct identities; this proof is about
+        // the FENCE permitting repeated writes, not about replay.
+        entry_id: `fence-append-4-${String(i)}`,
         transition: transition(),
       })
       expect(appended.ok).toBe(true)
@@ -269,6 +280,7 @@ class UsurpingArtifactObserver {
       await this.journal.appendTransition({
         run_id: request.run_id,
         generation,
+        entry_id: 'fence-append-competitor',
         transition: transition(),
       })
       const state = await this.journal.readCurrentState({ run_id: request.run_id })
@@ -381,7 +393,12 @@ describe('RO-FENCE-05: the stale holder does not spend or materialize', () => {
 describe('RO-FENCE-06: reads stay unfenced', () => {
   it('a stale holder can still READ the journal it may not write', async () => {
     const journal = new InMemoryRunJournal()
-    await journal.appendTransition({ run_id: RUN, generation: 2, transition: transition() })
+    await journal.appendTransition({
+      run_id: RUN,
+      generation: 2,
+      entry_id: 'fence-append-2',
+      transition: transition(),
+    })
 
     // Refusing the read would report an EMPTY journal to a stale holder,
     // which reads as "this run does not exist" — a far more confusing

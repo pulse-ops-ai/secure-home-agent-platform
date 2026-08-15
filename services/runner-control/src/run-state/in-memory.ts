@@ -40,8 +40,13 @@ interface JournalPages {
   rejections: RejectionEntry[]
   acquisitions: JournaledAcquisition[]
   held?: JournaledHold
-  /** Entry identities already landed — the replay ledger. */
-  seen: Set<string>
+  /**
+   * Entry identity → the CANONICAL FACT that landed under it. Identity
+   * alone cannot be the ledger: a replay is valid only when identity
+   * and fact both match, so the ledger must retain enough to tell an
+   * exact retry from a different fact wearing a landed name.
+   */
+  seen: Map<string, string>
 }
 
 export class InMemoryRunJournal implements RunJournalPort {
@@ -66,37 +71,61 @@ export class InMemoryRunJournal implements RunJournalPort {
       transitions: [],
       rejections: [],
       acquisitions: [],
-      seen: new Set(),
+      seen: new Map(),
     }
     this.#pages.set(run_id, page)
     return page
   }
 
   /**
-   * Whether this append is a REPLAY of a fact that already landed.
+   * Classify this append against the replay ledger — ONE mechanism for
+   * all four categories, so no category can drift to identity-only
+   * matching on its own.
    *
    * The physical append and its acknowledgement are separate events: the
    * first append can land while its acknowledgement is lost, and the
-   * caller's only correct move is to retry the SAME identity. Answering
-   * `ok` without appending again is what makes that retry a resolution
-   * instead of a duplication — one physical fact, one durable fact.
+   * caller's only correct move is to retry the SAME identity carrying
+   * the SAME fact. `replay` answers that retry `ok` without a second
+   * durable fact. `conflict` is a different fact — or a different
+   * CATEGORY — wearing a landed identity: refused, with the first fact
+   * unchanged, because identity equality must imply fact equality.
    */
-  #replayed(page: JournalPages, entry_id: string | undefined): boolean {
-    if (entry_id === undefined) return false
-    if (page.seen.has(entry_id)) return true
-    page.seen.add(entry_id)
-    return false
+  #classify(
+    page: JournalPages,
+    entry_id: string,
+    category: string,
+    fact: unknown,
+  ): 'new' | 'replay' | 'conflict' {
+    const canonical = JSON.stringify({ category, fact })
+    const landed = page.seen.get(entry_id)
+    if (landed === undefined) {
+      page.seen.set(entry_id, canonical)
+      return 'new'
+    }
+    return landed === canonical ? 'replay' : 'conflict'
+  }
+
+  static #conflict(entry_id: string): FenceOutcome {
+    return {
+      ok: false,
+      reason: 'conflicting_replay',
+      detail: `journal entry ${entry_id} already landed a different fact; identity equality must imply fact equality`,
+    }
   }
 
   appendTransition(
-    request: RunFence & { readonly entry_id?: string; readonly transition: TransitionEntry },
+    request: RunFence & { readonly entry_id: string; readonly transition: TransitionEntry },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     // Checked BEFORE the page is even created: a stale holder must not
     // be able to bring a journal into existence for a run it lost.
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
-    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    const classified = this.#classify(page, request.entry_id, 'transition', request.transition)
+    if (classified === 'replay') return Promise.resolve(refused)
+    if (classified === 'conflict') {
+      return Promise.resolve(InMemoryRunJournal.#conflict(request.entry_id))
+    }
     // No commit id: an ordinary append is visible on its own account.
     page.transitions.push({ entry: request.transition })
     // A run that moves is no longer held. Leaving a stale hold would
@@ -106,34 +135,46 @@ export class InMemoryRunJournal implements RunJournalPort {
   }
 
   appendRejection(
-    request: RunFence & { readonly entry_id?: string; readonly rejection: RejectionEntry },
+    request: RunFence & { readonly entry_id: string; readonly rejection: RejectionEntry },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
-    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    const classified = this.#classify(page, request.entry_id, 'rejection', request.rejection)
+    if (classified === 'replay') return Promise.resolve(refused)
+    if (classified === 'conflict') {
+      return Promise.resolve(InMemoryRunJournal.#conflict(request.entry_id))
+    }
     page.rejections.push(request.rejection)
     return Promise.resolve(refused)
   }
 
   appendAcquisition(
-    request: RunFence & { readonly entry_id?: string; readonly acquisition: JournaledAcquisition },
+    request: RunFence & { readonly entry_id: string; readonly acquisition: JournaledAcquisition },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
-    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    const classified = this.#classify(page, request.entry_id, 'acquisition', request.acquisition)
+    if (classified === 'replay') return Promise.resolve(refused)
+    if (classified === 'conflict') {
+      return Promise.resolve(InMemoryRunJournal.#conflict(request.entry_id))
+    }
     page.acquisitions.push(request.acquisition)
     return Promise.resolve(refused)
   }
 
   appendHold(
-    request: RunFence & { readonly entry_id?: string; readonly hold: JournaledHold },
+    request: RunFence & { readonly entry_id: string; readonly hold: JournaledHold },
   ): Promise<FenceOutcome> {
     const refused = this.#fence.outcome(request)
     if (!refused.ok) return Promise.resolve(refused)
     const page = this.#page(request.run_id)
-    if (this.#replayed(page, request.entry_id)) return Promise.resolve(refused)
+    const classified = this.#classify(page, request.entry_id, 'hold', request.hold)
+    if (classified === 'replay') return Promise.resolve(refused)
+    if (classified === 'conflict') {
+      return Promise.resolve(InMemoryRunJournal.#conflict(request.entry_id))
+    }
     page.held = request.hold
     return Promise.resolve(refused)
   }

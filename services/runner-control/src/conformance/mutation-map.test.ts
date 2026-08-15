@@ -606,6 +606,36 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-171'],
   },
   {
+    id: 'RO-MUT-111',
+    mutation: 'store identity membership only in the journal replay ledger',
+    killedBy: ['RO-EX-172', 'RO-EX-175'],
+  },
+  {
+    id: 'RO-MUT-112',
+    mutation: 'store identity membership only in the evidence replay ledger',
+    killedBy: ['RO-EX-173'],
+  },
+  {
+    id: 'RO-MUT-113',
+    mutation: 'acknowledge a conflicting replay as success',
+    killedBy: ['RO-EX-172', 'RO-EX-173', 'RO-EX-175'],
+  },
+  {
+    id: 'RO-MUT-114',
+    mutation: "prefer caller-supplied expiry metadata over the boundary's winning value",
+    killedBy: ['RO-EX-174'],
+  },
+  {
+    id: 'RO-MUT-115',
+    mutation: 'take the expiry provenance from the caller rather than the winning value',
+    killedBy: ['RO-EX-174'],
+  },
+  {
+    id: 'RO-MUT-116',
+    mutation: 're-apply or accept a different materialization at a landed identity',
+    killedBy: ['RO-EX-176'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

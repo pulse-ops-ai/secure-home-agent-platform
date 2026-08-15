@@ -826,6 +826,25 @@ The classes and their boundary semantics:
 `clock.now` is synchronous and outside the table — it cannot outlive a
 boundary.
 
+**Round-13 exactness: identity equality implies fact equality.** A
+replay ledger that remembers only "this identity landed" cannot tell an
+exact retry from a different fact wearing a landed name. Every replay
+ledger — the journal (one mechanism across its four categories), the
+evidence sink, the event sink, the materialization ledger, and
+finalization's canonical intent — retains canonical content and answers
+three ways: new, replay (`ok`, nothing appended), or CONFLICTING replay
+(`conflicting_replay`, refused with the first fact unchanged). A
+conflict is not `stale_fence` — identity corruption and ownership loss
+are different facts — and orchestration fails closed on it: the entry
+stays pending, the durability gate blocks, and no conclusion claims a
+record it could not establish. The early-terminal record is built ONCE
+per attempt and retried verbatim, because a rebuilt record with fresh
+timestamps would be a conflicting replay of the run's own record. And
+the boundary's expiry stamp is UNCONDITIONAL: caller-supplied expiry
+metadata is stripped at the guard, so no pre-boundary caller can widen
+the budget or forge refusal provenance (RO-INV-90/93,
+RO-EX-172…176, RO-MUT-111…116).
+
 **Round-12 exactness (same owner decision, made structural).** The
 table's identity column stopped being aspiration: every identity above
 is REQUIRED by the public TypeScript contract, proven by

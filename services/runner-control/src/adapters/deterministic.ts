@@ -196,8 +196,8 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     return this.#writes.filter((write) => isVisible(this.#visibility, write.commit_id))
   }
 
-  /** Landed logical record identities: the replay ledger. */
-  readonly #landed = new Set<string>()
+  /** Record identity → the canonical record that landed under it. */
+  readonly #landed = new Map<string, string>()
 
   write(
     request: RunFence & { readonly record_id: string } & (
@@ -210,12 +210,26 @@ export class RecordingEvidenceSink implements EvidenceSinkPort {
     // holder sealing a bundle would produce a second, contradictory
     // record of one run — two answers to "what happened", both signed.
     if (!refused.ok) return Promise.resolve(refused)
-    // A repeated logical record identity is a lost acknowledgement being
-    // resolved: the record already exists, so the retry is acknowledged
-    // without appending a second copy. The FIRST landed version stands —
-    // same logical record, however many acknowledgements it took.
-    if (this.#landed.has(request.record_id)) return Promise.resolve(refused)
-    this.#landed.add(request.record_id)
+    // A repeated record identity carrying the SAME canonical record —
+    // the governed kind and the payload both — is a lost acknowledgement
+    // being resolved: acknowledged, nothing appended, the first landed
+    // version stands. A DIFFERENT record wearing a landed identity is a
+    // CONFLICTING replay: refused without touching the first record,
+    // because identity equality must imply record equality.
+    const canonical = JSON.stringify({
+      kind: request.kind,
+      payload: request.kind === 'evidence_bundle' ? request.bundle : request.record,
+    })
+    const landed = this.#landed.get(request.record_id)
+    if (landed !== undefined) {
+      if (landed === canonical) return Promise.resolve(refused)
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `evidence record ${request.record_id} already landed a different record`,
+      })
+    }
+    this.#landed.set(request.record_id, canonical)
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,

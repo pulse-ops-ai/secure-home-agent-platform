@@ -62,9 +62,23 @@ export interface RunFence extends RunScoped {
  * to act on, and an exception thrown through a `catch {}` that exists to
  * tolerate transient sink faults would be silently swallowed.
  */
+/**
+ * `conflicting_replay` and `stale_fence` are DIFFERENT facts and must
+ * never be collapsed: a stale fence means ownership moved; a conflicting
+ * replay means a repeated effect identity arrived carrying a DIFFERENT
+ * fact than the one that landed. A replay is valid only when identity
+ * AND canonical logical intent both match — the first durable fact
+ * stands, the conflicting request is refused, and the caller fails
+ * closed rather than treating either the conflict as landed or the
+ * ownership as lost.
+ */
 export type FenceOutcome =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: 'stale_fence'; readonly detail: string }
+  | {
+      readonly ok: false
+      readonly reason: 'stale_fence' | 'conflicting_replay'
+      readonly detail: string
+    }
 
 export interface AuthorityReadRequest extends RunScoped {
   readonly epoch: AcquisitionEpoch

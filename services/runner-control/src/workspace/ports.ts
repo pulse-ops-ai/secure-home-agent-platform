@@ -64,7 +64,11 @@ export interface ApplyBackRequest extends RunFence {
 
 export type ApplyBackOutcome =
   | { readonly ok: true; readonly applied: number }
-  | { readonly ok: false; readonly reason?: 'stale_fence'; readonly detail: string }
+  | {
+      readonly ok: false
+      readonly reason?: 'stale_fence' | 'conflicting_replay'
+      readonly detail: string
+    }
 
 /**
  * All three operations are FENCED, including `discard`.

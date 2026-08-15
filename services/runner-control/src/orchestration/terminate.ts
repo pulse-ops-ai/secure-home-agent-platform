@@ -203,16 +203,23 @@ export const writeEarlyTerminalRecord = async (
   // further write was made — the record landing strictly after ownership
   // moved.
   if (scope.fenceLost !== undefined) return stop(await conclude(env, 'none', detail))
-  const record = buildEarlyTerminationRecord({
-    run_id: request.run_id,
-    requester: request.requester,
-    requested_profile: request.profile_ref,
-    state: scope.machine.state,
-    detail,
-    started_at: scope.startedAt,
-    finished_at: safeNow(ports, request.run_id),
-  })
-  if (!record.ok) return stop(await conclude(env, 'none', record.detail))
+  // BUILT ONCE, RETRIED VERBATIM. Replay validity binds identity AND
+  // canonical content, so the settlement retry must carry the exact
+  // record the first attempt landed — a rebuild with fresh timestamps
+  // would be a conflicting replay of this run's own record.
+  if (scope.earlyRecord === undefined) {
+    const record = buildEarlyTerminationRecord({
+      run_id: request.run_id,
+      requester: request.requester,
+      requested_profile: request.profile_ref,
+      state: scope.machine.state,
+      detail,
+      started_at: scope.startedAt,
+      finished_at: safeNow(ports, request.run_id),
+    })
+    if (!record.ok) return stop(await conclude(env, 'none', record.detail))
+    scope.earlyRecord = record.record
+  }
 
   const written = await ports.evidence.write({
     ...scope.fence,
@@ -222,9 +229,16 @@ export const writeEarlyTerminalRecord = async (
     // answers it as a replay instead of appending a second record.
     record_id: `${request.run_id}#g${String(scope.fence.generation)}#early_termination_record`,
     kind: 'early_termination_record',
-    record: record.record,
+    record: scope.earlyRecord,
   })
   if (!written.ok) {
+    // A CONFLICT IS NOT OWNERSHIP LOSS. The identity already carries a
+    // different record — this attempt's write cannot be established as
+    // its own, so it fails closed without claiming durability and
+    // without pretending the run moved on.
+    if (written.reason === 'conflicting_replay') {
+      return stop(await conclude(env, 'none', written.detail))
+    }
     scope.loseFence(written.detail)
     return stop(await conclude(env, 'none', detail))
   }

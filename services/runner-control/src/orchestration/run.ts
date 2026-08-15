@@ -461,11 +461,19 @@ export class Runner {
         const entry = scope.outbox.head()
         if (entry === undefined) return
         const appended = await this.#append(ports, scope, entry)
-        // A refused append is NOT retried: retrying cannot fix a fence
-        // refusal, and a dispossessed run makes no further write. The
-        // entry stays where it is, which the seal gate reads correctly —
-        // this run's durable record is incomplete.
-        if (!appended.ok) return scope.loseFence(appended.detail)
+        if (!appended.ok) {
+          // A CONFLICTING REPLAY is not ownership loss and not landed.
+          // The entry stays pending — the durability gate reads that as
+          // an incomplete record and no conclusion claims durability —
+          // and the fence is NOT declared lost, because the run still
+          // owns itself; its journal identity is what is corrupted.
+          if (appended.reason === 'conflicting_replay') return
+          // A fence refusal is NOT retried: retrying cannot fix it, and
+          // a dispossessed run makes no further write. The entry stays
+          // where it is, which the seal gate reads correctly — this
+          // run's durable record is incomplete.
+          return scope.loseFence(appended.detail)
+        }
         scope.outbox.landed()
       }
     } catch (error) {

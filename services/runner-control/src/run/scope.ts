@@ -94,6 +94,16 @@ export class RunScope {
   /** The governed terminal record already made durable, if any. */
   recorded: RunConclusion['produced'] = 'none'
 
+  /**
+   * THE ONE early-terminal record of this attempt, built once and
+   * retried verbatim. Replay validity binds identity AND canonical
+   * content, so a retry that REBUILT the record — fresh timestamps,
+   * fresh detail — would arrive as a conflicting replay of its own
+   * record. One logical record, one construction, however many
+   * acknowledgements it takes to land.
+   */
+  earlyRecord: unknown
+
   constructor(fence: RunFence, machine: RunMachine, startedAt: string) {
     this.fence = fence
     this.machine = machine

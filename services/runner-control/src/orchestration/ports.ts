@@ -80,20 +80,25 @@ const classified = <T extends object>(
  */
 const committed = (port: FinalizationPort, boundary: CallGuard): FinalizationPort => ({
   commit: (request) => {
-    // BOTH stamps come from the ONE winning-expiry value, so the
-    // instant and its provenance cannot disagree — a governed deadline
-    // that wins the minimum is refused as the run's timeout, and an
-    // attempt ceiling that wins is refused as the attempt's bound.
+    // THE BOUNDARY IS THE ONLY AUTHORITY FOR EXPIRY METADATA. Both
+    // stamps come UNCONDITIONALLY from the one winning-expiry value —
+    // caller-supplied expiry fields are STRIPPED, never preferred, so a
+    // pre-boundary caller cannot widen the budget or forge the
+    // provenance the refusal will carry. One value, two projections: a
+    // governed deadline that wins the minimum is refused as the run's
+    // timeout, and an attempt ceiling that wins is refused as the
+    // attempt's bound.
     const winning = boundary.expiry()
-    const expires_at_epoch_ms = request.expires_at_epoch_ms ?? winning?.at
-    const expires_at_bound =
-      request.expires_at_bound ??
-      (winning !== undefined && winning.source !== 'governed' ? 'attempt' : 'governed')
+    const { expires_at_epoch_ms: _caller_at, expires_at_bound: _caller_bound, ...intent } = request
     return boundary.commit(() =>
       port.commit({
-        ...request,
-        ...(expires_at_epoch_ms === undefined ? {} : { expires_at_epoch_ms }),
-        expires_at_bound,
+        ...intent,
+        ...(winning === undefined
+          ? {}
+          : {
+              expires_at_epoch_ms: winning.at,
+              expires_at_bound: winning.source === 'governed' ? 'governed' : ('attempt' as const),
+            }),
       }),
     )
   },

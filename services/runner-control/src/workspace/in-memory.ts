@@ -25,6 +25,8 @@ import { FenceLedger } from '../run-state/fence.js'
 
 export class InMemoryWorkspaceLifecycle implements WorkspaceLifecyclePort {
   readonly #applied = new Map<string, number>()
+  /** Materialization identity → the canonical change set that landed. */
+  readonly #materialized = new Map<string, string>()
   readonly #fence = new FenceLedger()
 
   provision(
@@ -55,6 +57,30 @@ export class InMemoryWorkspaceLifecycle implements WorkspaceLifecyclePort {
     if (refused !== undefined) {
       return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
+    // THE SAME REPLAY RULE AS EVERY ACKNOWLEDGED EFFECT: identity AND
+    // canonical intent. The materialization's identity is the fenced
+    // (run, generation, workspace); a repeat carrying the same observed
+    // change set and authority is a lost acknowledgement resolved
+    // without re-applying, and a DIFFERENT materialization wearing a
+    // landed identity refuses — re-applying it would double-write the
+    // one effect that escapes isolation.
+    const identity = `${request.run_id}#g${String(request.generation)}#${request.workspace_ref}`
+    const canonical = JSON.stringify({
+      changes: request.changes,
+      authorized_by: request.authorized_by,
+    })
+    const landed = this.#materialized.get(identity)
+    if (landed !== undefined) {
+      if (landed === canonical) {
+        return Promise.resolve({ ok: true, applied: request.changes.length })
+      }
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `workspace ${request.workspace_ref} already materialized a different change set for generation ${String(request.generation)}`,
+      })
+    }
+    this.#materialized.set(identity, canonical)
     this.#applied.set(request.run_id, request.changes.length)
     return Promise.resolve({ ok: true, applied: request.changes.length })
   }
