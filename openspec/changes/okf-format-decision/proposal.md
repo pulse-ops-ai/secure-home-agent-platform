@@ -31,8 +31,10 @@ which reads like an authorization concept and is not one.
 
 **Propose** OKF v0.2 as the source representation only — pinned, not floating —
 with packaging, digest identity, query, and admission remaining this
-repository's, and with OKF trust signals prohibited from reaching the authority
-plane.
+repository's; OKF trust signals prohibited from reaching the authority plane;
+and execution-bearing OKF content refused at admission, so that adopting a
+knowledge format does not quietly turn skills, scripts, or containers into
+ordinary project knowledge.
 
 ## Scope
 
@@ -59,10 +61,14 @@ ADR-0015 §5 provides the field, and depends on nothing that is not already true
 independently).
 
 **Unresolved decisions.** This change **answers U7 in a `Proposed` ADR and does
-not close it.** Repository governance is explicit that an item leaves
+not close it here.** Governance is explicit that an item leaves
 `unresolved-decisions.md` only via an accepted ADR — ADR-0013 closed U6 *on
-acceptance*. U7 therefore stays open, and the pointer added to it says so. No
-other item is touched.
+acceptance*. **On acceptance, U7 closes**, because U7 asks whether the
+architectural question has an answer and it then has one. Authoring stays
+blocked afterwards by a separate implementation obligation, which is not U7's
+state: using an open item to mean "the code has not landed" would make the
+implementation the closing event, which that rule forbids. No other item is
+touched.
 
 **ADR status.** No existing ADR's status changes. ADR-0015 is authored
 `Proposed`.
@@ -114,7 +120,7 @@ a reader can tell what still blocks authoring.
 
 - Implementing compile / validate / package / query
 - Authoring any knowledge module
-- Closing U7, or reading acceptance as permission to author
+- Closing U7 in this change, or reading acceptance as permission to author
 - Making `knowledge/` runtime-authoritative
 - Changing any accepted ADR
 

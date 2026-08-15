@@ -5,7 +5,7 @@
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) (`Proposed`)
-- **Answers:** [U7](../architecture/unresolved-decisions.md#u7) — **on acceptance**, and subject to the implementation gate in §12. U7 remains open until then.
+- **Answers:** [U7](../architecture/unresolved-decisions.md#u7) — **closed on acceptance of this ADR**, which is when the architectural question has an answer. Authoring stays blocked afterwards by the separate implementation obligation in §12; that obligation is not U7's state.
 
 ---
 
@@ -117,11 +117,28 @@ Beyond OKF's single required `type`, admission requires, per module:
 | Requirement | Carried by |
 |---|---|
 | owner | an `owner` field using the OKF actor convention (`human:<id>`) |
-| as-of date | `generated.at`, present and ISO-8601 |
+| **factual currency** | an `as_of` field — **ours**; see below |
+| production provenance | `generated.at`, present and ISO-8601 |
 | stated limitations | a `limitations` field — **no OKF equivalent exists**; this is ours |
 | lifecycle | `status` stated explicitly, never defaulted |
 | staleness | `stale_after`, present and absolute |
 | canonical source | `governs` — the canonical artifact this module projects, per ADR-0014 §2 (`Proposed`) |
+
+**`as_of` is NOT `generated.at`, and conflating them would corrupt freshness.**
+The spec defines `generated.at` as "an ISO 8601 datetime marking the content's
+last meaningful change" — when the concept was *written*. This repository's
+`asOf` is the date through which the asserted facts are known current; it
+already exists in `knowledge/catalog.json`, is recorded per resolved module in
+run evidence, and is what `maxFreshnessDays` is measured against
+([`knowledge-selection-model.md`](../architecture/knowledge-selection-model.md)).
+
+Regenerating a module today from year-old source material moves `generated.at`
+to today and must **not** move `as_of`. Mapping the repository's as-of onto
+`generated.at` would make every regeneration silently assert that stale facts
+are current — a freshness failure produced by an editing action. OKF defines no
+factual-currency field, so this one is ours. `stale_after` remains the expiry
+boundary, and the three are distinct: when it was written, what it is current
+through, when to stop trusting it.
 
 `owner`, `limitations`, and `governs` are **additional frontmatter keys**, which
 OKF explicitly permits ("Unknown additional frontmatter keys" must not cause a
@@ -130,11 +147,66 @@ consumer to reject). We add obligations without leaving the format.
 ADR-0010 already required owner, freshness, and limitations. This states where
 each lives.
 
+### 5b. `Attested Computation` is REFUSED at admission
+
+OKF v0.2 makes `Attested Computation` first-class: a concept that "carries not
+just what a value *means* but a sanctioned way to *compute* it." It has
+`runtime`, an optional `computation` path or inline body, an `executor` whose
+`resource` "names run instructions or code", and an `attester` whose `resource`
+"names code (no LLM) that takes a receipt and returns a verdict."
+
+And the spec is explicit about what may sit behind that reference:
+
+> "What sits behind a `resource` (a Skill, a script, a container) is a packaging
+> choice; OKF fixes the interface, not the packaging."
+
+That sentence is the reason this section exists. It would let a **Skill, a
+script, or a container** enter this platform through the knowledge plane, as
+ordinary project knowledge, selected by a profile — the precise inversion
+[ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
+(`Proposed`) was written to prevent, and a direct contradiction of
+`knowledge/README.md`, which says code does not belong in a bundle: "the
+toolchain will live in a package or service, not here."
+
+**Admission therefore refuses** a concept whose `type` is `Attested
+Computation`, and refuses the execution-bearing fields — `runtime`,
+`computation`, `executor`, `attester` — wherever they appear, whatever the
+declared `type`. The refusal is by field, not only by type, because `type` is an
+open string that producers choose.
+
+This is a **conservative initial position, not a permanent verdict.** Attested
+computation is a reasonable thing to want. Admitting it needs its own decision
+about how an OKF computation names a provider-neutral executable without the
+reference becoming authority — which is the same layer boundary this ADR spends
+§10 protecting, arriving from the opposite direction. That decision is not taken
+here, and refusing by default means it cannot be taken by accident.
+
 ### 6. Digest identity and canonicalization: RAW BYTES, never re-serialized YAML
 
 The packaged artifact is identified by a digest over **the exact bytes of the
-source files**, plus a manifest of `(path, sha256)` pairs in a fixed path order,
-itself digested. Nothing is parsed and re-emitted on the way to a hash.
+source files**, through a manifest whose own byte serialization is fixed.
+Nothing is parsed and re-emitted on the way to a hash.
+
+**The manifest format is normative, because "a manifest of pairs in a fixed
+order" is not an identity.** `path sha256\n`, `path\0sha256\n`, compact JSON,
+and pretty JSON all satisfy that prose and produce different package digests —
+the same defect the YAML spike exists to eliminate, moved one level out. So:
+
+```text
+line   := <normalized-path> NUL <lowercase-hex sha256 of raw file bytes> LF
+order  := ascending by the UTF-8 bytes of the normalized path
+prefix := "okf-package-v1" LF
+manifest_bytes := prefix || line*
+bundle_digest  := sha256(manifest_bytes)
+```
+
+`normalized-path` is bundle-relative, POSIX-separated, NFC-normalized, with no
+`.` or `..` segment. The format carries its own version string so a future
+change to the serialization is a visible, governed break rather than a silent
+re-identification of unchanged knowledge.
+
+The per-file digests bind the raw bytes; the manifest binds the set and the
+paths; the prefix binds the format.
 
 This is evidence-backed, not a preference. A disposable spike (§Validation)
 parsed one frontmatter block and re-serialized it three defensible ways — sorted
@@ -225,9 +297,27 @@ pinned `okf_version` moves in that change and nowhere else.
 An upstream change never silently becomes ours, because the pin is checked at
 admission.
 
-### 12. THE IMPLEMENTATION GATE — what must exist before the first module
+### 12. THE IMPLEMENTATION OBLIGATION — what must exist before the first module
 
-Accepting this ADR answers *which format*. It does **not** open authoring.
+**This is an implementation obligation, not an unresolved architectural
+decision, and it is deliberately not represented by U7's state.**
+
+U7 asks whether the format question has an answer. Accepting this ADR gives it
+one, and U7 closes then — matching how ADR-0013 closed U6 on acceptance, and
+matching the governance rule that an item leaves `unresolved-decisions.md` only
+via a new ADR. Using U7's open state to mean "the code has not landed yet" would
+make the *implementation* the closing event, which that rule forbids, and would
+also misreport an answered question as an open one.
+
+Two facts, two places to record them:
+
+```text
+U7 open/closed          → is the architectural question answered?
+implementation obligation → is authoring safe to begin?
+```
+
+Accepting this ADR therefore answers *which format*. It does **not** open
+authoring.
 
 Before the first real knowledge module may be authored, all of the following
 must exist and pass:
@@ -249,8 +339,11 @@ project publishes no validator, no conformance suite, and no machine-readable
 schema; `okf/tests` exercises the reference *agent*, not the format. We build
 this, or it does not exist.
 
-**U7 closes when this ADR is accepted AND the above exists.** Acceptance alone
-must not be read as permission to author.
+**U7 closes when this ADR is accepted.** Authoring opens when the obligation
+above is satisfied. Those are different events and neither implies the other:
+acceptance is not permission to author, and a closed U7 is not evidence that the
+toolchain exists. This obligation is discharged in its own change, and the
+conformance suite is what evidences it — not a checkbox here.
 
 ## Consequences
 
@@ -260,6 +353,8 @@ construction. The pin makes upstream drift visible instead of silent. Digest
 identity depends on bytes, so it is stable against tooling changes.
 
 **Negative.** We build the entire toolchain; there is nothing upstream to adopt.
+Refusing `Attested Computation` (§5b) declines a real OKF feature, and a future
+change wanting it must do the layer-boundary work first.
 The permissive/strict split must be explained to every future reader, because
 "we are OKF-conformant" and "we reject non-conforming modules" sound
 contradictory until the two layers are distinguished. Pinning to `0.2` means
@@ -337,8 +432,9 @@ yet exist.
    `bash scripts/check.sh`.
 4. **Nothing in this ADR is operative while it is `Proposed`**, and no
    lower-precedence artifact may make it operative.
-5. This ADR changes **no** existing ADR's status and does **not** close U7.
-   U7 remains open pending human acceptance **and** the §12 implementation gate.
+5. This ADR changes **no** existing ADR's status. It does not close U7 *now* —
+   it closes it **on acceptance**, which is a human act in its own change. The
+   §12 obligation is separate and does not gate U7's state.
 
 ## Links
 

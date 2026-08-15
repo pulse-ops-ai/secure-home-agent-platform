@@ -50,11 +50,54 @@ tolerate unknown types, unknown keys, and missing optional fields.
 - **THEN** the two layers have been conflated
 - **AND** the change is incorrect
 
+### Requirement: Factual currency is distinct from production time
+
+A module SHALL carry an `as_of` date stating the currency of the facts it
+asserts, separate from OKF's `generated.at`, which records when the content was
+last meaningfully changed.
+
+#### Scenario: A module is regenerated from old material
+
+- **WHEN** a module is regenerated today from source material a year old
+- **THEN** `generated.at` moves to today
+- **AND** `as_of` does not move
+- **AND** freshness continues to be evaluated against `as_of`
+
+#### Scenario: as-of mapped onto production time (negative)
+
+- **WHEN** an implementation would satisfy the as-of requirement with
+  `generated.at`
+- **THEN** every regeneration would silently assert that stale facts are current
+- **AND** the mapping is refused
+
+### Requirement: Execution-bearing content is refused
+
+Admission SHALL refuse a concept of type `Attested Computation`, and SHALL refuse
+the fields `runtime`, `computation`, `executor`, and `attester` wherever they
+appear, whatever the declared `type`.
+
+#### Scenario: A concept naming an executor
+
+- **WHEN** a concept carries an `executor` whose resource names a skill, script,
+  or container
+- **THEN** admission refuses it
+- **AND** the reason is that executable capability does not enter through the
+  knowledge plane
+
+#### Scenario: Execution fields under a different type (negative)
+
+- **WHEN** execution-bearing fields appear under a `type` other than
+  `Attested Computation`
+- **THEN** admission still refuses them
+- **AND** refusing by type alone would be insufficient, because `type` is an
+  open string a producer chooses
+
 ### Requirement: Digest identity is over raw bytes
 
-A packaged bundle SHALL be identified by a digest over the exact bytes of its
-source files and a manifest of path/digest pairs in a fixed order. Frontmatter
-SHALL NOT be parsed and re-serialized on the path to a digest.
+A packaged bundle SHALL be identified by a digest over a manifest whose byte
+serialization is normative and versioned, binding the exact bytes of every
+source file. Frontmatter SHALL NOT be parsed and re-serialized on the path to a
+digest.
 
 #### Scenario: The same source packaged twice
 
@@ -65,6 +108,20 @@ SHALL NOT be parsed and re-serialized on the path to a digest.
 
 - **WHEN** a single byte of one source file changes
 - **THEN** the bundle digest changes
+
+#### Scenario: Two conforming implementations agree
+
+- **WHEN** two independent implementations package the same source tree
+- **THEN** they produce the same bundle digest
+- **AND** this holds because the manifest's byte format is fixed, not merely its
+  ordering
+
+#### Scenario: Manifest serialization left to the implementation (negative)
+
+- **WHEN** the format specifies only "path/digest pairs in a fixed order"
+- **THEN** delimiter and encoding choices still change the bundle digest
+- **AND** identity would again depend on an implementation choice rather than on
+  the knowledge
 
 #### Scenario: Identity depending on a YAML dumper (negative)
 
@@ -114,31 +171,60 @@ the interpretation of live state.
 ### Requirement: Reference integrity is checked at admission
 
 Admission SHALL reject an unresolvable bundle-internal link or an unresolvable
-governing-source reference. A reader of a packaged bundle SHALL tolerate a
-broken link.
+governing-source reference. A reader SHALL tolerate a broken link, because OKF
+consumer conformance requires it.
+
+Bundle-internal references and external references have different lifetimes, and
+the requirement distinguishes them: an internal target admitted into an
+immutable, digest-addressed package is **frozen with that package** and cannot
+later break, whereas an external or `governs` reference points outside the
+package and can become unavailable at any time.
 
 #### Scenario: A module naming a canonical source that does not exist
 
-- **WHEN** a module's governing source cannot be resolved
+- **WHEN** a module's governing source cannot be resolved at admission
 - **THEN** admission refuses it
 - **AND** the reason is that it projects nothing
 
-#### Scenario: A link broken after packaging
+#### Scenario: An internal reference cannot break after packaging
 
-- **WHEN** a reader follows a link whose target no longer exists
-- **THEN** it tolerates the break rather than rejecting the bundle
+- **WHEN** the repository copy of an internal target is deleted after packaging
+- **THEN** the packaged bundle is unaffected, because the target's bytes are
+  inside the immutable package
+- **AND** its digest is unchanged
 
-### Requirement: Acceptance is not permission to author
+#### Scenario: An external reference becomes unavailable
 
-Acceptance of the format decision SHALL NOT by itself permit authoring. The
-implementation gate SHALL be satisfied first.
+- **WHEN** a `governs` target is later moved or removed
+- **THEN** a reader tolerates the dangling reference
+- **AND** the package remains valid, because admission judged it when it was
+  admitted
+
+#### Scenario: Foreign OKF input with a broken internal link
+
+- **WHEN** a reader is given an OKF bundle this repository did not admit
+- **THEN** it tolerates the broken link rather than rejecting the bundle
+- **AND** this is why tolerant reading is required even though our own admitted
+  packages cannot contain one
+
+### Requirement: The answered question and the safe-to-author state are separate
+
+Whether the architectural question is answered and whether authoring may begin
+SHALL be recorded as two facts. Acceptance of the format decision SHALL NOT by
+itself permit authoring.
 
 #### Scenario: The decision is accepted and the toolchain does not exist
 
 - **WHEN** the format ADR is accepted but compile/validate/package/query and the
   conformance suite do not exist
-- **THEN** authoring remains blocked
-- **AND** U7 remains open
+- **THEN** U7 closes, because its question has an answer
+- **AND** authoring remains blocked by the implementation obligation
+
+#### Scenario: One state variable for both facts (negative)
+
+- **WHEN** U7's open state would be used to mean "the toolchain has not landed"
+- **THEN** the implementation becomes the event that closes an unresolved item
+- **AND** governance forbids it: an item leaves that file only via a new ADR
 
 #### Scenario: A prohibited-content class with no failing negative test (negative)
 

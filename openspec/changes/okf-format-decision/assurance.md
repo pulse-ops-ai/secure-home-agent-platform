@@ -29,7 +29,10 @@ ADR-0010 exists to prevent. The invariants are aimed there.
 | KF-INV-04 | Admission rejects; consumption tolerates. Neither posture is applied at the other's layer | behavior |
 | KF-INV-05 | Digest identity is over raw bytes; envelope violations are rejected, not normalized | behavior |
 | KF-INV-06 | **No OKF trust, provenance, or lifecycle signal is an input to execution authority, capability, authorization, safety policy, or live-state interpretation** | trust |
-| KF-INV-07 | U7 is NOT closed by this change, and acceptance alone is not permission to author | trust |
+| KF-INV-07 | U7 tracks whether the question is ANSWERED and closes on acceptance; the implementation obligation tracks whether authoring is SAFE. One state variable never stands for both | trust |
+| KF-INV-09 | `as_of` (factual currency) is distinct from `generated.at` (production time); regeneration never advances factual currency | behavior |
+| KF-INV-10 | Execution-bearing OKF content — `Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is refused at admission, by field as well as by type | trust |
+| KF-INV-11 | The manifest's byte serialization is normative and versioned, so two conforming implementations agree on a bundle digest | behavior |
 | KF-INV-08 | Nothing is operative while ADR-0015 is `Proposed`, and no lower-precedence artifact makes it so | trust |
 
 ## State-Space Model
@@ -52,7 +55,10 @@ reading would wrongly claim.
 | KF-EX-02 | KF-INV-01 | evidence | the absence of an upstream validator, conformance suite, and machine-readable schema is established by listing, not assumed |
 | KF-EX-03 | KF-INV-05 | spike | one frontmatter block re-serialized three defensible ways produced three digests, none matching the original bytes |
 | KF-EX-04 | KF-INV-06 | structural | ADR-0015 §10 states a prohibition, not a mapping, and confines the fields to the knowledge plane |
-| KF-EX-05 | KF-INV-07 | structural | U7 carries a pointer saying it is still open; the ADR's `Answers:` line is conditional on acceptance and the §12 gate |
+| KF-EX-05 | KF-INV-07 | structural | U7's pointer says it closes ON ACCEPTANCE and that closing is not permission to author; §12 is an implementation obligation, not U7's state |
+| KF-EX-09 | KF-INV-09 | structural | the profile requires `as_of` separately, and the ADR cites the upstream definition of `generated.at` as last meaningful content change |
+| KF-EX-10 | KF-INV-10 | structural | §5b refuses the type and the four execution-bearing fields, citing the upstream sentence that a `resource` may be a Skill, script, or container |
+| KF-EX-11 | KF-INV-11 | structural | §6 pins the manifest line format, ordering, prefix, and what the final digest hashes |
 | KF-EX-06 | KF-INV-08 | structural | no lower-precedence artifact presents the decision as operative |
 | KF-EX-07 | KF-INV-04 | review | the spec delta carries a negative scenario for conflating the two layers |
 | KF-EX-08 | — | structural | `check-knowledge.mjs` still passes; no module, set, or catalog entry added |

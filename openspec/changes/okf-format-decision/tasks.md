@@ -110,8 +110,8 @@ boundary is a prohibition, and authoring is visibly still blocked.
 
       Governance is explicit — an item leaves `unresolved-decisions.md` only via
       an **accepted** ADR; ADR-0013 closed U6 *on acceptance*. U7 keeps a note
-      saying a proposed answer exists, that it closes nothing, and that two
-      gates stand between it and authoring.
+      saying a proposed answer exists, that it closes **on acceptance**, and
+      that closing it is not permission to author.
 
 - [x] **3.2 Make "accepted" unable to mean "authoring open"**
 
@@ -126,6 +126,29 @@ boundary is a prohibition, and authoring is visibly still blocked.
 - [x] **4.3 `bash scripts/check.sh`** — the aggregate gate.
 - [x] **4.4 Confirm by diff** — U7 not resolved, no ADR status line changed,
       nothing under `knowledge/` touched, no toolchain code added.
+
+## 5. Correction round (post-review)
+
+- [x] **5.1 U7 state stops standing for two facts** — U7 closes on acceptance,
+      because that is when the architectural question has an answer. The §12
+      implementation obligation is recorded separately; using U7's open state to
+      mean "the toolchain has not landed" would make the implementation the
+      closing event, which governance forbids.
+- [x] **5.2 `as_of` separated from `generated.at`** — upstream defines
+      `generated.at` as the content's last meaningful change. The repository
+      already has `asOf` in `catalog.json`, in run evidence, and as what
+      `maxFreshnessDays` measures. Mapping one onto the other would let
+      regeneration silently assert stale facts are current.
+- [x] **5.3 `Attested Computation` refused** — upstream says what sits behind an
+      `executor` resource may be "a Skill, a script, a container". Refused by
+      field as well as by type, conservatively, pending its own decision.
+- [x] **5.4 Manifest byte format made normative** — versioned prefix, NUL
+      delimiter, LF terminator, byte-order sort over NFC paths, and an explicit
+      statement of what the final digest hashes.
+- [x] **5.5 Internal vs external reference lifetimes distinguished** — an
+      internal target is frozen with the immutable package and cannot later
+      break; external and `governs` references can; tolerant reading is still
+      required for foreign OKF input.
 
 ## PR-1 Completion Gate
 

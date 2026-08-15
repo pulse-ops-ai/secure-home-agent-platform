@@ -84,6 +84,26 @@ would change the bytes the digest identifies, so a "helpful" rewrite would make
 the artifact's identity depend on the tool version — the defect this decision
 avoids, reintroduced at the other end.
 
+### D4b: `Attested Computation` is refused, conservatively
+
+OKF v0.2 makes it first-class, and says outright that what sits behind an
+`executor` resource — "a Skill, a script, a container" — is a packaging choice.
+That would let executable capability enter through the knowledge plane as
+ordinary project knowledge, selected by a profile. It is also directly against
+`knowledge/README.md`, which keeps code out of a bundle.
+
+Refused by FIELD as well as by type, because `type` is an open string a producer
+chooses. Conservative rather than permanent: admitting attested computation
+needs its own decision about naming a provider-neutral executable without the
+reference becoming authority, and refusing by default means that decision cannot
+be taken by accident.
+
+### D4c: The manifest byte format is normative
+
+"Path/digest pairs in a fixed order" is not an identity — delimiter and encoding
+choices still change the digest. That is the YAML defect one level out, so the
+serialization is pinned and carries its own version string.
+
 ### D5: Trust is descriptive, stated as a prohibition
 
 A mapping table invites a future reader to find the row where a trust tier means
@@ -101,7 +121,7 @@ knowledge plane into a profile, grant, envelope, or launch assertion.
 | versioned modules and sets | ⚠️ bundle-level `okf_version` only | ✅ module versions, sets |
 | immutable, digest-addressed | ❌ none | ✅ §6 |
 | provenance / trust metadata | ✅ `sources`, `generated`, `verified` | requiring them |
-| freshness / owner / limitations | ⚠️ `stale_after`, `status`, per-source `author` | ✅ owner, limitations mandatory |
+| freshness / owner / limitations | ⚠️ `stale_after`, `status`, per-source `author`; `generated.at` is production time, **not** factual currency | ✅ owner, limitations, and `as_of` mandatory |
 | source/reference integrity | ❌ broken links MUST be tolerated | ✅ rejected at admission |
 | prohibited content | ❌ no concept | ✅ machine-checked, fail-closed |
 | deterministic resolution | ❌ none | ✅ §6 |

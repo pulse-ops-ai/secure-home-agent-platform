@@ -211,15 +211,16 @@ and a plain deterministic loop) rather than against the most convenient one.
 
 > **STILL OPEN.** A *proposed* answer exists —
 > [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
-> — and it is `Proposed`, so **it closes nothing**. An item leaves this file only
-> via an **accepted** ADR.
+> — and it is `Proposed`, so it closes nothing yet. An item leaves this file only
+> via an **accepted** ADR. **On acceptance, this item closes**: the architectural
+> question will have an answer, which is what U7 tracks.
 >
-> Read it for the proposed direction, not for permission. Two gates stand
-> between it and authoring, and both must fall: human acceptance, and the
-> implementation gate in its §12 — compile/validate/package/query behind the
-> ADR-0010 interfaces, a conformance suite with a failing negative case per
-> prohibited-content class, and demonstrated digest reproducibility. Acceptance
-> alone is **not** permission to author.
+> **Closing U7 is not permission to author.** That is a separate fact, recorded
+> separately: ADR-0015 §12 carries an implementation obligation —
+> compile/validate/package/query behind the ADR-0010 interfaces, a conformance
+> suite with a failing negative case per prohibited-content class, and
+> demonstrated digest reproducibility. Authoring opens when that is satisfied,
+> not when this item closes. One state variable must not stand for both facts.
 
 **The problem.** [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 requires compile, validate, package, and query interfaces and a machine-checked
