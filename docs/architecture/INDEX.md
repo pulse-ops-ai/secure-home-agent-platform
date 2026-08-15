@@ -38,6 +38,7 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 | [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
 | [`api-contract-model.md`](api-contract-model.md) | How one Zod definition becomes DTOs, validation, OpenAPI, metadata, SDKs, and MCP tools |
 | [`knowledge-selection-model.md`](knowledge-selection-model.md) | How a profile selects knowledge, how a runner resolves it, and what the run records |
+| [`knowledge-promotion-model.md`](knowledge-promotion-model.md) | Where a durable architectural truth lives, and how it reaches an agent |
 | [`unresolved-decisions.md`](unresolved-decisions.md) | Open questions that are deliberately **not** decided yet |
 
 ## Reading order

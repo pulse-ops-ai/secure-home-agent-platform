@@ -85,6 +85,32 @@ Until the validator and governed query interfaces exist,
 ([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
+## Promoting what a change discovers
+
+**When a change or falsification review discovers a durable architectural truth,
+determine whether it must be promoted into canonical architecture and portable
+knowledge rather than leaving it only in the change archive, tests, PR
+discussion, or provider instructions.**
+
+The determination is the obligation — not the promotion. Most findings are
+specific to their change and correctly stop at the first step. Record the answer
+in the change that found the truth.
+
+Where each layer's authority ends, and the path a promoted truth takes, are in
+[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md)
+([ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
+`Proposed`). Two consequences bind now:
+
+- **A provider-native skill or instruction file is never the canonical home** of
+  an architectural invariant, engineering policy, review policy, or operational
+  procedure. If the information should survive replacing Claude with Codex or
+  Copilot, it belongs in architecture, knowledge, a runbook, or a platform
+  contract.
+- **Authoring a knowledge module is still blocked** by
+  [U7](docs/architecture/unresolved-decisions.md#u7). Until it closes, the path
+  terminates at canonical architecture and the determination is recorded rather
+  than acted on.
+
 ## Two kinds of agent — do not confuse them
 
 This repository is both **operated on by** coding agents and **about** household

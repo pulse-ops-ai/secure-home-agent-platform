@@ -1,0 +1,140 @@
+# Design: knowledge-promotion-path
+
+## Context
+
+`docs/` is canonical, `knowledge/` is the agent-facing projection, and provider
+files are adapters. All three already exist. What does not exist is the rule
+that connects them when a change discovers something durable — so discovered
+truths stay where they were found, and are found again later at review cost.
+
+## Goals
+
+- One canonical statement per durable truth, referenced rather than copied.
+- A named destination and a named obligation for a discovered truth.
+- Provider neutrality preserved structurally, not by convention.
+
+## Non-Goals
+
+- The OKF toolchain. Any knowledge module. Any `skills/` directory.
+- Resolving U7.
+- Automating the determination. No validator can decide whether a truth is
+  durable; pretending otherwise would produce a check that passes vacuously.
+
+## Current Architecture
+
+```text
+docs/decisions/     why — accepted ADRs, highest authority
+docs/architecture/  what follows
+knowledge/platform/ platform self-description modules (registered, unauthored)
+knowledge/runbooks/ ordered procedures (registered, unauthored)
+CLAUDE.md, .github/ provider adapters — routing only
+```
+
+A change that discovers a durable truth writes it into its own archive, its
+tests, or the PR conversation. Nothing routes it further.
+
+## Proposed Architecture
+
+```text
+change / review finding
+     │  durable, or specific to this change?
+     ▼
+canonical architecture or ADR
+     │  must an agent reason FROM it?
+     ▼
+portable knowledge module or runbook
+     │  which sets require it — and which deny it?
+     ▼
+knowledge set → profile-selected bundle → provider / runtime
+```
+
+Every arrow may legitimately answer **no**. Most findings stop at the first.
+
+## Decisions
+
+### D1: The ADR is required rather than a README paragraph
+
+Rules 1–4 and 7 largely confirm existing practice and could have been written as
+documentation. Rules 5, 6, and 8 could not: rule 5 constrains what a provider
+artifact may be canonical *for*, which extends an existing `AGENTS.md` rule from
+routing to content; rule 6 states a knowledge consequence of ADR-0011; rule 8
+creates a standing obligation on every future change. Root `AGENTS.md` is
+explicit that a task prompt cannot authorize crossing an architectural contract
+and that the correct output is a proposed ADR. This is that.
+
+### D2: One architecture document, not text duplicated into the ADR
+
+`docs/AGENTS.md`: decisions record why, architecture records what follows, and
+cross-referencing beats duplication. ADR-0014 carries the decision and its
+rationale; `knowledge-promotion-model.md` carries the path, the layer table, and
+what is blocked. Neither restates the other.
+
+### D3: The obligation is to determine, not to promote
+
+A rule that required promotion would produce ceremonial modules for truths no
+agent reasons from, and would inflate every set — against the least-context
+control in `knowledge/AGENTS.md`. Requiring the *determination* keeps the cost
+proportional and makes a negative answer a satisfying answer.
+
+### D4: The rule lands in root `AGENTS.md`, not in a nested one
+
+The obligation applies to any change anywhere — a service, a package, a
+document. Nested files exist only where a subtree has rules the root cannot
+express, and this is not subtree-scoped.
+
+### D5: Authoring stays blocked, and the ADR says so in its own Consequences
+
+Stating the block inside the decision rather than only in this change means the
+constraint travels with the ADR when this change is archived.
+
+## Decision Tables
+
+| Discovered thing | Canonical home | Promoted to knowledge? |
+|---|---|---|
+| a durable invariant an agent must reason from | ADR or architecture doc | yes, when U7 opens |
+| a durable invariant only humans act on | architecture doc | no |
+| a procedure an agent executes | architecture doc | yes, as a runbook, when U7 opens |
+| a defect specific to one change | the change archive | no |
+| how one runtime queries knowledge | provider artifact | not applicable |
+
+## Interfaces and Contracts
+
+No code interface. The contract surfaces are: root `AGENTS.md` (the obligation),
+`docs/decisions/INDEX.md` (the mapping table rows that route a future author),
+and `docs/architecture/INDEX.md`.
+
+## Failure Classification Boundaries
+
+A missing determination is a **review** failure, not a validation failure, and is
+deliberately not machine-checked — see Non-Goals. A missing index entry for the
+new ADR or document **is** machine-checked, by `scripts/validate-scaffold.sh`.
+
+## Shared vs Independent Logic
+
+Nothing shared; nothing executable.
+
+## Compatibility and Migration
+
+No migration. Existing modules, sets, and the catalog are untouched. No existing
+document changes meaning; root `AGENTS.md` gains a section and two index tables
+gain rows.
+
+## Security Implications
+
+The prohibited-content rules of ADR-0010 and `knowledge/AGENTS.md` apply to
+promoted content unchanged and are machine-checked. Promotion creates no
+exception to them, and rule 7 forecloses reading a promoted module as an
+authority. A truth that cannot be stated without an exploitable specific is not
+promoted.
+
+## Landing Seams
+
+One landing. Documentation and governance only; nothing to sequence behind
+anything else.
+
+## Open Questions
+
+Deferred to authoring time, not blocking: whether architecture *design* and
+architecture *falsification* warrant separate knowledge sets. Least context
+argues yes; it is a `knowledge/INDEX.md` decision and cannot be taken before U7
+opens.

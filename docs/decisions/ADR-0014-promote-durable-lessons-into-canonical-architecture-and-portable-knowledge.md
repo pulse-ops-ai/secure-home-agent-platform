@@ -1,0 +1,264 @@
+# ADR-0014: Promote durable lessons into canonical architecture and portable knowledge
+
+- **Status:** Proposed
+- **Date:** 2026-08-15
+- **Deciders:** @mikegtech (repository owner)
+- **Supersedes:** none
+- **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)
+- **Closes:** nothing — [U7](../architecture/unresolved-decisions.md#u7) remains open and gates all authoring
+
+## Context
+
+The repository already says where knowledge lives, what it may contain, and that
+it grants nothing ([ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md)).
+It already says a coding-agent image carries one runtime and not application
+behaviour ([ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md)).
+It already says provider instruction files are adapters that route an agent to
+documents and never change what those documents say (root `AGENTS.md`).
+
+What it does not say is **what happens to a durable architectural truth that is
+discovered during implementation or review.**
+
+That gap has a cost, and the cost is now observable. The L4 orchestration
+landing (`openspec/changes/runner-control-orchestration`) reached its final
+state through repeated falsification rounds. Those rounds did not mainly find
+coding mistakes. They found durable engineering truths — that a fencing token
+must be checked at the resource rather than by consulting the lease store; that
+publication must be one visibility change rather than several compensating
+writes; that a bound belongs at the port rather than at the call site, because a
+call site can forget and a port cannot; that an asynchronous operation which can
+create durable state before its acknowledgement returns is an *effect* and needs
+a stable caller-known identity, with exact replay distinguished from conflicting
+replay; that a proof must be exercised against something it must catch, or it is
+a lexical proxy for the property it names.
+
+Every one of those is a fact about how this platform is built. None of them is
+peculiar to Claude, Codex, or Copilot. Yet each currently survives only in a
+change archive, a test file, a PR discussion, or a provider instruction file —
+four places that are, respectively, historical, incidental, ephemeral, and
+provider-scoped.
+
+The tempting answer is a provider-native "skill" per lesson. That answer is
+wrong here, and expensively so: it would make the canonical statement of an
+architectural invariant a Claude artifact, then require a Codex twin and a
+Copilot twin, and then require somebody to answer which of the three is
+authoritative. The repository has spent thirteen ADRs avoiding exactly that
+class of question.
+
+The right answer is already latent in the architecture. `docs/architecture/`
+plus the accepted ADRs are canonical. `knowledge/` is the portable, agent-facing
+projection, already split into `platform/` (models, invariants, vocabulary) and
+`runbooks/` (ordered procedures), already registered in `knowledge/INDEX.md`,
+already selected by a profile as a named **set** and resolved to exact module
+versions recorded in run evidence
+([`knowledge-selection-model.md`](../architecture/knowledge-selection-model.md)).
+An `architecture-default` set already exists for "reasoning about architecture,
+proposing decisions."
+
+What is missing is not a mechanism. It is a **rule that says the promotion must
+be considered, and where each layer's authority ends.**
+
+## Decision
+
+### 1. `docs/architecture/` and accepted ADRs are the canonical home of durable system architecture
+
+An architectural invariant, boundary, model, or vocabulary term is canonically
+stated once, in `docs/decisions/` (why) or `docs/architecture/` (what follows).
+Every other layer references that statement. Two copies of a rule become two
+different rules.
+
+### 2. `knowledge/` is the portable, agent-facing projection of durable truths and procedures
+
+Knowledge is not a second architecture. It is the form in which a *subset* of
+canonical truth is packaged so an agent can reason from it — versioned,
+validated, digest-addressed, and selected by profile.
+
+Not every architectural truth becomes a knowledge module. Promotion is a
+judgement, and the criterion is whether an agent must reason **from** the truth
+in order to do its work correctly. A truth that only humans act on stays in
+`docs/`.
+
+### 3. `knowledge/platform/` holds models, invariants, vocabulary, semantics, and cross-cutting engineering truths
+
+This confirms and names existing practice: `core-operating-model`, `governance`,
+`runner-model`, `degraded-operation`, `review-conventions` are already modules of
+exactly this kind.
+
+### 4. `knowledge/runbooks/` holds ordered procedures for applying those truths
+
+Also existing practice: `repository-validation` describes an ordered procedure
+and what each step proves. A procedure is knowledge when its *steps and their
+justification* are the portable content.
+
+### 5. Provider-native skills are runtime integration artifacts only
+
+A provider-native skill — a Claude skill, a Copilot instruction set, a Codex
+equivalent — may adapt a runtime to the platform: how *this* runtime discovers
+and queries the knowledge that was selected for the run. It may never be the
+sole canonical home of an architectural invariant, an engineering policy, a
+review policy, or an operational procedure.
+
+**The test:** if the information should survive replacing Claude with Codex or
+Copilot, it is not a provider skill. It belongs in architecture, knowledge, a
+runbook, or a platform contract.
+
+This extends the existing root-`AGENTS.md` rule about provider instruction files
+from *routing* to *content*, and it is the reason this ADR exists rather than a
+paragraph in a README.
+
+### 6. The runner and profile control which knowledge an agent sees; the image does not carry it
+
+Four layers, four responsibilities, and they do not borrow from each other:
+
+| Layer | Controls |
+|---|---|
+| **image** | what executable runtime exists — provider CLI, OS/tooling surface, supply-chain provenance |
+| **profile** | what the run may access — tools, filesystem, network, credentials, **knowledge set**, limits |
+| **knowledge** | what the run may reason **from** |
+| **task** | what the run is being asked to accomplish |
+
+Baking project knowledge into a runner image would place domain content in a
+supply-chain artifact, make it per-provider, and — decisively — make it
+invisible to the pre-launch record of what the run knew, which is run evidence.
+[ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) keeps the
+base image to substrate and each derived image to exactly one runtime; this
+decision states the knowledge consequence of that rule rather than restating the
+rule.
+
+### 7. Knowledge remains context, never authority
+
+Unchanged and restated only to make the promotion path unable to launder a truth
+into an authority. Promoting an architectural invariant into a knowledge module
+does not make the module authoritative for that invariant: the ADR or
+architecture document remains canonical, and the module is a projection of it.
+Authorization, safety bounds, and live state are owned elsewhere
+([ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) §3).
+
+### 8. A discovered lesson has an explicit promotion path
+
+```text
+change / review finding
+     │
+     ▼
+canonical architecture or ADR          ← docs/architecture, docs/decisions
+     │
+     ▼
+portable knowledge module or runbook   ← knowledge/platform, knowledge/runbooks
+     │   (where an agent must reason from it)
+     ▼
+knowledge set                          ← knowledge/INDEX.md
+     │
+     ▼
+profile-selected resolved bundle       ← knowledge-selection-model.md
+     │
+     ▼
+provider / runtime                     ← any adapter
+```
+
+Each arrow is a decision that may legitimately be **no**. The obligation is to
+*determine*, in the change that discovered the truth, not to promote everything.
+
+## Consequences
+
+**Positive.** The same knowledge set backs a Codex profile and a Claude profile
+identically, so an architectural review means the same thing on either runtime.
+A lesson learned once at review cost is available to every later run rather than
+being rediscovered. The question "which provider's copy is canonical?" cannot
+arise. Existing structure is confirmed rather than replaced — no new top-level
+directory, and specifically **no `skills/` directory**.
+
+**Negative.** Every substantial change now carries an extra determination, and
+determinations cost review attention. Some will be answered "no" and will look,
+in hindsight, like ceremony. Accepted deliberately: the alternative is losing
+the truths, which the L4 landing demonstrates is the more expensive failure.
+
+**Neutral.** This decision changes no runtime behaviour and adds no dependency.
+
+**Blocked, and stated plainly.** No knowledge module can be authored under this
+decision until [U7](../architecture/unresolved-decisions.md#u7) closes. U7 gates
+the first real bundle on the OKF validator and toolchain existing first, because
+"authoring bundles first would put unvalidated content in the repository and make
+the format load-bearing by accident." This ADR **does not resolve U7 and does
+not weaken it.** It establishes where a lesson goes; U7 still governs when the
+knowledge layer may be populated. Until then the promotion path terminates at
+canonical architecture, and the determination is recorded rather than acted on.
+
+## Alternatives considered
+
+**A provider-native skill suite.** Rejected. It makes the canonical statement of
+an invariant a provider artifact, multiplies it per provider, and creates an
+unanswerable authority question. It also inverts the dependency: the platform
+would depend on a runtime's extension mechanism to state its own architecture.
+
+**Leave lessons in the change archive and tests.** Rejected, on evidence. The L4
+landing produced fifteen review rounds, and the recurring verdict was that a fix
+repaired the reported instance without closing the class. A truth that lives
+only in the test that caught it is available to whoever reads that test, which
+is nobody, later.
+
+**A new top-level `skills/` or `lessons/` directory.** Rejected. The repository
+already has the two homes this needs, with a registry, a validator, a selection
+model, and run evidence. A third home would compete with both.
+
+**Do nothing until U7 closes.** Rejected as sequencing. The determination costs
+nothing to require now and is cheap to record; waiting means the L4 lessons are
+cold by the time there is somewhere to put them. Authoring waits for U7;
+*deciding where things go* does not have to.
+
+## Security implications
+
+Neutral to positive, with one hazard named.
+
+The promotion path routes engineering truths — not household facts — into
+`knowledge/`. `knowledge/AGENTS.md` states the governing rule: a bundle is
+portable, non-sensitive, and safe to copy anywhere, **including to a third-party
+model provider**. Platform-architecture modules are within that boundary; they
+describe how the platform is built, which is already public in intent.
+
+**The hazard.** A lesson discovered during a security-relevant review could
+carry an exploitable specific — a concrete bypass, a real identifier, a
+credential-adjacent detail. The prohibited-content list in
+[ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) and
+`knowledge/AGENTS.md` applies unchanged to promoted content, and it is
+machine-checked. Promotion is subject to it; it does not create an exception to
+it. Where a truth cannot be stated without the specific, it stays canonical in
+`docs/` and is not promoted.
+
+This decision grants no capability, no tool, and no authority to any agent, and
+§7 forecloses the reading under which it could.
+
+## Availability implications
+
+None. Nothing here is on a runtime path. The knowledge layer remains
+specification-only under U7, and a profile that selects a set today resolves
+nothing at run time.
+
+## Validation and follow-up obligations
+
+1. `bash scripts/validate-scaffold.sh` — index coherence for the new ADR and the
+   new architecture document.
+2. `node scripts/check-knowledge.mjs` — unchanged expectations; this ADR adds no
+   module, and the specification-only invariants must still hold.
+3. The root `AGENTS.md` promotion rule is the enforcement surface today. It is a
+   determination obligation, deliberately not automated: no validator can decide
+   whether a truth is durable.
+4. **On U7 closing** — the L4 lessons named in Context are the first candidates
+   for authoring, and the determination recorded in this change is the input to
+   that work. They are candidates, not commitments; each is subject to §2's
+   criterion.
+5. This ADR proposes **no** status change to any existing ADR and resolves **no**
+   item in `unresolved-decisions.md`.
+
+## Links
+
+- [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) — knowledge is
+  portable, declares ownership and freshness, and is never an authority
+- [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) — the base
+  image carries substrate; a derived image carries one runtime
+- [`docs/architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md)
+  — what follows from this decision
+- [`docs/architecture/knowledge-selection-model.md`](../architecture/knowledge-selection-model.md)
+  — how a profile selects a set and what a run records
+- [U7](../architecture/unresolved-decisions.md#u7) — the gate on authoring
+- [`openspec/changes/knowledge-promotion-path/`](../../openspec/changes/knowledge-promotion-path/)
+  — the change that establishes this model
