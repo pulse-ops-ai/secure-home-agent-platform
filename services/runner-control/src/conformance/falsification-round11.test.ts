@@ -248,7 +248,7 @@ describe('RO-EX-160: a lost finalization acknowledgement is reconciliable', () =
     commit_id: `commit-round11-g${String(generation)}`,
     terminal: 'COMPLETED',
     transitions: [],
-    event: { event_type: 'run.terminated', outcome: 'success' },
+    event: { event_type: 'run.terminated', sequence: 0, outcome: 'success' },
     bundle: { terminal: 'COMPLETED' },
     signal: new AbortController().signal,
   })

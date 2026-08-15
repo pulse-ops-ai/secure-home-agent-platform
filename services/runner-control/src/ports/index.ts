@@ -70,9 +70,21 @@ export interface EventSinkPort {
    * Prepare the terminal event as part of a finalization commit. Not
    * observable until published — `run.terminated` must never announce an
    * outcome before the bundle recording it exists.
+   *
+   * The staged event STRUCTURALLY carries its own domain identity: the
+   * envelope's `sequence` is the one source of truth for
+   * (run, sequence), required by the type so identity enforcement can
+   * never be optional. `commit_id` names the atomic transaction — it is
+   * not, and never substitutes for, the event's identity.
    */
   stageEmit(
-    request: RunFence & { readonly commit_id: string; readonly event: unknown },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly event: Record<string, unknown> & {
+        readonly event_type: string
+        readonly sequence: number
+      }
+    },
   ): Promise<Staging>
 }
 

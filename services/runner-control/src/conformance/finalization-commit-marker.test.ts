@@ -168,7 +168,7 @@ describe('RO-EX-83: publication is not a fallible phase', () => {
       run_id: RUN,
       generation: 1,
       commit_id: 'c-nofail',
-      event: { event_type: 'run.terminated' },
+      event: { event_type: 'run.terminated', sequence: 0 },
     })
     expect(staging.ok).toBe(true)
     if (!staging.ok) return

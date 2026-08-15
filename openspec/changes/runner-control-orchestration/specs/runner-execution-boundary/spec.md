@@ -231,14 +231,50 @@ request-supplied expiry metadata never survives the guard.
 A staged terminal event SHALL answer to the SAME event-domain identity
 authority as ordinary emission: the transaction identity (`commit_id`)
 names the atomic finalization, never the event's own (run, sequence)
-identity. Staging a terminal event whose sequence is durably occupied by
-a different event SHALL refuse as a conflicting replay before anything
-publishes, with the refusal preserved through both the staging result
-and the commit outcome; an abandoned stage releases only its
-unpublished reservation, and a published identity is never reusable.
-The finalization commit identity SHALL be required by the public type —
+identity. The staged event's identity SHALL be STRUCTURAL — the
+envelope's sequence required by the staging contract, so enforcement
+can never be optional. An exact staged replay is the same logical fact
+and SHALL NOT create a second physical staged row; a conflicting stage
+— a different canonical event at an occupied or reserved identity,
+whatever its transaction identity says — SHALL refuse as a conflicting
+replay before anything publishes, with the refusal preserved through
+both the staging result and the commit outcome. Abandon SHALL be
+idempotent and scoped to its own stage: it releases only that
+unpublished reservation and row, never a published event and never an
+unrelated stage; a published identity is never reusable. The
+finalization commit identity SHALL be required by the public type —
 established by the caller before the request crosses the port, with no
 implementation-side derivation.
+
+Finalization SHALL bind its in-flight state synchronously before its
+first await: one in-flight commit identity binds ONE canonical logical
+intent — an exact concurrent replay joins the single underlying
+transaction rather than staging independently, and a different intent
+wearing the in-flight identity refuses with no participant staging —
+and one in-flight (run, generation) admits ONE terminal transaction: a
+competing commit may stage invisibly and is refused before it can
+publish a second terminal. Publication SHALL establish the persistent
+finalized authority in the same synchronous section as the visibility
+marker, so in-flight ownership passes to published ownership with no
+free interval; a pre-publication failure SHALL release only the claims
+its own operation still holds.
+
+#### Scenario: One in-flight commit identity carries one intent
+
+- **GIVEN** a finalization in flight for a commit identity
+- **WHEN** a different logical intent arrives wearing that identity
+- **THEN** it refuses as a conflicting replay with no participant
+  staging
+- **AND** an exact concurrent replay instead observes the one
+  underlying transaction's outcome
+
+#### Scenario: Overlapping commits cannot finalize one generation twice
+
+- **GIVEN** two finalization commits with different identities for one
+  ownership generation
+- **WHEN** both stage invisibly and race to publish
+- **THEN** exactly one publishes
+- **AND** the other refuses as already committed
 
 #### Scenario: A staged terminal event cannot occupy another event's identity
 

@@ -112,7 +112,10 @@ export class RecordingEventSink implements EventSinkPort {
   /** (run, sequence) → canonical landed event: the replay ledger. */
   readonly #landed = new Map<string, string>()
   /** (run, sequence) → unpublished staged reservation of that identity. */
-  readonly #reserved = new Map<string, { readonly commit_id: string; readonly canonical: string }>()
+  readonly #reserved = new Map<
+    string,
+    { readonly commit_id: string; readonly canonical: string; readonly row: StoredEvent }
+  >()
 
   constructor(visibility: CommitVisibility = new CommitLedger()) {
     this.#visibility = visibility
@@ -171,19 +174,33 @@ export class RecordingEventSink implements EventSinkPort {
 
   /**
    * Record the terminal event against `commit_id`, invisibly — under
-   * the SAME event-domain identity authority as `emit`.
+   * the SAME event-domain identity authority as `emit`, with the staged
+   * state machine explicit and identity enforcement UNCONDITIONAL (the
+   * type guarantees the envelope carries its sequence):
    *
-   * The staged state machine, explicit: staging a new fact RESERVES its
-   * (run, sequence) identity invisibly; an exact staged replay is the
-   * same logical fact and stages no duplicate; a DIFFERENT event whose
-   * identity is durably occupied or reserved refuses as a conflicting
-   * replay before anything can publish; `abandon` removes only the
-   * unpublished reservation, so an abandoned stage never poisons a
-   * valid retry; and once published, the identity is durable through
-   * `#durableCanonical` and can never be reused.
+   *   UNUSED         → reserve the identity, stage ONE physical row
+   *   EXACT REPLAY   → same identity, same canonical event: ok, and no
+   *                    second row is ever created
+   *   CONFLICT       → same identity, different canonical event —
+   *                    whatever the commit_id says, because equality of
+   *                    the TRANSACTION identity does not make different
+   *                    domain facts equivalent: conflicting_replay, the
+   *                    first reservation unchanged, the conflicting
+   *                    event never staged
+   *   ABANDON        → releases only THIS stage's unpublished
+   *                    reservation and row; idempotent; cannot erase a
+   *                    published event or an unrelated stage
+   *   PUBLISH        → exactly one event becomes visible and the
+   *                    identity is permanently occupied
    */
   stageEmit(
-    request: RunFence & { readonly commit_id: string; readonly event: unknown },
+    request: RunFence & {
+      readonly commit_id: string
+      readonly event: Record<string, unknown> & {
+        readonly event_type: string
+        readonly sequence: number
+      }
+    },
   ): Promise<Staging> {
     const refused = this.#fence.refuse(request)
     if (refused !== undefined) {
@@ -191,61 +208,71 @@ export class RecordingEventSink implements EventSinkPort {
     }
     const commit_id = request.commit_id
     const run_id = request.run_id
-    const staged = request.event as { readonly sequence?: unknown }
-    const sequence = typeof staged.sequence === 'number' ? staged.sequence : undefined
+    const sequence = request.event.sequence
     const canonical = JSON.stringify(request.event)
-    const identity = sequence === undefined ? undefined : `${run_id}#e${String(sequence)}`
-    if (sequence !== undefined && identity !== undefined) {
-      const durable = this.#durableCanonical(run_id, sequence)
-      if (durable !== undefined && durable !== canonical) {
+    const identity = `${run_id}#e${String(sequence)}`
+
+    const durable = this.#durableCanonical(run_id, sequence)
+    if (durable !== undefined) {
+      if (durable !== canonical) {
         return Promise.resolve({
           ok: false,
           reason: 'conflicting_replay',
           detail: `event identity ${identity} already carries a different durable event; the terminal event cannot occupy it`,
         })
       }
-      const reserved = this.#reserved.get(identity)
-      if (
-        reserved !== undefined &&
-        reserved.commit_id !== commit_id &&
-        !isVisible(this.#visibility, reserved.commit_id) &&
-        reserved.canonical !== canonical
-      ) {
+      // The same logical fact is already durable: stage nothing, so
+      // publication cannot duplicate it, and abandon has nothing to do.
+      return Promise.resolve({
+        ok: true,
+        staged: { commitId: commit_id, abandon: () => undefined },
+      })
+    }
+
+    const reserved = this.#reserved.get(identity)
+    if (reserved !== undefined && !isVisible(this.#visibility, reserved.commit_id)) {
+      if (reserved.canonical !== canonical) {
         return Promise.resolve({
           ok: false,
           reason: 'conflicting_replay',
-          detail: `event identity ${identity} is reserved by another staged commit with a different event`,
+          detail: `event identity ${identity} is already reserved for a different event`,
         })
       }
-      if (durable === canonical) {
-        // The same logical fact is already durable: stage nothing, so
-        // publication cannot duplicate it, and abandon has nothing to do.
-        return Promise.resolve({
-          ok: true,
-          staged: { commitId: commit_id, abandon: () => undefined },
-        })
-      }
-      this.#reserved.set(identity, { commit_id, canonical })
+      // EXACT staged replay: the one physical row already exists; this
+      // handle shares its scoped cleanup rather than staging a twin.
+      return Promise.resolve({
+        ok: true,
+        staged: { commitId: commit_id, abandon: () => this.#releaseStage(identity, reserved.row) },
+      })
     }
+
+    const row: StoredEvent = { event: request.event, commit_id }
     const existing = this.#byRun.get(run_id) ?? []
-    existing.push({ event: request.event, commit_id })
+    existing.push(row)
     this.#byRun.set(run_id, existing)
+    this.#reserved.set(identity, { commit_id, canonical, row })
     return Promise.resolve({
       ok: true,
-      staged: {
-        commitId: commit_id,
-        abandon: () => {
-          if (identity !== undefined) {
-            const reservation = this.#reserved.get(identity)
-            if (reservation?.commit_id === commit_id) this.#reserved.delete(identity)
-          }
-          this.#byRun.set(
-            run_id,
-            (this.#byRun.get(run_id) ?? []).filter((row) => row.commit_id !== commit_id),
-          )
-        },
-      },
+      staged: { commitId: commit_id, abandon: () => this.#releaseStage(identity, row) },
     })
+  }
+
+  /**
+   * Release ONE stage: this row, this reservation — never a published
+   * event, never an unrelated transaction's stage, and idempotent.
+   */
+  #releaseStage(identity: string, row: StoredEvent): void {
+    if (row.commit_id !== undefined && isVisible(this.#visibility, row.commit_id)) return
+    const reservation = this.#reserved.get(identity)
+    if (reservation?.row === row) this.#reserved.delete(identity)
+    for (const [run_id, rows] of this.#byRun) {
+      const index = rows.indexOf(row)
+      if (index !== -1) {
+        rows.splice(index, 1)
+        this.#byRun.set(run_id, rows)
+        return
+      }
+    }
   }
 
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */

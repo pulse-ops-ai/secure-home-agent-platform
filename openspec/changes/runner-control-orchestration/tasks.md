@@ -821,6 +821,55 @@ operation its requirement names.
   complete tests, typecheck, lint, build, strict OpenSpec validation,
   and repository gate green at the pushed head.
 
+- [x] **7.16 Close round-16 staging-identity and in-flight-finalization findings**
+  <!-- agent-task: 7.16 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.15 -->
+
+  **Authorized by** — the same owner decision record (mechanical D14
+  conformance). Reviewer provenance preserved as distinct commits:
+  `52c9bf02ffeb2735350b517a5dcf4b503d3a29a4` (round-16 REDs, parented
+  on the reviewed head `339a308`) and
+  `ee91e3cca86d346a4a86a2dddd6f574337c074c8` (the reviewer-only
+  correction isolating the in-flight identity proof), consumed
+  unmodified.
+
+  **Implements** — three identities, three jobs: the staged event's
+  (run, sequence) identity made STRUCTURAL in `stageEmit` and
+  `FinalizationCommit.event` (the envelope owns its sequence; optional
+  enforcement is unrepresentable); the staged replay state machine with
+  canonical-equality conflicts (transaction-identity equality never
+  excuses a different domain fact), no twin rows on exact replay, and
+  scoped idempotent abandon; and `TransactionalFinalization`'s
+  in-flight ownership — synchronous entry ledger binding one canonical
+  intent per in-flight commit identity (single-flight join for exact
+  concurrent replays; conflicting intent refused with NO staging), one
+  terminal transaction per in-flight generation (claimed at entry when
+  free, enforced at the publication gate where the reviewer proofs
+  place it — a competing commit stages invisibly and refuses
+  `already_committed` before it can publish), and the persistent
+  authority established in the same synchronous section as the marker
+  so IN_FLIGHT passes to PUBLISHED with no free interval.
+
+  **Disclosures** — (1) The mandated structural-sequence change added
+  exactly one `sequence` field to event literals in five proof files
+  (reviewer rounds 10…13 and 15) plus two of this landing's own
+  conformance files and one fixture type; no assertion changed. (2) The
+  instruction's entry-model sketch refuses a different-identity commit
+  at entry, but the reviewer proof requires that commit to REACH
+  staging (`await events.secondStaged`); the RED is authoritative, so
+  the claim is taken at entry when free and enforced at the publication
+  gate. (3) The first application of the generation-gate mutant removed
+  only the owner check and SURVIVED (the gate's finalized re-check
+  caught it) — the registered RO-MUT-125 removes both checks and is
+  killed; the weak application is recorded here as the lesson it is.
+
+  **Proof required** — the reviewer round-16 file green and unmodified
+  (`git diff ee91e3c -- …round16.test.ts` empty); RO-INV-94,
+  RO-EX-180…184, and RO-MUT-121…126 registered, each mutant
+  hand-applied and killed (RO-MUT-121 at typecheck); every prior
+  falsification round green; complete tests, typecheck, lint, build,
+  strict OpenSpec validation, and repository gate green at the pushed
+  head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

@@ -157,7 +157,7 @@ describe('finalization expiry provenance is boundary-owned', () => {
       commit_id: 'commit-round13-boundary',
       terminal: 'CANCELLED',
       transitions: [transitionA],
-      event: { event_type: 'run.terminated' },
+      event: { event_type: 'run.terminated', sequence: 0 },
       bundle: { cause: 'A' },
       signal: new AbortController().signal,
       expires_at_epoch_ms: winningAt + 50_000,

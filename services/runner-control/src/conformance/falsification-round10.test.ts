@@ -126,7 +126,7 @@ describe('RO-EX-153: an acknowledged commit is a fact, not a candidate', () => {
         commit_id: 'commit-round10-publication-expiry',
         terminal: 'EVIDENCE_SEALED',
         transitions: [tail],
-        event: { event_type: 'run.terminated' },
+        event: { event_type: 'run.terminated', sequence: 0 },
         bundle: { proof: true },
         signal: new AbortController().signal,
         expires_at_epoch_ms: epoch(100),

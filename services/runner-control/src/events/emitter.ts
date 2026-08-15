@@ -88,7 +88,7 @@ export class RunEventEmitter {
    */
   envelope(
     body: Record<string, unknown> & { readonly event_type: string },
-  ): Record<string, unknown> & { readonly event_type: string } {
+  ): Record<string, unknown> & { readonly event_type: string; readonly sequence: number } {
     // The TERMINAL envelope reads the clock through a fallback, unlike
     // `emit` below. An ordinary emission failing on a broken clock is a
     // port fault the run terminates on; this envelope is built while

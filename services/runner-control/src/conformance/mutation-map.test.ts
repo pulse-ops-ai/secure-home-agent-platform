@@ -656,6 +656,36 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-179'],
   },
   {
+    id: 'RO-MUT-121',
+    mutation: "make the staged event's sequence optional again",
+    killedBy: ['RO-EX-180'],
+  },
+  {
+    id: 'RO-MUT-122',
+    mutation: 'stage a second physical row for an exact staged replay',
+    killedBy: ['RO-EX-181'],
+  },
+  {
+    id: 'RO-MUT-123',
+    mutation: 'let transaction-identity equality excuse a different staged domain fact',
+    killedBy: ['RO-EX-181'],
+  },
+  {
+    id: 'RO-MUT-124',
+    mutation: 'defer the in-flight commit-identity binding until after the first await',
+    killedBy: ['RO-EX-182', 'RO-EX-184'],
+  },
+  {
+    id: 'RO-MUT-125',
+    mutation: 'remove the generation gate — both its finalized re-check and its owner check',
+    killedBy: ['RO-EX-183'],
+  },
+  {
+    id: 'RO-MUT-126',
+    mutation: 'independently re-stage the same logical commit for an equivalent concurrent caller',
+    killedBy: ['RO-EX-184'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

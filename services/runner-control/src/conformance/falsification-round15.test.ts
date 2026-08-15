@@ -164,7 +164,7 @@ describe('RO-EX-169 corrected compiler proof: finalization identity is caller-ow
     generation: 1,
     terminal: 'CANCELLED' as const,
     transitions: [],
-    event: { event_type: 'run.terminated' },
+    event: { event_type: 'run.terminated', sequence: 0 },
     bundle: {},
     signal: new AbortController().signal,
     commit_id: 'caller-owned-commit',
@@ -180,7 +180,7 @@ describe('RO-EX-169 corrected compiler proof: finalization identity is caller-ow
       generation: 1,
       terminal: 'CANCELLED' as const,
       transitions: [],
-      event: { event_type: 'run.terminated' },
+      event: { event_type: 'run.terminated', sequence: 0 },
       bundle: {},
       signal: new AbortController().signal,
     }

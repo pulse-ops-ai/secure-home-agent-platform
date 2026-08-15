@@ -71,6 +71,7 @@ const commitFor = (generation: number, detail: string): FinalizationCommit => ({
   transitions: [cancelledTransition(detail)],
   event: {
     event_type: 'run.terminated',
+    sequence: 0,
     intent: detail,
     outcome: { terminal_state: 'CANCELLED', detail },
   },

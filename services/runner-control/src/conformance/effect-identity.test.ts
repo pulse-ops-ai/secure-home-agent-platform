@@ -14,9 +14,12 @@ import { describe, expect, it } from 'vitest'
 import {
   InMemoryExecutionSession,
   InMemoryRunJournal,
+  InMemoryRunLease,
   InMemoryWorkspaceLifecycle,
   RecordingEventSink,
+  TransactionalFinalization,
 } from '../adapters/index.js'
+import { sharedPorts } from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
 
@@ -29,7 +32,13 @@ const RUN = 'run-20260812-0001'
 // the round-15 proofs (falsification-round15.test.ts): RO-EX-178 (a
 // staged terminal event answers to the same event-domain identity
 // authority) and RO-EX-179 (the finalization commit identity is
-// required by the public type).
+// required by the public type) — and the round-16 proofs
+// (falsification-round16.test.ts): RO-EX-180 (the staged event's
+// domain identity is structural in the SPI), RO-EX-181 (exact staged
+// replay is idempotent and a same-commit conflicting stage refuses),
+// RO-EX-182 (one in-flight commit identity binds one canonical
+// intent), RO-EX-183 (one in-flight generation has one terminal
+// transaction).
 
 const LIMITS = {
   wall_clock_seconds: 600,
@@ -138,6 +147,55 @@ describe('RO-EX-176: a materialization replays by identity AND canonical change 
       'conflicting_replay',
     )
     expect(workspace.appliedFor(RUN)).toBe(1)
+  })
+})
+
+describe('RO-EX-184: an exact concurrent finalization replay is single-flight', () => {
+  it('two equivalent concurrent callers share one underlying transaction', async () => {
+    const shared = sharedPorts()
+    const lease = new InMemoryRunLease()
+    const claim = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'single-flight',
+      signal: new AbortController().signal,
+    })
+    expect(claim.ok).toBe(true)
+    if (!claim.ok) return
+
+    let stageCalls = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const events = {
+      emit: shared.events.emit.bind(shared.events),
+      stageEmit: async (request: Parameters<(typeof shared.events)['stageEmit']>[0]) => {
+        stageCalls += 1
+        const staged = await shared.events.stageEmit(request)
+        await gate
+        return staged
+      },
+    }
+    const finalization = new TransactionalFinalization({ ...shared, events, lease })
+    const commit = {
+      run_id: RUN,
+      generation: claim.generation,
+      commit_id: 'commit-single-flight',
+      terminal: 'CANCELLED' as const,
+      transitions: [],
+      event: { event_type: 'run.terminated', sequence: 0 },
+      bundle: {},
+      signal: new AbortController().signal,
+    }
+
+    const first = finalization.commit({ ...commit })
+    const joined = finalization.commit({ ...commit })
+    release()
+    const [a, b] = await Promise.all([first, joined])
+
+    expect(a.ok && b.ok, 'both equivalent callers observe the one outcome').toBe(true)
+    expect(stageCalls, 'one logical commit stages its participants exactly once').toBe(1)
+    expect(shared.evidence.all).toHaveLength(1)
   })
 })
 

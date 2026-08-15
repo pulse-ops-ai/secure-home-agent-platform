@@ -85,6 +85,21 @@ export class TransactionalFinalization implements FinalizationPort {
   readonly #finalized = new Map<string, string>()
   /** The canonical intent each published identity carried. */
   readonly #intents = new Map<string, string>()
+  /**
+   * IN-FLIGHT logical commits: identity → its canonical intent and the
+   * ONE underlying outcome. Bound synchronously before the first await,
+   * because the defect this closes exists specifically BEFORE
+   * publication: two different intents wearing one identity, or one
+   * intent finalized twice, while neither is visible yet. An exact
+   * concurrent replay JOINS this outcome (single-flight) rather than
+   * independently mutating participant staging state.
+   */
+  readonly #inFlightByCommit = new Map<
+    string,
+    { readonly canonical: string; readonly outcome: Promise<CommitOutcome> }
+  >()
+  /** IN-FLIGHT terminal ownership: (run, generation) → the finalizing commit. */
+  readonly #inFlightByGeneration = new Map<string, string>()
 
   constructor(participants: CommitParticipants) {
     this.#participants = participants
@@ -138,47 +153,100 @@ export class TransactionalFinalization implements FinalizationPort {
     }
   }
 
-  async commit(commit: FinalizationCommit): Promise<CommitOutcome> {
-    const { journal, events, evidence, visibility, lease } = this.#participants
-    const fence = { run_id: commit.run_id, generation: commit.generation }
-    const staged: StagedWrite[] = []
+  commit(commit: FinalizationCommit): Promise<CommitOutcome> {
+    // THE ENTRY LEDGER IS SYNCHRONOUS. Every binding below exists
+    // before the first await, because the defects it closes live
+    // specifically BEFORE publication: two intents wearing one
+    // identity, or one generation finalized twice, while nothing is
+    // visible yet. Three identities, three jobs, never collapsed:
+    // (run, sequence) is the event's, commit_id is the transaction's,
+    // (run, generation) is ownership's.
+    const canonical = TransactionalFinalization.#canonical(commit)
     // THE LOGICAL COMMIT IDENTITY IS THE CALLER'S — required by the
-    // contract, never minted and never derived here. A per-call counter
-    // is what turned a lost acknowledgement into a second terminal, and
-    // a derived (run, generation, terminal) identity is what let two
-    // different intents alias one another; both fallbacks are gone.
+    // contract, never minted and never derived here.
     const commit_id = commit.commit_id
     const holder = `${commit.run_id}#g${String(commit.generation)}`
+    const { visibility } = this.#participants
 
-    // ---- RECONCILE BEFORE ANYTHING ELSE --------------------------
     // A repeat of an identity that already PUBLISHED is only a lost
     // acknowledgement being resolved when it is THE SAME LOGICAL
-    // INTENT. Equivalence is established by the stored canonical
-    // intent, not by the identity string: a different intent wearing
-    // the same derived identity — same generation, same terminal state,
-    // different content — is a different commit, and answering it `ok`
-    // would report success over durable records describing something
-    // else.
+    // INTENT — equivalence by stored canonical intent, never by the
+    // identity string.
     if (visibility.isPublished(commit_id)) {
-      if (this.#intents.get(commit_id) === TransactionalFinalization.#canonical(commit)) {
-        return { ok: true }
+      if (this.#intents.get(commit_id) === canonical) {
+        return Promise.resolve({ ok: true })
       }
-      return {
+      return Promise.resolve({
         ok: false,
         reason: 'already_committed',
         detail: `finalization did not commit: identity ${commit_id} is already published with a different logical intent; the durable record is the truth`,
-      }
+      })
     }
     // A DIFFERENT logical commit for a generation that already
-    // published one may never publish a second terminal. The durable
-    // record holds the truth this caller cannot see.
+    // published one may never publish a second terminal.
     if (this.#finalized.has(holder)) {
-      return {
+      return Promise.resolve({
         ok: false,
         reason: 'already_committed',
         detail: `finalization did not commit: generation ${String(commit.generation)} of run ${commit.run_id} already published commit ${this.#finalized.get(holder) ?? ''}`,
-      }
+      })
     }
+    // ONE IN-FLIGHT COMMIT IDENTITY BINDS ONE CANONICAL INTENT, from
+    // the instant the commit is in flight. An exact concurrent replay
+    // joins the one underlying operation; a different intent wearing
+    // the in-flight identity is refused with NO participant staging.
+    const inFlight = this.#inFlightByCommit.get(commit_id)
+    if (inFlight !== undefined) {
+      if (inFlight.canonical === canonical) return inFlight.outcome
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `finalization did not commit: identity ${commit_id} is already in flight with a different logical intent`,
+      })
+    }
+    // Claim the generation when it is free. A COMPETING commit on a
+    // claimed generation still stages invisibly — that is what staging
+    // is for — and is refused at the publication gate, where nothing
+    // can interleave before the marker.
+    if (!this.#inFlightByGeneration.has(holder)) {
+      this.#inFlightByGeneration.set(holder, commit_id)
+    }
+    const outcome = this.#run(commit, canonical, commit_id, holder)
+    this.#inFlightByCommit.set(commit_id, { canonical, outcome })
+    return outcome
+  }
+
+  async #run(
+    commit: FinalizationCommit,
+    canonical: string,
+    commit_id: string,
+    holder: string,
+  ): Promise<CommitOutcome> {
+    try {
+      return await this.#attempt(commit, canonical, commit_id, holder)
+    } finally {
+      // Retire only what THIS operation still owns. After a successful
+      // publish the persistent authority was established in the same
+      // synchronous section as the marker, so releasing the in-flight
+      // claim here opens no FREE window; after a pre-publication
+      // failure the release is what lets a legitimate retry proceed.
+      // The guard keeps a newer owner's claim untouched.
+      if (this.#inFlightByGeneration.get(holder) === commit_id) {
+        this.#inFlightByGeneration.delete(holder)
+      }
+      this.#inFlightByCommit.delete(commit_id)
+    }
+  }
+
+  async #attempt(
+    commit: FinalizationCommit,
+    canonical: string,
+    commit_id: string,
+    holder: string,
+  ): Promise<CommitOutcome> {
+    const { journal, events, evidence, visibility, lease } = this.#participants
+    const fence = { run_id: commit.run_id, generation: commit.generation }
+    const staged: StagedWrite[] = []
 
     const abandon = (): void => {
       // Reverse order for symmetry with publication. It makes no
@@ -296,6 +364,33 @@ export class TransactionalFinalization implements FinalizationPort {
         detail: 'finalization did not commit: the run was interrupted before the commit marker',
       }
     }
+    // ---- GENERATION GATE, SYNCHRONOUS WITH THE MARKER ------------
+    // One in-flight generation has ONE terminal transaction. The claim
+    // was taken at entry when free; here — where nothing can
+    // interleave before the marker — it is verified or retaken: a
+    // competing commit that staged invisibly is refused before it can
+    // become a second terminal, a generation another commit already
+    // finalized refuses the same way, and a claim released by a failed
+    // predecessor is retaken so a legitimate retry proceeds.
+    if (this.#finalized.has(holder)) {
+      abandon()
+      return {
+        ok: false,
+        reason: 'already_committed',
+        detail: `finalization did not commit: generation ${String(commit.generation)} of run ${commit.run_id} already published commit ${this.#finalized.get(holder) ?? ''}`,
+      }
+    }
+    const owner = this.#inFlightByGeneration.get(holder)
+    if (owner !== undefined && owner !== commit_id) {
+      abandon()
+      return {
+        ok: false,
+        reason: 'already_committed',
+        detail: `finalization did not commit: generation ${String(commit.generation)} of run ${commit.run_id} is being finalized by commit ${owner}`,
+      }
+    }
+    if (owner === undefined) this.#inFlightByGeneration.set(holder, commit_id)
+
     // THE LAST CHECK, SYNCHRONOUS WITH THE PUBLICATION IT GUARDS.
     // Nothing can interleave between this answer and the marker, so
     // either the commit publishes inside its budget or it publishes
@@ -306,7 +401,10 @@ export class TransactionalFinalization implements FinalizationPort {
     }
 
     // ---- PUBLISH -------------------------------------------------
-    // THE ENTIRE COMMIT, IN ONE MUTATION.
+    // THE ENTIRE COMMIT, IN ONE MUTATION — and the persistent
+    // authority in the SAME synchronous section, so the state
+    // transition is IN_FLIGHT(X) → PUBLISHED(X) with no FREE interval
+    // in which another commit could enter.
     //
     // Not a loop over participants: a set insertion. Before this line
     // every staged record is invisible to every reader; after it, all of
@@ -314,7 +412,7 @@ export class TransactionalFinalization implements FinalizationPort {
     // half-done and no participant call that could throw partway.
     visibility.publish(commit_id)
     this.#finalized.set(holder, commit_id)
-    this.#intents.set(commit_id, TransactionalFinalization.#canonical(commit))
+    this.#intents.set(commit_id, canonical)
     return { ok: true }
   }
 }

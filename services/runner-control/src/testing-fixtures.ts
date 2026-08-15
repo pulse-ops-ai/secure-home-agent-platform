@@ -310,7 +310,7 @@ export const eventSinkFailing = (
       readonly run_id: string
       readonly generation: number
       readonly commit_id: string
-      readonly event: { event_type: string }
+      readonly event: { event_type: string; sequence: number }
     }) =>
       shouldFail(request.event)
         ? Promise.reject(new Error('event sink down'))

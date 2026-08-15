@@ -826,6 +826,22 @@ The classes and their boundary semantics:
 `clock.now` is synchronous and outside the table — it cannot outlive a
 boundary.
 
+**Round-16 exactness: three identities, three jobs, and in-flight
+ownership.** The event's (run, sequence), the transaction's
+`commit_id`, and ownership's (run, generation) are never collapsed. The
+staged terminal event's identity is STRUCTURAL in the SPI (the envelope
+owns its sequence), its staging state machine is explicit (reserve /
+exact-replay-without-a-twin / conflict-by-canonical-equality /
+scoped-idempotent-abandon / publish-forever), and
+`TransactionalFinalization` owns the cross-participant concurrency:
+in-flight bindings established synchronously before the first await —
+one canonical intent per in-flight commit identity with single-flight
+join for exact concurrent replays, one terminal transaction per
+in-flight generation enforced at the publication gate — and the
+persistent finalized authority established in the same synchronous
+section as the visibility marker, so IN_FLIGHT passes to PUBLISHED with
+no free interval (RO-INV-94, RO-EX-180…184, RO-MUT-121…126).
+
 **Round-13 exactness: identity equality implies fact equality.** A
 replay ledger that remembers only "this identity landed" cannot tell an
 exact retry from a different fact wearing a landed name. Every replay

@@ -220,7 +220,10 @@ describe('RO-EX-79: staged writes are invisible until published', () => {
 
   it('an abandoned event never enters the stream', async () => {
     const events = new RecordingEventSink(new CommitLedger())
-    const staging = await events.stageEmit({ ...fence, event: { event_type: 'run.terminated' } })
+    const staging = await events.stageEmit({
+      ...fence,
+      event: { event_type: 'run.terminated', sequence: 0 },
+    })
     expect(staging.ok).toBe(true)
     if (!staging.ok) return
 
