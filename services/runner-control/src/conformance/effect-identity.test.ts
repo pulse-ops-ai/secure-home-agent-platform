@@ -38,7 +38,11 @@ const RUN = 'run-20260812-0001'
 // replay is idempotent and a same-commit conflicting stage refuses),
 // RO-EX-182 (one in-flight commit identity binds one canonical
 // intent), RO-EX-183 (one in-flight generation has one terminal
-// transaction).
+// transaction) — and the round-17 proofs
+// (falsification-round17.test.ts): RO-EX-185 (loser cleanup cannot
+// alias winner state), RO-EX-186 (a borrower cannot report success
+// without owning its event stage), RO-EX-187 (ordinary emission
+// consults an unpublished staged reservation).
 
 const LIMITS = {
   wall_clock_seconds: 600,
@@ -196,6 +200,33 @@ describe('RO-EX-184: an exact concurrent finalization replay is single-flight', 
     expect(a.ok && b.ok, 'both equivalent callers observe the one outcome').toBe(true)
     expect(stageCalls, 'one logical commit stages its participants exactly once').toBe(1)
     expect(shared.evidence.all).toHaveLength(1)
+  })
+})
+
+describe('RO-EX-188: two staged transactions cannot reserve two facts at one identity', () => {
+  it('a different canonical fact from a different commit refuses at a reserved identity', async () => {
+    const sink = new RecordingEventSink()
+    const eventA = { event_type: 'run.terminated', sequence: 0, outcome: 'a' }
+    const eventB = { event_type: 'run.terminated', sequence: 0, outcome: 'b' }
+
+    const first = await sink.stageEmit({
+      run_id: RUN,
+      generation: 1,
+      commit_id: 'x',
+      event: eventA,
+    })
+    expect(first.ok).toBe(true)
+    const conflict = await sink.stageEmit({
+      run_id: RUN,
+      generation: 1,
+      commit_id: 'y',
+      event: eventB,
+    })
+    expect(conflict.ok).toBe(false)
+    expect(
+      !conflict.ok && conflict.reason,
+      'transaction identity cannot make two facts share one event identity',
+    ).toBe('conflicting_replay')
   })
 })
 

@@ -233,18 +233,31 @@ authority as ordinary emission: the transaction identity (`commit_id`)
 names the atomic finalization, never the event's own (run, sequence)
 identity. The staged event's identity SHALL be STRUCTURAL — the
 envelope's sequence required by the staging contract, so enforcement
-can never be optional. An exact staged replay is the same logical fact
-and SHALL NOT create a second physical staged row; a conflicting stage
-— a different canonical event at an occupied or reserved identity,
-whatever its transaction identity says — SHALL refuse as a conflicting
-replay before anything publishes, with the refusal preserved through
-both the staging result and the commit outcome. Abandon SHALL be
-idempotent and scoped to its own stage: it releases only that
-unpublished reservation and row, never a published event and never an
-unrelated stage; a published identity is never reusable. The
-finalization commit identity SHALL be required by the public type —
-established by the caller before the request crosses the port, with no
-implementation-side derivation.
+can never be optional. An exact staged replay WITHIN one transaction is
+the same logical fact and SHALL NOT create a second physical staged
+row; a conflicting stage — a different canonical event at an occupied
+or reserved identity, whatever its transaction identity says — SHALL
+refuse as a conflicting replay before anything publishes, with the
+refusal preserved through both the staging result and the commit
+outcome. Abandon SHALL be idempotent and scoped to its own stage: it
+releases only that unpublished reservation and row, never a published
+event and never an unrelated stage; a published identity is never
+reusable. The finalization commit identity SHALL be required by the
+public type — established by the caller before the request crosses the
+port, with no implementation-side derivation.
+
+Canonical durable-fact equivalence SHALL NOT be ownership of
+unpublished staging state. When transactions with different commit
+identities stage the SAME canonical event at one identity, they share
+the one reservation but each owns its own invisible stage: the staging
+acknowledgement a transaction receives SHALL be backed by a stage that
+transaction owns, and the cleanup capability it carries SHALL release
+exactly the stage its label names — never another transaction's row. A
+transaction SHALL NOT report a successful commit while relying on
+staged state it does not own. Ordinary emission SHALL consult the same
+unpublished reservations: a DIFFERENT canonical event at an identity
+reserved by an unpublished stage refuses as a conflicting replay and
+lands nowhere.
 
 Finalization SHALL bind its in-flight state synchronously before its
 first await: one in-flight commit identity binds ONE canonical logical
@@ -284,6 +297,34 @@ its own operation still holds.
 - **THEN** staging refuses as a conflicting replay and the commit
   publishes nothing
 - **AND** the first durable event stands unchanged
+
+#### Scenario: A losing transaction's cleanup releases only its own stage
+
+- **GIVEN** two transactions that staged the same canonical terminal
+  event under different commit identities, where one has published
+- **WHEN** the refused transaction abandons its stage
+- **THEN** only the loser's own stage is released
+- **AND** the winner's published event stands as the one visible
+  terminal event
+
+#### Scenario: Equivalence never substitutes for ownership of a stage
+
+- **GIVEN** a transaction that failed before publication and abandoned
+  its staged terminal event
+- **WHEN** an equivalent transaction with a different commit identity
+  completes
+- **THEN** it publishes its OWN staged event or refuses
+- **AND** a successful commit outcome with no visible terminal event is
+  unrepresentable
+
+#### Scenario: An ordinary emission cannot occupy a reserved identity
+
+- **GIVEN** an unpublished staged terminal event reserving a sequence
+  identity
+- **WHEN** a different canonical event is emitted at that identity
+- **THEN** the emission refuses as a conflicting replay and lands
+  nowhere
+- **AND** publication exposes exactly the staged event at that identity
 
 #### Scenario: A conflicting event replay never rewinds the sequence
 

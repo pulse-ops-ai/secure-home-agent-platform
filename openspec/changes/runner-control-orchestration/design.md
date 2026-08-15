@@ -842,6 +842,23 @@ persistent finalized authority established in the same synchronous
 section as the visibility marker, so IN_FLIGHT passes to PUBLISHED with
 no free interval (RO-INV-94, RO-EX-180…184, RO-MUT-121…126).
 
+**Round-17 exactness: equivalence is not ownership.** Canonical
+durable-fact equivalence tells the event domain two stagings are the
+same fact; it never transfers custody of unpublished mutable staging
+state. The sink's reservation is one canonical per identity with
+per-transaction stages inside it: each commit owns its own invisible
+row, the `StagedWrite` a transaction receives is scoped to the stage
+its label names (abandon releases exactly that row, idempotently and
+publish-guarded), and no transaction is acknowledged while relying on a
+stage it does not own — so a loser's cleanup cannot alias the winner's
+state, and a borrower cannot report success with the terminal event
+missing. Ordinary and staged emission answer to the ONE event-domain
+authority: `emit` consults live reservations and refuses a DIFFERENT
+canonical at a reserved identity as `conflicting_replay`. The exact
+ordinary-versus-staged replay cell is deliberately left at today's
+behavior — undecided until falsified — and Round-16's finalization
+semantics are untouched (RO-INV-95, RO-EX-185…188, RO-MUT-127…131).
+
 **Round-13 exactness: identity equality implies fact equality.** A
 replay ledger that remembers only "this identity landed" cannot tell an
 exact retry from a different fact wearing a landed name. Every replay

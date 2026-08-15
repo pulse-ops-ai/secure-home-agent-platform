@@ -686,6 +686,32 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-184'],
   },
   {
+    id: 'RO-MUT-127',
+    mutation: "let a different-commit exact replay borrow the first transaction's physical row",
+    killedBy: ['RO-EX-185', 'RO-EX-186'],
+  },
+  {
+    id: 'RO-MUT-128',
+    mutation: "aim a staged handle's abandon at another transaction's row despite its own label",
+    killedBy: ['RO-EX-185'],
+  },
+  {
+    id: 'RO-MUT-129',
+    mutation: 'acknowledge a cross-transaction replay with no owned stage',
+    killedBy: ['RO-EX-186'],
+  },
+  {
+    id: 'RO-MUT-130',
+    mutation:
+      "disable the per-transaction own-stage lookup so a commit's exact replay stages a duplicate row",
+    killedBy: ['RO-EX-181'],
+  },
+  {
+    id: 'RO-MUT-131',
+    mutation: 'let ordinary emission ignore an active staged reservation',
+    killedBy: ['RO-EX-187'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

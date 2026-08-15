@@ -870,6 +870,49 @@ operation its requirement names.
   strict OpenSpec validation, and repository gate green at the pushed
   head.
 
+- [x] **7.17 Close round-17 staged-ownership and shared-authority findings**
+  <!-- agent-task: 7.17 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.16 -->
+
+  **Authorized by** — the same owner decision record (mechanical D14
+  conformance), plus the explicit in-session owner blessing of
+  `ed745e14986373cb0757a07d304f700daa1085cc` as the complete round-17
+  RED packet (superseding the earlier packet anchored at `7b71a006`).
+  Reviewer provenance preserved as distinct commits:
+  `7b71a0060696e7888fee4e105d51972b072f6f66` (round-17 REDs, parented
+  on the reviewed head `66b9b40`) and `ed745e149…` (the owner-blessed
+  follow-up adding the ordinary-emission proof), consumed unmodified.
+
+  **Implements** — canonical durable-fact equivalence is not ownership
+  of unpublished staging state. The event sink's reservation became one
+  canonical per identity with per-transaction stages: same-commit exact
+  replay is one row; different-commit same-canonical stagings are
+  independent per-commit rows under the shared reservation; any
+  different canonical refuses `conflicting_replay` whatever its
+  transaction identity. Each `StagedWrite`'s abandon is scoped to the
+  stage its label names (publish-guarded, idempotent, row-by-reference
+  release), and a cross-transaction replay is acknowledged only with
+  its OWN stage — never a borrowed handle over another transaction's
+  row. Ordinary `emit` consults the live reservations through the same
+  authority and refuses a different canonical at a reserved identity.
+  Scope confined to `adapters/deterministic.ts`; Round-16's
+  finalization ownership model is untouched.
+
+  **Disclosures** — (1) The reviewer files are consumed byte-frozen
+  (`git diff ed745e14 -- …round17.test.ts` empty). (2) The exact
+  ordinary-versus-staged replay cell is NOT decided: `emit` of the SAME
+  canonical as an unpublished stage falls through to today's behavior
+  untouched, and the minimal implementation never forced the choice —
+  so no `OWNER_DECISION_REQUIRED_EXACT_ORDINARY_STAGED_REPLAY` stop was
+  needed and the cell stays open for a future owner decision.
+
+  **Proof required** — the reviewer round-17 file green and unmodified;
+  the blessed baseline reproduced exactly (3 RED / 2 GREEN) before any
+  production change; RO-INV-95, RO-EX-185…188, and RO-MUT-127…131
+  registered, each mutant hand-applied and killed; every prior
+  falsification round green; complete tests, typecheck, lint, build,
+  strict OpenSpec validation, and repository gate green at the pushed
+  head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

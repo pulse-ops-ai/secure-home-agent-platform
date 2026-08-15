@@ -111,10 +111,17 @@ export class RecordingEventSink implements EventSinkPort {
   readonly #visibility: CommitVisibility
   /** (run, sequence) → canonical landed event: the replay ledger. */
   readonly #landed = new Map<string, string>()
-  /** (run, sequence) → unpublished staged reservation of that identity. */
+  /**
+   * (run, sequence) → the unpublished staged reservation of that
+   * identity: ONE canonical fact, and the independently owned physical
+   * stage of each transaction that staged it. Two transactions may
+   * intend the same durable fact, but durable-fact equivalence is NOT
+   * ownership of unpublished mutable staging state — each commit owns
+   * its own invisible row, and only its own.
+   */
   readonly #reserved = new Map<
     string,
-    { readonly commit_id: string; readonly canonical: string; readonly row: StoredEvent }
+    { readonly canonical: string; readonly stages: Map<string, StoredEvent> }
   >()
 
   constructor(visibility: CommitVisibility = new CommitLedger()) {
@@ -163,6 +170,22 @@ export class RecordingEventSink implements EventSinkPort {
         ok: false,
         reason: 'conflicting_replay',
         detail: `event identity ${identity} already carries a different event`,
+      })
+    }
+    // ONE event-domain authority, not two. An identity reserved by an
+    // UNPUBLISHED staged event is not free: a different canonical fact
+    // cannot occupy it merely because the reservation is not yet
+    // durable — otherwise publication would expose two events at one
+    // identity. (An ordinary emission of the EXACT reserved canonical
+    // is deliberately left to today's behavior: that cell has no
+    // executable falsification yet and its semantics are not decided
+    // here.)
+    const reserved = this.#liveReservation(identity)
+    if (reserved !== undefined && reserved.canonical !== canonical) {
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `event identity ${identity} is reserved by an unpublished staged event`,
       })
     }
     this.#landed.set(identity, canonical)
@@ -229,8 +252,8 @@ export class RecordingEventSink implements EventSinkPort {
       })
     }
 
-    const reserved = this.#reserved.get(identity)
-    if (reserved !== undefined && !isVisible(this.#visibility, reserved.commit_id)) {
+    const reserved = this.#liveReservation(identity)
+    if (reserved !== undefined) {
       if (reserved.canonical !== canonical) {
         return Promise.resolve({
           ok: false,
@@ -238,11 +261,37 @@ export class RecordingEventSink implements EventSinkPort {
           detail: `event identity ${identity} is already reserved for a different event`,
         })
       }
-      // EXACT staged replay: the one physical row already exists; this
-      // handle shares its scoped cleanup rather than staging a twin.
+      const own = reserved.stages.get(commit_id)
+      if (own !== undefined) {
+        // EXACT same-transaction replay: this commit's one physical row
+        // already exists; the handle shares ITS OWN scoped cleanup
+        // rather than staging a twin.
+        return Promise.resolve({
+          ok: true,
+          staged: {
+            commitId: commit_id,
+            abandon: () => this.#releaseStage(identity, commit_id, own),
+          },
+        })
+      }
+      // EXACT cross-transaction replay: the durable FACT is equivalent,
+      // but ownership of unpublished staging state is not. This commit
+      // stages its OWN invisible row under the shared canonical
+      // reservation — a capability whose label says this commit must
+      // never carry cleanup authority over another commit's row, and a
+      // transaction must never depend on staged state it does not own
+      // to publish a complete record.
+      const row: StoredEvent = { event: request.event, commit_id }
+      const rows = this.#byRun.get(run_id) ?? []
+      rows.push(row)
+      this.#byRun.set(run_id, rows)
+      reserved.stages.set(commit_id, row)
       return Promise.resolve({
         ok: true,
-        staged: { commitId: commit_id, abandon: () => this.#releaseStage(identity, reserved.row) },
+        staged: {
+          commitId: commit_id,
+          abandon: () => this.#releaseStage(identity, commit_id, row),
+        },
       })
     }
 
@@ -250,21 +299,47 @@ export class RecordingEventSink implements EventSinkPort {
     const existing = this.#byRun.get(run_id) ?? []
     existing.push(row)
     this.#byRun.set(run_id, existing)
-    this.#reserved.set(identity, { commit_id, canonical, row })
+    this.#reserved.set(identity, { canonical, stages: new Map([[commit_id, row]]) })
     return Promise.resolve({
       ok: true,
-      staged: { commitId: commit_id, abandon: () => this.#releaseStage(identity, row) },
+      staged: {
+        commitId: commit_id,
+        abandon: () => this.#releaseStage(identity, commit_id, row),
+      },
     })
   }
 
   /**
-   * Release ONE stage: this row, this reservation — never a published
-   * event, never an unrelated transaction's stage, and idempotent.
+   * The reservation currently holding `identity`, if any of its stages
+   * is still unpublished. Published stages are durable — the durable
+   * ledger answers for them — and a reservation whose every stage
+   * published or abandoned no longer reserves anything.
    */
-  #releaseStage(identity: string, row: StoredEvent): void {
+  #liveReservation(
+    identity: string,
+  ): { readonly canonical: string; readonly stages: Map<string, StoredEvent> } | undefined {
+    const reservation = this.#reserved.get(identity)
+    if (reservation === undefined) return undefined
+    for (const row of reservation.stages.values()) {
+      if (row.commit_id !== undefined && !isVisible(this.#visibility, row.commit_id)) {
+        return reservation
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Release ONE transaction's stage: its row, its entry in the shared
+   * reservation — never a published event, never another transaction's
+   * stage, and idempotent.
+   */
+  #releaseStage(identity: string, commit_id: string, row: StoredEvent): void {
     if (row.commit_id !== undefined && isVisible(this.#visibility, row.commit_id)) return
     const reservation = this.#reserved.get(identity)
-    if (reservation?.row === row) this.#reserved.delete(identity)
+    if (reservation !== undefined && reservation.stages.get(commit_id) === row) {
+      reservation.stages.delete(commit_id)
+      if (reservation.stages.size === 0) this.#reserved.delete(identity)
+    }
     for (const [run_id, rows] of this.#byRun) {
       const index = rows.indexOf(row)
       if (index !== -1) {
