@@ -31,10 +31,11 @@ ADR-0010 exists to prevent. The invariants are aimed there.
 | KF-INV-06 | **No OKF trust, provenance, or lifecycle signal is an input to execution authority, capability, authorization, safety policy, or live-state interpretation** | trust |
 | KF-INV-07 | U7 tracks whether the question is ANSWERED and closes on acceptance; the implementation obligation tracks whether authoring is SAFE. One state variable never stands for both | trust |
 | KF-INV-09 | `as_of` (factual currency) is distinct from `generated.at` (production time); regeneration never advances factual currency | behavior |
-| KF-INV-10 | Execution-bearing OKF content — `Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is refused at admission, by field as well as by type | trust |
+| KF-INV-10 | Execution-bearing OKF content — `Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is refused at admission, by field as well as by type, and the refusal is proven by EXECUTABLE negative tests before the gate opens | trust |
 | KF-INV-11 | The manifest's byte serialization is normative and versioned, so two conforming implementations agree on a bundle digest | behavior |
 | KF-INV-12 | ADR-0014 is `Accepted` before ADR-0015 may be; `governs` has no meaning without its canonical-source model | trust |
 | KF-INV-13 | The acceptance commit migrates `blockedByU7` → `blockedByToolchain` ATOMICALLY with closing U7, so no state exists in which U7 is closed and the only named block is an item that is no longer open | trust |
+| KF-INV-14 | Module metadata has ONE authority: the catalog. Frontmatter mirrors it, and a material disagreement is an admission failure — never a merge or a silent precedence rule | trust |
 | KF-INV-08 | Nothing is operative while ADR-0015 is `Proposed`, and no lower-precedence artifact makes it so | trust |
 
 ## State-Space Model
@@ -62,7 +63,9 @@ reading would wrongly claim.
 | KF-EX-10 | KF-INV-10 | structural | §5b refuses the type and the four execution-bearing fields, citing the upstream sentence that a `resource` may be a Skill, script, or container |
 | KF-EX-11 | KF-INV-11 | structural | §6 pins the manifest line format, ordering, prefix, and what the final digest hashes |
 | KF-EX-12 | KF-INV-12 | structural | §3a states the ordering constraint and the acceptance obligations list it first |
-| KF-EX-13 | KF-INV-13 | structural | §13 inventories every file and field the acceptance commit must migrate, with counts, so completeness is checkable |
+| KF-EX-13 | KF-INV-13 | structural + search | §13 inventories the files and fields the acceptance commit must migrate, AND requires a stale-semantics sweep before and after, because a hand-written list is exactly the artifact that goes stale — this one already did once |
+| KF-EX-14 | KF-INV-14 | structural | §5a fixes the catalog as authoritative and the frontmatter as a mirror, with the field mapping and a reject-on-disagreement rule |
+| KF-EX-15 | KF-INV-10 | deferred, executable | §12 requires a failing negative test for `Attested Computation` and for each of `runtime`, `computation`, `executor`, `attester`, including one under a different `type` |
 | KF-EX-06 | KF-INV-08 | structural | no lower-precedence artifact presents the decision as operative |
 | KF-EX-07 | KF-INV-04 | review | the spec delta carries a negative scenario for conflating the two layers |
 | KF-EX-08 | — | structural | `check-knowledge.mjs` still passes; no module, set, or catalog entry added |

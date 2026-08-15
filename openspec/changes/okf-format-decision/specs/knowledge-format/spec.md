@@ -70,6 +70,39 @@ last meaningfully changed.
 - **THEN** every regeneration would silently assert that stale facts are current
 - **AND** the mapping is refused
 
+### Requirement: One authority for module metadata
+
+The catalog SHALL be authoritative for module and set metadata. Module
+frontmatter SHALL mirror it, and admission SHALL reject any material
+disagreement between a mirrored pair rather than merging, preferring, or
+rewriting either.
+
+#### Scenario: The mirror agrees
+
+- **WHEN** a module's `owner`, `as_of`, `limitations`, and `governs` agree with
+  the catalog's `owner`, `asOf`, `limitations`, and `governingSources`
+- **THEN** admission proceeds
+
+#### Scenario: Currency disagrees (negative)
+
+- **WHEN** the catalog records `asOf` as one date and the module's `as_of` is
+  another
+- **THEN** admission refuses, naming the field and both values
+- **AND** it does not prefer the catalog's value, because the disagreement puts
+  the module's provenance in question rather than merely its field
+
+#### Scenario: Governing source disagrees (negative)
+
+- **WHEN** `governingSources` and `governs` name different canonical sources
+- **THEN** admission refuses
+
+#### Scenario: A precedence rule applied silently (negative)
+
+- **WHEN** an implementation would resolve a mirror disagreement by choosing one
+  side
+- **THEN** two authorities for one fact have been created
+- **AND** the change is incorrect
+
 ### Requirement: Execution-bearing content is refused
 
 Admission SHALL refuse a concept of type `Attested Computation`, and SHALL refuse
@@ -91,6 +124,15 @@ appear, whatever the declared `type`.
 - **THEN** admission still refuses them
 - **AND** refusing by type alone would be insufficient, because `type` is an
   open string a producer chooses
+
+#### Scenario: The refusal is unproven (negative)
+
+- **WHEN** the conformance suite asserts the refusal without a test that fails
+  when the check is removed
+- **THEN** the implementation obligation is not satisfied
+- **AND** a structural statement in a decision record does not stop a `resource`
+  naming a skill, script, or container from being admitted by a validator that
+  never tested for it
 
 ### Requirement: Digest identity is over raw bytes
 

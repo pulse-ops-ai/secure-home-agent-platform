@@ -170,6 +170,47 @@ consumer to reject). We add obligations without leaving the format.
 ADR-0010 already required owner, freshness, and limitations. This states where
 each lives.
 
+### 5a. The catalog stays the registry authority; module frontmatter mirrors it
+
+The profile in §5 makes an authored module carry `owner`, `as_of`,
+`limitations`, and `governs`. `knowledge/catalog.json` **already carries all
+four** — as `owner`, `asOf`, `limitations`, and `governingSources` — and
+declares itself "the single source for module and set metadata." The resolver
+selects and evaluates freshness from the catalog, and run evidence records the
+catalog digest alongside each resolved module's `asOf`.
+
+Requiring the same facts in two places without saying which one wins would
+create two authorities for one fact — the defect class this repository has spent
+an entire landing eliminating elsewhere. So it is decided here rather than left
+to whoever writes the toolchain:
+
+**The catalog is authoritative. The module's frontmatter is a mirror, and a
+disagreement is an admission failure — never a merge, never a precedence rule
+resolved silently.**
+
+| Catalog field | Module frontmatter |
+|---|---|
+| `owner` | `owner` |
+| `asOf` | `as_of` |
+| `limitations` | `limitations` |
+| `governingSources` | `governs` |
+
+Admission compares the mirrored pairs and **rejects on any material
+disagreement**, naming the field and both values. It does not prefer one, and it
+does not rewrite either: a module whose `as_of` disagrees with its registry
+entry is not a module with a stale field, it is a module whose provenance is in
+question.
+
+Why mirror at all, rather than keep the facts only in the catalog? Because a
+packaged bundle travels. A module read on another machine, by another provider,
+must carry its own owner, currency, limitations, and governing source — the
+catalog does not travel with it. The mirror exists for portability; the
+comparison exists so portability does not become divergence.
+
+If a later decision wants OKF frontmatter to become authoritative instead, that
+is a deliberate change to the catalog's "single source" contract and needs its
+own ADR. It must not arrive as a toolchain implementation choice.
+
 ### 5b. `Attested Computation` is REFUSED at admission
 
 OKF v0.2 makes `Attested Computation` first-class: a concept that "carries not
@@ -361,12 +402,21 @@ must exist and pass:
 1. `compile`, `validate`, `package`, `query` implemented behind the ADR-0010
    interfaces;
 2. a **conformance suite** covering, at minimum: the §5 profile required fields;
-   the pinned `okf_version`; each prohibited-content class, with a negative case
-   per class proven to fail without the check; reference integrity; and digest
+   the §5a catalog/frontmatter mirror comparison, including a disagreement case
+   per mirrored field; the pinned `okf_version`; each prohibited-content class,
+   with a negative case per class proven to fail without the check; **the §5b
+   execution-bearing refusal — a failing negative test for `type: Attested
+   Computation` AND one for each of `runtime`, `computation`, `executor`, and
+   `attester`, including at least one carried under a different `type`, since
+   refusing by type alone is insufficient**; reference integrity; and digest
    reproducibility — the same source tree packaged twice producing the same
    digest, and a single byte change producing a different one;
 3. every check **failing closed**, demonstrated by a negative test per class,
-   not asserted;
+   not asserted. The §5b refusal is called out separately in (2) because it is
+   the check that keeps executable capability out of the knowledge plane: a
+   structural statement in an ADR does not stop a `resource` naming a skill,
+   script, or container from being admitted by a validator that never tested
+   for it;
 4. `scripts/check-knowledge.mjs` either subsumed by or reconciled with the new
    validator, so there is one admission authority rather than two.
 
@@ -383,38 +433,62 @@ conformance suite is what evidences it — not a checkbox here.
 
 ### 13. THE ACCEPTANCE MIGRATION — separating U7's state from the authoring gate
 
-The repository currently encodes one fact where §12 needs two. `blockedByU7` is
-a **required field on every module and every set** in `knowledge/catalog.json`,
-and the registry, its validator, and its documentation all name U7 as the reason
-authoring is blocked. On the day U7 closes, every one of those becomes either
+The repository encodes one fact where §12 needs two. `blockedByU7` is a
+**required field on every module and every set** in `knowledge/catalog.json`,
+and the registry, its validator, and several governed documents name U7 as the
+reason authoring is blocked. On the day U7 closes, each of those becomes either
 false or stale — and the dangerous reading is the first one: a closed U7 with
 `blockedByU7` still in the schema invites the conclusion that authoring is now
 open.
 
-So the acceptance commit for this ADR **must migrate these atomically**, in the
-same commit that closes U7. Not before — doing it now would make a `Proposed`
-decision operative — and not after, which would leave a window in which nothing
-names the block.
+So the acceptance commit **must migrate these atomically**, in the same commit
+that closes U7. Not before — that would make a `Proposed` decision operative —
+and not after, which would leave a window in which nothing names the block.
+
+**ADR-0014 is deliberately absent from this list.** It must already be
+`Accepted` when this ADR is accepted (§3a), and an accepted ADR is immutable —
+the contract says supersede, never edit. Its U7 wording was therefore corrected
+while it was still `Proposed`, in the same change that proposed this ADR, and it
+needs no migration.
 
 | File | What must change |
 |---|---|
-| `knowledge/catalog.json` | rename the field `blockedByU7` → `blockedByToolchain` on **23 occurrences** (every module and set), and re-point the two prose notes that cite U7 as the format/validator block |
-| `scripts/check-knowledge.mjs` | the field name in `REQUIRED_MODULE_FIELDS` (line 81) and `REQUIRED_SET_FIELDS` (line 105); and the three failure messages that give U7 as the reason — the publishable-status checks (~236, ~304) and the authored-content check (~395) — must name the toolchain gate instead |
-| `knowledge/INDEX.md` | "blocked on U7" in the module/set/bundle table; the note that publication is unreachable "while U7 is open"; the metadata description mentioning U7 blocking |
-| `knowledge/README.md` | the status banner citing U7 as why `knowledge/` is not runtime-authoritative |
+| `knowledge/catalog.json` | rename `blockedByU7` → `blockedByToolchain` on **every module and set** (23 occurrences), and re-point the two prose notes citing U7 as the format/validator block |
+| `scripts/check-knowledge.mjs` | the field name in `REQUIRED_MODULE_FIELDS` and `REQUIRED_SET_FIELDS`; and the three failure messages giving U7 as the reason — the publishable-status checks and the authored-content check — must name the toolchain gate |
+| `knowledge/INDEX.md` | "blocked on U7" in the module/set/bundle table; publication "unreachable while U7 is open"; the metadata description citing U7 |
+| `knowledge/README.md` | the status banner citing U7 |
 | `knowledge/AGENTS.md` | three U7 citations, including the one requiring an ADR to change the posture |
-| root `AGENTS.md` | "Until the validator and governed query interfaces exist … (U7)" — the condition is right, the citation becomes the toolchain gate |
-| `ADR-0014` | any language making authoring wait on U7 rather than on the toolchain gate |
+| root `AGENTS.md` | the specification-only condition citing U7; **and the count** — "of the tracked set U1–U11, **exactly one** item has ever been closed" becomes two, with U7 named |
+| `docs/decisions/INDEX.md` | U6 as the only item ever closed; "every other item remains open"; the row listing knowledge-bundle authoring as blocked on U7; **and an acceptance record for this ADR** |
+| `docs/architecture/knowledge-selection-model.md` | four U7 citations treating it as the format/authoring block, including the statement that the format is undecided |
+| `docs/architecture/unresolved-decisions.md` | U7 marked **RESOLVED in place** following the U6 precedent, and its row in the summary table updated |
 
-The field is renamed rather than deleted because the *fact* it records is still
+The field is renamed rather than deleted because the *fact* it records stays
 true after U7 closes — authoring is still blocked. Only the reason changes, and
 the reason is what the name got wrong.
 
-**What the check must enforce after migration.** `blockedByToolchain` is
-currently required-to-be-present but its value is unasserted; the real gate is
-the status check. On migration the validator should additionally assert the
-value is `true` until the §12 obligation is discharged, so that opening
-authoring becomes a deliberate edit to every entry rather than a side effect of
+**Enumeration is necessary and not sufficient.** A hand-written list of files is
+exactly the artifact that goes stale, and this one already did once. So the
+acceptance commit is additionally **search-driven**: it must run a stale-semantics
+sweep before and after, and the after-sweep must return nothing outside this
+ADR's own history sections. The searches, at minimum:
+
+```text
+blockedByU7
+while U7 is open
+blocked on U7
+only U6 | except U6 | exactly one item
+U7 .* (author|validator|format|toolchain)
+```
+
+A hit that survives the migration is a governed document asserting something the
+repository has stopped believing.
+
+**What the check must enforce after migration.** `blockedByU7` is today
+required-to-be-*present* with its value unasserted; the operative gate is the
+publishable-status check. After the rename, the validator must additionally
+assert `blockedByToolchain === true` until §12 is discharged — so opening
+authoring becomes a deliberate edit to every entry, rather than a side effect of
 closing an unresolved item.
 
 None of this is done in the proposing change. It is an **acceptance

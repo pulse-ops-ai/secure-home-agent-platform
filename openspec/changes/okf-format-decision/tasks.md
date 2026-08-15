@@ -186,12 +186,52 @@ operative.
       (publishable status ×2, authored content ×1) at the toolchain gate.
 - [ ] Re-point U7 citations in `knowledge/INDEX.md`, `knowledge/README.md`,
       `knowledge/AGENTS.md`, and root `AGENTS.md`.
-- [ ] Correct any ADR-0014 language making authoring wait on U7.
+- [ ] Run the stale-semantics sweep before and after; the after-run must return
+      nothing outside ADR history sections.
+- [ ] Update root `AGENTS.md`'s closed-item count, `docs/decisions/INDEX.md`
+      (only-U6 claim, knowledge-authoring row, acceptance record),
+      `knowledge-selection-model.md`, and mark U7 RESOLVED in place with its
+      summary row.
+- [ ] **Not** ADR-0014 — it is immutable by then; its wording was corrected
+      while `Proposed`.
 - [ ] Assert `blockedByToolchain === true` until §12 is discharged, so opening
       authoring is a deliberate edit rather than a side effect of closing U7.
 
 The failure this prevents: U7 closes, `blockedByU7` remains in the schema, and a
 reader concludes authoring is open because the item it names is no longer open.
+
+## 7. Second pre-acceptance correction
+
+- [x] **7.1 ADR-0014 removed from the migration inventory** — it must already be
+      `Accepted` when this ADR is accepted (§3a), and an accepted ADR is
+      immutable. Its U7 wording was corrected while it was still `Proposed`, so
+      it needs no migration. The two obligations could not both have been
+      satisfied.
+
+- [x] **7.2 Migration made exhaustive AND search-driven** — added root
+      `AGENTS.md`'s closed-item count, `docs/decisions/INDEX.md` (the only-U6
+      claim, the knowledge-authoring row, and an acceptance record),
+      `knowledge-selection-model.md`'s four citations, and marking U7 RESOLVED
+      in place with its summary row. Enumeration is necessary and not
+      sufficient: a hand-written list is the artifact that goes stale, and this
+      one already did, so the acceptance commit must also run a stale-semantics
+      sweep whose after-run returns nothing.
+
+- [x] **7.3 One authority for module metadata** — §5a. The catalog already
+      declares itself "the single source for module and set metadata" and
+      already carries all four facts. It stays authoritative; frontmatter is a
+      mirror for portability; a material disagreement is an admission failure,
+      never a merge or a silent precedence rule.
+
+- [x] **7.4 Execution-bearing refusal put into the executable gate** — §12 now
+      requires a failing negative test for `Attested Computation` and for each
+      of `runtime`, `computation`, `executor`, `attester`, including one under a
+      different `type`. A structural statement in an ADR does not stop a
+      `resource` naming a skill from being admitted by a validator that never
+      tested for it.
+
+- [x] **7.5 `blockedByToolchain` wording fixed** — the validator requires
+      `blockedByU7` today; the rename has not happened.
 
 ## PR-1 Completion Gate
 

@@ -119,6 +119,16 @@ which would make a proposal operative, and not after, which would leave a window
 where nothing names the block. Renamed rather than deleted, because the fact is
 still true; only the reason was wrong.
 
+### D4e: The catalog stays authoritative; frontmatter mirrors it
+
+Both already carry owner, currency, limitations, and governing source, and the
+catalog declares itself the single source. Requiring the facts in two places
+without saying which wins would create two authorities for one fact. The mirror
+exists because a packaged bundle travels and the catalog does not travel with
+it; the reject-on-disagreement rule exists so portability does not become
+divergence. Changing which side is authoritative is its own ADR, not a toolchain
+choice.
+
 ### D5: Trust is descriptive, stated as a prohibition
 
 A mapping table invites a future reader to find the row where a trust tier means
