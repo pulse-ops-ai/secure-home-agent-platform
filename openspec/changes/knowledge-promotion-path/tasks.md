@@ -130,6 +130,19 @@ contract every agent reads, and nothing is authored under it.
   problem exists, and its lessons as examples/candidates while it remains under
   falsification.
 
+## 5. Pre-acceptance correction
+
+- [x] **5.1 Projection semantics corrected**
+
+  "Reference, never restate" was too strong: it would have made portable
+  knowledge a link index — pointers to documents an agent may not be able to
+  open — which defeats the portability the format was chosen for. Replaced by
+  the invariant that a projection MAY summarize, subset, transform, reorganize,
+  or restate, and MUST name its governing sources, claim no independent
+  authority, remain subordinate, and be defective when it materially disagrees.
+  The line is authority, not wording. Applied to ADR-0014,
+  `knowledge-promotion-model.md`, and this change's spec, design, and assurance.
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0014 exists, is `Proposed`, and carries every section `docs/AGENTS.md`
@@ -149,9 +162,9 @@ Required by the rule this change introduces, and answered for it:
 
 | Truth | Kind | Canonical home | Projection outcome |
 |---|---|---|---|
-| Canonical homes and the promotion path | architecture | ADR-0014 + `knowledge-promotion-model.md` | **project when U7 opens**, as a `knowledge/platform/` module naming ADR-0014 as its source |
-| The four-layer image/profile/knowledge/task split | architecture | ADR-0011 + `knowledge-promotion-model.md` | **project when U7 opens**, likely into the existing `runner-model` module rather than a new one |
-| The determination obligation itself | governance / coding-agent obligation | root `AGENTS.md` | **project when U7 opens**, as a `knowledge/runbooks/` procedure naming that contract as its source |
+| Canonical homes and the promotion path | architecture | ADR-0014 + `knowledge-promotion-model.md` | **project when the toolchain gate opens**, as a `knowledge/platform/` module naming ADR-0014 as its source |
+| The four-layer image/profile/knowledge/task split | architecture | ADR-0011 + `knowledge-promotion-model.md` | **project when the toolchain gate opens**, likely into the existing `runner-model` module rather than a new one |
+| The determination obligation itself | governance / coding-agent obligation | root `AGENTS.md` | **project when the toolchain gate opens**, as a `knowledge/runbooks/` procedure naming that contract as its source |
 
 Note the third row: its canonical home is the governed contract, **not**
 `docs/architecture/` and not the runbook that would project it. That is the

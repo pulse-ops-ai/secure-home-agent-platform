@@ -5,6 +5,7 @@
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md), [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) (`Proposed`)
+- **Acceptance depends on:** [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — **ADR-0014 MUST be `Accepted` before this ADR may be `Accepted`.** Both may remain `Proposed` together; this is an ordering constraint on acceptance, not a requirement to combine the decisions. See §3a.
 - **Answers:** [U7](../architecture/unresolved-decisions.md#u7) — **closed on acceptance of this ADR**, which is when the architectural question has an answer. Authoring stays blocked afterwards by the separate implementation obligation in §12; that obligation is not U7's state.
 
 ---
@@ -97,6 +98,28 @@ promise to build on. Upgrades are governed by §11.
 OKF supplies vocabulary. This repository supplies obligation. That division is
 the whole design: we never fork the format, and we never rely on it to enforce
 anything.
+
+### 3a. This decision depends on ADR-0014, and acceptance is ordered
+
+§5 requires every module to carry `governs` — the canonical artifact it
+projects. That field is not self-defining. What counts as a canonical source,
+which kind of truth belongs in which home, and what a projection may and may not
+claim are all decided by
+[ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
+Without it, `governs` names a concept the repository has not adopted, and the
+validator would be enforcing a field whose meaning is undecided.
+
+**ADR-0014 MUST be `Accepted` before this ADR may be `Accepted`.**
+
+Both may sit `Proposed` at the same time — proposing in either order is fine,
+and this ADR was in fact written first. The constraint binds only at acceptance,
+and it does not require the two decisions to be combined: they answer different
+questions and should be reviewed separately.
+
+An earlier draft of this ADR claimed it "depends on nothing requiring ADR-0014's
+acceptance," on the grounds that the citation was marked `Proposed`. That was
+wrong. Marking a citation `Proposed` records the status of the source; it does
+not remove the dependency on what the source decides.
 
 ### 4. Two different jobs, and they must not be confused
 
@@ -252,10 +275,23 @@ exist in the bundle is not malformed." That is correct for a consumer and wrong
 for admission — a knowledge module citing a canonical source that does not exist
 is a projection of nothing (ADR-0014 §2, `Proposed`).
 
-So: **admission rejects** an unresolvable bundle-internal link or an
-unresolvable `governs` reference. **Query tolerates** one, because a bundle may
-have been packaged before a later deletion elsewhere. Both behaviours are
-correct at their own layer.
+**Admission rejects** an unresolvable bundle-internal link or an unresolvable
+`governs` reference. **Reading tolerates** a broken link.
+
+The two reference kinds have different lifetimes, and the earlier wording got
+this wrong by implying an internal link in one of our own packages could break
+later:
+
+| Reference | Lifetime |
+|---|---|
+| bundle-internal, admitted | **frozen with the package.** The target's bytes are inside the immutable, digest-addressed artifact. Deleting or moving the repository source afterwards cannot break it, and cannot change the digest |
+| external, including `governs` | **may become unavailable at any time.** It points outside the package, and admission judged it only at admission |
+
+So tolerant reading is required for two real cases — an external reference that
+has since moved, and foreign OKF input this repository never admitted — and for
+neither of them is the answer to reject the bundle. What tolerant reading is
+*not* needed for is a broken internal link in one of our packages, because that
+cannot occur: admission refused it, or it is still there.
 
 ### 10. Trust and provenance are DESCRIPTIVE, and map to nothing in the authority plane
 
@@ -344,6 +380,46 @@ above is satisfied. Those are different events and neither implies the other:
 acceptance is not permission to author, and a closed U7 is not evidence that the
 toolchain exists. This obligation is discharged in its own change, and the
 conformance suite is what evidences it — not a checkbox here.
+
+### 13. THE ACCEPTANCE MIGRATION — separating U7's state from the authoring gate
+
+The repository currently encodes one fact where §12 needs two. `blockedByU7` is
+a **required field on every module and every set** in `knowledge/catalog.json`,
+and the registry, its validator, and its documentation all name U7 as the reason
+authoring is blocked. On the day U7 closes, every one of those becomes either
+false or stale — and the dangerous reading is the first one: a closed U7 with
+`blockedByU7` still in the schema invites the conclusion that authoring is now
+open.
+
+So the acceptance commit for this ADR **must migrate these atomically**, in the
+same commit that closes U7. Not before — doing it now would make a `Proposed`
+decision operative — and not after, which would leave a window in which nothing
+names the block.
+
+| File | What must change |
+|---|---|
+| `knowledge/catalog.json` | rename the field `blockedByU7` → `blockedByToolchain` on **23 occurrences** (every module and set), and re-point the two prose notes that cite U7 as the format/validator block |
+| `scripts/check-knowledge.mjs` | the field name in `REQUIRED_MODULE_FIELDS` (line 81) and `REQUIRED_SET_FIELDS` (line 105); and the three failure messages that give U7 as the reason — the publishable-status checks (~236, ~304) and the authored-content check (~395) — must name the toolchain gate instead |
+| `knowledge/INDEX.md` | "blocked on U7" in the module/set/bundle table; the note that publication is unreachable "while U7 is open"; the metadata description mentioning U7 blocking |
+| `knowledge/README.md` | the status banner citing U7 as why `knowledge/` is not runtime-authoritative |
+| `knowledge/AGENTS.md` | three U7 citations, including the one requiring an ADR to change the posture |
+| root `AGENTS.md` | "Until the validator and governed query interfaces exist … (U7)" — the condition is right, the citation becomes the toolchain gate |
+| `ADR-0014` | any language making authoring wait on U7 rather than on the toolchain gate |
+
+The field is renamed rather than deleted because the *fact* it records is still
+true after U7 closes — authoring is still blocked. Only the reason changes, and
+the reason is what the name got wrong.
+
+**What the check must enforce after migration.** `blockedByToolchain` is
+currently required-to-be-present but its value is unasserted; the real gate is
+the status check. On migration the validator should additionally assert the
+value is `true` until the §12 obligation is discharged, so that opening
+authoring becomes a deliberate edit to every entry rather than a side effect of
+closing an unresolved item.
+
+None of this is done in the proposing change. It is an **acceptance
+obligation**, listed here so the acceptance commit is mechanical rather than
+improvised, and so a reviewer can check it was complete.
 
 ## Consequences
 
@@ -435,6 +511,10 @@ yet exist.
 5. This ADR changes **no** existing ADR's status. It does not close U7 *now* —
    it closes it **on acceptance**, which is a human act in its own change. The
    §12 obligation is separate and does not gate U7's state.
+6. **The acceptance commit must carry the §13 migration atomically**, and must
+   not be merged with U7 closed and `blockedByU7` still naming U7 as the reason
+   authoring is blocked.
+7. **ADR-0014 must be `Accepted` first** (§3a).
 
 ## Links
 

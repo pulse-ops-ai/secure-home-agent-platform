@@ -18,7 +18,8 @@ truths stay where they were found, and are found again later at review cost.
 
 - One canonical statement per durable truth, in the home its KIND determines,
   referenced rather than copied.
-- `knowledge/` as projection only — never the sole original for any kind.
+- `knowledge/` as projection only — never the sole original for any kind, while
+  free to summarize, subset, transform, reorganize, or restate for agent use.
 - A named destination and a named obligation for a discovered truth.
 - Provider neutrality preserved structurally, not by convention.
 
@@ -93,6 +94,11 @@ by default. A procedure does not change its owner by being projected. So the
 canonical home is chosen by the KIND of truth, and every module names the source
 it projects.
 
+Subordination is about AUTHORITY, not wording. A projection may restate freely —
+"reference, never restate" would have made portable knowledge a link index, which
+defeats the portability the format was chosen for. It may not claim to be the
+source, and it is defective when it materially disagrees with one.
+
 The provider-replacement test is stated in the form that does not leak: *if
 information must survive replacing a provider or runtime, its canonical source
 must be provider-neutral; where agents need to reason from it, project the
@@ -122,11 +128,11 @@ constraint travels with the ADR when this change is archived.
 
 | Discovered thing | Canonical home | Projected to knowledge? |
 |---|---|---|
-| a durable invariant an agent must reason from | ADR or `docs/architecture/` | yes, when U7 opens |
+| a durable invariant an agent must reason from | ADR or `docs/architecture/` | yes, when the toolchain gate opens |
 | a durable invariant only humans act on | ADR or `docs/architecture/` | no |
-| a coding-agent obligation or review policy | governed repository contract | yes, when U7 opens |
+| a coding-agent obligation or review policy | governed repository contract | yes, when the toolchain gate opens |
 | a human operational procedure | `docs/operations/` | only if an agent executes it |
-| a normative contract | its specification owner | as semantics, when U7 opens |
+| a normative contract | its specification owner | as semantics, when the toolchain gate opens |
 | a defect specific to one change | the change archive | no |
 | how one runtime queries knowledge | provider artifact | not applicable |
 

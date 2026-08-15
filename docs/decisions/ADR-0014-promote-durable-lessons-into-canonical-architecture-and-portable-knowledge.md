@@ -5,7 +5,7 @@
 - **Deciders:** @mikegtech (repository owner)
 - **Supersedes:** none
 - **Related:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md), [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)
-- **Closes:** nothing — [U7](../architecture/unresolved-decisions.md#u7) remains open and gates all authoring
+- **Closes:** nothing. Authoring knowledge is blocked because the ADR-0010 validator and toolchain do not exist — a block [U7](../architecture/unresolved-decisions.md#u7) currently tracks. [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) (`Proposed`) would separate the two, so that U7 records whether the format question is answered and a named toolchain gate records whether authoring is safe.
 
 ## Context
 
@@ -78,8 +78,9 @@ them with no canonical home at all:
 | executable or normative platform contracts | their existing governed contract or specification owner — `schemas/`, `openspec/specs/`, or the owning package's contract |
 | portable, agent-facing representation of any of the above | `knowledge/platform/` or `knowledge/runbooks/`, **as a projection** |
 
-Every other layer references the canonical statement rather than restating it.
-Two copies of a rule become two different rules.
+Every other layer is **subordinate** to the canonical statement. What
+subordination means for a portable knowledge projection is stated in §2 — it is
+not a prohibition on restating.
 
 ### 2. `knowledge/` is the portable, agent-facing projection of durable truths and procedures
 
@@ -95,9 +96,31 @@ rather than an invariant. Its canonical home is whichever row of §1 it belongs
 to — a governed contract, `docs/operations/`, or a specification owner — and the
 runbook projects it.
 
-**Every knowledge module and runbook SHALL identify its governing canonical
-source or sources.** A module that names none is either a projection of nothing
-or an original in the wrong place, and both are defects.
+#### What a projection MAY and MUST do
+
+A portable knowledge projection **MAY** summarize, subset, transform,
+reorganize, or restate semantic content from its governing canonical sources as
+needed for agent reasoning.
+
+It **MUST**:
+
+- identify its governing canonical source or sources;
+- never claim independent authority for the projected statement;
+- remain subordinate to those sources;
+- be **defective** when it disagrees materially with them.
+
+**The canonical source owns the truth. The knowledge module owns only the
+agent-facing representation.**
+
+This is deliberately weaker than "reference, never restate." That formulation
+would have turned portable knowledge into a link index — an agent handed a
+bundle of pointers to documents it cannot open, which is the opposite of the
+portability ADR-0010 chose. Restating is how a projection does its job;
+restating *while claiming to be the source* is the defect. The distinction is
+authority, not wording.
+
+A module that names no governing source is either a projection of nothing or an
+original in the wrong place, and both are defects.
 
 Not every durable truth becomes a knowledge module. Promotion is a judgement,
 and the criterion is whether an agent must reason **from** the truth in order to
@@ -215,12 +238,19 @@ failure.
 **Neutral.** This decision changes no runtime behaviour and adds no dependency.
 
 **Blocked, and stated plainly.** No knowledge module can be authored under this
-decision until [U7](../architecture/unresolved-decisions.md#u7) closes. U7 gates
-the first real bundle on the OKF validator and toolchain existing first, because
-"authoring bundles first would put unvalidated content in the repository and make
-the format load-bearing by accident." This ADR **does not resolve U7 and does
-not weaken it.** It establishes where a lesson goes; U7 still governs when the
-knowledge layer may be populated. Until then the promotion path terminates at
+decision while the ADR-0010 validator and toolchain do not exist. The reason is
+unchanged: "authoring bundles first would put unvalidated content in the
+repository and make the format load-bearing by accident."
+
+[U7](../architecture/unresolved-decisions.md#u7) currently tracks that block.
+[ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+(`Proposed`) would split the two facts — U7 recording whether the format
+question is answered, a named toolchain gate recording whether authoring is safe
+— because a closed U7 must not read as permission to author. Under either model
+the block holds today.
+
+This ADR **does not resolve U7 and does not weaken it.** It establishes where a
+lesson goes, not when the knowledge layer may be populated. Until then the promotion path terminates at
 canonical architecture, and the determination is recorded rather than acted on.
 
 ## Alternatives considered
@@ -242,8 +272,8 @@ model, and run evidence. A third home would compete with both.
 
 **Do nothing until U7 closes.** Rejected as sequencing. The determination costs
 nothing to require now and is cheap to record; waiting means the L4 lessons are
-cold by the time there is somewhere to put them. Authoring waits for U7;
-*deciding where things go* does not have to.
+cold by the time there is somewhere to put them. Authoring waits for the
+toolchain; *deciding where things go* does not have to.
 
 ## Security implications
 
@@ -287,7 +317,7 @@ nothing at run time.
    the determination obligation takes effect through root `AGENTS.md`. It is
    deliberately not automated: no validator can decide whether a truth is
    durable, and one that claimed to would report success.
-4. **On U7 closing** — the L4 lessons named in Context are candidate material
+4. **When the toolchain gate opens** — the L4 lessons named in Context are candidate material
    for authoring, and the determination recorded in the accompanying change is
    an input to that work. They are examples, not a complete or final set: that
    landing is still under falsification, and further classes may emerge. Each
@@ -305,6 +335,6 @@ nothing at run time.
   — what follows from this decision
 - [`docs/architecture/knowledge-selection-model.md`](../architecture/knowledge-selection-model.md)
   — how a profile selects a set and what a run records
-- [U7](../architecture/unresolved-decisions.md#u7) — the gate on authoring
+- [U7](../architecture/unresolved-decisions.md#u7) — today's tracker for the block on authoring; ADR-0015 (`Proposed`) would separate the format question from the toolchain gate
 - [`openspec/changes/knowledge-promotion-path/`](../../openspec/changes/knowledge-promotion-path/)
   — the change that establishes this model

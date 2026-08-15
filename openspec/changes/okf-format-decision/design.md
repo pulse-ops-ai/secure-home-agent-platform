@@ -104,6 +104,21 @@ be taken by accident.
 choices still change the digest. That is the YAML defect one level out, so the
 serialization is pinned and carries its own version string.
 
+### D4d: Acceptance is ordered; U7's state and the authoring gate are migrated together
+
+`governs` has no meaning without ADR-0014's canonical-source model, so ADR-0014
+must be accepted first. Both may sit `Proposed` together — the constraint binds
+at acceptance only, and the decisions stay separately reviewable.
+
+The repository encodes one fact where two are needed: `blockedByU7` is required
+on every module and set, and the validator and docs name U7 as the reason
+authoring is blocked. On the day U7 closes those become false or stale, and the
+dangerous reading is that authoring is now open. So the rename to
+`blockedByToolchain` is **atomic with the acceptance commit** — not before,
+which would make a proposal operative, and not after, which would leave a window
+where nothing names the block. Renamed rather than deleted, because the fact is
+still true; only the reason was wrong.
+
 ### D5: Trust is descriptive, stated as a prohibition
 
 A mapping table invites a future reader to find the row where a trust tier means

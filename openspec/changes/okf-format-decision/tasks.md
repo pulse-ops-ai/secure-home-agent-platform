@@ -33,11 +33,15 @@ The authority names this landing exactly. Constraints honoured: ADR-0015 is
 `Proposed`, no toolchain code exists, U7 stays open, the spike lives outside the
 repository and is not committed.
 
-**One discrepancy, recorded rather than assumed away.** The task describes
+**One discrepancy, recorded rather than assumed away.** The task described
 ADR-0014 as "accepted". It is `Proposed`, and PR #83 is open and unmerged.
-ADR-0015 therefore depends on nothing that requires ADR-0014's acceptance: the
-one reference (§5's `governs` field) is a repository-profile requirement of
-ADR-0015's own, and the citation is marked `Proposed`.
+
+**Corrected on review:** an earlier version of this note claimed ADR-0015
+"depends on nothing that requires ADR-0014's acceptance." That was wrong. §5's
+`governs` field depends on ADR-0014's canonical-source model for its meaning, so
+§3a now states the ordering constraint: ADR-0014 must be `Accepted` before
+ADR-0015 may be. Both may remain `Proposed` together, and the decisions stay
+separately reviewable.
 
 ---
 
@@ -150,6 +154,45 @@ boundary is a prohibition, and authoring is visibly still blocked.
       break; external and `governs` references can; tolerant reading is still
       required for foreign OKF input.
 
+## 6. Pre-acceptance correction
+
+- [x] **6.1 Acceptance ordering made explicit** — §3a. `governs` depends on
+      ADR-0014's canonical-source model, so **ADR-0014 must be `Accepted` before
+      ADR-0015 may be**. The earlier claim that this ADR "depends on nothing
+      requiring ADR-0014's acceptance" was wrong: marking a citation `Proposed`
+      records the source's status, it does not remove the dependency.
+
+- [x] **6.2 §9 reference lifetimes corrected** — a bundle-internal reference
+      that passed admission is frozen inside the immutable package and cannot
+      later break; external and `governs` references can. Tolerant reading is
+      required for external references and foreign OKF input, not for a broken
+      internal link in one of our own packages.
+
+- [x] **6.3 Acceptance migration inventoried** — §13. Named exactly, not
+      executed here.
+
+## Acceptance obligations — what the ACCEPTANCE commit must do
+
+Listed so acceptance is mechanical and checkable, not improvised. **None of it
+is done in this change**; doing it now would make a `Proposed` decision
+operative.
+
+- [ ] **ADR-0014 accepted first** (§3a).
+- [ ] **Atomic in the commit that closes U7** — rename `blockedByU7` →
+      `blockedByToolchain` across `knowledge/catalog.json` (23 occurrences,
+      every module and set) and both required-field lists in
+      `scripts/check-knowledge.mjs`.
+- [ ] Re-point the three U7-citing failure messages in `check-knowledge.mjs`
+      (publishable status ×2, authored content ×1) at the toolchain gate.
+- [ ] Re-point U7 citations in `knowledge/INDEX.md`, `knowledge/README.md`,
+      `knowledge/AGENTS.md`, and root `AGENTS.md`.
+- [ ] Correct any ADR-0014 language making authoring wait on U7.
+- [ ] Assert `blockedByToolchain === true` until §12 is discharged, so opening
+      authoring is a deliberate edit rather than a side effect of closing U7.
+
+The failure this prevents: U7 closes, `blockedByU7` remains in the schema, and a
+reader concludes authoring is open because the item it names is no longer open.
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0015 exists, is `Proposed`, carries every section `docs/AGENTS.md` requires.
@@ -167,8 +210,8 @@ Recorded voluntarily; the rule requiring it is not operative while ADR-0014 is
 
 | Truth | Kind | Canonical home | Projection outcome |
 |---|---|---|---|
-| OKF trust signals confer no authority | architecture | ADR-0015 §10 | **project when the gate opens** — an agent reasoning from a module must know its trust tier grants nothing |
-| Admission rejects, consumption tolerates | architecture | ADR-0015 §4 | **project when the gate opens** — an authoring agent needs it |
+| OKF trust signals confer no authority | architecture | ADR-0015 §10 | **project when the toolchain gate opens** — an agent reasoning from a module must know its trust tier grants nothing |
+| Admission rejects, consumption tolerates | architecture | ADR-0015 §4 | **project when the toolchain gate opens** — an authoring agent needs it |
 | Digest identity is over raw bytes | architecture | ADR-0015 §6 | probably **not** projected — a packaging property no agent reasons from |
 
 The third row is a deliberate "no". Recording it is what the determination

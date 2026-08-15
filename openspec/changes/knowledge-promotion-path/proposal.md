@@ -137,4 +137,4 @@ Until acceptance the rule is discoverable and non-operative.
 None blocking. One deferred to authoring time: whether architecture *design* and
 architecture *falsification* warrant separate sets — `architecture-default` and
 an `architecture-review-default` — since least context is a control. That is a
-`knowledge/INDEX.md` decision and cannot be taken before U7 opens.
+`knowledge/INDEX.md` decision and cannot be taken before the toolchain gate opens.

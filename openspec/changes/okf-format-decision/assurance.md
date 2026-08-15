@@ -33,6 +33,8 @@ ADR-0010 exists to prevent. The invariants are aimed there.
 | KF-INV-09 | `as_of` (factual currency) is distinct from `generated.at` (production time); regeneration never advances factual currency | behavior |
 | KF-INV-10 | Execution-bearing OKF content — `Attested Computation`, `runtime`, `computation`, `executor`, `attester` — is refused at admission, by field as well as by type | trust |
 | KF-INV-11 | The manifest's byte serialization is normative and versioned, so two conforming implementations agree on a bundle digest | behavior |
+| KF-INV-12 | ADR-0014 is `Accepted` before ADR-0015 may be; `governs` has no meaning without its canonical-source model | trust |
+| KF-INV-13 | The acceptance commit migrates `blockedByU7` → `blockedByToolchain` ATOMICALLY with closing U7, so no state exists in which U7 is closed and the only named block is an item that is no longer open | trust |
 | KF-INV-08 | Nothing is operative while ADR-0015 is `Proposed`, and no lower-precedence artifact makes it so | trust |
 
 ## State-Space Model
@@ -59,6 +61,8 @@ reading would wrongly claim.
 | KF-EX-09 | KF-INV-09 | structural | the profile requires `as_of` separately, and the ADR cites the upstream definition of `generated.at` as last meaningful content change |
 | KF-EX-10 | KF-INV-10 | structural | §5b refuses the type and the four execution-bearing fields, citing the upstream sentence that a `resource` may be a Skill, script, or container |
 | KF-EX-11 | KF-INV-11 | structural | §6 pins the manifest line format, ordering, prefix, and what the final digest hashes |
+| KF-EX-12 | KF-INV-12 | structural | §3a states the ordering constraint and the acceptance obligations list it first |
+| KF-EX-13 | KF-INV-13 | structural | §13 inventories every file and field the acceptance commit must migrate, with counts, so completeness is checkable |
 | KF-EX-06 | KF-INV-08 | structural | no lower-precedence artifact presents the decision as operative |
 | KF-EX-07 | KF-INV-04 | review | the spec delta carries a negative scenario for conflating the two layers |
 | KF-EX-08 | — | structural | `check-knowledge.mjs` still passes; no module, set, or catalog entry added |

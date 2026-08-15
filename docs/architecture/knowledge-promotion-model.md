@@ -50,9 +50,27 @@ every row above — not only for architecture. A procedure does not become
 canonically owned by `knowledge/runbooks/` merely because it is a procedure: its
 canonical home is whichever row it belongs to, and the runbook projects it.
 
-**Every module and runbook identifies its governing canonical source or
-sources.** One that names none is either a projection of nothing or an original
-in the wrong place.
+### What a projection may do
+
+A projection **MAY** summarize, subset, transform, reorganize, or restate
+semantic content from its governing canonical sources as needed for agent
+reasoning.
+
+It **MUST** identify those sources, never claim independent authority for the
+projected statement, remain subordinate to them, and is **defective** when it
+disagrees materially with them.
+
+**The canonical source owns the truth. The module owns only the agent-facing
+representation.**
+
+Note what this is not. "Reference, never restate" would make portable knowledge
+a link index — pointers to documents an agent may not be able to open, which
+defeats the portability the format was chosen for. Restating is how a projection
+works. Restating *while claiming to be the source* is the defect. The line is
+authority, not wording.
+
+One that names no governing source is either a projection of nothing or an
+original in the wrong place.
 
 ## The path
 
@@ -153,11 +171,15 @@ promoted.
 
 ## What is blocked today
 
-**Authoring.** [U7](unresolved-decisions.md#u7) gates the first real bundle on
-the OKF validator and toolchain existing, precisely so an unvalidated format does
-not become load-bearing by accident. Until U7 closes, the path terminates at the
-canonical home: a change would determine whether a truth should be promoted and
-record the determination, and no module is written.
+**Authoring.** The ADR-0010 validator and toolchain do not exist, precisely so
+an unvalidated format does not become load-bearing by accident.
+[U7](unresolved-decisions.md#u7) currently tracks that block;
+[ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+(`Proposed`) would separate the format question from the toolchain gate, so a
+closed U7 cannot read as permission to author. Under either model the block
+holds today, and the path terminates at the canonical home: a change would
+determine whether a truth should be promoted and record the determination, and
+no module is written.
 
 The L4 orchestration landing
 ([`openspec/changes/runner-control-orchestration`](../../openspec/changes/runner-control-orchestration/))
@@ -165,8 +187,8 @@ is a substantial source of candidates — effect classification and identity,
 replay semantics, boundary ownership, and proof construction among them. That
 landing is still under falsification, so those are examples rather than a
 complete or final set, and further classes may emerge. Each candidate is subject
-to the "must an agent reason from it?" criterion when U7 opens, and some will
-not survive it.
+to the "must an agent reason from it?" criterion when the toolchain gate opens,
+and some will not survive it.
 
 ## Governed by
 

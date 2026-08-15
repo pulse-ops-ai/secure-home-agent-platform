@@ -24,7 +24,7 @@ is its decision record. The invariants below are aimed at exactly that.
 | ID | Invariant | Class |
 |---|---|---|
 | KP-INV-01 | A durable truth is canonically stated once, in the home its KIND determines; other layers reference it. No text is duplicated between ADR-0014 and `knowledge-promotion-model.md` | trust |
-| KP-INV-01b | `knowledge/` is never the sole original for ANY kind of truth — a procedure does not become owned by the runbook that projects it, and every module names its governing canonical source | trust |
+| KP-INV-01b | `knowledge/` is never the sole original for ANY kind of truth, and every module names its governing canonical source. A projection MAY summarize, subset, transform, reorganize, or restate; it MUST NOT claim independent authority, and is defective when it materially disagrees with its source | trust |
 | KP-INV-02 | A provider-native skill or instruction file is never the sole canonical home of an architectural invariant, engineering policy, review policy, or operational procedure. Information that must survive a runtime swap has a provider-neutral canonical source | trust |
 | KP-INV-03 | Project knowledge reaches a run through the profile-selected set, never through the runner image | trust |
 | KP-INV-04 | Promotion confers no authority: a projected module never overrides its canonical source, and grants no tool or capability | trust |

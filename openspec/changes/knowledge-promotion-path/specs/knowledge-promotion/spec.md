@@ -19,14 +19,14 @@ by its kind:
 | executable or normative platform contracts | their existing governed contract or specification owner |
 | portable, agent-facing representation of any of the above | `knowledge/platform/` or `knowledge/runbooks/`, as a projection |
 
-Every other layer SHALL reference that statement rather than restate it.
+Every other layer SHALL be subordinate to that statement.
 
 #### Scenario: A review discovers a durable engineering truth
 
 - **WHEN** a falsification review establishes that a bound belongs at the port
   rather than at the call site
 - **THEN** the truth is stated in canonical architecture
-- **AND** any other layer that needs it references that statement
+- **AND** any other layer that needs it is subordinate to that statement
 
 #### Scenario: A finding is specific to one change
 
@@ -35,12 +35,27 @@ Every other layer SHALL reference that statement rather than restate it.
 - **THEN** no canonical statement is created
 - **AND** the determination that it was not durable is recorded in that change
 
-#### Scenario: Two copies of a rule (negative)
+#### Scenario: A projection restates its source in agent-facing form
 
-- **WHEN** a change would state the same invariant in both an ADR and a
-  knowledge module as independent originals
+- **WHEN** a knowledge module summarizes, subsets, transforms, reorganizes, or
+  restates content from its governing canonical source
+- **THEN** that is permitted and expected
+- **AND** the module names the source, claims no independent authority, and
+  remains subordinate to it
+
+#### Scenario: A projection claiming to be the source (negative)
+
+- **WHEN** a module states an invariant as its own original rather than as a
+  projection
 - **THEN** the change is incorrect
-- **AND** the module SHALL project the canonical statement and reference it
+- **AND** the defect is the claim of authority, not the restating
+
+#### Scenario: A projection that materially disagrees with its source
+
+- **WHEN** a module's content materially disagrees with the canonical source it
+  names
+- **THEN** the module is defective
+- **AND** the canonical source governs
 
 #### Scenario: A procedure is not owned by the runbook that projects it
 
