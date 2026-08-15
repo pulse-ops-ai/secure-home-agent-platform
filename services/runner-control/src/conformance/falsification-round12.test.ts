@@ -38,6 +38,7 @@ import type {
   WorkspaceProvision,
 } from '../ports/index.js'
 import type { TransitionEntry } from '../lifecycle/index.js'
+import { InMemoryWorkspaceLifecycle } from '../workspace/index.js'
 import {
   CountingAuthoritySource,
   governedWrites,
@@ -333,7 +334,10 @@ class NondeterministicSession implements ExecutionSessionPort {
   }
 
   prepare(request: SessionPrepareRequest): Promise<SessionPreparation> {
-    const session_ref = `session-random-${String(this.created.length + 1)}`
+    // The resource may still be internally allocated nondeterministically,
+    // but its caller-known acquisition identity is the address by which
+    // teardown must resolve it after a lost acknowledgement.
+    const session_ref = request.session_ref
     this.created.push(session_ref)
     if (this.#loseAcknowledgement) return new Promise<never>(() => {})
     return Promise.resolve({
@@ -409,8 +413,12 @@ class NondeterministicWorkspace implements WorkspaceLifecyclePort {
     this.#loseAcknowledgement = loseAcknowledgement
   }
 
-  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision> {
-    const workspace_ref = `workspace-random-${String(this.created.length + 1)}`
+  provision(
+    request: RunFence & { readonly workspace_ref: string; readonly source_ref: string },
+  ): Promise<WorkspaceProvision> {
+    // Preserve the adversarial lost acknowledgement while binding the
+    // physical resource to the identity the caller supplied before the call.
+    const workspace_ref = request.workspace_ref
     this.created.push(workspace_ref)
     if (this.#loseAcknowledgement) return new Promise<never>(() => {})
     return Promise.resolve({ ok: true, handle: { workspace_ref, root: request.source_ref } })
@@ -468,35 +476,37 @@ describe('RO-EX-167: workspace acquisition identity exists before the acknowledg
   })
 })
 
-class ReplayUnsafeApplyBack implements WorkspaceLifecyclePort {
-  readonly applied: ApplyBackRequest[] = []
+class LostAcknowledgementReferenceWorkspace implements WorkspaceLifecyclePort {
+  readonly #reference = new InMemoryWorkspaceLifecycle()
   #first = true
 
-  provision(request: RunFence & { readonly source_ref: string }): Promise<WorkspaceProvision> {
-    return Promise.resolve({
-      ok: true,
-      handle: { workspace_ref: `workspace:${request.run_id}`, root: request.source_ref },
-    })
+  provision(
+    request: Parameters<WorkspaceLifecyclePort['provision']>[0],
+  ): Promise<WorkspaceProvision> {
+    return this.#reference.provision(request)
   }
 
-  applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome> {
-    this.applied.push(request)
+  async applyBack(request: ApplyBackRequest): Promise<ApplyBackOutcome> {
+    const outcome = await this.#reference.applyBack(request)
     if (this.#first) {
       this.#first = false
-      return Promise.reject(new Error('apply acknowledgement lost after physical apply'))
+      throw new Error('apply acknowledgement lost after physical apply')
     }
-    return Promise.resolve({ ok: true, applied: request.changes.length })
+    return outcome
   }
 
-  discard(): Promise<FenceOutcome> {
-    return Promise.resolve({ ok: true })
+  discard(request: Parameters<WorkspaceLifecyclePort['discard']>[0]): Promise<FenceOutcome> {
+    return this.#reference.discard(request)
+  }
+
+  appliedFor(run_id: string): number {
+    return this.#reference.appliedFor(run_id)
   }
 }
 
 describe('RO-EX-168: apply-back replay has a stable logical identity', () => {
-  it('a legal implementation can apply the same lost-ack request twice', async () => {
-    const workspace: WorkspaceLifecyclePort = new ReplayUnsafeApplyBack()
-    const physical = workspace as ReplayUnsafeApplyBack
+  it('the reference implementation applies one lost-ack materialization once', async () => {
+    const workspace = new LostAcknowledgementReferenceWorkspace()
     const request: ApplyBackRequest = {
       run_id: RUN,
       generation: 1,
@@ -506,9 +516,9 @@ describe('RO-EX-168: apply-back replay has a stable logical identity', () => {
     }
 
     await expect(workspace.applyBack(request)).rejects.toThrow('acknowledgement lost')
-    expect(physical.applied).toHaveLength(1)
+    expect(workspace.appliedFor(RUN)).toBe(1)
     await expect(workspace.applyBack(request)).resolves.toMatchObject({ ok: true })
-    expect(physical.applied).toHaveLength(1)
+    expect(workspace.appliedFor(RUN)).toBe(1)
   })
 })
 
