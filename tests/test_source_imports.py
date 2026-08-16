@@ -913,3 +913,39 @@ def test_the_real_repository_has_no_cross_member_relative_import() -> None:
     result = _imports(REPO_ROOT)
     assert result.returncode == 0, _output(result)
     assert "outside its own workspace member" not in _output(result)
+
+
+# --- an absolute specifier is absolute in every spelling --------------------
+#
+# ROUND-5 P1. `ABSOLUTE_SPECIFIER` recognised three shapes — POSIX root, a
+# Windows drive path, and a `file:` URL — but the rejection that followed asked
+# whether the RESOLVED string began with `/`, `../`, or was exactly `..`. Only
+# the POSIX spelling satisfies that. The other two matched the guard, skipped
+# the failure, and fell through to `continue`: recognised, then waved past.
+#
+# An absolute specifier cannot be "inside this member" under any portable
+# workspace model, so matching it is the whole decision.
+
+
+def test_a_file_url_specifier_is_rejected(tmp_path: Path) -> None:
+    ws = _member_escape(tmp_path, "ws-file-url")
+    ws.source(
+        "packages/query-model/src/index.ts",
+        "import * as m from 'file:///outside/private.js'\nexport const a = m",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a file: URL is outside the member"
+    assert "outside its own workspace member" in _output(result)
+
+
+def test_a_windows_drive_path_specifier_is_rejected(tmp_path: Path) -> None:
+    ws = _member_escape(tmp_path, "ws-drive-path")
+    ws.source(
+        "packages/query-model/src/index.ts",
+        r"import * as m from 'C:\\outside\\private.js'" + "\nexport const a = m",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a drive-letter path is outside the member"
+    assert "outside its own workspace member" in _output(result)

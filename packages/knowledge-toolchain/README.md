@@ -65,6 +65,17 @@ href, src, srcset, poster, cite, formaction, ping, and whatever comes next — a
 enumerating them would rebuild the original defect in a new costume. An autolink
 is not a tag: it requires a scheme, so it is always external.
 
+**A bare destination may not contain parentheses.** CommonMark allows balanced
+ones; this subset is narrower on purpose, because reading them wrongly does not
+merely fail — it can re-point a reference. In a bundle containing `foo(bar.md`,
+the document `[x](foo(bar.md))` names `foo(bar.md)`, which does not exist;
+stopping at the first `)` yields `foo(bar.md`, which does, so a broken reference
+was admitted as a sound one pointing somewhere the author never wrote. A misread
+that *resolves* is worse than one that fails. `<...>` is delimited and is the
+supported way to write such a destination — including for external URLs, since
+the guard cannot ask whether a target is external without first doing the parse
+it is guarding.
+
 Two smaller places where the code now matches what its comments claimed: `\[` is
 literal, so `\[model](missing.md)` is documentation rather than a broken link
 (destinations are read at *matched, unescaped* brackets, tracked with a stack);

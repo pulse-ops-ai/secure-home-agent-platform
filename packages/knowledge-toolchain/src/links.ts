@@ -135,6 +135,55 @@ const classify = (raw: string, line: number): LinkTarget => {
   return { kind: 'internal', raw: trimmed.split('#')[0] ?? trimmed, line }
 }
 
+/**
+ * The index of the `)` that closes a destination opened at `from`, or -1.
+ *
+ * Stopping at the FIRST `)` did not merely truncate — it could re-point a
+ * reference at a different file. Given a bundle containing `foo(bar.md` and a
+ * document writing `[x](foo(bar.md))`, the real destination is `foo(bar.md)`,
+ * which does not exist; the truncated one does, so a broken reference was
+ * admitted as a sound reference to somewhere the author never named.
+ *
+ * A misread that RESOLVES is worse than one that fails, because nothing
+ * downstream can tell it happened.
+ *
+ * Parentheses inside the angle form are literal, so that span is skipped before
+ * depth counting begins.
+ */
+const destinationEnd = (line: string, from: number): number => {
+  let at = from
+  if (line[at] === '<') {
+    const shut = line.indexOf('>', at + 1)
+    if (shut === -1) return -1
+    at = shut + 1
+  }
+  let depth = 0
+  for (; at < line.length; at += 1) {
+    if (line[at] === '(') depth += 1
+    else if (line[at] === ')') {
+      if (depth === 0) return at
+      depth -= 1
+    }
+  }
+  return -1
+}
+
+/**
+ * A destination the closed subset can read, or an explicit refusal.
+ *
+ * A BARE destination containing a parenthesis is outside the admitted subset.
+ * CommonMark does allow balanced parentheses there, so this is narrower than
+ * the specification on purpose: the initial subset takes the unambiguous form
+ * and refuses the rest rather than guessing. `<...>` is the supported way to
+ * write one, and it is delimited, so it cannot be misread.
+ *
+ * The rule does not ask whether the target is internal or external. It could
+ * not: classification depends on having parsed the destination, which is the
+ * step in question.
+ */
+const readDestination = (raw: string, line: number): LinkTarget =>
+  !raw.startsWith('<') && /[()]/.test(raw) ? { kind: 'unreadable', raw, line } : classify(raw, line)
+
 /** A reference definition line: `[label]: dest ["title"]`. */
 const DEFINITION = /^\s{0,3}\[[^\]]+\]:\s*(\S+)(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/
 const DEFINITION_START = /^\s{0,3}\[[^\]]+\]:/
@@ -183,7 +232,7 @@ export const linkTargets = (text: string): readonly LinkTarget[] => {
       found.push(
         definition?.[1] === undefined
           ? { kind: 'unreadable', raw: line.trim(), line: lineNumber }
-          : classify(definition[1], lineNumber),
+          : readDestination(definition[1], lineNumber),
       )
       return
     }
@@ -200,19 +249,17 @@ export const linkTargets = (text: string): readonly LinkTarget[] => {
         at += 1
         continue
       }
-      const close = line.indexOf(')', at + 2)
+      const close = destinationEnd(line, at + 2)
       if (close === -1) {
         found.push({ kind: 'unreadable', raw: line.slice(at + 1), line: lineNumber })
         break
       }
-      // A destination containing an unescaped `)` ends early and then fails to
-      // resolve — a refusal, not a silent miss. This grammar fails closed.
       const inner = line.slice(at + 2, close)
       const destination = DESTINATION.exec(inner)
       found.push(
         destination?.[1] === undefined
           ? { kind: 'unreadable', raw: inner, line: lineNumber }
-          : classify(destination[1], lineNumber),
+          : readDestination(destination[1], lineNumber),
       )
       at = close + 1
     }

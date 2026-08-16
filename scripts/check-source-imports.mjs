@@ -411,11 +411,31 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
         // NO REACHING INTO ANOTHER MEMBER'S SOURCE TREE. Checked for every
         // zone: this one is not a layering rule, so the test relaxations do not
         // apply to it.
-        if (ABSOLUTE_SPECIFIER.test(specifier) || RELATIVE_SPECIFIER.test(specifier)) {
-          const resolved = ABSOLUTE_SPECIFIER.test(specifier)
-            ? specifier
-            : posix.normalize(posix.join(posix.dirname(file), specifier))
-          if (resolved === '..' || resolved.startsWith('../') || resolved.startsWith('/')) {
+        // An absolute specifier is decided by MATCHING it. There is no portable
+        // workspace model in which `/x`, `C:\x`, or `file:///x` is inside this
+        // member, so there is nothing left to resolve.
+        //
+        // The first version asked whether the resolved string began with `/`,
+        // `../`, or was exactly `..` — which only the POSIX spelling satisfies.
+        // A `file:` URL and a drive path matched the guard, failed that test,
+        // and fell through to `continue`: recognised, then waved past. A rule
+        // that names three shapes and enforces one is worse than a rule that
+        // names one, because the other two read as covered.
+        if (ABSOLUTE_SPECIFIER.test(specifier)) {
+          fail(
+            `${where}: imports "${specifier}", an absolute specifier — it is outside its own ` +
+              'workspace member by construction, and members communicate through published ' +
+              "package exports, never by reaching into another member's source tree",
+          )
+          continue
+        }
+
+        if (RELATIVE_SPECIFIER.test(specifier)) {
+          // Resolved against the importing file's own directory: `../` is not a
+          // violation by itself, and a prefix test would flag ordinary
+          // intra-member structure.
+          const resolved = posix.normalize(posix.join(posix.dirname(file), specifier))
+          if (resolved === '..' || resolved.startsWith('../')) {
             fail(
               `${where}: imports "${specifier}", which resolves outside its own workspace ` +
                 `member (${resolved}) — members communicate through published package ` +

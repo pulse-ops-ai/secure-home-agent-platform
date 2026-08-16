@@ -313,6 +313,82 @@ describe('R3 P1: internal references use a closed link grammar', () => {
   })
 })
 
+// ══ ROUND 5 · P1 — a truncated destination became a DIFFERENT target ════
+
+describe('R5 P1: a destination is never silently re-pointed', () => {
+  // The adversarial set. `foo(bar.md` is a real member; `foo(bar.md)` is not.
+  const paren = (body: string): SourceFile[] => [
+    { path: 'index.md', bytes: bytes(INDEX) },
+    { path: 'model.md', bytes: bytes(`${concept()}\n${body}\n`) },
+    { path: 'foo(bar.md', bytes: bytes(concept()) },
+  ]
+
+  it('control: the decoy member really is admissible on its own', () => {
+    // Without this, the test below could pass because the bundle was refused
+    // for some unrelated reason rather than because the reference was caught.
+    expect(run(paren('No links here.')).refusals).toEqual([])
+  })
+
+  it('does not truncate a balanced destination into a file that exists', () => {
+    // THE DEFECT. The destination is `foo(bar.md)`, which is NOT a member, so
+    // the reference is broken. Stopping at the FIRST `)` yields `foo(bar.md`,
+    // which IS a member — so a broken reference was admitted as a sound one,
+    // pointing somewhere the author never wrote. Reinterpretation, not a miss.
+    expect(rules(run(paren('See [x](foo(bar.md))')).refusals)).toContain('reference.unreadable')
+  })
+
+  it('and it is not quietly re-pointed at the decoy either', () => {
+    const refusals = run(paren('See [x](foo(bar.md))')).refusals
+    expect(refusals.length, 'exactly one finding, about the unreadable syntax').toBe(1)
+  })
+
+  it('a bare destination with parentheses is unreadable, not guessed', () => {
+    expect(rules(run(paren('See [x](foo(bar).md)')).refusals)).toContain('reference.unreadable')
+  })
+
+  it('the ANGLE-BRACKET form is the supported way to write one', () => {
+    const set: SourceFile[] = [
+      { path: 'index.md', bytes: bytes(INDEX) },
+      { path: 'model.md', bytes: bytes(`${concept()}\nSee [x](<foo(bar).md>)\n`) },
+      { path: 'foo(bar).md', bytes: bytes(concept()) },
+    ]
+    expect(run(set).refusals, 'unambiguous, so it resolves').toEqual([])
+  })
+
+  it('the angle form is delimited, so an unbalanced parenthesis inside it is literal', () => {
+    const set: SourceFile[] = [
+      { path: 'index.md', bytes: bytes(INDEX) },
+      { path: 'model.md', bytes: bytes(`${concept()}\nSee [x](<a(b.md>)\n`) },
+      { path: 'a(b.md', bytes: bytes(concept()) },
+    ]
+    expect(run(set).refusals, 'depth counting must start after the angle span').toEqual([])
+  })
+
+  it('a reference DEFINITION carries the same rule, not a second grammar', () => {
+    expect(rules(run(paren('See [x][m]\n\n[m]: foo(bar.md)')).refusals)).toContain(
+      'reference.unreadable',
+    )
+  })
+
+  it('controls: the ordinary destination forms are untouched', () => {
+    expect(run(members(`${concept()}\nSee [i](index.md).\n`)).refusals).toEqual([])
+    expect(run(members(`${concept()}\nSee [i](index.md "Title").\n`)).refusals).toEqual([])
+    expect(run(members(`${concept()}\nSee [i](<index.md>).\n`)).refusals).toEqual([])
+    expect(run(members(`${concept()}\nSee [i](index.md (Title)).\n`)).refusals).toEqual([])
+    expect(run(members(`${concept()}\nSee [x](https://example.test/a).\n`)).refusals).toEqual([])
+  })
+
+  it('an EXTERNAL URL must use the angle form to carry parentheses too', () => {
+    // The guard cannot ask whether a target is external, because deciding that
+    // requires the parse being guarded. So the subset is uniform: bare
+    // parentheses are unreadable wherever they appear, and `<…>` is delimited.
+    const bare = `${concept()}\nSee [x](https://example.test/a(b)).\n`
+    expect(rules(run(members(bare)).refusals)).toContain('reference.unreadable')
+    const angled = `${concept()}\nSee [x](<https://example.test/a(b)>).\n`
+    expect(run(members(angled)).refusals).toEqual([])
+  })
+})
+
 // ══ ROUND 4 · the admitted subset is Markdown WITHOUT raw HTML ══════════
 
 const TICK = '`'
