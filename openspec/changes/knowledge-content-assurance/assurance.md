@@ -36,6 +36,8 @@ wrong would substitute a second false comfort for the first.
 | CA-INV-12 | The policy identifier denotes ADR-0016 §1–§2 as accepted; changing review meaning requires a new version, and old attestations do not satisfy it | trust |
 | CA-INV-13 | `blockedByToolchain` and `blockedByRollout` are independent, per-entry, machine-readable, and asserted; a module authors only when both are `false` | behavior |
 | CA-INV-14 | Runbook eligibility is per-module allowlist, never by directory | behavior |
+| CA-INV-15 | Proof B binds to the EXACT attestation — actor, policy, sourceDigest, revision. Changing any of them invalidates it and requires new review evidence | trust |
+| CA-INV-16 | Every set starts `blockedByRollout: true`, and an unblocked set never resolves a blocked module | behavior |
 
 ## State-Space Model
 
@@ -68,6 +70,10 @@ cell is the one an implementation could otherwise reach by accident.
 | CA-EX-12 | CA-INV-12 | deferred, executable | an attestation naming an older policy version fails under a newer one |
 | CA-EX-13 | CA-INV-13 | deferred, executable | household refused while toolchain readiness is `true`; eligible platform module proceeds when both gates and attestation are satisfied |
 | CA-EX-14 | CA-INV-03 | deferred, executable | a deterministic finding refuses despite BOTH valid content binding and valid human-review evidence |
+| CA-EX-15 | CA-INV-15 | deferred, executable | review evidence whose identity does not correspond to `contentReview.by` does not satisfy it |
+| CA-EX-16 | CA-INV-15 | deferred, executable | valid prior Proof B replayed against a materially changed attestation → NOT publishable |
+| CA-EX-17 | CA-INV-16 | deferred, executable | a set with `blockedByRollout: false` does not resolve a module with `true` |
+| CA-EX-18 | CA-INV-16 | deferred, structural | every set in the catalog carries `blockedByRollout: true` initially |
 
 ## Verification Strategy
 

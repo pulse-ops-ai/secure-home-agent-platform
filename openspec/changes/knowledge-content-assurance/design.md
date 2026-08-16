@@ -94,6 +94,22 @@ one variable mean two facts — the exact defect the U7 migration removed.
 individually rather than by directory, so filing a household runbook under
 `runbooks/` cannot make it eligible.
 
+### D4e: Proof B binds to the attestation, as Proof A binds to the content
+
+Symmetric properties one level apart. Editing content invalidates Proof A;
+editing the attestation — its actor, policy, digest, or revision — invalidates
+Proof B. Without the second, a reviewed attestation could have its actor swapped
+afterwards and carry the original review forward. The invariant is stated
+provider-neutrally: the governed evidence identifies the exact attestation
+revision it approved. How a forge records that permanently is an implementation.
+
+### D4f: Sets are gated too, and compose in one direction
+
+A set's gate asks whether the composition has been released for profile use — a
+different question from whether its members may author. All sets start blocked,
+and an unblocked set never resolves a blocked module. Otherwise set release
+becomes a back door around the per-module control it sits above.
+
 ### D5: Dominance, stated as a table
 
 The row that matters is *finding present + attestation valid → REFUSE*. Without

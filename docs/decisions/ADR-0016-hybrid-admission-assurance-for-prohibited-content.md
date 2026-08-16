@@ -191,19 +191,49 @@ the content review.
 > anything.
 
 **Publication eligibility requires BOTH.** Proof A is necessary and not
-sufficient. Where the repository's governed workflow supplies independent review
-evidence — an approving review on the change that introduced the attestation,
-or another explicitly governed signal — that evidence is Proof B.
+sufficient.
+
+##### What Proof B must bind to
+
+Proof A binds the **content**. Proof B binds the **human review event to the
+exact attestation**. Neither substitutes for the other, and a Proof B that is
+not bound to a specific attestation attests to nothing in particular.
+
+Governed human-review evidence SHALL establish that:
+
+- the eligible human identity **corresponds to `contentReview.by`** — a review by
+  someone other than the named actor does not satisfy an attestation naming that
+  actor;
+- the review applies to the **exact current `policy` version**;
+- the review applies to the **exact current `sourceDigest`**;
+- the review applies to the **exact current attestation record or revision**.
+
+**Changing `by`, `policy`, `sourceDigest`, or any other identity-bearing
+attestation field after review invalidates Proof B and requires a new one.**
+
+This is the symmetric property to §5's byte binding, one level up: editing the
+content invalidates Proof A, and editing the attestation invalidates Proof B.
+Without the second, a reviewed attestation could be edited afterwards — its
+actor swapped, its policy relabelled — while carrying the original review
+forward.
+
+**Provider-neutral, deliberately.** The invariant is *"the governed review
+evidence identifies the exact attestation revision it approved."* How a given
+forge represents that permanently — a review bound to a commit, a signed record,
+an append-only log entry — is an implementation of the invariant, not the
+invariant. This ADR does not select a GitHub-specific representation, because
+existing repository governance does not require one.
 
 **Where this repository stands today, stated plainly.** There is **no
 mechanically checkable reviewer-authenticity signal** available to an offline
-validator. Until one exists, or is supplied at the governed workflow boundary
-and recorded, **publication remains blocked** — the toolchain may confirm
-Proof A and must not report the module publishable on that basis alone.
+validator, and therefore none bound to an attestation revision. Until one exists,
+or is supplied at the governed workflow boundary and recorded, **publication
+remains blocked** — the toolchain may confirm Proof A and must not report the
+module publishable on that basis alone.
 
-This does not add a network or model dependency to content admission. Proof A
-stays offline and deterministic; Proof B is established outside it, by the
-review process, at the workflow boundary.
+This adds no network or model dependency to content admission. Proof A stays
+offline and deterministic; Proof B is established outside it, by the review
+process, at the workflow boundary.
 
 #### 5b. `portable-knowledge-prohibited-content-v1` is anchored to an immutable definition
 
@@ -281,18 +311,40 @@ decision operative. It is an acceptance obligation (§10).
 runbook would qualify by living under `runbooks/`, which is an accident of path,
 not a decision. So eligibility is defined as:
 
-| Scope | Initial `blockedByRollout` | Rule |
+Every catalog entry gets an exact initial value — **modules and sets alike**:
+
+| Entry | Initial `blockedByRollout` | Rule |
 |---|---|---|
-| `platform/**` | `false` on gate discharge | portable platform and engineering knowledge; eligible subject to both gates and attestation |
-| `runbooks/**` | `true` **by default** | eligible **only** by explicit per-module allowlist entry |
-| `household/**` | `true` | blocked by rollout policy, not by toolchain readiness |
+| `platform/**` modules | `false` on gate discharge | portable platform and engineering knowledge; eligible subject to both gates and attestation |
+| `runbooks/**` modules | `true` **by default** | eligible **only** by explicit per-module allowlist entry |
+| `household/**` modules | `true` | blocked by rollout policy, not by toolchain readiness |
+| **every set** | **`true`** | conservative initial posture; released individually |
 
 **Runbooks are allowlisted individually, never by directory.** A new runbook is
 ineligible on creation and becomes eligible only when a reviewed change adds it
 to the allowlist — so a household-oriented runbook cannot become eligible
-because of where it was filed.
+because of where it was filed. The allowlist is empty in this ADR; populating it
+is a separate reviewed change.
 
-The allowlist is empty in this ADR. Populating it is a separate reviewed change.
+##### Sets have their own rollout gate, and it composes conservatively
+
+A set's `blockedByRollout` means **the composition itself has been released for
+profile use** — a different question from whether each member module may author.
+A set can be sound module-by-module and still not be a composition anyone has
+agreed to expose to a profile.
+
+The two gates compose in one direction only:
+
+> **A set with `blockedByRollout: false` NEVER overrides a selected module whose
+> `blockedByRollout` is `true`.**
+
+Resolution refuses on the blocked module. Releasing a set is not a way to release
+its members, and an unblocked set is not a bypass — otherwise set release would
+become a back door around per-module rollout policy, which is precisely the
+control the module gate exists to be.
+
+**All sets start blocked.** Releasing one later is an explicit reviewed rollout
+transition, exactly like allowlisting a runbook.
 
 #### 7b. What the scope limit is not
 
@@ -357,7 +409,13 @@ must include:
    independently — a household module remains refused when toolchain readiness
    is `true`, and an eligible platform module proceeds only when **both** gates
    and the attestation requirements are satisfied;
-10. a structural proof that **no classifier or model participates in admission**.
+10. **set composition**: an unblocked set does **not** resolve a module whose
+    `blockedByRollout` is `true`, and every set carries `true` initially;
+11. **Proof B binding**: review evidence whose identity does not correspond to
+    `contentReview.by` does not satisfy it; and a Proof B replayed against an
+    attestation whose `by`, `policy`, `sourceDigest`, or revision has materially
+    changed does **not** make the module publishable;
+12. a structural proof that **no classifier or model participates in admission**.
 
 **Naming rule, enforced in review:** a test may not be named or registered as
 proof of a class when it establishes one indicator. B-class tests are named for
@@ -368,12 +426,15 @@ the indicator they detect.
 Listed so the acceptance commit is mechanical and checkable. **None of it is done
 here**; doing it now would make a `Proposed` decision operative.
 
-- [ ] Add `blockedByRollout` as a required boolean on every module and set in
-      `knowledge/catalog.json`, initialised per §7a — `true` on `household/**`
-      and `runbooks/**`, `true` on `platform/**` until the toolchain gate is
-      discharged.
+- [ ] Add `blockedByRollout` as a required boolean on **every module and every
+      set** in `knowledge/catalog.json`, with an exact initial value per §7a:
+      `true` on `household/**`, `true` on `runbooks/**`, `true` on `platform/**`
+      until the toolchain gate is discharged, and **`true` on every set**.
 - [ ] Require and assert it in `scripts/check-knowledge.mjs`, alongside
-      `blockedByToolchain`, with deterministic tests for both values.
+      `blockedByToolchain`, with deterministic tests for both values and for
+      **both entry kinds**.
+- [ ] Implement set/module composition so an unblocked set cannot resolve a
+      blocked module.
 - [ ] Record the runbook allowlist mechanism; the allowlist itself starts empty.
 - [ ] Do **not** change `blockedByToolchain` — this ADR does not discharge the
       toolchain gate.

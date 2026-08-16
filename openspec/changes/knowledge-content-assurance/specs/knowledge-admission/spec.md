@@ -136,6 +136,35 @@ evidence.
 - **THEN** admission stops being offline and deterministic
 - **AND** the change is refused
 
+### Requirement: Reviewer evidence binds to the exact attestation
+
+Governed human-review evidence SHALL establish that the eligible human identity
+corresponds to `contentReview.by`, and that the review applies to the exact
+current `policy`, `sourceDigest`, and attestation record or revision. Changing
+any identity-bearing attestation field after review SHALL invalidate it.
+
+#### Scenario: Review evidence naming a different actor (negative)
+
+- **WHEN** the governed review evidence identifies a human other than the one in
+  `contentReview.by`
+- **THEN** it does not satisfy that attestation
+
+#### Scenario: A valid old review replayed against a changed attestation (negative)
+
+- **WHEN** review evidence approved an attestation, and `by`, `policy`,
+  `sourceDigest`, or the attestation revision has since materially changed
+- **THEN** the module is **NOT publishable**
+- **AND** new review evidence is required, because Proof A binds the content
+  while Proof B binds the review to the exact attestation
+
+#### Scenario: A provider-specific representation mandated (negative)
+
+- **WHEN** a specific forge's permanent representation would be required by this
+  contract
+- **THEN** the invariant has been confused with one implementation of it
+- **AND** the requirement is that the evidence identify the exact attestation
+  revision, however a given forge records that
+
 ### Requirement: The policy identifier names an immutable definition
 
 `portable-knowledge-prohibited-content-v1` SHALL denote ADR-0016 §1 and §2 as
@@ -178,6 +207,19 @@ is authorable only when both are `false`.
   `blockedByToolchain` `true`
 - **THEN** one state variable means two things again
 - **AND** the change is refused
+
+#### Scenario: Every set starts rollout-blocked
+
+- **WHEN** the catalog is initialised under this policy
+- **THEN** every set carries `blockedByRollout: true`
+- **AND** releasing one is an explicit reviewed transition
+
+#### Scenario: An unblocked set cannot bypass a blocked module (negative)
+
+- **WHEN** a set carries `blockedByRollout: false` and selects a module carrying
+  `blockedByRollout: true`
+- **THEN** resolution refuses on the blocked module
+- **AND** set release SHALL NOT be a back door around per-module rollout policy
 
 #### Scenario: A runbook eligible by directory (negative)
 
@@ -226,7 +268,16 @@ participate in it.
 ### Requirement: Initial rollout excludes household knowledge
 
 The first authoring enabled after the toolchain passes review SHALL be limited to
-portable platform and engineering knowledge and coding-oriented runbooks.
+defined by scope, not by prose:
+
+| Entry | Initial `blockedByRollout` |
+|---|---|
+| `platform/**` modules | `false` after toolchain gate discharge |
+| `household/**` modules | `true` |
+| `runbooks/**` modules | `true` by default; eligible only by explicit per-module allowlist |
+| every set | `true` |
+
+No path-based or prose criterion such as "coding-oriented" confers eligibility.
 
 #### Scenario: A household module
 

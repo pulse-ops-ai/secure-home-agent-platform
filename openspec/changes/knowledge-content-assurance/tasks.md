@@ -122,6 +122,25 @@ mechanisms, and nothing is built or authored.
 here and recorded as an acceptance obligation (ADR-0016 §10). Adding it now would
 make a `Proposed` decision operative.
 
+## 5. Second pre-acceptance correction
+
+- [x] **5.1 Proof B bound to the exact attestation** — actor correspondence with
+      `contentReview.by`, exact policy, exact `sourceDigest`, exact record or
+      revision. Proof A binds the content; Proof B binds the review event to the
+      attestation; neither substitutes for the other. Stated provider-neutrally,
+      with no forge-specific representation mandated.
+- [x] **5.2 Set rollout semantics defined** — every set starts
+      `blockedByRollout: true`; a set's gate means the composition is released
+      for profile use; and an unblocked set NEVER resolves a blocked module, so
+      set release cannot become a back door around per-module policy.
+- [x] **5.3 Exact initial value for every catalog entry** — §7a, §10, spec,
+      design and assurance now cover modules **and** sets.
+- [x] **5.4 Prose criterion removed from the normative requirement** — the spec
+      states scope-based eligibility; "coding-oriented" confers nothing.
+- [x] **5.5 Executable obligations added** — Proof B identity mismatch; Proof B
+      replay against a changed attestation; unblocked set cannot bypass a blocked
+      module; every set initially blocked.
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0016 exists, is `Proposed`, carries every section `docs/AGENTS.md` requires.
