@@ -124,7 +124,7 @@ implementation-neutral. These decide how it is built.
 | [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
 | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
 | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
-| [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Proposed | [`knowledge/`](../../knowledge/), the knowledge toolchain |
+| [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -300,6 +300,46 @@ were separated deliberately in the same commit that closed it: `blockedByU7`
 became `blockedByToolchain` across every registry entry and consumer, and the
 validator now asserts it is `true`. Opening authoring is an explicit reviewed
 transition, not a side effect of an item closing.
+
+### ADR-0016 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-16 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0016 in full: the A/B/C coverage model with no A classes today; fail-closed by deterministic finding **and** human content-review attestation; deterministic findings dominating attestation; the attestation as a repository admission artifact bound to exact bytes and distinct from OKF `verified`; Proof A / Proof B separation; policy v1 anchored to §1–§2; the two independent gates; and the authoring / admission / publication stage model |
+| **Refines** | [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) §5 and its dependent machine-check claims; [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) §8 and the prohibited-content clause of §12. **Neither ADR was edited** — both are accepted and immutable |
+| **Unresolved decisions resolved** | **NONE.** This ADR closes no item |
+
+**What was accepted.** The prohibited-content **list is unchanged**; what changed
+is a false claim about how it is established. Coverage is stated by class —
+**there are no class-A detectors today**, media included, because arbitrary bytes
+fit inside Markdown. The gate is fail-closed by two mechanisms, and a
+deterministic finding **always** dominates an attestation. The attestation binds
+to exact bytes through ADR-0015 §6's identity, lives in the catalog, is versioned
+by policy, and is deliberately **not** OKF `verified`. Proof A (toolchain) and
+Proof B (governed human review, bound to the exact attestation) are independent
+and neither substitutes for the other.
+
+**State initialised by this acceptance.**
+
+| | |
+|---|---|
+| `blockedByRollout` | **`false`** on 10 `platform/**` modules · **`true`** on 4 `household/**`, 3 `runbooks/**`, and all 6 sets |
+| `blockedByToolchain` | **`true` on all 23 entries — unchanged** |
+| Runbook allowlist | empty |
+
+**What this acceptance does NOT do.**
+
+| | |
+|---|---|
+| **Toolchain obligation** | **UNSATISFIED.** compile / validate / package / query and the §9 conformance suite do not exist |
+| **Authoring** | **BLOCKED in practice**, because `blockedByToolchain` is `true` everywhere. Both gates must be `false` |
+| **Publication** | **additionally BLOCKED**, because no governed machine-consumable Proof B evidence mechanism exists |
+| **Runtime or deployment authority** | **NONE GRANTED** |
+
+Acceptance authorizes implementation **against** ADR-0016. It proves and
+discharges **no** executable obligation.
 
 ## Which ADRs apply to what I am changing?
 

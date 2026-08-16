@@ -1,7 +1,9 @@
 # Spec Delta: knowledge-admission
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0016 is `Proposed`; nothing below is an
-> obligation today, and no lower-precedence artifact may make it one.
+> **In force.** ADR-0016 was accepted 2026-08-16. The **structural**
+> requirements below are obligations now — the rollout gate is initialised and
+> enforced. Every **behavioural** requirement remains unproven and belongs to the
+> toolchain landing, which is why `blockedByToolchain` is still `true`.
 
 ## ADDED Requirements
 
@@ -244,8 +246,11 @@ Each combination SHALL produce a distinct, correctly-named outcome.
 #### Scenario: Both gates open
 
 - **WHEN** both are `false`
-- **THEN** the module is eligible to **enter admission**
-- **AND** it is neither admitted nor published by that fact alone
+- **THEN** the module is eligible to **enter authoring** — candidate source may
+  be written
+- **AND** it is neither admitted nor published by that fact alone; admission
+  follows only once candidate bytes exist and Proof A and the remaining
+  validation pass
 
 ### Requirement: Authoring eligibility, admission, and publication are distinct
 

@@ -1,6 +1,7 @@
 # Design: knowledge-content-assurance
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0016 is `Proposed`.
+> **In force.** ADR-0016 was accepted 2026-08-16. The toolchain does not exist,
+> so authoring remains blocked by `blockedByToolchain`.
 
 ## Context
 

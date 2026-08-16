@@ -44,6 +44,8 @@
  *      holds its README and nothing else;
  *   7. no module or set claims a publishable status, and every entry carries
  *      blockedByToolchain: true, while the toolchain does not exist;
+ *   7b. every entry carries the blockedByRollout value ADR-0016 §7a fixes —
+ *      an INDEPENDENT fact from toolchain readiness;
  *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
  *      for sets. Module IDs are recognised by shape, since they always contain a
  *      slash. Set IDs cannot be — `Planned`, `warn`, and `catalog.json` are
@@ -80,6 +82,7 @@ const REQUIRED_MODULE_FIELDS = [
   'sensitivity',
   'freshnessPolicy',
   'blockedByToolchain',
+  'blockedByRollout',
 ]
 
 /**
@@ -104,6 +107,7 @@ const REQUIRED_SET_FIELDS = [
   'sensitivity',
   'freshnessPolicy',
   'blockedByToolchain',
+  'blockedByRollout',
   'required',
   'optional',
   'deny',
@@ -251,6 +255,20 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           'toolchain exists and its conformance suite passes (ADR-0015 §12)',
       )
     }
+    // ROLLOUT ELIGIBILITY, A DIFFERENT FACT FROM TOOLCHAIN READINESS.
+    //
+    // ADR-0016 §7a fixes the initial value by scope, and acceptance of that ADR
+    // is what set it — not the toolchain gate, which is why the two are checked
+    // independently here. A `platform/**` module being rollout-eligible says
+    // nothing about whether the toolchain exists, and `blockedByToolchain`
+    // above still refuses it.
+    const rollout = id.startsWith('platform/') ? false : true
+    if (m.blockedByRollout !== rollout) {
+      fail(
+        `module "${id}": blockedByRollout must be ${String(rollout)} — ` +
+          'ADR-0016 §7a sets platform/** false and household/** and runbooks/** true',
+      )
+    }
     for (const source of m.governingSources ?? []) {
       if (!existsSync(join(root, source))) {
         fail(`module "${id}": governingSources names "${source}", which does not exist`)
@@ -326,6 +344,17 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       fail(
         `set "${id}": blockedByToolchain must be true until the ADR-0010 ` +
           'toolchain exists and its conformance suite passes (ADR-0015 §12)',
+      )
+    }
+    // EVERY SET STARTS ROLLOUT-BLOCKED (ADR-0016 §7a). A set's gate means the
+    // COMPOSITION has been released for profile use, which is a different
+    // question from whether its members may author — and releasing a set must
+    // never become a back door around a blocked member. Enforcing the
+    // composition itself is deferred to the resolver, which does not exist yet.
+    if (s.blockedByRollout !== true) {
+      fail(
+        `set "${id}": blockedByRollout must be true — ADR-0016 §7a starts every ` +
+          'set rollout-blocked, and releasing one is an explicit reviewed transition',
       )
     }
     for (const source of s.governingSources ?? []) {

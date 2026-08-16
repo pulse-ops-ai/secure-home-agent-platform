@@ -1,7 +1,9 @@
 # Assurance Plan: knowledge-content-assurance
 
-> **PROPOSED and NON-OPERATIVE.** ADR-0016 is `Proposed`; the invariants below
-> describe what it would establish.
+> **In force.** ADR-0016 was accepted 2026-08-16. The **structural** invariants
+> below are established. Every **behavioural** one remains unproven and is
+> deferred to the toolchain landing — nothing was built, and a decision cannot
+> prove a behaviour it has not implemented.
 
 ## Purpose
 

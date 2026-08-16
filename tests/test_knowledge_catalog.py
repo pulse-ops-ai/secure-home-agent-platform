@@ -78,6 +78,7 @@ def test_every_module_has_every_required_metadata_field() -> None:
         "sensitivity",
         "freshnessPolicy",
         "blockedByToolchain",
+        "blockedByRollout",
     }
     for module in _catalog()["modules"]:
         missing = required - set(module)
@@ -336,6 +337,80 @@ def test_a_set_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
     assert "blockedByToolchain must be true" in _output(result)
 
 
+def test_rollout_eligibility_matches_the_accepted_initial_values() -> None:
+    """ADR-0016 §7a fixes the value by scope, and acceptance set it.
+
+    Asserted against the live registry rather than a fixture, because the
+    accepted initialization is a fact about THIS catalog: platform modules are
+    rollout-eligible, household and runbook modules are not, and every set
+    starts blocked.
+    """
+    catalog = _catalog()
+    for module in catalog["modules"]:
+        expected = not module["id"].startswith("platform/")
+        assert module["blockedByRollout"] is expected, (
+            f"{module['id']}: blockedByRollout must be {expected} per ADR-0016 §7a"
+        )
+    for s in catalog["sets"]:
+        assert s["blockedByRollout"] is True, (
+            f"{s['id']}: every set starts rollout-blocked per ADR-0016 §7a"
+        )
+
+
+def test_rollout_eligibility_never_implies_toolchain_readiness() -> None:
+    """The two gates are INDEPENDENT — the whole point of separating them.
+
+    Ten platform modules are rollout-eligible. Not one of them is
+    toolchain-ready, and nothing about opening the rollout gate opened the
+    other. This is the assertion that would fail if a future change conflated
+    them again, which is how the U7 defect looked the first time.
+    """
+    catalog = _catalog()
+    eligible = [m for m in catalog["modules"] if m["blockedByRollout"] is False]
+    assert eligible, "expected some rollout-eligible modules"
+    for module in eligible:
+        assert module["blockedByToolchain"] is True, (
+            f"{module['id']}: rollout eligibility must not open the toolchain gate"
+        )
+
+
+def test_no_entry_is_open_on_both_gates() -> None:
+    """Authoring eligibility requires BOTH gates false. Nothing qualifies yet."""
+    catalog = _catalog()
+    open_on_both = [
+        e["id"]
+        for e in [*catalog["modules"], *catalog["sets"]]
+        if e["blockedByToolchain"] is False and e["blockedByRollout"] is False
+    ]
+    assert open_on_both == [], f"authoring is not open, but these qualify: {open_on_both}"
+
+
+def test_a_module_with_the_wrong_rollout_value_is_rejected(tmp_path: Path) -> None:
+    """The value is ASSERTED, not merely required as a field."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        for module in catalog["modules"]:
+            if module["id"].startswith("household/"):
+                module["blockedByRollout"] = False
+                return
+        raise AssertionError("fixture has no household module to mutate")
+
+    result = _run(_fixture(tmp_path, "household-rollout-open", mutate))
+    assert result.returncode != 0
+    assert "blockedByRollout must be true" in _output(result)
+
+
+def test_a_set_that_unblocks_its_rollout_is_rejected(tmp_path: Path) -> None:
+    """Every set starts blocked; releasing one is an explicit reviewed change."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["sets"][0]["blockedByRollout"] = False
+
+    result = _run(_fixture(tmp_path, "set-rollout-open", mutate))
+    assert result.returncode != 0
+    assert "blockedByRollout must be true" in _output(result)
+
+
 def test_the_gate_is_true_for_every_registered_entry() -> None:
     """The live registry, not a fixture: nothing has quietly unblocked itself."""
     catalog = _catalog()
@@ -496,6 +571,7 @@ def test_every_set_has_every_required_metadata_field() -> None:
         "sensitivity",
         "freshnessPolicy",
         "blockedByToolchain",
+        "blockedByRollout",
     }
     for s in _catalog()["sets"]:
         missing = required - set(s)

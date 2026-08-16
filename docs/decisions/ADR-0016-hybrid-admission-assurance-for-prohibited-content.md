@@ -1,7 +1,8 @@
 # ADR-0016: Hybrid admission assurance for prohibited content
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-15
+- **Accepted:** 2026-08-16
 - **Deciders:** @mikegtech (repository owner)
 - **Refines / supersedes in part:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) §5 and its dependent machine-check claims; [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) §8 and the prohibited-content clause of §12. **Neither ADR is edited.** Every other clause of both stands unchanged.
 - **Preserves:** the prohibited-content list itself; knowledge is context and never authority; no direct bundle reads; OKF v0.2 as source representation; catalog metadata authority; package and digest semantics; the `Attested Computation` refusal; trust/provenance separation
@@ -306,8 +307,9 @@ Attestation is an **admission** requirement, applied after candidate bytes
 exist — never an authoring prerequisite. It could not be one: `sourceDigest` is
 computed over those bytes (§9a).
 
-This is not added to the catalog by this ADR — doing so would make a `Proposed`
-decision operative. It is an acceptance obligation (§10).
+The catalog gained this field in the acceptance commit, initialised per §7a.
+Until acceptance it was deliberately absent, because adding it earlier would have
+made a proposal operative.
 
 #### 7a. Initial rollout eligibility, stated exactly
 
@@ -352,11 +354,15 @@ wrong stated reason sends someone to fix the wrong thing.
 | `true` | `true` | **refused** — both gates shut |
 | `true` | `false` | **refused by the toolchain gate** — rollout has approved this class; the toolchain is not proven |
 | `false` | `true` | **refused by the rollout gate** — the toolchain works; this class is not released |
-| `false` | `false` | **eligible to enter admission** — not admitted, and not published |
+| `false` | `false` | **eligible to enter authoring** — candidate source may be written. Not admitted, and not published |
 
 The second row is the state this ADR's acceptance creates for `platform/**`, and
 the third is where `household/**` sits after toolchain discharge. Both are
 normal, and neither is a defect.
+
+Note the fourth row carefully: both gates opening is **authoring eligibility**,
+not admission. Admission follows only once candidate bytes exist and Proof A and
+the remaining validation pass (§9a).
 
 ##### Sets have their own rollout gate, and it composes conservatively
 
@@ -480,25 +486,36 @@ is actually proven — including the governed Proof B boundary, meaning the
 toolchain demonstrably refuses to treat Proof A alone as publishable. Passing the
 deterministic tests is not the gate; proving the whole obligation is.
 
-### 10. Acceptance obligations
+### 10. Acceptance-time obligations — DISCHARGED
 
-Listed so the acceptance commit is mechanical and checkable. **None of it is done
-here**; doing it now would make a `Proposed` decision operative.
+**State migration only.** These are the things acceptance itself had to carry, so
+that no moment existed in which the decision was accepted and the registry did
+not reflect it. All were done in the acceptance commit, and none while this ADR
+was a proposal.
 
-- [ ] Add `blockedByRollout` as a required boolean on **every module and every
-      set** in `knowledge/catalog.json`, with the exact value per §7a:
-      **`false` on `platform/**`**, `true` on `runbooks/**`, `true` on
-      `household/**`, and `true` on **every set**.
-- [ ] Leave `blockedByToolchain` at `true` everywhere. This acceptance changes
-      rollout state only.
-- [ ] Require and assert it in `scripts/check-knowledge.mjs`, alongside
-      `blockedByToolchain`, with deterministic tests for both values and for
-      **both entry kinds**.
-- [ ] Implement set/module composition so an unblocked set cannot resolve a
-      blocked module.
-- [ ] Record the runbook allowlist mechanism; the allowlist itself starts empty.
-- [ ] Do **not** change `blockedByToolchain` — this ADR does not discharge the
-      toolchain gate.
+- [x] Add `blockedByRollout` as a required boolean on **every module and every
+      set** in `knowledge/catalog.json`.
+- [x] Initialise it to the §7a values: **`false` on `platform/**`**, `true` on
+      `household/**`, `true` on `runbooks/**`, and `true` on **every set**.
+- [x] Leave `blockedByToolchain` at `true` everywhere — acceptance changes
+      rollout state only, and does not discharge the toolchain gate.
+- [x] Require and assert `blockedByRollout` in `scripts/check-knowledge.mjs` for
+      both entry kinds, with deterministic registry tests.
+- [x] Record the runbook allowlist mechanism; the allowlist starts empty.
+
+### 10a. Deferred implementation and conformance obligation — NOT discharged
+
+**Acceptance discharged none of §9.** Every executable obligation there belongs
+to the toolchain landing, which does not exist. Naming one of them here would
+misfile it: an acceptance commit migrates *state*, and §9 proves *behaviour*.
+
+- **§9(10) set/module composition** — that an unblocked set does not resolve a
+  module whose `blockedByRollout` is `true` — is **not** implemented and **not**
+  proven. There is no resolver to enforce it against, and building one at an
+  acceptance checkpoint to satisfy a proof would be inventing architecture.
+
+The registry can record the two gates; only the resolver can compose them. That
+separation is why the obligation sits in §9 and not here.
 
 ## Consequences
 
@@ -574,14 +591,17 @@ None. Nothing here is on a runtime path.
 
 1. `bash scripts/validate-scaffold.sh`, `node scripts/check-knowledge.mjs`,
    `bash scripts/check.sh`.
-2. **No production code lands with this ADR.** The obligation in §9 is
-   discharged by the toolchain landing, not here.
-3. **`blockedByToolchain` remains `true`** on every registered module and set. This
-   ADR corrects an assurance model; it does not open authoring.
-4. On acceptance, the toolchain implementation may proceed against §9's corrected
-   obligation.
-5. This ADR proposes **no** status change to any existing ADR and resolves **no**
-   item in `unresolved-decisions.md`.
+2. **No production code landed with this ADR.** The obligation in §9 is
+   discharged by the toolchain landing, not here, and remains **undischarged**.
+3. **`blockedByToolchain` remains `true`** on every registered module and set.
+   This ADR corrects an assurance model and initialises rollout state; it does
+   **not** open authoring. Authoring is blocked in practice by the toolchain
+   gate, and publication is additionally blocked because no governed
+   machine-consumable Proof B evidence mechanism exists (§5a).
+4. Acceptance authorizes the toolchain implementation to proceed **against** §9's
+   corrected obligation. It proves and discharges no executable obligation.
+5. This ADR changed **no** other ADR's status and resolved **no** item in
+   `unresolved-decisions.md`.
 
 ## Links
 

@@ -151,7 +151,7 @@ make a `Proposed` decision operative.
       changes only `blockedByToolchain` and never mutates rollout.
 - [x] **6.2 Four-state proof added** — both shut; rollout released but toolchain
       unproven; toolchain proven but class not released; both open → eligible to
-      **enter admission**, which is neither admission nor publication. Each
+      **enter authoring**, which is neither admission nor publication. Each
       single-gate refusal must name its own gate.
 - [x] **6.3 Three stages separated** — authoring eligibility is the two gates
       alone. Requiring an attestation first would be circular, since
@@ -182,6 +182,38 @@ make a `Proposed` decision operative.
       attestation a prerequisite to authoring. None remains. The invariant reads
       the same way everywhere: **authoring = gates · admission = content checks
       + Proof A · publication = admission + Proof B.**
+
+## 8. Acceptance and state initialization
+
+- [x] **8.1 Pre-immutability cleanup** — the four-state table's `false/false` row
+      said "eligible to enter admission". Corrected to **enter authoring** in the
+      spec, in `tasks.md`, **and in ADR-0016 itself**, which was about to become
+      immutable carrying wording that contradicted its own §9a.
+- [x] **8.2 ADR-0016 accepted** — `Proposed` → `Accepted`, 2026-08-16, by the
+      repository owner. Proposal-only wording removed; substantive decision
+      untouched.
+- [x] **8.3 `blockedByRollout` made operative** — added to all 23 catalog
+      entries: `false` on 10 `platform/**` modules; `true` on 4 `household/**`,
+      3 `runbooks/**`, and all 6 sets. Values taken from ADR-0016 §7a's explicit
+      rules, never inferred from consumers or directory shape.
+- [x] **8.4 Structural enforcement** — `check-knowledge.mjs` requires the field
+      on modules and sets and **asserts the accepted value**, independently of
+      `blockedByToolchain`. Five registry tests added, two of them
+      fixture-negatives; both were sabotage-checked, and each killed exactly its
+      named test.
+- [x] **8.5 `blockedByToolchain` untouched** — `true` on all 23. Rollout opening
+      for `platform/**` provably did not open the toolchain gate; a dedicated
+      test asserts that, because conflating the two is how the U7 defect looked
+      the first time.
+
+**Deferred exactly as ADR-0016 §9(10) requires.** Set/module composition — an
+unblocked set failing to resolve a blocked module — is **not** implemented here.
+No resolver exists, and building one to satisfy a proof would be inventing
+architecture at an acceptance checkpoint.
+
+**Behavioural obligations remain OPEN.** Nothing in the §9 conformance suite is
+satisfied. Acceptance authorizes implementation against ADR-0016; it discharges
+no executable obligation.
 
 ## PR-1 Completion Gate
 

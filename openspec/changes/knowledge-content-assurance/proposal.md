@@ -64,8 +64,9 @@ supersession in part, which is the mechanism the contract provides.
 
 **Unresolved decisions.** None touched. U7 stays resolved; no item changes state.
 
-**ADR status.** No existing ADR's status changes. ADR-0016 is authored
-`Proposed`.
+**ADR status.** No existing ADR's status changed. ADR-0016 was authored
+`Proposed` and accepted by the repository owner on 2026-08-16, in its own
+reviewed commit.
 
 ## Trust / Security / Data Considerations
 
