@@ -1,0 +1,6 @@
+{
+  "extends": "@secure-home/tsconfig/library",
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}

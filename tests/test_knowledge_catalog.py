@@ -1,11 +1,21 @@
 """Tests for ``scripts/check-knowledge.mjs`` and the knowledge registry.
 
-**This validates the specification, not knowledge content.** The ADR-0010 bundle
-validator — the one that machine-checks the prohibited-content rules over real
-module content — does not exist. It is the deliverable that must land *before*
-any content is authored, and ``blockedByToolchain`` is where that fact is
-recorded. U7 asked a different question — whether the format architecture was
-decided — and ADR-0015 answered it.
+**This validates the specification, not knowledge content.** Real-content
+admission belongs to ``@secure-home/knowledge-toolchain``, which owns every
+content rule; this file owns registry and scaffold concerns, and the two never
+implement the same rule twice.
+
+**Prohibited content is not established by machine inspection alone.** ADR-0016
+corrected that claim: deterministic A/B indicators are machine-checked, the
+semantic remainder requires a human content-review attestation, Proof A binds it
+to exact bytes, and publication additionally requires Proof B — governed
+human-review evidence that no mechanism in this repository produces. There are
+currently no A classes.
+
+``blockedByToolchain`` records whether the toolchain has been accepted;
+``blockedByRollout`` records whether a module class may author. U7 asked a third
+question — whether the format architecture was decided — and ADR-0015 answered
+it.
 
 The distinction matters enough to be asserted: a green run on the registry check
 could otherwise be mistaken for evidence that content was checked. There is no

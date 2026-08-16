@@ -8,24 +8,39 @@
  *
  * ## What this is NOT
  *
- * **This is not the ADR-0010 bundle validator.** That validator machine-checks
- * the prohibited-content rules over real bundle content, and it does not exist:
- * it is the deliverable that must land BEFORE the first
- * real module content is authored.
+ * **This is not the content admission validator.** That is
+ * `@secure-home/knowledge-toolchain`, which owns every REAL-CONTENT rule:
+ * the OKF version pin, the repository metadata profile, the catalog/frontmatter
+ * mirror, execution-bearing refusal, reference integrity, envelope rules, the
+ * prohibited-content indicators, and Proof A. This file owns REGISTRY and
+ * SCAFFOLD concerns only, and the two do not implement the same rule twice.
  *
- * What this checks is that the repository's *specification* is coherent — that
- * every registered module exists, carries its metadata, is reachable from the
- * index, and is not claiming a status it has not earned. Confusing the two would
- * be the worst outcome here, because a green run on this file could be mistaken
- * for evidence that content was checked. Nothing is checked, because no content
- * exists — and check 6 below enforces that no content exists.
+ * **Prohibited content is not established by machine inspection alone**, and
+ * saying otherwise was a falsified claim that ADR-0016 corrected. The accepted
+ * model:
  *
- * The prohibited-content scanning here is deliberately narrow and lexical:
- * network and hardware addresses, which are prohibited by ADR-0010 and by every
- * module README, and which have unambiguous shapes. Semantic prohibitions —
- * "this sentence is a live reading" — are not detectable this way and are not
- * attempted. Credential-shaped strings are already covered repository-wide by
- * `scan-secrets.sh`.
+ *   deterministic A/B indicators → machine checks, in the toolchain
+ *   the semantic remainder       → a human content-review attestation
+ *   Proof A                      → the toolchain validates exact-byte binding
+ *   Proof B                      → governed human-review evidence, which no
+ *                                  mechanism in this repository produces
+ *   publication                  → admission + Proof B
+ *
+ * There are currently **no A classes**: every implemented indicator is B —
+ * deterministic, useful, and incomplete, with its blind spot named in the
+ * toolchain's coverage table.
+ *
+ * What this file checks is that the repository's *specification* is coherent —
+ * that every registered module exists, carries its metadata, is reachable from
+ * the index, is not claiming a status it has not earned, and carries the two
+ * structural gates. Confusing the two would be the worst outcome here, because a
+ * green run could be mistaken for evidence that content was admitted. No content
+ * exists, and check 6 below enforces that.
+ *
+ * The address scanning that remains here is a SCAFFOLD concern over
+ * specification READMEs, not content admission: network and hardware addresses
+ * have unambiguous shapes and must not appear in the specification either.
+ * Credential-shaped strings are covered repository-wide by `scan-secrets.sh`.
  *
  * ## Checks
  *
@@ -136,8 +151,9 @@ const DENY_PATTERN = /^[a-z][a-z0-9-]*\/(?:\*|[a-z][a-z0-9-]*)$/
 
 /**
  * Addresses prohibited by ADR-0010 and by the module READMEs. Deliberately
- * narrow: these have unambiguous shapes. Semantic prohibitions are the bundle
- * validator's job, not this file's.
+ * narrow: these have unambiguous shapes. Content admission — indicators,
+ * attestation, and everything else over real module content — belongs to
+ * `@secure-home/knowledge-toolchain`, not to this file.
  */
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
 const MAC = /\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b/

@@ -70,6 +70,13 @@ export const LAYERS = {
   // check-workspace.mjs applies to ownLayer <= CONTRACT_LAYER_MAX, so this
   // placement buys mechanical framework-neutrality enforcement.
   'packages/runner-core': 3,
+  // 3 — the knowledge toolchain: compile / admit / package / query over
+  // portable OKF source. NO workspace dependencies at all — its only runtime
+  // dependency is a YAML parser, and it must not reach the execution or
+  // authority planes (ADR-0015 §10, ADR-0016 §4). Placed at 3 for the same
+  // reason as runner-core: the framework-dependency guard applies at or below
+  // CONTRACT_LAYER_MAX, so this buys mechanical enforcement of that isolation.
+  'packages/knowledge-toolchain': 3,
 
   // 4 — cross-cutting infrastructure.
   'packages/logging': 4,

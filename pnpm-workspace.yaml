@@ -66,6 +66,12 @@ catalog:
   # ships no formatting rules in core and this workspace adds no stylistic
   # plugin, so the two cannot conflict.
   prettier: 3.9.6
+  # YAML 1.2 parser for OKF v0.2 frontmatter, added by the knowledge toolchain
+  # (ADR-0015). PARSING ONLY: package identity is a digest over RAW BYTES
+  # (ADR-0015 §6), never over anything this library re-serializes, so a change
+  # in its dump behaviour cannot change the identity of unchanged knowledge.
+  # Hand-rolling a YAML parser was the alternative and is worse.
+  yaml: 2.8.2
   # Runner domain contracts: the single authored contract source (ADR-0012
   # §7), added by L2/#51 (runner-domain-contracts).
   zod: 4.4.3

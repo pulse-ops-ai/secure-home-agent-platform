@@ -48,6 +48,9 @@ catalogs:
     vitest:
       specifier: 4.1.10
       version: 4.1.10
+    yaml:
+      specifier: 2.8.2
+      version: 2.8.2
     zod:
       specifier: 4.4.3
       version: 4.4.3
@@ -85,7 +88,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/api-contracts:
     devDependencies:
@@ -106,7 +109,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/contracts:
     dependencies:
@@ -137,7 +140,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/errors:
     devDependencies:
@@ -158,7 +161,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/eslint-config:
     dependencies:
@@ -189,7 +192,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/events:
     dependencies:
@@ -223,7 +226,35 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
+
+  packages/knowledge-toolchain:
+    dependencies:
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.2
+    devDependencies:
+      '@secure-home/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@secure-home/testing':
+        specifier: workspace:*
+        version: link:../testing
+      '@secure-home/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
+      eslint:
+        specifier: 'catalog:'
+        version: 10.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/logging:
     devDependencies:
@@ -244,7 +275,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/observability:
     devDependencies:
@@ -265,7 +296,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/query-model:
     devDependencies:
@@ -286,7 +317,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/runner-core:
     dependencies:
@@ -317,7 +348,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/testing:
     devDependencies:
@@ -338,7 +369,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/tsconfig:
     devDependencies:
@@ -353,7 +384,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   packages/worker-base:
     devDependencies:
@@ -374,7 +405,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   services/control-plane:
     devDependencies:
@@ -395,7 +426,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
   services/runner-control:
     dependencies:
@@ -444,7 +475,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
 
 packages:
 
@@ -1550,6 +1581,11 @@ packages:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
 
+  yaml@2.8.2:
+    resolution: {integrity: sha512-mplynKqc1C2hTVYxd0PU2xQAc22TI1vShAYGksCCfxbn/dFwnHTNi1bvYsBTkhdUNtGIf5xNOg938rrSSYvS9A==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -1862,13 +1898,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.10(vite@8.2.0(@types/node@24.10.1))':
+  '@vitest/mocker@4.1.10(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))':
     dependencies:
       '@vitest/spy': 4.1.10
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.2.0(@types/node@24.10.1)
+      vite: 8.2.0(@types/node@24.10.1)(yaml@2.8.2)
 
   '@vitest/pretty-format@4.1.10':
     dependencies:
@@ -2482,7 +2518,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  vite@8.2.0(@types/node@24.10.1):
+  vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.5
@@ -2492,11 +2528,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.10.1
       fsevents: 2.3.3
+      yaml: 2.8.2
 
-  vitest@4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)):
+  vitest@4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2)):
     dependencies:
       '@vitest/expect': 4.1.10
-      '@vitest/mocker': 4.1.10(vite@8.2.0(@types/node@24.10.1))
+      '@vitest/mocker': 4.1.10(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
       '@vitest/pretty-format': 4.1.10
       '@vitest/runner': 4.1.10
       '@vitest/snapshot': 4.1.10
@@ -2513,7 +2550,7 @@ snapshots:
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.2.0(@types/node@24.10.1)
+      vite: 8.2.0(@types/node@24.10.1)(yaml@2.8.2)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.10.1
@@ -2530,6 +2567,8 @@ snapshots:
       stackback: 0.0.2
 
   word-wrap@1.2.5: {}
+
+  yaml@2.8.2: {}
 
   yocto-queue@0.1.0: {}
 
