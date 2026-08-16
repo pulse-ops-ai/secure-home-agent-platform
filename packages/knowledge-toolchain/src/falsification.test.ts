@@ -203,6 +203,101 @@ describe('P1: a packaged artifact cannot drift from its digest', () => {
   })
 })
 
+// ══ ROUND 2 · P1 — the admitted snapshot aliases caller bytes ════════════
+
+describe('R2 P1: admission owns the bytes it admitted', () => {
+  it('control: an admitted module packages to a stable digest', () => {
+    const { packaged } = admittedPackage()
+    expect(packaged.digest).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('A: mutating the ORIGINAL bytes after admit cannot reach the package', () => {
+    // THE DEFECT. `admit` returned a proof holding the caller's buffers, so
+    // the boundary was ADMIT(reference) -> caller edits -> PACKAGE(B). Copying
+    // in `packageBundle` is too late: by then the proof already describes B.
+    const set = members()
+    const outcome = run(set)
+    expect(outcome.admitted, 'control: admitted').toBe(true)
+    if (outcome.proof === undefined) throw new Error('control: proof')
+
+    const original = set[1] as SourceFile
+    original.bytes[0] = 0x58
+
+    const packaged = packageBundle(outcome.proof)
+    const served = Buffer.from(packaged.members[1]?.bytes() ?? new Uint8Array()).toString('utf8')
+    expect(served.startsWith('X'), 'the package must not contain the later edit').toBe(false)
+    expect(served.startsWith('-'), 'it must contain what was admitted').toBe(true)
+  })
+
+  it('B: the admitted state cannot be changed through the proof itself', () => {
+    const set = members()
+    const outcome = run(set)
+    if (outcome.proof === undefined) throw new Error('control: proof')
+    const before = packageBundle(outcome.proof).digest
+
+    // NOTHING IS REACHABLE. The proof carries no fields — the snapshot lives in
+    // a module-private map keyed by the token — so there is no mutable buffer
+    // to reach for. The directive is the proof: if the snapshot is ever exposed
+    // on the proof again, it goes unused and the build fails.
+    // @ts-expect-error the admitted snapshot is not reachable from the proof
+    const reachable: unknown = outcome.proof.bundle
+    expect(reachable).toBeUndefined()
+
+    // And the packaged result is identical across repeated packagings.
+    expect(packageBundle(outcome.proof).digest, 'admitted state must be fixed').toBe(before)
+  })
+
+  it('C: bytes, frontmatter, manifest and digest describe ONE snapshot', () => {
+    const set = members()
+    const outcome = run(set)
+    if (outcome.proof === undefined) throw new Error('control: proof')
+
+    const original = set[1] as SourceFile
+    original.bytes[0] = 0x58
+
+    const packaged = packageBundle(outcome.proof)
+    const raw = Buffer.from(packaged.members[1]?.bytes() ?? new Uint8Array()).toString('utf8')
+    const document = packaged.documents[0]
+    expect(document).toBeDefined()
+    if (document === undefined) return
+
+    // raw bytes agree with the parse
+    expect(raw).toContain('# A concept')
+    expect(document.frontmatter['owner']).toBe(OWNER)
+    expect(Buffer.from(document.bytes()).toString('utf8')).toBe(raw)
+
+    // and the manifest/digest describe those same bytes
+    const recomputed = bundleDigest([
+      { path: 'index.md', bytes: bytes(INDEX) },
+      { path: 'model.md', bytes: Uint8Array.from(document.bytes()) },
+    ])
+    expect(packaged.digest, 'the digest describes the admitted snapshot').toBe(recomputed)
+  })
+})
+
+// ══ ROUND 2 · P1 — a bare CR is not LF ═══════════════════════════════════
+
+describe('R2 P1: any CR byte is refused, not only CRLF', () => {
+  it('control: an LF-only source is admitted', () => {
+    expect(run().refusals).toEqual([])
+  })
+
+  it('refuses a LONE CR, by the line-ending rule', () => {
+    // ADR-0015 requires LF. The check tested for the CR/LF PAIR, so a classic
+    // Mac-style bare CR passed the envelope entirely.
+    // Contract-valid in every other respect: a real concept whose body carries
+    // one bare CR, so the only rule that can fire is the line-ending one.
+    const text = `${concept()}A line ending in a bare CR:\rand more.\n`
+    const found = rules(run(members(text)).refusals)
+    expect(found, 'a bare CR is not an LF line ending').toContain('envelope.line-endings')
+  })
+
+  it('still refuses CRLF', () => {
+    const found = rules(run(members(`${concept()}a\r\nb\n`)).refusals)
+    expect(found).toContain('envelope.line-endings')
+  })
+})
+
 // ══ P1 — wrong-type metadata bypass ═══════════════════════════════════════
 
 describe('P1: a wrong-typed required field fails a SHAPE rule, not silently', () => {

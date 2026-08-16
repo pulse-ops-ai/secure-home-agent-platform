@@ -17,9 +17,9 @@ import { compile } from './compile.js'
 import { bundleDigest } from './identity.js'
 import { scanDocument, scanMembers } from './indicators.js'
 import { checkProofA, checkProofB } from './attestation.js'
+import { sealAdmitted } from './admitted.js'
 import type {
   AdmissionOutcome,
-  AdmittedBundle,
   CatalogEntry,
   CompiledDocument,
   Refusal,
@@ -87,12 +87,11 @@ export const checkEnvelope = (members: readonly SourceFile[]): readonly Refusal[
       continue
     }
 
-    for (let i = 0; i + 1 < bytes.length; i += 1) {
-      if (bytes[i] === 0x0d && bytes[i + 1] === 0x0a) {
-        bad('envelope.crlf', 'source uses CRLF line endings')
-        break
-      }
-    }
+    // ANY carriage return, not only the CR/LF pair. ADR-0015 requires LF, and
+    // testing for the pair let a classic bare-CR line ending through the
+    // envelope entirely — a different byte sequence that is equally not LF.
+    if (bytes.includes(0x0d))
+      bad('envelope.line-endings', 'source contains a carriage return; ADR-0015 requires LF')
     if (bytes.length > 0 && bytes[bytes.length - 1] !== 0x0a)
       bad('envelope.trailing-newline', 'source does not end with a newline')
   }
@@ -326,9 +325,9 @@ export const admit = (request: AdmitRequest): AdmissionOutcome => {
   const admitted = refusals.length === 0
   if (!admitted) return { admitted: false, publishable: false, refusals }
 
-  // The BRAND is minted here and nowhere else: packaging requires proof of
-  // admission rather than trusting a caller's compiled bundle.
-  const proof = { bundle } as unknown as AdmittedBundle
+  // ADMISSION OWNS THE BYTES IT ADMITTED, and puts them out of reach.
+  // See `admitted.ts` for why reachable-but-frozen was not enough.
+  const proof = sealAdmitted(bundle)
 
   // PROOF B — a DIFFERENT question, and one this repository cannot answer.
   const proofB = checkProofB(request.entry.contentReview, request.reviewEvidence, digest)

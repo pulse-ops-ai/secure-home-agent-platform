@@ -131,12 +131,16 @@ export interface ReviewEvidence {
  * Foreign OKF still reads, through `readForeign` — a different path with a
  * different input type, so tolerance is preserved without laundering foreign
  * bytes into the admitted artifact.
+ *
+ * It carries NO fields. The approved bytes live in a module-private map keyed
+ * by this token (`admitted.ts`), because anything reachable from the proof
+ * would be editable — `Object.freeze` does not freeze a `Uint8Array`'s
+ * contents — and packaging would then describe bytes nobody admitted.
  */
 declare const ADMITTED: unique symbol
 
 export interface AdmittedBundle {
   readonly [ADMITTED]: true
-  readonly bundle: CompiledBundle
 }
 
 export type PublicationBlockReason =

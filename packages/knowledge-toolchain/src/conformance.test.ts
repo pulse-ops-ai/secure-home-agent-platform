@@ -338,7 +338,7 @@ describe('the coverage table is honest', () => {
 describe('envelope violations are refused, never normalized', () => {
   const cases: [string, SourceFile][] = [
     ['envelope.bom', { path: 'bom.md', bytes: new Uint8Array([0xef, 0xbb, 0xbf, 0x0a]) }],
-    ['envelope.crlf', { path: 'crlf.md', bytes: bytes('a\r\nb\n') }],
+    ['envelope.line-endings', { path: 'crlf.md', bytes: bytes('a\r\nb\n') }],
     ['envelope.trailing-newline', { path: 'tail.md', bytes: bytes('no newline') }],
     ['envelope.path.absolute', { path: '/abs.md', bytes: bytes('x\n') }],
     ['envelope.path.traversal', { path: '../up.md', bytes: bytes('x\n') }],

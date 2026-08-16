@@ -17,6 +17,7 @@
  * because the digest is computed once.
  */
 import { bundleDigest, manifestBytes } from './identity.js'
+import { openAdmitted } from './admitted.js'
 import type { AdmittedBundle, CompiledDocument } from './types.js'
 
 /** A packaged document. `bytes()` returns a copy; the frontmatter is frozen. */
@@ -69,7 +70,8 @@ const packDocument = (document: CompiledDocument): PackagedDocument => {
  * mutating the source it handed in afterwards cannot change what was packaged.
  */
 export const packageBundle = (admitted: AdmittedBundle): PackagedBundle => {
-  const owned = admitted.bundle.members.map((member) => ({
+  const bundle = openAdmitted(admitted)
+  const owned = bundle.members.map((member) => ({
     path: member.path,
     bytes: copy(member.bytes),
   }))
@@ -77,7 +79,7 @@ export const packageBundle = (admitted: AdmittedBundle): PackagedBundle => {
   return Object.freeze({
     digest: bundleDigest(owned),
     manifest: () => copy(manifest),
-    documents: Object.freeze(admitted.bundle.documents.map(packDocument)),
+    documents: Object.freeze(bundle.documents.map(packDocument)),
     members: Object.freeze(
       owned.map((member) => Object.freeze({ path: member.path, bytes: () => copy(member.bytes) })),
     ),

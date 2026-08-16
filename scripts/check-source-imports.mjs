@@ -134,18 +134,31 @@ const IGNORED_DIRS = new Set([
 ])
 
 /**
- * KNOWLEDGE IS READ THROUGH THE QUERY SEAM, NEVER FROM DISK.
+ * KNOWLEDGE IS NOT IMPORTED DIRECTLY.
  *
  * ADR-0010: "No agent, service, or profile reads a bundle file directly."
- * Direct reads would make an unvalidated format load-bearing, and would skip
- * every admission rule the toolchain exists to apply. The only production
- * member permitted to name a `knowledge/` path is the toolchain itself, and it
- * does not read one either — `compile` and `admit` take supplied bytes.
+ * Direct access would make an unvalidated format load-bearing and would skip
+ * every admission rule the toolchain exists to apply.
  *
- * Enforced here rather than in a parallel scanner so it travels with the rest
- * of the import governance and cannot be forgotten by a new member.
+ * WHAT THIS PROVES, EXACTLY. Every module specifier in production source is
+ * read from the TypeScript AST — static imports, `export ... from`,
+ * `import x = require()`, type-position `import('…')`, and dynamic
+ * `import()`/`require()` with a literal argument. None may resolve into
+ * `knowledge/`. For *imports* that is complete: a specifier is either a literal
+ * this parser sees, or it is non-literal, and non-literal specifiers are
+ * already refused by the rule below.
+ *
+ * WHAT IT DOES NOT PROVE. It does not prove a direct FILESYSTEM read is
+ * impossible. `readFileSync(join('knowledge', name))` is a call, not an import,
+ * and a path assembled at runtime is not statically decidable at all. Claiming
+ * otherwise would be the overclaim this repository keeps refusing — so the
+ * boundary is named here rather than papered over, and
+ * `tests/test_source_imports.py` pins it with a fixture that is NOT caught.
+ *
+ * Enforced inside the existing import governance rather than in a parallel
+ * scanner, so it travels with the other rules and a new member cannot miss it.
  */
-const KNOWLEDGE_PATH = /['"`][^'"`\n]*knowledge\/[^'"`\n]*['"`]/
+const KNOWLEDGE_SPECIFIER = /(?:^|\/)knowledge\//
 const KNOWLEDGE_READER_EXEMPT = new Set(['packages/knowledge-toolchain'])
 
 const TEST_DIR = /(?:^|\/)(?:tests|__tests__|__fixtures__)(?:\/|$)/
@@ -308,22 +321,6 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
       }
       scanned += 1
 
-      // NO DIRECT KNOWLEDGE READ. Production source must not name a
-      // `knowledge/` path: the query seam is the only read path, and a path
-      // literal is how a consumer would reach around it. Tests may build
-      // fixtures; the toolchain is exempt because it is the seam.
-      const codeOnly = text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
-      if (
-        zone === 'production' &&
-        !KNOWLEDGE_READER_EXEMPT.has(member.rel) &&
-        KNOWLEDGE_PATH.test(codeOnly)
-      ) {
-        fail(
-          `${path}: names a "knowledge/" path from production source — ` +
-            'knowledge is read through the query seam, never from disk (ADR-0010)',
-        )
-      }
-
       const { specifiers, nonLiteral, syntaxErrors } = readImports(text, file)
 
       // A file that does not parse cannot be verified. Failing is the only
@@ -346,6 +343,23 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
       }
 
       for (const { specifier, line } of specifiers) {
+        // NO DIRECT KNOWLEDGE IMPORT (ADR-0010). Checked over the PARSED
+        // specifier, not over the file's text, so a `knowledge/` mention in a
+        // comment or an unrelated string is not a finding and a real import
+        // cannot hide behind formatting. The toolchain is exempt because it is
+        // the seam — and it does not import a bundle either; it takes bytes.
+        if (
+          zone === 'production' &&
+          !KNOWLEDGE_READER_EXEMPT.has(member.rel) &&
+          KNOWLEDGE_SPECIFIER.test(specifier)
+        ) {
+          fail(
+            `${path}:${line}: imports "${specifier}" — knowledge is read through the ` +
+              'query seam, never imported directly (ADR-0010)',
+          )
+          continue
+        }
+
         if (!specifier.startsWith(INTERNAL_SCOPE)) continue
         const where = `${path}:${line}`
         const name = packageNameOf(specifier)

@@ -198,6 +198,93 @@ def test_no_production_source_may_import_the_test_only_package(tmp_path: Path) -
         assert "test-only package" in _output(result)
 
 
+def test_production_source_may_not_import_a_knowledge_bundle(tmp_path: Path) -> None:
+    """ADR-0010: no agent, service, or profile reads a bundle file directly.
+
+    Checked over the PARSED module specifier rather than over the file's text,
+    so this is a property of the import graph and not of formatting.
+    """
+    ws = _base(tmp_path, "ws-knowledge-static")
+    ws.source(
+        "services/control-plane/src/index.ts",
+        "import catalog from '../../knowledge/catalog.json'\nexport const a = catalog",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a direct knowledge import must be refused"
+    assert "never imported directly" in _output(result)
+
+
+def test_a_dynamic_literal_knowledge_import_is_also_refused(tmp_path: Path) -> None:
+    """`import()` with a literal argument is an edge the parser sees."""
+    ws = _base(tmp_path, "ws-knowledge-dynamic")
+    ws.source(
+        "services/control-plane/src/index.ts",
+        "export const a = await import('../../knowledge/catalog.json')",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0
+    assert "never imported directly" in _output(result)
+
+
+def test_a_knowledge_path_in_a_comment_or_string_is_not_a_finding(tmp_path: Path) -> None:
+    """The guard reads specifiers, not text.
+
+    A lexical scan over ``"knowledge/"`` would flag both lines below, and
+    prose citing ``knowledge/README.md`` is exactly what governed documents do.
+    """
+    ws = _base(tmp_path, "ws-knowledge-mention")
+    ws.source(
+        "services/control-plane/src/index.ts",
+        "// see knowledge/README.md for the boundary\nexport const a = 'knowledge/catalog.json'",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
+
+
+def test_production_outside_src_is_still_governed(tmp_path: Path) -> None:
+    """A member cannot escape the rule by putting the file somewhere else."""
+    ws = _base(tmp_path, "ws-knowledge-outside-src")
+    ws.source(
+        "services/control-plane/runtime/boot.ts",
+        "import catalog from '../../knowledge/catalog.json'\nexport const a = catalog",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "production outside src/ is production"
+    assert "never imported directly" in _output(result)
+
+
+def test_a_filesystem_read_is_not_claimed_to_be_covered(tmp_path: Path) -> None:
+    """The boundary of the guarantee, pinned so it cannot be overclaimed later.
+
+    ``readFileSync(join("knowledge", name))`` is a CALL, not an import, and a
+    path assembled at runtime is not statically decidable at all. This check
+    proves a property of the import graph; it does not prove that a direct
+    filesystem read is impossible.
+
+    The fixture below passes, and that is the correct and honest outcome. If a
+    future change makes it fail, the guarantee has grown — update this test and
+    the comment in ``check-source-imports.mjs`` together, so the claim and the
+    mechanism never drift apart.
+    """
+    ws = _base(tmp_path, "ws-knowledge-fsread")
+    ws.source(
+        "services/control-plane/src/index.ts",
+        "import { readFileSync } from 'node:fs'\n"
+        "import { join } from 'node:path'\n"
+        "export const read = (name: string) => readFileSync(join('knowledge', name))",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, (
+        "this is NOT caught, and the mjs comment says so — a filesystem read is "
+        "not an import, and the import guard must not be read as proof about it"
+    )
+
+
 def test_build_tooling_may_not_be_imported_from_production_source(tmp_path: Path) -> None:
     """Layer 0 is *below* everything, so layering alone would allow this.
 
