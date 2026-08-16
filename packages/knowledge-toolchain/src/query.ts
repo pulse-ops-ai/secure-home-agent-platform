@@ -16,6 +16,7 @@
  * and confer exactly zero authority (ADR-0015 §10).
  */
 import type { PackagedBundle } from './packaging.js'
+import type { CompiledBundle } from './types.js'
 
 export interface Concept {
   readonly path: string
@@ -55,9 +56,14 @@ export interface KnowledgeQuery {
   byType(type: string): readonly Concept[]
 }
 
-/** Open a query over a packaged bundle. No path, no filesystem, no network. */
-export const query = (bundle: PackagedBundle): KnowledgeQuery => {
-  const concepts = new Map(bundle.documents.map((document) => [document.path, toConcept(document)]))
+const open = (
+  documents: readonly {
+    path: string
+    frontmatter: Readonly<Record<string, unknown>>
+    body: string
+  }[],
+): KnowledgeQuery => {
+  const concepts = new Map(documents.map((document) => [document.path, toConcept(document)]))
   return {
     list: () => [...concepts.keys()].sort(),
     // A missing optional field, an unknown key, or a broken link never throws:
@@ -66,3 +72,18 @@ export const query = (bundle: PackagedBundle): KnowledgeQuery => {
     byType: (type) => [...concepts.values()].filter((concept) => concept.type === type),
   }
 }
+
+/**
+ * Read ADMITTED repository knowledge. Takes a packaged artifact, never a path.
+ */
+export const query = (bundle: PackagedBundle): KnowledgeQuery => open(bundle.documents)
+
+/**
+ * Read FOREIGN OKF this repository never admitted.
+ *
+ * A separate entry point with a separate input type, so tolerance is preserved
+ * without laundering unadmitted bytes into the artifact that carries admitted
+ * knowledge. Foreign input has none of admission's guarantees, and this is the
+ * path where that is true.
+ */
+export const readForeign = (bundle: CompiledBundle): KnowledgeQuery => open(bundle.documents)

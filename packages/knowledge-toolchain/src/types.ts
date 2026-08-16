@@ -91,17 +91,52 @@ export interface ContentReview {
 /**
  * Governed human-review evidence — Proof B (ADR-0016 §5a).
  *
- * An INPUT to the toolchain, never something it produces. No governed
- * machine-consumable producer exists in this repository, which is why
- * publication is unreachable today and why this type has no constructor here.
+ * **OPAQUE ON PURPOSE.** The brand below is an unexported `unique symbol`, so
+ * no code outside this package can produce a conforming value: matching the
+ * other four fields is not enough, and there is no exported factory. A
+ * structurally-typed interface was the original defect — ordinary consumer code
+ * could write an object literal and make an admitted module publishable, and
+ * "there is no function named `makeReviewEvidence`" is a naming convention
+ * rather than a boundary.
+ *
+ * There is **no producer in this package either**. Proof B arrives from a
+ * governed mechanism this repository does not yet have, which is why
+ * publication is unreachable today. The threat model is ordinary structural
+ * typing; a caller who reaches for an unsafe cast has left the type system, and
+ * the runtime check in `checkProofB` still applies to them.
  */
+declare const GOVERNED_REVIEW: unique symbol
+
 export interface ReviewEvidence {
+  /** Unforgeable outside this package: the symbol is not exported. */
+  readonly [GOVERNED_REVIEW]: true
   /** The human the governed mechanism says actually reviewed. */
   readonly reviewer: string
   readonly policy: string
   readonly sourceDigest: string
   /** Identity of the exact attestation revision approved. */
   readonly attestationRevision: string
+}
+
+/**
+ * Proof that a bundle passed ADMISSION.
+ *
+ * Also branded, and for the same reason: `packageBundle` used to accept any
+ * `CompiledBundle`, so `compile(anything) → packageBundle → query` produced the
+ * *same artifact type* that repository knowledge flows through. Admission was
+ * advisory — a comment claimed the input had been admitted and nothing enforced
+ * it. Only `admit()` mints this, so packaging now requires the proof rather
+ * than trusting the caller.
+ *
+ * Foreign OKF still reads, through `readForeign` — a different path with a
+ * different input type, so tolerance is preserved without laundering foreign
+ * bytes into the admitted artifact.
+ */
+declare const ADMITTED: unique symbol
+
+export interface AdmittedBundle {
+  readonly [ADMITTED]: true
+  readonly bundle: CompiledBundle
 }
 
 export type PublicationBlockReason =
@@ -117,4 +152,6 @@ export interface AdmissionOutcome {
   readonly publishable: boolean
   readonly refusals: readonly Refusal[]
   readonly publicationBlockReason?: PublicationBlockReason
+  /** Present only when admitted. The proof `packageBundle` requires. */
+  readonly proof?: AdmittedBundle
 }

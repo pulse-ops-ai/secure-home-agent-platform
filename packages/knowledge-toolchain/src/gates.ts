@@ -48,7 +48,12 @@ export interface SetResolution {
 export const resolveSet = (
   set: GateState,
   members: readonly { readonly id: string; readonly gates: GateState }[],
-): SetResolution | { readonly refusedBy: 'set-rollout' } => {
+): SetResolution | { readonly refusedBy: 'set-toolchain' | 'set-rollout' | 'set-both' } => {
+  // BOTH set gates, before any member is considered. Consulting only rollout
+  // made the set's toolchain gate decorative: a set could resolve members while
+  // the toolchain that would admit them did not exist.
+  if (set.blockedByToolchain && set.blockedByRollout) return { refusedBy: 'set-both' }
+  if (set.blockedByToolchain) return { refusedBy: 'set-toolchain' }
   if (set.blockedByRollout) return { refusedBy: 'set-rollout' }
   const resolved: string[] = []
   const refused: { module: string; refusedBy: 'toolchain' | 'rollout' | 'both' }[] = []

@@ -133,6 +133,21 @@ const IGNORED_DIRS = new Set([
   '.next',
 ])
 
+/**
+ * KNOWLEDGE IS READ THROUGH THE QUERY SEAM, NEVER FROM DISK.
+ *
+ * ADR-0010: "No agent, service, or profile reads a bundle file directly."
+ * Direct reads would make an unvalidated format load-bearing, and would skip
+ * every admission rule the toolchain exists to apply. The only production
+ * member permitted to name a `knowledge/` path is the toolchain itself, and it
+ * does not read one either — `compile` and `admit` take supplied bytes.
+ *
+ * Enforced here rather than in a parallel scanner so it travels with the rest
+ * of the import governance and cannot be forgotten by a new member.
+ */
+const KNOWLEDGE_PATH = /['"`][^'"`\n]*knowledge\/[^'"`\n]*['"`]/
+const KNOWLEDGE_READER_EXEMPT = new Set(['packages/knowledge-toolchain'])
+
 const TEST_DIR = /(?:^|\/)(?:tests|__tests__|__fixtures__)(?:\/|$)/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
 /** No slash → member root; `something.config.ts` → build configuration. */
@@ -292,6 +307,22 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
         continue
       }
       scanned += 1
+
+      // NO DIRECT KNOWLEDGE READ. Production source must not name a
+      // `knowledge/` path: the query seam is the only read path, and a path
+      // literal is how a consumer would reach around it. Tests may build
+      // fixtures; the toolchain is exempt because it is the seam.
+      const codeOnly = text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+      if (
+        zone === 'production' &&
+        !KNOWLEDGE_READER_EXEMPT.has(member.rel) &&
+        KNOWLEDGE_PATH.test(codeOnly)
+      ) {
+        fail(
+          `${path}: names a "knowledge/" path from production source — ` +
+            'knowledge is read through the query seam, never from disk (ADR-0010)',
+        )
+      }
 
       const { specifiers, nonLiteral, syntaxErrors } = readImports(text, file)
 

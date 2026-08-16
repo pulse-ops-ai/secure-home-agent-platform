@@ -13,8 +13,8 @@
 export { compile, RESERVED } from './compile.js'
 export { admit, checkEnvelope, OKF_VERSION } from './admit.js'
 export { packageBundle } from './packaging.js'
-export type { PackagedBundle } from './packaging.js'
-export { query } from './query.js'
+export type { PackagedBundle, PackagedDocument, PackagedMember } from './packaging.js'
+export { query, readForeign } from './query.js'
 export type { Concept, KnowledgeQuery } from './query.js'
 export { bundleDigest, fileDigest, manifestBytes, PACKAGE_FORMAT } from './identity.js'
 export {
@@ -30,6 +30,7 @@ export { BLIND_SPOTS, COVERAGE, UNDECIDABLE_CLASSES } from './indicators.js'
 export type { EvidenceKind, IndicatorSpec } from './indicators.js'
 export type {
   AdmissionOutcome,
+  AdmittedBundle,
   CatalogEntry,
   Compiled,
   CompiledBundle,

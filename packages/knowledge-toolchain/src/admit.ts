@@ -19,6 +19,7 @@ import { scanDocument, scanMembers } from './indicators.js'
 import { checkProofA, checkProofB } from './attestation.js'
 import type {
   AdmissionOutcome,
+  AdmittedBundle,
   CatalogEntry,
   CompiledDocument,
   Refusal,
@@ -98,6 +99,23 @@ export const checkEnvelope = (members: readonly SourceFile[]): readonly Refusal[
   return refusals
 }
 
+/** Resolve `link` against the directory of `from`, POSIX-style, no escapes. */
+const resolveRelative = (from: string, link: string): string | undefined => {
+  const base = from.split('/').slice(0, -1)
+  const parts = link.split('/')
+  const out = [...base]
+  for (const part of parts) {
+    if (part === '' || part === '.') continue
+    if (part === '..') {
+      if (out.length === 0) return undefined
+      out.pop()
+      continue
+    }
+    out.push(part)
+  }
+  return out.join('/')
+}
+
 const missingOrEmpty = (value: unknown): boolean =>
   value === undefined || value === null || (typeof value === 'string' && value.trim() === '')
 
@@ -110,8 +128,31 @@ const checkDocument = (document: CompiledDocument): readonly Refusal[] => {
   }
 
   for (const field of REQUIRED_FIELDS) {
-    if (missingOrEmpty(fm[field]))
+    const value = fm[field]
+    if (missingOrEmpty(value)) {
       bad('metadata_missing', `profile.${field}`, `required field "${field}" is missing or empty`)
+      continue
+    }
+    // TYPE BEFORE MEANING. A wrong-typed field used to slip past every rule
+    // that guarded on `typeof === 'string'` — including the catalog mirror,
+    // which then SKIPPED the comparison it exists to make. `owner: [human:mike]`
+    // parses to an array and was silently unchecked.
+    const wrongType =
+      field === 'governs'
+        ? // An EMPTY list is not a governing source: `[]` is "present" and
+          // vacuously all-strings, so it slipped past both the missing check
+          // and the element check — a module projecting nothing.
+          !(
+            typeof value === 'string' ||
+            (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === 'string'))
+          )
+        : typeof value !== 'string'
+    if (wrongType)
+      bad(
+        'metadata_shape',
+        `profile.${field}.type`,
+        `field "${field}" must be ${field === 'governs' ? 'a string or a list of strings' : 'a string'}, not ${Array.isArray(value) ? 'a list' : typeof value}`,
+      )
   }
 
   // `generated.at` is production provenance and is REQUIRED alongside `as_of`,
@@ -174,6 +215,8 @@ const checkMirror = (document: CompiledDocument, entry: CatalogEntry): readonly 
     rule: `mirror.${field}`,
     detail: `catalog "${field}" is ${catalog}; frontmatter is ${front}. The catalog is authoritative and this is not merged`,
   })
+  // Only compares what the SHAPE rules above have already accepted. A
+  // wrong-typed field is refused there and is not silently skipped here.
   const refusals: Refusal[] = []
   if (typeof fm['owner'] === 'string' && fm['owner'] !== entry.owner)
     refusals.push(mismatch('owner', entry.owner, fm['owner']))
@@ -182,14 +225,15 @@ const checkMirror = (document: CompiledDocument, entry: CatalogEntry): readonly 
   if (typeof fm['limitations'] === 'string' && fm['limitations'] !== entry.limitations)
     refusals.push(mismatch('limitations', entry.limitations, fm['limitations']))
   const governs = fm['governs']
-  const declared = Array.isArray(governs)
-    ? governs.map(String)
-    : typeof governs === 'string'
+  const declared =
+    typeof governs === 'string'
       ? [governs]
-      : []
+      : Array.isArray(governs) && governs.every((v) => typeof v === 'string')
+        ? [...governs]
+        : undefined
   const expected = [...entry.governingSources]
   if (
-    declared.length > 0 &&
+    declared !== undefined &&
     JSON.stringify([...declared].sort()) !== JSON.stringify([...expected].sort())
   )
     refusals.push(mismatch('governingSources', expected.join(','), declared.join(',')))
@@ -249,14 +293,19 @@ export const admit = (request: AdmitRequest): AdmissionOutcome => {
     // Bundle-internal references must resolve AT ADMISSION. Once admitted they
     // are frozen inside the immutable package and cannot later break; external
     // and `governs` references can, which is why reading stays tolerant.
-    for (const match of text.matchAll(/\]\((\/[^)\s]+)\)/g)) {
-      const target = (match[1] ?? '').replace(/^\//, '')
-      if (!internal.has(target))
+    // BOTH link forms, and relative ones resolved against the document's own
+    // directory. Checking only root-absolute `/foo.md` left every ordinary
+    // Markdown link — the common form — unverified.
+    for (const match of text.matchAll(/\]\(([^)\s#]+)(?:#[^)\s]*)?\)/g)) {
+      const raw = match[1] ?? ''
+      if (raw === '' || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue // external URL
+      const target = raw.startsWith('/') ? raw.slice(1) : resolveRelative(document.path, raw)
+      if (target !== undefined && !internal.has(target))
         refusals.push({
           kind: 'reference_integrity',
           path: document.path,
           rule: 'reference.internal',
-          detail: `bundle-internal reference "${target}" does not resolve within the source`,
+          detail: `bundle-internal reference "${raw}" does not resolve within the source`,
         })
     }
   }
@@ -277,12 +326,17 @@ export const admit = (request: AdmitRequest): AdmissionOutcome => {
   const admitted = refusals.length === 0
   if (!admitted) return { admitted: false, publishable: false, refusals }
 
+  // The BRAND is minted here and nowhere else: packaging requires proof of
+  // admission rather than trusting a caller's compiled bundle.
+  const proof = { bundle } as unknown as AdmittedBundle
+
   // PROOF B — a DIFFERENT question, and one this repository cannot answer.
   const proofB = checkProofB(request.entry.contentReview, request.reviewEvidence, digest)
   return {
     admitted: true,
     publishable: proofB === undefined,
     refusals: [],
+    proof,
     ...(proofB === undefined ? {} : { publicationBlockReason: proofB }),
   }
 }
