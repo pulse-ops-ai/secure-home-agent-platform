@@ -19,6 +19,7 @@ import {
   RecordingEventSink,
   TransactionalFinalization,
 } from '../adapters/index.js'
+import { CommitLedger } from '../run-state/visibility.js'
 import { sharedPorts } from '../testing-fixtures.js'
 
 const RUN = 'run-20260812-0001'
@@ -42,7 +43,11 @@ const RUN = 'run-20260812-0001'
 // (falsification-round17.test.ts): RO-EX-185 (loser cleanup cannot
 // alias winner state), RO-EX-186 (a borrower cannot report success
 // without owning its event stage), RO-EX-187 (ordinary emission
-// consults an unpublished staged reservation).
+// consults an unpublished staged reservation) — and the round-18
+// proofs (falsification-round18.test.ts): RO-EX-189 (exact staged
+// versus ordinary replay never exposes two durable rows for one
+// identity) and RO-EX-190 (an acknowledged ordinary replay stays
+// durable when the equivalent staged sibling abandons).
 
 const LIMITS = {
   wall_clock_seconds: 600,
@@ -227,6 +232,35 @@ describe('RO-EX-188: two staged transactions cannot reserve two facts at one ide
       !conflict.ok && conflict.reason,
       'transaction identity cannot make two facts share one event identity',
     ).toBe('conflicting_replay')
+  })
+})
+
+describe('RO-EX-191: an ordinary exact landing is the one durable fact at its identity', () => {
+  it('retires every equivalent unpublished stage, whichever sibling publishes or abandons', async () => {
+    const visibility = new CommitLedger()
+    const sink = new RecordingEventSink(visibility)
+    const event = { event_type: 'run.terminated', sequence: 0, outcome: 'a' }
+
+    const x = await sink.stageEmit({ run_id: RUN, generation: 1, commit_id: 'x', event })
+    const y = await sink.stageEmit({ run_id: RUN, generation: 1, commit_id: 'y', event })
+    expect(x.ok && y.ok).toBe(true)
+
+    const ordinary = await sink.emit({ run_id: RUN, generation: 1, sequence: 0, event })
+    expect(ordinary.ok, 'the landing is backed by durable state of its own').toBe(true)
+
+    visibility.publish('x')
+    visibility.publish('y')
+    expect(
+      sink.eventsOf(RUN),
+      'no combination of staged publications may expose a second physical row',
+    ).toEqual([event])
+
+    if (x.ok) x.staged.abandon()
+    if (y.ok) y.staged.abandon()
+    expect(
+      sink.eventsOf(RUN),
+      'sibling abandonment cannot erase the acknowledged durable fact',
+    ).toEqual([event])
   })
 })
 

@@ -176,17 +176,28 @@ export class RecordingEventSink implements EventSinkPort {
     // UNPUBLISHED staged event is not free: a different canonical fact
     // cannot occupy it merely because the reservation is not yet
     // durable — otherwise publication would expose two events at one
-    // identity. (An ordinary emission of the EXACT reserved canonical
-    // is deliberately left to today's behavior: that cell has no
-    // executable falsification yet and its semantics are not decided
-    // here.)
+    // identity.
     const reserved = this.#liveReservation(identity)
-    if (reserved !== undefined && reserved.canonical !== canonical) {
-      return Promise.resolve({
-        ok: false,
-        reason: 'conflicting_replay',
-        detail: `event identity ${identity} is reserved by an unpublished staged event`,
-      })
+    if (reserved !== undefined) {
+      if (reserved.canonical !== canonical) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} is reserved by an unpublished staged event`,
+        })
+      }
+      // EXACT reserved canonical: an unpublished stage is NOT durable,
+      // so it cannot back an acknowledged ordinary effect. This landing
+      // becomes THE durable fact at the identity, and every equivalent
+      // unpublished stage retires with it — otherwise a later
+      // publication would expose a second physical row for the one
+      // fact, and an abandoning sibling could erase the only copy of an
+      // event this sink already acknowledged. (Which acknowledgement
+      // the ordinary caller receives stays open; that one identity has
+      // one durable fact does not.)
+      for (const [stagedCommit, stagedRow] of [...reserved.stages]) {
+        this.#releaseStage(identity, stagedCommit, stagedRow)
+      }
     }
     this.#landed.set(identity, canonical)
     const existing = this.#byRun.get(request.run_id) ?? []

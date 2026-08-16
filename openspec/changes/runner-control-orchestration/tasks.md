@@ -913,6 +913,50 @@ operation its requirement names.
   strict OpenSpec validation, and repository gate green at the pushed
   head.
 
+- [x] **7.18 Close round-18 exact staged-versus-ordinary durable-uniqueness finding**
+  <!-- agent-task: 7.18 paths=services/runner-control/**,openspec/changes/runner-control-orchestration/** checks=repo-check risk=high prerequisites=7.17 -->
+
+  **Authorized by** — the same owner decision record (mechanical D14
+  conformance); the round-18 instruction classifies the closure
+  `MECHANICAL_CONFORMANCE_FIX`. Reviewer provenance preserved as three
+  distinct commits parented on the reviewed head `636535c`:
+  `4cff8ab7901c1b49f53e8bc675715e6765bf5a4b` (round-18 RED),
+  `e9a7bfc23f3c615225a5bdc29cb8afd0631b6aa0` (acknowledgement control),
+  `d1adf5ebfe62cb553529f7f5e062c1adeb7148ea` (corrected acknowledgement
+  control), consumed unmodified.
+
+  **Implements** — one event-domain identity carries at most one
+  durable physical event fact on every creation path. An unpublished
+  stage is not durable, so it cannot back an acknowledged ordinary
+  effect: when ordinary `emit` lands the exact canonical a live
+  reservation holds, the landing becomes the durable fact and every
+  equivalent unpublished stage retires through the existing scoped
+  release (publish-guarded, row-by-reference). A staged sibling that
+  later publishes exposes no second row; a sibling that abandons
+  releases only its own stage and cannot erase the acknowledged event.
+  The acknowledgement disposition of the exact cell stays open (this
+  implementation keeps today's `ok`); durable uniqueness and
+  acknowledgement truthfulness do not. Scope confined to the exact-
+  canonical branch of `emit` in `adapters/deterministic.ts`;
+  different-canonical conflicts, Round-17 per-transaction stage
+  ownership, and Round-16 finalization semantics untouched.
+
+  **Disclosures** — (1) The reviewer files are consumed byte-frozen
+  (`git diff d1adf5e -- …round18.test.ts` empty; round-17 and round-16
+  files verified unchanged from their approved reviewer heads). (2) The
+  mandated R18-MUT-C (partial retirement) is killed ONLY by this
+  landing's own RO-EX-191 — every reviewer round-18 proof passes under
+  it, because the reviewer interleavings stage a single sibling; the
+  registered proof exists precisely to close that seam.
+
+  **Proof required** — the reviewer round-18 file green and unmodified;
+  the approved baseline reproduced exactly (1 RED / 8 GREEN, the sole
+  RED being the two-durable-rows exposure) before any production
+  change; RO-INV-96, RO-EX-189…191, and RO-MUT-132…134 registered, each
+  mutant hand-applied and killed; every prior falsification round
+  green; complete tests, typecheck, lint, build, strict OpenSpec
+  validation, and repository gate green at the pushed head.
+
 ## PR-1 Completion Gate
 
 The landing is complete only when every box above is checked with its

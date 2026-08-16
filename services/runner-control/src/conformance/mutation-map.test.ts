@@ -712,6 +712,22 @@ const TARGETS: readonly MutationTarget[] = [
     killedBy: ['RO-EX-187'],
   },
   {
+    id: 'RO-MUT-132',
+    mutation:
+      'land the ordinary exact replay while equivalent stages stay independently publishable',
+    killedBy: ['RO-EX-189', 'RO-EX-191'],
+  },
+  {
+    id: 'RO-MUT-133',
+    mutation: 'acknowledge the exact reserved canonical with no durable state of its own',
+    killedBy: ['RO-EX-190', 'RO-EX-191'],
+  },
+  {
+    id: 'RO-MUT-134',
+    mutation: 'retire only the first equivalent stage at an ordinary exact landing',
+    killedBy: ['RO-EX-191'],
+  },
+  {
     id: 'MUT-004',
     mutation: 'widen the executed command beyond the captured registry entry',
     killedBy: ['ADV-006'],

@@ -859,6 +859,24 @@ ordinary-versus-staged replay cell is deliberately left at today's
 behavior — undecided until falsified — and Round-16's finalization
 semantics are untouched (RO-INV-95, RO-EX-185…188, RO-MUT-127…131).
 
+**Round-18 exactness: one identity, one durable fact, on every path.**
+The falsification arrived for the exact staged-versus-ordinary cell,
+and it decided the part that was provable without an owner choice: an
+unpublished stage is NOT durable, so it cannot back an acknowledged
+ordinary effect — when ordinary emission lands the exact canonical a
+live reservation holds, the landing becomes THE durable fact and every
+equivalent unpublished stage retires with it. A staged sibling that
+later publishes exposes no second row (its event participant
+reconciles against the durable identity ledger), and a sibling that
+abandons releases only its own — already retired — stage, so the
+acknowledged event cannot disappear. Durable uniqueness and
+acknowledgement truthfulness are now invariant; the acknowledgement
+DISPOSITION of the exact cell (this implementation keeps today's `ok`)
+remains the open remainder, and different-canonical conflicts,
+Round-17 per-transaction stage ownership, and Round-16 finalization
+identity separation are all unchanged (RO-INV-96, RO-EX-189…191,
+RO-MUT-132…134).
+
 **Round-13 exactness: identity equality implies fact equality.** A
 replay ledger that remembers only "this identity landed" cannot tell an
 exact retry from a different fact wearing a landed name. Every replay

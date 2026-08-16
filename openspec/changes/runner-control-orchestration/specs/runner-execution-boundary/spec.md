@@ -259,6 +259,22 @@ unpublished reservations: a DIFFERENT canonical event at an identity
 reserved by an unpublished stage refuses as a conflicting replay and
 lands nowhere.
 
+One event-domain identity SHALL carry at most one durable physical
+event fact, however that fact is reached — ordinary emission, staged
+publication, or both paths racing or replaying. An exact fact
+reconciles across paths rather than duplicating: when an ordinary
+emission lands the exact canonical an unpublished stage reserves, the
+landing becomes the durable fact and every equivalent unpublished
+stage retires with it, so no later publication of a staged sibling
+exposes a second row and no abandoning sibling can erase the landed
+fact; a staged replay of an already-durable exact fact stages nothing
+and is not a conflict, and the reconciled transaction's commit
+proceeds unharmed. The acknowledgement an ordinary caller receives for
+the exact staged-versus-ordinary replay is NOT decided here — but a
+successful acknowledgement SHALL be truthful: success is backed by
+durable state that does not depend on another transaction's
+unpublished mutable stage.
+
 Finalization SHALL bind its in-flight state synchronously before its
 first await: one in-flight commit identity binds ONE canonical logical
 intent — an exact concurrent replay joins the single underlying
@@ -316,6 +332,24 @@ its own operation still holds.
 - **THEN** it publishes its OWN staged event or refuses
 - **AND** a successful commit outcome with no visible terminal event is
   unrepresentable
+
+#### Scenario: Exact staged-versus-ordinary replay keeps one durable fact
+
+- **GIVEN** an unpublished staged terminal event reserving a sequence
+  identity
+- **WHEN** the exact canonical event is ordinarily emitted at that
+  identity and the staged transaction later publishes
+- **THEN** the identity exposes exactly one durable event
+- **AND** the staged transaction's publication does not fail for the
+  reconciled event participant
+
+#### Scenario: An acknowledged ordinary landing survives staged abandonment
+
+- **GIVEN** an ordinary emission that reported success at an identity
+  an unpublished stage had reserved
+- **WHEN** the staged sibling abandons its stage
+- **THEN** the acknowledged event remains durable
+- **AND** the abandonment releases only the sibling's own stage
 
 #### Scenario: An ordinary emission cannot occupy a reserved identity
 
