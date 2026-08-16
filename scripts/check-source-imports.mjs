@@ -172,8 +172,18 @@ const KNOWLEDGE_READER_EXEMPT = new Set(['packages/knowledge-toolchain'])
  *     packages/query-model/src/index.ts
  *     import { sealAdmitted } from '../../knowledge-toolchain/src/admitted.js'
  *
- * Node resolves it, `tsc` builds it, layering never sees it, and the exports
- * field is irrelevant because nothing consulted it. The architecture now leans
+ * Node resolves it and so does TypeScript, which pulls the other member's source
+ * into THIS member's program. Layering never sees it, and the `exports` field is
+ * irrelevant because nothing consulted it.
+ *
+ * Measured on this repository rather than assumed: a service importing
+ * `sealAdmitted` alone typechecks clean. Adding `query.js` does surface errors —
+ * but they are `node:crypto` and `TextEncoder` missing from the *importing*
+ * member's `types`, an accident of the consumer's tsconfig, and it is the other
+ * package's files that are being compiled. A configuration accident is not a
+ * boundary control; it fails on unrelated grounds and passes just as easily.
+ *
+ * The architecture now leans
  * on package-private modules — `admitted.ts` mints the admission proof and
  * `query.ts` holds the tolerant foreign reader, both deliberately absent from
  * the package root — and absence from the root is worth nothing if the file is
