@@ -311,7 +311,8 @@ So finalization PREPARES — assemble the bundle, project the whole
 terminal transition sequence from the machine, build the terminal event
 envelope, decide seal ordering and seal eligibility — and only then
 COMMITS the journal tail, the terminal event, and the sealed bundle
-together. All three land or none is observable. The machine then adopts
+together. Every participant fact the transaction still owes lands
+together or none is observable. The machine then adopts
 the projected entries VERBATIM, so what it reports is the committed fact
 rather than a re-derivation of the intent.
 
@@ -321,7 +322,15 @@ observable writes at all: each participant STAGES its part of the commit
 — the journal tail, the terminal event, the sealed bundle — where no
 reader can see it, and one shared visibility marker publishes all three
 in a single step. Publication is the only point at which the commit
-exists. A participant that refuses to stage costs nothing, because
+exists. Round 18 added the one refinement this wording needs: when the
+exact terminal event is ALREADY a durable domain fact — the same
+canonical content, ordinarily landed at the same (run, sequence) — the
+event participant reconciles against that durable fact instead of
+becoming a second physical row, and the marker publishes what the
+transaction still owes: the journal tail and the sealed bundle become
+observable only through this transaction's own commit, and the event's
+prior domain durability neither commits the transaction nor publishes
+anything early. Domain identity is not transaction identity. A participant that refuses to stage costs nothing, because
 nothing staged is observable; there is no partially visible state to
 compensate for, and no participant is required to be able to undo a
 write, because no write becomes visible until every participant has
@@ -855,9 +864,11 @@ state, and a borrower cannot report success with the terminal event
 missing. Ordinary and staged emission answer to the ONE event-domain
 authority: `emit` consults live reservations and refuses a DIFFERENT
 canonical at a reserved identity as `conflicting_replay`. The exact
-ordinary-versus-staged replay cell is deliberately left at today's
-behavior — undecided until falsified — and Round-16's finalization
-semantics are untouched (RO-INV-95, RO-EX-185…188, RO-MUT-127…131).
+ordinary-versus-staged replay cell was, at this round, deliberately
+left at then-current behavior — not yet falsified here; Round 18 below
+decides its durable-uniqueness and acknowledgement-truthfulness halves
+— and Round-16's finalization semantics are untouched (RO-INV-95,
+RO-EX-185…188, RO-MUT-127…131).
 
 **Round-18 exactness: one identity, one durable fact, on every path.**
 The falsification arrived for the exact staged-versus-ordinary cell,

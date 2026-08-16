@@ -633,9 +633,19 @@ native units; monetary cost SHALL NOT be modeled.
 
 A run's finalization comprises the durable transition tail, the
 `run.terminated` event, and the sealed evidence bundle. These SHALL
-commit as ONE transition: after finalization is attempted, either all
-three are observable or none of them is. An implementation that cannot
-guarantee this SHALL fail the commit rather than apply part of it.
+commit as ONE transition, through exactly one commit-visibility
+operation that makes every participant fact the transaction still owes
+observable together: after finalization is attempted, either the
+complete terminal record is observable or nothing the transaction
+prepared is. A participant fact already durably satisfied by exact
+replay — a terminal event whose identical canonical content ordinarily
+landed at the same event-domain identity — SHALL be reconciled by the
+commit rather than physically republished; its prior durability SHALL
+NOT commit the transaction, publish any other participant early, or
+excuse a fact the transaction still owes, and the journal tail and
+sealed evidence SHALL become observable only through the transaction's
+own commit. An implementation that cannot guarantee this SHALL fail
+the commit rather than apply part of it.
 
 The terminal event's outcome SHALL be the outcome that COMMITTED. An
 event announcing a terminal state the run did not reach SHALL NOT be

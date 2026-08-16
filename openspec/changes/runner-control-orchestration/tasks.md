@@ -904,6 +904,10 @@ operation its requirement names.
   untouched, and the minimal implementation never forced the choice —
   so no `OWNER_DECISION_REQUIRED_EXACT_ORDINARY_STAGED_REPLAY` stop was
   needed and the cell stays open for a future owner decision.
+  (Historically accurate for this round; Round 18 — task 7.18 — later
+  decided the cell's durable-uniqueness and acknowledgement-
+  truthfulness halves, leaving only the acknowledgement disposition
+  open.)
 
   **Proof required** — the reviewer round-17 file green and unmodified;
   the blessed baseline reproduced exactly (3 RED / 2 GREEN) before any
@@ -967,6 +971,22 @@ head) are recorded.
 
 Task checkbox state is progress tracking. It is never proof and never
 authorization.
+
+### Frozen-head review record
+
+- **Semantic frozen head:** `ea310899e03f2a8cef5ad687ade4433fe42aad86`
+  — the reviewed tree. The completion-fix commit that records this
+  review is documentation-only and is NOT the semantic head.
+- **Verdict:** `FREEZE_APPROVED_WITH_COMPLETION_FIXES`.
+- **Semantic result:** no production blocker found; no additional
+  falsification round warranted.
+- **Required completion fixes:** documentation exactness only —
+  RO-INV-47's finalization wording made reconciliation-aware, the
+  RO-INV-95/96 decided-versus-open cell wording sharpened, and the
+  PR body refreshed to describe the final system.
+- **Final posture:** semantic freeze complete; bounded completion
+  corrections complete; production semantics unchanged; ready to
+  merge.
 
 ---
 
