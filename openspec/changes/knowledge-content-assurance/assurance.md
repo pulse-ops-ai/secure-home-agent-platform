@@ -31,6 +31,11 @@ wrong would substitute a second false comfort for the first.
 | CA-INV-07 | No classifier, model, or network call participates in admission | trust |
 | CA-INV-08 | The machine proves an attestation EXISTS and is BOUND. It does not prove the human interpreted the prose correctly, and `human:<id>` is not a signature | trust |
 | CA-INV-09 | The platform-only rollout is risk reduction, not a claim that platform prose is decidable | trust |
+| CA-INV-10 | **No class is recorded as A without a completeness proof.** There are none today; media is **B** | trust |
+| CA-INV-11 | Toolchain proof and reviewer-authenticity proof are INDEPENDENT. A self-asserted `by: human:<id>` with a correct digest is not evidence of human action, and publication stays blocked while no governed reviewer signal exists | trust |
+| CA-INV-12 | The policy identifier denotes ADR-0016 §1–§2 as accepted; changing review meaning requires a new version, and old attestations do not satisfy it | trust |
+| CA-INV-13 | `blockedByToolchain` and `blockedByRollout` are independent, per-entry, machine-readable, and asserted; a module authors only when both are `false` | behavior |
+| CA-INV-14 | Runbook eligibility is per-module allowlist, never by directory | behavior |
 
 ## State-Space Model
 
@@ -57,7 +62,12 @@ cell is the one an implementation could otherwise reach by accident.
 | CA-EX-06 | CA-INV-06 | structural | ADR-0016 §4 states why `verified` is not reused and confines the artifact to the knowledge plane |
 | CA-EX-07 | CA-INV-07 | deferred, structural | admission has no model or network dependency |
 | CA-EX-08 | CA-INV-08 | structural | ADR-0016 §5 states the limits of what the machine proves |
-| CA-EX-09 | CA-INV-02 | review | no test is registered as class proof when it establishes an indicator |
+| CA-EX-09 | CA-INV-02 | review | no test is registered as class proof when it establishes an indicator; every B test is named for its indicator |
+| CA-EX-10 | CA-INV-10 | deferred, structural | no A registration exists without a completeness argument |
+| CA-EX-11 | CA-INV-11 | deferred, executable | a valid, correctly bound, self-asserted attestation does not make a module publishable |
+| CA-EX-12 | CA-INV-12 | deferred, executable | an attestation naming an older policy version fails under a newer one |
+| CA-EX-13 | CA-INV-13 | deferred, executable | household refused while toolchain readiness is `true`; eligible platform module proceeds when both gates and attestation are satisfied |
+| CA-EX-14 | CA-INV-03 | deferred, executable | a deterministic finding refuses despite BOTH valid content binding and valid human-review evidence |
 
 ## Verification Strategy
 

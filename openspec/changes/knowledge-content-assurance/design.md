@@ -69,6 +69,31 @@ changes the bytes it certifies. So it lives in the catalog, which ADR-0015 §5a
 already makes the metadata authority. `sourceDigest` reuses ADR-0015 §6's
 manifest rather than inventing a second identity, because two algorithms diverge.
 
+### D4b: There are no A classes, and that is the result
+
+Media was drafted **A** and is **B**. Arbitrary bytes fit inside Markdown as
+base64 or hex, and an opaque URL carries no content hint, so the detector is
+useful without being complete. **A** is a capability of a mechanism, not a quota
+to fill; inventing one to populate the taxonomy would reproduce the overclaim
+being corrected.
+
+### D4c: Two proofs, because an identifier is not an action
+
+The toolchain can prove the artifact exists, is shaped correctly, names a
+recognized policy, and binds to exact bytes. It cannot prove a person reviewed
+anything — `by: human:<id>` is a string a producer writes. Reviewer authenticity
+is repository-governance evidence, established at the workflow boundary, and
+this repository has no machine-checkable signal for it today. Publication stays
+blocked until it does, and admission gains no network or model dependency.
+
+### D4d: Two gates, because the U7 lesson is one landing old
+
+Representing the household block by leaving `blockedByToolchain: true` would make
+one variable mean two facts — the exact defect the U7 migration removed.
+`blockedByRollout` is a separate per-entry boolean. Runbooks are allowlisted
+individually rather than by directory, so filing a household runbook under
+`runbooks/` cannot make it eligible.
+
 ### D5: Dominance, stated as a table
 
 The row that matters is *finding present + attestation valid → REFUSE*. Without
@@ -79,7 +104,7 @@ advisory — which is the failure mode this whole correction exists to avoid.
 
 | Class | Kind | Machine establishes | Blind to |
 |---|---|---|---|
-| camera media, recordings | A | non-`.md` member, media `data:` URI, media reference | — |
+| camera media, recordings | **B** | non-`.md` member, media `data:` URI, media reference | base64/hex bytes inside Markdown; opaque URLs |
 | secrets, credentials | B | PEM, JWT, known prefixes, high-entropy values | prose credentials |
 | authorization tuples | B | tuple shapes, grant-shaped keys | prose authority |
 | live state / readings | C | nothing | specification vs observation |

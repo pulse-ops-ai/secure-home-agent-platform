@@ -75,19 +75,35 @@ Three kinds of evidence, and the difference between them is load-bearing:
 
 | | Evidence kind | Meaning |
 |---|---|---|
-| **A** | deterministic, structurally complete | the property is decided by form; a violating bundle cannot pass |
+| **A** | deterministic, structurally complete | the property is decided by form; a violating bundle **cannot** pass. Requires a **closed authoring grammar** in which every representation of the prohibited thing is structurally visible |
 | **B** | deterministic indicator, bounded coverage | recognized shapes are refused; the class is **not** fully covered, and the blind spot is named |
 | **C** | semantically undecidable from arbitrary prose | no honest deterministic mechanism exists |
 
 | Class | Kind | What the machine establishes | What it does **not** |
 |---|---|---|---|
-| camera media, recordings | **A** | a bundle member is `.md`; a media-typed `data:` URI or media-extension reference is refused | — |
+| camera media, recordings | **B** | non-`.md` bundle members; Markdown and HTML media references; media-typed `data:` URIs; known media-extension references; other exact structural encodings we enumerate | media bytes base64- or hex-encoded inside a Markdown file; media behind an opaque URL with no extension or content hint |
 | secrets, tokens, keys, credentials | **B** | recognized shapes: PEM blocks, JWT triples, known provider prefixes, high-entropy values in value position | a credential in prose — *"the admin password is the dog's name"* |
 | authorization tuples, grants | **B** | structured tuple shapes and grant-shaped frontmatter keys | prose authority — `knowledge/README.md`'s own prohibited example, *"Alice is a household administrator"* |
 | live device state, current readings | **C** | nothing | the specification/observation distinction |
 | current presence, occupancy | **C** | nothing | — |
 | mutable automation state | **C** | nothing | — |
 | raw personal telemetry | **C** | nothing | prose telemetry; structured tables are at best a **B** indicator |
+
+**There are no class-A detectors today, and that is the honest result.**
+
+Camera media was drafted as **A** and is corrected here. The reasoning that
+demoted it: a bundle member is a Markdown file, and arbitrary bytes can live
+*inside* Markdown as base64 or hex, or behind an opaque URL carrying no
+extension and no content hint. Refusing non-`.md` members and recognizable media
+references is genuinely useful and genuinely deterministic — it is simply not
+**complete**, and completeness is what **A** asserts.
+
+**A** would require a closed authoring grammar in which every representation of
+the prohibited thing is structurally visible. This repository does not have one.
+`A` is a **capability of a mechanism, not a quota to fill**: a category with no
+members is a true statement about what has been built, and inventing an A claim
+to populate the taxonomy would reproduce, in miniature, the exact overclaim this
+ADR exists to correct.
 
 **No test, document, or report may describe a B detector as covering its class.**
 A proof named for a class that establishes one indicator is a false proof, and
@@ -150,12 +166,65 @@ Four properties, each with a reason:
 4. **`policy` is versioned.** Changing the review criteria must not silently
    preserve attestations made under the old ones.
 
-**What the machine proves, stated exactly.** That an attestation exists, names a
-policy version and an actor, and is bound to the exact current bytes. It does
-**not** prove the human interpreted the prose correctly, and it does not prove
-*who* reviewed: `human:<id>` is an identifier, not a signature. Reviewer
-eligibility and authenticity belong to repository review governance, and this
-ADR does not pretend otherwise.
+#### 5a. Two proofs, and they are not the same proof
+
+The attestation is checked by two independent mechanisms, and conflating them
+would let a producer satisfy human review by typing a colleague's identifier
+into `catalog.json`.
+
+**Proof A — TOOLCHAIN.** Offline, deterministic, no network and no model. It
+establishes:
+
+- an attestation record exists;
+- its shape is valid;
+- its `policy` identifier is one this repository recognizes;
+- `sourceDigest` matches the exact current module bytes;
+- any byte change invalidates it.
+
+**Proof B — REPOSITORY GOVERNANCE.** The repository's governed human-review
+mechanism establishes that an **eligible human actually performed or approved**
+the content review.
+
+> **`by: human:<id>` is never, by itself, evidence that the human acted.** It is
+> a string a producer writes. The toolchain validates the artifact and its
+> binding; it does not and cannot validate that the named person reviewed
+> anything.
+
+**Publication eligibility requires BOTH.** Proof A is necessary and not
+sufficient. Where the repository's governed workflow supplies independent review
+evidence — an approving review on the change that introduced the attestation,
+or another explicitly governed signal — that evidence is Proof B.
+
+**Where this repository stands today, stated plainly.** There is **no
+mechanically checkable reviewer-authenticity signal** available to an offline
+validator. Until one exists, or is supplied at the governed workflow boundary
+and recorded, **publication remains blocked** — the toolchain may confirm
+Proof A and must not report the module publishable on that basis alone.
+
+This does not add a network or model dependency to content admission. Proof A
+stays offline and deterministic; Proof B is established outside it, by the
+review process, at the workflow boundary.
+
+#### 5b. `portable-knowledge-prohibited-content-v1` is anchored to an immutable definition
+
+A policy identifier that names nothing can silently change meaning, which would
+let a reviewer's attestation survive a change to what they were attesting to.
+
+**The canonical definition of `portable-knowledge-prohibited-content-v1` is
+§1 and §2 of this ADR as accepted.** Those sections are immutable once this ADR
+is accepted, which is exactly the property the identifier needs. The prohibited
+list (§1) and the coverage classification (§2) together *are* the policy.
+
+A change in review meaning — a class reclassified, a blind spot closed, a new
+prohibition — requires a **new policy version** in a new ADR. Attestations
+naming the old version do not satisfy admission under the new one, and are not
+migrated silently.
+
+**What the machine proves, restated exactly.** That an attestation exists, names
+a recognized policy version and an actor, and is bound to the exact current
+bytes. It does **not** prove the human interpreted the prose correctly, and it
+does **not** prove who reviewed. Reviewer eligibility and authenticity belong to
+repository review governance.
 
 ### 6. Deterministic evidence dominates attestation
 
@@ -174,25 +243,71 @@ sign past a detected secret.
 "Eligible to continue" means the remaining admission rules still apply — this is
 one gate among several, and it grants nothing on its own.
 
-### 7. Initial rollout is scope-limited to platform and engineering knowledge
+### 7. Toolchain readiness and rollout eligibility are TWO independent facts
 
-The first authoring enabled after the toolchain passes review is limited to
-**portable platform/engineering knowledge and coding-oriented runbooks** — the
-class of material learned from the L4 orchestration landing.
+The obvious shortcut — keep `blockedByToolchain: true` on household modules after
+the toolchain is proven — would make one state variable mean two things again.
+That is the defect the U7 migration was carried out to remove, and it must not
+be reintroduced one landing later.
 
-**Household knowledge authoring remains blocked**, and this ADR does not open it.
+```text
+blockedByToolchain    = have compile/validate/package/query and their
+                        conformance proofs been accepted?
+                        ONE fact, repository-wide.
+
+blockedByRollout      = is THIS module class permitted to author under the
+                        current rollout and content-model policy?
+                        PER MODULE and PER SET.
+```
+
+They vary independently. After the toolchain gate is discharged,
+`blockedByToolchain` becomes `false` **everywhere at once**, because it describes
+the toolchain and not the module. `blockedByRollout` stays `true` on household
+modules — not because the toolchain is missing, but because the rollout policy
+has not admitted that class.
+
+**The mechanism.** `blockedByRollout` is a required boolean on every module and
+set in `knowledge/catalog.json`, validated exactly as `blockedByToolchain` is:
+machine-readable, independently reviewable, and asserted rather than merely
+present. **A module is authorable only when both gates are `false` and its
+attestation requirements are satisfied.**
+
+This is not added to the catalog by this ADR — doing so would make a `Proposed`
+decision operative. It is an acceptance obligation (§10).
+
+#### 7a. Initial rollout eligibility, stated exactly
+
+"Coding-oriented runbooks" is not a criterion — a future household-oriented
+runbook would qualify by living under `runbooks/`, which is an accident of path,
+not a decision. So eligibility is defined as:
+
+| Scope | Initial `blockedByRollout` | Rule |
+|---|---|---|
+| `platform/**` | `false` on gate discharge | portable platform and engineering knowledge; eligible subject to both gates and attestation |
+| `runbooks/**` | `true` **by default** | eligible **only** by explicit per-module allowlist entry |
+| `household/**` | `true` | blocked by rollout policy, not by toolchain readiness |
+
+**Runbooks are allowlisted individually, never by directory.** A new runbook is
+ineligible on creation and becomes eligible only when a reviewed change adds it
+to the allowlist — so a household-oriented runbook cannot become eligible
+because of where it was filed.
+
+The allowlist is empty in this ADR. Populating it is a separate reviewed change.
+
+#### 7b. What the scope limit is not
+
+**Risk reduction, not a decidability claim.** Platform prose is not more
+machine-decidable than household prose, and the attestation requirement applies
+to platform modules exactly as it would to household ones. The limit reduces
+blast radius while the mechanism is new, and reflects that live state, presence,
+automation state and personal telemetry are largely inapplicable to engineering
+prose in the first place — a fact about the *content*, not about the detector.
 
 Future household knowledge **SHOULD** prefer typed, closed-vocabulary fact models
 where doing so makes the state-versus-semantics and telemetry boundaries
-structurally decidable — turning class **C** into class **A** by constraining the
-authoring surface rather than by guessing at prose. Designing those schemas is
-explicitly **not** part of this ADR.
-
-**This scope limit is rollout risk reduction, not a claim that platform prose is
-semantically machine-decidable.** It is not. The attestation requirement applies
-to platform modules exactly as it would to household ones; the limit reduces
-blast radius while the mechanism is new, and reflects that classes 2, 3, 5 and 7
-are largely inapplicable to engineering prose in the first place.
+structurally decidable — the one route by which a **C** class could become an
+**A** class, by constraining the authoring surface rather than by guessing at
+prose. Designing those schemas is explicitly **not** part of this ADR.
 
 ### 8. What this supersedes, and what it leaves standing
 
@@ -219,20 +334,49 @@ Neither ADR is edited. Both are accepted and immutable.
 Replacing the prohibited-content clause of ADR-0015 §12, the conformance suite
 must include:
 
-1. a deterministic negative test for **every A rule and every B indicator**,
-   failing for its named reason;
+1. a deterministic negative test for **every B indicator**, failing for its named
+   reason, and **named for the indicator rather than the class**;
 2. a **coverage table** in the package, naming per class what each detector does
    and does not establish — the table in §2, kept with the code;
-3. **attestation tests**: missing attestation refuses; wrong policy version
+3. **no A claim without a completeness proof.** A detector may be registered as
+   class **A** only with an argument that every representation is structurally
+   visible under a closed authoring grammar. There are none today;
+4. **attestation tests**: missing attestation refuses; wrong policy version
    refuses; malformed actor refuses;
-4. **binding tests**: a single byte changed after review refuses on digest
+5. **binding tests**: a single byte changed after review refuses on digest
    mismatch;
-5. **dominance tests**: a deterministic finding plus a valid attestation refuses;
-6. a structural proof that **no classifier or model participates in admission**.
+6. **the two proofs are independent**: a syntactically valid attestation with a
+   correct `sourceDigest` and a self-asserted `by: human:<id>` is **not**
+   sufficient evidence of human action, and the suite proves the toolchain does
+   not treat it as such;
+7. **policy versioning**: an attestation naming an older policy version does not
+   satisfy admission under a newer one;
+8. **dominance**: a deterministic finding refuses despite both a valid content
+   binding **and** valid human-review evidence;
+9. **gate independence**: `blockedByToolchain` and `blockedByRollout` vary
+   independently — a household module remains refused when toolchain readiness
+   is `true`, and an eligible platform module proceeds only when **both** gates
+   and the attestation requirements are satisfied;
+10. a structural proof that **no classifier or model participates in admission**.
 
 **Naming rule, enforced in review:** a test may not be named or registered as
 proof of a class when it establishes one indicator. B-class tests are named for
 the indicator they detect.
+
+### 10. Acceptance obligations
+
+Listed so the acceptance commit is mechanical and checkable. **None of it is done
+here**; doing it now would make a `Proposed` decision operative.
+
+- [ ] Add `blockedByRollout` as a required boolean on every module and set in
+      `knowledge/catalog.json`, initialised per §7a — `true` on `household/**`
+      and `runbooks/**`, `true` on `platform/**` until the toolchain gate is
+      discharged.
+- [ ] Require and assert it in `scripts/check-knowledge.mjs`, alongside
+      `blockedByToolchain`, with deterministic tests for both values.
+- [ ] Record the runbook allowlist mechanism; the allowlist itself starts empty.
+- [ ] Do **not** change `blockedByToolchain` — this ADR does not discharge the
+      toolchain gate.
 
 ## Consequences
 

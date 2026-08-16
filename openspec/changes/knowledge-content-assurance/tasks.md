@@ -91,6 +91,37 @@ mechanisms, and nothing is built or authored.
 - [x] **3.4 Confirm by diff** — no accepted ADR edited, no `knowledge/` change,
       no code, `blockedByToolchain` still `true` everywhere.
 
+## 4. Pre-acceptance correction
+
+- [x] **4.1 Media reclassified A → B** — arbitrary bytes fit inside Markdown as
+      base64 or hex, and an opaque URL carries no content hint. The detector is
+      useful without being complete. **There are no A classes today**, stated as
+      the honest result: A is a capability of a mechanism, not a quota to fill.
+- [x] **4.2 Two proofs separated** — the toolchain validates the artifact and its
+      binding; repository governance establishes that an eligible human acted.
+      `by: human:<id>` is a string a producer writes, so it is never evidence of
+      action. This repository has no machine-checkable reviewer signal today, so
+      publication stays blocked; admission gains no network or model dependency.
+- [x] **4.3 Policy v1 anchored** — `portable-knowledge-prohibited-content-v1`
+      denotes ADR-0016 §1 and §2 as accepted, which become immutable on
+      acceptance. Changing review meaning requires a new version, and old
+      attestations do not satisfy it.
+- [x] **4.4 Two gates defined** — `blockedByToolchain` (toolchain readiness,
+      repository-wide) and `blockedByRollout` (per-entry rollout eligibility).
+      Representing the household block by leaving `blockedByToolchain` true would
+      repeat the U7 defect one landing after removing it.
+- [x] **4.5 Eligibility made exact** — `platform/**` eligible on gate discharge;
+      `household/**` blocked by rollout; `runbooks/**` blocked by default and
+      allowlisted **per module**, so a household runbook cannot become eligible
+      by living under `runbooks/`. The allowlist starts empty.
+- [x] **4.6 Proof obligations added** — indicator naming, no-A-without-
+      completeness, proof independence, policy versioning, dominance over both
+      binding and review, and gate independence.
+
+**Not added to `catalog.json` or the checker.** `blockedByRollout` is defined
+here and recorded as an acceptance obligation (ADR-0016 §10). Adding it now would
+make a `Proposed` decision operative.
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0016 exists, is `Proposed`, carries every section `docs/AGENTS.md` requires.
