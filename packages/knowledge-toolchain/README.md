@@ -36,6 +36,28 @@ module is knowledge and rejects; `query()` runs **after** and tolerates.
 Collapsing them would make us either a non-conformant reader or an advisory
 validator.
 
+`query()` is the **only** read seam exported. The tolerant foreign reader takes a
+`CompiledBundle`, which carries no provenance saying its bytes are foreign — so
+exporting it would let consumer code compile repository-candidate bytes that
+admission refuses and read them anyway. It stays package-internal, exercised by
+the conformance suite; a real foreign ingress needs a governed provenance
+boundary this package does not invent.
+
+## References are read by a closed grammar
+
+A destination can appear in exactly two places: after the two characters `](`
+(every inline link and image, including nested ones), or on a `[label]: dest`
+definition line. Reference *uses* — `[text][label]`, `[label][]`, `[label]` —
+introduce no destination; they name a definition already collected. Fenced
+blocks and inline code spans are removed first, so a code sample is not a
+reference.
+
+The point is that the grammar is **closed**: a destination it cannot read is
+refused as `reference.unreadable` rather than passed over. That is what makes
+completeness checkable instead of asserted — the earlier single regex missed
+reference links and inline titles, and a wider *set* of regexes would have had
+the same defect in a larger form.
+
 ## Prohibited content, honestly
 
 **There are no class-A detectors.** ADR-0016 §2 defines **A** as requiring a

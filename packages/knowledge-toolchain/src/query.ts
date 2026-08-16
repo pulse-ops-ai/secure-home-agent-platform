@@ -85,5 +85,12 @@ export const query = (bundle: PackagedBundle): KnowledgeQuery => open(bundle.doc
  * without laundering unadmitted bytes into the artifact that carries admitted
  * knowledge. Foreign input has none of admission's guarantees, and this is the
  * path where that is true.
+ *
+ * PACKAGE-INTERNAL. Deliberately not re-exported from `index.ts`: a
+ * `CompiledBundle` carries no provenance saying its bytes are foreign, so a
+ * public export would let consumer code compile repository-candidate bytes that
+ * admission refuses and read them anyway. It exists here to prove OKF
+ * consumer-tolerance in the conformance suite. Exposing foreign ingress to
+ * consumers needs a governed provenance boundary, which is not invented here.
  */
 export const readForeign = (bundle: CompiledBundle): KnowledgeQuery => open(bundle.documents)

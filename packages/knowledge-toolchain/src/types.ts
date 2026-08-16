@@ -128,9 +128,10 @@ export interface ReviewEvidence {
  * it. Only `admit()` mints this, so packaging now requires the proof rather
  * than trusting the caller.
  *
- * Foreign OKF still reads, through `readForeign` — a different path with a
- * different input type, so tolerance is preserved without laundering foreign
- * bytes into the admitted artifact.
+ * Foreign OKF still reads, through the package-internal `readForeign` — a
+ * different path with a different input type, so tolerance is preserved without
+ * laundering foreign bytes into the admitted artifact. That path is not
+ * exported to consumers; see `query.ts`.
  *
  * It carries NO fields. The approved bytes live in a module-private map keyed
  * by this token (`admitted.ts`), because anything reachable from the proof

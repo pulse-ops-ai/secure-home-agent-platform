@@ -16,6 +16,7 @@
 import { compile } from './compile.js'
 import { bundleDigest } from './identity.js'
 import { scanDocument, scanMembers } from './indicators.js'
+import { linkTargets } from './links.js'
 import { checkProofA, checkProofB } from './attestation.js'
 import { sealAdmitted } from './admitted.js'
 import type {
@@ -292,19 +293,30 @@ export const admit = (request: AdmitRequest): AdmissionOutcome => {
     // Bundle-internal references must resolve AT ADMISSION. Once admitted they
     // are frozen inside the immutable package and cannot later break; external
     // and `governs` references can, which is why reading stays tolerant.
-    // BOTH link forms, and relative ones resolved against the document's own
-    // directory. Checking only root-absolute `/foo.md` left every ordinary
-    // Markdown link — the common form — unverified.
-    for (const match of text.matchAll(/\]\(([^)\s#]+)(?:#[^)\s]*)?\)/g)) {
-      const raw = match[1] ?? ''
-      if (raw === '' || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue // external URL
-      const target = raw.startsWith('/') ? raw.slice(1) : resolveRelative(document.path, raw)
-      if (target !== undefined && !internal.has(target))
+    // A CLOSED LINK GRAMMAR (`links.ts`), not a regex over Markdown. The
+    // previous inline pattern missed reference-style links and inline titles,
+    // and read code samples as real references. Anything link-shaped the
+    // grammar cannot read is REFUSED, so its completeness is checkable.
+    for (const target of linkTargets(text)) {
+      if (target.kind === 'external') continue
+      if (target.kind === 'unreadable') {
+        refusals.push({
+          kind: 'reference_integrity',
+          path: document.path,
+          rule: 'reference.unreadable',
+          detail: `link construct "${target.raw}" is outside the admitted link grammar`,
+        })
+        continue
+      }
+      const resolved = target.raw.startsWith('/')
+        ? target.raw.slice(1)
+        : resolveRelative(document.path, target.raw)
+      if (resolved !== undefined && !internal.has(resolved))
         refusals.push({
           kind: 'reference_integrity',
           path: document.path,
           rule: 'reference.internal',
-          detail: `bundle-internal reference "${raw}" does not resolve within the source`,
+          detail: `bundle-internal reference "${target.raw}" does not resolve within the source`,
         })
     }
   }

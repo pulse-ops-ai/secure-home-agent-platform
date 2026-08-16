@@ -203,6 +203,116 @@ describe('P1: a packaged artifact cannot drift from its digest', () => {
   })
 })
 
+// ══ ROUND 3 · P1 — a public tolerant read path over unadmitted bytes ════
+
+describe('R3 P1: the package root exposes no unadmitted read seam', () => {
+  it('control: the admitted path still works', () => {
+    const { packaged } = admittedPackage()
+    expect(query(packaged).list()).toContain('model.md')
+  })
+
+  it('bytes admission REFUSES still compile — so the bypass is reachable', () => {
+    // The premise, proven rather than assumed: `compile` accepts what `admit`
+    // rejects, so a `CompiledBundle` is not evidence of anything.
+    const junk = members(concept({ type: 'Attested Computation' }))
+    const compiled = compile(junk)
+    expect(compiled.ok, 'compile accepts it').toBe(true)
+    expect(run(junk).admitted, 'admission refuses it').toBe(false)
+  })
+
+  it('the public root exports no reader that takes an unadmitted bundle', async () => {
+    // THE DEFECT. `readForeign` was exported from the root and accepted an
+    // ordinary `CompiledBundle`, which carries no provenance saying it is
+    // foreign. Consumer code could compile repository-candidate bytes that
+    // admission would refuse and read them through it.
+    const root = (await import('./index.js')) as Record<string, unknown>
+    expect(Object.keys(root)).not.toContain('readForeign')
+    const readers = Object.keys(root).filter((name) => /^(?:read|open|load)/.test(name))
+    expect(readers, 'query is the only repository-consumer read seam').toEqual([])
+  })
+})
+
+// ══ ROUND 3 · P1 — reference integrity was regex-over-Markdown ═══════════
+
+describe('R3 P1: internal references use a closed link grammar', () => {
+  it('control: a root-absolute link resolves', () => {
+    expect(run(members(`${concept()}\nSee [i](/index.md).\n`)).refusals).toEqual([])
+  })
+
+  it('control: a relative link resolves', () => {
+    expect(run(members(`${concept()}\nSee [i](index.md).\n`)).refusals).toEqual([])
+  })
+
+  it('control: an external URL is tolerated', () => {
+    expect(run(members(`${concept()}\nSee [x](https://example.test/a).\n`)).refusals).toEqual([])
+  })
+
+  it('A: a reference-STYLE broken link is caught', () => {
+    const text = `${concept()}\nSee [model][m]\n\n[m]: missing.md\n`
+    expect(rules(run(members(text)).refusals)).toContain('reference.internal')
+  })
+
+  it('B: an inline broken link WITH A TITLE is caught', () => {
+    const text = `${concept()}\nSee [model](missing.md "Model")\n`
+    expect(rules(run(members(text)).refusals)).toContain('reference.internal')
+  })
+
+  it('C: a link inside a fenced code block is NOT a reference', () => {
+    const text = `${concept()}\nExample:\n\n\u0060\u0060\u0060md\n[model](missing.md)\n\u0060\u0060\u0060\n`
+    expect(run(members(text)).refusals, 'a code sample is not a document reference').toEqual([])
+  })
+
+  it('and a link inside an inline code span is NOT a reference', () => {
+    const text = `${concept()}\nWrite \u0060[model](missing.md)\u0060 to link.\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+
+  it('nested relative resolution still works', () => {
+    const set: SourceFile[] = [
+      { path: 'index.md', bytes: bytes(INDEX) },
+      { path: 'group/a.md', bytes: bytes(`${concept()}\nSee [b](b.md).\n`) },
+      { path: 'group/b.md', bytes: bytes(concept()) },
+    ]
+    expect(run(set).refusals).toEqual([])
+  })
+
+  // THE CLOSEDNESS CLAIM. A grammar that silently ignored what it could not
+  // read would have the original defect in a larger form: unmatched input would
+  // pass as "no reference found". These prove the unread case is a REFUSAL, so
+  // the completeness argument is enforceable rather than asserted in a comment.
+  const unreadable: [string, string][] = [
+    ['an empty destination', 'See [model]().'],
+    ['an unclosed destination', 'See [model](missing.md'],
+    ['an unterminated title', 'See [model](a.md "Model).'],
+  ]
+  for (const [name, body] of unreadable) {
+    it(`refuses ${name} rather than ignoring it`, () => {
+      expect(rules(run(members(`${concept()}\n${body}\n`)).refusals)).toContain(
+        'reference.unreadable',
+      )
+    })
+  }
+
+  it('reads the OUTER destination of a link wrapping an image', () => {
+    // A `[`-anchored walk consumed the image's `]` and never saw the outer
+    // link. Anchoring on `](` reads both.
+    const text = `${concept()}\nSee [![alt](index.md)](missing.md)\n`
+    expect(rules(run(members(text)).refusals)).toContain('reference.internal')
+  })
+
+  it('reports a broken reference definition ONCE, not once per use', () => {
+    const text = `${concept()}\n[a][m] and [b][m] and [m]\n\n[m]: missing.md\n`
+    const broken = run(members(text)).refusals.filter((r) => r.rule === 'reference.internal')
+    expect(broken, 'a use names a definition; it is not a second target').toHaveLength(1)
+  })
+
+  it('an UNDEFINED reference label is literal text, not an unreadable link', () => {
+    // CommonMark: `[not a link]` with no matching definition is just text. If
+    // this refused, ordinary prose using brackets could never be admitted.
+    expect(run(members(`${concept()}\nA [bracketed] word, and [x][y] too.\n`)).refusals).toEqual([])
+  })
+})
+
 // ══ ROUND 2 · P1 — the admitted snapshot aliases caller bytes ════════════
 
 describe('R2 P1: admission owns the bytes it admitted', () => {
