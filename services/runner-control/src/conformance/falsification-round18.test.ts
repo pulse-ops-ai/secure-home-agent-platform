@@ -75,6 +75,31 @@ describe('R18 event-domain identity versus staged transaction ownership', () => 
     expect(sink.eventsOf(run_id)).toEqual([eventA])
   })
 
+  it('keeps an acknowledged ordinary replay durable if the staged sibling abandons', async () => {
+    const run_id = 'run-20260816-round18-acknowledgement-control'
+    const commit_id = 'commit-round18-acknowledgement-stage'
+    const visibility = new CommitLedger()
+    const sink = new RecordingEventSink(visibility)
+    const eventA = terminalEvent(run_id, 'ordinary acknowledgement A')
+    assertContractValid(eventA)
+
+    const staged = await stage(sink, run_id, commit_id, eventA)
+    expect(staged).toMatchObject({ ok: true, staged: { commitId: commit_id } })
+    if (!staged.ok) return
+
+    const ordinary = await sink.emit({
+      run_id,
+      generation: 1,
+      sequence: eventA.sequence,
+      event: eventA,
+    })
+    expect(ordinary).toEqual({ ok: true })
+
+    staged.staged.abandon()
+
+    expect(sink.eventsOf(run_id)).toEqual([eventA])
+  })
+
   it('keeps an ordinary exact replay single-fact when no staged row exists', async () => {
     const run_id = 'run-20260816-round18-ordinary-control'
     const visibility = new CommitLedger()
