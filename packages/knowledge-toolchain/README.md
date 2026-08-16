@@ -58,6 +58,20 @@ completeness checkable instead of asserted — the earlier single regex missed
 reference links and inline titles, and a wider *set* of regexes would have had
 the same defect in a larger form.
 
+**Raw HTML is outside the admitted subset.** `<a href="missing.md">` named a
+target the grammar never looked at. The rule refuses *any* raw HTML tag rather
+than the URL-bearing ones, because "the URL-bearing ones" is not a closed set —
+href, src, srcset, poster, cite, formaction, ping, and whatever comes next — and
+enumerating them would rebuild the original defect in a new costume. An autolink
+is not a tag: it requires a scheme, so it is always external.
+
+Two smaller places where the code now matches what its comments claimed: `\[` is
+literal, so `\[model](missing.md)` is documentation rather than a broken link
+(destinations are read at *matched, unescaped* brackets, tracked with a stack);
+and a fence closes only on a run of the same character **at least as long** with
+no info string, so a three-backtick line no longer closes a four-backtick fence
+that is quoting Markdown.
+
 ## Prohibited content, honestly
 
 **There are no class-A detectors.** ADR-0016 §2 defines **A** as requiring a

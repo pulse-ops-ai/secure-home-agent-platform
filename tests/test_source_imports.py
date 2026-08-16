@@ -761,3 +761,155 @@ def test_the_governance_test_suite_is_not_path_gated() -> None:
         "the governance suite must not run behind a path filter — that is strictly "
         "weaker than the unconditional job that already runs it"
     )
+
+
+# --- reaching into another member by relative path --------------------------
+#
+# ROUND-4 BLOCKER. The layering rules above all key on ``@secure-home/*``
+# specifiers, so they never looked at an ordinary relative import. That left the
+# package boundary enforceable only for code that chose to respect it: a member
+# could bypass another member's public API entirely by walking the filesystem to
+# its source.
+#
+# It matters more now that the architecture depends on package-private modules.
+# ``sealAdmitted``/``openAdmitted`` and the tolerant ``readForeign`` are
+# deliberately absent from ``packages/knowledge-toolchain``'s root — but absence
+# from the root is worth nothing if any member can write
+# ``../../knowledge-toolchain/src/admitted.js``.
+#
+# The invariant is provider-neutral and zone-independent: workspace members
+# communicate through governed package exports, never by reaching into another
+# member's source tree.
+
+
+def _member_escape(tmp_path: Path, name: str) -> Workspace:
+    """A base workspace plus a stand-in for the knowledge toolchain."""
+    ws = _base(tmp_path, name)
+    ws.member("packages/knowledge-toolchain", "@secure-home/knowledge-toolchain")
+    ws.source("packages/knowledge-toolchain/src/index.ts", "export {}")
+    ws.source("packages/knowledge-toolchain/src/admitted.ts", "export const sealAdmitted = 0")
+    ws.source("packages/knowledge-toolchain/src/query.ts", "export const readForeign = 0")
+    return ws
+
+
+def test_a_relative_import_inside_the_member_is_allowed(tmp_path: Path) -> None:
+    """CONTROL. A package addresses its own modules by relative path — that is
+    what the "imports its own package name" rule tells it to do. The new rule
+    must not make ordinary intra-member structure a violation."""
+    ws = _member_escape(tmp_path, "ws-rel-inside")
+    ws.source("packages/contracts/src/deep/nested/leaf.ts", "export const leaf = 1")
+    ws.source("packages/contracts/src/deep/mid.ts", "export * from './nested/leaf.js'")
+    ws.source(
+        "packages/contracts/src/index.ts",
+        "import { leaf } from './deep/nested/leaf.js'\n"
+        "import { leaf as l2 } from '../src/deep/mid.js'\n"
+        "export const a = leaf + l2",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
+
+
+def test_a_package_may_not_reach_into_another_member_by_relative_path(tmp_path: Path) -> None:
+    """THE HOLE. `query-model` walks up out of its own directory and imports
+    `contracts` source directly. Every existing rule is blind to it: there is no
+    `@secure-home/*` specifier to inspect."""
+    ws = _member_escape(tmp_path, "ws-rel-package")
+    ws.source("packages/contracts/src/internal.ts", "export const secret = 1")
+    ws.source(
+        "packages/query-model/src/index.ts",
+        "import { secret } from '../../contracts/src/internal.js'\nexport const a = secret",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a relative import out of the member must be rejected"
+    assert "outside its own workspace member" in _output(result)
+
+
+def test_a_service_may_not_reach_into_a_package_by_relative_path(tmp_path: Path) -> None:
+    """The same rule for a deployable. A service sits one directory deeper, so a
+    rule written against a fixed number of `..` segments would pass here."""
+    ws = _member_escape(tmp_path, "ws-rel-service")
+    ws.source("packages/contracts/src/internal.ts", "export const secret = 1")
+    ws.source(
+        "services/control-plane/src/index.ts",
+        "import { secret } from '../../../packages/contracts/src/internal.js'\n"
+        "export const a = secret",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a service reaching into a package must be rejected"
+    assert "outside its own workspace member" in _output(result)
+
+
+def test_no_member_can_reach_the_knowledge_toolchain_private_modules(tmp_path: Path) -> None:
+    """THE CONCRETE CASE. `admitted.ts` mints and opens the admission proof;
+    `query.ts` holds the tolerant foreign reader. Neither is exported from the
+    package root, and this is what makes that absence load-bearing."""
+    for private in ("admitted", "query"):
+        ws = _member_escape(tmp_path, f"ws-rel-private-{private}")
+        ws.source(
+            "packages/query-model/src/index.ts",
+            f"import * as m from '../../knowledge-toolchain/src/{private}.js'\nexport const a = m",
+        )
+
+        result = _imports(ws.root)
+        assert result.returncode != 0, f"reaching {private}.ts must be rejected"
+        assert "outside its own workspace member" in _output(result)
+
+
+def test_a_test_file_may_not_become_a_production_bypass(tmp_path: Path) -> None:
+    """Tests keep their existing relaxations, but not this one.
+
+    If a test file could escape its member, it would be a laundering step: a
+    test re-exports another member's private module and production source
+    imports the test file by an intra-member relative path, which is allowed.
+    The escape rule is therefore zone-independent.
+    """
+    ws = _member_escape(tmp_path, "ws-rel-test")
+    ws.source(
+        "packages/query-model/src/bypass.test.ts",
+        "export * from '../../knowledge-toolchain/src/admitted.js'",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "a test file is not a licence to reach into another member"
+    assert "outside its own workspace member" in _output(result)
+
+
+def test_a_test_file_keeps_its_existing_relaxation(tmp_path: Path) -> None:
+    """CONTROL for the test above: the relaxation that already exists is intact.
+
+    `contracts` (layer 1) may use the test-only `testing` package (layer 6) from
+    a test file. Only the *escape* rule became zone-independent.
+    """
+    ws = _member_escape(tmp_path, "ws-rel-test-ok")
+    ws.source(
+        "packages/contracts/src/thing.test.ts",
+        "import { harness } from '@secure-home/testing'\nexport const a = harness",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
+
+
+def test_an_absolute_path_specifier_is_also_outside_the_member(tmp_path: Path) -> None:
+    """A relative walk is not the only way to name a path. An absolute specifier
+    reaches outside by construction, so the rule would be open if it only looked
+    at `../`."""
+    ws = _member_escape(tmp_path, "ws-abs")
+    ws.source(
+        "packages/query-model/src/index.ts",
+        "import * as m from '/etc/passwd'\nexport const a = m",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0, "an absolute specifier must be rejected"
+    assert "outside its own workspace member" in _output(result)
+
+
+def test_the_real_repository_has_no_cross_member_relative_import() -> None:
+    """The rule holds where it matters, not only over fixtures."""
+    result = _imports(REPO_ROOT)
+    assert result.returncode == 0, _output(result)
+    assert "outside its own workspace member" not in _output(result)

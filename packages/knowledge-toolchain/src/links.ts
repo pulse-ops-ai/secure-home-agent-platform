@@ -38,30 +38,62 @@ export type LinkTarget =
   | { readonly kind: 'external'; readonly raw: string; readonly line: number }
   | { readonly kind: 'unreadable'; readonly raw: string; readonly line: number }
 
-const FENCE = /^\s{0,3}(`{3,}|~{3,})/
+const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
-/** Strip fenced blocks, keeping line numbers by blanking rather than deleting. */
+/**
+ * Strip fenced blocks, keeping line numbers by blanking rather than deleting.
+ *
+ * A fence closes only on the SAME character, a run AT LEAST AS LONG, and
+ * nothing after it. The comment used to claim the length rule while comparing
+ * only the character, so a three-backtick line closed a four-backtick fence —
+ * which is exactly how one quotes Markdown inside Markdown, and it made the
+ * quoted sample's links visible as real references.
+ */
 const withoutFences = (lines: readonly string[]): string[] => {
   const out: string[] = []
-  let fence: string | undefined
+  let fence: { char: string; length: number } | undefined
   for (const line of lines) {
-    const opener = FENCE.exec(line)
-    if (fence === undefined && opener?.[1] !== undefined) {
-      fence = opener[1][0]
+    const run = FENCE.exec(line)?.[1]
+    if (fence === undefined) {
+      if (run === undefined) {
+        out.push(line)
+        continue
+      }
+      fence = { char: run[0] as string, length: run.length }
       out.push('')
       continue
     }
-    if (fence !== undefined) {
-      // A closing fence is the same character, at least as long.
-      if (opener?.[1] !== undefined && opener[1][0] === fence) fence = undefined
-      out.push('')
-      continue
-    }
-    out.push(line)
+    const closes =
+      run !== undefined &&
+      run[0] === fence.char &&
+      run.length >= fence.length &&
+      (FENCE.exec(line)?.[2] ?? '').trim() === ''
+    if (closes) fence = undefined
+    out.push('')
   }
   return out
 }
+
+/**
+ * RAW HTML IS OUTSIDE THE ADMITTED SUBSET.
+ *
+ * `<a href="missing.md">model</a>` named a target the Markdown grammar never
+ * looked at, so it passed reference integrity in silence — the precise failure
+ * the closed grammar exists to prevent.
+ *
+ * The rule refuses ANY raw HTML tag rather than the URL-bearing ones, because
+ * "the URL-bearing ones" is not a closed set: href, src, srcset, poster, cite,
+ * data, action, formaction, ping, background, longdesc, usemap, and whatever
+ * the next specification adds. Enumerating them would reproduce the original
+ * defect in a new costume. The admitted subset is Markdown without raw HTML,
+ * which is a claim a reader can check.
+ *
+ * An autolink — `<https://example.test>` — is not a tag: it requires a scheme,
+ * so it is always external and can never name a bundle-internal document. The
+ * lookahead is what separates the two.
+ */
+const RAW_HTML = /<\/?[A-Za-z][A-Za-z0-9-]*(?=[\s/>]|$)|<!|<\?/
 
 /** Blank inline code spans so their contents cannot read as links. */
 const withoutCodeSpans = (line: string): string => {
@@ -126,9 +158,12 @@ const DESTINATION = /^\s*(<[^>]*>|\S+)(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/
  * could be deleted without any test noticing, which is the signature of code
  * carrying no weight.
  *
- * Anchoring on `](` rather than on `[` also removes a real blind spot: in
- * `[![alt](img.md)](dest.md)` the outer destination follows a `]` that a
- * bracket walk has already consumed, so the outer link went unread.
+ * A destination is read only where a MATCHED, UNESCAPED `[` … `]` pair is
+ * followed by `(`. Matching with a stack rather than scanning for the two
+ * characters `](` is what makes `\[model](missing.md)` literal text: the escape
+ * has already been blanked, so no `[` was ever opened and the `]` closes
+ * nothing. It still reads the outer destination of `[![alt](img.md)](dest.md)`,
+ * where a naive "nearest bracket" rule sees the image's `]` and gives up.
  */
 export const linkTargets = (text: string): readonly LinkTarget[] => {
   const lines = withoutFences(text.split('\n')).map(withoutCodeSpans)
@@ -136,6 +171,12 @@ export const linkTargets = (text: string): readonly LinkTarget[] => {
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1
+
+    const html = RAW_HTML.exec(line)
+    if (html !== null) {
+      found.push({ kind: 'unreadable', raw: html[0], line: lineNumber })
+      return
+    }
 
     if (DEFINITION_START.test(line)) {
       const definition = DEFINITION.exec(line)
@@ -147,18 +188,26 @@ export const linkTargets = (text: string): readonly LinkTarget[] => {
       return
     }
 
+    const open: number[] = []
     let at = 0
-    for (;;) {
-      const open = line.indexOf('](', at)
-      if (open === -1) break
-      const close = line.indexOf(')', open + 2)
+    while (at < line.length) {
+      if (line[at] === '[') {
+        open.push(at)
+        at += 1
+        continue
+      }
+      if (line[at] !== ']' || open.pop() === undefined || line[at + 1] !== '(') {
+        at += 1
+        continue
+      }
+      const close = line.indexOf(')', at + 2)
       if (close === -1) {
-        found.push({ kind: 'unreadable', raw: line.slice(open + 1), line: lineNumber })
+        found.push({ kind: 'unreadable', raw: line.slice(at + 1), line: lineNumber })
         break
       }
       // A destination containing an unescaped `)` ends early and then fails to
       // resolve — a refusal, not a silent miss. This grammar fails closed.
-      const inner = line.slice(open + 2, close)
+      const inner = line.slice(at + 2, close)
       const destination = DESTINATION.exec(inner)
       found.push(
         destination?.[1] === undefined

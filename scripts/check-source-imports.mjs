@@ -81,7 +81,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, basename, extname, sep } from 'node:path'
+import { join, relative, basename, extname, sep, posix } from 'node:path'
 
 import ts from 'typescript'
 
@@ -160,6 +160,42 @@ const IGNORED_DIRS = new Set([
  */
 const KNOWLEDGE_SPECIFIER = /(?:^|\/)knowledge\//
 const KNOWLEDGE_READER_EXEMPT = new Set(['packages/knowledge-toolchain'])
+
+/**
+ * A MEMBER BOUNDARY IS A FILESYSTEM BOUNDARY TOO.
+ *
+ * Every rule above keys on an `@secure-home/*` specifier, so an ordinary
+ * relative import was never examined. That made the package boundary
+ * enforceable only against code that chose to respect it: a member could ignore
+ * another member's public API entirely by walking to its source.
+ *
+ *     packages/query-model/src/index.ts
+ *     import { sealAdmitted } from '../../knowledge-toolchain/src/admitted.js'
+ *
+ * Node resolves it, `tsc` builds it, layering never sees it, and the exports
+ * field is irrelevant because nothing consulted it. The architecture now leans
+ * on package-private modules — `admitted.ts` mints the admission proof and
+ * `query.ts` holds the tolerant foreign reader, both deliberately absent from
+ * the package root — and absence from the root is worth nothing if the file is
+ * one `../` away.
+ *
+ * So: a relative specifier must resolve INSIDE the importing member. Intra-member
+ * structure is untouched, which matters because the rule above tells a package
+ * to address its own modules by relative path.
+ *
+ * The rule is ZONE-INDEPENDENT, unlike the layering relaxations. Exempting test
+ * files would leave a laundering step — a test re-exports another member's
+ * private module and production source imports the test file by an intra-member
+ * path, which is allowed. Tests keep every relaxation they had; they simply do
+ * not get to reach across a member boundary either.
+ *
+ * Absolute specifiers are covered for the same reason the non-literal dynamic
+ * import is: a rule that only understood `../` would name the blind spot and
+ * leave it open. A path is outside the member whether it is spelled relatively
+ * or from the filesystem root.
+ */
+const RELATIVE_SPECIFIER = /^\.\.?(?:\/|$)/
+const ABSOLUTE_SPECIFIER = /^(?:\/|[A-Za-z]:[\\/]|file:)/
 
 const TEST_DIR = /(?:^|\/)(?:tests|__tests__|__fixtures__)(?:\/|$)/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
@@ -360,8 +396,26 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
           continue
         }
 
-        if (!specifier.startsWith(INTERNAL_SCOPE)) continue
         const where = `${path}:${line}`
+
+        // NO REACHING INTO ANOTHER MEMBER'S SOURCE TREE. Checked for every
+        // zone: this one is not a layering rule, so the test relaxations do not
+        // apply to it.
+        if (ABSOLUTE_SPECIFIER.test(specifier) || RELATIVE_SPECIFIER.test(specifier)) {
+          const resolved = ABSOLUTE_SPECIFIER.test(specifier)
+            ? specifier
+            : posix.normalize(posix.join(posix.dirname(file), specifier))
+          if (resolved === '..' || resolved.startsWith('../') || resolved.startsWith('/')) {
+            fail(
+              `${where}: imports "${specifier}", which resolves outside its own workspace ` +
+                `member (${resolved}) — members communicate through published package ` +
+                "exports, never by reaching into another member's source tree",
+            )
+          }
+          continue
+        }
+
+        if (!specifier.startsWith(INTERNAL_SCOPE)) continue
         const name = packageNameOf(specifier)
 
         if (!name) {

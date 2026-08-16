@@ -313,6 +313,87 @@ describe('R3 P1: internal references use a closed link grammar', () => {
   })
 })
 
+// ══ ROUND 4 · the admitted subset is Markdown WITHOUT raw HTML ══════════
+
+const TICK = '`'
+
+describe('R4: raw HTML cannot smuggle a reference past the grammar', () => {
+  it('control: an autolink is external and tolerated', () => {
+    expect(run(members(`${concept()}\nSee <https://example.test/a> for more.\n`)).refusals).toEqual(
+      [],
+    )
+  })
+
+  it('control: a less-than in prose is not markup', () => {
+    expect(run(members(`${concept()}\nWhen a < b and c > d, prefer a.\n`)).refusals).toEqual([])
+  })
+
+  it('a raw HTML anchor does not slip past reference integrity', () => {
+    // THE DEFECT. The grammar reads `](` and `[label]:` and nothing else, so an
+    // HTML anchor named a target it never looked at — silently, which is the
+    // failure mode the closed grammar exists to prevent.
+    const text = `${concept()}\nSee <a href="missing.md">model</a>\n`
+    expect(rules(run(members(text)).refusals)).toContain('reference.unreadable')
+  })
+
+  it('and neither does any other URL-bearing element', () => {
+    // Enumerating href/src/poster/cite/formaction/ping/… is the incompleteness
+    // trap in a new costume. Raw HTML is simply outside the admitted subset.
+    for (const tag of ['<img src="missing.md">', '<iframe src="missing.md"></iframe>']) {
+      expect(rules(run(members(`${concept()}\n${tag}\n`)).refusals)).toContain(
+        'reference.unreadable',
+      )
+    }
+  })
+
+  it('HTML inside a code fence is still a code sample', () => {
+    const text = `${concept()}\n${TICK.repeat(3)}html\n<a href="missing.md">x</a>\n${TICK.repeat(3)}\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+})
+
+// ══ ROUND 4 · P2 — two places the grammar contradicted its own claims ════
+
+describe('R4 P2: escapes and fence lengths mean what the comments say', () => {
+  it('control: an unescaped link is still read', () => {
+    expect(rules(run(members(`${concept()}\n[model](missing.md)\n`)).refusals)).toContain(
+      'reference.internal',
+    )
+  })
+
+  it('an ESCAPED opening bracket is literal, not a link', () => {
+    // `\[` is literal Markdown. Blanking the escape removed the bracket but the
+    // `](` anchor still fired, so documenting the syntax created a phantom
+    // broken reference.
+    const text = `${concept()}\nWrite \\[model](missing.md) to show the syntax.\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+
+  it('a THREE-backtick line does not close a FOUR-backtick fence', () => {
+    // The comment already claimed "at least as long"; only the character was
+    // compared. A fence containing a shorter fence is exactly how you quote
+    // Markdown inside Markdown.
+    const text =
+      `${concept()}\n${TICK.repeat(4)}md\n${TICK.repeat(3)}\n` +
+      `[model](missing.md)\n${TICK.repeat(4)}\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+
+  it('a line carrying an info string opens, and never closes', () => {
+    // CommonMark: a closing fence takes no info string. Without that clause the
+    // second ```js would close the block and expose the sample after it.
+    const text =
+      `${concept()}\n${TICK.repeat(3)}md\n[a](missing.md)\n${TICK.repeat(3)}js\n` +
+      `[b](missing.md)\n${TICK.repeat(3)}\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+
+  it('and a fence of equal length still closes', () => {
+    const text = `${concept()}\n${TICK.repeat(3)}\n[model](missing.md)\n${TICK.repeat(3)}\nAfter.\n`
+    expect(run(members(text)).refusals).toEqual([])
+  })
+})
+
 // ══ ROUND 2 · P1 — the admitted snapshot aliases caller bytes ════════════
 
 describe('R2 P1: admission owns the bytes it admitted', () => {
