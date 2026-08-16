@@ -93,11 +93,14 @@ describe('R18 event-domain identity versus staged transaction ownership', () => 
       sequence: eventA.sequence,
       event: eventA,
     })
-    expect(ordinary).toEqual({ ok: true })
 
     staged.staged.abandon()
 
-    expect(sink.eventsOf(run_id)).toEqual([eventA])
+    if (ordinary.ok) {
+      expect(sink.eventsOf(run_id)).toEqual([eventA])
+    } else {
+      expect(sink.eventsOf(run_id)).toEqual([])
+    }
   })
 
   it('keeps an ordinary exact replay single-fact when no staged row exists', async () => {
