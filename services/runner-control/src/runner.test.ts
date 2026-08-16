@@ -22,7 +22,19 @@ import {
   governedWrites,
   testPorts,
   withoutConsent,
+  HangingAdapter,
 } from './testing-fixtures.js'
+
+/** Nothing for the first `checks` consultations, then the given signal. */
+// CANCELLATION ONLY. `RunSignals.interrupt` no longer admits
+// `'timeout'`: the governed wall clock owns that terminal's provenance.
+const cancelAfterChecks = (checks: number, signal: 'cancel' = 'cancel') => {
+  let seen = 0
+  return () => {
+    seen += 1
+    return seen > checks ? signal : undefined
+  }
+}
 
 describe('the declared walk reaches COMPLETED with a sealed bundle', () => {
   it('completes, seals exactly one bundle, and emits only representable moments', async () => {
@@ -177,9 +189,11 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
   it('cancelling at the earliest cancellable state still produces a complete bundle', async () => {
     const ports = testPorts()
     const conclusion = await new Runner(ports).run(runRequest(), {
-      // Fires at the first check, which is immediately after
-      // PROFILE_RESOLVED — the earliest state that can seal.
-      interrupt: () => 'cancel',
+      // Fires at the SECOND check. The first is now in REQUESTED, which
+      // has no captured identities and can only produce the early
+      // record; this proof is about the earliest state that can SEAL,
+      // which is PROFILE_RESOLVED. (RO-EX-97 covers the REQUESTED case.)
+      interrupt: cancelAfterChecks(1),
     })
 
     expect(conclusion.state).toBe('CANCELLED')
@@ -202,9 +216,21 @@ describe('RO-ADV-06: cancellation seals a full bundle with empty sets', () => {
     expect(JSON.stringify(parsed.data.outcome)).toContain('cancel')
   })
 
+  // RO-EX-127 — RO-INV-73. Kills RO-MUT-66.
   it('a timeout is the same declared shape, with its own terminal state', async () => {
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest(), { interrupt: () => 'timeout' })
+    // Past the REQUESTED check, for the same reason as above: this is
+    // about the shape a SEALING state produces, not the pre-authority one.
+    // DRIVEN BY THE WALL CLOCK, not by a submitted `'timeout'`.
+    // `RunSignals.interrupt` returns cancellation only — a requester
+    // that could return `'timeout'` authored the provenance of a
+    // terminal the lifecycle contract assigns to the governed deadline.
+    // The property asserted is unchanged: a timeout produces the same
+    // declared shape as a cancellation, with its own terminal state.
+    const conclusion = await new Runner(
+      { ...ports, adapter: new HangingAdapter() },
+      { deadline_ms: 40 },
+    ).run(runRequest())
     expect(conclusion.state).toBe('TIMED_OUT')
     expect(conclusion.produced).toBe('evidence_bundle')
   })

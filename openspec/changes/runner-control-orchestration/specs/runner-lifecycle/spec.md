@@ -120,6 +120,57 @@ open. On cancellation or deadline the execution session SHALL be
 INTERRUPTED — abandoning the operation without interrupting the session
 would leave whatever it started still running.
 
+The orchestrator SHALL NOT satisfy the bound by abandoning a still-live
+walk. Once cancellation or timeout interrupts an awaited port, the phase
+continuation SHALL unwind at that call; it SHALL NOT resume and start a
+later effect if the port eventually answers. The deadline SHALL cover
+lease acquisition, the declared walk, governed terminal settlement, and
+resource cleanup. Replacing the pre-profile acquisition ceiling with the
+captured profile's wall clock SHALL establish one expiry before session
+preparation; later session narrowing SHALL preserve elapsed profile time
+rather than restart the budget.
+
+The absolute expiry SHALL be checked synchronously before every guarded
+call, again when the guarded call RETURNS, and whenever an explicit
+interruption boundary is consulted; timer callback latency SHALL NOT
+authorize an effect after the declared wall clock elapsed. A result that
+resolves after the expiry — before its timer callback has run — SHALL be
+rejected as the timeout it is, and SHALL earn no lifecycle transition.
+Recovery call boundaries SHALL apply the same symmetry against both the
+governed deadline and their own settlement ceiling.
+
+The post-return rejection applies to calls whose late result can be
+DISCARDED — reads, preparation, reversible operations. It SHALL NOT be
+applied to the finalization commit, whose `ok` acknowledgement means an
+irreversible publication already happened: discarding that
+acknowledgement discards nothing and invents a second terminal for a
+run whose first is visible. For the commit, the expiry SHALL instead be
+enforced INSIDE the commit, synchronously at its publication point —
+either the commit publishes within the budget or nothing observable
+exists — and once the commit acknowledges, the orchestrator SHALL adopt
+the committed terminal, whatever the wall clock says by the time the
+acknowledgement arrives. A commit the publication point refuses on
+expiry is the run's timeout, not an infrastructure fault. A durable
+implementation SHALL additionally make a commit's outcome discoverable
+by its deterministic commit identity, so a caller that could not await
+the acknowledgement can reconcile what became of it rather than assume.
+
+Lease acquisition SHALL be invoked through that guard and SHALL carry a
+claim-attempt identity plus the governed signal so an aborted attempt
+cannot later become current ownership. The attempt identity SHALL be
+unique to that attempt — never derived from the run identity alone — so
+a lease's idempotent replay of a grant can only ever answer the attempt
+that earned it. When the claim's outcome cannot be awaited — the
+acknowledgement may be delayed past the caller's deadline while the
+resource has already committed a generation — the orchestrator SHALL
+resolve the attempt AT THE RESOURCE by abandoning it: an abandoned
+attempt SHALL never subsequently be granted, a granted attempt whose
+generation still holds the run SHALL be released, and the caller SHALL
+NOT conclude `not_started` while leaving ownership standing unresolved.
+A durable lease implementation SHALL additionally bound how long an
+unrenewed generation holds a run, as the backstop for an abandon that
+never arrives.
+
 #### Scenario: A provider that never returns does not hold the run open
 
 - **GIVEN** a run whose adapter invocation never returns
@@ -134,6 +185,80 @@ would leave whatever it started still running.
 - **THEN** the in-flight operation observes the cancellation signal
 - **AND** the run terminates `CANCELLED` with the session interrupted
 
+#### Scenario: A delayed port cannot resume a concluded walk
+
+- **GIVEN** a port call that remains in flight when cancellation or timeout
+  fires
+- **WHEN** the port later answers
+- **THEN** no subsequent phase effect is started
+- **AND** the already-returned conclusion is unchanged
+
+#### Scenario: Ownership and cleanup are bounded
+
+- **GIVEN** a lease claim or cleanup port that never returns
+- **WHEN** its applicable bound elapses
+- **THEN** `run()` still resolves
+- **AND** the run starts no effect after the bound
+
+#### Scenario: An expired claim attempt never becomes ownership
+
+- **GIVEN** a lease claim whose acquisition budget has already elapsed,
+  or whose attempt is aborted while outstanding
+- **WHEN** ownership acquisition is evaluated
+- **THEN** an already-expired claim is not started
+- **AND** an outstanding aborted claim cannot later become current
+  ownership
+
+#### Scenario: Timer callback latency grants no extra execution
+
+- **GIVEN** wall time has passed the run's absolute expiry
+- **AND** the event-loop timer callback has not yet executed
+- **WHEN** the next guarded port is reached
+- **THEN** the port method is not invoked
+- **AND** the run observes `timeout`
+
+#### Scenario: A result arriving after expiry authorizes nothing
+
+- **GIVEN** a guarded port call started inside the budget
+- **AND** wall time crosses the absolute expiry while it runs
+- **WHEN** the call resolves before its timer callback executes
+- **THEN** the result is rejected as `timeout`
+- **AND** no lifecycle transition is earned on it
+
+#### Scenario: An acknowledged commit stays committed
+
+- **GIVEN** a finalization commit that publishes inside the budget
+- **AND** wall time crosses the absolute expiry before its
+  acknowledgement returns
+- **WHEN** the orchestrator receives the acknowledgement
+- **THEN** the run reports the COMMITTED terminal
+- **AND** no second terminal settlement is attempted over the published
+  commit
+
+#### Scenario: The publication point refuses an expired commit
+
+- **GIVEN** a finalization commit whose staging completes as wall time
+  crosses its absolute expiry, with no abort yet raised
+- **WHEN** the publication point is reached
+- **THEN** the commit refuses synchronously as expired
+- **AND** no participant's record is observable anywhere
+
+#### Scenario: Attempt identities are unique per attempt
+
+- **GIVEN** two competing `run()` calls for the same run id, or a retry
+  after an earlier attempt
+- **WHEN** each claims the lease
+- **THEN** every claim presents a distinct attempt identity
+
+#### Scenario: An unacknowledged grant is resolved at the resource
+
+- **GIVEN** a lease that commits a generation before the caller's
+  deadline and delays its acknowledgement past it
+- **WHEN** the caller's deadline interrupts the claim
+- **THEN** the attempt is abandoned at the resource
+- **AND** the committed grant is released rather than left with no holder
+- **AND** the abandoned attempt can never subsequently be granted
+
 ### Requirement: Cancellation and timeout are declared transitions with mandatory evidence
 
 Cancellation and timeout SHALL be declared transitions into `CANCELLED` and
@@ -142,10 +267,14 @@ non-terminal state. Because entering `PROFILE_RESOLVED` requires the
 completed production acquisition (`runner-authority-acquisition`), every
 cancellable or timeout-able state can construct the full evidence-bundle
 identity set: a cancelled or timed-out run SHALL seal a full L2 evidence
-bundle recording the terminal cause, with empty observation, artifact, and
-gate-result sets where the run had not yet produced them — an empty set
-being the true record of a run that changed nothing. The lifecycle SHALL
-never abandon a run in a non-terminal state.
+bundle recording the terminal cause. Facts already established before the
+current phase completed — adapter operations, completed gate
+dispositions, workspace observation, artifact observation — SHALL be
+preserved incrementally for terminal evidence. Sets remain empty only
+where the run truly produced no fact. This terminal accumulator SHALL be
+distinct from the total `Observations` typestate required to enter
+verification. The lifecycle SHALL never abandon a run in a non-terminal
+state.
 
 #### Scenario: Cancellation from RUNNING terminates with evidence
 
@@ -170,6 +299,109 @@ never abandon a run in a non-terminal state.
 - **WHEN** the timeout fires
 - **THEN** the run transitions to `TIMED_OUT` and evidence records the
   budget and the state it interrupted
+
+#### Scenario: Cancellation after call events preserves operations
+
+- **GIVEN** the adapter reported calls and their attempted/disposition
+  events were emitted
+- **AND** RUNNING has not yet completed workspace or artifact observation
+- **WHEN** cancellation, timeout, or an operational fault interrupts the
+  phase
+- **THEN** the terminal bundle carries every operation already recorded
+- **AND** verification still requires a total `Observations` value
+
+### Requirement: Terminal settlement failure is explicit
+
+An intended lifecycle terminal SHALL NOT be reported as a completed
+terminal when its mandatory governed record did not become durable.
+Terminal settlement remains finite. If the early-terminal record or full
+evidence bundle cannot be written within that boundary, `run()` SHALL
+return the distinct conclusion `settlement_failed`, carrying the state
+actually reached, the intended terminal, and `produced: none`.
+`settlement_failed` is an attempt conclusion, not a lifecycle terminal and
+not success.
+
+More generally, A CONCLUSION MAY CLAIM ONLY DURABLE FACTS: no conclusion
+claims a durable property until every durable fact that conclusion
+requires has landed. A successful early-terminal-record write SHALL NOT
+yield a `terminal` conclusion while required journal facts — an
+acquisition, a rejection, any category — remain pending; the conclusion
+is `settlement_failed`. `held` SHALL mean a durable resumable identity
+actually exists; an in-process object remembering a hold whose journal
+fact never landed SHALL NOT be reported as `held`, and the fault SHALL
+NOT terminalize the merely waiting run either.
+
+Settlement and recovery windows are ATTEMPT bounds, not the run's wall
+clock. A commit refused because an attempt bound elapsed SHALL leave the
+intended lifecycle terminal standing and report `settlement_failed`
+naming that intended terminal; it SHALL NOT be relabelled into lifecycle
+`TIMED_OUT`. Only the governed run clock produces the timeout terminal.
+
+Lifecycle control failures SHALL retain their identity through journal
+operations: `RunInterrupted` and settlement expiry SHALL propagate to
+their terminal/settlement owner; only genuine journal faults remain
+pending for retry. Interrupted settlement SHALL attempt session
+interruption exactly once before record settlement. Generic recovery
+finalization SHALL retain public cancellation and profile-timeout
+precedence until publication.
+
+#### Scenario: A written record does not outrank a pending journal fact
+
+- **GIVEN** a refused run whose early-terminal record was written
+- **AND** a required acquisition fact remains pending in the journal
+  outbox
+- **WHEN** the run concludes
+- **THEN** the conclusion is `settlement_failed` with `produced: none`
+- **AND** it does not claim a durable terminal
+
+#### Scenario: A hold that never became durable is not a held run
+
+- **GIVEN** an eligible, unconsented run whose hold append never lands
+- **WHEN** the run concludes
+- **THEN** the conclusion does not claim `held`
+- **AND** the run is not terminalized and no evidence bundle seals
+
+#### Scenario: An attempt bound cannot manufacture the timeout terminal
+
+- **GIVEN** a run cancelled while work was in flight
+- **AND** its CANCELLED terminal commit misses the settlement window
+- **WHEN** the attempt concludes
+- **THEN** the conclusion is `settlement_failed` with intended terminal
+  `CANCELLED`
+- **AND** the run is not reported `TIMED_OUT`
+
+#### Scenario: Mandatory evidence cannot be written
+
+- **GIVEN** a cancellation or timeout at or after `PROFILE_RESOLVED`
+- **AND** the terminal evidence sink never settles
+- **WHEN** the finite settlement boundary expires
+- **THEN** `run()` returns `settlement_failed`
+- **AND** it names the intended `CANCELLED` or `TIMED_OUT` terminal
+- **AND** it does not report a lifecycle terminal with `produced: none`
+
+#### Scenario: Journal interruption keeps its lifecycle identity
+
+- **GIVEN** a journal append is outstanding when the run deadline or
+  settlement boundary fires
+- **WHEN** the guard rejects the call
+- **THEN** ordinary interruption remains `CANCELLED` or `TIMED_OUT`
+- **AND** settlement expiry is reported as `settlement_failed`
+- **AND** neither is relabelled `OPERATIONAL_FAILURE`
+
+#### Scenario: Session stop is attempted once
+
+- **GIVEN** a session is interrupted before terminal evidence settlement
+- **WHEN** the governed record is assembled and committed
+- **THEN** no second session interruption is attempted
+
+#### Scenario: Recovery finalization remains interruptible
+
+- **GIVEN** generic recovery is attempting to commit an
+  `INDETERMINATE` terminal while the machine remains non-terminal
+- **WHEN** caller cancellation or the profile deadline arrives before
+  publication
+- **THEN** that interruption wins under the same precedence as ordinary
+  finalization
 
 ### Requirement: A run that terminates before authority completes produces an early-terminal refusal record
 
@@ -241,6 +473,18 @@ the L2 event stream, so the full walk is reconstructable without widening
 the closed vocabulary. Provider-native event names SHALL ride only as
 opaque data fields, never as event types.
 
+#### Scenario: A dispossessed attempt ends without claiming a run terminal
+
+- **GIVEN** an orchestration attempt that has lost ownership of its run
+- **WHEN** it concludes
+- **THEN** it reports that THIS ATTEMPT ended, naming the last state it
+  observed, and produces no governed record
+- **AND** it does not advance its machine to a terminal, because the
+  logical run's terminal belongs to whoever holds the run now
+- **AND** the requirement that an OWNED run never rests in a
+  non-terminal state is unaffected: it binds the holder, not a stale
+  attempt
+
 #### Scenario: The grant event carries the profile's grant
 
 - **GIVEN** a run whose profile was resolved and captured
@@ -269,6 +513,7 @@ opaque data fields, never as event types.
 | Termination in `REQUESTED` (resolution/acquisition failure) | early-terminal refusal record; never a fabricated bundle | change-attributable or operational per cause |
 | Eligible but unconsented spend attempt | held at `ELIGIBLE`, recorded | change-attributable |
 | Cancellation or timeout at/after `PROFILE_RESOLVED` | declared terminal transition with a full sealed bundle (empty sets where nothing ran) | operational or change-attributable per cause |
+| Mandatory terminal record cannot become durable within settlement | `settlement_failed`, intended terminal named, `produced: none`; never a lifecycle terminal | operational settlement failure |
 | Terminal state unestablishable | `INDETERMINATE`, treated as failure | fail-closed |
 
 ## Compatibility

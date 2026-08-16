@@ -237,16 +237,27 @@ describe('RO-EX-07: the shell is inert', () => {
   it('nothing in the tree bootstraps, listens, or binds', () => {
     for (const file of sourceFiles()) {
       const contents = code(file)
-      for (const primitive of [
-        'NestFactory',
-        '.listen(',
-        'createServer',
-        'process.exit',
-        'setInterval',
-      ]) {
+      for (const primitive of ['NestFactory', '.listen(', 'createServer', 'process.exit']) {
         expect(contents.includes(primitive), `${file} must not call ${primitive}`).toBe(false)
       }
+      // `setInterval` is scoped rather than banned. The guard's intent is
+      // that importing this service starts nothing and keeps nothing
+      // alive; a timer that is cleared and unref'd does neither. The
+      // deadline owns every timer in the tree and is the only module
+      // permitted one — see the compensating check below.
+      if (!file.endsWith('orchestration/deadline.ts')) {
+        expect(contents.includes('setInterval'), `${file} must not call setInterval`).toBe(false)
+      }
     }
+  })
+
+  it('the one module permitted a timer clears and unrefs it', () => {
+    // The exception above is only safe while this holds. An interval
+    // that outlives its call would keep the process alive, which is
+    // exactly what the blanket ban existed to prevent.
+    const deadline = read(join(srcRoot, 'orchestration/deadline.ts'))
+    expect(deadline, 'every interval is cleared').toContain('clearInterval')
+    expect(deadline, 'and cannot hold the event loop open').toContain('unref')
   })
 
   it('importing the service index has no side effect and starts nothing', async () => {
@@ -294,6 +305,7 @@ describe('RO-INV-06: orchestration cannot decide', () => {
       'enforceBound',
       'classifyEvidenceFailure',
       'indeterminateOutcome',
+      'classifyTerminalObservations',
     ]
     let calls = 0
     for (const file of sourceFiles()) {
@@ -303,6 +315,48 @@ describe('RO-INV-06: orchestration cannot decide', () => {
       }
     }
     expect(calls, 'the service must actually route decisions through the core').toBeGreaterThan(4)
+  })
+
+  it('RO-EX-90: no module inspects provider terminal observations to classify them', () => {
+    // `runner.ts` held a local `describeTerminalDisagreement` deciding
+    // that a clean exit alongside a kill signal means the terminal state
+    // cannot be established. Correct in substance, wrong in ownership:
+    // `runner-execution-boundary` puts trust decisions in the core, and
+    // ADR-0013 decision 3 makes provider terminal observations
+    // observational input with classification owned by the platform
+    // lifecycle. A provider-adapter landing would have inherited a local
+    // algorithm inside the orchestrator.
+    //
+    // Scanned by FIELD rather than by function name: renaming the helper
+    // would evade a name check, but any re-implementation has to read
+    // these fields to reach a verdict.
+    //
+    // Two places may name them and do not classify: `ports/values.ts`
+    // DECLARES the SPI shape, and an adapter PRODUCES an observation.
+    // Everything else is the orchestration path — where the defect was,
+    // and the only place it could come back.
+    const declaresOrProduces = (file: string): boolean =>
+      file.endsWith('ports/values.ts') || file.includes(`${srcRoot}/adapters/`)
+
+    for (const file of sourceFiles()) {
+      if (declaresOrProduces(file)) continue
+      // BOTH views. `code()` strips string literals, so a bracket
+      // access — `observation['exit_code']` — reads as `observation[""]`
+      // and the scan sees nothing. The raw text catches that form; the
+      // stripped text keeps honest prose from failing the guard.
+      const stripped = code(file)
+      const raw = read(file)
+      for (const field of ['exit_code', 'signalled', 'reported_outcome']) {
+        expect(
+          stripped.includes(field),
+          `${file} inspects ${field}; terminal classification belongs to the core`,
+        ).toBe(false)
+        expect(
+          new RegExp(`\\[\\s*['"\`]${field}['"\`]\\s*\\]`).test(raw),
+          `${file} reaches ${field} by bracket access, which the stripped scan cannot see`,
+        ).toBe(false)
+      }
+    }
   })
 
   it('no module re-implements a refusal code or a terminal-success map', () => {

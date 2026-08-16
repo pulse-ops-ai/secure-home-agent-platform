@@ -311,21 +311,63 @@ So finalization PREPARES — assemble the bundle, project the whole
 terminal transition sequence from the machine, build the terminal event
 envelope, decide seal ordering and seal eligibility — and only then
 COMMITS the journal tail, the terminal event, and the sealed bundle
-together. All three land or none is observable. The machine then adopts
+together. Every participant fact the transaction still owes lands
+together or none is observable. The machine then adopts
 the projected entries VERBATIM, so what it reports is the committed fact
 rather than a re-derivation of the intent.
 
 What atomicity means here is this landing's to define; where the
-transaction persists is U11's. The shipped implementation applies in the
-order journal → event → bundle (the seal stays last) and retracts in
-reverse on any failure, and every participating sink must therefore be
-able to retract — required rather than optional, because a sink that
-discovers at rollback time that it cannot unwind has discovered it too
-late.
+transaction persists is U11's. The shipped implementation orders no
+observable writes at all: each participant STAGES its part of the commit
+— the journal tail, the terminal event, the sealed bundle — where no
+reader can see it, and one shared visibility marker publishes all three
+in a single step. Publication is the only point at which the commit
+exists. Round 18 added the one refinement this wording needs: when the
+exact terminal event is ALREADY a durable domain fact — the same
+canonical content, ordinarily landed at the same (run, sequence) — the
+event participant reconciles against that durable fact instead of
+becoming a second physical row, and the marker publishes what the
+transaction still owes: the journal tail and the sealed bundle become
+observable only through this transaction's own commit, and the event's
+prior domain durability neither commits the transaction nor publishes
+anything early. Domain identity is not transaction identity. A participant that refuses to stage costs nothing, because
+nothing staged is observable; there is no partially visible state to
+compensate for, and no participant is required to be able to undo a
+write, because no write becomes visible until every participant has
+agreed. An earlier revision of this section required exactly that
+undo capability of every sink; it was removed for cause — a sink that
+cannot unwind discovers it only after another participant's write is
+already public, which is precisely the partial visibility the claimed
+atomicity forbids. U11 inherits the staging contract, not a write order.
 
 Preparation refusing costs nothing, which is the property that makes the
 whole thing work: no event has been announced and no bundle written, so
 the run simply terminates on what actually happened.
+
+The commit crosses the orchestration call boundary as an ACKNOWLEDGED
+EFFECT, not a read. The boundary that rejects a late-resolving result is
+correct for calls whose result can be discarded; a commit's late
+acknowledgement describes a publication that already exists, and
+discarding it would invent a second terminal for a run whose first is
+visible. So the absolute expiry is enforced INSIDE the commit,
+synchronously at the publication point — the commit publishes within its
+budget or publishes nothing — and once it acknowledges, the machine
+adopts the committed terminal regardless of what the wall clock says by
+the time the acknowledgement lands. The boundary stamps the expiry into
+the request because it is the party that knows it; a durable
+implementation (U11) inherits the same rule inside its transaction.
+
+The logical commit identity belongs to the CALLER, established before
+the port call and stable across retries of one intent — the
+implementation mints nothing per call, because a per-call identity is
+what turned a lost acknowledgement into a second published terminal. A
+replay of a published identity reconciles to `ok` with nothing staged
+and nothing published again; a different intent for a generation that
+already finalized refuses as `already_committed`. A durable
+implementation (U11) inherits discoverability by that identity, so an
+unawaited acknowledgement resolves to committed / not committed /
+explicitly unresolved rather than being guessed — the same resolution
+discipline the lease's abandoned attempt established for ownership.
 
 ### D7 (superseded detail): seal-last as an ordering component
 
@@ -410,6 +452,52 @@ Three mechanisms, mirroring L3's D2/D6 discipline:
   a source scan in the conformance suite, plus the behavioral fixture: a
   workspace carrying modified "orchestration" bytes executes nothing.
 
+### D12: An orchestration ATTEMPT is not the logical run (owner decision)
+
+Two accepted rules were in tension. `runner-lifecycle` says the
+lifecycle never abandons a run in a non-terminal state.
+`runner-execution-boundary` says an orchestrator that has lost ownership
+stops before acting and writes nothing. A dispossessed attempt satisfies
+both only if "this attempt finished" and "the run reached a terminal"
+stop being one statement.
+
+They are separated. A stale holder owns the ending of ITS ATTEMPT; the
+logical run's terminal belongs to whoever holds the run now. Inventing
+`INDETERMINATE` after losing ownership would be precisely the verdict a
+dispossessed holder has no authority to give, and reporting nothing at
+all would abandon the caller.
+
+`RunConclusion` is therefore a discriminated union over what the
+conclusion IS:
+
+| kind | means |
+|---|---|
+| `terminal` | the run reached a lifecycle terminal under this attempt |
+| `settlement_failed` | an intended lifecycle terminal was selected, but its mandatory governed record did not become durable within the finite settlement boundary |
+| `held` | a precondition is unmet; the run waits, resumable |
+| `ownership_lost` | this attempt is over; the run is not |
+| `not_started` | the lease was never held |
+| `unterminated` | the machine granted no terminal (RO-INV-50) |
+
+Each variant constrains the state it may carry, so a conclusion cannot
+pair `terminal` with a progress state — a lie the flat shape told in the
+very proof asserting no terminal was granted.
+
+`unterminated` exists because RO-INV-50 already required it: when a
+narrowed table grants no terminal, the conclusion must say so rather
+than naming a progress state as though it were one.
+
+`settlement_failed` resolves a different ambiguity. Bounded `run()`,
+mandatory evidence, and a sink that never settles cannot all be guaranteed.
+The variant reports that the ATTEMPT ended without claiming that the
+intended lifecycle terminal has a durable governed record. It carries the
+actual machine state, the intended terminal, and `produced: none`; it is
+never success and never substitutes for the required record.
+
+**Authorization.** Reviewer-proposed and owner-accepted; recorded in
+`tasks.md` under the L4 authorization section. The normative statements
+below follow from it.
+
 ### D9: Events at the representable moments; a transition record for the rest (OQ3 + review blocker 3)
 
 The closed L2 vocabulary represents specific lifecycle moments, and this
@@ -438,6 +526,22 @@ rejections, acquisitions and holds at the moment each occurs, and
 evidence. Where the journal persists is U11's; what it must record is
 not, and a port whose contract waits for its store is a port whose
 contract gets written by the store.
+
+**All four categories pass through ONE outbox.** The pre-seal gate kept
+losing one category at a time — it checked transitions while a rejection
+pended outside it, learned rejections while acquisitions and holds were
+still written directly at their call sites, where a fault either dropped
+the fact or killed the run. Category-specific tracking keeps leaving the
+next category outside the proof, so there is a single `JournalOutbox`:
+every journal fact enters it, a fault leaves the entry pending for
+retry at the next tick, and the seal gate asks the one question — is
+the outbox empty — that cannot be asked per category. A category added
+later joins the gate by existing, because there is nowhere else for it
+to go. Every entry carries a stable identity minted when the fact is
+recorded, so a retry of an append that landed while its acknowledgement
+was lost is recognised by the journal as a REPLAY — one physical fact,
+one durable fact, however many acknowledgements it takes. Proven by
+RO-INV-63/86, RO-EX-150/154/161, RO-MUT-95/96/101.
 
 ### D10: Concurrency — one run, one writer
 
@@ -469,6 +573,27 @@ including the hold and throw paths, so a fault leaves a run merely failed
 rather than unrecoverable. The generation is a fencing token: a holder
 that lost its lease and kept working can be told apart from the one that
 actually holds it, which a boolean lock cannot do.
+
+**Acquisition is a protocol, not a call.** A distributed claim has a
+window an abort signal cannot close: the resource commits a generation,
+the acknowledgement is delayed, and the caller's deadline expires before
+it arrives — the grant now stands with no holder to ever renew or
+release it. So every claim carries an attempt identity UNIQUE to that
+attempt (never derived from the run id alone), a lease may replay a
+grant only to the attempt that earned it — which is what makes durable
+idempotency safe — and an attempt whose outcome the runner could not
+await is resolved AT THE RESOURCE through `abandon`: a pending attempt
+becomes ineligible for a grant, and a granted one whose generation still
+holds the run is released. And an attempt that has ever produced a grant
+stays RESOLVED once that grant is no longer current: a delayed duplicate
+of a released attempt refuses rather than minting a fresh generation
+nobody is waiting to hold — the same orphaned-ownership hazard arriving
+as a duplicate request instead of a delayed acknowledgement. The
+caller's abandon and the resource's own ownership expiry are the two
+halves of resolving uncertain acquisition; a durable implementation
+(U11) must supply both, and the in-memory lease ships the attempt-state
+semantics as the reference. Proven by RO-INV-82, RO-EX-148/149/155,
+RO-MUT-90…92/97.
 
 Resource-level isolation between concurrent runs — starvation, CPU and
 memory ceilings on a shared Pi — is L9's, not this landing's.
@@ -510,6 +635,70 @@ Rejected: weakening L3 construction to accept missing authority
 (fail-open); fabricating identities (lying evidence); making cancellation
 unavailable until `RUNNING` (leaves early runs un-cancellable for no
 reason once acquisition is sequenced first).
+
+### D13: The call boundary owns interruption; the walk is never abandoned
+
+Round 6 falsified the partial round-5 answer. Racing the WHOLE walk bounded
+only the caller's wait: the JavaScript continuation remained live, and when
+a delayed port eventually answered it resumed authority acquisition,
+emitted later events, and mutated the conclusion already returned to the
+caller. `Promise.race` was not cancellation.
+
+The replacement is one guarded asynchronous port boundary:
+
+```text
+phase continuation
+      ↓ await
+guarded port call ── interrupt ──> reject at this await
+      ↓ settles                    continuation unwinds
+next effect may run                no later effect can start
+```
+
+Every asynchronous method of every declared port is reached through the
+same proxy. An interrupt rejects the awaiting continuation at that call;
+the underlying promise may still settle, but no orchestration code remains
+attached to its result. That is the property the whole-walk race could not
+provide.
+
+Three related consequences are part of the same coordinator:
+
+- ownership acquisition is guard-owned too: the lease method is invoked
+  only through the thunk, receives a claim-attempt identity and the run
+  signal, and cannot turn an aborted attempt into ownership;
+- the profile wall clock is one absolute expiry established before
+  session preparation; prepare/start consumes it, and the session may
+  only narrow that same expiry rather than restart it. Every call also
+  checks that expiry synchronously, so a delayed timer callback grants no
+  extra execution;
+- once the governed deadline fires, terminal settlement and cleanup use a
+  fresh, short guard. This permits the mandatory early/full evidence record
+  and session teardown to land without making a broken sink unbounded.
+
+Terminal settlement does not pretend boundedness and mandatory evidence
+can both be guaranteed against a sink that never settles. The public
+conclusion makes that failure explicit: `settlement_failed` carries the
+intended lifecycle terminal and `produced: none`, and is not itself a
+lifecycle terminal. A consumer can therefore distinguish "the run
+terminalized and evidence is durable" from "terminal recording exhausted
+its governed settlement bound."
+
+The strict execution typestate is not widened to preserve partial facts.
+RUNNING still earns a total `Observations` value before verification may
+start. In parallel, a narrow terminal-evidence accumulator records only
+facts already made true — call operations, completed gate dispositions,
+workspace observation, artifact observation — so interruption or
+recovery cannot erase audit facts produced before RUNNING completed.
+
+Recovery finalization remains under the original caller cancellation and
+profile deadline until publication, with the independent recovery ceiling
+as an additional bound. Session interruption is attempted once in its
+dedicated stop window; evidence settlement never repeats it.
+
+Irreversible writes still require their own atomicity/idempotency contract;
+that remains D7/L9/U11. What D13 now guarantees is narrower and complete:
+the orchestrator itself never abandons a continuation that can later start
+another effect, and every awaited port is bounded from claim through
+cleanup.
 
 ## Decision Tables
 
@@ -582,6 +771,163 @@ imports the service; CI builds and proves it. Rollback is non-reference.
 
 **Authority posture: additive.** No enforcement flip; L9 remains the single
 enforcement flip of the program.
+
+### D14: Asynchronous effect semantics — every port method has a class (owner decision)
+
+**Authorized by the repository owner's decision record on PR #82
+(2026-08-14):** every asynchronous method in the complete L4 `Ports`
+surface carries exactly one effect class, recorded here and enforced
+structurally — the table below is mirrored by `orchestration/effects.ts`,
+whose `PortEffectTable` type is COMPUTED from `Ports`, so an
+unclassified method fails to compile and the boundary proxy refuses one
+at runtime.
+
+The classes and their boundary semantics:
+
+- **discardable read/result** — a late result is thrown away; ordinary
+  call boundary (expiry checked at entry and on return).
+- **acknowledged effect** — execution can create durable/external state
+  before the acknowledgement arrives. Still promptly unwound (raced),
+  because its safety is its obligations: the FACT is accounted before
+  or independently of the acknowledgement, retryable effects carry a
+  stable caller-known identity whose repeat is a replay, and
+  maybe-performed work is resolved by teardown. A lost acknowledgement
+  never means "did not occur".
+- **acquisition** — ownership/resource creation resolved AT THE
+  RESOURCE (abandon/close/discard), never compensated at the caller.
+- **finalization** — the irreversible atomic commit and its staging;
+  crosses `CallGuard.commit` (acknowledgement accepted), under a
+  caller-owned commit identity, with the expiry and its BOUND stamped
+  by the boundary and enforced synchronously at the publication point.
+- **cleanup/teardown** — best-effort, idempotent at the resource.
+
+| Port.method | Class | Identity / resolution (REQUIRED by the public types) |
+|---|---|---|
+| `authority.read` | discardable read | the consumed epoch token accounts the read |
+| `journal.appendTransition` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendRejection` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendAcquisition` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.appendHold` | acknowledged effect | required `entry_id`; replay answered without a second fact |
+| `journal.stageTransitions` | finalization | staged under the commit identity; abandon/publish |
+| `journal.readCurrentState` | discardable read | — |
+| `lease.claim` | acquisition | required unique `attempt_id`; `abandon`; same-attempt replay while current |
+| `lease.abandon` | cleanup | idempotent resolution |
+| `lease.renew` | discardable read | fencing answer re-asked at the next boundary |
+| `lease.release` | cleanup | generation-guarded, idempotent |
+| `finalization.commit` | finalization | caller-boundary identity; CANONICAL-INTENT replay equivalence; publication-point expiry with winning-bound provenance |
+| `session.prepare` | acquisition | required caller-minted `session_ref` in the request; resolved by `close` even when the acknowledgement is lost |
+| `session.start` | acknowledged effect | resolved by interrupt/close; a late `ok` earns no transition |
+| `session.interrupt` | cleanup | idempotent teardown |
+| `session.close` | cleanup | idempotent teardown |
+| `workspace.provision` | acquisition | required caller-minted `workspace_ref` in the request; resolved by `discard` even when the acknowledgement is lost |
+| `workspace.applyBack` | acknowledged effect | the fenced, identified request — non-empty-by-type observed change set + workspace identity + authorizing policy; unknown ack = unconfirmed, never "not applied" |
+| `workspace.discard` | cleanup | idempotent |
+| `observer.observeBase` | discardable read | — |
+| `observer.observe` | discardable read | — |
+| `artifacts.observe` | discardable read | — |
+| `execution.runGate` | discardable read | side effects governed by session/workspace observation, not the ack |
+| `adapter.invoke` | acknowledged effect | resolved via session interrupt/close; partial facts via TerminalEvidence |
+| `events.emit` | acknowledged effect | required (run, `sequence`) identity in the request, allocated BEFORE the effect; fact accounted before the ack; a landed identity is never reused |
+| `events.stageEmit` | finalization | staged under the commit identity |
+| `evidence.write` | acknowledged effect | required logical `record_id`; replay answered without a second record; unknown ack = settlement failure, never denial |
+| `evidence.stageWrite` | finalization | staged under the commit identity |
+
+`clock.now` is synchronous and outside the table — it cannot outlive a
+boundary.
+
+**Round-16 exactness: three identities, three jobs, and in-flight
+ownership.** The event's (run, sequence), the transaction's
+`commit_id`, and ownership's (run, generation) are never collapsed. The
+staged terminal event's identity is STRUCTURAL in the SPI (the envelope
+owns its sequence), its staging state machine is explicit (reserve /
+exact-replay-without-a-twin / conflict-by-canonical-equality /
+scoped-idempotent-abandon / publish-forever), and
+`TransactionalFinalization` owns the cross-participant concurrency:
+in-flight bindings established synchronously before the first await —
+one canonical intent per in-flight commit identity with single-flight
+join for exact concurrent replays, one terminal transaction per
+in-flight generation enforced at the publication gate — and the
+persistent finalized authority established in the same synchronous
+section as the visibility marker, so IN_FLIGHT passes to PUBLISHED with
+no free interval (RO-INV-94, RO-EX-180…184, RO-MUT-121…126).
+
+**Round-17 exactness: equivalence is not ownership.** Canonical
+durable-fact equivalence tells the event domain two stagings are the
+same fact; it never transfers custody of unpublished mutable staging
+state. The sink's reservation is one canonical per identity with
+per-transaction stages inside it: each commit owns its own invisible
+row, the `StagedWrite` a transaction receives is scoped to the stage
+its label names (abandon releases exactly that row, idempotently and
+publish-guarded), and no transaction is acknowledged while relying on a
+stage it does not own — so a loser's cleanup cannot alias the winner's
+state, and a borrower cannot report success with the terminal event
+missing. Ordinary and staged emission answer to the ONE event-domain
+authority: `emit` consults live reservations and refuses a DIFFERENT
+canonical at a reserved identity as `conflicting_replay`. The exact
+ordinary-versus-staged replay cell was, at this round, deliberately
+left at then-current behavior — not yet falsified here; Round 18 below
+decides its durable-uniqueness and acknowledgement-truthfulness halves
+— and Round-16's finalization semantics are untouched (RO-INV-95,
+RO-EX-185…188, RO-MUT-127…131).
+
+**Round-18 exactness: one identity, one durable fact, on every path.**
+The falsification arrived for the exact staged-versus-ordinary cell,
+and it decided the part that was provable without an owner choice: an
+unpublished stage is NOT durable, so it cannot back an acknowledged
+ordinary effect — when ordinary emission lands the exact canonical a
+live reservation holds, the landing becomes THE durable fact and every
+equivalent unpublished stage retires with it. A staged sibling that
+later publishes exposes no second row (its event participant
+reconciles against the durable identity ledger), and a sibling that
+abandons releases only its own — already retired — stage, so the
+acknowledged event cannot disappear. Durable uniqueness and
+acknowledgement truthfulness are now invariant; the acknowledgement
+DISPOSITION of the exact cell (this implementation keeps today's `ok`)
+remains the open remainder, and different-canonical conflicts,
+Round-17 per-transaction stage ownership, and Round-16 finalization
+identity separation are all unchanged (RO-INV-96, RO-EX-189…191,
+RO-MUT-132…134).
+
+**Round-13 exactness: identity equality implies fact equality.** A
+replay ledger that remembers only "this identity landed" cannot tell an
+exact retry from a different fact wearing a landed name. Every replay
+ledger — the journal (one mechanism across its four categories), the
+evidence sink, the event sink, the materialization ledger, and
+finalization's canonical intent — retains canonical content and answers
+three ways: new, replay (`ok`, nothing appended), or CONFLICTING replay
+(`conflicting_replay`, refused with the first fact unchanged). A
+conflict is not `stale_fence` — identity corruption and ownership loss
+are different facts — and orchestration fails closed on it: the entry
+stays pending, the durability gate blocks, and no conclusion claims a
+record it could not establish. The early-terminal record is built ONCE
+per attempt and retried verbatim, because a rebuilt record with fresh
+timestamps would be a conflicting replay of the run's own record. And
+the boundary's expiry stamp is UNCONDITIONAL: caller-supplied expiry
+metadata is stripped at the guard, so no pre-boundary caller can widen
+the budget or forge refusal provenance (RO-INV-90/93,
+RO-EX-172…176, RO-MUT-111…116).
+
+**Round-12 exactness (same owner decision, made structural).** The
+table's identity column stopped being aspiration: every identity above
+is REQUIRED by the public TypeScript contract, proven by
+compiler-shaped conformance (RO-EX-169), and honoured by the reference
+implementations (RO-EX-170/171). The deadline that wins at a boundary
+is ONE typed value carrying instant and provenance — every stamp is a
+projection of it, so the governed clock winning a recovery minimum is
+refused as the run's timeout, never as the attempt's ceiling
+(RO-INV-90). And finalization replay equivalence is established by the
+commit's stored CANONICAL LOGICAL INTENT, not by the identity string:
+an exact replay reconciles; a different intent sharing a terminal state
+refuses instead of aliasing the publication (RO-INV-91).
+
+The same owner decision fixes the CONCLUSION side: a conclusion claims a
+durable property only after every durable fact it requires has landed
+(terminal, early-terminal record, and held alike — `held` means the
+durable resumable identity exists), and expiry provenance stays
+structurally distinct — settlement/recovery ceilings are attempt bounds
+that report the authorized settlement-failure semantics with the
+intended terminal standing, never a manufactured lifecycle TIMED_OUT.
+Proven by RO-INV-85…89, RO-EX-153/157…161, RO-MUT-98…104.
 
 ## Open Questions
 

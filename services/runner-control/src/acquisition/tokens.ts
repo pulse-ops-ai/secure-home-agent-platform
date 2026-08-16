@@ -17,6 +17,7 @@
  * place (RO-ADV-05).
  */
 import type { AuthoritySourcePort, AcquisitionEpoch, AuthorityBytes } from '../ports/index.js'
+import { isRunControlError } from '../run/interruption.js'
 
 /** Authority bytes that remember which epoch acquired them. */
 export interface EpochValue<E extends AcquisitionEpoch> {
@@ -107,6 +108,11 @@ export class AcquisitionSet<E extends AcquisitionEpoch> {
       const bytes = await this.#port.read({ run_id: this.#runId, epoch: this.#epoch, source })
       return { ok: true, value: { epoch: this.#epoch, source, bytes } }
     } catch (error) {
+      // Cancellation and timeout are lifecycle control flow, not an
+      // authority-source failure. Let the run's terminal owner classify
+      // them; translating them here would turn TIMED_OUT into an
+      // operational acquisition fault.
+      if (isRunControlError(error)) throw error
       return {
         ok: true,
         value: {

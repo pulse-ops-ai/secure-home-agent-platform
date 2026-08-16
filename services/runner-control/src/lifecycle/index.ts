@@ -1,6 +1,7 @@
 export {
   RunMachine,
   REJECTION_REASONS,
+  type CommitCapability,
   type RejectionEntry,
   type RejectionReason,
   type TransitionEntry,

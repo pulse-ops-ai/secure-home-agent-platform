@@ -29,6 +29,7 @@ import type {
   AdapterInvocation,
   AdapterObservation,
   AdapterReport,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
   SessionClosure,
@@ -40,6 +41,8 @@ import type {
   ApplyBackRequest,
   WorkspaceProvision,
 } from './ports/index.js'
+import { CommitLedger } from './run-state/visibility.js'
+import { SEIZE } from './run-state/seize.js'
 import type { RunRequest } from './runner.js'
 
 export const digestHex = (letter: string): string => `sha256:${letter.repeat(64)}`
@@ -187,7 +190,36 @@ export interface TestPorts extends Ports {
   readonly evidence: RecordingEvidenceSink
 }
 
-export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
+/**
+ * One visibility authority per port set, shared by the three commit
+ * participants. It is created here rather than defaulted inside each
+ * store because a store holding its OWN ledger would never see a commit
+ * published through another — three transactions wearing one commit id.
+ *
+ * A test that supplies its own journal/events/evidence must build them
+ * from `visibility` too; `sharedPorts()` below does exactly that, and is
+ * what every commit-marker proof uses.
+ */
+export const sharedPorts = (): {
+  readonly visibility: CommitLedger
+  readonly journal: InMemoryRunJournal
+  readonly events: RecordingEventSink
+  readonly evidence: RecordingEvidenceSink
+} => {
+  const visibility = new CommitLedger()
+  return {
+    visibility,
+    journal: new InMemoryRunJournal(visibility),
+    events: new RecordingEventSink(visibility),
+    evidence: new RecordingEvidenceSink(visibility),
+  }
+}
+
+export const testPorts = (
+  overrides: Partial<Ports> & { readonly visibility?: CommitLedger } = {},
+): TestPorts => {
+  const shared = sharedPorts()
+  const visibility = overrides.visibility ?? shared.visibility
   const base = {
     authority: new CountingAuthoritySource(),
     observer: new StaticWorkspaceObserver(),
@@ -195,10 +227,10 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
     artifacts: new StaticArtifactObserver(),
     execution: new DeterministicExecution(),
     adapter: new DeterministicAdapterInvocation(),
-    events: new RecordingEventSink(),
-    evidence: new RecordingEvidenceSink(),
+    events: shared.events,
+    evidence: shared.evidence,
     clock: new SteppingClock(),
-    journal: new InMemoryRunJournal(),
+    journal: shared.journal,
     lease: new InMemoryRunLease(),
     session: new InMemoryExecutionSession(),
     ...overrides,
@@ -213,46 +245,49 @@ export const testPorts = (overrides: Partial<Ports> = {}): TestPorts => {
         journal: base.journal,
         events: base.events,
         evidence: base.evidence,
+        visibility,
+        lease: base.lease,
       }),
   }
 }
 
 /**
  * The GOVERNED durable records — the sealed bundle or the early-terminal
- * refusal record. Excludes the transition record, which every run writes
- * as diagnostics: a proof about "what governed record did this run
- * produce" must not count the walk itself as one.
+ * refusal record.
+ *
+ * No filtering any more. This used to exclude the transition record,
+ * which the evidence sink could once express; the sink now has exactly
+ * two shapes and both are governed, so a filter here would only hide a
+ * write a proof should see. That filter is also how the seal-last
+ * violation stayed invisible once before.
  */
 export const governedWrites = (ports: TestPorts, run_id?: string): readonly RecordedWrite[] =>
-  (run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)).filter(
-    (write) => write.kind !== 'transition_record',
-  )
+  run_id === undefined ? ports.evidence.all : ports.evidence.writesOf(run_id)
 
 /**
  * A sink that fails selected writes but is otherwise real — crucially
- * including retraction. A double that cannot retract cannot take part in
- * an all-or-none commit, so a proof built on one would be testing a
- * participant the production code would refuse.
+ * including STAGING, which is where a finalization participant fails
+ * now. A double that only failed the direct write would leave the commit
+ * path untouched and prove nothing about it.
+ *
+ * There is deliberately no "it landed and then failed" mode any more.
+ * That mode existed to exercise retraction, and it described a state the
+ * staged design cannot enter: nothing lands until every participant has
+ * agreed, so a failure never has anything to undo.
  */
 export const evidenceSinkFailing = (
   shouldFail: (request: { readonly kind: string }) => boolean,
   base: RecordingEvidenceSink = new RecordingEvidenceSink(),
-  /**
-   * When true the write LANDS and then reports failure — the case that
-   * actually needs retraction. A sink that rejects before writing leaves
-   * nothing to retract, so a proof built on one cannot tell whether
-   * rollback works at all.
-   */
-  landsBeforeFailing = false,
 ): RecordingEvidenceSink =>
   ({
-    write: async (request: { readonly kind: string }) => {
-      if (!shouldFail(request)) return base.write(request as never)
-      if (landsBeforeFailing) await base.write(request as never)
-      throw new Error('evidence sink down')
-    },
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
+    write: (request: { readonly kind: string }) =>
+      shouldFail(request)
+        ? Promise.reject(new Error('evidence sink down'))
+        : base.write(request as never),
+    stageWrite: (request: { readonly kind: string }) =>
+      shouldFail(request)
+        ? Promise.reject(new Error('evidence sink down'))
+        : base.stageWrite(request as never),
     writesOf: base.writesOf.bind(base),
     get all() {
       return base.all
@@ -264,10 +299,22 @@ export const eventSinkFailing = (
   base: RecordingEventSink = new RecordingEventSink(),
 ): RecordingEventSink =>
   ({
-    emit: (request: { readonly run_id: string; readonly event: { event_type: string } }) =>
+    emit: (request: {
+      readonly run_id: string
+      readonly generation: number
+      readonly sequence: number
+      readonly event: { event_type: string }
+    }) =>
       shouldFail(request.event) ? Promise.reject(new Error('event sink down')) : base.emit(request),
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
+    stageEmit: (request: {
+      readonly run_id: string
+      readonly generation: number
+      readonly commit_id: string
+      readonly event: { event_type: string; sequence: number }
+    }) =>
+      shouldFail(request.event)
+        ? Promise.reject(new Error('event sink down'))
+        : base.stageEmit(request),
     eventsOf: base.eventsOf.bind(base),
     get runs() {
       return base.runs
@@ -283,11 +330,13 @@ export const journalFailing = (
       shouldFail(request.transition)
         ? Promise.reject(new Error('journal down'))
         : base.appendTransition(request as never),
+    stageTransitions: (request: { readonly transitions: readonly { to: string }[] }) =>
+      request.transitions.some((entry) => shouldFail(entry))
+        ? Promise.reject(new Error('journal down'))
+        : base.stageTransitions(request as never),
     appendRejection: base.appendRejection.bind(base),
     appendAcquisition: base.appendAcquisition.bind(base),
     appendHold: base.appendHold.bind(base),
-    mark: base.mark.bind(base),
-    retractTo: base.retractTo.bind(base),
     readCurrentState: base.readCurrentState.bind(base),
   }) as unknown as InMemoryRunJournal
 
@@ -350,9 +399,9 @@ export class RecordingSession {
     return Promise.resolve(failure === undefined ? { ok: true } : { ok: false, detail: failure })
   }
 
-  interrupt(): Promise<void> {
+  interrupt(): Promise<FenceOutcome> {
     this.calls.push('interrupt')
-    return Promise.resolve()
+    return Promise.resolve({ ok: true })
   }
 
   close(): Promise<SessionClosure> {
@@ -419,9 +468,9 @@ export class RecordingWorkspaceLifecycle {
     return Promise.resolve({ ok: true, applied: request.changes.length })
   }
 
-  discard(): Promise<void> {
+  discard(): Promise<FenceOutcome> {
     this.calls.push('discard')
-    return Promise.resolve()
+    return Promise.resolve({ ok: true })
   }
 }
 
@@ -455,3 +504,17 @@ export const runRequest = (overrides: Partial<RunRequest> = {}): RunRequest => (
   },
   ...overrides,
 })
+
+/**
+ * Move a lease on, as a competing holder would.
+ *
+ * This was `InMemoryRunLease.steal()` — a public method on production
+ * source, exported at the package root, that seized any run by id with
+ * no claim and no fence. It is a PROOF affordance, so it lives here,
+ * where the package's exports cannot reach it.
+ */
+export const seizeLease = (lease: InMemoryRunLease, run_id: string): number => {
+  const seize = (lease as unknown as Record<symbol, ((id: string) => number) | undefined>)[SEIZE]
+  if (seize === undefined) throw new Error('this lease exposes no seize affordance')
+  return seize.call(lease, run_id)
+}

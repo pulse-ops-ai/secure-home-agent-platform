@@ -13,12 +13,7 @@
  * property means, and it decided wrongly.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  InMemoryRunJournal,
-  InMemoryRunLease,
-  RecordingEventSink,
-  RecordingEvidenceSink,
-} from '../adapters/index.js'
+import { InMemoryRunLease, RecordingEvidenceSink } from '../adapters/index.js'
 import { TRANSITIONS, type ProgressState, type TransitionKind } from '../lifecycle/index.js'
 import { Runner } from '../runner.js'
 import {
@@ -27,6 +22,8 @@ import {
   evidenceSinkFailing,
   journalFailing,
   runRequest,
+  seizeLease,
+  sharedPorts,
   testPorts,
 } from '../testing-fixtures.js'
 
@@ -79,19 +76,17 @@ describe('RO-EX-65: a partial commit is fully retracted', () => {
     ).not.toContain('EVIDENCE_SEALED')
   })
 
-  it('an evidence write that fails AFTER landing is retracted', async () => {
-    // The sink accepts the write and then reports failure. Evidence
-    // retraction was never registered at all, so the bundle stayed.
+  it('an evidence participant that refuses leaves no bundle', async () => {
+    // This proof used to describe a sink that ACCEPTED the write and
+    // then reported failure, because that was the only case retraction
+    // had to handle. The staged design has no such case: the bundle is
+    // prepared where nobody can see it and published only once every
+    // participant has agreed, so a refusal leaves nothing behind rather
+    // than leaving something that must be taken back.
     const ports = testPorts({
       evidence: evidenceSinkFailing(
         (request) => request.kind === 'evidence_bundle',
         new RecordingEvidenceSink(),
-        // LANDS, then reports failure. A sink that rejects BEFORE
-        // writing leaves nothing to retract, so a proof built on one
-        // cannot tell whether rollback works — which is exactly why the
-        // first version of this proof passed with evidence retraction
-        // missing from the commit entirely.
-        true,
       ),
     })
     await new Runner(ports).run(runRequest())
@@ -108,7 +103,7 @@ describe('RO-EX-66: a run that lost its lease writes nothing more', () => {
     const conclusion = await runner.run(runRequest(), {
       interrupt: () => {
         // Steal the lease; the next phase boundary must stop the run.
-        lease.steal(RUN)
+        seizeLease(lease, RUN)
         return undefined
       },
     })
@@ -155,24 +150,32 @@ describe('RO-EX-68: every terminal transition is checked, including on failure p
         observe: () => Promise.resolve({ ok: false as const, failure: 'unreadable' }),
       },
     })
-    const conclusion = await new Runner(ports).run(runRequest(), { transitions: table })
+    const conclusion = await new Runner(ports, { transitions: table }).run(runRequest())
 
     expect(conclusion.state).not.toBe('COMPLETED')
     expect(ports.evidence.all.filter((write) => write.kind === 'evidence_bundle')).toHaveLength(0)
   })
 
-  it('a table that forbids refuse from REQUESTED writes no early record', async () => {
+  it('a table that forbids refuse from REQUESTED records no refusal', async () => {
     const table = withoutTransition('REQUESTED', 'refuse')
     const ports = testPorts()
-    const conclusion = await new Runner(ports).run(runRequest({ profile_ref: null }), {
+    const conclusion = await new Runner(ports, {
       transitions: table,
-    })
+    }).run(runRequest({ profile_ref: null }))
 
-    expect(conclusion.state).toBe('REQUESTED')
-    expect(
-      ports.evidence.all,
-      'a refusal the machine did not authorize must not be recorded as one',
-    ).toHaveLength(0)
+    // This proof used to assert the run stayed in REQUESTED — that is,
+    // that it was ABANDONED in a progress state. RO-INV-50 now forbids
+    // that outright: a refused terminal falls back to INDETERMINATE,
+    // which this table does declare, so the run ends somewhere.
+    //
+    // The property the proof is actually about is unchanged and still
+    // holds: nothing records a refusal the machine did not authorize.
+    // The run terminates INDETERMINATE and its record says so.
+    expect(conclusion.state).toBe('INDETERMINATE')
+    expect(conclusion.rejections.some((entry) => entry.attempted === 'refuse')).toBe(true)
+    for (const write of ports.evidence.all) {
+      expect(JSON.stringify(write.payload)).not.toContain('REFUSED')
+    }
   })
 })
 
@@ -211,7 +214,8 @@ describe('RO-EX-69: a session is never leaked', () => {
     // rather than after the run has already finished.
     const conclusion = await new Runner(
       testPorts({ session: throwing, adapter: new HangingAdapter() }),
-    ).run(runRequest(), { cancelAfterMs: 10 })
+      { cancelAfterMs: 10 },
+    ).run(runRequest())
 
     expect(session.calls).toContain('close')
     expect(conclusion.state).not.toBe('COMPLETED')
@@ -225,6 +229,7 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
         claim: () => {
           throw new Error('lease store down')
         },
+        abandon: () => Promise.resolve(),
         renew: () => Promise.resolve(true),
         release: () => Promise.resolve(),
       },
@@ -239,6 +244,7 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
     const ports = testPorts({
       lease: {
         claim: base.claim.bind(base),
+        abandon: base.abandon.bind(base),
         renew: base.renew.bind(base),
         release: () => Promise.reject(new Error('release exploded')),
       },
@@ -253,33 +259,32 @@ describe('RO-EX-70: lease faults do not escape the run boundary', () => {
 
 describe('RO-EX-71: retraction is scoped to the attempt, not the run', () => {
   it('a failed later attempt does not erase an earlier committed terminal', async () => {
-    const sink = new RecordingEvidenceSink()
-    const journal = new InMemoryRunJournal()
-    const events = new RecordingEventSink()
+    const shared = sharedPorts()
+    const { evidence: sink, journal, events } = shared
     const lease = new InMemoryRunLease()
+    const wiring = { journal, events, lease, visibility: shared.visibility }
 
-    const first = await new Runner(testPorts({ evidence: sink, journal, events, lease })).run(
-      runRequest(),
-    )
+    const first = await new Runner(testPorts({ ...wiring, evidence: sink })).run(runRequest())
     expect(first.state).toBe('COMPLETED')
     const committed = sink.all.filter((write) => write.kind === 'evidence_bundle').length
     expect(committed).toBe(1)
 
-    // A SECOND attempt on the same run id that reaches the commit and
-    // fails there, so rollback actually runs. Run-scoped retraction
-    // would wipe the first attempt's committed bundle along with it.
+    // A SECOND attempt on the same run id whose commit fails. Under the
+    // compensating design this was the dangerous case — a run-scoped
+    // retraction would wipe the FIRST attempt's committed bundle while
+    // unwinding the second. Staging removes the hazard at the root:
+    // the second attempt never wrote anything, so there is nothing it
+    // could take back, correctly scoped or otherwise.
     const retry = testPorts({
-      journal,
-      events,
-      lease,
-      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle', sink, true),
+      ...wiring,
+      evidence: evidenceSinkFailing((request) => request.kind === 'evidence_bundle', sink),
     })
     const second = await new Runner(retry).run(runRequest())
 
     expect(second.state).not.toBe('COMPLETED')
     expect(
       sink.all.filter((write) => write.kind === 'evidence_bundle'),
-      "a later attempt's rollback must not erase an earlier commit",
+      "a later attempt's failure must not erase an earlier commit",
     ).toHaveLength(committed)
     // And the first attempt's journal tail survives too.
     const journaled = await journal.readCurrentState({ run_id: RUN })

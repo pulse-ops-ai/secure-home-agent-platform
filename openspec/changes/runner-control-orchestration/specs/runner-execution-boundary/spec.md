@@ -79,6 +79,15 @@ through the evidence sink only after that decision proceeds and after all
 other writes for the run have been submitted. A run SHALL NOT be classified
 successful while its evidence is unsealed.
 
+The seal SHALL additionally require the run's durable journal to be
+COMPLETE: no journal append of ANY category — a rejection as much as a
+transition — may remain pending for retry when the seal is submitted.
+The gate SHALL derive from the pending set itself rather than an
+enumerated category list, so a journal category added later joins the
+gate by existing. A pending entry landing after the seal would violate
+seal-last from the other side; a pending entry never landing would seal
+a run whose reconstructable history is incomplete.
+
 #### Scenario: The seal is the final write
 
 - **GIVEN** a run producing artifacts, events, and evidence
@@ -91,6 +100,15 @@ successful while its evidence is unsealed.
 - **AND** a write issued by a concurrent run through the same port instance
   is not a post-seal write for this run
 
+#### Scenario: A pending rejection blocks the seal
+
+- **GIVEN** a run that recorded a rejected transition whose journal
+  append keeps faulting
+- **WHEN** terminal finalization is attempted
+- **THEN** no evidence bundle is sealed
+- **AND** the conclusion reports the incomplete durable record rather
+  than a completed run
+
 ### Requirement: The declared walk is journaled as it happens, and a held run stays findable
 
 Every declared transition, every rejected transition, every authority
@@ -99,6 +117,22 @@ durable journal **at the moment it occurs**. A record assembled in memory
 and written once at termination SHALL NOT satisfy this: a run whose
 process ends mid-walk SHALL still be reconstructable from what the
 journal already holds.
+
+Every journal fact SHALL carry a stable caller-known entry identity,
+minted when the fact is recorded and identical on every retry. A journal
+implementation SHALL treat a repeated entry identity as a REPLAY of the
+same physical fact — acknowledged without appending a second durable
+fact — so an append that landed while its acknowledgement was lost is
+resolved by retrying it, never duplicated by it.
+
+All four categories SHALL pass through ONE outbox with one pending set.
+An append that faults SHALL leave its fact pending for retry at the next
+tick — the fact is neither silently dropped nor grounds to terminate the
+run by itself — and the pre-seal completeness gate asks that single
+pending set, so a category cannot sit outside the gate the way
+category-specific tracking repeatedly allowed. A fact that NEVER lands
+is caught where incomplete durable records are caught: no evidence seals
+over it.
 
 A run held at a state because a precondition is unmet SHALL leave a
 durable pending identity naming the state it is held at, so that the run
@@ -122,6 +156,297 @@ by this capability; what it must record is.
   the withheld transition and the reason
 - **AND** the hold names the state the run is held at
 
+#### Scenario: A faulted acquisition append is retried, not dropped and not fatal
+
+- **GIVEN** an acquisition whose journal append faults transiently
+- **WHEN** the next journal tick runs
+- **THEN** the acquisition lands in the durable record
+- **AND** the run's outcome is unchanged by the transient fault
+
+#### Scenario: An unjournalable fact blocks the seal
+
+- **GIVEN** a journal that never accepts an acquisition or hold append
+- **WHEN** terminal finalization is attempted
+- **THEN** no evidence bundle seals over the missing fact
+
+#### Scenario: A late acknowledgement does not duplicate a journal fact
+
+- **GIVEN** an acquisition append that landed while its acknowledgement
+  was lost
+- **WHEN** the pending fact is retried with its same entry identity
+- **THEN** the journal holds exactly one durable fact for it
+
+### Requirement: Every asynchronous port operation has an explicit effect class
+
+Every asynchronous method of the complete orchestration port surface
+SHALL be classified as exactly one of: discardable read/result;
+acknowledged durable or externally observable effect; resource
+acquisition with uncertain-outcome resolution; irreversible atomic
+finalization; cleanup/teardown. The complete per-method classification
+SHALL be recorded in the governed design and enforced structurally at
+the composition boundary — computed from the port types so an
+unclassified method cannot compile, and refused at the boundary so one
+cannot cross under type erasure. Classification SHALL NOT depend on
+naming convention, comments, or call-site discipline.
+
+An acknowledged effect's fact SHALL be accounted before or independently
+of its acknowledgement; a lost, late, cancelled, or timed-out
+acknowledgement SHALL never cause orchestration to assume the effect did
+not occur. Result-discard semantics are permitted only where ignoring a
+late result cannot leave meaningful external state.
+
+Required identities SHALL be required by the public port types, never by
+caller discipline: the journal entry identity, the event's
+(run, sequence) identity as an explicit request field allocated BEFORE
+the durable effect, the evidence record's logical identity, and the
+caller-minted session and workspace identities present in the
+acquisition request. A conforming implementation SHALL bind the resource
+it creates to the caller-known identity — a resource named only inside
+an acknowledgement is unresolvable once that acknowledgement is lost —
+and SHALL answer a repeated identity carrying the same fact as a replay
+while refusing a different fact wearing a landed identity.
+
+Stable identity is necessary but not sufficient: identity equality SHALL
+imply fact equality. A replay is valid only when the identity AND the
+canonical logical intent both match, so a replay ledger SHALL retain
+canonical content, never identity membership alone. A repeated identity
+carrying a different fact — a different payload, a different governed
+record kind, a different journal category, or a different
+materialization change set — is a CONFLICTING replay: it SHALL be
+refused without mutating the first durable fact, SHALL be distinguished
+from ownership loss, and the caller SHALL fail closed — the conflicting
+entry is not treated as landed and no conclusion claims durability over
+it. A conflicting replay consumes no new effect identity and SHALL NOT
+make a previously occupied identity reusable: an emitter whose
+allocation is behind the durable stream advances past each occupied
+identity it is refused at, and only a definitive nothing-was-written
+refusal may reclaim an allocation.
+
+
+Boundary-owned metadata SHALL NOT be caller-authorable: the composition
+boundary stamps the winning expiry — instant and provenance as one
+value — UNCONDITIONALLY into the finalization commit, and
+request-supplied expiry metadata never survives the guard.
+
+A staged terminal event SHALL answer to the SAME event-domain identity
+authority as ordinary emission: the transaction identity (`commit_id`)
+names the atomic finalization, never the event's own (run, sequence)
+identity. The staged event's identity SHALL be STRUCTURAL — the
+envelope's sequence required by the staging contract, so enforcement
+can never be optional. An exact staged replay WITHIN one transaction is
+the same logical fact and SHALL NOT create a second physical staged
+row; a conflicting stage — a different canonical event at an occupied
+or reserved identity, whatever its transaction identity says — SHALL
+refuse as a conflicting replay before anything publishes, with the
+refusal preserved through both the staging result and the commit
+outcome. Abandon SHALL be idempotent and scoped to its own stage: it
+releases only that unpublished reservation and row, never a published
+event and never an unrelated stage; a published identity is never
+reusable. The finalization commit identity SHALL be required by the
+public type — established by the caller before the request crosses the
+port, with no implementation-side derivation.
+
+Canonical durable-fact equivalence SHALL NOT be ownership of
+unpublished staging state. When transactions with different commit
+identities stage the SAME canonical event at one identity, they share
+the one reservation but each owns its own invisible stage: the staging
+acknowledgement a transaction receives SHALL be backed by a stage that
+transaction owns, and the cleanup capability it carries SHALL release
+exactly the stage its label names — never another transaction's row. A
+transaction SHALL NOT report a successful commit while relying on
+staged state it does not own. Ordinary emission SHALL consult the same
+unpublished reservations: a DIFFERENT canonical event at an identity
+reserved by an unpublished stage refuses as a conflicting replay and
+lands nowhere.
+
+One event-domain identity SHALL carry at most one durable physical
+event fact, however that fact is reached — ordinary emission, staged
+publication, or both paths racing or replaying. An exact fact
+reconciles across paths rather than duplicating: when an ordinary
+emission lands the exact canonical an unpublished stage reserves, the
+landing becomes the durable fact and every equivalent unpublished
+stage retires with it, so no later publication of a staged sibling
+exposes a second row and no abandoning sibling can erase the landed
+fact; a staged replay of an already-durable exact fact stages nothing
+and is not a conflict, and the reconciled transaction's commit
+proceeds unharmed. The acknowledgement an ordinary caller receives for
+the exact staged-versus-ordinary replay is NOT decided here — but a
+successful acknowledgement SHALL be truthful: success is backed by
+durable state that does not depend on another transaction's
+unpublished mutable stage.
+
+Finalization SHALL bind its in-flight state synchronously before its
+first await: one in-flight commit identity binds ONE canonical logical
+intent — an exact concurrent replay joins the single underlying
+transaction rather than staging independently, and a different intent
+wearing the in-flight identity refuses with no participant staging —
+and one in-flight (run, generation) admits ONE terminal transaction: a
+competing commit may stage invisibly and is refused before it can
+publish a second terminal. Publication SHALL establish the persistent
+finalized authority in the same synchronous section as the visibility
+marker, so in-flight ownership passes to published ownership with no
+free interval; a pre-publication failure SHALL release only the claims
+its own operation still holds.
+
+#### Scenario: One in-flight commit identity carries one intent
+
+- **GIVEN** a finalization in flight for a commit identity
+- **WHEN** a different logical intent arrives wearing that identity
+- **THEN** it refuses as a conflicting replay with no participant
+  staging
+- **AND** an exact concurrent replay instead observes the one
+  underlying transaction's outcome
+
+#### Scenario: Overlapping commits cannot finalize one generation twice
+
+- **GIVEN** two finalization commits with different identities for one
+  ownership generation
+- **WHEN** both stage invisibly and race to publish
+- **THEN** exactly one publishes
+- **AND** the other refuses as already committed
+
+#### Scenario: A staged terminal event cannot occupy another event's identity
+
+- **GIVEN** a durable event occupying a sequence identity
+- **WHEN** a finalization stages a different terminal event at that
+  identity
+- **THEN** staging refuses as a conflicting replay and the commit
+  publishes nothing
+- **AND** the first durable event stands unchanged
+
+#### Scenario: A losing transaction's cleanup releases only its own stage
+
+- **GIVEN** two transactions that staged the same canonical terminal
+  event under different commit identities, where one has published
+- **WHEN** the refused transaction abandons its stage
+- **THEN** only the loser's own stage is released
+- **AND** the winner's published event stands as the one visible
+  terminal event
+
+#### Scenario: Equivalence never substitutes for ownership of a stage
+
+- **GIVEN** a transaction that failed before publication and abandoned
+  its staged terminal event
+- **WHEN** an equivalent transaction with a different commit identity
+  completes
+- **THEN** it publishes its OWN staged event or refuses
+- **AND** a successful commit outcome with no visible terminal event is
+  unrepresentable
+
+#### Scenario: Exact staged-versus-ordinary replay keeps one durable fact
+
+- **GIVEN** an unpublished staged terminal event reserving a sequence
+  identity
+- **WHEN** the exact canonical event is ordinarily emitted at that
+  identity and the staged transaction later publishes
+- **THEN** the identity exposes exactly one durable event
+- **AND** the staged transaction's publication does not fail for the
+  reconciled event participant
+
+#### Scenario: An acknowledged ordinary landing survives staged abandonment
+
+- **GIVEN** an ordinary emission that reported success at an identity
+  an unpublished stage had reserved
+- **WHEN** the staged sibling abandons its stage
+- **THEN** the acknowledged event remains durable
+- **AND** the abandonment releases only the sibling's own stage
+
+#### Scenario: An ordinary emission cannot occupy a reserved identity
+
+- **GIVEN** an unpublished staged terminal event reserving a sequence
+  identity
+- **WHEN** a different canonical event is emitted at that identity
+- **THEN** the emission refuses as a conflicting replay and lands
+  nowhere
+- **AND** publication exposes exactly the staged event at that identity
+
+#### Scenario: A conflicting event replay never rewinds the sequence
+
+- **GIVEN** a durable event occupying a sequence identity
+- **WHEN** a different event is emitted at that identity and the sink
+  refuses it as a conflicting replay
+- **THEN** the refusal is not reported as ownership loss
+- **AND** the occupied identity stays consumed and the durable event
+  stands
+- **AND** the emission lands at the next fresh identity
+
+
+The deadline that wins at a call boundary SHALL be one typed value
+carrying both its instant and its provenance, with every derived stamp a
+projection of it: a governed deadline that wins a settlement or recovery
+minimum is refused as the run's timeout, and an attempt ceiling that
+wins is refused as the attempt's bound. Finalization replay equivalence
+SHALL be established by the commit's canonical logical intent — an
+exact replay of a published commit reconciles `ok`; a different intent,
+even one sharing the terminal state, refuses rather than aliasing the
+publication.
+
+The finalization commit SHALL use a stable CALLER-known commit identity
+established before the port call; the implementation SHALL NOT mint a
+new logical identity per call. A retry or reconciliation with the same
+logical identity SHALL never publish a second terminal: a published
+identity reconciles to `ok` without staging or publishing again, and a
+different intent for an already-finalized ownership generation refuses
+rather than publishing. The port contract SHALL let a durable
+implementation resolve an unknown acknowledgement to committed, not
+committed, or explicitly unresolved.
+
+#### Scenario: A durable event fact survives its interrupted acknowledgement
+
+- **GIVEN** a `call.attempted` event that landed in the stream while its
+  acknowledgement was interrupted by cancellation
+- **WHEN** the run's terminal evidence is sealed
+- **THEN** the bundle's operations include the attempted call
+
+#### Scenario: A conflicting replay refuses without touching the landed fact
+
+- **GIVEN** a durable fact landed under an effect identity
+- **WHEN** a different fact arrives wearing that identity
+- **THEN** the write is refused as a conflicting replay, not as
+  ownership loss
+- **AND** the first durable fact is unchanged
+- **AND** the caller fails closed rather than treating the conflict as
+  landed
+
+#### Scenario: The boundary's expiry stamp cannot be caller-overridden
+
+- **GIVEN** a finalization request carrying a later expiry or a forged
+  provenance
+- **WHEN** it crosses the composition boundary
+- **THEN** the commit receives the boundary's winning instant and
+  provenance, unconditionally
+
+#### Scenario: A lost commit acknowledgement is reconciled, not repeated
+
+- **GIVEN** a finalization commit that published before its
+  acknowledgement was lost
+- **WHEN** the same logical commit identity is retried
+- **THEN** the retry is answered `ok`
+- **AND** exactly one terminal remains published
+
+#### Scenario: A different intent never aliases a published commit
+
+- **GIVEN** a published commit for a generation
+- **WHEN** a different logical intent with the same terminal state is
+  committed for that generation
+- **THEN** the commit refuses as already committed
+- **AND** every durable store still describes the first intent
+
+#### Scenario: A landed event never lends its identity to the next one
+
+- **GIVEN** an event that physically lands while its acknowledgement is
+  lost
+- **WHEN** the next event is emitted
+- **THEN** it carries the next sequence, not the landed event's identity
+
+#### Scenario: An interrupted acquisition is resolvable by its caller-known identity
+
+- **GIVEN** a session or workspace acquisition whose acknowledgement
+  never arrives
+- **WHEN** the run concludes
+- **THEN** teardown addresses the maybe-created resource by the identity
+  the caller minted before the call
+
 ### Requirement: A run has one owner, and ownership is enforced before effects
 
 A run SHALL be owned by exactly one orchestrator at a time. An
@@ -136,6 +461,14 @@ a holder which lost the run and continued can be distinguished from the
 one that holds it. Ownership SHALL be released when the run concludes,
 including when it is held and when it fails, so that a fault leaves the
 run recoverable rather than locked.
+
+A lease MAY answer a replayed claim of the SAME attempt with its
+original grant; it SHALL NOT hold grants for two attempts of one run
+concurrently. This is why every claim presents an attempt identity
+unique to that attempt, and why an attempt whose acknowledgement the
+claimant could not await is abandoned at the resource — resolved where
+the grant lives — rather than compensated at the caller
+(`runner-lifecycle` states the claimant's obligations).
 
 #### Scenario: Two orchestrators, one run
 
@@ -300,9 +633,19 @@ native units; monetary cost SHALL NOT be modeled.
 
 A run's finalization comprises the durable transition tail, the
 `run.terminated` event, and the sealed evidence bundle. These SHALL
-commit as ONE transition: after finalization is attempted, either all
-three are observable or none of them is. An implementation that cannot
-guarantee this SHALL fail the commit rather than apply part of it.
+commit as ONE transition, through exactly one commit-visibility
+operation that makes every participant fact the transaction still owes
+observable together: after finalization is attempted, either the
+complete terminal record is observable or nothing the transaction
+prepared is. A participant fact already durably satisfied by exact
+replay — a terminal event whose identical canonical content ordinarily
+landed at the same event-domain identity — SHALL be reconciled by the
+commit rather than physically republished; its prior durability SHALL
+NOT commit the transaction, publish any other participant early, or
+excuse a fact the transaction still owes, and the journal tail and
+sealed evidence SHALL become observable only through the transaction's
+own commit. An implementation that cannot guarantee this SHALL fail
+the commit rather than apply part of it.
 
 The terminal event's outcome SHALL be the outcome that COMMITTED. An
 event announcing a terminal state the run did not reach SHALL NOT be

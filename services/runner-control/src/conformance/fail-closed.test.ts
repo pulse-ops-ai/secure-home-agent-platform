@@ -320,7 +320,7 @@ describe('RO-EX-27: envelope fields are not caller-overridable', () => {
   it('a body cannot replace run_id, sequence, or adapter', async () => {
     const sink = new RecordingEventSink()
     const emitter = new RunEventEmitter(
-      { run_id: 'run-real', adapter: 'copilot-cli' },
+      { run_id: 'run-real', adapter: 'copilot-cli', generation: 1 },
       sink,
       new SteppingClock(),
     )

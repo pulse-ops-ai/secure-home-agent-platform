@@ -30,9 +30,13 @@ The runner substrate.
 - **Orchestration cannot decide.** Every trust judgement is a call into
   [`@secure-home/runner-core`](../../packages/runner-core/), used as returned.
   There is no site here that softens a refusal or recomputes a digest.
-- **A run ends in one of two governed shapes**: a sealed evidence bundle, or —
-  for a run that terminated before authority completed — an early-terminal
-  refusal record. A fabricated bundle is unreachable, not merely forbidden.
+- **A recorded run ends in one of two governed shapes**: a sealed evidence
+  bundle, or — for a run that terminated before authority completed — an
+  early-terminal refusal record. If the finite settlement boundary expires
+  before that mandatory record becomes durable, the attempt reports the
+  distinct failure `settlement_failed`; it never presents an unevidenced
+  lifecycle terminal as recorded. A fabricated bundle is unreachable, not
+  merely forbidden.
 - **Ordering claims are scoped to one run.** Port implementations may be shared
   instances, so "seal last" means last among *that run's* writes. Every
   run-scoped operation carries its `run_id`, and a shared implementation must
