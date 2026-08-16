@@ -188,7 +188,9 @@ accepted. A change in review meaning SHALL require a new policy version.
 `blockedByToolchain` SHALL record whether the toolchain is accepted.
 `blockedByRollout` SHALL record whether a module class may author under current
 rollout policy. Both SHALL be machine-readable, per-entry, and asserted. A module
-is authorable only when both are `false`.
+is eligible to author candidate source when both are `false`; attestation is an
+admission requirement that applies after those bytes exist, and SHALL NOT be
+treated as an authoring prerequisite.
 
 #### Scenario: Toolchain ready, household still blocked
 
@@ -196,10 +198,20 @@ is authorable only when both are `false`.
 - **THEN** a `household/**` module remains refused
 - **AND** the reason is rollout policy, not toolchain readiness
 
-#### Scenario: An eligible platform module
+#### Scenario: An eligible platform module, stage by stage
 
-- **WHEN** both gates are `false` and the attestation requirements are satisfied
-- **THEN** the module may proceed
+- **WHEN** both gates are `false`
+- **THEN** the module may **enter authoring** — candidate source may be written
+- **AND** no attestation is required to reach this point
+
+- **WHEN** candidate bytes exist, the deterministic checks pass, a valid
+  byte-bound attestation is present, and the remaining validation passes
+- **THEN** the module is **admitted**
+
+- **WHEN** Proof B, bound to that exact attestation, is established
+- **THEN** the module is **publishable**
+- **AND** no signal establishes Proof B in this repository today, so publication
+  remains blocked
 
 #### Scenario: One variable standing for both facts (negative)
 

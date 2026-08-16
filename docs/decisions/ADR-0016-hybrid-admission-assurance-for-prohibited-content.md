@@ -299,8 +299,12 @@ has not admitted that class.
 **The mechanism.** `blockedByRollout` is a required boolean on every module and
 set in `knowledge/catalog.json`, validated exactly as `blockedByToolchain` is:
 machine-readable, independently reviewable, and asserted rather than merely
-present. **A module is authorable only when both gates are `false` and its
-attestation requirements are satisfied.**
+present. **A module is eligible to author candidate source when both gates are
+`false`.**
+
+Attestation is an **admission** requirement, applied after candidate bytes
+exist — never an authoring prerequisite. It could not be one: `sourceDigest` is
+computed over those bytes (§9a).
 
 This is not added to the catalog by this ADR — doing so would make a `Proposed`
 decision operative. It is an acceptance obligation (§10).
@@ -433,10 +437,12 @@ must include:
    satisfy admission under a newer one;
 8. **dominance**: a deterministic finding refuses despite both a valid content
    binding **and** valid human-review evidence;
-9. **gate independence**: `blockedByToolchain` and `blockedByRollout` vary
-   independently — a household module remains refused when toolchain readiness
-   is `true`, and an eligible platform module proceeds only when **both** gates
-   and the attestation requirements are satisfied;
+9. **gate independence**, proven on gate state alone: `blockedByToolchain` and
+   `blockedByRollout` vary independently — a household module remains refused by
+   the rollout gate when toolchain readiness is `true`, and a platform module is
+   **authoring-eligible** when both structural gates are `false`. Attestation
+   behaviour is proven separately by (4)–(6), and must not be folded into this
+   obligation;
 10. **set composition**: an unblocked set does **not** resolve a module whose
     `blockedByRollout` is `true`, and every set carries `true` initially;
 11. **Proof B binding**: review evidence whose identity does not correspond to

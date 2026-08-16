@@ -162,6 +162,27 @@ make a `Proposed` decision operative.
 - [x] **6.4 Malformed spec sentence fixed** — "SHALL be limited to defined by
       scope" replaced with a precise scope-determined requirement.
 
+## 7. Final pre-acceptance cleanup
+
+- [x] **7.1 §7's mechanism sentence corrected** — "authorable only when both
+      gates are false **and its attestation requirements are satisfied**" became
+      "eligible to author candidate source when both gates are `false`", with
+      attestation named as an admission requirement that applies after the bytes
+      exist. It could not be an authoring prerequisite: `sourceDigest` is
+      computed over those bytes.
+- [x] **7.2 Spec scenario made stage-explicit** — the ambiguous "may proceed"
+      is replaced by three labelled transitions: both gates `false` → **enter
+      authoring**; bytes + deterministic checks + Proof A + remaining validation
+      → **admitted**; Proof B → **publishable**, which no signal establishes
+      today.
+- [x] **7.3 CA-EX-13 narrowed to gate state** — the attestation clause is
+      removed; attestation behaviour is proven by CA-EX-04/05/11 and is not
+      folded into the gate-independence proof.
+- [x] **7.4 Swept the ADR and the change** for any remaining statement making
+      attestation a prerequisite to authoring. None remains. The invariant reads
+      the same way everywhere: **authoring = gates · admission = content checks
+      + Proof A · publication = admission + Proof B.**
+
 ## PR-1 Completion Gate
 
 - [x] ADR-0016 exists, is `Proposed`, carries every section `docs/AGENTS.md` requires.

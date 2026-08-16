@@ -34,7 +34,7 @@ wrong would substitute a second false comfort for the first.
 | CA-INV-10 | **No class is recorded as A without a completeness proof.** There are none today; media is **B** | trust |
 | CA-INV-11 | Toolchain proof and reviewer-authenticity proof are INDEPENDENT. A self-asserted `by: human:<id>` with a correct digest is not evidence of human action, and publication stays blocked while no governed reviewer signal exists | trust |
 | CA-INV-12 | The policy identifier denotes ADR-0016 §1–§2 as accepted; changing review meaning requires a new version, and old attestations do not satisfy it | trust |
-| CA-INV-13 | `blockedByToolchain` and `blockedByRollout` are independent, per-entry, machine-readable, and asserted; a module authors only when both are `false` | behavior |
+| CA-INV-13 | `blockedByToolchain` and `blockedByRollout` are independent, per-entry, machine-readable, and asserted; a module is eligible to author candidate source when both are `false` — attestation belongs to admission, not to this gate | behavior |
 | CA-INV-14 | Runbook eligibility is per-module allowlist, never by directory | behavior |
 | CA-INV-15 | Proof B binds to the EXACT attestation — actor, policy, sourceDigest, revision. Changing any of them invalidates it and requires new review evidence | trust |
 | CA-INV-16 | Every set starts `blockedByRollout: true`, and an unblocked set never resolves a blocked module | behavior |
@@ -71,7 +71,7 @@ cell is the one an implementation could otherwise reach by accident.
 | CA-EX-10 | CA-INV-10 | deferred, structural | no A registration exists without a completeness argument |
 | CA-EX-11 | CA-INV-11 | deferred, executable | a valid, correctly bound, self-asserted attestation does not make a module publishable |
 | CA-EX-12 | CA-INV-12 | deferred, executable | an attestation naming an older policy version fails under a newer one |
-| CA-EX-13 | CA-INV-13 | deferred, executable | household refused while toolchain readiness is `true`; eligible platform module proceeds when both gates and attestation are satisfied |
+| CA-EX-13 | CA-INV-13 | deferred, executable | **gate state only**: a household module is refused by the rollout gate while toolchain readiness is `true`, and a platform module is authoring-eligible when both structural gates are `false`. Attestation behaviour is proven by CA-EX-04/05/11, not folded in here |
 | CA-EX-14 | CA-INV-03 | deferred, executable | a deterministic finding refuses despite BOTH valid content binding and valid human-review evidence |
 | CA-EX-15 | CA-INV-15 | deferred, executable | review evidence whose identity does not correspond to `contentReview.by` does not satisfy it |
 | CA-EX-16 | CA-INV-15 | deferred, executable | valid prior Proof B replayed against a materially changed attestation → NOT publishable |
