@@ -311,20 +311,48 @@ decision operative. It is an acceptance obligation (§10).
 runbook would qualify by living under `runbooks/`, which is an accident of path,
 not a decision. So eligibility is defined as:
 
-Every catalog entry gets an exact initial value — **modules and sets alike**:
+Every catalog entry gets an exact initial value **on acceptance of this ADR** —
+modules and sets alike:
 
-| Entry | Initial `blockedByRollout` | Rule |
+| Entry | `blockedByRollout` on acceptance | Rule |
 |---|---|---|
-| `platform/**` modules | `false` on gate discharge | portable platform and engineering knowledge; eligible subject to both gates and attestation |
-| `runbooks/**` modules | `true` **by default** | eligible **only** by explicit per-module allowlist entry |
-| `household/**` modules | `true` | blocked by rollout policy, not by toolchain readiness |
-| **every set** | **`true`** | conservative initial posture; released individually |
+| `platform/**` modules | **`false`** | portable platform and engineering knowledge |
+| `runbooks/**` modules | `true` | eligible **only** by explicit per-module allowlist entry |
+| `household/**` modules | `true` | blocked by rollout policy |
+| **every set** | `true` | conservative initial posture; released individually |
+
+**Accepting this ADR *is* the reviewed decision that makes `platform/**`
+rollout-eligible.** Rollout state does not wait on the toolchain gate — that
+would re-couple the two facts one paragraph after separating them. A reviewer
+approving this ADR is approving the rollout scope; nothing further is required
+for that half.
+
+`blockedByToolchain` is untouched by this initialization and remains `true`
+everywhere. Later toolchain discharge changes **only** `blockedByToolchain`
+`true → false`, and **does not mutate `blockedByRollout`**.
 
 **Runbooks are allowlisted individually, never by directory.** A new runbook is
 ineligible on creation and becomes eligible only when a reviewed change adds it
 to the allowlist — so a household-oriented runbook cannot become eligible
 because of where it was filed. The allowlist is empty in this ADR; populating it
 is a separate reviewed change.
+
+##### The four states, all of them reachable
+
+Because the gates are independent, all four combinations exist and each has a
+distinct meaning. Naming the refusal reason matters: a module refused for the
+wrong stated reason sends someone to fix the wrong thing.
+
+| `blockedByToolchain` | `blockedByRollout` | Outcome |
+|---|---|---|
+| `true` | `true` | **refused** — both gates shut |
+| `true` | `false` | **refused by the toolchain gate** — rollout has approved this class; the toolchain is not proven |
+| `false` | `true` | **refused by the rollout gate** — the toolchain works; this class is not released |
+| `false` | `false` | **eligible to enter admission** — not admitted, and not published |
+
+The second row is the state this ADR's acceptance creates for `platform/**`, and
+the third is where `household/**` sits after toolchain discharge. Both are
+normal, and neither is a defect.
 
 ##### Sets have their own rollout gate, and it composes conservatively
 
@@ -421,15 +449,42 @@ must include:
 proof of a class when it establishes one indicator. B-class tests are named for
 the indicator they detect.
 
+### 9a. Three stages: authoring eligibility, admission, publication
+
+An earlier reading of §3 implied an attestation must exist before candidate bytes
+may be authored. That is circular — `sourceDigest` is computed **over** those
+bytes, so the attestation cannot precede them. The three stages are distinct:
+
+| Stage | Requires |
+|---|---|
+| **Authoring eligibility** | both structural gates `false` — `blockedByToolchain` and `blockedByRollout`. Nothing else. This is permission to write candidate source |
+| **Admission** | candidate bytes exist · deterministic checks pass · **Proof A**: a valid, byte-bound attestation · the remaining ADR-0015 rules — version pin, profile, catalog mirror, execution-bearing refusal, reference integrity, envelope |
+| **Publication** | admission passed · **Proof B**: governed review evidence bound to the exact attestation, reviewer, policy, and content identity |
+
+The order follows from the mechanism: bytes first, then an attestation over them,
+then review evidence over that attestation. Nothing in this ADR requires an
+attestation before the content it attests to exists.
+
+**And publication remains blocked regardless**, because no mechanically checkable
+Proof B signal exists in this repository today (§5a). That is unchanged.
+
+**Consequence for the toolchain landing.** 2B **must not** discharge
+`blockedByToolchain` unless the complete corrected conformance obligation in §9
+is actually proven — including the governed Proof B boundary, meaning the
+toolchain demonstrably refuses to treat Proof A alone as publishable. Passing the
+deterministic tests is not the gate; proving the whole obligation is.
+
 ### 10. Acceptance obligations
 
 Listed so the acceptance commit is mechanical and checkable. **None of it is done
 here**; doing it now would make a `Proposed` decision operative.
 
 - [ ] Add `blockedByRollout` as a required boolean on **every module and every
-      set** in `knowledge/catalog.json`, with an exact initial value per §7a:
-      `true` on `household/**`, `true` on `runbooks/**`, `true` on `platform/**`
-      until the toolchain gate is discharged, and **`true` on every set**.
+      set** in `knowledge/catalog.json`, with the exact value per §7a:
+      **`false` on `platform/**`**, `true` on `runbooks/**`, `true` on
+      `household/**`, and `true` on **every set**.
+- [ ] Leave `blockedByToolchain` at `true` everywhere. This acceptance changes
+      rollout state only.
 - [ ] Require and assert it in `scripts/check-knowledge.mjs`, alongside
       `blockedByToolchain`, with deterministic tests for both values and for
       **both entry kinds**.

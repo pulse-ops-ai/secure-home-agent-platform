@@ -38,6 +38,9 @@ wrong would substitute a second false comfort for the first.
 | CA-INV-14 | Runbook eligibility is per-module allowlist, never by directory | behavior |
 | CA-INV-15 | Proof B binds to the EXACT attestation — actor, policy, sourceDigest, revision. Changing any of them invalidates it and requires new review evidence | trust |
 | CA-INV-16 | Every set starts `blockedByRollout: true`, and an unblocked set never resolves a blocked module | behavior |
+| CA-INV-17 | Acceptance sets rollout state directly (`platform/**` → `false`); later toolchain discharge changes ONLY `blockedByToolchain` and never mutates `blockedByRollout` | behavior |
+| CA-INV-18 | All four gate states are reachable and each refusal names its own gate | behavior |
+| CA-INV-19 | Authoring eligibility is the two gates alone. An attestation is never required before the bytes it attests to exist | trust |
 
 ## State-Space Model
 
@@ -74,6 +77,9 @@ cell is the one an implementation could otherwise reach by accident.
 | CA-EX-16 | CA-INV-15 | deferred, executable | valid prior Proof B replayed against a materially changed attestation → NOT publishable |
 | CA-EX-17 | CA-INV-16 | deferred, executable | a set with `blockedByRollout: false` does not resolve a module with `true` |
 | CA-EX-18 | CA-INV-16 | deferred, structural | every set in the catalog carries `blockedByRollout: true` initially |
+| CA-EX-19 | CA-INV-17 | deferred, executable | toolchain discharge leaves every `blockedByRollout` value unchanged |
+| CA-EX-20 | CA-INV-18 | deferred, executable | each of the four gate states produces its own outcome, and the two single-gate refusals name the correct gate |
+| CA-EX-21 | CA-INV-19 | deferred, executable | candidate bytes may be authored with both gates `false` and no attestation present |
 
 ## Verification Strategy
 

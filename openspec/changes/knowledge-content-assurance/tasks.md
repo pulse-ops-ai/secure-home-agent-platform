@@ -110,7 +110,7 @@ mechanisms, and nothing is built or authored.
       repository-wide) and `blockedByRollout` (per-entry rollout eligibility).
       Representing the household block by leaving `blockedByToolchain` true would
       repeat the U7 defect one landing after removing it.
-- [x] **4.5 Eligibility made exact** — `platform/**` eligible on gate discharge;
+- [x] **4.5 Eligibility made exact** — `platform/**` eligible;
       `household/**` blocked by rollout; `runbooks/**` blocked by default and
       allowlisted **per module**, so a household runbook cannot become eligible
       by living under `runbooks/`. The allowlist starts empty.
@@ -140,6 +140,27 @@ make a `Proposed` decision operative.
 - [x] **5.5 Executable obligations added** — Proof B identity mismatch; Proof B
       replay against a changed attestation; unblocked set cannot bypass a blocked
       module; every set initially blocked.
+
+## 6. Final state-model correction
+
+- [x] **6.1 Rollout and toolchain transitions genuinely independent** —
+      acceptance sets `blockedByRollout` directly (`platform/**` → `false`,
+      everything else `true`), because acceptance IS the reviewed decision
+      releasing that scope. Waiting for gate discharge would have re-coupled the
+      two facts one paragraph after separating them. Later toolchain discharge
+      changes only `blockedByToolchain` and never mutates rollout.
+- [x] **6.2 Four-state proof added** — both shut; rollout released but toolchain
+      unproven; toolchain proven but class not released; both open → eligible to
+      **enter admission**, which is neither admission nor publication. Each
+      single-gate refusal must name its own gate.
+- [x] **6.3 Three stages separated** — authoring eligibility is the two gates
+      alone. Requiring an attestation first would be circular, since
+      `sourceDigest` is computed over the candidate bytes. Admission adds the
+      deterministic checks and Proof A; publication adds Proof B, which remains
+      unavailable. **2B must not discharge `blockedByToolchain` unless the whole
+      corrected obligation — including the Proof B boundary — is proven.**
+- [x] **6.4 Malformed spec sentence fixed** — "SHALL be limited to defined by
+      scope" replaced with a precise scope-determined requirement.
 
 ## PR-1 Completion Gate
 

@@ -110,6 +110,22 @@ different question from whether its members may author. All sets start blocked,
 and an unblocked set never resolves a blocked module. Otherwise set release
 becomes a back door around the per-module control it sits above.
 
+### D4g: Acceptance sets rollout; discharge sets readiness
+
+Making `platform/**` rollout-eligible "on gate discharge" would re-couple the two
+facts one paragraph after separating them. Acceptance of the decision IS the
+reviewed release of that scope, so it sets `blockedByRollout` directly, and later
+toolchain discharge touches only `blockedByToolchain`. All four states are
+reachable and each names its own refusal reason — a module refused for the wrong
+stated reason sends someone to fix the wrong thing.
+
+### D4h: Three stages, because the digest is computed over the bytes
+
+Requiring an attestation before authoring would be circular: `sourceDigest` is
+computed over the candidate bytes. Authoring eligibility is the two gates and
+nothing else; admission adds the deterministic checks and Proof A; publication
+adds Proof B. Bytes, then attestation over them, then review evidence over that.
+
 ### D5: Dominance, stated as a table
 
 The row that matters is *finding present + attestation valid → REFUSE*. Without

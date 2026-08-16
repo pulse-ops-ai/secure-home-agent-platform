@@ -208,6 +208,59 @@ is authorable only when both are `false`.
 - **THEN** one state variable means two things again
 - **AND** the change is refused
 
+### Requirement: The two gates are independent and all four states are reachable
+
+Each combination SHALL produce a distinct, correctly-named outcome.
+
+#### Scenario: Both gates shut
+
+- **WHEN** `blockedByToolchain` and `blockedByRollout` are both `true`
+- **THEN** the module is refused
+
+#### Scenario: Rollout released, toolchain unproven
+
+- **WHEN** `blockedByToolchain` is `true` and `blockedByRollout` is `false`
+- **THEN** the module is refused **by the toolchain gate**
+- **AND** the refusal names the toolchain, not rollout policy
+
+#### Scenario: Toolchain proven, class not released
+
+- **WHEN** `blockedByToolchain` is `false` and `blockedByRollout` is `true`
+- **THEN** the module is refused **by the rollout gate**
+- **AND** the refusal names rollout policy, not the toolchain
+
+#### Scenario: Both gates open
+
+- **WHEN** both are `false`
+- **THEN** the module is eligible to **enter admission**
+- **AND** it is neither admitted nor published by that fact alone
+
+### Requirement: Authoring eligibility, admission, and publication are distinct
+
+Authoring eligibility SHALL require only that both structural gates are `false`.
+An attestation SHALL NOT be required before the candidate bytes it attests to
+exist.
+
+#### Scenario: Candidate bytes are authored before any attestation
+
+- **WHEN** both gates are `false` and no attestation yet exists
+- **THEN** authoring candidate source is permitted
+- **AND** `sourceDigest` is computed over those bytes afterwards
+
+#### Scenario: An attestation required before its own content (negative)
+
+- **WHEN** a rule would require an attestation before candidate bytes exist
+- **THEN** the requirement is circular, because the digest is computed over
+  those bytes
+- **AND** the rule is incorrect
+
+#### Scenario: Admission passed is not publication
+
+- **WHEN** deterministic checks pass and a valid byte-bound attestation exists
+- **THEN** admission is satisfied
+- **AND** publication additionally requires Proof B bound to that exact
+  attestation, which no mechanically checkable signal establishes today
+
 #### Scenario: Every set starts rollout-blocked
 
 - **WHEN** the catalog is initialised under this policy
@@ -265,19 +318,32 @@ participate in it.
   model-visible content safe
 - **AND** the change is refused
 
-### Requirement: Initial rollout excludes household knowledge
+### Requirement: Rollout eligibility is determined by scope
 
-The first authoring enabled after the toolchain passes review SHALL be limited to
-defined by scope, not by prose:
+Rollout eligibility SHALL be determined by the entry's scope, per the table
+below, and SHALL NOT be conferred by any path-based or prose criterion. These
+are the values set **on acceptance of the governing decision**, independently of
+toolchain readiness:
 
-| Entry | Initial `blockedByRollout` |
+| Entry | `blockedByRollout` on acceptance |
 |---|---|
-| `platform/**` modules | `false` after toolchain gate discharge |
+| `platform/**` modules | `false` |
 | `household/**` modules | `true` |
-| `runbooks/**` modules | `true` by default; eligible only by explicit per-module allowlist |
+| `runbooks/**` modules | `true`; eligible only by explicit per-module allowlist |
 | every set | `true` |
 
-No path-based or prose criterion such as "coding-oriented" confers eligibility.
+#### Scenario: Rollout state does not wait on the toolchain
+
+- **WHEN** the governing decision is accepted
+- **THEN** `platform/**` modules carry `blockedByRollout: false`
+- **AND** `blockedByToolchain` remains `true` everywhere
+- **AND** the acceptance itself is the reviewed decision releasing that scope
+
+#### Scenario: Toolchain discharge does not mutate rollout
+
+- **WHEN** the toolchain gate is later discharged
+- **THEN** only `blockedByToolchain` changes, `true` → `false`
+- **AND** every `blockedByRollout` value is left as it was
 
 #### Scenario: A household module
 
