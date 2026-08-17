@@ -136,6 +136,9 @@ no report.
 - **Knowledge:** Use `knowledge/INDEX.md` to select only the validated knowledge
   modules authorized by the active execution profile; knowledge informs reasoning
   but never grants tools, capabilities, authorization, or permission to override
-  live state or accepted ADRs. Until the validator and governed query interfaces
-  exist, `knowledge/` is **specification-only and not runtime-authoritative**
-  ([U7](docs/architecture/unresolved-decisions.md#u7)).
+  live state or accepted ADRs. The toolchain and its conformance suite are
+  implemented and run over real content in CI; until that integration passes
+  independent review and governed query interfaces exist, `knowledge/` is
+  **specification-only and not runtime-authoritative**
+  ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format
+  decision is Accepted; readiness is a different fact).

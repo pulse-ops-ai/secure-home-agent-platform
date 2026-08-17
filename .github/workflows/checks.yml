@@ -76,8 +76,8 @@ jobs:
       # specification directory has grown authored content. Node standard
       # library, so it needs no install — but it does need node, which is why it
       # follows the setup step rather than sitting with the shell checks above.
-      # NOT the ADR-0010 bundle validator, which is gated on U7 and does not
-      # exist.
+      # NOT content admission — that is a separate step below, which hands real
+      # bytes to the package that owns the content rules.
       - name: Knowledge registry
         run: node scripts/check-knowledge.mjs
 
@@ -104,6 +104,23 @@ jobs:
       # re-opens a direction hole that the other cannot see.
       - name: Source import direction
         run: pnpm run check:imports
+
+      # REAL repository content through admission. `check-knowledge.mjs` above
+      # is the registry/scaffold checker and cannot see content rules; this runs
+      # the package that owns them over whatever knowledge/ actually contains.
+      #
+      # It sits in the GOVERNANCE-UNCONDITIONAL job deliberately. Behind the
+      # affected-target classifier, a change touching only knowledge/** could
+      # select no TypeScript target and skip admission entirely — the one change
+      # shape that most needs it.
+      #
+      # Only the toolchain is built: enough to invoke the canonical package,
+      # without making the whole workspace a prerequisite for governance.
+      - name: Build the knowledge toolchain
+        run: pnpm --filter @secure-home/knowledge-toolchain run build
+
+      - name: Knowledge content admission
+        run: pnpm run check:knowledge-content
 
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL

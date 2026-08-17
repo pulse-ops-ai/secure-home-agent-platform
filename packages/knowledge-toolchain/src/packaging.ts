@@ -20,6 +20,28 @@ import { bundleDigest, manifestBytes } from './identity.js'
 import { openAdmitted } from './admitted.js'
 import type { AdmittedBundle, CompiledDocument } from './types.js'
 
+/**
+ * **OPAQUE ON PURPOSE**, like `AdmittedBundle` and `ReviewEvidence`.
+ *
+ * The admission chain was guarded up to its last link and open at it. `admit()`
+ * mints an opaque proof and `packageBundle()` demands one — but the artifact
+ * that came out was an ordinary exported interface, and the public `query()`
+ * accepts it. So a consumer could write the four visible members by hand,
+ * around content admission had refused, and read it through the public seam.
+ * Every guarantee upstream was optional for anyone who skipped to the end.
+ *
+ * The brand below is an unexported `unique symbol`: no code outside this
+ * package can name that key, so matching the visible shape is not enough and
+ * `packageBundle()` is the only production minting boundary. Consumers still
+ * read `digest`, `manifest()`, `documents`, and `members` — the artifact
+ * contract is unchanged; only its forgeability is.
+ *
+ * The threat model is ordinary structural typing. A caller who reaches for an
+ * unsafe cast has left the type system, and `openAdmitted` still refuses a
+ * handle it never minted.
+ */
+declare const PACKAGED: unique symbol
+
 /** A packaged document. `bytes()` returns a copy; the frontmatter is frozen. */
 export interface PackagedDocument {
   readonly path: string
@@ -34,6 +56,8 @@ export interface PackagedMember {
 }
 
 export interface PackagedBundle {
+  /** Unforgeable outside this package: the symbol is not exported. */
+  readonly [PACKAGED]: true
   readonly digest: string
   /** A FRESH copy each call — a returned buffer is the caller's to ruin. */
   manifest(): Uint8Array
@@ -76,6 +100,9 @@ export const packageBundle = (admitted: AdmittedBundle): PackagedBundle => {
     bytes: copy(member.bytes),
   }))
   const manifest = manifestBytes(owned)
+  // The single minting boundary. The brand has no runtime representation, so
+  // the cast is how it is applied — confined to this one line, in the only
+  // function permitted to produce the artifact.
   return Object.freeze({
     digest: bundleDigest(owned),
     manifest: () => copy(manifest),
@@ -83,5 +110,5 @@ export const packageBundle = (admitted: AdmittedBundle): PackagedBundle => {
     members: Object.freeze(
       owned.map((member) => Object.freeze({ path: member.path, bytes: () => copy(member.bytes) })),
     ),
-  })
+  }) as unknown as PackagedBundle
 }

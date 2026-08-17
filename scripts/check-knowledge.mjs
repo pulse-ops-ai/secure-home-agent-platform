@@ -58,7 +58,7 @@
  *   6. no module directory contains authored content — a specification directory
  *      holds its README and nothing else;
  *   7. no module or set claims a publishable status, and every entry carries
- *      blockedByToolchain: true, while the toolchain does not exist;
+ *      blockedByToolchain: true, until the toolchain integration passes review;
  *   7b. every entry carries the blockedByRollout value ADR-0016 §7a fixes —
  *      an INDEPENDENT fact from toolchain readiness;
  *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
@@ -254,7 +254,8 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (publishable.has(m.status)) {
       fail(
         `module "${id}": status "${m.status}" claims a published artifact, but the ` +
-          'ADR-0010 toolchain does not exist. Nothing may be published yet',
+          'publication additionally requires Proof B, and no producer exists ' +
+          '(ADR-0016 §5a). Nothing may be published yet',
       )
     }
     // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT.
@@ -267,8 +268,9 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     // reviewed transition: someone edits every entry, and the diff shows it.
     if (m.blockedByToolchain !== true) {
       fail(
-        `module "${id}": blockedByToolchain must be true until the ADR-0010 ` +
-          'toolchain exists and its conformance suite passes (ADR-0015 §12)',
+        `module "${id}": blockedByToolchain must be true until the ADR-0015 §12 ` +
+          'obligation is discharged by an explicit reviewed decision — the toolchain ' +
+          'and its conformance suite now exist, and independent review is what remains',
       )
     }
     // ROLLOUT ELIGIBILITY, A DIFFERENT FACT FROM TOOLCHAIN READINESS.
@@ -352,21 +354,22 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (publishable.has(s.status)) {
       fail(
         `set "${id}": status "${s.status}" claims a published artifact, but the ` +
-          'ADR-0010 toolchain does not exist',
+          'publication additionally requires Proof B, and no producer exists',
       )
     }
     // The same gate, for sets. See the module check above.
     if (s.blockedByToolchain !== true) {
       fail(
-        `set "${id}": blockedByToolchain must be true until the ADR-0010 ` +
-          'toolchain exists and its conformance suite passes (ADR-0015 §12)',
+        `set "${id}": blockedByToolchain must be true until the ADR-0015 §12 ` +
+          'obligation is discharged by an explicit reviewed decision',
       )
     }
     // EVERY SET STARTS ROLLOUT-BLOCKED (ADR-0016 §7a). A set's gate means the
     // COMPOSITION has been released for profile use, which is a different
     // question from whether its members may author — and releasing a set must
     // never become a back door around a blocked member. Enforcing the
-    // composition itself is deferred to the resolver, which does not exist yet.
+    // Composition itself is resolved by `resolveSet` in the toolchain, which
+    // holds a set closed unless BOTH of its gates are open.
     if (s.blockedByRollout !== true) {
       fail(
         `set "${id}": blockedByRollout must be true — ADR-0016 §7a starts every ` +
@@ -457,12 +460,20 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     const dir = join(knowledgeRoot, m.id)
     if (!existsSync(dir)) continue
 
+    // SCOPED TO THIS MODULE'S GATE, not to the repository's era.
+    //
+    // While `blockedByToolchain` is true the directory is specification-only
+    // and authored content is a finding. Once that gate is discharged, candidate
+    // source is exactly what belongs here — and `check-knowledge-content.mjs` is
+    // what evaluates it, because a registry checker owns no content rules and
+    // must not pretend to. Leaving this unconditional would make the registry a
+    // second, weaker authority over content the moment authoring opened.
     const entries = readdirSync(dir)
     const extra = entries.filter((e) => e !== 'README.md')
-    if (extra.length > 0) {
+    if (m.blockedByToolchain === true && extra.length > 0) {
       fail(
         `module "${m.id}": specification directory contains ${JSON.stringify(extra)} — ` +
-          'only README.md is permitted until the ADR-0010 toolchain exists',
+          'only README.md is permitted while blockedByToolchain is true',
       )
     }
 

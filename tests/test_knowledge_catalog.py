@@ -490,8 +490,11 @@ def test_claiming_a_published_status_is_rejected(tmp_path: Path) -> None:
             catalog["modules"][0]["status"] = status
 
         result = _run(_fixture(tmp_path, f"published-{index}", mutate))
-        assert result.returncode != 0, f"{status} was accepted without a toolchain"
-        assert "does not exist" in _output(result)
+        assert result.returncode != 0, f"{status} was accepted while publication is blocked"
+        # The REASON changed with the toolchain: publication is no longer blocked
+        # by an absent toolchain but by an absent Proof B producer (ADR-0016
+        # §5a). Pinning the reason keeps the message honest, not just nonzero.
+        assert "no producer exists" in _output(result)
 
 
 def test_authored_content_in_a_specification_directory_is_rejected(tmp_path: Path) -> None:

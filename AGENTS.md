@@ -80,9 +80,11 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-Until the validator and governed query interfaces exist,
-[`knowledge/`](knowledge/) is **specification-only and not runtime-authoritative**
-— the ADR-0010 toolchain does not exist. The selection contract is
+Until the toolchain integration passes independent review and governed query
+interfaces exist, [`knowledge/`](knowledge/) is
+**specification-only and not runtime-authoritative**. The toolchain and its
+conformance suite are implemented and run over real content in CI;
+`blockedByToolchain` records the review that remains. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers

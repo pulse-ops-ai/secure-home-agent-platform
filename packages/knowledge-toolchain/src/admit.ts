@@ -47,7 +47,16 @@ const REQUIRED_FIELDS = [
   'governs',
 ] as const
 
-const ACTOR = /^(?:human:[A-Za-z0-9._-]+|process:[A-Za-z0-9._-]+|[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)$/
+/**
+ * A module OWNER is a human actor.
+ *
+ * ADR-0015 §5 lists three forms for the OKF actor convention generally —
+ * `<producer>/<version>`, `human:<id>`, `process:<id>` — and then requires
+ * `human:<id>` for owner specifically. Admission had been enforcing the general
+ * list, so a module could name a process or a producer as its owner. Ownership
+ * is the accountable party for the content; a build step cannot hold it.
+ */
+const OWNER_ACTOR = /^human:[A-Za-z0-9._-]+$/
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
 const STATUSES = new Set(['draft', 'stable', 'deprecated'])
@@ -168,8 +177,8 @@ const checkDocument = (document: CompiledDocument): readonly Refusal[] => {
   }
 
   const owner = fm['owner']
-  if (typeof owner === 'string' && !ACTOR.test(owner))
-    bad('metadata_shape', 'profile.owner.actor', `"owner" is not a valid actor: ${owner}`)
+  if (typeof owner === 'string' && !OWNER_ACTOR.test(owner))
+    bad('metadata_shape', 'profile.owner.actor', `"owner" is not a human actor: ${owner}`)
 
   const asOf = fm['as_of']
   if (typeof asOf === 'string' && !ISO_DATE.test(asOf))

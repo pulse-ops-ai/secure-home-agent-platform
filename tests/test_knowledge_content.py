@@ -1,0 +1,460 @@
+"""Tests for ``scripts/check-knowledge-content.mjs`` — real content through admission.
+
+The knowledge toolchain was well tested and never invoked. Every rule lived in
+``packages/knowledge-toolchain`` behind a conformance suite, and nothing in CI
+ever handed it a file from this repository. A proven library and an unproven
+repository are different things, and these tests are about the second one.
+
+**They also prove the adapter has no rules of its own.** Each negative asserts
+the EXACT rule identifier the package emits — ``execution.runtime``,
+``attestation.digest.binding``, a named indicator. Parallel logic in the adapter
+could not produce those strings by accident, so a passing negative is evidence
+of delegation rather than a claim of it.
+
+The Proof A digest is computed here by an INDEPENDENT ORACLE, rebuilt from the
+identity rule in ADR-0015 §6 rather than by calling the implementation under
+test. Asking the package for the digest and then feeding it back would prove
+only that a function equals itself.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONTENT_CHECK = REPO_ROOT / "scripts" / "check-knowledge-content.mjs"
+
+OWNER = "human:mikegtech"
+AS_OF = "2026-08-01"
+GOVERNS = "docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md"
+POLICY = "portable-knowledge-prohibited-content-v1"
+
+INDEX_MD = '---\nokf_version: "0.2"\n---\n\n# Bundle\n'
+
+
+def _concept(**overrides: str) -> str:
+    fields = {
+        "type": "model",
+        "owner": OWNER,
+        "as_of": AS_OF,
+        "limitations": "Describes the model only.",
+        "status": "draft",
+        "stale_after": "2027-01-01",
+        "governs": GOVERNS,
+        **overrides,
+    }
+    body = "\n".join(f"{k}: {v}" for k, v in fields.items())
+    return (
+        f"---\n{body}\ngenerated:\n  by: {OWNER}\n  at: 2026-08-01T00:00:00Z\n"
+        "---\n\n# A concept\n\nProse.\n"
+    )
+
+
+def _bundle_digest(members: dict[str, bytes]) -> str:
+    """ADR-0015 §6, rebuilt from the specification.
+
+    manifest_bytes := "okf-package-v1" LF ( <nfc-path> NUL <sha256-hex> LF )*
+                      sorted by the UTF-8 bytes of the path
+    bundle_digest  := sha256(manifest_bytes)
+    """
+    manifest = b"okf-package-v1\n"
+    for path in sorted(members, key=lambda p: p.encode("utf-8")):
+        digest = hashlib.sha256(members[path]).hexdigest().encode("ascii")
+        manifest += path.encode("utf-8") + b"\x00" + digest + b"\n"
+    return hashlib.sha256(manifest).hexdigest()
+
+
+class Repo:
+    """A repository laid out the way the real one is."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.modules: list[dict[str, object]] = []
+        (root / "knowledge").mkdir(parents=True, exist_ok=True)
+        governs = root / GOVERNS
+        governs.parent.mkdir(parents=True, exist_ok=True)
+        governs.write_text("# ADR\n")
+
+    def module(
+        self,
+        module_id: str = "platform/example",
+        *,
+        sources: dict[str, str] | None = None,
+        toolchain: bool = False,
+        rollout: bool = False,
+        digest_override: str | None = None,
+        owner: str = OWNER,
+    ) -> Repo:
+        directory = self.root / "knowledge" / module_id
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "README.md").write_text(f"# {module_id}\n\nSpecification only.\n")
+
+        members: dict[str, bytes] = {}
+        for name, text in (sources or {}).items():
+            path = directory / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+            members[name] = text.encode("utf-8")
+
+        entry: dict[str, object] = {
+            "id": module_id,
+            "owner": owner,
+            "asOf": AS_OF,
+            "limitations": "Describes the model only.",
+            "governingSources": [GOVERNS],
+            "blockedByToolchain": toolchain,
+            "blockedByRollout": rollout,
+        }
+        if members:
+            entry["contentReview"] = {
+                "policy": POLICY,
+                "by": owner,
+                "at": "2026-08-02T00:00:00Z",
+                "sourceDigest": digest_override or f"sha256:{_bundle_digest(members)}",
+            }
+        self.modules.append(entry)
+        return self
+
+    def write(self) -> Repo:
+        catalog = {"modules": self.modules, "sets": []}
+        (self.root / "knowledge" / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
+        return self
+
+
+def _valid_sources(**overrides: str) -> dict[str, str]:
+    return {"index.md": INDEX_MD, "model.md": _concept(**overrides)}
+
+
+def _run(root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(CONTENT_CHECK), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO_ROOT,
+    )
+
+
+def _output(result: subprocess.CompletedProcess[str]) -> str:
+    return result.stdout + result.stderr
+
+
+# --- controls ---------------------------------------------------------------
+
+
+def test_the_live_repository_has_no_authored_source_and_passes() -> None:
+    """The no-content control, on the real repository."""
+    result = _run(REPO_ROOT)
+    assert result.returncode == 0, _output(result)
+    assert "no authored module source" in _output(result)
+
+
+def test_a_repository_with_no_authored_modules_passes(tmp_path: Path) -> None:
+    Repo(tmp_path / "repo").module().write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+
+
+def test_a_readme_alone_is_specification_not_bundle_source(tmp_path: Path) -> None:
+    """The convention, stated as a test: a module README is never a member.
+
+    If README.md were enumerated as source it would fail admission immediately
+    (no OKF frontmatter), so a passing run is the proof it was excluded.
+    """
+    Repo(tmp_path / "repo").module().write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "no authored module source" in _output(result)
+
+
+# --- the valid authored module ----------------------------------------------
+
+
+def test_a_valid_authored_module_is_admitted(tmp_path: Path) -> None:
+    """Eligible gates, valid OKF source, catalog/frontmatter mirror, valid Proof A."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources()).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "1 module(s) admitted" in _output(result)
+
+
+def test_absent_proof_b_is_not_an_admission_failure(tmp_path: Path) -> None:
+    """`publishable: false` / `proof_b_unavailable` is the NORMAL outcome.
+
+    No Proof B producer exists by accepted design (ADR-0016 §5a). Treating its
+    absence as an admission failure would make every module unadmittable and
+    would misreport which of the two stages actually blocked.
+    """
+    Repo(tmp_path / "repo").module(sources=_valid_sources()).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "proof_b" not in _output(result).lower()
+
+
+def test_nested_source_is_enumerated_by_module_relative_path(tmp_path: Path) -> None:
+    sources = _valid_sources()
+    sources["group/nested.md"] = _concept()
+    Repo(tmp_path / "repo").module(sources=sources).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+
+
+# --- negatives: the package's rules, reported by the adapter ----------------
+
+
+def test_an_execution_bearing_field_fails_the_repository_command(tmp_path: Path) -> None:
+    Repo(tmp_path / "repo").module(sources=_valid_sources(runtime="wasm")).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "execution-bearing content must fail the gate"
+    assert "execution.runtime" in _output(result)
+
+
+def test_an_attested_computation_type_fails(tmp_path: Path) -> None:
+    sources = {"index.md": INDEX_MD, "model.md": _concept(type='"Attested Computation"')}
+    Repo(tmp_path / "repo").module(sources=sources).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "execution.attested-computation" in _output(result)
+
+
+def test_a_prohibited_content_indicator_fails(tmp_path: Path) -> None:
+    """One B indicator, named exactly as `indicators.ts` declares it."""
+    sources = _valid_sources()
+    # Assembled rather than written literally, so the repository secret
+    # scanner does not report its own fixture — the same construction
+    # `conformance.test.ts` uses. The scan is not weakened: a real PEM
+    # block in tracked source is still a finding.
+    pem = " ".join(["-----BEGIN", "RSA", "PRIVATE", "KEY-----"])
+    sources["model.md"] += f"\n{pem}\n"
+    Repo(tmp_path / "repo").module(sources=sources).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "a B indicator must fail the gate"
+    assert "secret.pem-block" in _output(result)
+
+
+def test_a_stale_proof_a_digest_fails_on_the_binding_rule(tmp_path: Path) -> None:
+    Repo(tmp_path / "repo").module(
+        sources=_valid_sources(), digest_override="sha256:" + "0" * 64
+    ).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "an attestation that binds other bytes must fail"
+    assert "attestation.digest.binding" in _output(result)
+
+
+def test_the_github_display_owner_fails_the_actor_rule(tmp_path: Path) -> None:
+    """The live catalog used `@mikegtech`; admission requires `human:<id>`."""
+    sources = {"index.md": INDEX_MD, "model.md": _concept(owner='"@mikegtech"')}
+    Repo(tmp_path / "repo").module(sources=sources, owner="@mikegtech").write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "profile.owner.actor" in _output(result)
+
+
+# --- fail closed on anything that is not a regular file ---------------------
+
+
+def test_a_symlink_member_is_refused_rather_than_followed(tmp_path: Path) -> None:
+    """Following it would make repository layout an authority over admission."""
+    repo = Repo(tmp_path / "repo").module(sources=_valid_sources())
+    outside = tmp_path / "outside.md"
+    outside.write_text(_concept())
+    link = tmp_path / "repo" / "knowledge" / "platform" / "example" / "linked.md"
+    link.symlink_to(outside)
+    repo.write()
+
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "a symlink member must fail closed"
+    assert "not a regular file" in _output(result)
+
+
+# --- the gates, which precede admission -------------------------------------
+
+
+def test_authored_source_under_the_toolchain_gate_is_refused(tmp_path: Path) -> None:
+    """The CURRENT live posture: `blockedByToolchain` true, so nothing is eligible."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), toolchain=True).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "refused by toolchain" in _output(result)
+
+
+def test_authored_source_under_the_rollout_gate_is_still_refused(tmp_path: Path) -> None:
+    """THE NEXT STATE, proven supportable without entering it.
+
+    Once `blockedByToolchain` is discharged, `blockedByRollout` must still hold
+    the modules that are not rolled out. If discharging one gate released
+    everything, the two gates would never have been independent.
+    """
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), toolchain=False, rollout=True).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "refused by rollout" in _output(result)
+
+
+def test_both_gates_open_lets_the_content_be_evaluated(tmp_path: Path) -> None:
+    """The other half of the next state: eligible source is actually admitted."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), toolchain=False, rollout=False).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "1 module(s) admitted" in _output(result)
+
+
+def test_gate_refusal_precedes_content_refusal(tmp_path: Path) -> None:
+    """A closed gate is reported as a gate, not as a content finding.
+
+    Otherwise a module could look like a content problem when the real answer is
+    that it was never eligible to be authored.
+    """
+    Repo(tmp_path / "repo").module(sources=_valid_sources(runtime="wasm"), toolchain=True).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "refused by toolchain" in _output(result)
+    assert "execution.runtime" not in _output(result)
+
+
+# --- the merge-gate wiring --------------------------------------------------
+#
+# A gate that exists but does not run is not a gate. These assert the command is
+# reachable by ONE canonical name and that it runs unconditionally, because the
+# change shape that most needs content admission — one touching only
+# `knowledge/**` — is exactly the one an affected-target classifier would let
+# select no TypeScript target at all.
+
+
+def test_the_repository_exposes_one_canonical_content_command() -> None:
+    manifest = json.loads((REPO_ROOT / "package.json").read_text())
+    script = manifest["scripts"]["check:knowledge-content"]
+    assert "check-knowledge-content.mjs" in script
+
+
+def test_the_aggregate_check_runs_content_admission() -> None:
+    check_sh = (REPO_ROOT / "scripts" / "check.sh").read_text()
+    assert "check:knowledge-content" in check_sh, (
+        "scripts/check.sh is the aggregate gate; content admission must be in it"
+    )
+
+
+def test_ci_runs_content_admission_unconditionally() -> None:
+    """It must live in a GOVERNANCE-UNCONDITIONAL job, with no job-level `if`."""
+    from workflow_model import governance_jobs, has_condition
+
+    jobs = governance_jobs()
+    hosting = {name: body for name, body in jobs.items() if "check:knowledge-content" in body}
+    assert hosting, (
+        "no governance-unconditional job runs content admission — behind the "
+        "classifier, a knowledge-only change could skip it"
+    )
+    for name, body in hosting.items():
+        assert not has_condition(body), f"{name} is path-gated, so admission is not unconditional"
+
+
+def test_ci_builds_the_package_before_invoking_it() -> None:
+    """The adapter calls the published export, so the export must exist first."""
+    from workflow_model import governance_jobs
+
+    body = next(b for b in governance_jobs().values() if "check:knowledge-content" in b)
+    build = body.index("knowledge-toolchain run build")
+    invoke = body.index("check:knowledge-content")
+    assert build < invoke, "the toolchain must be built before the adapter imports it"
+
+
+def test_the_registry_checker_and_the_content_checker_are_different_gates() -> None:
+    """`check-knowledge.mjs` stays the registry/scaffold checker.
+
+    Collapsing them would leave one command claiming two properties, and the
+    weaker one would be assumed for both.
+    """
+    registry = (REPO_ROOT / "scripts" / "check-knowledge.mjs").read_text()
+    assert "admit(" not in registry, "the registry checker must not re-implement admission"
+    content = (REPO_ROOT / "scripts" / "check-knowledge-content.mjs").read_text()
+    assert "@secure-home/knowledge-toolchain" in content
+
+
+# --- single admission authority ---------------------------------------------
+
+
+def test_the_adapter_owns_no_content_rules() -> None:
+    """The rules live in the package, exactly once.
+
+    A second implementation here would not be a safety net; it would be a second
+    answer, and the two would drift. This is a structural check to go with the
+    behavioural ones above: the negatives assert the package's exact rule
+    identifiers, which parallel logic could not produce by accident.
+    """
+    source = (REPO_ROOT / "scripts" / "check-knowledge-content.mjs").read_text()
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith(("*", "/*", "//"))
+    )
+    for owned_elsewhere in (
+        "execution.",
+        "attestation.",
+        "reference.",
+        "envelope.",
+        "okf-package-v1",
+        "createHash",
+        "BEGIN RSA",
+    ):
+        assert owned_elsewhere not in code, (
+            f"{owned_elsewhere!r} appears in the adapter — that rule belongs to "
+            "packages/knowledge-toolchain and must be owned exactly once"
+        )
+
+
+# --- the next state, proven supportable without entering it -----------------
+
+
+def test_the_readme_only_rule_is_scoped_to_the_toolchain_gate(tmp_path: Path) -> None:
+    """Registry/scaffold must PERMIT candidate source once the gate is open.
+
+    The run still fails — `blockedByToolchain` may not be false in the live
+    catalog without a governed decision, and that rule is untouched. What must
+    not appear is the specification-only finding: with the gate open, authored
+    source is what belongs in the directory, and content rules are the content
+    command's to apply. Asserting on the message rather than the exit code is
+    how this proves one rule moved without relaxing the other.
+    """
+    root = tmp_path / "repo"
+    (root / "knowledge" / "platform" / "example").mkdir(parents=True)
+    (root / "knowledge" / "platform" / "example" / "README.md").write_text("# x\n")
+    (root / "knowledge" / "platform" / "example" / "model.md").write_text(_concept())
+    (root / "knowledge" / "catalog.json").write_text(
+        json.dumps(
+            {
+                "modules": [
+                    {
+                        "id": "platform/example",
+                        "owner": OWNER,
+                        "blockedByToolchain": False,
+                        "blockedByRollout": False,
+                    }
+                ],
+                "sets": [],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+    result = subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "check-knowledge.mjs"), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert "only README.md is permitted" not in _output(result), (
+        "with the toolchain gate open, candidate source must be permitted by the registry"
+    )
+
+
+def test_the_live_toolchain_gate_is_still_shut() -> None:
+    """The scoping above must not have opened anything in the live repository."""
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    entries = [*catalog["modules"], *catalog["sets"]]
+    assert len(entries) == 23
+    assert all(e["blockedByToolchain"] is True for e in entries)
+    assert not [e for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]], (
+        "no entry may be open on both gates"
+    )

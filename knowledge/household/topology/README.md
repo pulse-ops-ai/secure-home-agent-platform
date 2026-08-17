@@ -7,7 +7,7 @@ The **structure** of the house: floors, areas, rooms, and how they relate.
 | Field | Value |
 |---|---|
 | Status | `Planned` |
-| Owner | @mikegtech |
+| Owner | human:mikegtech |
 | Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
 
 > Registered as module `household/topology` in [`../../INDEX.md`](../../INDEX.md).

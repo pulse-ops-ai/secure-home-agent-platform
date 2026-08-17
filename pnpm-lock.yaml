@@ -59,6 +59,9 @@ importers:
 
   .:
     devDependencies:
+      '@secure-home/knowledge-toolchain':
+        specifier: workspace:*
+        version: link:packages/knowledge-toolchain
       prettier:
         specifier: 'catalog:'
         version: 3.9.6

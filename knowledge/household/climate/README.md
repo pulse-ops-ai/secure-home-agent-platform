@@ -8,7 +8,7 @@ its limits are.
 | Field | Value |
 |---|---|
 | Status | `Planned` |
-| Owner | @mikegtech |
+| Owner | human:mikegtech |
 | Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
 
 > Registered as module `household/climate` in [`../../INDEX.md`](../../INDEX.md).

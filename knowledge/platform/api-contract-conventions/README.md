@@ -6,7 +6,7 @@ that one definition produces every downstream artifact.
 | Field | Value |
 |---|---|
 | Status | `Planned` |
-| Owner | @mikegtech |
+| Owner | human:mikegtech |
 | Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
 
 > Specification only. No module content is authored, and this directory is not

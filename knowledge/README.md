@@ -6,13 +6,17 @@ that agents read to *understand* the house.
 > **Status: specification only, and empty on purpose.** No bundle exists. No
 > schema is asserted. The format is **experimental** — see
 > [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md).
-> The validator must exist **before** the first real bundle is authored.
+> The toolchain must pass independent review **before** the first real bundle
+> is authored.
 >
-> **`knowledge/` is not runtime-authoritative**
-> — the ADR-0010 toolchain does not exist. The FORMAT is decided
+> **`knowledge/` is not runtime-authoritative yet.** The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
-> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
-> toolchain is not built, which is what `blockedByToolchain` records.
+> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)), and the
+> toolchain and its conformance suite are **implemented**
+> (`packages/knowledge-toolchain`, invoked over real content by
+> `scripts/check-knowledge-content.mjs`). What remains is independent review of
+> that integration, which is what `blockedByToolchain` still records. Publication
+> is blocked separately: no Proof B producer exists (ADR-0016 §5a).
 
 ## Start here
 
@@ -68,9 +72,19 @@ freshness metadata.
 - **camera media** or any recording
 - **raw personal telemetry**
 
-This list is **machine-checked**. A bundle that violates it is not published —
-it is not a warning
-([ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)).
+These are enforced under the ADR-0016 coverage model, and the honesty of that
+model matters more than the promise. There are **no class-A detectors**: A
+requires a closed authoring grammar in which every representation is
+structurally visible, and Markdown has none — arbitrary bytes fit inside it as
+base64 or hex. Every implemented indicator is **class B**: deterministic,
+useful, and incomplete, each naming its own blind spot in `COVERAGE` and
+`BLIND_SPOTS`. Live state, presence, automation state, and personal telemetry
+are **class C**, semantically undecidable, and have no detector by design.
+
+A deterministic finding refuses admission outright; no attestation waives it
+(ADR-0016 §6). Admission additionally requires **Proof A**, an attestation bound
+to the exact bytes. Saying the list is "machine-checked" would overclaim four of
+the seven classes.
 
 ### The boundary that is easy to get wrong
 
@@ -98,7 +112,7 @@ fact with no owner and no date is not knowledge; it is a rumour with formatting.
 
 ## Access is through an interface, never a file read
 
-Four future interfaces isolate the format so it can be replaced:
+Four interfaces isolate the format so it can be replaced. All four are implemented in `packages/knowledge-toolchain`:
 
 | Interface | Responsibility |
 |---|---|
@@ -136,10 +150,26 @@ directory contains authored content.
 node scripts/check-knowledge.mjs
 ```
 
-**This is not the ADR-0010 validator.** It checks that the registry is coherent.
-It does not machine-check prohibited content, because there is no content — and
-it enforces that there is none.
+**This is the registry checker, not content admission.** It checks that the
+registry is coherent and that no specification directory has grown authored
+content while its `blockedByToolchain` gate is true. It owns no content rules.
 
-**Future** — `validate` runs in CI and fails on any prohibited content, missing
-metadata, or schema violation. Also a repository check that nothing imports a
-bundle file directly.
+Content admission is a separate, canonical command that hands real repository
+bytes to the package that owns those rules:
+
+```sh
+pnpm run check:knowledge-content
+```
+
+It runs unconditionally in `scripts/check.sh` and in CI, so a change touching
+only `knowledge/**` cannot skip it. With no module authored, it reports that
+there is nothing to admit.
+
+`validate`/`admit` runs in CI today and fails on prohibited-content indicators,
+missing or wrongly-typed metadata, envelope violations, unresolvable references,
+and an attestation that does not bind the exact bytes. `check-source-imports.mjs`
+separately proves that no production source imports a bundle file directly.
+
+**Still outstanding** — independent review of this integration, which is what
+`blockedByToolchain` records, and a governed Proof B producer, without which
+nothing is publishable.

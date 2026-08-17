@@ -53,15 +53,17 @@ value be different in ten minutes?** If yes, it is state.
 - **Every bundle declares owner, as-of date, and limitations.**
 - **Nothing reads a bundle file directly.** Access is through the `query`
   interface, so the format stays replaceable.
-- **Do not invent an OKF schema.** The format is experimental and unvalidated
-  (the ADR-0010 toolchain does not exist).
+- **Do not invent an OKF schema.** The format is decided by ADR-0015 and the
+  repository profile is enforced by `packages/knowledge-toolchain`. Extend it
+  there, under an accepted decision — never by writing a new shape here.
 - **No secrets in examples either.** An example token is still a token-shaped
   string in the repository.
 
 ## Do not
 
-- Author a real bundle. **The validator does not exist yet**, so nothing can be
-  checked and the prohibited-content rule would be unenforced.
+- Author a real bundle. The toolchain now exists and content admission runs in
+  CI, but **`blockedByToolchain` is still true**: the integration has not passed
+  independent review, and authoring eligibility requires both gates open.
   [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
   is accepted, which makes *building* the validator in scope under a task
   contract — the validator still comes first.
@@ -93,9 +95,17 @@ node scripts/check-knowledge.mjs
 
 `check-knowledge.mjs` validates the **specification** — registry coherence,
 metadata completeness, set references, status claims, and that no specification
-directory contains authored content. **It is not the ADR-0010 bundle validator**,
-which machine-checks prohibited content over real content and does not exist yet
-(the ADR-0010 toolchain does not exist).
+directory contains authored content while its toolchain gate is true. **It owns
+no content rules.**
 
-Future: `validate` fails on prohibited content, missing metadata, or schema
-violations — as a gate, not a warning.
+Content admission is the separate canonical command
+`pnpm run check:knowledge-content`, which hands real bytes to
+`packages/knowledge-toolchain`. Prohibited content is enforced there under the
+ADR-0016 A/B/C model — class B indicators with named blind spots, class C
+classes with no detector by design — plus Proof A. It is not a full machine
+check, and the code says so in `COVERAGE` and `BLIND_SPOTS`.
+
+`admit` already fails on prohibited-content indicators, missing or wrongly-typed
+metadata, envelope violations, unresolvable references, and an attestation that
+does not bind the exact bytes — as a gate, not a warning. What remains is
+independent review of the integration and a governed Proof B producer.

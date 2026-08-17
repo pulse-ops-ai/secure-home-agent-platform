@@ -3,9 +3,11 @@
 The canonical registry of knowledge **modules** and **sets**.
 
 > **Specification only, and not runtime-authoritative.** No module content is
-> authored, nothing is packaged, and nothing is published. The ADR-0010 validator
-> does not exist — the ADR-0010 toolchain is unbuilt,
-> and it is the gating deliverable that must land *before* any real content.
+> authored, nothing is packaged, and nothing is published. The ADR-0010
+> toolchain and its conformance suite are implemented and are invoked over real
+> repository content by `scripts/check-knowledge-content.mjs`; independent
+> review of that integration is what `blockedByToolchain` still records, and it
+> must complete *before* any real content is authored.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
 human-facing view, and

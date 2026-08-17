@@ -313,6 +313,77 @@ describe('R3 P1: internal references use a closed link grammar', () => {
   })
 })
 
+// ══ INTEGRATION — a module owner is a HUMAN actor (ADR-0015 §5) ═════════
+
+describe('INT: the owner rule matches the accepted requirement', () => {
+  // Both sides, so the MIRROR rule agrees and the actor rule is what decides.
+  // The YAML value is quoted because `@` opens a reserved indicator: unquoted,
+  // `owner: @mikegtech` fails to PARSE, and the test would then be reporting a
+  // lexical accident rather than reaching the rule it is about.
+  const owned = (owner: string) =>
+    run(members(concept({ owner: JSON.stringify(owner) })), { owner })
+
+  it('control: the migrated live form is accepted', () => {
+    expect(owned('human:mikegtech').refusals).toEqual([])
+  })
+
+  // ADR-0015 §5 lists three actor forms for the OKF convention generally, and
+  // then requires `human:<id>` for OWNER specifically. Admission had been
+  // enforcing the general list, so a module could name a process or a
+  // resource-style producer as its owner — an accountable human is the point.
+  const rejected: [string, string][] = [
+    ['the GitHub display form', '@mikegtech'],
+    ['a process actor', 'process:builder'],
+    ['a resource-style actor', 'vendor/model-name'],
+  ]
+  for (const [name, owner] of rejected) {
+    it(`refuses ${name} as a module owner`, () => {
+      expect(rules(owned(owner).refusals)).toContain('profile.owner.actor')
+    })
+  }
+})
+
+// ══ INTEGRATION P0 — the final artifact was structurally forgeable ═══════
+
+describe('INT P0: query() accepts only a bundle packageBundle() minted', () => {
+  it('control: admit -> packageBundle -> query still works end to end', () => {
+    const { packaged } = admittedPackage()
+    expect(query(packaged).list()).toContain('model.md')
+    expect(packaged.digest).toMatch(/^[0-9a-f]{64}$/)
+    expect(packaged.manifest()).toBeInstanceOf(Uint8Array)
+  })
+
+  it('an ordinary object literal cannot satisfy PackagedBundle', () => {
+    // THE DEFECT. `admit()` mints an opaque `AdmittedBundle`, but the artifact
+    // it produces was an exported STRUCTURAL interface — so a consumer could
+    // write the shape by hand and hand it to the public `query()`. The chain
+    // was guarded up to the last link and open at it.
+    //
+    // Bytes that admission REFUSES, read through the public seam.
+    const junk = members(concept({ type: 'Attested Computation' }))
+    expect(run(junk).admitted, 'premise: admission refuses this content').toBe(false)
+    const compiled = compile(junk)
+    if (!compiled.ok) throw new Error('premise: it still compiles')
+
+    const forged = {
+      digest: 'f'.repeat(64),
+      manifest: () => new Uint8Array(),
+      documents: compiled.bundle.documents.map((d) => ({
+        path: d.path,
+        frontmatter: d.frontmatter,
+        body: d.body,
+        bytes: () => d.bytes,
+      })),
+      members: junk.map((m) => ({ path: m.path, bytes: () => m.bytes })),
+    }
+
+    // @ts-expect-error a PackagedBundle is minted by packageBundle(), never
+    // written by hand — the brand is an unexported unique symbol.
+    const leaked = query(forged)
+    expect(leaked).toBeDefined()
+  })
+})
+
 // ══ ROUND 5 · P1 — a truncated destination became a DIFFERENT target ════
 
 describe('R5 P1: a destination is never silently re-pointed', () => {
