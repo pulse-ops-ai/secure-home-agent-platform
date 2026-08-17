@@ -350,9 +350,11 @@ not become an unbounded hold on the household control path.
 **No unbounded orchestration path exists**, from acquisition through cleanup —
 including the terminal recording that runs after the governed deadline fires.
 
-**A broken sink degrades to settlement failure**, not to a hung run. The run ends;
-what is lost is the durable record, and that loss is reported rather than
-disguised.
+**A broken sink degrades to settlement failure**, not to a hung run. The
+orchestration attempt remains finitely bounded; settlement failure reports that
+the intended terminal's governed record did not become durable, and it does
+**not** manufacture a lifecycle terminal. What the attempt ending implies about
+the logical run is a separate question this ADR does not answer.
 
 **Prompt unwinding frees the household control path early**, and §4's obligations
 are what keep that from silently losing effects.
@@ -382,10 +384,39 @@ cannot refuse the older one.
    stays visible.
 4. **Settlement failure proven distinct** from lifecycle `TIMED_OUT`, in both the
    conclusion and the durable record.
-5. **[U11](../architecture/unresolved-decisions.md#u11) must inherit §5, §6, and
+5. **Lifecycle authority proven to gate effect progression (§8).** The rule is
+   worthless if only asserted, because its failure mode is silent — the
+   authority correctly refuses, the refusal is correctly recorded, and the
+   effects run anyway. Proof therefore requires all four:
+   - **adversarially narrow or remove an allowed transition**, and show the
+     authority refuses it — evidence: PR #82 RO-EX-28 removes `begin_execution`,
+     `commit_spend`, and `seal_evidence` individually; RO-EX-29 narrows each of
+     the seven phase boundaries as a property;
+   - **show the downstream effects do not start.** RO-EX-28 asserts the adapter
+     never runs, no `run.started` is emitted, and no bundle reaches the sink.
+     Recording the rejection is not sufficient evidence: that is exactly what the
+     defective shape also does;
+   - **prove structurally that a phase cannot consume unestablished state.**
+     Evidence: RO-EX-128 — an invalid composition **does not compile**, asserted
+     by `@ts-expect-error`, which itself fails if the line beneath it ever starts
+     compiling. RO-MUT-67 kills the weaker version of this proof: a runtime count
+     alone is satisfied by a tree that has stopped holding the property. RO-EX-121
+     additionally exercises the guard against a phase reaching unearned state
+     through *another* phase's signature, so the proof is not a name-substring
+     proxy;
+   - **show no parallel procedural lifecycle drives effects independently** of
+     the one authority.
+
+   **TypeScript typestate is the current proof technique, not the architectural
+   requirement.** A different language or mechanism satisfies §8 by producing
+   equivalent evidence — that unearned state is unreachable and that narrowing
+   the authority narrows what executes. What may not be substituted is the
+   *obligation to prove it*, because an unproven lifecycle authority is
+   indistinguishable from a recorder running beside the orchestration.
+6. **[U11](../architecture/unresolved-decisions.md#u11) must inherit §5, §6, and
    §9** when a persistence toolkit is chosen. A durable implementation that
    cannot refuse an older generation at the resource does not satisfy this ADR.
-6. **Operative architecture description** — see
+7. **Operative architecture description** — see
    [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
    A canonical `docs/architecture/` description follows **after** acceptance.
    A Proposed ADR must not become binding by being restated as settled
@@ -400,4 +431,4 @@ cannot refuse the older one.
 - [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) — the finalization class, specified
 - [`runner-model.md`](../architecture/runner-model.md) — cancellation, timeout, and resource posture
 - [U11](../architecture/unresolved-decisions.md#u11) — persistence, which inherits these semantics
-- Evidence: PR #82 `design.md` D13, D14, D7, D10; invariants RO-INV-48, 61, 82, 83, 85, 86, 89, 90, 92
+- Evidence: PR #82 `design.md` D1, D7, D10, D13, D14; invariants RO-INV-27, 48, 58, 61, 69, 82, 83, 85, 86, 89, 90, 92; proofs RO-EX-28/29 (transition narrowing), RO-EX-121/128 and RO-MUT-67 (unearned state, structurally)
