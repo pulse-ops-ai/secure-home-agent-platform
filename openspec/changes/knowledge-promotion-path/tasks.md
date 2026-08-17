@@ -410,3 +410,81 @@ The Python job failed inside `Initialize CodeQL`, before analysing anything, wit
 `HttpError: No server is currently available`. No security finding exists. A
 re-run was attempted and refused by GitHub, and no commit was manufactured to
 force a fresh dispatch.
+
+---
+
+# PR-3B — Operative runner architecture and proof-quality governance
+
+Appended. The Prompt-1, -2, and -3 records above are untouched.
+
+## Implementation Authorization
+
+| | |
+|---|---|
+| **Granted by** | the repository owner, in the Prompt-3B task contract issued after accepting ADR-0018 at `4c3c421` |
+| **Preconditions** | ADR-0017 and ADR-0018 both `Accepted` (2026-08-17) **before** this landing. A Proposed decision may not be restated as settled architecture, so this work was not startable earlier |
+| **Kind** | documentation and governance only |
+
+## What this completes
+
+The [ADR-0014](../../../docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
+path, one step further:
+
+```text
+implementation / falsification evidence   PR #82
+    -> Accepted ADR                       ADR-0017, ADR-0018   (Prompt 3)
+    -> docs/architecture description      THIS LANDING         (Prompt 3B)
+    -> portable knowledge projection      Prompt 4, NOT STARTED
+```
+
+## Files created
+
+| File | Governed primarily by |
+|---|---|
+| `docs/architecture/effect-boundary-model.md` | ADR-0017 |
+| `docs/architecture/distributed-effect-lifecycle.md` | ADR-0018 |
+
+Both describe **what follows** from the accepted decisions and cross-reference
+the ADRs for **why**. Neither reproduces the PR #82 design or assurance
+artifacts, and neither is a second source of rationale.
+
+## Files reconciled
+
+| File | Correction |
+|---|---|
+| `docs/architecture/runner-model.md` | governing ADRs now include 0013/0017/0018; status banner separates landed L2–L4 from absent launcher, L9, deployment, and U11; substrate section separates implemented L4 semantics from unimplemented L9 enforcement; cancellation section no longer implies a real process tree is killed today; evidence section distinguishes reference in-memory ports from durable persistence and replaces the seal-last mental model; Open section keeps only genuinely open items |
+| `services/runner-control/README.md` | governed-by adds ADR-0017/0018; `finalization/` described as the reference implementation of invisible staging plus one publication transition; "a run ends in one of two governed shapes" replaced with the attempt-versus-terminal distinction; "a run is never abandoned" replaced with the owned-run / lost-ownership distinction; links the two new documents |
+| `CONTRIBUTING.md` | **Proof quality** section added — the canonical home for that governance truth |
+| `.github/agents/review.agent.md` | **links** the governed rule; does not restate or own it |
+| `docs/architecture/INDEX.md` | two new documents registered and placed in reading order after `runner-model.md`; Status rewritten to distinguish landed from unactivated |
+| `docs/AGENTS.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/README.md`, `.github/agents/*.md`, `.github/copilot-instructions.md` | accepted/immutable ADR ranges advanced to ADR-0018; "nothing described exists yet" corrected |
+
+## Proof-quality promotion
+
+[ADR-0014](../../../docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
+classifies *"a claimed proof must reach the mechanism it claims to prove"* as
+**governance / engineering-review truth**. Its canonical home is therefore
+`CONTRIBUTING.md` — a provider-neutral governed repository contract — and **not**
+`.github/agents/review.agent.md` as sole owner, not `CLAUDE.md`, not a provider
+skill, and not `knowledge/`. The review agent links to it, which is the
+type-aware taxonomy applied rather than described.
+
+## Explicit non-goals
+
+No ADR was created or edited · no production code · no knowledge content ·
+no lifecycle-evidence tightening for `Validated`/`Packaged` · no Proof B ·
+no change to `blockedByToolchain`, `blockedByRollout`, set rollout, or profile
+composition · no unresolved decision resolved, U11 included.
+
+**The deliberate non-decision is preserved.** The acknowledgement disposition of
+an exact staged-versus-ordinary replay remains open, and
+`distributed-effect-lifecycle.md` says so rather than choosing one in an
+example.
+
+## Note on branch state
+
+This branch predates the PR #82 merge, so `services/runner-control/src/` here is
+the pre-#82 tree. The README correction targets the same lines #82 touched and
+folds in #82's `settlement_failed` refinement rather than reverting it; a small
+merge conflict in that one bullet is expected and is resolvable in favour of the
+text landed here.

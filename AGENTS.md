@@ -244,8 +244,10 @@ Documentation, governance, and workspace scaffolding. **There is no runtime.**
 No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
 credentials, no database connection.
 
-**ADR-0001 … ADR-0014 are `Accepted`** and **immutable** — the foundational set
-on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06. Supersede,
+**ADR-0001 … ADR-0018 are `Accepted`** and **immutable** — the foundational set
+on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, and the runner
+effect-boundary and identity decisions (ADR-0017, ADR-0018) on 2026-08-17.
+Supersede,
 never edit, and **never change an ADR's status without an explicit
 human-acceptance task**.
 

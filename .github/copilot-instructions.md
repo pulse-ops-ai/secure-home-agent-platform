@@ -26,8 +26,9 @@ platform for household agents, controlling physical devices in a home.
 Documentation, governance, and workspace scaffolding. **No runtime.** No Home
 Assistant, no services, no OpenFGA, no Keycloak, no runner image, no credentials.
 
-ADR-0001 … ADR-0012 are `Accepted` and **immutable** (foundational set
-2026-08-05; the implementation stack 2026-08-06). ADR-0013 (2026-08-12) is `Accepted` and closed
+ADR-0001 … ADR-0018 are `Accepted` and **immutable** (foundational set
+2026-08-05; the implementation stack 2026-08-06; the runner effect-boundary and
+identity decisions 2026-08-17). ADR-0013 (2026-08-12) is `Accepted` and closed
 [U6](../docs/architecture/unresolved-decisions.md#u6) — the only item of the
 tracked set U1–U11 ever closed. Acceptance is **not** authorization to
 deploy.

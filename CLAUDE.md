@@ -96,7 +96,7 @@ After changing files, run what your change touched:
 - **Do not change any ADR's status — ever — without an explicit
   human-acceptance task.** Accepting an ADR is a human decision, made in its own
   reviewed change.
-- **Do not edit an accepted ADR.** ADR-0001 … ADR-0016 are `Accepted` and
+- **Do not edit an accepted ADR.** ADR-0001 … ADR-0018 are `Accepted` and
   **immutable**. Amend or reverse one only by writing a new ADR that supersedes
   it.
 - **Do not resolve anything in**

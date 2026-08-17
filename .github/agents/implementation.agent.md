@@ -33,7 +33,7 @@ If any precondition fails, **stop and report which one**. Do not proceed with a
 narrowed version, do not infer the intent, and do not implement against a
 `Proposed` ADR.
 
-> ADR-0001 … ADR-0012 are **`Accepted`**, so precondition 3 is satisfiable —
+> ADR-0001 … ADR-0018 are **`Accepted`**, so precondition 3 is satisfiable —
 > including the implementation stack (ADR-0012, 2026-08-06), which governs
 > workspace, service, package, and contract work. Preconditions 1, 2, and 4 are
 > still not automatic:

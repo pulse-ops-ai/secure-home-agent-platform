@@ -13,8 +13,9 @@ when the internet does not.
 > scaffolding**. There is **no runtime**: no Home Assistant, no services, no
 > OpenFGA, no Keycloak, no runner image, no credentials, no database connection.
 >
-> **ADR-0001 … ADR-0012** are **`Accepted`** and immutable — the foundational set
-> on 2026-08-05, the implementation stack on 2026-08-06 — so implementation may
+> **ADR-0001 … ADR-0018** are **`Accepted`** and immutable — the foundational set
+> on 2026-08-05, the implementation stack on 2026-08-06, and the runner
+> effect-boundary and identity decisions on 2026-08-17 — so implementation may
 > proceed against them under an authorizing task contract.
 >
 > **Acceptance resolved none of the eleven open questions**, and is **not**
@@ -391,7 +392,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0012  (all Accepted, immutable)
+│   ├── decisions/         ADR-0001 … ADR-0018  (all Accepted, immutable)
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              deployable backend processes — TypeScript
 │   ├── control-plane/     household API · authorization · safety policy ·

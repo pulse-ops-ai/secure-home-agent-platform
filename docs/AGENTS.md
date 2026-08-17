@@ -14,7 +14,7 @@ Scoped rules for documentation. Inherits everything from
 
 - **`decisions/` records why; `architecture/` records what follows.** If they
   disagree, the ADR wins and the architecture document is the defect to fix.
-- **Do not edit an accepted ADR.** ADR-0001 … ADR-0014 are `Accepted` and
+- **Do not edit an accepted ADR.** ADR-0001 … ADR-0018 are `Accepted` and
   immutable. Supersede with a new ADR; do not "clarify" one in place.
 - **Do not change any ADR's status without an explicit human-acceptance task.** A
   new ADR starts `Proposed` and is accepted by a human in its own reviewed
@@ -30,9 +30,13 @@ Scoped rules for documentation. Inherits everything from
 - **Do not copy upstream architecture text.** This repository adopts by pinned
   reference ([ADR-0001](decisions/ADR-0001-adopt-security-first-architecture.md)).
   Link instead.
-- **Mark unimplemented things as unimplemented.** Nothing described in
-  `architecture/` exists yet. Do not write about it in the present tense without
-  saying so.
+- **Mark unimplemented things as unimplemented — and implemented things as
+  implemented.** Parts of `architecture/` now describe landed code: the runner
+  contracts, `runner-core`, and `runner-control`'s L4 orchestration. Other parts
+  describe a target that does not exist, including the launcher, L9 enforcement,
+  and any deployed runtime. Neither claim may be made in the present tense
+  without being true; see the Status table in
+  [`architecture/INDEX.md`](architecture/INDEX.md).
 - **No secrets, real device identifiers, tailnet addresses, or household member
   names** — including in runbooks and examples.
 - **Cross-reference; do not duplicate.** Two copies of a rule become two

@@ -31,9 +31,9 @@ All governed documentation for this repository.
 - `decisions/` records **why**; `architecture/` records **what follows**. When
   they disagree, the ADR wins and the architecture document is the defect.
 - An accepted ADR is immutable. Reverse it with a superseding ADR.
-- **ADR-0001 … ADR-0012 are `Accepted`** and immutable (foundational set
-  2026-08-05; ADR-0012 2026-08-06). A new ADR starts `Proposed`; acceptance is a
-  human decision, never an agent's.
+- **ADR-0001 … ADR-0018 are `Accepted`** and immutable (foundational set
+  2026-08-05; ADR-0012 2026-08-06; ADR-0017 and ADR-0018 2026-08-17). A new ADR
+  starts `Proposed`; acceptance is a human decision, never an agent's.
 - Both `architecture/` and `decisions/` are index-validated: every file must be
   in its `INDEX.md`, and every index entry must point at a file that exists.
   [`scripts/validate-scaffold.sh`](../scripts/validate-scaffold.sh) enforces
