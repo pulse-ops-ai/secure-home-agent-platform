@@ -464,21 +464,31 @@ def test_rollout_eligibility_matches_the_accepted_initial_values() -> None:
         )
 
 
-def test_rollout_eligibility_never_implies_toolchain_readiness() -> None:
+def test_discharging_readiness_did_not_move_the_rollout_gate() -> None:
     """The two gates are INDEPENDENT — the whole point of separating them.
 
-    Ten platform modules are rollout-eligible. Not one of them is
-    toolchain-ready, and nothing about opening the rollout gate opened the
-    other. This is the assertion that would fail if a future change conflated
-    them again, which is how the U7 defect looked the first time.
+    The proof had to change shape at the discharge. Before it, independence
+    showed as "rollout-eligible modules are still toolchain-blocked". After it,
+    that assertion is VACUOUS: every entry has ``blockedByToolchain`` false, so
+    checking it of the rollout-eligible ones proves nothing.
+
+    What is not vacuous is the other direction — 13 entries now carry
+    ``blockedByToolchain: false`` together with ``blockedByRollout: true``. That
+    combination can only exist if discharging one gate left the other alone, and
+    it is the assertion that would fail if a future change conflated them again,
+    which is how the U7 defect looked the first time.
     """
     catalog = _catalog()
-    eligible = [m for m in catalog["modules"] if m["blockedByRollout"] is False]
-    assert eligible, "expected some rollout-eligible modules"
-    for module in eligible:
-        assert module["blockedByToolchain"] is False, (
-            f"{module['id']}: the toolchain gate was discharged for every entry"
-        )
+    entries = [*catalog["modules"], *catalog["sets"]]
+    divergent = [
+        e["id"]
+        for e in entries
+        if e["blockedByToolchain"] is False and e["blockedByRollout"] is True
+    ]
+    assert len(divergent) == 13, (
+        f"discharging readiness must not have released rollout: {divergent}"
+    )
+    assert all(e["blockedByToolchain"] is False for e in entries)
 
 
 def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> None:
