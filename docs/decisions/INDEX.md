@@ -78,10 +78,21 @@ questions the ADRs deliberately left open:
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
 | Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Authoring a real knowledge bundle | the ADR-0010 toolchain gate — [ADR-0015 §12](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md); [U7](../architecture/unresolved-decisions.md#u7) is **RESOLVED** and is not this gate |
+| Authoring knowledge outside `platform/**` | `blockedByRollout` — `household/**`, `runbooks/**`, and every set remain rollout-blocked (ADR-0016 §7a) |
+| **Publishing** any knowledge bundle | no governed **Proof B** producer exists ([ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §5a). Discharging readiness did not unblock publication |
 | Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
 | Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |
 | Giving `action-gateway` a Home Assistant credential | [U10](../architecture/unresolved-decisions.md#u10) |
+
+**Knowledge authoring is no longer blocked on the toolchain gate.** The
+[ADR-0015 §12](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+obligation was **discharged on 2026-08-16** after independent review of the
+toolchain, its conformance suite, and repository content admission, so
+`blockedByToolchain` is `false` on all 23 catalog entries. Authoring the ten
+`platform/**` modules is eligible; everything else is held by `blockedByRollout`,
+and publication is held separately by the absent Proof B producer.
+[U7](../architecture/unresolved-decisions.md#u7) is **RESOLVED** and was never
+this gate.
 
 **Acceptance is not authorization to deploy.** No runtime service, no
 credential, and no Home Assistant instance is authorized by this change. Those

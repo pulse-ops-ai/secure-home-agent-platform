@@ -77,7 +77,7 @@ The classes, and what each one obliges:
 | **discardable read/result** | a late result is thrown away; nothing durable or externally observable depends on it |
 | **acknowledged effect** | may create durable or external state before its acknowledgement returns |
 | **acquisition** | creates ownership of a resource; the resource may commit before the caller observes it |
-| **finalization** | the irreversible atomic publication and its staging ([ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md)) |
+| **finalization** | a durable outcome that may already exist when its acknowledgement arrives, so it can never be treated as a discardable late result |
 | **cleanup/teardown** | best-effort, idempotent at the resource |
 
 **The classification is complete, not conventional.** Adding an asynchronous port
@@ -206,19 +206,62 @@ ceiling.** Bounded execution, mandatory evidence, and a sink that never settles
 cannot all be guaranteed; the honest resolution is to report which one failed,
 not to relabel the run.
 
-### 8. Finalization is a distinct effect class
+### 8. Lifecycle authority gates effect progression
 
-[ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md)
-owns atomic finalization. This ADR establishes only why it cannot cross the
-ordinary result-discarding boundary:
+Everything above governs what happens when a call is made. This governs whether
+the next phase may make one at all.
+
+- **Orchestration may consume only state already established for the run.** A
+  phase cannot read a value an earlier phase did not produce.
+- **A phase performs only the effects authorized from that established state**,
+  and those effects **earn** a lifecycle transition.
+- **The lifecycle authority's answer determines whether the next phase may act.**
+- **A refused transition must not be ignored.** Procedural orchestration may not
+  record the refusal and then execute the downstream effects anyway.
+- **There is one lifecycle authority** — not a declarative machine alongside a
+  parallel procedural lifecycle that actually drives the effects.
+
+The last two clauses are the decision. A declared transition table proves nothing
+if orchestration calls it, ignores the answer, and proceeds: the machine
+correctly refuses, the refusal is correctly recorded, the provider still runs,
+and nothing fails. That shape is a second lifecycle written in control flow, and
+it is invisible precisely because the declarative one keeps saying the right
+thing.
+
+Narrowing what the authority permits must therefore narrow what executes. If it
+does not, the authority is a recorder running beside the orchestration rather
+than governing it.
+
+**Not mandated here:** TypeScript typestate, any particular phase class names,
+any file decomposition, module-size limits, or a specific interruption mechanism.
+**Typestate is the reference implementation technique** that makes unearned state
+structurally inaccessible — a phase that cannot name state it did not earn cannot
+consume it — and it is a strong realization of this rule, not the rule.
+
+### 9. Finalization is a distinct effect class
+
+This ADR decides one thing about finalization: **it is a distinct effect class
+whose durable outcome cannot be treated as a discardable late result.**
+
+The boundary obligations that follow are this ADR's:
 
 - publication may precede acknowledgement, so a discarded late acknowledgement
-  would describe a publication that already exists;
-- expiry must therefore be enforced **at the publication point**, synchronously —
-  the commit publishes inside its budget or publishes nothing observable;
-- **once a valid commit acknowledgement is returned, orchestration cannot
-  reinterpret the durable commit as an uncommitted timeout.** Discarding it would
-  invent a second terminal for a run whose first is already visible.
+  would describe a durable outcome that already exists;
+- expiry must therefore be enforced **at the publication/commit point**,
+  synchronously — the commit completes inside its budget or produces nothing
+  observable;
+- **once a valid acknowledgement of a durable commit is returned, orchestration
+  cannot reinterpret it as an uncommitted timeout.** Discarding it would invent a
+  second terminal for a run whose first is already durable.
+
+**What this ADR does not decide.** Invisible staging, an exactly-one visibility
+transition, the transaction atomicity model, staging custody, cross-path domain
+identity, and finalization concurrency are
+[ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md)'s
+and remain **Proposed** until it is separately accepted. This ADR is complete and
+acceptable without them: a system could satisfy every obligation above with a
+finalization model ADR-0018 would reject, and would still be conforming to this
+ADR.
 
 ---
 
@@ -314,8 +357,13 @@ disguised.
 **Prompt unwinding frees the household control path early**, and §4's obligations
 are what keep that from silently losing effects.
 
-**Fail-closed on ownership loss** — a dispossessed attempt performs no further
-effect — is consistent with [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md).
+**Fail-closed on observed ownership loss** — once orchestration observes that
+ownership moved, or an effect boundary refuses the stale fence, that attempt
+starts no later orchestration effect. This is consistent with
+[ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md). It is
+deliberately narrower than "a dispossessed attempt performs no further effect",
+which §6 shows is not true: a resource that has never seen the newer generation
+cannot refuse the older one.
 
 ---
 
@@ -335,7 +383,7 @@ effect — is consistent with [ADR-0009](ADR-0009-define-degraded-mode-and-offli
 4. **Settlement failure proven distinct** from lifecycle `TIMED_OUT`, in both the
    conclusion and the durable record.
 5. **[U11](../architecture/unresolved-decisions.md#u11) must inherit §5, §6, and
-   §8** when a persistence toolkit is chosen. A durable implementation that
+   §9** when a persistence toolkit is chosen. A durable implementation that
    cannot refuse an older generation at the resource does not satisfy this ADR.
 6. **Operative architecture description** — see
    [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).

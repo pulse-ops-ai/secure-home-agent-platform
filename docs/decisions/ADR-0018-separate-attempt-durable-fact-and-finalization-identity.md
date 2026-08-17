@@ -147,7 +147,7 @@ exactly ONE publication / visibility transition
   the published terminal.
 
 Because publication may precede acknowledgement, expiry is enforced **at the
-publication point** (ADR-0017 §8): the commit publishes inside its budget or
+publication point** (ADR-0017 §9): the commit publishes inside its budget or
 publishes nothing observable.
 
 **The representation is not the decision.** The reference implementation stages

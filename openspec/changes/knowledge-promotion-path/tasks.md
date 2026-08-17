@@ -263,7 +263,7 @@ change to close.
 | 11 | Transaction identity vs durable-fact identity | architecture — decision | **no** | ADR-0018 §2, §5 | **yes** | `platform/runner-model` | RO-INV-94, Round 16 |
 | 12 | Ownership identity vs transaction identity | architecture — decision | **no** | ADR-0018 §2, §8 | **yes** | `platform/runner-model` | RO-INV-94 |
 | 13 | Ordinary and staged paths share one domain identity authority | architecture — decision | **no** | ADR-0018 §6, §7 | **yes** | `platform/runner-model` | RO-INV-95/96, Rounds 17–18 |
-| 14 | Typestate / lifecycle authority over effects | architecture — **partly owned** | **partly** — ADR-0013 §3 owns adapter-reported terminal as observational input; nothing owns orchestration-side phase authority | **no new ADR** — recorded as the durable rule in the ADR-0017 §2 / ADR-0018 §1 pairing, and to be described operatively in 3B | **no** | `platform/runner-model` | D1 |
+| 14 | Lifecycle authority gates effect progression | architecture — decision | **no** — ADR-0013 §3 owns only adapter-reported terminal as observational input; nothing owned orchestration-side phase authority | **ADR-0017 §8** | **no new ADR** — it belongs in ADR-0017, not a third one | `platform/runner-model` | D1, RO-EX-28/29 |
 | 15 | A claimed proof must reach the mechanism it claims to prove | **governance / engineering-review obligation** | **no** | a provider-neutral governed repository contract — `CONTRIBUTING.md` | **no** | `runbooks/review-conventions` | RO-INV-69, RO-MUT-61 |
 
 ### Not promoted as requirements
@@ -272,7 +272,7 @@ change to close.
 |---|---|
 | `RunAborted`, and throwing rather than returning `undefined` | implementation **pattern**. The durable truth is that interruption unwinds to the single owner that knows what the attempt established — ADR-0017 §2. No exception class or language mechanism is required |
 | Commit-marker / in-memory MVCC | the reference **implementation** of ADR-0018 §4's atomic-visibility rule. A database transaction or durable marker satisfies it equally; U11 inherits the contract, not the data structure |
-| Typestate decomposition into TypeScript types | one very strong **realization** of lesson 14. The durable rule — a phase consumes only established state, lifecycle authority governs whether the next phase may act, a rejected transition cannot be ignored — needs no third ADR, because no genuinely unresolved decision remains once ADR-0017 and ADR-0018 land |
+| Typestate decomposition into TypeScript types | the reference implementation **technique** for lesson 14, named as such in ADR-0017 §8: it makes unearned state structurally inaccessible. The durable rule is the decision; typestate, phase class names, file decomposition, and module-size limits are not |
 | Module-size ratchets and exact file decomposition | engineering implementation policy, not platform architecture |
 
 ### Why two ADRs, and why not one or three
@@ -282,13 +282,19 @@ semantics hold when crossing an asynchronous port*; ADR-0018 answers *what
 identities exist and who may conclude or publish*. Effect classification could be
 adopted without deciding the three identity planes, and the identity planes could
 be decided for a system with a different boundary model. They are **dependent,
-not inseparable**: ADR-0017 §8 names finalization a distinct class and stops;
+not inseparable**: ADR-0017 §9 names finalization a distinct class and stops;
 ADR-0018 specifies it.
 
-**Not three.** Lesson 14 produces no unresolved decision of its own once the
-other two land, and lesson 15 is a different kind of truth entirely — a
-governance obligation whose canonical home is a governed repository contract, not
-an ADR.
+**Not three.** Lesson 14 is a genuine unowned decision, but it is a decision
+*about effect progression* — which is ADR-0017's subject — so it lands there as
+§8 rather than in a file of its own. Lesson 15 is a different kind of truth
+entirely: a governance obligation whose canonical home is a governed repository
+contract, not an ADR.
+
+**A correction made before acceptance.** The first draft of this determination
+recorded lesson 14 as "partly owned" and left the durable D1 rule stated nowhere
+— the table said nothing owned orchestration-side phase authority, and then no
+section supplied it. ADR-0017 §8 now does.
 
 ### Acceptance dependency and order
 
