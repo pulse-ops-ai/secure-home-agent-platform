@@ -323,3 +323,38 @@ Accepting either ADR · knowledge authoring (Prompt 4 owns projection) ·
 lifecycle-evidence tightening for `Validated`/`Packaged` · any production
 runner-control change · link grammar, knowledge admission, packaging, Proof B, or
 rollout gates.
+
+## Human acceptance — ADR-0017
+
+| | |
+|---|---|
+| **Decision** | the repository owner reviewed and **accepted ADR-0017** as written |
+| **Reviewed commit** | `f6746beb0742bd4981acae0cb2a3eb12209ed751` |
+| **Accepted** | 2026-08-17 by @mikegtech (repository owner) |
+| **Scope** | ADR-0017 in full. **ADR-0018 was explicitly excluded** from this acceptance |
+
+**ADR-0018 remains `Proposed`, with its dependency now satisfied.** ADR-0017
+defines finalization as a distinct effect class, which is what ADR-0018 builds
+on; the ordering constraint is discharged, and the acceptance is not. That
+separation was the point of proposing them as two ADRs, and it survives the
+first acceptance rather than being consumed by it.
+
+**Still deferred to Prompt 3B, and now blocked only on ADR-0018:**
+`docs/architecture/effect-boundary-model.md`,
+`docs/architecture/distributed-effect-lifecycle.md`, the `runner-model.md`
+update, and placing the proof-quality obligation (lesson 15) in its governed
+contract. None may be written while ADR-0018 is Proposed — a lower-precedence
+document restating a Proposed decision would make it binding without a decision.
+
+**CI at the accepted commit**, recorded because it is unusual:
+
+```text
+Repository checks workflow: PASS
+Exact-head attached checks: 5/5 PASS
+CodeQL default-setup checks: NOT DISPATCHED for this SHA
+No CodeQL failure exists
+```
+
+The absence is a missing GitHub-managed dispatch, not a failed result. No commit
+was manufactured to trigger it, because that would have separated the reviewed
+bytes from the accepted bytes.

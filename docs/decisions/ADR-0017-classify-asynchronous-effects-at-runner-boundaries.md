@@ -1,7 +1,8 @@
 # ADR-0017: Classify asynchronous effects and enforce their semantics at runner boundaries
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-16
+- **Accepted:** 2026-08-17
 - **Deciders:** @mikegtech (repository owner)
 - **Refines / supersedes in part:** nothing. It **adds** the orchestration-side effect contract that [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) deliberately left outside the adapter SPI
 - **Preserves:** ADR-0013 in full — the adapter still translates and reports, terminal state remains observational input, and cancellation is still effected by the substrate; [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md)'s fail-closed posture; [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md)'s separation of profile and run

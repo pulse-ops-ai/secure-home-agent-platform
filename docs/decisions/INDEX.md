@@ -136,16 +136,18 @@ implementation-neutral. These decide how it is built.
 | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
 | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
-| [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | **Proposed** | [`services/runner-control/`](../../services/runner-control/), any port implementation |
+| [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | **Proposed** | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 
-> **ADR-0017 and ADR-0018 are `Proposed`** (2026-08-16) and decide nothing yet.
-> They promote the durable architecture learned in merged PR #82 into canonical
-> homes under [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
-> **Acceptance order is ADR-0017 then ADR-0018** — the second builds on the
-> first's definition of finalization as a distinct effect class. Until they are
-> accepted, no lower-precedence document may restate them as settled
-> architecture.
+> **ADR-0017 is `Accepted`** (2026-08-17) and **immutable**. See
+> [the ADR-0017 acceptance record](#adr-0017-acceptance-record).
+>
+> **ADR-0018 remains `Proposed`** and decides nothing yet. Its dependency is now
+> satisfied — ADR-0017 defines finalization as a distinct effect class — but
+> acceptance is a separate explicit decision. Until it is accepted, no
+> lower-precedence document may restate it as settled architecture, and the
+> invisible-staging, single-visibility-transition, atomicity, staging-custody,
+> cross-path-identity, and finalization-concurrency rules are undecided.
 >
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -362,6 +364,58 @@ and neither substitutes for the other.
 Acceptance authorizes implementation **against** ADR-0016. It proves and
 discharges **no** executable obligation.
 
+### ADR-0017 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-17 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Accepted at** | `f6746beb0742bd4981acae0cb2a3eb12209ed751` — the exact reviewed commit |
+| **Scope** | ADR-0017 in full: exhaustive effect classification; interruption owned by the port boundary; one absolute governed expiry; acknowledged effects as facts; acquisition resolved at the resource; fencing enforced at the effect; terminal settlement bounded independently of the run clock; lifecycle authority gating effect progression; and finalization as a distinct effect class |
+| **Promotes** | merged PR [#82](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82) (`95346de`) into a canonical home, as [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) requires |
+| **Unresolved decisions resolved** | **NONE.** [U11](../architecture/unresolved-decisions.md#u11) *inherits* §5, §6, and §9 rather than being answered by them |
+
+**What was accepted.** The orchestration-side effect contract that
+[ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) deliberately left outside
+the adapter SPI. Every asynchronous port method carries exactly one effect class,
+and an unclassified method must fail a gate rather than a review. Interruption
+belongs to the boundary, and the effect is not started before the abort check. A
+lost acknowledgement is not an absent effect. Acquisition uncertainty is resolved
+at the resource, because the caller cannot compensate for a grant it never
+learned about. Fencing is the resource refusing an older generation — **with its
+limit stated**: a stale write to a resource the new owner has never touched is
+admitted, and terminating the dispossessed worker is a substrate concern.
+
+**What this acceptance does NOT do.**
+
+- It does **not** accept
+  [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md).
+  Invisible staging, the single visibility transition, the atomicity model,
+  staging custody, cross-path domain identity, and finalization concurrency
+  remain undecided.
+- It does **not** authorize the operative `docs/architecture/` descriptions.
+  Those follow ADR-0018's acceptance.
+- It does **not** change production code, knowledge content, or any gate.
+  `blockedByToolchain` stays `false` on 23/23 and `blockedByRollout` is untouched.
+- It does **not** mandate TypeScript typestate, `RunAborted`, phase class names,
+  file decomposition, or module-size limits. §8's validation obligation names
+  typestate as the current **proof technique**; the requirement is the proof, not
+  the mechanism.
+
+**CI state at the accepted commit**, recorded because it is unusual:
+
+```text
+Repository checks workflow: PASS
+Exact-head attached checks: 5/5 PASS
+CodeQL default-setup checks: NOT DISPATCHED for this SHA
+No CodeQL failure exists
+```
+
+An absent GitHub-managed dispatch is not a failed security result, and the
+commit changes only a decision document. Manufacturing a further commit to coax
+the dispatch would have broken the chain between the reviewed bytes and the
+accepted bytes.
+
 ## Which ADRs apply to what I am changing?
 
 | If you are touching… | Read at least |
@@ -384,8 +438,8 @@ discharges **no** executable obligation.
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
-| runner orchestration crossing an asynchronous port | **ADR-0017** (Proposed) + ADR-0013 |
-| finalization, run identity, or replay of a durable fact | **ADR-0018** (Proposed) + ADR-0017 (Proposed) |
+| runner orchestration crossing an asynchronous port | **ADR-0017** + ADR-0013 |
+| finalization, run identity, or replay of a durable fact | **ADR-0018** (Proposed) + **ADR-0017** |
 
 ## Deliberately not decided
 
