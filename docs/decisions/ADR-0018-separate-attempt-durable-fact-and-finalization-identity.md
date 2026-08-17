@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-08-16
 - **Deciders:** @mikegtech (repository owner)
-- **Depends on:** [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md), which establishes finalization as a distinct effect class. **ADR-0017 must be accepted first**
+- **Depends on:** [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md), which establishes finalization as a distinct effect class — **accepted 2026-08-17, so this dependency is satisfied.** A satisfied dependency is not an acceptance; this ADR still requires its own explicit decision
 - **Refines / supersedes in part:** nothing. It **adds** the identity and publication contract no accepted decision owns
 - **Preserves:** [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) §3 — an adapter-reported terminal remains observational input and never lifecycle authority; [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md)'s fail-closed posture
 - **Closes:** no unresolved decision. [U11](../architecture/unresolved-decisions.md#u11) inherits the staging contract, not a storage design
@@ -123,9 +123,16 @@ Stable identity is necessary and insufficient. A replay ledger must retain enoug
 A caller fails closed on a conflict: the entry stays pending, and no conclusion
 claims a durable property it could not establish.
 
-**Canonical intent, not the identity string.** A timestamp regenerated on retry
-can turn an intended exact replay into a conflict. A record that must be retried
-is therefore built once and retried verbatim, rather than rebuilt.
+**Canonical intent, not the identity string.** The requirement is that **every
+retry presents canonical logical content equal to the original intent**.
+Volatile regeneration that changes canonical content is prohibited — a timestamp
+minted afresh on retry turns an intended exact replay into a conflict against the
+run's own record. A retry reconstructed **deterministically from durable intent**
+is equally valid, provided its canonical content is identical.
+
+Building the record once and replaying it verbatim is the current reference
+technique. It is not the architectural requirement, and it is not a storage
+design.
 
 ### 4. Finalization is atomic publication, not write order
 
@@ -207,7 +214,11 @@ here would settle by drafting what was deliberately left unproven.
 Architectural properties, not collection types:
 
 - one in-flight commit identity binds **one** canonical intent;
-- an exact concurrent replay may **join** the single underlying transaction;
+- an exact concurrent replay **must not create a second durable transaction or
+  fact**. Joining a single underlying transaction (single-flight) is permitted
+  and is the reference implementation; serializing the replays and reconciling
+  the second as an exact replay conforms equally. The invariant is the absence of
+  a second durable fact, not the concurrency strategy that achieves it;
 - a conflicting intent under the same commit identity **refuses before
   publication**, with nothing staged;
 - one ownership generation may publish **at most one** terminal transaction; a
@@ -283,9 +294,22 @@ terminal whose companions never landed.
 forged account of what the household's agent did — the audit record ceases to be
 evidence.
 
-**A dispossessed attempt cannot write a verdict.** Ownership loss and identity
-corruption stay distinct, so a caller cannot be induced to recover as though it
-merely lost a race.
+**A dispossessed attempt has no authority to write a logical-run verdict.** That
+is §1's normative rule, and it holds regardless of what any resource can
+physically refuse.
+
+What the mechanism proves is narrower, and the two must not be conflated.
+Publication re-establishes ownership at the **actual finalization effect
+boundary**, so once finalization observes ownership loss — or the publication
+boundary refuses the stale fencing identity — that attempt cannot publish a
+verdict. This ADR does **not** claim a stale holder is globally incapable of
+touching a resource that has never learned the newer generation:
+[ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) §6
+states that limit deliberately, and an accepted limit must not be quietly erased
+by a later document's prose.
+
+Ownership loss and identity corruption also stay distinct, so a caller cannot be
+induced to recover as though it merely lost a race.
 
 **Conflicting replay is refused with the first fact intact.** An attacker or a
 bug replaying a landed identity with different content cannot overwrite the
@@ -303,8 +327,9 @@ finalized and unowned.
 preparation lets the run terminate on what actually happened rather than on a
 partially published fiction.
 
-**Exact concurrent replays join rather than contend**, so a retry storm does not
-multiply transactions.
+**Concurrent exact replays never multiply durable transactions**, so a retry
+storm cannot. Whether they join one in-flight transaction or serialize and
+reconcile is an implementation choice this ADR leaves open.
 
 **Reconciliation avoids duplicate work** when a participant's fact is already
 durable.
@@ -317,24 +342,62 @@ consistent with [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorizati
 
 ## Validation and follow-up obligations
 
-1. **Adversarial proof that no path publishes a second terminal**, including a
+1. **Attempt-versus-logical-run proven (§1).** Adversarial and structural
+   evidence that a dispossessed attempt ends as an ATTEMPT outcome and does
+   **not** manufacture a lifecycle terminal for the logical run; that the
+   conclusion constrains the state it may carry; and that a table granting no
+   terminal is reported as non-terminal rather than by naming a progress state as
+   though it were one. Evidence: PR #82 RO-EX-108 — a dispossessed attempt
+   concludes ownership-lost producing nothing, while an ordinary run concludes
+   terminal and a consent-held run concludes held; and RO-EX-117 — every
+   conclusion variant constrains its state, a dispossessed attempt does not
+   terminalize its machine, and a machine granted no terminal reports
+   *unterminated* rather than *terminal*. The current TypeScript discriminant
+   names are not mandated; the distinctions are.
+
+2. **The three identity planes proven distinct (§2)**, each in the direction that
+   matters:
+
+   - **transaction identity is not domain-fact identity** — the same commit
+     identity carrying a different canonical intent conflicts and refuses
+     *before* publication, so identity equality never makes different facts
+     equal. Evidence: RO-EX-182 (in flight, refused with no participant staging)
+     and RO-EX-162 (already published, refused with the first intent kept);
+   - **ownership identity is not transaction identity** — distinct commit
+     identities under one ownership generation may stage invisibly, and at most
+     one publishes a terminal, so generation equality never makes transactions
+     equal. Evidence: RO-EX-183;
+   - **a durable domain fact is not a committed transaction** — a pre-existing
+     exact durable participant may be reconciled, and doing so neither commits
+     the finalization transaction nor discharges the other participant facts it
+     still owes. Evidence: RO-EX-178, RO-EX-189, RO-EX-191.
+
+3. **Canonical replay proven, not identity membership (§3).** A repeated identity
+   carrying different canonical content is refused with the first fact unchanged,
+   across every replay ledger rather than one. Evidence: RO-INV-93 with
+   RO-EX-172, RO-EX-173, RO-EX-175, and RO-EX-176.
+
+4. **Adversarial proof that no path publishes a second terminal**, including a
    lost acknowledgement retried under the same caller identity.
-2. **Conflicting replay proven distinct from stale fencing** in both the refusal
+5. **Conflicting replay proven distinct from stale fencing** in both the refusal
    and the caller's handling.
-3. **Publication atomicity proven by abandonment**: after a participant refuses to
+6. **Publication atomicity proven by abandonment**: after a participant refuses to
    stage, no observable run state changed.
-4. **Cross-path uniqueness proven** for ordinary landing, staged publication, and
+7. **Cross-path uniqueness proven** for ordinary landing, staged publication, and
    both racing — with the open acknowledgement-disposition cell left explicitly
    untested-as-decided, so a future reader does not mistake silence for a
    decision.
-5. **Staging custody proven**: one transaction's abandon does not release
+8. **Staging custody proven**: one transaction's abandon does not release
    another's stage, and no acknowledgement depends on an unowned stage.
-6. **[U11](../architecture/unresolved-decisions.md#u11) must inherit §4** — the
+9. **[U11](../architecture/unresolved-decisions.md#u11) must inherit §4** — the
    staging contract, not the reference representation. A store that cannot stage
    invisibly does not satisfy this ADR.
-7. **Acceptance ordering.** [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md)
-   must be accepted **first**; this ADR builds on its finalization effect class.
-8. **Operative architecture description** follows **after** acceptance, per
+10. **Acceptance ordering — satisfied.**
+   [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) was
+   accepted on 2026-08-17, so the dependency this ADR builds on is discharged.
+   That is not the same event as this ADR being accepted, and it does not
+   authorize accepting it.
+11. **Operative architecture description** follows **after** acceptance, per
    [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
    A Proposed ADR must not become binding by being restated as settled
    architecture in a lower-precedence document.
@@ -347,4 +410,4 @@ consistent with [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorizati
 - [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) §3 — adapter terminal state as observational input
 - [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — the promotion obligation this ADR discharges
 - [U11](../architecture/unresolved-decisions.md#u11) — persistence, which inherits the staging contract
-- Evidence: PR #82 `design.md` D7, D12, D10, D14; invariants RO-INV-83, 87, 88, 91, 93, 94, 95, 96
+- Evidence: PR #82 `design.md` D7, D10, D12, D14; invariants RO-INV-62, 83, 87, 88, 91, 93, 94, 95, 96; proofs RO-EX-108/117 (attempt vs logical run), RO-EX-162/182/183 (identity planes), RO-EX-172/173/175/176 (canonical replay), RO-EX-178/184/189/191 (cross-path, single-flight)
