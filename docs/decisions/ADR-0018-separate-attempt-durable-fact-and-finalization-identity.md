@@ -1,9 +1,10 @@
 # ADR-0018: Separate orchestration-attempt, durable-fact, and finalization-transaction identity
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-16
+- **Accepted:** 2026-08-17
 - **Deciders:** @mikegtech (repository owner)
-- **Depends on:** [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md), which establishes finalization as a distinct effect class — **accepted 2026-08-17, so this dependency is satisfied.** A satisfied dependency is not an acceptance; this ADR still requires its own explicit decision
+- **Depends on:** [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md), which establishes finalization as a distinct effect class — **accepted 2026-08-17, so this dependency was satisfied before this ADR was accepted.** The ordering was the point of proposing two ADRs, and it was honoured: two decisions, two explicit acceptances
 - **Refines / supersedes in part:** nothing. It **adds** the identity and publication contract no accepted decision owns
 - **Preserves:** [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) §3 — an adapter-reported terminal remains observational input and never lifecycle authority; [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md)'s fail-closed posture
 - **Closes:** no unresolved decision. [U11](../architecture/unresolved-decisions.md#u11) inherits the staging contract, not a storage design

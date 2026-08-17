@@ -137,17 +137,15 @@ implementation-neutral. These decide how it is built.
 | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
-| [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | **Proposed** | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
+| [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 
 > **ADR-0017 is `Accepted`** (2026-08-17) and **immutable**. See
 > [the ADR-0017 acceptance record](#adr-0017-acceptance-record).
 >
-> **ADR-0018 remains `Proposed`** and decides nothing yet. Its dependency is now
-> satisfied — ADR-0017 defines finalization as a distinct effect class — but
-> acceptance is a separate explicit decision. Until it is accepted, no
-> lower-precedence document may restate it as settled architecture, and the
-> invisible-staging, single-visibility-transition, atomicity, staging-custody,
-> cross-path-identity, and finalization-concurrency rules are undecided.
+> **ADR-0018 is `Accepted`** (2026-08-17) and **immutable**. See
+> [the ADR-0018 acceptance record](#adr-0018-acceptance-record). Its dependency
+> on ADR-0017 was satisfied *before* it was accepted, and each was a separate
+> explicit decision — which is what proposing two ADRs was for.
 >
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
@@ -416,6 +414,65 @@ commit changes only a decision document. Manufacturing a further commit to coax
 the dispatch would have broken the chain between the reviewed bytes and the
 accepted bytes.
 
+### ADR-0018 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-17 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Accepted at** | `f41fee5e75244765f5b214be7e87b35d83d90814` — the exact reviewed commit |
+| **Depends on** | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md), accepted 2026-08-17 — satisfied **before** this acceptance, in that order |
+| **Scope** | ADR-0018 in full: attempt outcome distinct from logical-run terminal; three non-interchangeable identity planes; identity equality insufficient without canonical content; finalization as invisible staging plus one publication transition; a pre-existing durable participant not committing the transaction; staging custody distinct from fact equivalence; one domain identity yielding at most one durable fact across every creation path; and the finalization-concurrency properties |
+| **Promotes** | merged PR [#82](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82) (`95346de`) into a canonical home, as [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) requires |
+| **Unresolved decisions resolved** | **NONE.** [U11](../architecture/unresolved-decisions.md#u11) *inherits* the staging contract rather than being answered by it |
+
+**What was accepted.** Finalization is one atomic publication, not an ordering of
+writes: every fallible participant stages invisibly, exactly one visibility
+transition publishes what the transaction owes, and there is no compensating
+rollback afterwards. Three identities answer three different questions and never
+imply one another. A replay ledger retains canonical content, so an exact retry
+reconciles and a conflicting one refuses with the first fact intact — and that
+refusal is never mislabelled as stale fencing.
+
+**A deliberate non-decision was accepted as such.** The acknowledgement
+disposition of an exact staged-versus-ordinary replay was left open by PR #82;
+durable uniqueness and acknowledgement truthfulness were proven, and which
+acknowledgement that cell returns was not. This ADR does **not** settle it.
+
+**What this acceptance does NOT do.**
+
+- It does **not** mandate an implementation. The commit marker and in-memory MVCC
+  are the reference realization of §4; a database transaction or durable marker
+  conforms equally, and single-flight joining is one permitted way to satisfy §8
+  rather than the requirement.
+- It does **not** widen [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md)
+  §6's fencing limit. A dispossessed attempt has no *authority* to manufacture a
+  logical-run verdict; the *mechanism* guarantee is that publication
+  re-establishes ownership at the finalization boundary. A stale write to a
+  resource that has never observed the newer generation is still admitted.
+- It does **not** change production code, knowledge content, or any gate.
+- It does **not** author the operative `docs/architecture/` descriptions. Both
+  ADRs are now accepted, so that work is unblocked — but it is a separate
+  landing.
+
+**CI state at the accepted commit**, recorded because it is unusual:
+
+```text
+Repository checks workflow: PASS — 5/5 repo-owned checks
+CodeQL Analyze (actions):            PASS
+CodeQL Analyze (javascript-typescript): PASS
+CodeQL Analyze (python):             FAILURE — GitHub infrastructure
+CodeQL:                              neutral — downstream of the above
+```
+
+The Python job failed inside `Initialize CodeQL`, before analysing anything:
+`HttpError: No server is currently available to service your request` while
+determining feature enablement. The `CodeQL` neutral reports `1 configuration
+not found` as its consequence. **No security finding exists.** Re-running the
+job was attempted and refused by GitHub (`This workflow run cannot be retried`),
+and no commit was manufactured to force a fresh dispatch — that would have
+separated the reviewed bytes from the accepted bytes.
+
 ## Which ADRs apply to what I am changing?
 
 | If you are touching… | Read at least |
@@ -439,7 +496,7 @@ accepted bytes.
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
 | runner orchestration crossing an asynchronous port | **ADR-0017** + ADR-0013 |
-| finalization, run identity, or replay of a durable fact | **ADR-0018** (Proposed) + **ADR-0017** |
+| finalization, run identity, or replay of a durable fact | **ADR-0018** + **ADR-0017** |
 
 ## Deliberately not decided
 

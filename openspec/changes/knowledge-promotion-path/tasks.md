@@ -358,3 +358,55 @@ No CodeQL failure exists
 The absence is a missing GitHub-managed dispatch, not a failed result. No commit
 was manufactured to trigger it, because that would have separated the reviewed
 bytes from the accepted bytes.
+
+## Human acceptance — ADR-0018
+
+| | |
+|---|---|
+| **Decision** | the repository owner reviewed and **accepted ADR-0018** as written |
+| **Reviewed commit** | `f41fee5e75244765f5b214be7e87b35d83d90814` |
+| **Accepted** | 2026-08-17 by @mikegtech (repository owner) |
+| **Dependency** | ADR-0017, accepted 2026-08-17 — satisfied **before** this acceptance, in that order |
+
+**Prompt 3's promotion is complete.** Both ADRs are Accepted, so the durable
+architecture learned in merged PR #82 now has canonical homes and no longer
+survives only as the history of one pull request — which is what
+[ADR-0014](../../../docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)
+required.
+
+The two-ADR structure did its job. ADR-0017 was accepted while ADR-0018 was still
+Proposed, and during that window nothing restated ADR-0018's staging, atomicity,
+custody, cross-path-identity, or concurrency rules as settled. A satisfied
+dependency never became an acceptance.
+
+**Now unblocked, and deliberately not done here — Prompt 3B:**
+
+- `docs/architecture/effect-boundary-model.md`
+- `docs/architecture/distributed-effect-lifecycle.md`
+- the `docs/architecture/runner-model.md` update, without duplicating the ADRs
+- placing the proof-quality obligation (lesson 15) in its governed contract —
+  a provider-neutral repository contract such as `CONTRIBUTING.md`, not
+  `.github/agents/`, not a provider skill, and not knowledge
+
+**Still open after Prompt 3:**
+
+- the acknowledgement disposition of an exact staged-versus-ordinary replay,
+  preserved as a non-decision by ADR-0018 §7;
+- lifecycle-evidence tightening for `Validated`/`Packaged`, which sits between
+  Prompt 3 and Prompt 4;
+- projection of these lessons into `knowledge/platform/**`, which is Prompt 4.
+
+**CI at the accepted commit**, recorded because it is unusual:
+
+```text
+Repository checks workflow: PASS - 5/5 repo-owned checks
+CodeQL Analyze (actions): PASS
+CodeQL Analyze (javascript-typescript): PASS
+CodeQL Analyze (python): FAILURE - GitHub infrastructure
+CodeQL: neutral - downstream of the above
+```
+
+The Python job failed inside `Initialize CodeQL`, before analysing anything, with
+`HttpError: No server is currently available`. No security finding exists. A
+re-run was attempted and refused by GitHub, and no commit was manufactured to
+force a fresh dispatch.
