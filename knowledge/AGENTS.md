@@ -61,11 +61,12 @@ value be different in ten minutes?** If yes, it is state.
 
 ## Do not
 
-- Author a real bundle. The toolchain now exists and content admission runs in
-  CI, but **`blockedByToolchain` is still true**: the integration has not passed
-  independent review, and authoring eligibility requires both gates open.
-  Once the gate is discharged, authored content must pass
-  `pnpm run check:knowledge-content`, and publication still requires Proof B.
+- Author content for a module that is **not authoring-eligible**. Eligibility
+  requires *both* gates false. `blockedByToolchain` was discharged on
+  2026-08-16, so the ten `platform/**` modules are eligible; `household/**`,
+  `runbooks/**`, and every set are still `blockedByRollout`. Whatever you author
+  must pass `pnpm run check:knowledge-content`, and publication still requires
+  Proof B, which has no producer.
 - Change the source format. It is decided by
   [ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
   (OKF v0.2); replacing it requires a superseding ADR, not a change here.
@@ -81,9 +82,10 @@ value be different in ten minutes?** If yes, it is state.
 3. Add it to [`INDEX.md`](INDEX.md).
 4. Add it to the sets that should receive it, **and to the `deny` list of the
    sets that should not.**
-5. Do not author content while `blockedByToolchain` is true. After it is
-   discharged, authoring requires **both** gates false — `blockedByRollout` too
-   — and whatever you author must pass `pnpm run check:knowledge-content`.
+5. Author content only for an authoring-eligible module — **both** gates
+   false. `blockedByToolchain` is discharged; `blockedByRollout` is not, outside
+   `platform/**`. Whatever you author must pass
+   `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module
 no profile can select is invisible, and invisible things do not get reviewed.
@@ -107,7 +109,7 @@ ADR-0016 A/B/C model — class B indicators with named blind spots, class C
 classes with no detector by design — plus Proof A. It is not a full machine
 check, and the code says so in `COVERAGE` and `BLIND_SPOTS`.
 
-`admit` already fails on prohibited-content indicators, missing or wrongly-typed
+`admit` fails on prohibited-content indicators, missing or wrongly-typed
 metadata, envelope violations, unresolvable references, and an attestation that
-does not bind the exact bytes — as a gate, not a warning. What remains is
-independent review of the integration and a governed Proof B producer.
+does not bind the exact bytes — as a gate, not a warning. What remains is a
+governed Proof B producer, without which nothing may be published.

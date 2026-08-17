@@ -57,8 +57,9 @@
  *      prose view cannot drift from the machine-readable one;
  *   6. no module directory contains authored content — a specification directory
  *      holds its README and nothing else;
- *   7. no module or set claims a publishable status, and every entry carries
- *      blockedByToolchain: true, until the toolchain integration passes review;
+ *   7. no module or set claims a status it has not earned, and every entry
+ *      carries blockedByToolchain: false — discharged 2026-08-16, and pinned so
+ *      that re-blocking is as visible a transition as opening was;
  *   7b. every entry carries the blockedByRollout value ADR-0016 §7a fixes —
  *      an INDEPENDENT fact from toolchain readiness;
  *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
@@ -290,19 +291,26 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           'requires Proof B, and no governed producer exists (ADR-0016 §5a)',
       )
     }
-    // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT.
+    // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT — NOW DISCHARGED.
     //
     // U7 asked whether the format architecture was decided; ADR-0015 answered
     // it and U7 is RESOLVED. Authoring readiness is a DIFFERENT fact, and this
     // is where it lives. Requiring only that the field exist would have let
     // `false` pass on the day U7 closed — turning "the question is answered"
-    // into "the work is done" by omission. Opening authoring is an explicit
-    // reviewed transition: someone edits every entry, and the diff shows it.
-    if (m.blockedByToolchain !== true) {
+    // into "the work is done" by omission.
+    //
+    // The ADR-0015 §12 obligation was discharged on 2026-08-16, after the
+    // toolchain, its conformance suite, and repository content admission passed
+    // independent review. The assertion is INVERTED rather than deleted: the
+    // reason it existed — that a gate flipping silently is indistinguishable
+    // from a gate nobody read — applies in both directions. Re-blocking must
+    // also be a diff someone signed.
+    if (m.blockedByToolchain !== false) {
       fail(
-        `module "${id}": blockedByToolchain must be true until the ADR-0015 §12 ` +
-          'obligation is discharged by an explicit reviewed decision — the toolchain ' +
-          'and its conformance suite now exist, and independent review is what remains',
+        `module "${id}": blockedByToolchain must be false — the ADR-0015 §12 obligation ` +
+          'was discharged on 2026-08-16 after independent review of the toolchain and its ' +
+          'integration. Re-blocking authoring is an explicit reviewed transition too, and ' +
+          'must show as one',
       )
     }
     // ROLLOUT ELIGIBILITY, A DIFFERENT FACT FROM TOOLCHAIN READINESS.
@@ -396,10 +404,10 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     // The same gate, for sets. See the module check above.
-    if (s.blockedByToolchain !== true) {
+    if (s.blockedByToolchain !== false) {
       fail(
-        `set "${id}": blockedByToolchain must be true until the ADR-0015 §12 ` +
-          'obligation is discharged by an explicit reviewed decision',
+        `set "${id}": blockedByToolchain must be false — the ADR-0015 §12 obligation was ` +
+          'discharged on 2026-08-16. Re-blocking is an explicit reviewed transition too',
       )
     }
     // EVERY SET STARTS ROLLOUT-BLOCKED (ADR-0016 §7a). A set's gate means the

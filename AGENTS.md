@@ -80,11 +80,12 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-Until the toolchain integration passes independent review and governed query
-interfaces exist, [`knowledge/`](knowledge/) is
-**specification-only and not runtime-authoritative**. The toolchain and its
-conformance suite are implemented and run over real content in CI;
-`blockedByToolchain` records the review that remains. The selection contract is
+No module content is authored yet and no governed query interface exists at
+runtime, so [`knowledge/`](knowledge/) is
+**specification-only and not runtime-authoritative**. The toolchain, its
+conformance suite, and repository content admission are implemented and run in
+CI; the ADR-0015 §12 obligation was discharged on 2026-08-16, so authoring is
+open for the ten rollout-eligible `platform/**` modules. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers
@@ -113,14 +114,14 @@ Two consequences:
   procedure. If information must survive replacing a provider or runtime, its
   canonical source must be provider-neutral; where agents need to reason from
   it, project the appropriate subset into portable knowledge.
-- **Authoring a knowledge module is still blocked.** The toolchain and content
-  admission exist and run in CI; what remains is independent review of that
-  integration, which is what `blockedByToolchain` records — a different fact
-  from [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether
-  the format was decided and is RESOLVED. ADR-0014 decides *where a truth goes*;
-  it does not open the knowledge layer. Until the gate is discharged, the path
-  terminates at the canonical home and the determination is recorded rather than
-  acted on.
+- **Authoring a knowledge module is open only where BOTH gates are false.**
+  `blockedByToolchain` was discharged on 2026-08-16 after independent review of
+  the toolchain and its integration — a different fact from
+  [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether the
+  format was decided and is RESOLVED. `blockedByRollout` still holds
+  `household/**`, `runbooks/**`, and every set. ADR-0014 decides *where a truth
+  goes*; for a module that is not yet eligible the path still terminates at the
+  canonical home, with the determination recorded rather than acted on.
 
 ## Two kinds of agent — do not confuse them
 

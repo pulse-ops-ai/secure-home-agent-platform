@@ -15,12 +15,15 @@
     "is the human-facing view of it, and check-knowledge.mjs asserts the two agree",
     "in both directions so they cannot drift.",
     "",
-    "The toolchain and repository content admission exist. blockedByToolchain",
-    "remains true on every entry pending independent review of that integration,",
-    "so Validated and Packaged - which are post-toolchain lifecycle states - are",
-    "not yet claimable. Published additionally requires Proof B, for which no",
-    "governed producer exists (ADR-0016 5a), and that stays true after readiness",
-    "is discharged.",
+    "The toolchain, its conformance suite, and repository content admission are",
+    "implemented. The ADR-0015 12 obligation was discharged on 2026-08-16 after",
+    "independent review, so blockedByToolchain is false on every entry and",
+    "Validated and Packaged - post-toolchain lifecycle states - are representable",
+    "for a module that has earned them. Nothing is authored yet, so every entry",
+    "is still Planned. blockedByRollout is unchanged and still holds household,",
+    "runbooks, and every set: authoring eligibility requires BOTH gates false.",
+    "Published additionally requires Proof B, for which no governed producer",
+    "exists (ADR-0016 5a).",
     "",
     "Two freshness fields exist on a set and they are not the same thing:",
     "  freshnessPolicy  \u2014 when the COMPOSITION should be reviewed (prose)",
@@ -59,7 +62,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when an ADR changes the operating model.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -77,7 +80,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a taxonomy root is added, removed, or redefined.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -97,7 +100,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the precedence order or the ADR lifecycle changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -116,7 +119,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-governance triad or the merge-gate model changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -135,7 +138,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-direction model or the language boundary changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -154,7 +157,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the pull-request template or the reporting obligations change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -172,7 +175,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the contract-authoring model or the normalization pipeline changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -191,7 +194,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the worker runtime contract or the inference boundary changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -212,7 +215,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the runner concepts, the grant model, or the evidence contract change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -231,7 +234,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the degraded-mode classification changes, or when U1 resolves.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": false
     },
     {
@@ -246,7 +249,7 @@
       "governingSources": ["docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on renovation, room repurposing, or a change to area naming.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -264,7 +267,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on equipment replacement or service.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -282,7 +285,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a change to security equipment classes or signal semantics.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -300,7 +303,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -315,7 +318,7 @@
       "governingSources": ["CONTRIBUTING.md", "scripts/README.md", "CLAUDE.md"],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a check is added or removed, or reporting obligations change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -333,7 +336,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     },
     {
@@ -352,7 +355,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the stop conditions or the handover contract change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true
     }
   ],
@@ -373,7 +376,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the review conventions or the validation procedure change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
@@ -410,7 +413,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the implementation rules, workspace conventions, or worker contract change.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
@@ -448,7 +451,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the runner model or the degraded-mode classification changes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
@@ -483,7 +486,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a change to household topology or security equipment classes.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
@@ -525,7 +528,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on equipment replacement or a change to comfort conventions.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
@@ -568,7 +571,7 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
-      "blockedByToolchain": true,
+      "blockedByToolchain": false,
       "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",

@@ -3,20 +3,19 @@
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
-> **Status: specification only, and empty on purpose.** No bundle exists. No
-> schema is asserted. The format is **experimental** — see
-> [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md).
-> The toolchain must pass independent review **before** the first real bundle
-> is authored.
->
-> **`knowledge/` is not runtime-authoritative yet.** The FORMAT is decided
+> **Status: no content authored yet — but authoring is now open for the ten
+> rollout-eligible `platform/**` modules.** The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
-> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)), and the
-> toolchain and its conformance suite are **implemented**
-> (`packages/knowledge-toolchain`, invoked over real content by
-> `scripts/check-knowledge-content.mjs`). What remains is independent review of
-> that integration, which is what `blockedByToolchain` still records. Publication
-> is blocked separately: no Proof B producer exists (ADR-0016 §5a).
+> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
+> toolchain and its conformance suite are implemented and are invoked over real
+> content by `scripts/check-knowledge-content.mjs`; and the ADR-0015 §12
+> obligation was **discharged on 2026-08-16** after independent review, so
+> `blockedByToolchain` is `false` on all 23 entries.
+>
+> `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
+> authoring eligibility requires *both* gates false. Publication is blocked
+> separately and still is — no Proof B producer exists (ADR-0016 §5a) — so a
+> module may be authored, admitted, and packaged, but not published.
 
 ## Start here
 
@@ -170,6 +169,5 @@ missing or wrongly-typed metadata, envelope violations, unresolvable references,
 and an attestation that does not bind the exact bytes. `check-source-imports.mjs`
 separately proves that no production source imports a bundle file directly.
 
-**Still outstanding** — independent review of this integration, which is what
-`blockedByToolchain` records, and a governed Proof B producer, without which
-nothing is publishable.
+**Still outstanding** — a governed Proof B producer, without which nothing is
+publishable, and rollout for `household/**`, `runbooks/**`, and the sets.

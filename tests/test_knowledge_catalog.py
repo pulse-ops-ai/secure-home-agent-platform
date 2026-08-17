@@ -127,21 +127,20 @@ def test_no_set_references_a_file_path() -> None:
             assert ref.count("/") <= 1, f"set {s['id']}: {ref} is not a module id"
 
 
-def test_every_status_is_from_the_vocabulary_and_none_is_post_toolchain() -> None:
-    """The live gate is shut, so no entry may claim a post-toolchain state.
+def test_every_status_is_from_the_vocabulary_and_nothing_claims_more_than_planned() -> None:
+    """Readiness is discharged, but nothing has been authored, so nothing has
 
-    This asserts against POST_TOOLCHAIN rather than PUBLISHABLE: with the
-    lifecycle correctly separated, PUBLISHABLE is just ``Published``, and
-    checking only that would let a live entry claim ``Validated`` while
-    ``blockedByToolchain`` is still true.
+    earned a later state. ``Validated`` and ``Packaged`` are now *representable*
+    — that is the lifecycle separation working — and no entry may claim one
+    while its directory holds no source that admission has seen.
     """
     catalog = _catalog()
     for entry in [*catalog["modules"], *catalog["sets"]]:
         assert entry["status"] in STATUSES, f"{entry['id']}: unknown status {entry['status']}"
-        assert entry["blockedByToolchain"] is True
-        assert entry["status"] not in POST_TOOLCHAIN, (
-            f"{entry['id']}: status {entry['status']} is a post-toolchain state, but "
-            "readiness has not been discharged"
+        assert entry["blockedByToolchain"] is False
+        assert entry["status"] == "Planned", (
+            f"{entry['id']}: status {entry['status']} claims progress, but no module "
+            "content is authored yet"
         )
 
 
@@ -204,13 +203,35 @@ def test_a_gated_specification_directory_contains_no_authored_content() -> None:
     second, weaker authority over content the moment authoring opened, and it
     would have to be deleted rather than merely relaxed.
 
-    Every live module is gated today, so this still covers all 17.
+    Readiness is discharged, so NO live module is gated and this rule covers
+    none of them. The vacuity is asserted rather than hidden: a test that
+    silently stops covering anything is worse than one that says so, and the
+    predicate itself is still proven directly below.
     """
     gated = [m for m in _catalog()["modules"] if _readme_only_required(m)]
-    assert len(gated) == 17, "every live module is still gated; the coverage below is total"
-    for module in gated:
+    assert gated == [], (
+        "readiness is discharged, so the README-only rule applies to no live module; "
+        "content is check-knowledge-content.mjs's question now"
+    )
+    for module in gated:  # pragma: no cover - none are gated post-discharge
         entries = sorted(p.name for p in (KNOWLEDGE / module["id"]).iterdir())
         assert entries == ["README.md"], f"{module['id']}: authored content present — {entries}"
+
+
+def test_no_module_has_authored_source_yet() -> None:
+    """A STATE observation, not a rule.
+
+    Authoring is now permitted for the ten rollout-eligible ``platform/**``
+    modules, and none has been written. This records that the discharge landing
+    changed a gate and nothing else — it is expected to change the first time a
+    module is genuinely authored, and `check-knowledge-content.mjs` is what will
+    judge that content.
+    """
+    authored = {
+        module["id"]: sorted(p.name for p in (KNOWLEDGE / module["id"]).iterdir())
+        for module in _catalog()["modules"]
+    }
+    assert all(entries == ["README.md"] for entries in authored.values()), authored
 
 
 def test_this_file_does_not_police_content_once_the_gate_opens() -> None:
@@ -389,34 +410,38 @@ def test_a_duplicate_set_id_is_rejected(tmp_path: Path) -> None:
     assert "duplicate set id" in _output(result)
 
 
-def test_a_module_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
-    """The authoring gate is ENFORCED as true, not merely required as a field.
+def test_a_module_that_re_blocks_itself_is_rejected(tmp_path: Path) -> None:
+    """The authoring gate is ENFORCED, in whichever direction it currently sits.
 
-    This is the test that stops U7's resolution from becoming permission to
-    author. Before ADR-0015, ``blockedByU7`` had to be *present* and its value
-    was never read — so the day U7 closed, flipping it to ``false`` would have
-    opened authoring silently, with nothing objecting and no diff that read as a
-    decision. Opening authoring must be an explicit reviewed transition, and the
-    format question and the readiness question were never the same fact.
+    Before ADR-0015, ``blockedByU7`` had to be *present* and its value was never
+    read — so the day U7 closed, flipping it to ``false`` would have opened
+    authoring silently, with nothing objecting and no diff that read as a
+    decision. That is why the value became asserted rather than merely required.
+
+    The obligation was discharged on 2026-08-16, so the assertion is INVERTED
+    rather than deleted. The reason it existed is direction-agnostic: a gate that
+    moves silently is indistinguishable from a gate nobody reads, and quietly
+    re-blocking authoring would strand authored content with no decision behind
+    it. Both transitions must show as a signed diff.
     """
 
     def mutate(catalog: Any, root: Path) -> None:
-        catalog["modules"][0]["blockedByToolchain"] = False
+        catalog["modules"][0]["blockedByToolchain"] = True
 
-    result = _run(_fixture(tmp_path, "module-unblocked", mutate))
+    result = _run(_fixture(tmp_path, "module-reblocked", mutate))
     assert result.returncode != 0
-    assert "blockedByToolchain must be true" in _output(result)
+    assert "blockedByToolchain must be false" in _output(result)
 
 
 def test_a_set_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
     """The same gate for sets: a set is selectable, so an unblocked one matters."""
 
     def mutate(catalog: Any, root: Path) -> None:
-        catalog["sets"][0]["blockedByToolchain"] = False
+        catalog["sets"][0]["blockedByToolchain"] = True
 
     result = _run(_fixture(tmp_path, "set-unblocked", mutate))
     assert result.returncode != 0
-    assert "blockedByToolchain must be true" in _output(result)
+    assert "blockedByToolchain must be false" in _output(result)
 
 
 def test_rollout_eligibility_matches_the_accepted_initial_values() -> None:
@@ -451,20 +476,32 @@ def test_rollout_eligibility_never_implies_toolchain_readiness() -> None:
     eligible = [m for m in catalog["modules"] if m["blockedByRollout"] is False]
     assert eligible, "expected some rollout-eligible modules"
     for module in eligible:
-        assert module["blockedByToolchain"] is True, (
-            f"{module['id']}: rollout eligibility must not open the toolchain gate"
+        assert module["blockedByToolchain"] is False, (
+            f"{module['id']}: the toolchain gate was discharged for every entry"
         )
 
 
-def test_no_entry_is_open_on_both_gates() -> None:
-    """Authoring eligibility requires BOTH gates false. Nothing qualifies yet."""
+def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> None:
+    """Authoring eligibility requires BOTH gates false.
+
+    Discharging readiness opened authoring for the ten ``platform/**`` modules
+    and for nothing else. This is the proof that the two gates were genuinely
+    independent rather than one fact spelled twice: if discharging readiness had
+    released everything, ``blockedByRollout`` was never load-bearing.
+    """
     catalog = _catalog()
-    open_on_both = [
+    open_on_both = sorted(
         e["id"]
         for e in [*catalog["modules"], *catalog["sets"]]
         if e["blockedByToolchain"] is False and e["blockedByRollout"] is False
+    )
+    assert len(open_on_both) == 10, open_on_both
+    assert all(i.startswith("platform/") for i in open_on_both), open_on_both
+
+    still_blocked = [
+        e["id"] for e in [*catalog["modules"], *catalog["sets"]] if e["blockedByRollout"] is True
     ]
-    assert open_on_both == [], f"authoring is not open, but these qualify: {open_on_both}"
+    assert len(still_blocked) == 13, still_blocked
 
 
 def test_a_module_with_the_wrong_rollout_value_is_rejected(tmp_path: Path) -> None:
@@ -493,12 +530,20 @@ def test_a_set_that_unblocks_its_rollout_is_rejected(tmp_path: Path) -> None:
     assert "blockedByRollout must be true" in _output(result)
 
 
-def test_the_gate_is_true_for_every_registered_entry() -> None:
-    """The live registry, not a fixture: nothing has quietly unblocked itself."""
+def test_the_gate_is_discharged_for_every_registered_entry() -> None:
+    """The live registry, not a fixture: the transition covered all 23 entries.
+
+    A partial discharge would be the worse outcome — some entries readable as
+    "reviewed" and others not, with no record of which. The obligation was one
+    obligation, and it was discharged once.
+    """
     catalog = _catalog()
-    for entry in [*catalog["modules"], *catalog["sets"]]:
-        assert entry["blockedByToolchain"] is True, (
-            f"{entry['id']}: authoring is not blocked, but the ADR-0010 toolchain does not exist"
+    entries = [*catalog["modules"], *catalog["sets"]]
+    assert len(entries) == 23
+    for entry in entries:
+        assert entry["blockedByToolchain"] is False, (
+            f"{entry['id']}: the ADR-0015 §12 obligation was discharged on 2026-08-16; "
+            "an entry still carrying the gate would mean the transition was partial"
         )
 
 
@@ -568,6 +613,11 @@ def test_a_post_toolchain_status_is_refused_while_readiness_is_undischarged(
 
         def mutate(catalog: Any, root: Path, status: str = status) -> None:
             catalog["modules"][0]["status"] = status
+            # Explicitly re-blocked: since the discharge, this branch is only
+            # reachable in a catalog that also fails the gate-value rule. Both
+            # findings are expected; the one under test is the reason given for
+            # the STATUS, which must be readiness rather than Proof B.
+            catalog["modules"][0]["blockedByToolchain"] = True
 
         result = _run(_fixture(tmp_path, f"post-toolchain-{index}", mutate))
         assert result.returncode != 0, f"{status} was accepted while readiness is undischarged"
@@ -625,21 +675,41 @@ def test_publication_is_downstream_of_readiness_in_the_vocabulary() -> None:
     assert set(catalog["publishableStatuses"]) <= set(catalog["postToolchainStatuses"])
 
 
-def test_authored_content_in_a_specification_directory_is_rejected(tmp_path: Path) -> None:
-    """ADR-0010's gating rule, enforced rather than described."""
-
+def _authored_module(gated: bool) -> Any:
     def mutate(catalog: Any, root: Path) -> None:
-        directory = root / "knowledge" / catalog["modules"][0]["id"]
+        module = catalog["modules"][0]
+        module["blockedByToolchain"] = gated
+        directory = root / "knowledge" / module["id"]
         directory.mkdir(parents=True)
         (directory / "README.md").write_text(
-            f"| Status | `{catalog['modules'][0]['status']}` |\n"
-            f"| Owner | {catalog['modules'][0]['owner']} |\n"
+            f"| Status | `{module['status']}` |\n| Owner | {module['owner']} |\n"
         )
         (directory / "facts.yaml").write_text("zones: []\n")
 
-    result = _run(_fixture(tmp_path, "authored", mutate))
+    return mutate
+
+
+def test_authored_content_under_a_gated_module_is_rejected(tmp_path: Path) -> None:
+    """The rule still works where it still applies."""
+    result = _run(_fixture(tmp_path, "authored-gated", _authored_module(gated=True)))
     assert result.returncode != 0
     assert "only README.md is permitted" in _output(result)
+
+
+def test_authored_content_under_an_open_module_is_not_a_registry_finding(
+    tmp_path: Path,
+) -> None:
+    """THE POST-DISCHARGE HALF.
+
+    Once readiness is discharged, candidate source is exactly what belongs in
+    the directory. Whether the content is *acceptable* is
+    `check-knowledge-content.mjs`'s question — the registry checker must not
+    answer it, or it becomes a second and weaker authority over content.
+    """
+    result = _run(_fixture(tmp_path, "authored-open", _authored_module(gated=False)))
+    assert "only README.md is permitted" not in _output(result), (
+        "with the gate discharged, authored source is permitted here"
+    )
 
 
 def test_a_readme_that_disagrees_with_the_catalog_is_rejected(tmp_path: Path) -> None:
@@ -835,6 +905,12 @@ STALE_PHRASES = (
     "validator still comes first",
     "Choosing the bundle format is U7",
     "Validated, Packaged, or Published until",
+    # Stale since the 2026-08-16 discharge. Guidance that still describes the
+    # gate as shut would send an agent looking for permission it already has.
+    "blockedByToolchain is still true",
+    "pending independent review",
+    "records the review that remains",
+    "gate is still shut",
 )
 
 

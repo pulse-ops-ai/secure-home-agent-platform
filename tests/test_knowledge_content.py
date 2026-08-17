@@ -294,7 +294,7 @@ def test_a_symlink_member_is_refused_rather_than_followed(tmp_path: Path) -> Non
 
 
 def test_authored_source_under_the_toolchain_gate_is_refused(tmp_path: Path) -> None:
-    """The CURRENT live posture: `blockedByToolchain` true, so nothing is eligible."""
+    """Still enforced for any entry carrying the gate, though none now does."""
     Repo(tmp_path / "repo").module(sources=_valid_sources(), toolchain=True).write()
     result = _run(tmp_path / "repo")
     assert result.returncode != 0
@@ -469,15 +469,23 @@ def test_the_readme_only_rule_is_scoped_to_the_toolchain_gate(tmp_path: Path) ->
     )
 
 
-def test_the_live_toolchain_gate_is_still_shut() -> None:
-    """The scoping above must not have opened anything in the live repository."""
+def test_the_live_gates_are_exactly_what_the_discharge_intended() -> None:
+    """Readiness discharged for all 23; rollout untouched.
+
+    The discharge landing changed one gate. If it had released everything, the
+    two gates were never independent — so the rollout distribution is asserted
+    as part of the same fact rather than as a separate courtesy.
+    """
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
     entries = [*catalog["modules"], *catalog["sets"]]
     assert len(entries) == 23
-    assert all(e["blockedByToolchain"] is True for e in entries)
-    assert not [e for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]], (
-        "no entry may be open on both gates"
+    assert all(e["blockedByToolchain"] is False for e in entries)
+
+    eligible = sorted(
+        e["id"] for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]
     )
+    assert len(eligible) == 10 and all(i.startswith("platform/") for i in eligible), eligible
+    assert len([e for e in entries if e["blockedByRollout"] is True]) == 13
 
 
 # --- live catalog / profile contract alignment ------------------------------

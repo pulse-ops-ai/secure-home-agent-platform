@@ -48,12 +48,11 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**Everything below is `Planned`.** `Validated` and `Packaged` are
-post-toolchain lifecycle states: they are unreachable while `blockedByToolchain`
-is true, which it is on every entry pending independent review. `Published`
-additionally requires Proof B, for which no governed producer exists, so it
-stays unreachable after readiness is discharged. `check-knowledge.mjs` fails if
-anything claims one of them, and distinguishes the two reasons.
+**Everything below is `Planned`**, because nothing is authored yet.
+`blockedByToolchain` was discharged on 2026-08-16, so `Validated` and `Packaged`
+are now representable for a module that has earned them. `Published`
+additionally requires Proof B, for which no governed producer exists, and stays
+refused. `check-knowledge.mjs` distinguishes the two reasons.
 
 ## Modules
 
