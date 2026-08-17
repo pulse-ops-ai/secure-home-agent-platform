@@ -9,7 +9,6 @@ its limits are.
 |---|---|
 | Status | `Planned` |
 | Owner | human:mikegtech |
-| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
 
 > Registered as module `household/climate` in [`../../INDEX.md`](../../INDEX.md).
 > Specification only, and not runtime-authoritative.

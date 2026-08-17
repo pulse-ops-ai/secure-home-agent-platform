@@ -48,7 +48,11 @@ STATUSES = {
     "Deprecated",
     "Retired",
 }
-PUBLISHABLE = {"Validated", "Packaged", "Published"}
+# Three stages, not one flag. `POST_TOOLCHAIN` states need the readiness gate
+# open; `PUBLISHABLE` additionally needs a governed Proof B producer, which does
+# not exist. Proof B gates publication and nothing earlier.
+POST_TOOLCHAIN = {"Validated", "Packaged", "Published"}
+PUBLISHABLE = {"Published"}
 
 
 def _catalog() -> dict[str, Any]:
@@ -123,14 +127,21 @@ def test_no_set_references_a_file_path() -> None:
             assert ref.count("/") <= 1, f"set {s['id']}: {ref} is not a module id"
 
 
-def test_every_status_is_from_the_vocabulary_and_nothing_is_published() -> None:
-    """Without the toolchain there is no validator, so nothing can have earned publication."""
+def test_every_status_is_from_the_vocabulary_and_none_is_post_toolchain() -> None:
+    """The live gate is shut, so no entry may claim a post-toolchain state.
+
+    This asserts against POST_TOOLCHAIN rather than PUBLISHABLE: with the
+    lifecycle correctly separated, PUBLISHABLE is just ``Published``, and
+    checking only that would let a live entry claim ``Validated`` while
+    ``blockedByToolchain`` is still true.
+    """
     catalog = _catalog()
     for entry in [*catalog["modules"], *catalog["sets"]]:
         assert entry["status"] in STATUSES, f"{entry['id']}: unknown status {entry['status']}"
-        assert entry["status"] not in PUBLISHABLE, (
-            f"{entry['id']}: status {entry['status']} claims a published artifact "
-            "without a toolchain"
+        assert entry["blockedByToolchain"] is True
+        assert entry["status"] not in POST_TOOLCHAIN, (
+            f"{entry['id']}: status {entry['status']} is a post-toolchain state, but "
+            "readiness has not been discharged"
         )
 
 
@@ -153,11 +164,71 @@ def test_every_module_directory_is_registered() -> None:
     assert on_disk == registered, f"unregistered: {sorted(on_disk - registered)}"
 
 
-def test_no_specification_directory_contains_authored_content() -> None:
-    """The gating rule from ADR-0010: the validator comes before the content."""
-    for module in _catalog()["modules"]:
+def _readme_only_required(module: dict[str, Any]) -> bool:
+    """Whether this module's directory must hold README.md and nothing else.
+
+    Scoped to the gate, matching ``check-knowledge.mjs``. **Extracted so the
+    scoping is falsifiable.** Written inline over the live catalog it was not:
+    every live module is gated today, so an unconditional rule and a scoped one
+    select exactly the same 17 modules, and a mutation restoring the
+    unconditional form survived with every test still green.
+    """
+    return module["blockedByToolchain"] is True
+
+
+def test_the_readme_only_requirement_is_scoped_to_the_gate() -> None:
+    """The transition, proven on the predicate rather than on today's catalog.
+
+    toolchain true  + candidate source -> specification-only refusal stands
+    toolchain false + candidate source -> this file does not police it;
+                                          check-knowledge-content.mjs owns it
+    """
+    assert _readme_only_required({"blockedByToolchain": True, "blockedByRollout": True})
+    assert _readme_only_required({"blockedByToolchain": True, "blockedByRollout": False})
+    assert not _readme_only_required({"blockedByToolchain": False, "blockedByRollout": False}), (
+        "once readiness is discharged, candidate source is what belongs in the directory"
+    )
+    assert not _readme_only_required({"blockedByToolchain": False, "blockedByRollout": True}), (
+        "rollout gates AUTHORING ELIGIBILITY, not whether this file inspects content"
+    )
+
+
+def test_a_gated_specification_directory_contains_no_authored_content() -> None:
+    """Scoped to the gate, matching `check-knowledge.mjs`.
+
+    While a module's ``blockedByToolchain`` is true its directory is
+    specification-only and authored content is a finding. Once that gate is
+    discharged, candidate source is exactly what belongs there — and whether the
+    content is *acceptable* is `check-knowledge-content.mjs`'s question, not
+    this file's. Asserting README-only unconditionally would make this test a
+    second, weaker authority over content the moment authoring opened, and it
+    would have to be deleted rather than merely relaxed.
+
+    Every live module is gated today, so this still covers all 17.
+    """
+    gated = [m for m in _catalog()["modules"] if _readme_only_required(m)]
+    assert len(gated) == 17, "every live module is still gated; the coverage below is total"
+    for module in gated:
         entries = sorted(p.name for p in (KNOWLEDGE / module["id"]).iterdir())
         assert entries == ["README.md"], f"{module['id']}: authored content present — {entries}"
+
+
+def test_this_file_does_not_police_content_once_the_gate_opens() -> None:
+    """The ownership boundary, asserted structurally rather than described.
+
+    Python governance must not grow a parallel admission implementation. If this
+    module ever starts reading module source, the boundary has moved and the two
+    answers will drift.
+    """
+    body = Path(__file__).read_text()
+    # Assembled rather than written literally, so the scan does not match its own
+    # needle — the same construction the PEM fixture uses.
+    forbidden = ("execution" + ".", "attestation" + ".", "okf" + "_version", "-----" + "BEGIN")
+    for owned_elsewhere in forbidden:
+        assert owned_elsewhere not in body, (
+            f"{owned_elsewhere!r} appears here — content rules belong to "
+            "packages/knowledge-toolchain, invoked by check-knowledge-content.mjs"
+        )
 
 
 def test_least_context_selection_is_real() -> None:
@@ -324,8 +395,9 @@ def test_a_module_that_unblocks_itself_is_rejected(tmp_path: Path) -> None:
     This is the test that stops U7's resolution from becoming permission to
     author. Before ADR-0015, ``blockedByU7`` had to be *present* and its value
     was never read — so the day U7 closed, flipping it to ``false`` would have
-    opened authoring silently, with no validator objecting and no diff that read
-    as a decision. Opening authoring must be an explicit reviewed transition.
+    opened authoring silently, with nothing objecting and no diff that read as a
+    decision. Opening authoring must be an explicit reviewed transition, and the
+    format question and the readiness question were never the same fact.
     """
 
     def mutate(catalog: Any, root: Path) -> None:
@@ -482,19 +554,75 @@ def test_a_status_outside_the_vocabulary_is_rejected(tmp_path: Path) -> None:
     assert "status vocabulary" in _output(result)
 
 
-def test_claiming_a_published_status_is_rejected(tmp_path: Path) -> None:
-    """No toolchain exists, so nothing has been validated, packaged, or published."""
-    for index, status in enumerate(sorted(PUBLISHABLE)):
+def test_a_post_toolchain_status_is_refused_while_readiness_is_undischarged(
+    tmp_path: Path,
+) -> None:
+    """Validated / Packaged / Published all need the readiness gate open first.
+
+    The REASON matters as much as the refusal: while `blockedByToolchain` is
+    true these are unreachable because the reviewed obligation is still open —
+    not because Proof B is missing. Conflating the two made Proof B look like a
+    prerequisite for validation, which inverts the lifecycle.
+    """
+    for index, status in enumerate(sorted(POST_TOOLCHAIN)):
 
         def mutate(catalog: Any, root: Path, status: str = status) -> None:
             catalog["modules"][0]["status"] = status
 
-        result = _run(_fixture(tmp_path, f"published-{index}", mutate))
-        assert result.returncode != 0, f"{status} was accepted while publication is blocked"
-        # The REASON changed with the toolchain: publication is no longer blocked
-        # by an absent toolchain but by an absent Proof B producer (ADR-0016
-        # §5a). Pinning the reason keeps the message honest, not just nonzero.
-        assert "no producer exists" in _output(result)
+        result = _run(_fixture(tmp_path, f"post-toolchain-{index}", mutate))
+        assert result.returncode != 0, f"{status} was accepted while readiness is undischarged"
+        assert "readiness has not been discharged" in _output(result)
+        assert "Proof B" not in _output(result), (
+            f"{status} must not be refused for a publication reason at this stage"
+        )
+
+
+def test_validated_and_packaged_become_representable_once_readiness_opens(
+    tmp_path: Path,
+) -> None:
+    """THE LIFECYCLE SEPARATION.
+
+    authoring -> admission/validation -> packaging -> publication.
+
+    Once the toolchain gate is discharged, Validated and Packaged are ordinary
+    states. Proof B gates publication and nothing earlier — admission and
+    `packageBundle()` never require it, and must not start.
+    """
+    for index, status in enumerate(["Validated", "Packaged"]):
+
+        def mutate(catalog: Any, root: Path, status: str = status) -> None:
+            catalog["modules"][0]["status"] = status
+            catalog["modules"][0]["blockedByToolchain"] = False
+
+        result = _run(_fixture(tmp_path, f"readiness-open-{index}", mutate))
+        output = _output(result)
+        assert "readiness has not been discharged" not in output, (
+            f"{status} is a post-toolchain state and must be representable once the gate opens"
+        )
+        assert "Proof B" not in output, f"{status} does not require Proof B"
+
+
+def test_published_still_requires_proof_b_after_readiness_opens(tmp_path: Path) -> None:
+    """The other half: discharging readiness does not release publication."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["status"] = "Published"
+        catalog["modules"][0]["blockedByToolchain"] = False
+
+    result = _run(_fixture(tmp_path, "published-open", mutate))
+    assert result.returncode != 0, "Published must stay refused while no Proof B producer exists"
+    assert "no governed producer exists" in _output(result)
+
+
+def test_publication_is_downstream_of_readiness_in_the_vocabulary() -> None:
+    """Every publishable status must also be a post-toolchain status.
+
+    Otherwise publication would be reachable at a stage readiness has not
+    unlocked, and the ordering in the lifecycle would be decorative.
+    """
+    catalog = _catalog()
+    assert catalog["publishableStatuses"] == ["Published"]
+    assert set(catalog["publishableStatuses"]) <= set(catalog["postToolchainStatuses"])
 
 
 def test_authored_content_in_a_specification_directory_is_rejected(tmp_path: Path) -> None:
@@ -693,3 +821,60 @@ def test_a_network_address_in_a_specification_is_rejected(tmp_path: Path) -> Non
     result = _run(_fixture(tmp_path, "address", mutate))
     assert result.returncode != 0
     assert "network address" in _output(result)
+
+
+# --- stale semantics, asserted rather than remembered -----------------------
+
+
+STALE_PHRASES = (
+    "Blocked by | [U7]",
+    "toolchain does not exist",
+    "validator does not exist",
+    "toolchain is unbuilt",
+    "until the validator",
+    "validator still comes first",
+    "Choosing the bundle format is U7",
+    "Validated, Packaged, or Published until",
+)
+
+
+def test_no_governed_guidance_still_describes_the_pre_toolchain_world() -> None:
+    """Two sweeps missed live files; this is why it is now a test.
+
+    U7 is RESOLVED and was never readiness in the first place — the format
+    decision and the toolchain obligation are different facts, and guidance that
+    conflates them teaches the conflation. Accepted ADRs are excluded: ADR-0016
+    is the correction mechanism for older accepted claims, and the historical
+    wording inside the resolved U7 entry stays historical.
+    """
+    swept = [
+        *(KNOWLEDGE.rglob("*.md")),
+        KNOWLEDGE / "catalog.json",
+        REPO_ROOT / "AGENTS.md",
+        REPO_ROOT / "CLAUDE.md",
+        REPO_ROOT / "scripts" / "check-knowledge.mjs",
+        REPO_ROOT / "scripts" / "check-knowledge-content.mjs",
+        REPO_ROOT / ".github" / "workflows" / "checks.yml",
+    ]
+    for path in swept:
+        text = path.read_text()
+        for phrase in STALE_PHRASES:
+            assert phrase not in text, (
+                f"{path.relative_to(REPO_ROOT)} still says {phrase!r} — the toolchain and "
+                "content admission exist; blockedByToolchain records the review that remains"
+            )
+
+
+def test_the_gate_value_lives_only_in_the_catalog() -> None:
+    """No module README may mirror a mutable gate value.
+
+    The `Blocked by` row duplicated one, and a duplicated mutable value drifts —
+    it was still naming U7 long after U7 was resolved. Status and Owner are
+    mirrored deliberately and `check-knowledge.mjs` enforces their agreement;
+    the gates are machine-readable state with exactly one home.
+    """
+    for module in _catalog()["modules"]:
+        text = (KNOWLEDGE / module["id"] / "README.md").read_text()
+        assert "Blocked by" not in text, f"{module['id']}: README mirrors a gate value"
+        for gate in ("blockedByToolchain", "blockedByRollout"):
+            assert gate not in text, f"{module['id']}: README duplicates {gate}"

@@ -6,7 +6,6 @@
 |---|---|
 | Status | `Planned` |
 | Owner | human:mikegtech |
-| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
 
 > Specification only. No module content is authored, and this directory is not
 > runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).

@@ -209,12 +209,39 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
   }
 
   const statuses = new Set(catalog.statusVocabulary ?? [])
+  // THREE STAGES, NOT ONE FLAG.
+  //
+  //   authoring -> admission/validation -> packaging -> publication
+  //
+  // `publishableStatuses` had named all three of Validated, Packaged, and
+  // Published, so the absent Proof B producer refused all three — which said
+  // that a module could not even be VALIDATED until a governed human-review
+  // mechanism existed. Proof B gates publication and nothing earlier. Admission
+  // and `packageBundle()` never require it, and must not start.
+  //
+  //   postToolchainStatuses  unreachable while blockedByToolchain is true,
+  //                          because the reviewed obligation is still open
+  //   publishableStatuses    additionally requires Proof B, which has no
+  //                          producer — so Published stays refused after the
+  //                          readiness gate opens
   const publishable = new Set(catalog.publishableStatuses ?? [])
+  const postToolchain = new Set(catalog.postToolchainStatuses ?? [])
   const sensitivities = new Set(catalog.sensitivityVocabulary ?? [])
   if (statuses.size === 0) fail('catalog: statusVocabulary is empty')
   for (const s of publishable) {
     if (!statuses.has(s))
       fail(`catalog: publishableStatuses names "${s}", absent from statusVocabulary`)
+  }
+  for (const s of postToolchain) {
+    if (!statuses.has(s))
+      fail(`catalog: postToolchainStatuses names "${s}", absent from statusVocabulary`)
+  }
+  for (const s of publishable) {
+    if (!postToolchain.has(s))
+      fail(
+        `catalog: publishableStatuses names "${s}" but postToolchainStatuses does not — ` +
+          'publication is downstream of readiness, so it cannot be reachable earlier',
+      )
   }
 
   const modules = catalog.modules ?? []
@@ -251,11 +278,16 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (m.sensitivity && !sensitivities.has(m.sensitivity)) {
       fail(`module "${id}": sensitivity "${m.sensitivity}" is not in the sensitivity vocabulary`)
     }
-    if (publishable.has(m.status)) {
+    // TWO DIFFERENT REFUSALS, so the reason is never guessed from the state.
+    if (m.blockedByToolchain === true && postToolchain.has(m.status)) {
       fail(
-        `module "${id}": status "${m.status}" claims a published artifact, but the ` +
-          'publication additionally requires Proof B, and no producer exists ' +
-          '(ADR-0016 §5a). Nothing may be published yet',
+        `module "${id}": status "${m.status}" is a post-toolchain lifecycle state, but ` +
+          'blockedByToolchain is true — readiness has not been discharged',
+      )
+    } else if (publishable.has(m.status)) {
+      fail(
+        `module "${id}": status "${m.status}" claims publication, which additionally ` +
+          'requires Proof B, and no governed producer exists (ADR-0016 §5a)',
       )
     }
     // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT.
@@ -351,10 +383,16 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (s.sensitivity && !sensitivities.has(s.sensitivity)) {
       fail(`set "${id}": sensitivity "${s.sensitivity}" is not in the sensitivity vocabulary`)
     }
-    if (publishable.has(s.status)) {
+    // The same two refusals, for sets. See the module check above.
+    if (s.blockedByToolchain === true && postToolchain.has(s.status)) {
       fail(
-        `set "${id}": status "${s.status}" claims a published artifact, but the ` +
-          'publication additionally requires Proof B, and no producer exists',
+        `set "${id}": status "${s.status}" is a post-toolchain lifecycle state, but ` +
+          'blockedByToolchain is true — readiness has not been discharged',
+      )
+    } else if (publishable.has(s.status)) {
+      fail(
+        `set "${id}": status "${s.status}" claims publication, which additionally ` +
+          'requires Proof B, and no governed producer exists',
       )
     }
     // The same gate, for sets. See the module check above.

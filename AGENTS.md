@@ -113,12 +113,14 @@ Two consequences:
   procedure. If information must survive replacing a provider or runtime, its
   canonical source must be provider-neutral; where agents need to reason from
   it, project the appropriate subset into portable knowledge.
-- **Authoring a knowledge module is still blocked.** The ADR-0010 validator and
-  toolchain do not exist — a block
-  [U7](docs/architecture/unresolved-decisions.md#u7) currently tracks. ADR-0014
-  decides *where a truth goes*; it does not open the knowledge layer. Until the
-  toolchain exists, the path terminates at the canonical home and the
-  determination is recorded rather than acted on.
+- **Authoring a knowledge module is still blocked.** The toolchain and content
+  admission exist and run in CI; what remains is independent review of that
+  integration, which is what `blockedByToolchain` records — a different fact
+  from [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether
+  the format was decided and is RESOLVED. ADR-0014 decides *where a truth goes*;
+  it does not open the knowledge layer. Until the gate is discharged, the path
+  terminates at the canonical home and the determination is recorded rather than
+  acted on.
 
 ## Two kinds of agent — do not confuse them
 

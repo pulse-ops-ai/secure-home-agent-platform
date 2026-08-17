@@ -21,7 +21,7 @@ nothing appears here that is not registered. They cannot drift apart quietly.
 |---|---|---|---|
 | **Knowledge module** | one independently versioned body of portable knowledge | yes, independently | as a specification directory only |
 | **Knowledge set** | a named, profile-oriented composition of allowed modules | yes | as a specification entry only |
-| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — blocked on the toolchain |
+| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — none exists yet |
 
 A profile selects a **set**. The runner resolves that set to exact module
 versions and produces a **packaged bundle**, whose digest is recorded in run
@@ -48,9 +48,12 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**Everything below is `Planned`.** `Validated`, `Packaged`, and `Published` are
-unreachable while the toolchain is unbuilt, and `check-knowledge.mjs` fails if anything claims
-one of them.
+**Everything below is `Planned`.** `Validated` and `Packaged` are
+post-toolchain lifecycle states: they are unreachable while `blockedByToolchain`
+is true, which it is on every entry pending independent review. `Published`
+additionally requires Proof B, for which no governed producer exists, so it
+stays unreachable after readiness is discharged. `check-knowledge.mjs` fails if
+anything claims one of them, and distinguishes the two reasons.
 
 ## Modules
 
@@ -144,7 +147,7 @@ Three worth stating here:
 
 **None.** There is no packaged bundle, no digest, and no resolver.
 
-When the toolchain exists, a packaged bundle will be registered here by ID, version, and
+When authoring opens, a packaged bundle will be registered here by ID, version, and
 digest, and the compile → validate → package → query interfaces required by
 [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 will own its lifecycle. Nothing reads a bundle file directly, then or now.

@@ -64,11 +64,11 @@ value be different in ten minutes?** If yes, it is state.
 - Author a real bundle. The toolchain now exists and content admission runs in
   CI, but **`blockedByToolchain` is still true**: the integration has not passed
   independent review, and authoring eligibility requires both gates open.
-  [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
-  is accepted, which makes *building* the validator in scope under a task
-  contract — the validator still comes first.
-- Choose the knowledge format — that is
-  the ADR-0010 toolchain gate and requires an ADR.
+  Once the gate is discharged, authored content must pass
+  `pnpm run check:knowledge-content`, and publication still requires Proof B.
+- Change the source format. It is decided by
+  [ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+  (OKF v0.2); replacing it requires a superseding ADR, not a change here.
 - Copy household member names, device identifiers, or network addresses into
   this directory.
 
@@ -81,7 +81,9 @@ value be different in ten minutes?** If yes, it is state.
 3. Add it to [`INDEX.md`](INDEX.md).
 4. Add it to the sets that should receive it, **and to the `deny` list of the
    sets that should not.**
-5. Do not author content until the validator exists.
+5. Do not author content while `blockedByToolchain` is true. After it is
+   discharged, authoring requires **both** gates false — `blockedByRollout` too
+   — and whatever you author must pass `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module
 no profile can select is invisible, and invisible things do not get reviewed.

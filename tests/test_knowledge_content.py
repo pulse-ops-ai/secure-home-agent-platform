@@ -538,3 +538,63 @@ def test_every_job_running_this_suite_builds_the_toolchain() -> None:
         assert "knowledge-toolchain run build" in body, (
             f"{name} runs the governance suite but never builds the toolchain the suite invokes"
         )
+
+
+# --- no silent skip directory in module enumeration -------------------------
+#
+# P0. `authoredFiles` shared a SKIP_DIRS set with the repository-wide traversal,
+# so a directory named `dist/` (or `node_modules/`, `build/`, `.git/`, …) under a
+# module was never enumerated. Content placed there would never reach `admit()`
+# — an admission bypass that opens the moment the toolchain gate does, and one
+# that reads as a build convention rather than as a hole.
+#
+# The two traversals answer different questions and must not share an exclusion
+# policy. "Where may a `governs` reference resolve?" legitimately ignores
+# generated output. "What is this module's content?" may not: the convention
+# says every regular file below the module except the root README is candidate
+# source, and that sentence has to be true.
+
+HIDEABLE = ["dist", "node_modules", "build", "out", "coverage", ".turbo", ".git"]
+
+
+def test_content_cannot_hide_in_a_conventionally_skipped_directory(tmp_path: Path) -> None:
+    """Parameterised, so this is not a one-name-only proof."""
+    for index, directory in enumerate(HIDEABLE):
+        sources = _valid_sources()
+        # Package-REJECTED source: it must produce the package's own refusal.
+        sources[f"{directory}/model.md"] = _concept(runtime="wasm")
+        Repo(tmp_path / f"repo-{index}").module(sources=sources).write()
+
+        result = _run(tmp_path / f"repo-{index}")
+        assert result.returncode != 0, (
+            f"content under {directory}/ never reached admission — the module "
+            "enumeration skipped the directory"
+        )
+        assert "execution.runtime" in _output(result), (
+            f"the package's refusal must reach the output for {directory}/"
+        )
+
+
+def test_a_hidden_directory_member_keeps_its_module_relative_path(tmp_path: Path) -> None:
+    """It is enumerated as ordinary content, not specially named."""
+    sources = _valid_sources()
+    sources["dist/model.md"] = _concept(runtime="wasm")
+    Repo(tmp_path / "repo").module(sources=sources).write()
+    result = _run(tmp_path / "repo")
+    assert "dist/model.md" in _output(result), "the member must be addressed by its path"
+
+
+def test_a_symlink_inside_a_previously_skipped_directory_still_fails_closed(
+    tmp_path: Path,
+) -> None:
+    repo = Repo(tmp_path / "repo").module(sources=_valid_sources())
+    outside = tmp_path / "outside.md"
+    outside.write_text(_concept())
+    hidden = tmp_path / "repo" / "knowledge" / "platform" / "example" / "dist"
+    hidden.mkdir(parents=True)
+    (hidden / "linked.md").symlink_to(outside)
+    repo.write()
+
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "not a regular file" in _output(result)

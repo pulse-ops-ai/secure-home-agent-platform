@@ -64,8 +64,24 @@ import { admit, authoringEligibility } from '@secure-home/knowledge-toolchain'
 
 const DEFAULT_ROOT = process.cwd()
 
-/** Generated or vendored trees are never governing sources or module content. */
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git', '.turbo'])
+/**
+ * Generated or vendored trees are never GOVERNING SOURCES.
+ *
+ * This belongs to `repositoryPaths()` alone and must never be shared with
+ * module enumeration. The two traversals answer different questions:
+ *
+ *   repositoryPaths()  where may a `governs` reference resolve?
+ *                      generated output is legitimately not an answer
+ *
+ *   authoredFiles()    what IS this module's content?
+ *                      every regular file below it, and no exceptions
+ *
+ * Sharing the set gave modules a silent bypass: content under
+ * `knowledge/<group>/<module>/dist/` was never enumerated, so it never reached
+ * `admit()`. It reads as a build convention rather than as a hole, and it opens
+ * the moment the toolchain gate does.
+ */
+const VENDOR_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git', '.turbo'])
 
 const posixify = (value) => value.split(sep).join('/')
 
@@ -82,7 +98,8 @@ function authoredFiles(dir, prefix = '') {
     const rel = prefix ? `${prefix}/${name}` : name
     const stats = lstatSync(full)
     if (stats.isDirectory()) {
-      if (SKIP_DIRS.has(name)) continue
+      // NO NAME IS EXCLUDED HERE. The root README is the only silent exclusion
+      // in this traversal, and it is applied by the caller.
       found.push(...authoredFiles(full, rel))
       continue
     }
@@ -108,7 +125,7 @@ function repositoryPaths(root) {
       return
     }
     for (const name of entries.sort()) {
-      if (SKIP_DIRS.has(name)) continue
+      if (VENDOR_DIRS.has(name)) continue
       const full = join(dir, name)
       const rel = prefix ? `${prefix}/${name}` : name
       let stats
