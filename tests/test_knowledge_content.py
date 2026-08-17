@@ -128,7 +128,27 @@ def _valid_sources(**overrides: str) -> dict[str, str]:
     return {"index.md": INDEX_MD, "model.md": _concept(**overrides)}
 
 
+PACKAGE_DIST = REPO_ROOT / "node_modules" / "@secure-home" / "knowledge-toolchain" / "dist"
+
+
+def _require_built_package() -> None:
+    """Fail loudly, never skip, when the package has not been built.
+
+    The adapter imports the published export, so `dist/` is a real prerequisite
+    of these tests. A missing build otherwise surfaces as ERR_MODULE_NOT_FOUND
+    inside every assertion, which reads like broken tests instead of an unbuilt
+    dependency — and skipping would be worse: a governance test that quietly
+    does not run is not a governance test.
+    """
+    assert (PACKAGE_DIST / "index.js").exists(), (
+        "packages/knowledge-toolchain is not built — run "
+        "`pnpm --filter @secure-home/knowledge-toolchain run build` first. "
+        "Every job that runs this suite must build it."
+    )
+
+
 def _run(root: Path) -> subprocess.CompletedProcess[str]:
+    _require_built_package()
     return subprocess.run(
         ["node", str(CONTENT_CHECK), str(root)],
         capture_output=True,
@@ -458,3 +478,63 @@ def test_the_live_toolchain_gate_is_still_shut() -> None:
     assert not [e for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]], (
         "no entry may be open on both gates"
     )
+
+
+# --- live catalog / profile contract alignment ------------------------------
+
+
+def test_every_live_owner_is_a_human_actor() -> None:
+    """ADR-0015 §5 requires `human:<id>` for a module owner.
+
+    The live catalog carried the GitHub display form `@mikegtech`, which
+    admission refuses — so the registry described modules that could never have
+    been admitted. This is metadata representation aligned to the accepted
+    convention, not a change of authority: the same person owns the same
+    modules, named the way the contract names actors.
+    """
+    import re
+
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    entries = [*catalog["modules"], *catalog["sets"]]
+    assert len(entries) == 23
+    for entry in entries:
+        assert re.fullmatch(r"human:[A-Za-z0-9._-]+", entry["owner"]), (
+            f"{entry['id']}: owner {entry['owner']!r} is not a human actor"
+        )
+
+
+def test_the_readme_registry_rows_mirror_the_migrated_owner() -> None:
+    """The prose view must not drift from the machine-readable one."""
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    owners = {m["id"]: m["owner"] for m in catalog["modules"]}
+    checked = 0
+    for module_id, owner in owners.items():
+        readme = REPO_ROOT / "knowledge" / module_id / "README.md"
+        if not readme.exists():
+            continue
+        text = readme.read_text()
+        assert f"| Owner | {owner} |" in text, f"{module_id}: README owner row is stale"
+        assert "| Owner | @" not in text, f"{module_id}: README still uses the display form"
+        checked += 1
+    assert checked == 17, f"expected 17 module READMEs, checked {checked}"
+
+
+def test_every_job_running_this_suite_builds_the_toolchain() -> None:
+    """The defect this test exists for actually happened.
+
+    The governance job built the toolchain and the classifier job did not — but
+    both run the governance suite, and the suite invokes the adapter, which
+    imports the built package. CI failed on ERR_MODULE_NOT_FOUND in sixteen
+    tests while the same suite passed locally, because `dist/` was already there.
+
+    A build prerequisite that only some jobs satisfy is a prerequisite nobody is
+    tracking, so it is asserted here rather than remembered.
+    """
+    from workflow_model import job_sections
+
+    for name, body in job_sections().items():
+        if "uv run pytest" not in body:
+            continue
+        assert "knowledge-toolchain run build" in body, (
+            f"{name} runs the governance suite but never builds the toolchain the suite invokes"
+        )

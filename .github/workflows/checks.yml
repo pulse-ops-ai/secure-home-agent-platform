@@ -156,6 +156,14 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      # The governance suite invokes `scripts/check-knowledge-content.mjs`,
+      # which imports the published package export — so `dist/` must exist here
+      # too, not only in the job that runs the gate itself. Without this the
+      # integration tests fail on a missing module, which looks like a broken
+      # test rather than an unbuilt dependency.
+      - name: Build the knowledge toolchain
+        run: pnpm --filter @secure-home/knowledge-toolchain run build
+
       # The WHOLE suite, not a hand-listed subset. These tests guard the
       # unconditional gates — target selection, the workspace layer map, the
       # secret scanner, source import direction — so running a curated list
