@@ -199,3 +199,121 @@ All three are blocked on the toolchain and none is authored here. This
 determination is recorded, not acted on. It was recorded voluntarily, before the
 rule requiring it was operative; the rule is operative since ADR-0014's
 acceptance on 2026-08-15.
+
+---
+
+# PR-3 — Promote the durable runner architecture learned in PR #82
+
+Appended, not merged into the record above. The sections before this line are the
+PR-1 history and are preserved verbatim: this sequence was not known when they
+were written, and editing them to look otherwise would falsify the record they
+exist to be.
+
+## Implementation Authorization
+
+| | |
+|---|---|
+| **Granted by** | the repository owner, in the Prompt-3 task contract issued after approving the `blockedByToolchain` discharge at `ec81ad0` |
+| **Scope** | promote PR #82's durable architectural lessons into canonical homes under Accepted ADR-0014, as **Proposed** ADRs only |
+| **Explicitly withheld** | accepting either ADR; authoring the operative `docs/architecture/` descriptions; authoring knowledge; the lifecycle-evidence tightening; any production runner-control change |
+
+## Evidence inventory
+
+PR [#82](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/82) —
+**merged** 2026-08-16, merge commit `1bc56e2`.
+
+| Reference | Commit |
+|---|---|
+| semantic implementation head | `ea310899e03f2a8cef5ad687ade4433fe42aad86` |
+| merged completion head | `95346dee0181382ae4d5951424919f946cdeaffb` |
+
+Read at the merged head:
+
+- `openspec/changes/runner-control-orchestration/design.md` — D1, D7, D10, D12,
+  D13, D14 (and D7's superseded seal-last detail, read to confirm it *was*
+  superseded rather than still operative)
+- `openspec/changes/runner-control-orchestration/assurance.md` — invariant
+  families for fencing, lifecycle authority, bounded port calls, terminal
+  settlement, acquisition uncertainty, acknowledged effects, stable identities,
+  replay and conflicting replay, finalization identity, domain vs transaction
+  identity, staged publication, cross-path durable uniqueness, and proof quality
+- the merged PR title and its change surface (94 files; the orchestration,
+  run-state, and ports trees)
+
+**PR #82 is evidence, not a canonical home.** Its specs live under
+`openspec/changes/`, and `openspec/specs/` contains no `runner-lifecycle`,
+`runner-execution-boundary`, or `runner-gate-orchestration` — so nothing
+canonical owns these decisions today. That is the gap ADR-0014 obliges this
+change to close.
+
+## Promotion determination
+
+| # | Lesson | Kind of truth | Already fully owned? | New canonical home | New ADR? | Later knowledge projection | Evidence |
+|---|---|---|---|---|---|---|---|
+| 1 | Fencing is enforced at the resource, never by consulting the lease | architecture — decision | **no** | ADR-0017 §6 | **yes** | `platform/runner-model` | RO-INV-48/61, RO-EX-36/84/99/126 |
+| 2 | Interruption is complete at the asynchronous port boundary | architecture — decision | **no** | ADR-0017 §2 | **yes** | `platform/runner-model` | D13; Round-6 falsification |
+| 3 | Every asynchronous port method has exactly one effect class | architecture — decision | **no** | ADR-0017 §1 | **yes** | `platform/runner-model` | D14, RO-INV-85 |
+| 4 | Unknown acknowledgement has an explicit posture; lost ack ≠ effect absent | architecture — decision | **no** | ADR-0017 §4 | **yes** | `platform/runner-model` | RO-INV-86 |
+| 5 | Caller-known stable effect identities exist before the call | architecture — decision | **no** | ADR-0017 §4, ADR-0018 §3 | **yes** | `platform/runner-model` | RO-INV-92 |
+| 6 | Exact replay vs conflicting replay, decided on canonical content | architecture — decision | **no** | ADR-0018 §3 | **yes** | `platform/runner-model` | RO-INV-93, Round 13 |
+| 7 | Acquisition uncertainty is resolved at the resource | architecture — decision | **no** | ADR-0017 §5 | **yes** | `platform/runner-model` | D10, RO-INV-82, RO-EX-149/155 |
+| 8 | Terminal settlement is bounded independently of the run clock | architecture — decision | **no** | ADR-0017 §7 | **yes** | `platform/degraded-operation` | D13, RO-INV-89/90 |
+| 9 | Attempt outcome vs logical-run terminal state | architecture — decision | **no** | ADR-0018 §1 | **yes** | `platform/runner-model` | D12, RO-INV-88 |
+| 10 | Invisible staging + exactly one publication point | architecture — decision | **no** | ADR-0018 §4 | **yes** | `platform/runner-model` | D7, RO-INV-83 |
+| 11 | Transaction identity vs durable-fact identity | architecture — decision | **no** | ADR-0018 §2, §5 | **yes** | `platform/runner-model` | RO-INV-94, Round 16 |
+| 12 | Ownership identity vs transaction identity | architecture — decision | **no** | ADR-0018 §2, §8 | **yes** | `platform/runner-model` | RO-INV-94 |
+| 13 | Ordinary and staged paths share one domain identity authority | architecture — decision | **no** | ADR-0018 §6, §7 | **yes** | `platform/runner-model` | RO-INV-95/96, Rounds 17–18 |
+| 14 | Typestate / lifecycle authority over effects | architecture — **partly owned** | **partly** — ADR-0013 §3 owns adapter-reported terminal as observational input; nothing owns orchestration-side phase authority | **no new ADR** — recorded as the durable rule in the ADR-0017 §2 / ADR-0018 §1 pairing, and to be described operatively in 3B | **no** | `platform/runner-model` | D1 |
+| 15 | A claimed proof must reach the mechanism it claims to prove | **governance / engineering-review obligation** | **no** | a provider-neutral governed repository contract — `CONTRIBUTING.md` | **no** | `runbooks/review-conventions` | RO-INV-69, RO-MUT-61 |
+
+### Not promoted as requirements
+
+| Item | Why not |
+|---|---|
+| `RunAborted`, and throwing rather than returning `undefined` | implementation **pattern**. The durable truth is that interruption unwinds to the single owner that knows what the attempt established — ADR-0017 §2. No exception class or language mechanism is required |
+| Commit-marker / in-memory MVCC | the reference **implementation** of ADR-0018 §4's atomic-visibility rule. A database transaction or durable marker satisfies it equally; U11 inherits the contract, not the data structure |
+| Typestate decomposition into TypeScript types | one very strong **realization** of lesson 14. The durable rule — a phase consumes only established state, lifecycle authority governs whether the next phase may act, a rejected transition cannot be ignored — needs no third ADR, because no genuinely unresolved decision remains once ADR-0017 and ADR-0018 land |
+| Module-size ratchets and exact file decomposition | engineering implementation policy, not platform architecture |
+
+### Why two ADRs, and why not one or three
+
+**Two, because they answer different questions.** ADR-0017 answers *what
+semantics hold when crossing an asynchronous port*; ADR-0018 answers *what
+identities exist and who may conclude or publish*. Effect classification could be
+adopted without deciding the three identity planes, and the identity planes could
+be decided for a system with a different boundary model. They are **dependent,
+not inseparable**: ADR-0017 §8 names finalization a distinct class and stops;
+ADR-0018 specifies it.
+
+**Not three.** Lesson 14 produces no unresolved decision of its own once the
+other two land, and lesson 15 is a different kind of truth entirely — a
+governance obligation whose canonical home is a governed repository contract, not
+an ADR.
+
+### Acceptance dependency and order
+
+```text
+ADR-0017  accept first
+    ↓  (defines finalization as a distinct effect class)
+ADR-0018  accept second
+```
+
+Both are **Proposed** in this landing. Neither is self-accepted.
+
+## Deferred to Prompt 3B, after acceptance
+
+- `docs/architecture/effect-boundary-model.md` and
+  `docs/architecture/distributed-effect-lifecycle.md` (names indicative)
+- updating `docs/architecture/runner-model.md` without duplicating the ADRs
+- placing the proof-quality obligation (lesson 15) in its governed contract
+- `docs/decisions/INDEX.md` acceptance records
+
+**Deliberately not written now.** A Proposed ADR must not become binding by being
+restated as settled architecture in a lower-precedence document.
+
+## Explicitly out of scope here
+
+Accepting either ADR · knowledge authoring (Prompt 4 owns projection) ·
+lifecycle-evidence tightening for `Validated`/`Packaged` · any production
+runner-control change · link grammar, knowledge admission, packaging, Proof B, or
+rollout gates.

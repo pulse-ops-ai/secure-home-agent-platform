@@ -125,7 +125,17 @@ implementation-neutral. These decide how it is built.
 | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
 | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
+| [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | **Proposed** | [`services/runner-control/`](../../services/runner-control/), any port implementation |
+| [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | **Proposed** | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 
+> **ADR-0017 and ADR-0018 are `Proposed`** (2026-08-16) and decide nothing yet.
+> They promote the durable architecture learned in merged PR #82 into canonical
+> homes under [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
+> **Acceptance order is ADR-0017 then ADR-0018** — the second builds on the
+> first's definition of finalization as a distinct effect class. Until they are
+> accepted, no lower-precedence document may restate them as settled
+> architecture.
+>
 > **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
 > ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
 > editing or superseding either. See
@@ -363,6 +373,8 @@ discharges **no** executable obligation.
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
+| runner orchestration crossing an asynchronous port | **ADR-0017** (Proposed) + ADR-0013 |
+| finalization, run identity, or replay of a durable fact | **ADR-0018** (Proposed) + ADR-0017 (Proposed) |
 
 ## Deliberately not decided
 
