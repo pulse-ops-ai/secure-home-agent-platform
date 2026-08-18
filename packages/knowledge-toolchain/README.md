@@ -4,10 +4,17 @@ The four ADR-0010 interfaces over portable OKF v0.2 knowledge — **compile**,
 **validate/admit**, **package**, **query** — plus the gate and attestation
 machinery ADR-0015 and ADR-0016 require.
 
-> **Nothing is authored under this yet.** `blockedByToolchain` is `true` on every
-> registered module and set, so no module is authoring-eligible. This package is
-> the mechanism; discharging the gate is a separate landing after an independent
-> falsification review.
+> **Nothing is authored under this yet — but authoring is now open.** The
+> toolchain, its conformance suite, and repository content admission are
+> implemented, and the ADR-0015 §12 readiness obligation was **discharged on
+> 2026-08-16** after independent review. `blockedByToolchain` is `false` on all
+> 23 registered entries, so the ten `platform/**` modules are
+> **authoring-eligible**.
+>
+> `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
+> eligibility requires *both* gates false. Publication is blocked separately and
+> still is — no governed Proof B producer exists — so a module may be authored,
+> admitted, and packaged, and still not be published.
 
 ## The three stages, which are never one boolean
 

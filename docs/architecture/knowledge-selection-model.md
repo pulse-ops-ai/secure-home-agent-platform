@@ -7,15 +7,18 @@ and what the run records about it. Governed by
 [ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md),
 and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md).
 
-> **Status: not implemented, and deliberately not schema.** No resolver exists,
-> no profile field is defined, no bundle is packaged. This document is the
-> contract those things must satisfy. The registry it refers to is
-> [`knowledge/INDEX.md`](../../knowledge/INDEX.md), which is specification-only
-> and blocked on the ADR-0010 toolchain, which does not exist. The *format* is
-> decided —
-> [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
-> which resolved [U7](unresolved-decisions.md#u7). What is missing is the
-> implementation, not the decision.
+> **Status: the toolchain exists; runtime selection does not.** The format is
+> decided
+> ([ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
+> which resolved [U7](unresolved-decisions.md#u7)), and compile / validate /
+> package / query are **implemented** in
+> [`packages/knowledge-toolchain`](../../packages/knowledge-toolchain/) and
+> invoked over real repository content in CI.
+>
+> What this document describes is still absent: **no runtime resolver**, **no
+> profile knowledge field or schema**, **no deployed knowledge delivery**, **no
+> released set**, **no published module**, and **no Proof B producer**. This is
+> the contract those things must satisfy.
 
 ## The rule everything else follows from
 
@@ -90,7 +93,9 @@ knowledge:
 > **No set version is assignable yet.** Every registered set carries a `version`
 > field — the registry is version-capable, because this contract and the evidence
 > fields below both require it — but every one is currently `null`, because the
-> modules they select are unversioned while the toolchain is unbuilt. A set version that pins
+> modules they select are still unversioned. That is now a statement about
+> authored content rather than about the toolchain: no module has been authored,
+> and every set is rollout-blocked. A set version that pins
 > nothing resolvable would make two different resolutions look identical in
 > evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
 > a set that carries a version while selecting an unversioned module. The
@@ -132,7 +137,7 @@ Three separable facts, and this document owns only the middle one:
 |---|---|
 | **format decision** | ADR-0015 — pinned OKF v0.2 source representation |
 | **selection contract** | this document — provider-neutral **and** format-neutral, structurally |
-| **implementation** | compile / validate / package / query — still absent |
+| **implementation** | compile / validate / package / query — **implemented**; the runtime resolver that would consume them is not |
 
 ## 2. Resolution semantics
 
