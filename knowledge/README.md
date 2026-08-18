@@ -3,9 +3,9 @@
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
-> **Status: the first module is authored and validated.**
+> **Status: six platform modules are authored and validated.**
 > [`platform/runner-model`](platform/runner-model/) is `Validated` at version
-> `1.0.0`; the other sixteen modules are `Planned`. Authoring is open for the ten
+> `1.0.0`, alongside five more; the other eleven modules are `Planned`. Authoring is open for the ten
 > rollout-eligible `platform/**` modules. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
 > which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
@@ -164,7 +164,7 @@ pnpm run check:knowledge-content
 
 It runs unconditionally in `scripts/check.sh` and in CI, so a change touching
 only `knowledge/**` cannot skip it. Today it admits one module —
-`platform/runner-model@1.0.0` — and reports the exact byte identity admission
+six `platform/**` modules — and reports the exact byte identity admission
 bound.
 
 `validate`/`admit` runs in CI today and fails on prohibited-content indicators,

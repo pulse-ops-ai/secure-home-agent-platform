@@ -139,7 +139,7 @@ no report.
   live state or accepted ADRs. The toolchain, its conformance suite, and
   repository content admission are implemented and run in CI,
   `blockedByToolchain` was discharged on 2026-08-16, and the first module
-  (`platform/runner-model@1.0.0`) is authored and `Validated`. No governed query
+  six `platform/**` modules are authored and `Validated` at `1.0.0`. No governed query
   interface exists at runtime and nothing is packaged or published, so
   `knowledge/` is **not runtime-authoritative**
   ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format

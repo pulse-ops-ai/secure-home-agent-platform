@@ -2,7 +2,7 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **The first module is authored and validated; nothing is packaged or
+> **Six platform modules are authored and validated; nothing is packaged or
 > published, and none of this is runtime-authoritative.** The toolchain and its
 > conformance suite are implemented and are invoked over real repository content
 > by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness

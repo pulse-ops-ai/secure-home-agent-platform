@@ -80,7 +80,7 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-One module is authored — `platform/runner-model@1.0.0`, `Validated` — and no
+Six `platform/**` modules are authored and `Validated` at `1.0.0`, and no
 governed query interface exists at runtime, so [`knowledge/`](knowledge/) is
 **not runtime-authoritative** — nothing is packaged, published, or resolvable by
 a running profile. The toolchain, its

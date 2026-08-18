@@ -778,3 +778,68 @@ are different facts, which is why the conformance rule was widened for
 
 Landed at `3caa7bb`, on top of the Phase-A conformance hardening at `7e9694e`.
 Neither commit was amended or squashed.
+
+---
+
+# PROMPT 4E — the remaining platform projections
+
+Appended. Prompt 1–4 history above is untouched.
+
+## Implementation Authorization
+
+| | |
+|---|---|
+| **Granted by** | the repository owner, in the Prompt-4E task contract issued after PR #83 merged |
+| **Starting head** | `3bf5892c37dbf309817e85a391b3b5026627f4ca` (main, PR #83 merged) |
+| **Branch** | `knowledge/platform-projections` — a new branch, not a continuation of the merged PR-83 branch |
+
+OpenSpec records that authorization; it does not create it.
+
+```text
+PR #83 merged on main
+    ↓
+Prompt 4E — remaining platform projections
+    ↓
+Cohort A review     ← this section
+    ↓
+Cohort B review
+    ↓
+Cohort C review
+    ↓
+Prompt 4 COMPLETE
+```
+
+## Cohort A — five modules, five independent reviews
+
+A cohort is **review convenience only**. It is not one bundle and not one review
+identity: every module carries its own source bytes, its own digest, its own
+human content review, and earns `Validated` on its own evidence.
+
+| Module | version | digest |
+|---|---|---|
+| `platform/repository-taxonomy` | 1.0.0 | `sha256:84a84163…e002` |
+| `platform/governance` | 1.0.0 | `sha256:d5a4c13d…5dc5` |
+| `platform/workspace-conventions` | 1.0.0 | `sha256:82a03e7f…2d0d` |
+| `platform/implementation-rules` | 1.0.0 | `sha256:dcb0cc34…f64c` |
+| `platform/review-conventions` | 1.0.0 | `sha256:d1dd02d2…00b9` |
+
+Reviewed by `human:mikegtech` under `portable-knowledge-prohibited-content-v1`
+at `2026-08-18T17:37:10Z`. Each digest was recomputed and required to equal its
+approved value **before** any attestation was written; a mismatch on any one
+module would have stopped that module alone.
+
+**A note on the approval itself.** The first approval message carried unfilled
+`sha256:<FULL DIGEST>` placeholders. No attestation was written from it — a
+review that names no digest cannot be bound to bytes, and the bytes were instead
+re-verified as unchanged and the five digests put back for confirmation. The
+confirmed approval is what these attestations record.
+
+`generated.by` is `claude-code/2.1.234`, re-established from the running binary
+for this cohort rather than carried over from the first module.
+
+## Deliberately not done
+
+No packaging · no publication · no set release · no household or runbook content
+· no Proof B producer · no runtime resolver · no gate or rollout change. The
+`workflow_dispatch` ancestry defect and the Dependabot advisory remain
+out of scope for this PR.

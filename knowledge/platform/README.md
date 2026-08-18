@@ -3,8 +3,11 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: one module authored.** `runner-model` is `Validated` at `1.0.0`;
-> every other module here is `Planned` and specification-only.
+> **Status: six modules authored.** `runner-model`, `repository-taxonomy`,
+> `governance`, `workspace-conventions`, `implementation-rules`, and
+> `review-conventions` are each `Validated` at `1.0.0`, each against its own
+> human-reviewed bytes. The remaining modules here are `Planned` and
+> specification-only.
 
 ## What belongs here
 

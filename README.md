@@ -541,7 +541,7 @@ Specifically absent, on purpose:
 | Runner substrate | Orchestration semantics are implemented; **no image, no sandbox, no launcher, and no L9 physical enforcement.** |
 | Execution profiles | **No schema, no profile.** |
 | Schemas | All four are documented placeholders. |
-| Knowledge bundles | **One module authored** — `platform/runner-model@1.0.0`, `Validated` against its human-reviewed bytes. Nothing is packaged, nothing is published, and no set is released; publication is unavailable while no governed Proof B producer exists. |
+| Knowledge bundles | **Six `platform/**` modules authored**, each `Validated` at `1.0.0` against its own human-reviewed bytes. Nothing is packaged, nothing is published, and no set is released; publication is unavailable while no governed Proof B producer exists. |
 | Web application | Deliberately not scaffolded — depends on an open decision. |
 | Deployment | **No Compose file, no Dockerfile, no proxy or tailnet configuration.** |
 | Credentials | **None, anywhere.** |

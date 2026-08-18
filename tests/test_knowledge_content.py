@@ -870,6 +870,32 @@ def test_a_closed_rollout_gate_is_reported_even_when_status_also_mismatches(
 
 REVIEWED_DIGEST = "sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0"
 
+# Each Validated module's CURRENT reviewed digest, pinned deliberately.
+#
+# This is not a repository-wide snapshot count — those are brittle and were
+# removed. It is one entry per module that a human has reviewed by exact bytes.
+# Changing a module's content changes its digest, which fails here and in
+# admission, and the correct response is a new human review plus an intentional
+# edit to this map. That coupling is the point.
+REVIEWED_DIGESTS = {
+    "platform/runner-model": REVIEWED_DIGEST,
+    "platform/repository-taxonomy": (
+        "sha256:84a84163751827600b1d2d6bdf1a33ae284764a22637247702a5c1ccac10e002"
+    ),
+    "platform/governance": (
+        "sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5"
+    ),
+    "platform/workspace-conventions": (
+        "sha256:82a03e7fb0e8f53be03e56506aca12d208c688dddf1d3f03f251504fd38d2d0d"
+    ),
+    "platform/implementation-rules": (
+        "sha256:dcb0cc34481753fb0baf7f071cf48fa8cbfe5909642e2d17ee27a8a18f20f64c"
+    ),
+    "platform/review-conventions": (
+        "sha256:d1dd02d2c226cbb492e70b868452349215e608a0a2c3174f28527d05a21600b9"
+    ),
+}
+
 
 def test_the_live_runner_model_module_is_validated_against_its_reviewed_bytes() -> None:
     """The causal chain, asserted end to end on the real repository.
@@ -959,3 +985,48 @@ def test_the_adapter_owns_no_provenance_rule() -> None:
         assert owned_by_the_package not in code, (
             f"{owned_by_the_package!r} in the adapter — provenance rules belong to the package"
         )
+
+
+def test_every_validated_module_is_pinned_to_its_reviewed_bytes() -> None:
+    """Each Validated module binds a human review to the bytes actually on disk.
+
+    Three facts must agree per module, and any disagreement is a real defect:
+    the attestation's digest, the digest recomputed from the files, and the
+    digest pinned here. The recomputation is what makes this more than a
+    consistency check between two catalog fields.
+    """
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    validated = [m for m in catalog["modules"] if m["status"] == "Validated"]
+    assert {m["id"] for m in validated} == set(REVIEWED_DIGESTS), (
+        "a module was validated or unvalidated without updating the pinned digests"
+    )
+
+    for module in validated:
+        pinned = REVIEWED_DIGESTS[module["id"]]
+        review = module["contentReview"]
+        assert isinstance(review, dict)
+        assert review["by"] == "human:mikegtech"
+        assert review["policy"] == "portable-knowledge-prohibited-content-v1"
+        assert review["sourceDigest"] == pinned, module["id"]
+
+        directory = REPO_ROOT / "knowledge" / module["id"]
+        members = {
+            f.name: f.read_bytes()
+            for f in sorted(directory.iterdir())
+            if f.is_file() and f.name != "README.md"
+        }
+        assert "sha256:" + _bundle_digest(members) == pinned, (
+            f"{module['id']}: bytes on disk do not match the reviewed digest"
+        )
+
+
+def test_validated_modules_admit_and_package_nothing() -> None:
+    """Every Validated module admits, and none of them packages."""
+    seen = _spy_packaging(REPO_ROOT)
+    assert seen["problems"] == [], seen["problems"]
+    assert seen["calls"] == 0, "Validated is not Packaged"
+
+    reported = {e["id"]: e["admittedDigest"] for e in seen["evidence"]}
+    assert reported == REVIEWED_DIGESTS, (
+        "the digest admission emitted must be each module's reviewed digest"
+    )
