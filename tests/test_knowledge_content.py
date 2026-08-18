@@ -930,3 +930,32 @@ def test_no_module_is_packaged_or_published() -> None:
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
     for entry in [*catalog["modules"], *catalog["sets"]]:
         assert entry["status"] not in {"Packaged", "Published"}, entry["id"]
+
+
+def test_a_candidate_missing_generated_by_surfaces_the_packages_rule(tmp_path: Path) -> None:
+    """G: the adapter reports the package's exact refusal, not a rule of its own.
+
+    `generated.by` is OKF conformance and belongs to the toolchain. If the
+    adapter ever grew its own provenance check, this identifier would change and
+    the two answers would begin to drift.
+    """
+    concept = _concept()
+    stripped = concept.replace(f"generated:\n  by: {OWNER}\n", "generated:\n")
+    assert "by:" not in stripped.split("---")[1], "the fixture must actually remove it"
+
+    Repo(tmp_path / "repo").module(sources={"index.md": INDEX_MD, "model.md": stripped}).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "profile.generated.by" in _output(result), "the package's rule identifier"
+
+
+def test_the_adapter_owns_no_provenance_rule() -> None:
+    """Structural companion: no generated-provenance logic in the adapter."""
+    source = (REPO_ROOT / "scripts" / "check-knowledge-content.mjs").read_text()
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith(("*", "/*", "//"))
+    )
+    for owned_by_the_package in ("generated", "OKF_ACTOR", "ISO_INSTANT"):
+        assert owned_by_the_package not in code, (
+            f"{owned_by_the_package!r} in the adapter — provenance rules belong to the package"
+        )

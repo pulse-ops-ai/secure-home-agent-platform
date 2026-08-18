@@ -80,9 +80,10 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-No module content is authored yet and no governed query interface exists at
-runtime, so [`knowledge/`](knowledge/) is
-**specification-only and not runtime-authoritative**. The toolchain, its
+One module is authored — `platform/runner-model@1.0.0`, `Validated` — and no
+governed query interface exists at runtime, so [`knowledge/`](knowledge/) is
+**not runtime-authoritative** — nothing is packaged, published, or resolvable by
+a running profile. The toolchain, its
 conformance suite, and repository content admission are implemented and run in
 CI; the ADR-0015 §12 obligation was discharged on 2026-08-16, so authoring is
 open for the ten rollout-eligible `platform/**` modules. The selection contract is

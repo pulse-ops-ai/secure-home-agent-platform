@@ -4,7 +4,10 @@ The four ADR-0010 interfaces over portable OKF v0.2 knowledge — **compile**,
 **validate/admit**, **package**, **query** — plus the gate and attestation
 machinery ADR-0015 and ADR-0016 require.
 
-> **Nothing is authored under this yet — but authoring is now open.** The
+> **The first module is authored and admitted through this package.**
+> `platform/runner-model@1.0.0` is `Validated`: its exact repository bytes carry
+> a human content review bound to their digest and pass canonical admission.
+> Nothing is packaged and nothing is published. The
 > toolchain, its conformance suite, and repository content admission are
 > implemented, and the ADR-0015 §12 readiness obligation was **discharged on
 > 2026-08-16** after independent review. `blockedByToolchain` is `false` on all

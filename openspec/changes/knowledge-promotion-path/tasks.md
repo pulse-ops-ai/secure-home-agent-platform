@@ -655,3 +655,82 @@ integration section above.
 17 modules `Planned` · 6 sets `Planned` · 0 authored source · 0 packaged
 artifacts · `blockedByToolchain` false 23/23 · rollout untouched · `Published`
 unreachable.
+
+---
+
+# PROMPT 4 — the first portable knowledge module
+
+Appended. The pre-Prompt-4 live-state snapshot above is a record of what was true
+when it was written and is deliberately left intact: it said 0 authored source,
+and that was correct then.
+
+## 4A — candidate authoring
+
+`platform/runner-model` was chosen rather than a new effect-boundary module: it
+already owns *how runs execute and where authority comes from*, so ADR-0017 and
+ADR-0018 are additional canonical sources for the **same** module. Four bundle
+members were authored beside the specification README, which is not bundle
+source. A projection matrix was produced first — canonical fact, governing
+source, whether an agent needs it, portable form, and what was deliberately
+omitted.
+
+## Human exact-byte review
+
+The repository owner reviewed the candidate and approved the content review as
+`human:mikegtech` under `portable-knowledge-prohibited-content-v1`, bound to
+
+```text
+sha256:6ded34da42ef0c6c0463a1ad584c5f1a1e9270fafb2596c13ae867613eba7d20
+```
+
+The digest was recomputed independently before the attestation was written and
+again before commit. No authored byte changed after review.
+
+## 4B — the first Validated module
+
+`Source-ready -> Validated` for that module only, on evidence rather than
+assertion: reviewed bytes → attestation bound to their digest → canonical
+`admit()` → Proof A → `admitted: true`. Not `Packaged`, though the mechanism can
+prove it; not `Published`, which additionally requires a Proof B producer that
+does not exist. Landed at `10ffd9a`.
+
+## First-content falsification, found after `10ffd9a`
+
+Independent review approved the projection semantics and found one
+**conformance** defect that only real content could expose:
+
+- OKF v0.2 makes `generated.by` **required**, and admission never checked it —
+  so the first real module carried production provenance nothing had validated;
+- the recorded provenance was not truthful: `generated.by` named the module
+  owner and reviewer rather than the agent that actually produced the bytes, and
+  `generated.at` was a date padded to midnight.
+
+## 4C Phase A — the mechanism (this section's landing)
+
+`generated.by` is now enforced against the OKF actor convention —
+`human:<id>`, `process:<id>`, or `<producer>/<version>` — which is deliberately
+**wider** than the owner rule. A tool or process may produce content and does not
+thereby become the module owner, which stays `human:<id>`. Both directions are
+proven: loosening `owner` to the general vocabulary kills three tests, and
+narrowing `generated.by` to humans kills two.
+
+Admission checks **shape, not honesty**. Whether a producer or an instant is
+*true* is provenance, established by authoring discipline and human review; a
+regular expression can only establish form, and claiming otherwise would be the
+overclaim this repository keeps refusing. `knowledge/AGENTS.md` now carries the
+authoring rule and keeps the three clocks distinct — `as_of` (factual currency),
+`generated.at` (last meaningful edit), `contentReview.at` (the review event).
+
+## 4C Phase B — provenance correction (NOT in this landing)
+
+Correcting `generated.by` and `generated.at` changes source bytes, so it
+invalidates `contentReview.sourceDigest` and requires a **new** human content
+review. That is the exact-byte binding working, not a defect.
+
+## Authorization for current-state updates
+
+This task contract explicitly authorizes updating the CURRENT-state sections of
+PR #83's body and of the repository's guidance. It does **not** authorize
+rewriting historical commit or acceptance narrative, and none was rewritten.
+Per-module READMEs for modules that remain unauthored still say so, because that
+is still true of them.

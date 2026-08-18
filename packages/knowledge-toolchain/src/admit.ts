@@ -57,6 +57,22 @@ const REQUIRED_FIELDS = [
  * is the accountable party for the content; a build step cannot hold it.
  */
 const OWNER_ACTOR = /^human:[A-Za-z0-9._-]+$/
+
+/**
+ * The OKF actor convention, which is WIDER than this repository's owner rule.
+ *
+ * ADR-0015 §5 lists three forms — `<producer>/<version>`, `human:<id>`,
+ * `process:<id>` — and narrows only OWNER to the human form. `generated.by`
+ * records who produced the current bytes, and a tool or an automated process
+ * legitimately produces content.
+ *
+ * The two must not be collapsed in either direction. Loosening owner would let
+ * a build step become accountable for content; narrowing `generated.by` to
+ * humans would force an agent-authored module to misattribute its own
+ * production to a person.
+ */
+const OKF_ACTOR =
+  /^(?:human:[A-Za-z0-9._-]+|process:[A-Za-z0-9._-]+|[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)$/
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
 const STATUSES = new Set(['draft', 'stable', 'deprecated'])
@@ -170,10 +186,30 @@ const checkDocument = (document: CompiledDocument): readonly Refusal[] => {
   const generated = fm['generated']
   if (generated === undefined || typeof generated !== 'object' || generated === null) {
     bad('metadata_missing', 'profile.generated.at', 'required field "generated.at" is missing')
+    bad('metadata_missing', 'profile.generated.by', 'required field "generated.by" is missing')
   } else {
     const at = (generated as Record<string, unknown>)['at']
     if (typeof at !== 'string' || !ISO_INSTANT.test(at))
       bad('metadata_shape', 'profile.generated.at', '"generated.at" is not an ISO-8601 instant')
+
+    // OKF v0.2 makes `by` REQUIRED within `generated`. Admission never checked
+    // it, so the first real module carried production provenance nothing had
+    // validated — the defect this rule closes.
+    //
+    // What is NOT checked here is whether the recorded producer and instant are
+    // TRUE. That is provenance, established by authoring discipline and human
+    // review; a regular expression can only establish shape, and pretending
+    // otherwise would be the overclaim this repository keeps refusing.
+    const by = (generated as Record<string, unknown>)['by']
+    if (by === undefined) {
+      bad('metadata_missing', 'profile.generated.by', 'required field "generated.by" is missing')
+    } else if (typeof by !== 'string' || !OKF_ACTOR.test(by)) {
+      bad(
+        'metadata_shape',
+        'profile.generated.by.actor',
+        `"generated.by" is not an OKF actor: ${typeof by === 'string' ? by : typeof by}`,
+      )
+    }
   }
 
   const owner = fm['owner']

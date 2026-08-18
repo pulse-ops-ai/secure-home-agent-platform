@@ -313,6 +313,74 @@ describe('R3 P1: internal references use a closed link grammar', () => {
   })
 })
 
+// ══ 4C — OKF `generated.by` is REQUIRED, and is not the owner ════════════
+
+describe('4C: generated.by records who produced the CURRENT bytes', () => {
+  // `generated` is written whole by the fixture helper, so these build it by
+  // hand to vary exactly one thing.
+  const withGenerated = (block: string): string => {
+    const fm = [
+      'type: model',
+      `owner: ${OWNER}`,
+      `as_of: ${AS_OF}`,
+      'limitations: Describes the model only.',
+      'status: draft',
+      'stale_after: 2027-01-01',
+      `governs: ${GOVERNS}`,
+    ].join('\n')
+    return `---\n${fm}\n${block}\n---\n\n# A concept\n\nProse.\n`
+  }
+  const at = '  at: 2026-08-01T00:00:00Z'
+
+  it('control: a human producer is accepted', () => {
+    const text = withGenerated(`generated:\n  by: human:alice\n${at}`)
+    expect(run(members(text)).refusals).toEqual([])
+  })
+
+  it('A: generated present with NO by is refused', () => {
+    // THE DEFECT. OKF v0.2 makes `by` required within `generated`, and
+    // admission never looked at it — so the first real module could carry
+    // production provenance nobody had checked.
+    const text = withGenerated(`generated:\n${at}`)
+    expect(rules(run(members(text)).refusals)).toContain('profile.generated.by')
+  })
+
+  it('B: a malformed generated.by is refused by an actor-shape rule', () => {
+    const text = withGenerated(`generated:\n  by: "@mikegtech"\n${at}`)
+    expect(rules(run(members(text)).refusals)).toContain('profile.generated.by.actor')
+  })
+
+  // OKF's actor convention is wider than this repository's OWNER rule, and the
+  // two must not be collapsed: a tool may produce content without becoming
+  // accountable for it.
+  const producers = [
+    ['a process actor', 'process:knowledge-build'],
+    ['a producer/version actor', 'claude-code/2.1.0'],
+    ['a human actor', 'human:alice'],
+  ] as const
+  for (const [name, by] of producers) {
+    it(`accepts ${name} as generated.by`, () => {
+      const text = withGenerated(`generated:\n  by: ${by}\n${at}`)
+      expect(run(members(text)).refusals).toEqual([])
+    })
+  }
+
+  it('F: owner is NOT loosened — a process may generate but may not own', () => {
+    const text = withGenerated(`generated:\n  by: process:knowledge-build\n${at}`).replace(
+      `owner: ${OWNER}`,
+      'owner: process:knowledge-build',
+    )
+    expect(rules(run(members(text), { owner: 'process:knowledge-build' }).refusals)).toContain(
+      'profile.owner.actor',
+    )
+  })
+
+  it('generated.at is still required and still ISO-8601', () => {
+    const text = withGenerated('generated:\n  by: human:alice\n  at: 2026-08-01')
+    expect(rules(run(members(text)).refusals)).toContain('profile.generated.at')
+  })
+})
+
 // ══ INTEGRATION — a module owner is a HUMAN actor (ADR-0015 §5) ═════════
 
 describe('INT: the owner rule matches the accepted requirement', () => {

@@ -90,6 +90,44 @@ value be different in ten minutes?** If yes, it is state.
 An unregistered module directory fails validation. That is deliberate: a module
 no profile can select is invisible, and invisible things do not get reviewed.
 
+## Three clocks, and who produced the bytes
+
+The first real module exposed this: `generated` is **production provenance**, and
+it was being written as though it described the owner or the reviewer. It
+describes neither.
+
+| Field | What it records | Wrong answer it attracts |
+|---|---|---|
+| `as_of` | **factual currency** — how current the facts are | the day you edited the file |
+| `generated.at` | the **actual last meaningful change** to these bytes | midnight padding, or a copy of `as_of` because the dates matched |
+| `generated.by` | **who actually produced the current bytes** | the module owner, or the human who reviewed it |
+| `contentReview.at` | the human **content-review event** | the authoring time |
+
+`generated.by` takes the OKF actor convention, which is **wider** than the owner
+rule: `human:<id>`, `process:<id>`, or `<producer>/<version>`. A tool or an
+automated process may produce content — and does not thereby become the module
+**owner**, which stays `human:<id>`. Production and accountability are different
+facts, and a module authored by an agent must say so rather than crediting a
+person who did not write the bytes.
+
+`generated.at` is an instant, not a date. Padding a date to midnight states a
+time that did not happen; if you do not know the real instant, take the real one
+at the moment you make the change.
+
+**What admission can and cannot check.** It checks that `generated.by` is
+present and is a well-formed actor, and that `generated.at` is an ISO-8601
+instant. It **cannot** check that either is *true* — that is provenance,
+established by authoring discipline and human review. A regular expression
+establishes shape, never honesty.
+
+**Changing either field changes source bytes**, so it invalidates
+`contentReview.sourceDigest` and requires a new human content review. Provenance
+is not free to correct after review, which is the point: the review binds exact
+bytes.
+
+See [ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+§5 for the decision; this is the authoring rule that follows from it.
+
 ## Validation
 
 ```sh

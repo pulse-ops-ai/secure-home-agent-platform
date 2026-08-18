@@ -137,10 +137,11 @@ no report.
   modules authorized by the active execution profile; knowledge informs reasoning
   but never grants tools, capabilities, authorization, or permission to override
   live state or accepted ADRs. The toolchain, its conformance suite, and
-  repository content admission are implemented and run in CI, and
-  `blockedByToolchain` was discharged on 2026-08-16. No content is authored yet
-  and no governed query interface exists at runtime, so `knowledge/` remains
-  **specification-only and not runtime-authoritative**
+  repository content admission are implemented and run in CI,
+  `blockedByToolchain` was discharged on 2026-08-16, and the first module
+  (`platform/runner-model@1.0.0`) is authored and `Validated`. No governed query
+  interface exists at runtime and nothing is packaged or published, so
+  `knowledge/` is **not runtime-authoritative**
   ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format
   decision is Accepted; readiness was always a different fact). Authoring
   requires BOTH gates false: `blockedByRollout` still holds `household/**`,

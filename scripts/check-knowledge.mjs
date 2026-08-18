@@ -654,5 +654,5 @@ if (isMain) {
     process.exit(1)
   }
 
-  console.log(`✓ knowledge registry — ${modules} module(s), ${sets} set(s), all specification-only`)
+  console.log(`✓ knowledge registry — ${modules} module(s), ${sets} set(s)`)
 }

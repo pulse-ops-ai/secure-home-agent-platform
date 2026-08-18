@@ -3,8 +3,10 @@
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
-> **Status: no content authored yet — but authoring is now open for the ten
-> rollout-eligible `platform/**` modules.** The FORMAT is decided
+> **Status: the first module is authored and validated.**
+> [`platform/runner-model`](platform/runner-model/) is `Validated` at version
+> `1.0.0`; the other sixteen modules are `Planned`. Authoring is open for the ten
+> rollout-eligible `platform/**` modules. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
 > which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
 > toolchain and its conformance suite are implemented and are invoked over real

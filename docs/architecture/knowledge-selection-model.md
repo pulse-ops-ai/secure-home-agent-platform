@@ -90,12 +90,15 @@ knowledge:
 |---|---|
 | `set` | the named base composition, pinned to a version. A moving reference is not permitted, for the reason automations bind pinned profile versions ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)). |
 
-> **No set version is assignable yet.** Every registered set carries a `version`
-> field — the registry is version-capable, because this contract and the evidence
-> fields below both require it — but every one is currently `null`, because the
-> modules they select are still unversioned. That is now a statement about
-> authored content rather than about the toolchain: no module has been authored,
-> and every set is rollout-blocked. A set version that pins
+> **No set version is assignable yet, and the reason is now concrete.** Every
+> registered set carries a `version` field — the registry is version-capable,
+> because this contract and the evidence fields below both require it — but every
+> one is `null`, because **every set still has required members that carry no
+> version**. Exactly one module is versioned today,
+> `platform/runner-model@1.0.0`, and the sets that select it also require
+> unversioned ones: `architecture-default` requires four modules and three are
+> unversioned; the other five sets have no versioned required member at all.
+> Every set is additionally rollout-blocked. A set version that pins
 > nothing resolvable would make two different resolutions look identical in
 > evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
 > a set that carries a version while selecting an unversioned module. The
