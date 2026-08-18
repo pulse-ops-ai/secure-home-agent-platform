@@ -27,6 +27,59 @@ export interface RunScoped {
   readonly run_id: string
 }
 
+/**
+ * THE FENCING TOKEN, presented to the operation it fences.
+ *
+ * `RunLeasePort` already minted a generation, and the walk renewed it
+ * between phases. That is a LIVENESS check, not a fence: ownership can
+ * move during a phase, and the stale holder then keeps writing until the
+ * next boundary — through sinks that had no way to tell it apart from
+ * the real owner, because nothing but `renew` ever saw a generation.
+ *
+ * So the token travels with the effect. Every operation that CHANGES
+ * something carries the fence, and the receiving implementation rejects
+ * a generation it has already been superseded by. Reads do not carry it:
+ * a stale reader learns nothing a current one could not, and fencing
+ * reads would only make lost ownership look like a read failure.
+ *
+ * This is the classic fencing rule, and the reason it is enforced at the
+ * RESOURCE rather than by asking the lease: a sink that must consult the
+ * lease store to accept a write is a sink that accepts writes whenever
+ * the lease store is unreachable. Remembering the highest generation it
+ * has admitted costs one integer and needs nobody's cooperation.
+ */
+export interface RunFence extends RunScoped {
+  readonly generation: number
+}
+
+/**
+ * The answer from an effectful operation that had nothing else to say.
+ *
+ * Operations that already carry a discriminated outcome express a stale
+ * fence in their own vocabulary. The ones that used to return
+ * `Promise<void>` had no way to refuse at all — so they return this
+ * instead of throwing, because a rejected write is a fact the caller has
+ * to act on, and an exception thrown through a `catch {}` that exists to
+ * tolerate transient sink faults would be silently swallowed.
+ */
+/**
+ * `conflicting_replay` and `stale_fence` are DIFFERENT facts and must
+ * never be collapsed: a stale fence means ownership moved; a conflicting
+ * replay means a repeated effect identity arrived carrying a DIFFERENT
+ * fact than the one that landed. A replay is valid only when identity
+ * AND canonical logical intent both match — the first durable fact
+ * stands, the conflicting request is refused, and the caller fails
+ * closed rather than treating either the conflict as landed or the
+ * ownership as lost.
+ */
+export type FenceOutcome =
+  | { readonly ok: true }
+  | {
+      readonly ok: false
+      readonly reason: 'stale_fence' | 'conflicting_replay'
+      readonly detail: string
+    }
+
 export interface AuthorityReadRequest extends RunScoped {
   readonly epoch: AcquisitionEpoch
   readonly source: string
@@ -74,7 +127,7 @@ export interface ArtifactObserveRequest extends RunScoped {
  * scheduling interface never accepts one, so widening the executed
  * command is unexpressible rather than merely rejected (RO-INV-05).
  */
-export interface GateExecutionRequest extends RunScoped {
+export interface GateExecutionRequest extends RunFence {
   readonly gate_id: string
   readonly spec: GateSpecT
   /** The session this gate runs inside — L9 binds teardown to it. */
@@ -100,6 +153,12 @@ export type GateReport =
   | { readonly outcome: 'declared_skip'; readonly reason: string }
   | { readonly outcome: 'toolchain_unavailable'; readonly reason: string }
   | { readonly outcome: 'environmental_fault'; readonly detail: string }
+  /**
+   * The caller no longer owns this run. Distinct from an environmental
+   * fault on purpose: nothing is wrong with the gate or the host, and
+   * the run must not be terminated on this — it must stop writing.
+   */
+  | { readonly outcome: 'stale_fence'; readonly detail: string }
 
 /**
  * THE ADAPTER SPI, frozen to ADR-0013.
@@ -122,7 +181,7 @@ export interface RunInput {
   readonly parameters: Readonly<Record<string, string>>
 }
 
-export interface AdapterInvocationRequest extends RunScoped {
+export interface AdapterInvocationRequest extends RunFence {
   readonly adapter: string
   /** The captured profile identity — WHICH bytes governed. */
   readonly profile: { readonly name: string; readonly version: string; readonly digest: string }
@@ -228,5 +287,7 @@ export interface AdapterObservation {
 export type AdapterReport =
   | { readonly outcome: 'observed'; readonly observation: AdapterObservation }
   | { readonly outcome: 'environmental_fault'; readonly detail: string }
+  /** The caller no longer owns this run; see `GateReport`. */
+  | { readonly outcome: 'stale_fence'; readonly detail: string }
 
 export type { ArtifactObservation, AuthorityBytes, WorkspaceObservation }

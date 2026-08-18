@@ -17,17 +17,36 @@
  */
 import { RunEvent, type RunEventT } from '@secure-home/events'
 import type { ClockPort, EventSinkPort } from '../ports/index.js'
+import { isRunControlError } from '../run/interruption.js'
 
 export interface EventIdentity {
   readonly run_id: string
   readonly adapter: string
+  /**
+   * The lease generation this emitter writes under. An emitter belongs
+   * to one run AND to one holder of it: carrying the fence here rather
+   * than at each call site means no emission can accidentally be made
+   * without it.
+   */
+  readonly generation: number
 }
 
 export type EmitOutcome =
   | { readonly ok: true; readonly event: RunEventT }
   | {
       readonly ok: false
-      readonly reason: 'contract_invalid' | 'sink_failed'
+      /**
+       * `stale_fence` is kept apart from `sink_failed`: the sink is
+       * working perfectly and is refusing this caller, which is a fact
+       * about ownership rather than about the event stream. And
+       * `conflicting_replay` is kept apart from BOTH: the identity this
+       * emission tried to use already names a DIFFERENT durable event.
+       * That is an integrity failure of this emission, not ownership
+       * loss and not a broken sink — the durable event stands, the
+       * identity stays occupied, and only the fence reason may ever
+       * establish fence loss downstream.
+       */
+      readonly reason: 'contract_invalid' | 'sink_failed' | 'stale_fence' | 'conflicting_replay'
       readonly detail: string
     }
 
@@ -67,14 +86,28 @@ export class RunEventEmitter {
    * envelope the emitter's — a hand-built terminal event is how the
    * sequence number and run id drift.
    */
-  envelope(body: Record<string, unknown>): Record<string, unknown> {
+  envelope(
+    body: Record<string, unknown> & { readonly event_type: string },
+  ): Record<string, unknown> & { readonly event_type: string; readonly sequence: number } {
+    // The TERMINAL envelope reads the clock through a fallback, unlike
+    // `emit` below. An ordinary emission failing on a broken clock is a
+    // port fault the run terminates on; this envelope is built while
+    // RECORDING that terminal, and a record that dies of the fault it
+    // records leaves the run with no governed record at all. The machine
+    // substitutes the same unestablished instant for the same reason.
+    let timestamp: string
+    try {
+      timestamp = this.#clock.now({ run_id: this.#identity.run_id })
+    } catch {
+      timestamp = '1970-01-01T00:00:00.000Z'
+    }
     return {
       ...body,
       contract_id: 'run-event',
       contract_version: '1.0.0',
       run_id: this.#identity.run_id,
       sequence: this.#sequence,
-      timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
+      timestamp,
       adapter: this.#identity.adapter,
     }
   }
@@ -85,36 +118,83 @@ export class RunEventEmitter {
     // an event could be attributed to another run, or renumbered, by the
     // code that emits it. The envelope is this emitter's to state, and
     // no body field may override it.
-    const candidate = {
-      ...body,
-      contract_id: 'run-event',
-      contract_version: '1.0.0',
-      run_id: this.#identity.run_id,
-      sequence: this.#sequence,
-      timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
-      adapter: this.#identity.adapter,
-    }
-    const parsed = RunEvent.safeParse(candidate)
-    if (!parsed.success) {
-      return {
-        ok: false,
-        reason: 'contract_invalid',
-        detail: parsed.error.issues
-          .map((issue) => `${issue.path.map(String).join('.')}: ${issue.message}`)
-          .join('; '),
+    // THE SEQUENCE STATE MACHINE, explicit per outcome:
+    //
+    //   validation failure        -> N never allocated
+    //   stale-fence refusal       -> the sink wrote nothing; N reclaimed
+    //   throw / lost ack          -> outcome unknown; N stays consumed
+    //   exact replay acknowledged -> N stays occupied; emission succeeds
+    //   conflicting replay        -> N is occupied by ANOTHER durable
+    //                                event; N stays consumed, and THIS
+    //                                emission moves to the next fresh
+    //                                identity
+    //
+    // The conflicting-replay case is why this is a loop: a run whose
+    // counter is behind the durable stream — a replayed history, a
+    // restart — discovers each occupied identity only by being refused
+    // at it, and reclaiming or reusing one would either alias two
+    // events or repeat the conflict forever. Each advance re-validates
+    // and re-attempts through the (deadline-bounded) sink, so the walk
+    // past an occupied prefix is finite under the same budget as every
+    // port call. The conflict is NEVER ownership loss: only a
+    // stale-fence refusal may establish fence loss downstream.
+    for (;;) {
+      const candidate = {
+        ...body,
+        contract_id: 'run-event',
+        contract_version: '1.0.0',
+        run_id: this.#identity.run_id,
+        sequence: this.#sequence,
+        timestamp: this.#clock.now({ run_id: this.#identity.run_id }),
+        adapter: this.#identity.adapter,
       }
-    }
-    try {
-      await this.#sink.emit({ run_id: this.#identity.run_id, event: parsed.data })
-    } catch (error) {
-      return {
-        ok: false,
-        reason: 'sink_failed',
-        detail: error instanceof Error ? error.message : String(error),
+      const parsed = RunEvent.safeParse(candidate)
+      if (!parsed.success) {
+        return {
+          ok: false,
+          reason: 'contract_invalid',
+          detail: parsed.error.issues
+            .map((issue) => `${issue.path.map(String).join('.')}: ${issue.message}`)
+            .join('; '),
+        }
       }
+      // THE IDENTITY IS ALLOCATED BEFORE THE DURABLE EFFECT. The event
+      // can physically land while its acknowledgement is lost, and a
+      // sequence advanced only on acknowledgement would hand the LANDED
+      // event's identity to the next event — two different events
+      // wearing one (run_id, sequence).
+      const sequence = this.#sequence
+      this.#sequence += 1
+      let emitted
+      try {
+        emitted = await this.#sink.emit({
+          run_id: this.#identity.run_id,
+          generation: this.#identity.generation,
+          sequence,
+          event: parsed.data,
+        })
+      } catch (error) {
+        // A run interrupt rejects the awaiting continuation at the
+        // shared port boundary. It is not an event-sink fault and must
+        // reach the lifecycle's one terminal owner unchanged. Either
+        // way the outcome is UNKNOWN, so the sequence stays consumed.
+        if (isRunControlError(error)) throw error
+        return {
+          ok: false,
+          reason: 'sink_failed',
+          detail: error instanceof Error ? error.message : String(error),
+        }
+      }
+      if (!emitted.ok) {
+        if (emitted.reason === 'conflicting_replay') continue
+        // A definitive fence refusal wrote nothing, by the sink's own
+        // contract — the allocation is reclaimed rather than leaving a
+        // permanent gap that reads as a lost event.
+        this.#sequence = sequence
+        return { ok: false, reason: 'stale_fence', detail: emitted.detail }
+      }
+      this.#emitted.push(parsed.data)
+      return { ok: true, event: parsed.data }
     }
-    this.#sequence += 1
-    this.#emitted.push(parsed.data)
-    return { ok: true, event: parsed.data }
   }
 }

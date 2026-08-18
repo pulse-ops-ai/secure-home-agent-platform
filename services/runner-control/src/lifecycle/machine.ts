@@ -53,6 +53,27 @@ export interface RejectionEntry {
   readonly at: string
 }
 
+/**
+ * A projection this machine minted, and the only thing it will commit.
+ *
+ * Opaque on purpose: the entries are carried INSIDE it, so a caller
+ * cannot substitute a different list for a capability it legitimately
+ * holds. Held in a private set rather than validated by shape, because
+ * shape is forgeable and identity is not.
+ */
+export interface CommitCapability {
+  readonly entries: readonly TransitionEntry[]
+  /**
+   * The machine version this was projected FROM.
+   *
+   * Identity alone made a capability permanently valid: two projections from one
+   * version both committed, the second moving a machine that had already
+   * reached a terminal. A capability describes a transition FROM a
+   * specific state; once the machine has moved, it describes nothing.
+   */
+  readonly fromVersion: number
+}
+
 export type TransitionResult =
   | { readonly kind: 'advanced'; readonly state: LifecycleState; readonly entry: TransitionEntry }
   | { readonly kind: 'rejected'; readonly state: LifecycleState; readonly entry: RejectionEntry }
@@ -72,6 +93,8 @@ export class RunMachine {
   #state: LifecycleState = 'REQUESTED'
   #version = 0
   #journaledTransitions = 0
+  /** Projections minted by this machine and not yet committed. */
+  readonly #projections = new Set<CommitCapability>()
   #journaledRejections = 0
 
   /**
@@ -98,12 +121,19 @@ export class RunMachine {
 
   /** Every declared transition this run actually took, in order (D9). */
   get transitionRecord(): readonly TransitionEntry[] {
-    return this.#transitions
+    // A SNAPSHOT, not the live array. `readonly` is a compile-time view
+    // of a mutable array, and `conclude` puts this reference straight
+    // into the `RunConclusion` — so a caller holding a finished run's
+    // record watched it gain entries afterwards. D9 has the transition
+    // record "durable, and returned to the caller"; a record that gives
+    // two different answers to the same question is neither.
+    return Object.freeze(this.#transitions.map((entry) => ({ ...entry })))
   }
 
   /** Every rejected attempt. A rejection is evidence, not an error. */
   get rejections(): readonly RejectionEntry[] {
-    return this.#rejections
+    // A snapshot, for the same reason as `transitionRecord` above.
+    return Object.freeze(this.#rejections.map((entry) => ({ ...entry })))
   }
 
   /**
@@ -135,8 +165,16 @@ export class RunMachine {
     readonly rejections: readonly RejectionEntry[]
   } {
     return {
-      transitions: this.#transitions.slice(this.#journaledTransitions),
-      rejections: this.#rejections.slice(this.#journaledRejections),
+      transitions: Object.freeze(
+        this.#transitions
+          .slice(this.#journaledTransitions)
+          .map((entry) => Object.freeze({ ...entry })),
+      ),
+      rejections: Object.freeze(
+        this.#rejections
+          .slice(this.#journaledRejections)
+          .map((entry) => Object.freeze({ ...entry })),
+      ),
     }
   }
 
@@ -161,16 +199,16 @@ export class RunMachine {
   }
 
   #reject(attempted: TransitionKind, reason: RejectionReason, detail: string): TransitionResult {
-    const entry: RejectionEntry = {
+    const entry: RejectionEntry = Object.freeze({
       run_id: this.#runId,
       state: this.#state,
       attempted,
       reason,
       detail,
       at: this.#clock.now({ run_id: this.#runId }),
-    }
+    })
     this.#rejections.push(entry)
-    return { kind: 'rejected', state: this.#state, entry }
+    return { kind: 'rejected', state: this.#state, entry: { ...entry } }
   }
 
   apply(claim: WriteClaim, kind: TransitionKind, cause: string): TransitionResult {
@@ -207,18 +245,18 @@ export class RunMachine {
         `the machine declares no ${kind} transition for ${this.#state}`,
       )
     }
-    const entry: TransitionEntry = {
+    const entry: TransitionEntry = Object.freeze({
       run_id: this.#runId,
       from: this.#state,
       to: next,
       kind,
       cause,
       at: this.#clock.now({ run_id: this.#runId }),
-    }
+    })
     this.#state = next
     this.#version += 1
     this.#transitions.push(entry)
-    return { kind: 'advanced', state: next, entry }
+    return { kind: 'advanced', state: next, entry: { ...entry } }
   }
 
   /**
@@ -241,10 +279,13 @@ export class RunMachine {
    * returned here are the entries `commitProjected` will record, so the
    * committed tail and the machine's record cannot drift apart.
    */
-  project(
-    steps: readonly { readonly kind: TransitionKind; readonly cause: string }[],
-  ):
-    | { readonly ok: true; readonly entries: readonly TransitionEntry[] }
+  project(steps: readonly { readonly kind: TransitionKind; readonly cause: string }[]):
+    | {
+        readonly ok: true
+        readonly entries: readonly TransitionEntry[]
+        /** The ONLY value `commitProjected` accepts — see below. */
+        readonly capability: CommitCapability
+      }
     | { readonly ok: false; readonly kind: TransitionKind; readonly from: LifecycleState } {
     const entries: TransitionEntry[] = []
     let state = this.#state
@@ -262,7 +303,29 @@ export class RunMachine {
       })
       state = next
     }
-    return { ok: true, entries }
+    // The capability is minted HERE and nowhere else, and this machine
+    // remembers it. That is what makes committed adoption a capability
+    // rather than a public mutator: a caller cannot forge one, and one
+    // minted by another machine is not accepted by this one.
+    // FROZEN AT MINT. `readonly` is erased at runtime, so a legitimately
+    // held capability could be edited between projection and commit —
+    // authorization checked against one set of entries and applied to
+    // another. Freezing each entry and the list closes that.
+    // ONE REPRESENTATION, ONE IDENTITY. This returned the frozen copies
+    // in the capability AND the mutable original as `entries` — and it
+    // was the mutable original that crossed the `FinalizationPort`
+    // boundary while the machine afterwards adopted the frozen copies.
+    // A port that edited the array it was handed before reporting
+    // success left durable history and machine state disagreeing about
+    // what the run did, with nothing able to detect it. Freezing one
+    // list and exposing an editable twin of it is not a guarantee.
+    const frozen = Object.freeze(entries.map((entry) => Object.freeze({ ...entry })))
+    const capability: CommitCapability = Object.freeze({
+      entries: frozen,
+      fromVersion: this.#version,
+    })
+    this.#projections.add(capability)
+    return { ok: true, entries: capability.entries, capability }
   }
 
   /**
@@ -273,13 +336,43 @@ export class RunMachine {
    * re-derivation of it. They are marked journaled because the commit
    * already wrote them — re-appending would duplicate the tail.
    */
-  commitProjected(entries: readonly TransitionEntry[]): void {
-    for (const entry of entries) {
+  commitProjected(capability: CommitCapability): void {
+    // UNPROJECTED ENTRIES ARE REFUSED. This used to take an arbitrary
+    // array and set the state, append a transition and bump the version
+    // for whatever it was handed — no claim, no terminal check, no table
+    // lookup — while `RunMachine` is exported from the package root. The
+    // guard that "only the declared owners advance the machine" was
+    // therefore a fact about this repository's source, not about the
+    // class. Now the class enforces it.
+    if (!this.#projections.delete(capability)) {
+      throw new Error(
+        'commitProjected requires a capability minted by project() on this machine; an unprojected entry list cannot advance it',
+      )
+    }
+    // AND IT MUST STILL DESCRIBE THIS MACHINE. A capability projected
+    // from an earlier version is stale: the machine has moved, so the
+    // `from` state it was computed against is no longer where the run
+    // is. Without this, two projections from one version both committed
+    // — the second walking a machine out of a terminal state, which the
+    // totality rule forbids outright.
+    if (capability.fromVersion !== this.#version) {
+      throw new Error(
+        `this capability was projected from version ${String(capability.fromVersion)} and the machine is at ${String(this.#version)}; a stale projection cannot advance it`,
+      )
+    }
+    for (const entry of capability.entries) {
       this.#transitions.push(entry)
       this.#state = entry.to
       this.#version += 1
     }
-    this.#journaledTransitions = this.#transitions.length
+    // ADVANCED BY WHAT THIS COMMIT WROTE, not to the total. Assigning
+    // the length marked every pending entry journaled — including an
+    // append that had FAILED and was waiting for the next tick to retry
+    // it. The run then completed with that transition missing from its
+    // durable record, no rejection and no hold marking the gap, which is
+    // precisely what `confirmJournaled` advancing incrementally exists
+    // to prevent.
+    this.#journaledTransitions += capability.entries.length
   }
 
   /** Claim and apply in one step, for the ordinary sequential path. */

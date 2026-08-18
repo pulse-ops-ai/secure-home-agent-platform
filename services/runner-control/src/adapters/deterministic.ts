@@ -26,15 +26,22 @@ import type {
   EventSinkPort,
   EvidenceSinkPort,
   ExecutionPort,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
+  RunFence,
   RunScoped,
+  Staging,
 } from '../ports/index.js'
+import { FenceLedger } from '../run-state/fence.js'
+import { CommitLedger, isVisible } from '../run-state/visibility.js'
+import type { CommitVisibility } from '../ports/index.js'
 
 /** Gate reports supplied per gate identity; anything unlisted passes. */
 export class DeterministicExecution implements ExecutionPort {
   readonly #reports: ReadonlyMap<string, GateReport>
   readonly #requests: GateExecutionRequest[] = []
+  readonly #fence = new FenceLedger()
 
   constructor(reports: Readonly<Record<string, GateReport>> = {}) {
     this.#reports = new Map(Object.entries(reports))
@@ -46,6 +53,11 @@ export class DeterministicExecution implements ExecutionPort {
   }
 
   runGate(request: GateExecutionRequest): Promise<GateReport> {
+    const refused = this.#fence.refuse(request)
+    // Refused BEFORE the request is recorded, so a proof asserting "the
+    // stale holder ran no gate" reads the request log and finds nothing
+    // — rather than finding an attempt that merely returned an error.
+    if (refused !== undefined) return Promise.resolve({ outcome: 'stale_fence', detail: refused })
     this.#requests.push(request)
     return Promise.resolve(this.#reports.get(request.gate_id) ?? { outcome: 'passed' })
   }
@@ -54,6 +66,7 @@ export class DeterministicExecution implements ExecutionPort {
 export class DeterministicAdapterInvocation implements AdapterInvocationPort {
   readonly #report: AdapterReport
   readonly #requests: AdapterInvocationRequest[] = []
+  readonly #fence = new FenceLedger()
 
   constructor(
     report: AdapterReport = {
@@ -69,6 +82,11 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
   }
 
   invoke(request: AdapterInvocationRequest): Promise<AdapterReport> {
+    const refused = this.#fence.refuse(request)
+    // The fence is checked before the provider is engaged at all. A run
+    // that lost ownership must not spend — the whole point of fencing
+    // the invocation rather than only its result.
+    if (refused !== undefined) return Promise.resolve({ outcome: 'stale_fence', detail: refused })
     this.#requests.push(request)
     return Promise.resolve(this.#report)
   }
@@ -76,36 +94,278 @@ export class DeterministicAdapterInvocation implements AdapterInvocationPort {
 
 export interface RecordedWrite {
   readonly run_id: string
-  readonly kind: 'evidence_bundle' | 'early_termination_record' | 'transition_record'
+  readonly kind: 'evidence_bundle' | 'early_termination_record'
   readonly payload: unknown
+  /** Present only while the write belongs to an unpublished commit. */
+  readonly commit_id?: string
+}
+
+interface StoredEvent {
+  readonly event: unknown
+  readonly commit_id?: string
 }
 
 export class RecordingEventSink implements EventSinkPort {
-  readonly #byRun = new Map<string, unknown[]>()
+  readonly #byRun = new Map<string, StoredEvent[]>()
+  readonly #fence = new FenceLedger()
+  readonly #visibility: CommitVisibility
+  /** (run, sequence) → canonical landed event: the replay ledger. */
+  readonly #landed = new Map<string, string>()
+  /**
+   * (run, sequence) → the unpublished staged reservation of that
+   * identity: ONE canonical fact, and the independently owned physical
+   * stage of each transaction that staged it. Two transactions may
+   * intend the same durable fact, but durable-fact equivalence is NOT
+   * ownership of unpublished mutable staging state — each commit owns
+   * its own invisible row, and only its own.
+   */
+  readonly #reserved = new Map<
+    string,
+    { readonly canonical: string; readonly stages: Map<string, StoredEvent> }
+  >()
 
-  emit(request: RunScoped & { readonly event: unknown }): Promise<void> {
-    const existing = this.#byRun.get(request.run_id) ?? []
-    existing.push(request.event)
-    this.#byRun.set(request.run_id, existing)
-    return Promise.resolve()
+  constructor(visibility: CommitVisibility = new CommitLedger()) {
+    this.#visibility = visibility
   }
 
-  mark(request: RunScoped): Promise<string> {
-    return Promise.resolve(String((this.#byRun.get(request.run_id) ?? []).length))
-  }
-
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
-    const existing = this.#byRun.get(request.run_id) ?? []
-    const keep = Number(request.token)
-    if (Number.isInteger(keep) && keep >= 0) {
-      this.#byRun.set(request.run_id, existing.slice(0, keep))
+  /**
+   * THE ONE EVENT-DOMAIN IDENTITY AUTHORITY. What durably occupies
+   * (run, sequence) is either an ordinarily-landed event or a STAGED
+   * event whose commit has published — `commit_id` names the atomic
+   * transaction, never the event's own identity, so a staged terminal
+   * event answers to the same ledger as every ordinary emission.
+   */
+  #durableCanonical(run_id: string, sequence: number): string | undefined {
+    const identity = `${run_id}#e${String(sequence)}`
+    const landed = this.#landed.get(identity)
+    if (landed !== undefined) return landed
+    for (const row of this.#byRun.get(run_id) ?? []) {
+      if (row.commit_id === undefined || !isVisible(this.#visibility, row.commit_id)) continue
+      const staged = row.event as { readonly sequence?: unknown }
+      if (staged.sequence === sequence) return JSON.stringify(row.event)
     }
-    return Promise.resolve()
+    return undefined
+  }
+
+  emit(
+    request: RunFence & { readonly sequence: number; readonly event: unknown },
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    if (!refused.ok) return Promise.resolve(refused)
+    // (run_id, sequence) is the event's identity. A repeat carrying the
+    // SAME event is a lost acknowledgement resolved — acknowledged
+    // without a second physical event. A DIFFERENT event wearing a
+    // landed identity is refused outright: two events must never share
+    // one identity, whatever went wrong with the first acknowledgement.
+    const identity = `${request.run_id}#e${String(request.sequence)}`
+    const canonical = JSON.stringify(request.event)
+    const durable = this.#durableCanonical(request.run_id, request.sequence)
+    if (durable !== undefined) {
+      if (durable === canonical) return Promise.resolve(refused)
+      // The typed refusal, not a throw: a caller must be able to tell
+      // "this identity already carries a different event" apart from a
+      // broken sink — the emitter advances past an occupied identity,
+      // which a thrown error would hide as an unknown outcome.
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `event identity ${identity} already carries a different event`,
+      })
+    }
+    // ONE event-domain authority, not two. An identity reserved by an
+    // UNPUBLISHED staged event is not free: a different canonical fact
+    // cannot occupy it merely because the reservation is not yet
+    // durable — otherwise publication would expose two events at one
+    // identity.
+    const reserved = this.#liveReservation(identity)
+    if (reserved !== undefined) {
+      if (reserved.canonical !== canonical) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} is reserved by an unpublished staged event`,
+        })
+      }
+      // EXACT reserved canonical: an unpublished stage is NOT durable,
+      // so it cannot back an acknowledged ordinary effect. This landing
+      // becomes THE durable fact at the identity, and every equivalent
+      // unpublished stage retires with it — otherwise a later
+      // publication would expose a second physical row for the one
+      // fact, and an abandoning sibling could erase the only copy of an
+      // event this sink already acknowledged. (Which acknowledgement
+      // the ordinary caller receives stays open; that one identity has
+      // one durable fact does not.)
+      for (const [stagedCommit, stagedRow] of [...reserved.stages]) {
+        this.#releaseStage(identity, stagedCommit, stagedRow)
+      }
+    }
+    this.#landed.set(identity, canonical)
+    const existing = this.#byRun.get(request.run_id) ?? []
+    existing.push({ event: request.event })
+    this.#byRun.set(request.run_id, existing)
+    return Promise.resolve(refused)
+  }
+
+  /**
+   * Record the terminal event against `commit_id`, invisibly — under
+   * the SAME event-domain identity authority as `emit`, with the staged
+   * state machine explicit and identity enforcement UNCONDITIONAL (the
+   * type guarantees the envelope carries its sequence):
+   *
+   *   UNUSED         → reserve the identity, stage ONE physical row
+   *   EXACT REPLAY   → same identity, same canonical event: ok, and no
+   *                    second row is ever created
+   *   CONFLICT       → same identity, different canonical event —
+   *                    whatever the commit_id says, because equality of
+   *                    the TRANSACTION identity does not make different
+   *                    domain facts equivalent: conflicting_replay, the
+   *                    first reservation unchanged, the conflicting
+   *                    event never staged
+   *   ABANDON        → releases only THIS stage's unpublished
+   *                    reservation and row; idempotent; cannot erase a
+   *                    published event or an unrelated stage
+   *   PUBLISH        → exactly one event becomes visible and the
+   *                    identity is permanently occupied
+   */
+  stageEmit(
+    request: RunFence & {
+      readonly commit_id: string
+      readonly event: Record<string, unknown> & {
+        readonly event_type: string
+        readonly sequence: number
+      }
+    },
+  ): Promise<Staging> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
+    }
+    const commit_id = request.commit_id
+    const run_id = request.run_id
+    const sequence = request.event.sequence
+    const canonical = JSON.stringify(request.event)
+    const identity = `${run_id}#e${String(sequence)}`
+
+    const durable = this.#durableCanonical(run_id, sequence)
+    if (durable !== undefined) {
+      if (durable !== canonical) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} already carries a different durable event; the terminal event cannot occupy it`,
+        })
+      }
+      // The same logical fact is already durable: stage nothing, so
+      // publication cannot duplicate it, and abandon has nothing to do.
+      return Promise.resolve({
+        ok: true,
+        staged: { commitId: commit_id, abandon: () => undefined },
+      })
+    }
+
+    const reserved = this.#liveReservation(identity)
+    if (reserved !== undefined) {
+      if (reserved.canonical !== canonical) {
+        return Promise.resolve({
+          ok: false,
+          reason: 'conflicting_replay',
+          detail: `event identity ${identity} is already reserved for a different event`,
+        })
+      }
+      const own = reserved.stages.get(commit_id)
+      if (own !== undefined) {
+        // EXACT same-transaction replay: this commit's one physical row
+        // already exists; the handle shares ITS OWN scoped cleanup
+        // rather than staging a twin.
+        return Promise.resolve({
+          ok: true,
+          staged: {
+            commitId: commit_id,
+            abandon: () => this.#releaseStage(identity, commit_id, own),
+          },
+        })
+      }
+      // EXACT cross-transaction replay: the durable FACT is equivalent,
+      // but ownership of unpublished staging state is not. This commit
+      // stages its OWN invisible row under the shared canonical
+      // reservation — a capability whose label says this commit must
+      // never carry cleanup authority over another commit's row, and a
+      // transaction must never depend on staged state it does not own
+      // to publish a complete record.
+      const row: StoredEvent = { event: request.event, commit_id }
+      const rows = this.#byRun.get(run_id) ?? []
+      rows.push(row)
+      this.#byRun.set(run_id, rows)
+      reserved.stages.set(commit_id, row)
+      return Promise.resolve({
+        ok: true,
+        staged: {
+          commitId: commit_id,
+          abandon: () => this.#releaseStage(identity, commit_id, row),
+        },
+      })
+    }
+
+    const row: StoredEvent = { event: request.event, commit_id }
+    const existing = this.#byRun.get(run_id) ?? []
+    existing.push(row)
+    this.#byRun.set(run_id, existing)
+    this.#reserved.set(identity, { canonical, stages: new Map([[commit_id, row]]) })
+    return Promise.resolve({
+      ok: true,
+      staged: {
+        commitId: commit_id,
+        abandon: () => this.#releaseStage(identity, commit_id, row),
+      },
+    })
+  }
+
+  /**
+   * The reservation currently holding `identity`, if any of its stages
+   * is still unpublished. Published stages are durable — the durable
+   * ledger answers for them — and a reservation whose every stage
+   * published or abandoned no longer reserves anything.
+   */
+  #liveReservation(
+    identity: string,
+  ): { readonly canonical: string; readonly stages: Map<string, StoredEvent> } | undefined {
+    const reservation = this.#reserved.get(identity)
+    if (reservation === undefined) return undefined
+    for (const row of reservation.stages.values()) {
+      if (row.commit_id !== undefined && !isVisible(this.#visibility, row.commit_id)) {
+        return reservation
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Release ONE transaction's stage: its row, its entry in the shared
+   * reservation — never a published event, never another transaction's
+   * stage, and idempotent.
+   */
+  #releaseStage(identity: string, commit_id: string, row: StoredEvent): void {
+    if (row.commit_id !== undefined && isVisible(this.#visibility, row.commit_id)) return
+    const reservation = this.#reserved.get(identity)
+    if (reservation !== undefined && reservation.stages.get(commit_id) === row) {
+      reservation.stages.delete(commit_id)
+      if (reservation.stages.size === 0) this.#reserved.delete(identity)
+    }
+    for (const [run_id, rows] of this.#byRun) {
+      const index = rows.indexOf(row)
+      if (index !== -1) {
+        rows.splice(index, 1)
+        this.#byRun.set(run_id, rows)
+        return
+      }
+    }
   }
 
   /** Events of ONE run — the filtering RO-INV-10 requires, at the source. */
   eventsOf(run_id: string): readonly unknown[] {
-    return this.#byRun.get(run_id) ?? []
+    return (this.#byRun.get(run_id) ?? [])
+      .filter((row) => isVisible(this.#visibility, row.commit_id))
+      .map((row) => row.event)
   }
 
   get runs(): readonly string[] {
@@ -114,61 +374,96 @@ export class RecordingEventSink implements EventSinkPort {
 }
 
 export class RecordingEvidenceSink implements EvidenceSinkPort {
-  readonly #writes: RecordedWrite[] = []
+  #writes: RecordedWrite[] = []
+  readonly #fence = new FenceLedger()
+  readonly #visibility: CommitVisibility
+
+  constructor(visibility: CommitVisibility = new CommitLedger()) {
+    this.#visibility = visibility
+  }
+
+  #visibleWrites(): readonly RecordedWrite[] {
+    return this.#writes.filter((write) => isVisible(this.#visibility, write.commit_id))
+  }
+
+  /** Record identity → the canonical record that landed under it. */
+  readonly #landed = new Map<string, string>()
 
   write(
-    request: RunScoped &
-      (
+    request: RunFence & { readonly record_id: string } & (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
-        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
-  ): Promise<void> {
+  ): Promise<FenceOutcome> {
+    const refused = this.#fence.outcome(request)
+    // The seal is the run's final and most consequential write. A stale
+    // holder sealing a bundle would produce a second, contradictory
+    // record of one run — two answers to "what happened", both signed.
+    if (!refused.ok) return Promise.resolve(refused)
+    // A repeated record identity carrying the SAME canonical record —
+    // the governed kind and the payload both — is a lost acknowledgement
+    // being resolved: acknowledged, nothing appended, the first landed
+    // version stands. A DIFFERENT record wearing a landed identity is a
+    // CONFLICTING replay: refused without touching the first record,
+    // because identity equality must imply record equality.
+    const canonical = JSON.stringify({
+      kind: request.kind,
+      payload: request.kind === 'evidence_bundle' ? request.bundle : request.record,
+    })
+    const landed = this.#landed.get(request.record_id)
+    if (landed !== undefined) {
+      if (landed === canonical) return Promise.resolve(refused)
+      return Promise.resolve({
+        ok: false,
+        reason: 'conflicting_replay',
+        detail: `evidence record ${request.record_id} already landed a different record`,
+      })
+    }
+    this.#landed.set(request.record_id, canonical)
     this.#writes.push({
       run_id: request.run_id,
       kind: request.kind,
-      payload:
-        request.kind === 'evidence_bundle'
-          ? request.bundle
-          : request.kind === 'early_termination_record'
-            ? request.record
-            : request.transitions,
+      payload: request.kind === 'evidence_bundle' ? request.bundle : request.record,
     })
-    return Promise.resolve()
+    return Promise.resolve(refused)
   }
 
-  mark(request: RunScoped): Promise<string> {
-    return Promise.resolve(String(this.writesOf(request.run_id).length))
-  }
-
-  /**
-   * Discard this run's writes made after `token`.
-   *
-   * Scoped to the ATTEMPT: clearing everything the run ever wrote would
-   * let a later attempt's rollback erase an earlier attempt's committed
-   * bundle, turning a failed retry into data loss.
-   */
-  retractTo(request: RunScoped & { readonly token: string }): Promise<void> {
-    const keep = Number(request.token)
-    if (!Number.isInteger(keep) || keep < 0) return Promise.resolve()
-    let seen = 0
-    for (let index = 0; index < this.#writes.length; index += 1) {
-      if (this.#writes[index]?.run_id !== request.run_id) continue
-      seen += 1
-      if (seen > keep) {
-        this.#writes.splice(index, 1)
-        index -= 1
-      }
+  /** Record the seal against `commit_id`, invisibly. */
+  stageWrite(
+    request: RunFence & {
+      readonly commit_id: string
+      readonly kind: 'evidence_bundle'
+      readonly bundle: unknown
+    },
+  ): Promise<Staging> {
+    const refused = this.#fence.refuse(request)
+    if (refused !== undefined) {
+      return Promise.resolve({ ok: false, reason: 'stale_fence', detail: refused })
     }
-    return Promise.resolve()
+    const commit_id = request.commit_id
+    this.#writes.push({
+      run_id: request.run_id,
+      kind: 'evidence_bundle',
+      payload: request.bundle,
+      commit_id,
+    })
+    return Promise.resolve({
+      ok: true,
+      staged: {
+        commitId: commit_id,
+        abandon: () => {
+          this.#writes = this.#writes.filter((write) => write.commit_id !== commit_id)
+        },
+      },
+    })
   }
 
   writesOf(run_id: string): readonly RecordedWrite[] {
-    return this.#writes.filter((write) => write.run_id === run_id)
+    return this.#visibleWrites().filter((write) => write.run_id === run_id)
   }
 
   get all(): readonly RecordedWrite[] {
-    return this.#writes
+    return this.#visibleWrites()
   }
 }
 

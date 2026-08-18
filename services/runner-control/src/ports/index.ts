@@ -9,7 +9,7 @@
  * only. No interface here can express "launch a container": there is no
  * image, no mount, no socket, and no argv anywhere in the surface.
  */
-import type { FinalizationPort, Retractable } from './finalization.js'
+import type { FinalizationPort, Staging } from './finalization.js'
 import type { RunJournalPort, RunLeasePort } from '../run-state/ports.js'
 import type { ExecutionSessionPort } from '../execution/ports.js'
 import type { WorkspaceLifecyclePort } from '../workspace/ports.js'
@@ -21,8 +21,10 @@ import type {
   ArtifactObserveRequest,
   AuthorityBytes,
   AuthorityReadRequest,
+  FenceOutcome,
   GateExecutionRequest,
   GateReport,
+  RunFence,
   RunScoped,
   WorkspaceObservation,
   WorkspaceObserveRequest,
@@ -53,32 +55,83 @@ export interface AdapterInvocationPort {
 export type AdapterInvocation = AdapterInvocationRequest
 
 /** One emitted run event. The shape is the L2 contract's, by instance. */
-export interface EventSinkPort extends Retractable {
-  emit(request: RunScoped & { readonly event: unknown }): Promise<void>
+export interface EventSinkPort {
+  /**
+   * `sequence` is the event's stable identity within its run, allocated
+   * by the emitter BEFORE the durable effect. A sink must treat a
+   * repeated (run_id, sequence) carrying the same event as a replay —
+   * acknowledged without a second physical event — and must refuse a
+   * DIFFERENT event wearing a landed identity.
+   */
+  emit(
+    request: RunFence & { readonly sequence: number; readonly event: unknown },
+  ): Promise<FenceOutcome>
+  /**
+   * Prepare the terminal event as part of a finalization commit. Not
+   * observable until published — `run.terminated` must never announce an
+   * outcome before the bundle recording it exists.
+   *
+   * The staged event STRUCTURALLY carries its own domain identity: the
+   * envelope's `sequence` is the one source of truth for
+   * (run, sequence), required by the type so identity enforcement can
+   * never be optional. `commit_id` names the atomic transaction — it is
+   * not, and never substitutes for, the event's identity.
+   */
+  stageEmit(
+    request: RunFence & {
+      readonly commit_id: string
+      readonly event: Record<string, unknown> & {
+        readonly event_type: string
+        readonly sequence: number
+      }
+    },
+  ): Promise<Staging>
 }
 
 /**
  * The durable record sink.
  *
  * `kind` distinguishes what a run can durably produce: a sealed L2
- * evidence bundle, the early-terminal refusal record for a run that
- * terminated before authority completed, and the orchestration-owned
- * TRANSITION RECORD — the full declared walk, including the states the
- * closed event vocabulary does not represent (design D9). A record held
- * only in memory reconstructs nothing once the process ends, so the walk
- * is written like any other durable output.
+ * evidence bundle, and the early-terminal refusal record for a run that
+ * terminated before authority completed. Exactly two, and a fabricated
+ * bundle is not among them — it is unrepresentable.
  *
- * A fabricated bundle is not among the options — it is unrepresentable.
+ * The orchestration-owned TRANSITION RECORD is deliberately NOT here.
+ * The requirement is real — every declared transition must land in a
+ * durable record distinct from the L2 event stream — but `RunJournalPort`
+ * owns it, appended as the walk happens (design D9). This sink briefly
+ * declared a third `transition_record` shape as well; nothing ever wrote
+ * it, and a second declared authority for one concept is how the two
+ * drift apart. A record written here after the seal would also make the
+ * seal not the run's last write.
  */
-export interface EvidenceSinkPort extends Retractable {
+export interface EvidenceSinkPort {
+  /**
+   * `record_id` is the governed record's stable LOGICAL identity, owned
+   * by the caller and identical on every retry of the same record. The
+   * record can physically land while its acknowledgement is lost; a
+   * sink must answer a repeated identity as a replay — acknowledged
+   * without a second record — which is what makes a settlement retry a
+   * resolution instead of a duplication.
+   */
   write(
-    request: RunScoped &
-      (
+    request: RunFence & { readonly record_id: string } & (
         | { readonly kind: 'evidence_bundle'; readonly bundle: unknown }
         | { readonly kind: 'early_termination_record'; readonly record: unknown }
-        | { readonly kind: 'transition_record'; readonly transitions: unknown }
       ),
-  ): Promise<void>
+  ): Promise<FenceOutcome>
+  /**
+   * Prepare the sealed bundle as part of a finalization commit. Staged
+   * last, so the participant most likely to refuse does so while
+   * refusing is still free.
+   */
+  stageWrite(
+    request: RunFence & {
+      readonly commit_id: string
+      readonly kind: 'evidence_bundle'
+      readonly bundle: unknown
+    },
+  ): Promise<Staging>
 }
 
 /**

@@ -195,10 +195,8 @@ describe('RO-MUT-07: dropping the key is observable', () => {
     const unkeyed: { last: string | undefined; count: number } = { last: undefined, count: 0 }
     const shared = testPorts({
       evidence: evidenceSinkFailing((request: { run_id?: string; kind: string }) => {
-        if (request.kind !== 'transition_record') {
-          unkeyed.last = request.run_id
-          unkeyed.count += 1
-        }
+        unkeyed.last = request.run_id
+        unkeyed.count += 1
         return false
       }),
     })

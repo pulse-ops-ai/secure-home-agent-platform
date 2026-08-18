@@ -18,12 +18,14 @@
  * ids; these use ONE, which is the case that was unguarded.
  */
 import { describe, expect, it } from 'vitest'
-import { InMemoryRunJournal, InMemoryRunLease } from '../adapters/index.js'
+import { InMemoryRunLease } from '../adapters/index.js'
 import { Runner } from '../runner.js'
 import {
   CountingAuthoritySource,
   DeterministicExecution,
   runRequest,
+  seizeLease,
+  sharedPorts,
   testPorts,
   withoutConsent,
 } from '../testing-fixtures.js'
@@ -62,24 +64,52 @@ describe('RO-EX-32: the journal is appended as the walk happens', () => {
     // finalization tail is counted too. Wrapping afterwards would leave
     // the commit writing to the unwrapped journal and the proof would
     // silently observe only the engine's five.
-    const inner = new InMemoryRunJournal()
+    // Built from the SHARED visibility authority. A journal holding its
+    // own ledger would never see the commit the finalization publishes,
+    // and the tail would stay invisible for a reason that has nothing to
+    // do with what this proof is about.
+    const shared = sharedPorts()
+    const inner = shared.journal
+    const length = async (run_id: string): Promise<number> =>
+      (await inner.readCurrentState({ run_id }))?.transitions.length ?? 0
     const counting = {
       ...inner,
       appendTransition: async (request: Parameters<typeof inner.appendTransition>[0]) => {
-        await inner.appendTransition(request)
-        const state = await inner.readCurrentState({ run_id: request.run_id })
-        seen.push(state?.transitions.length ?? 0)
+        const appended = await inner.appendTransition(request)
+        seen.push(await length(request.run_id))
+        return appended
+      },
+      // The finalization tail no longer arrives through `appendTransition`
+      // — it is STAGED and published with the terminal event and the
+      // bundle. Counted at publication, which is the only moment it
+      // becomes visible at all.
+      stageTransitions: async (request: Parameters<typeof inner.stageTransitions>[0]) => {
+        // The tail is STAGED, not appended. It becomes visible when the
+        // commit marker is published, which is why the marker below is
+        // recorded here rather than at any per-participant publication —
+        // there is no longer any such thing.
+        seen.push(-1)
+        return inner.stageTransitions(request)
       },
       appendRejection: inner.appendRejection.bind(inner),
       appendAcquisition: inner.appendAcquisition.bind(inner),
       appendHold: inner.appendHold.bind(inner),
-      mark: inner.mark.bind(inner),
-      retractTo: inner.retractTo.bind(inner),
       readCurrentState: inner.readCurrentState.bind(inner),
     }
-    await new Runner(testPorts({ journal: counting })).run(runRequest())
+    const ports = testPorts({
+      journal: counting,
+      events: shared.events,
+      evidence: shared.evidence,
+      visibility: shared.visibility,
+    })
+    await new Runner(ports).run(runRequest())
 
-    expect(seen, 'the journal must grow one entry at a time').toEqual([1, 2, 3, 4, 5, 6, 7])
+    // The walk's five transitions land one at a time, each when exactly
+    // k exist. The sixth marker is the finalization tail, which is NOT
+    // incremental by design: EVIDENCE_SEALED and COMPLETED become
+    // visible together with the event and the bundle, or not at all.
+    expect(seen, 'the walk must journal incrementally').toEqual([1, 2, 3, 4, 5, -1])
+    expect(await length(RUN), 'and the tail added both entries at once').toBe(7)
   })
 
   it('acquisitions are journaled per epoch and source', async () => {
@@ -153,7 +183,11 @@ describe('RO-EX-34: one run, one owner — across Runner instances', () => {
   it('the run that does NOT hold the lease performs no effect at all', async () => {
     const shared = testPorts()
     const holder = new InMemoryRunLease()
-    const claimed = await holder.claim({ run_id: RUN })
+    const claimed = await holder.claim({
+      run_id: RUN,
+      attempt_id: 'holder',
+      signal: new AbortController().signal,
+    })
     expect(claimed.ok).toBe(true)
 
     const conclusion = await new Runner({ ...shared, lease: holder }).run(runRequest())
@@ -167,14 +201,22 @@ describe('RO-EX-34: one run, one owner — across Runner instances', () => {
   it('the lease is released on conclusion, so the run can be picked up again', async () => {
     const ports = testPorts()
     await new Runner(ports).run(runRequest())
-    const second = await ports.lease.claim({ run_id: RUN })
+    const second = await ports.lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     expect(second.ok, 'a concluded run must not hold its lease forever').toBe(true)
   })
 
   it('a held run releases its lease — a pending run is not a locked one', async () => {
     const ports = testPorts()
     await new Runner(ports).run(withoutConsent(runRequest()))
-    const second = await ports.lease.claim({ run_id: RUN })
+    const second = await ports.lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     expect(second.ok).toBe(true)
   })
 })
@@ -187,7 +229,7 @@ describe('RO-EX-35: a lost lease stops the run', () => {
     const conclusion = await new Runner({ ...ports, execution }).run(runRequest(), {
       interrupt: () => {
         // Steal the lease out from under the run at the first check.
-        lease.steal(RUN)
+        seizeLease(lease, RUN)
         return undefined
       },
     })
@@ -199,17 +241,25 @@ describe('RO-EX-35: a lost lease stops the run', () => {
 describe('RO-EX-36: the fencing token is real', () => {
   it('a stale generation cannot renew', async () => {
     const lease = new InMemoryRunLease()
-    const first = await lease.claim({ run_id: RUN })
+    const first = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     if (!first.ok) throw new Error('the first claim must succeed')
-    lease.steal(RUN)
+    seizeLease(lease, RUN)
     expect(await lease.renew({ run_id: RUN, generation: first.generation })).toBe(false)
   })
 
   it('a stale generation cannot release the current holder', async () => {
     const lease = new InMemoryRunLease()
-    const first = await lease.claim({ run_id: RUN })
+    const first = await lease.claim({
+      run_id: RUN,
+      attempt_id: 'proof',
+      signal: new AbortController().signal,
+    })
     if (!first.ok) throw new Error('the first claim must succeed')
-    const current = lease.steal(RUN)
+    const current = seizeLease(lease, RUN)
     await lease.release({ run_id: RUN, generation: first.generation })
     expect(
       await lease.renew({ run_id: RUN, generation: current }),

@@ -101,14 +101,56 @@ are below.
 | RO-INV-44 | Entries are observed with `lstat`: a symlink is recorded AS a symlink with its resolved `link_target`, and an artifact read is of the named path or is refused | trust |
 | RO-INV-45 | Artifact observation is bounded by file count and file size, and refuses content it cannot carry faithfully rather than corrupting it | trust |
 | RO-INV-46 | The seal is the run's last write of ANY kind — nothing, including the transition record, follows it | trust |
-| RO-INV-47 | A failed commit retracts to a mark taken BEFORE it wrote, and the retraction is scoped to the attempt so a later attempt cannot erase an earlier commit | trust |
-| RO-INV-48 | A run that has lost its lease writes nothing further — no journal tail, no event, no evidence | trust |
+| RO-INV-47 | Finalization performs no compensating publication. All fallible participant preparation stays invisible; exactly ONE commit-visibility operation makes every participant fact the transaction still owes — journal tail, terminal event, sealed evidence — observable together, and a participant fact already durably satisfied by exact replay (a terminal event whose identical canonical content ordinarily landed at the same event-domain identity) is reconciled by the commit rather than physically republished, its prior durability neither committing the transaction nor publishing any owed fact early; abandoning an uncommitted preparation changes no observable run state and exposes no new transaction-owned state | trust |
+| RO-INV-48 | FENCING, stated to what the mechanism delivers. Once a resource has served generation N+1, generation N can never write there again — the resource itself refuses, without consulting the lease. The run additionally renews at every phase boundary, and re-establishes ownership directly before the two writes that escape: the commit marker and apply-back. What this does NOT claim is that a dispossessed holder writes nothing anywhere: a fencing token cannot be checked against a generation the resource has not yet seen, so a stale write to a resource the new owner has not touched is admitted. Terminating the dispossessed worker itself is L9's, where process and container teardown become real | trust |
 | RO-INV-49 | A journal append that fails leaves its entry PENDING for retry; the cursor advances only for what landed | behavior |
-| RO-INV-50 | Every terminal transition is checked, on the failure paths too: a terminal the machine refuses is not recorded as having happened | trust |
+| RO-INV-50 | Every terminal transition is checked, on the failure paths too, and they go through ONE owner rather than several local helpers. A terminal the machine refuses is not recorded as having happened; the run falls back to INDETERMINATE, and if the table grants no terminal at all the conclusion reports the run as unterminated rather than claiming a state the machine never granted | trust |
 | RO-INV-51 | A session or lease port that THROWS cannot leak a session or replace the run's conclusion; `run()` always resolves | behavior |
 | RO-INV-52 | A run writes into an isolated workspace provisioned before execution, and discarded on every exit | trust |
 | RO-INV-53 | Changes leave the workspace only on the trusted core's materialization decision; a refusal applies nothing, and what is applied back is exactly the AUTHORITATIVE observation | trust |
 | RO-INV-54 | Apply-back precedes the seal, and a run whose changes did not land does not seal as `COMPLETED` | trust |
+| RO-INV-56 | Provider terminal-observation classification is the CORE's: orchestration passes the observations to `classifyTerminalObservations` and obeys, and no orchestration module reads `exit_code`, `signalled` or `reported_outcome` to reach a verdict | trust |
+| RO-INV-57 | The transition record has ONE authority. `RunJournalPort` owns it; `EvidenceSinkPort` expresses exactly two shapes — the sealed bundle and the early-terminal record — and cannot express a transition record at all | trust |
+| RO-INV-58 | Orchestration is decomposed by PHASE and typed by what each phase has established. A phase receives only the state it earned, so reading state it has not is a compile error; no definite-assignment assertion re-enters the tree; and the module sizes are held by a ratchet that may only decrease | behavior |
+| RO-INV-59 | Proof affordances are not runtime authority: `RunSignals` carries only the interrupt, transition tables are validated as NARROWINGS of the canonical lifecycle, and the armed wall clock is bounded by the captured profile — never by what the session port reports | trust |
+| RO-INV-60 | Cancellation is honoured at EVERY declared boundary, REQUESTED and pre-spend included, and a cancelled run holding an open session interrupts it rather than merely closing it | behavior |
+| RO-INV-61 | Ownership is lost two ways — a lease that moved and a resource that refused the fence — and BOTH halt the walk before the next phase's effects. A dispossessed run performs no effect and writes no governed record, its own conclusion and the sinks agreeing | trust |
+| RO-INV-62 | A conclusion states what it IS — terminal, settlement_failed, held, ownership_lost, not_started, or unterminated — distinctly from the state it reports. `settlement_failed` names an intended terminal whose governed record did not land; an attempt that lost ownership declares its own end, never the logical run's | trust |
+| RO-INV-63 | The seal requires a COMPLETE durable record: a journal append still pending — of EVERY category the journal records, rejections as much as transitions — is an outstanding write of the run, so the walk is flushed before anything is staged, the gate derives from the pending set's own shape rather than a category list, and a run whose walk cannot be made durable does not seal | trust |
+| RO-INV-64 | Every port that can hang is bounded by the run's wall clock, not only the provider and the gates; the deadline is armed BEFORE the first such call rather than after the last | behavior |
+| RO-INV-65 | A commit capability is frozen at mint, one-shot, and bound to the machine VERSION it was projected from — so it cannot be edited between authorization and use, and a stale projection cannot advance a machine that has since moved | trust |
+| RO-INV-66 | The canonical transition table is deep-frozen at its source, so the default path retains immutable lifecycle authority — `RunMachine` is exported and defaults to it directly, which freezing inside `Runner` would not reach | trust |
+| RO-INV-67 | The run's budget is enforced at ONE complete asynchronous port boundary, not by abandoning the walk: every awaited port from lease claim through cleanup is invoked through a guard-owned thunk, so an interrupt unwinds at that call and a delayed answer cannot start the next effect. The absolute expiry is checked synchronously before every call as well as by its timer; the pre-profile ceiling is replaced before session preparation by one profile expiry and later narrowing preserves elapsed time | behavior |
+| RO-INV-68 | The submitted run's one cancellation input is effective, not advisory: `interrupt` is polled while a call is OUTSTANDING rather than only between phases, and a source enumeration re-consults it after draining as well as before each source | behavior |
+| RO-INV-69 | A structural guard is proven by EXERCISING it against a planted counterexample, never by reading its own text. A guard that names a property lexically is a proxy for it, and a suite that only greps the guard tests the proxy — so each such guard is run against something it must catch and something it must not | behavior |
+| RO-INV-70 | An effect is not STARTED once the run is aborted. Every async port method is invoked through a thunk-owning guard, so the call cannot be evaluated after the abort check; rejection unwinds the phase at that await and prevents any later phase effect from starting | trust |
+| RO-INV-71 | A projection has ONE representation. The entries handed to finalization ARE the entries the capability owns and the machine later adopts, frozen, so a port that edits what it was given cannot leave durable history and machine state disagreeing about what the run did | trust |
+| RO-INV-72 | TIMED_OUT's provenance is the GOVERNED wall clock. A caller's interrupt expresses cancellation only — narrowed in the type and coerced at the boundary, because a type is erased at runtime — so a requester cannot author a terminal cause the lifecycle contract assigns to the deadline mechanism | trust |
+| RO-INV-73 | An interrupted run's RECORD does not depend on scheduler latency or which interrupt arrived. After the ordinary port guard unwinds the phase, a fresh bounded settlement guard writes the state-appropriate early record or full bundle and releases resources; if that mandatory record cannot land, the conclusion is explicitly `settlement_failed`, never a lifecycle terminal with `produced:none` | behavior |
+| RO-INV-74 | The complete run boundary is bounded: lease claim, authority reads, phase effects, terminal settlement, resource cleanup, and lease release. A shortening-only override is capped by the standing acquisition ceiling; after capture, the profile establishes one expiry before session preparation and the session may only narrow it, never restart it | behavior |
+| RO-INV-75 | A concluded attempt performs no later orchestration effect. A delayed underlying port promise may settle, but no run continuation remains attached to its value; terminal conclusions expose snapshot arrays, so reading one twice yields the same transition and rejection record | trust |
+| RO-INV-76 | Terminal settlement has its own failure identity and capability. Its expiry can make settlement incomplete, but can never manufacture `TIMED_OUT`; while the run remains non-terminal, cancellation and the governed profile expiry still interrupt finalization before publication | trust |
+| RO-INV-77 | Transition and rejection entries are immutable at mint and cross the journal boundary as frozen copies. No return value, public snapshot, pending-journal value, or defective port can rewrite the machine's private history by reference | trust |
+| RO-INV-78 | Lease acquisition is a guarded, resource-side abortable authority operation. The claim receives an attempt identity and the governed signal; an expired attempt cannot start and an outstanding attempt that observes abort cannot later become current ownership. No post-conclusion compensation continuation exists | trust |
+| RO-INV-79 | Every terminal at or after `PROFILE_RESOLVED`, including interruption or last-resort recovery from an escaping port fault, attempts the full evidence bundle with every fact already established in RUNNING. A separate append-only terminal-evidence accumulator preserves operations, gate dispositions, workspace observation, and artifact observation without weakening the total verification `Observations` typestate | trust |
+| RO-INV-80 | Journal code distinguishes lifecycle control from storage failure: `RunInterrupted` and `RunSettlementExpired` propagate to their terminal/settlement owner unchanged; only genuine journal faults remain pending for retry | trust |
+| RO-INV-81 | Interrupted settlement attempts session interruption exactly once, in its dedicated stop window; evidence settlement never repeats the stop. Generic recovery retains caller-cancellation/profile-timeout precedence until its final publication point | trust |
+| RO-INV-82 | An acquisition attempt has its own identity and its own resolution: every claim presents an attempt id unique to that attempt, a lease may replay a grant only to its own attempt AND only while that grant is current — a spent attempt refuses rather than minting another generation — and an attempt whose outcome the runner could not await is resolved AT THE RESOURCE, abandoned, so a pending grant can never confer ownership and a committed one is released, never left as ownership with no holder | trust |
+| RO-INV-83 | An acknowledged durable commit is a FACT. Finalization crosses the call boundary as an acknowledged effect: expiry is enforced synchronously at the publication point inside the commit — either it publishes inside the budget or nothing observable exists — and once the commit acknowledges, orchestration adopts the committed terminal and never re-reports it as an uncommitted timeout | trust |
+| RO-INV-84 | Recorded owner authority names a verifiable owner-authenticated source — a PR comment, issue, or commit the owner wrote — never an implementation task and never a reviewer's assertion, however the review was relayed | trust |
+| RO-INV-85 | Every asynchronous port method carries exactly one effect class — discardable read, acknowledged effect, acquisition, finalization, cleanup — recorded as a complete per-method table computed from the `Ports` type and consumed by the composition boundary, so an unclassified method cannot compile and cannot cross; the finalization class alone crosses the acknowledgement-accepting boundary | trust |
+| RO-INV-86 | A durable or externally observable effect is never a discardable result: its FACT is accounted before or independently of its acknowledgement, it carries a stable caller-known identity where it can be retried (journal entry identities; the emitter's run/sequence envelope), a repeated identity is a replay answered without a second durable fact, and a lost acknowledgement never makes orchestration assume the effect did not occur | trust |
+| RO-INV-87 | The finalization commit identity is the CALLER's, established before the port call and stable across retries of the same intent; the implementation mints no per-call identity, a replay of a published identity reconciles to `ok` without staging or publishing, and a different intent for an already-finalized generation refuses `already_committed` — no path publishes a second terminal | trust |
+| RO-INV-88 | A conclusion claims a durable property only after every durable fact that conclusion requires has landed: `terminal` requires the complete durable walk whatever record physically landed, `held` requires the durable resumable identity, and a run whose required facts remain pending reports the authorized settlement-failure semantics (or an explicitly non-durable non-terminal), never a claimed durability | trust |
+| RO-INV-89 | Expiry provenance is structurally distinct end to end: caller cancellation, the governed run clock, and attempt-scoped settlement/recovery ceilings are separate bounds, the boundary stamps WHOSE bound a commit expiry is, and an attempt bound expiring reports settlement failure with the intended terminal standing — it never manufactures lifecycle TIMED_OUT | trust |
+| RO-INV-90 | The deadline that wins at a boundary carries its instant AND its provenance as one typed value; every stamp is a projection of it, so a governed deadline that wins a minimum is refused as the run's timeout and an attempt ceiling that wins is refused as the attempt's bound — two independently derived facts that could disagree are unrepresentable. The boundary stamps that value UNCONDITIONALLY: request-supplied expiry metadata is stripped, never preferred, so a pre-boundary caller can neither widen the budget nor forge the provenance a refusal will carry | trust |
+| RO-INV-91 | Finalization replay equivalence is established by the stored CANONICAL LOGICAL INTENT, never by the identity string alone: an exact replay of a published commit reconciles `ok`, a different intent wearing the same derived identity — same generation, same terminal, different content — refuses `already_committed`, and durable stores never describe an intent the acknowledged conclusion contradicts | trust |
+| RO-INV-92 | Required effect identities are REQUIRED BY THE PUBLIC SPI, not by caller discipline: journal `entry_id`, the event's (run, sequence) identity as an explicit request field, the evidence `record_id`, caller-minted session and workspace acquisition identities present before the call, and the non-empty-by-type materialization change set — and conforming implementations bind the resources they create to those caller-known identities | trust |
+| RO-INV-93 | Stable identity is necessary but not sufficient: a replay is valid only when identity AND canonical logical intent both match. A repeated identity carrying a different fact — a different payload, a different governed kind, a different journal category, a different materialization — is a CONFLICTING replay: refused without mutating the first durable fact, distinct from ownership loss, and handled fail-closed by the caller (the entry stays pending, no conclusion claims durability over it). The replay ledger therefore retains canonical content, never identity membership alone, through one shared mechanism per store | trust |
+| RO-INV-94 | Finalization has three identities with three jobs — the event's (run, sequence), the transaction's commit_id, ownership's (run, generation) — never collapsed. In-flight bindings are established synchronously before the first await: one in-flight commit identity binds ONE canonical intent (an exact concurrent replay joins the single underlying transaction; a different intent refuses with no participant staging), one in-flight generation admits ONE terminal transaction (a competing commit may stage invisibly and is refused at the publication gate), and publication establishes the persistent authority in the same synchronous section as the marker — IN_FLIGHT becomes PUBLISHED with no FREE interval, and a pre-publication failure releases only the claim its own operation still holds | trust |
+| RO-INV-95 | Durable-fact equivalence is NOT ownership of unpublished staging state. Exact canonical replay across transaction identities never transfers cleanup or publication capability over another transaction's invisible stage: each commit owns its own physical stage under the one shared canonical reservation, a StagedWrite's abandon authority agrees with the owner its label names, and a transaction can never acknowledge success while relying on staged state it does not own. Ordinary and staged emission answer to ONE event-domain identity authority — a different canonical fact cannot occupy an identity reserved by an unpublished staged event, and the exact ordinary-versus-staged replay cell — undecided when this invariant was minted — is since decided by RO-INV-96 to the proven extent: one durable physical fact per identity and truthful acknowledgement, with only the acknowledgement disposition of the exact cross-path replay still open | trust |
+| RO-INV-96 | Ordinary and staged creation paths share one event-domain identity authority all the way to durability: one (run_id, sequence) identity carries AT MOST ONE durable physical event fact, however it was reached — ordinary landing, staged publication, or both racing. An exact fact reconciles across paths: an ordinary landing of the exact reserved canonical becomes the durable fact and retires every equivalent unpublished stage, so no later staged publication exposes a second row, and a staged replay of an already-durable exact fact stages nothing rather than conflicting. If an ordinary acknowledged effect reports success its durable fact is independently true — a sibling's staged abandonment cannot erase it. This sharpens RO-INV-95's open cell only to what is proven: the acknowledgement disposition of the exact staged-versus-ordinary replay stays open; durable uniqueness and acknowledgement truthfulness do not | trust |
+| RO-INV-55 | The exception path reports the run's REAL state — the machine it actually walked and the transitions it actually took — releases the resources it actually held, and chooses the governed record from what the run established: early-terminal before authority, full bundle afterwards. It fabricates no machine or identity | trust |
 
 ## State-Space Model
 
@@ -274,19 +316,64 @@ persistence (U11).
 | RO-EX-62 | RO-INV-45 | adversarial | a binary artifact is refused by name; a text artifact is read faithfully |
 | RO-EX-63 | RO-INV-42 | adversarial | an unwalkable root reports failure, never no-changes |
 | RO-EX-64 | RO-INV-46 | adversarial | the last write of any kind to the evidence sink is the sealed bundle — asserted UNFILTERED, because the helper that filtered "the run's writes" is what hid the violation |
-| RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; an evidence write that LANDS and then fails is retracted |
-| RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk makes no further write and journals no terminal |
+| RO-EX-65 | RO-INV-47 | adversarial | a journal failing part way through the tail leaves no tail; a participant that refuses while staging leaves no bundle, because nothing it prepared was ever observable |
+| RO-EX-66 | RO-INV-48 | adversarial | a run whose lease is stolen mid-walk stops at the next boundary, makes no further evidence write and journals no terminal — the boundary half of the guarantee, distinct from the per-resource refusal RO-EX-82 proves |
 | RO-EX-67 | RO-INV-49 | adversarial | an append that fails once is retried and reaches the journal, rather than vanishing from the record |
 | RO-EX-68 | RO-INV-50 | adversarial | a table forbidding `operational_fault`, and one forbidding `refuse` from `REQUESTED`, each write nothing |
 | RO-EX-69 | RO-INV-51 | adversarial | a `start()` that throws and an `interrupt()` that throws both still close the session |
 | RO-EX-70 | RO-INV-51 | adversarial | a `claim()` that throws resolves with a conclusion and writes nothing; a `release()` that throws does not replace a completed run |
-| RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact |
+| RO-EX-71 | RO-INV-47 | adversarial | a second attempt that fails at the commit leaves the first attempt's bundle and journal tail intact — structurally, since the failed attempt published no marker and therefore wrote nothing to take back |
 | RO-EX-72 | RO-INV-53 | deterministic example | permitted changes are applied back only after the core decided they may be; a policy-refused change set applies nothing |
 | RO-EX-73 | RO-INV-53 | adversarial | changes outside the policy never leave the workspace, and the refusal names the offending path |
 | RO-EX-74 | RO-INV-54 | adversarial | the apply-back precedes the seal; an apply-back that fails terminates `OPERATIONAL_FAILURE` and the sealed bundle says so rather than `COMPLETED` |
 | RO-EX-75 | RO-INV-52 | adversarial | provisioning failure stops the run before anything executes; the workspace is discarded on refusal too; a run that never provisioned discards nothing |
 | RO-EX-76 | RO-INV-53 | deterministic example | an empty change set is not an apply-back |
 | RO-EX-77 | RO-INV-53 | deterministic example | what is applied back is exactly the observed set — not the model's claims |
+| RO-EX-78 | RO-INV-47 | adversarial | a participant observing from inside the commit sees no journal tail and no terminal event while the bundle is still being prepared |
+| RO-EX-79 | RO-INV-47 | adversarial | a staged tail, event, and bundle are absent from every reader until the marker publishes; an abandoned preparation changes no observable state |
+| RO-EX-80 | RO-INV-47 | structural | a participant has no publication step at all; the commit body contains exactly ONE visibility mutation, with no `await` after it and the ownership check before it |
+| RO-EX-81 | RO-INV-47 | structural | no participant exposes `mark` or `retractTo`, and the finalization adapter names no rollback path |
+| RO-EX-82 | RO-INV-47 | adversarial | an observer running inside the commit sees all three or none; the terminal tail is present in the journal store yet unreadable until the marker |
+| RO-EX-83 | RO-INV-47 | adversarial | a staged write exposes only `commitId` and `abandon`, so publication cannot fail halfway; a staging failure publishes no marker at all |
+| RO-EX-84 | RO-INV-48 | adversarial | a lease that moves AFTER the last staging fence check publishes nothing — the commit marker re-establishes ownership |
+| RO-EX-85 | RO-INV-55 | adversarial | a port that throws at `RUNNING` still reports `PROFILE_RESOLVED`, `ELIGIBLE`, `SANDBOX_STARTED` and `RUNNING`, ending `INDETERMINATE`; the journal carries the same walk, including the entries pending at the throw |
+| RO-EX-86 | RO-INV-55 | adversarial | a run that captured a profile is NOT given the early-terminal shape; a run that captured none still is |
+| RO-EX-87 | RO-INV-55 | adversarial | a workspace provisioned before execution is discarded even when a port throws, and the deadline timer is disarmed |
+| RO-EX-88 | RO-INV-50 | adversarial | a table without `operational_fault` from `VERIFYING` still ends the run in a TERMINAL state, records the refusal, and writes nothing |
+| RO-EX-89 | RO-INV-50 | adversarial | a table granting no terminal at all from `RUNNING` makes the exception handler report the run as unterminated, naming the refusal, rather than reporting a progress state as the outcome |
+| RO-EX-90 | RO-INV-56 | structural | no orchestration module names `exit_code`, `signalled` or `reported_outcome` — scanned by FIELD, so renaming a local helper cannot evade it; `ports/values.ts` (declares the SPI) and `adapters/**` (produce observations) are excepted because neither classifies |
+| RO-EX-91 | RO-INV-56 | deterministic example (runner-core) | exit 0 with a signal, and a success claim with a non-zero exit, are conflicts; agreeing observations, an absent exit code, and a bare `reported_outcome` are established; the classification names no terminal state |
+| RO-EX-92 | RO-INV-57 | structural + deterministic example | no production module declares a `transition_record` sink shape (scanned with comments stripped, so the doc explaining its absence is not the failure); the journal holds the full seven-transition walk while the evidence sink holds only `evidence_bundle` |
+| RO-EX-93 | RO-INV-58 | structural | every orchestration module is within its ceiling, every phase handler under 120 code lines, the facade under 200, and no module outside `lifecycle/walk.ts`, `lifecycle/machine.ts` and `run/scope.ts` advances the machine |
+| RO-EX-94 | RO-INV-58 | structural | `requested` cannot name an observation or an artifact surface — checked by IMPORT, so a phase that does not import the type cannot construct, read or pass one — and no definite-assignment assertion survives anywhere in the tree |
+| RO-EX-95 | RO-INV-55 | adversarial | a throw from OUTSIDE acquisition's catch — a lease renew, a journal append — still writes exactly one early-terminal record; terminalizing twice writes nothing, which is what the decomposition regressed |
+| RO-EX-96 | RO-INV-59 | structural + adversarial | `RunSignals` declares only the interrupt; a redirected or added transition is refused and never reaches the provider; the wall clock is `min(profile, session, override)` and the spend phase arms from the bound |
+| RO-EX-97 | RO-INV-60 | adversarial | a run cancelled at REQUESTED reads no authority; cancelled after eligibility it provisions nothing and opens no session; cancelled with a session open it is INTERRUPTED, not merely closed |
+| RO-EX-98 | RO-INV-60 | adversarial | a run cancelled at the RUNNING and both VERIFYING boundaries interrupts its open session, not merely closes it — the three boundaries the single earlier fixture did not reach |
+| RO-EX-99 | RO-INV-61 | adversarial | a journal refusing the fence in REQUESTED halts the walk: no session opened, no provider invoked, no gate run |
+| RO-EX-100 | RO-INV-61 | adversarial | a dispossessed run writes no early-terminal record, so its conclusion's "no further write was made" is true of the sinks |
+| RO-EX-101 | RO-INV-59 | adversarial | a widening transition table is refused whether carried as an own property or on a PROTOTYPE — the validator reads what `declaredNext` reads |
+| RO-EX-102 | RO-INV-55 | adversarial | the lost-lease exit disarms the run's timers; a stolen run leaves nothing armed, measured against a control run that leaves nothing either |
+| RO-EX-103 | RO-INV-50 | structural | EVERY machine-mutating entry point is owned — `advance`, `commitProjected` and `hold` — and the escape scans cover bracket access and private-field assertions, the forms this tree actually uses |
+| RO-EX-104 | RO-INV-60 | adversarial | a POLLED timeout keeps its own terminal at every boundary, including SANDBOX_STARTED, where the returned signal was discarded and `abortRun` defaulted to cancel |
+| RO-EX-105 | RO-INV-61 | adversarial | authority reads stop AT the fence refusal, not at the next phase — the epoch is told to stop rather than reading its two remaining sources |
+| RO-EX-106 | RO-INV-59 | adversarial | a validated table is a frozen null-prototype COPY, so it cannot widen after validation; a non-enumerable widening is refused, because the validator reads every key `declaredNext` can |
+| RO-EX-107 | RO-INV-50 | adversarial | `commitProjected` accepts only a capability `project()` minted on THAT machine; an unprojected entry list cannot advance it, so the ownership rule is enforced by the class rather than by a scan of this repository |
+| RO-EX-108 | RO-INV-62 | deterministic example | a dispossessed attempt concludes `ownership_lost` producing nothing; an ordinary run concludes `terminal`, a consent-held run `held` |
+| RO-EX-109 | RO-INV-36 | adversarial (reviewer-authored) | a transcript terminating in error against a clean exit and a success claim is a disagreement: the run is INDETERMINATE, not COMPLETED |
+| RO-EX-110 | RO-INV-63 | adversarial (reviewer-authored) | a transient append failure at VERIFYING does not vanish from the durable walk; the journal equals the machine's transitions |
+| RO-EX-111 | RO-INV-50 | structural (reviewer-authored) | the ownership scan covers `apply` — the mutator the other three delegate to — matched by receiver so `lease.claim(` is not mistaken for a machine advance |
+| RO-EX-112 | RO-INV-22 | adversarial (reviewer-authored) | cancellation during apply-back terminates CANCELLED; the last check precedes the terminal, not merely the verification |
+| RO-EX-113 | RO-INV-64 | adversarial (reviewer-authored) | a session port that never settles times out on the profile's budget rather than leaving the run unresolved at ELIGIBLE |
+| RO-EX-114 | RO-INV-30 | structural (reviewer-authored) | the exported lease surface is exactly the port; the seize affordance a proof needs is not a method on it |
+| RO-EX-115 | RO-INV-65 | adversarial | a minted capability's entries cannot be edited before commit, and a second projection from the same version is refused once the first has moved the machine |
+| RO-EX-116 | RO-INV-66 | adversarial | mutating the exported canonical table does not widen a default run |
+| RO-EX-117 | RO-INV-62 | structural + adversarial | every conclusion variant constrains the state it may carry; a dispossessed attempt does not terminalize its machine, and a machine granted no terminal reports `unterminated` rather than `terminal` |
+| RO-EX-118 | RO-INV-67 | adversarial | a port with no bespoke call-site wrapper that never settles still cannot hold the run open — the complete injected port surface is guarded centrally |
+| RO-EX-119 | RO-INV-67 | adversarial | acquisition is bounded before any profile is captured, and the captured profile establishes one absolute wall clock rather than a second timer or a restarted budget |
+| RO-EX-120 | RO-INV-68 | adversarial | an `interrupt` raised while a call is in flight reaches it, and an enumeration cancelled after its last source stops rather than proceeding |
+| RO-EX-121 | RO-INV-69 | structural + adversarial | RO-EX-94 is arity, not substring: it is exercised against a phase reaching unearned state through another phase's signature, which no substring of the type's name appears in |
+| RO-EX-122 | RO-INV-61 | adversarial | a run dispossessed inside VERIFYING applies nothing back to the workspace, and the same run applies back when it is not dispossessed |
 | RO-MUT-01 | RO-INV-04 | mutation | removing per-epoch token consumption is killed by RO-EX-04/RO-PROP-01 |
 | RO-MUT-05 | D11 | mutation | fabricating authority identities for an early terminal is killed by RO-ADV-07 |
 | RO-MUT-06 | RO-INV-09 | mutation | sourcing the requester from a captured profile instead of the run request is killed by RO-EX-08 / RO-ADV-08 |
@@ -310,7 +397,7 @@ persistence (U11).
 | RO-MUT-24 | RO-INV-27 | mutation | ignoring a rejected transition and proceeding to the next phase's effects is killed by RO-EX-28/29/31 (verified: the mutant kills four proofs) |
 | RO-MUT-25 | RO-INV-28 | mutation | batching the journal to a single write at conclusion is killed by RO-EX-32 (verified: the mutant kills two proofs) |
 | RO-MUT-26 | RO-INV-30 | mutation | claiming the lease and not enforcing it is killed by RO-EX-34 (verified: the mutant kills two proofs) |
-| RO-MUT-27 | RO-INV-31 | mutation | applying a commit without retracting on failure is killed by RO-EX-38/43 (verified: the mutant kills three proofs) |
+| RO-MUT-27 | RO-INV-31 | mutation | publishing a staged record before the commit marker is killed by RO-EX-78/79/82 (verified: making staged rows visible immediately kills seven proofs) |
 | RO-MUT-28 | RO-INV-32 | mutation | emitting the terminal event before the commit is killed by RO-EX-38/39 (verified: the mutant kills two proofs) |
 | RO-MUT-29 | RO-INV-36 | mutation | trusting the provider's self-reported outcome over the disagreement is killed by RO-EX-46 (verified) |
 | RO-MUT-30 | RO-INV-35 | mutation | admitting a credential value field on the invocation is killed by RO-EX-45 under `tsc` (verified: survives `vitest run` alone, which is why the aggregate gate runs types AND tests) |
@@ -319,10 +406,169 @@ persistence (U11).
 | RO-MUT-33 | RO-INV-42 | mutation | labelling every observed file `modified` instead of diffing the baseline is killed by RO-EX-58 (verified) |
 | RO-MUT-34 | RO-INV-43 | mutation | digesting text instead of raw bytes is killed by RO-EX-59 (verified) |
 | RO-MUT-35 | RO-INV-44 | mutation | using `stat` instead of `lstat`, so a link reads as a regular file, is killed by RO-EX-60/61 (verified) |
-| RO-MUT-36 | RO-INV-47 | mutation | omitting evidence from the rollback set is killed by RO-EX-65 (verified) |
+| RO-MUT-36 | RO-INV-47 | mutation | omitting one participant from the commit — staging it under a different id, so the marker publishes only part of the run — is killed by RO-EX-78/82 and by the commit-id agreement check |
 | RO-MUT-37 | RO-INV-48 | mutation | terminating a lost-lease run by writing its record is killed by RO-EX-66 (verified) |
+| RO-MUT-42 | RO-INV-48 | mutation | dropping the final ownership check at the commit marker, so a lease that moved after the last staging check still publishes, is killed by RO-EX-84 (verified) |
+| RO-MUT-43 | RO-INV-55 | mutation | recovering through a FRESH machine, so a run that reached `RUNNING` reports one invented transition from `REQUESTED`, is killed by RO-EX-85 (verified) |
+| RO-MUT-44 | RO-INV-55 | mutation | skipping resource release on the exception path, leaking the workspace and the armed deadline, is killed by RO-EX-87 (verified) |
+| RO-MUT-45 | RO-INV-55 | mutation | writing the early-terminal record unconditionally, so a run that held authority is described as one that never had any, is killed by RO-EX-86 (verified) |
+| RO-MUT-47 | RO-INV-56 | mutation | re-implementing terminal classification locally in orchestration, under any function name, is killed by RO-EX-90 (verified: the mutant fails the field scan) |
+| RO-MUT-48 | RO-INV-57 | mutation | restoring the `transition_record` shape to the evidence sink, giving the walk a second declared authority, is killed by RO-EX-92 (verified) |
+| RO-MUT-49 | RO-INV-58 | mutation | reintroducing a definite-assignment assertion, or letting a phase reach state it has not earned, is killed by RO-EX-94 |
+| RO-MUT-50 | RO-INV-59 | mutation | accepting a caller-supplied transition table unvalidated, or arming the deadline from the session-reported value, is killed by RO-EX-96 |
+| RO-MUT-51 | RO-INV-60 | mutation | removing a boundary cancellation check, or terminating a cancelled run with an open session via `finish` rather than `abortRun`, is killed by RO-EX-97 |
+| RO-MUT-52 | RO-INV-61 | mutation | halting on a lost lease but not on a fence refusal, so a dispossessed run spends anyway, is killed by RO-EX-99/100 |
+| RO-MUT-53 | RO-INV-50 | mutation | mutating the machine through an entry point the owner does not expose, or narrowing an escape scan to one syntactic form, is killed by RO-EX-103 |
+| RO-MUT-54 | RO-INV-59 | mutation | returning the caller's table from validation, or validating through a narrower key view than `declaredNext` reads, is killed by RO-EX-106 |
+| RO-MUT-55 | RO-INV-50 | mutation | accepting an unprojected entry list in `commitProjected` is killed by RO-EX-107 |
+| RO-MUT-56 | RO-INV-65 | mutation | binding a capability by identity alone — unfrozen entries, or no version check — is killed by RO-EX-115 |
+| RO-EX-123 | RO-INV-70 | adversarial | a deadline that fires while the preceding event is being emitted leaves the adapter uninvoked, observed after the abandoned continuation has had time to run |
+| RO-EX-124 | RO-INV-71 | structural + adversarial | the committed entries and the adopted entries are one frozen identity, and a finalization port that edits its transitions cannot reach the run record |
+| RO-EX-125 | RO-INV-72 | adversarial | a caller returning `'timeout'` through a cast obtains CANCELLED, and the wall clock still produces TIMED_OUT |
+| RO-EX-126 | RO-INV-61 | adversarial | a run that already knows it lost the fence applies nothing back, even against a lease that renews it |
+| RO-EX-127 | RO-INV-73 | adversarial | a wall-clock timeout at a sealing state produces the same declared shape as a cancellation, evidence bundle included |
+| RO-EX-128 | RO-INV-58 | structural | the invalid composition DOES NOT COMPILE — a phase demanding unearned state fails the build, asserted by `@ts-expect-error`, which fails if the line beneath it starts compiling |
+| RO-EX-129 | RO-INV-75 | adversarial (reviewer-authored) | a timed-out production authority read answering after conclusion causes no remaining source read, and the returned conclusion's transition/rejection counts stay unchanged |
+| RO-EX-130 | RO-INV-73 | adversarial (reviewer-authored) | timeout in REQUESTED writes the early-terminal record; timeout after PROFILE_RESOLVED seals the full evidence bundle, independent of whether the delayed port answers inside a grace interval |
+| RO-EX-131 | RO-INV-68 | adversarial (reviewer-authored) | public cancellation raised during an otherwise unwrapped observer call concludes promptly rather than waiting for the wall clock |
+| RO-EX-132 | RO-INV-70 | adversarial (reviewer-authored) | a deadline firing while `run.started` is outstanding prevents `capability.granted` from starting |
+| RO-EX-133 | RO-INV-74 | adversarial (reviewer-authored) | a non-returning lease claim and a non-returning workspace discard each leave `run()` bounded |
+| RO-EX-134 | RO-INV-74 | adversarial (reviewer-authored) | slow prepare/start consume the profile's original one-second budget; a large proof override cannot lengthen the standing acquisition ceiling |
+| RO-EX-135 | RO-INV-76 | adversarial (reviewer-authored) | settlement expiry while the profile clock is healthy does not become `TIMED_OUT`; cancellation and the governed profile expiry still interrupt a pending `COMPLETED` finalization from `VERIFYING` |
+| RO-EX-136 | RO-INV-77 | adversarial (reviewer-authored) | public snapshots, direct transition/rejection results, and journal requests cannot edit the machine's history by reference |
+| RO-EX-137 | RO-INV-72 | adversarial (reviewer-authored) | a throwing public cancellation probe during an outstanding port resolves through the governed cancellation path and raises no uncaught timer exception |
+| RO-EX-138 | RO-INV-78 | adversarial (reviewer-authored) | an outstanding lease attempt observes the governed abort and never becomes ownership, leaving the run immediately claimable without post-conclusion compensation |
+| RO-EX-139 | RO-INV-79 | adversarial (reviewer-authored) | an escaping port fault after authority capture seals an `INDETERMINATE` full bundle; a non-returning recovery journal stage remains bounded |
+| RO-EX-140 | RO-INV-76 | structural | settlement is a fresh typed capability, not a mutable mode flag, and phase code contains no second local wrapper around the centrally guarded port set |
+| RO-EX-141 | RO-INV-77 | structural | `acquisition/**` and `events/**` import the neutral interruption seam and no `orchestration/**` module |
+| RO-EX-142 | RO-INV-79 | adversarial (reviewer-authored) | cancellation or an escaping observer fault after adapter call events preserves every already-established evidence operation in the terminal bundle |
+| RO-EX-143 | RO-INV-80 | adversarial (reviewer-authored) | a deadline interrupt during ordinary journal append remains `TIMED_OUT`, while a settlement-expired retry becomes explicit `settlement_failed`; neither is translated to `OPERATIONAL_FAILURE` |
+| RO-EX-144 | RO-INV-81 | adversarial (reviewer-authored) | interrupted settlement attempts the session stop exactly once, and cancellation during pending `INDETERMINATE` recovery finalization wins before publication |
+| RO-EX-145 | RO-INV-78 | adversarial (reviewer-authored) | an already-expired acquisition bound starts no lease call; an outstanding resource-side claim observes abort and never grants ownership |
+| RO-EX-146 | RO-INV-73 | adversarial (reviewer-authored) | a terminal record sink that never settles yields `settlement_failed` carrying the intended terminal, never `terminal + produced:none` |
+| RO-EX-147 | RO-INV-67 | adversarial (reviewer-authored) | when wall time has passed the absolute expiry but its timer callback has not run, the next guarded thunk is not invoked and `interrupted()` raises timeout synchronously |
+| RO-EX-148 | RO-INV-82 | adversarial (reviewer-authored) | two concurrent runners and a later retry for the same run present pairwise-distinct lease attempt identities |
+| RO-EX-149 | RO-INV-82 | adversarial (reviewer-authored) | a grant the resource commits before the caller's deadline and acknowledges after it is resolved at the resource: `not_started` is never returned with ownership standing, an abandoned attempt is never granted, a replayed attempt receives its original generation, and a stale abandon cannot dispossess the current holder |
+| RO-EX-150 | RO-INV-63 | adversarial (reviewer-authored) | evidence does not seal while a REJECTION append remains pending; the pre-seal gate derives from every pending journal category rather than a transitions-only check |
+| RO-EX-151 | RO-INV-67 | adversarial (reviewer-authored) | a port result resolving after absolute expiry — before any timer callback runs — is rejected at both the ordinary and recovery call boundaries and earns no lifecycle transition |
+| RO-EX-152 | RO-INV-47 | structural | design D7 prescribes staged publication behind one shared visibility marker and contains no undo-after-visibility architecture for U11 to inherit |
+| RO-EX-153 | RO-INV-83 | adversarial (reviewer-authored) | a commit acknowledged as wall time crosses expiry stays COMPLETED with exactly one bundle and its committed journal tail; the publication point itself synchronously refuses a commit whose expiry passed, leaving no observable trace |
+| RO-EX-154 | RO-INV-63 | adversarial (reviewer-authored) | a verification acquisition that cannot be journaled blocks the seal; a transient acquisition or hold append fault is retried through the outbox rather than fatal or lost; a hold append fault does not turn a held run into a sealed INDETERMINATE |
+| RO-EX-155 | RO-INV-82 | adversarial (reviewer-authored) | replaying a released attempt refuses instead of granting a fresh generation, without disturbing the current holder; the run stays claimable by a new attempt |
+| RO-EX-156 | RO-INV-84 | structural | every `Granted by` entry in the tasks contract cites a verifiable owner-authenticated record and none cites an implementation task or a review |
+| RO-EX-157 | RO-INV-88 | adversarial (reviewer-authored) | an early-terminal record written over a journal permanently missing its acquisition fact concludes `settlement_failed` with `produced: none`, never a claimed durable terminal |
+| RO-EX-158 | RO-INV-86 | adversarial (reviewer-authored) | a `call.attempted` event that landed before its acknowledgement was interrupted still appears in the terminal bundle's operations — the fact is accounted before the acknowledgement |
+| RO-EX-159 | RO-INV-89 | adversarial (reviewer-authored) | a CANCELLED publication that misses its settlement window reports `settlement_failed` with intended terminal CANCELLED, never a manufactured TIMED_OUT |
+| RO-EX-160 | RO-INV-87 | adversarial (reviewer-authored) | retrying a commit whose acknowledgement was lost publishes no second terminal: the same logical commit identity reconciles to `ok` with exactly one published bundle |
+| RO-EX-161 | RO-INV-86 | adversarial (reviewer-authored) | one physical acquisition whose first acknowledgement was late lands exactly once, its retry recognised as a replay by the stable entry identity |
+| RO-EX-162 | RO-INV-91 | adversarial (reviewer-authored) | an exact replay of a published commit reconciles `ok`; a DIFFERENT intent sharing the terminal state refuses `already_committed` and the durable record keeps the first intent |
+| RO-EX-163 | RO-INV-90 | adversarial (reviewer-authored) | a recovery-window commit refused on the governed deadline that won the minimum is `expired`; one refused on the recovery ceiling is `attempt_expired`, never lifecycle TIMED_OUT |
+| RO-EX-164 | RO-INV-92 | adversarial (reviewer-authored) | the event sequence is allocated before the durable effect, so an event that lands while its acknowledgement is lost never shares (run, sequence) with the next event |
+| RO-EX-165 | RO-INV-92 | adversarial (reviewer-authored) | an early-terminal record that lands while its acknowledgement is lost is not duplicated by settlement replay — the stable `record_id` resolves the retry |
+| RO-EX-169 | RO-INV-92 | structural (compiler-shaped) | the public SPI refuses a journal append without `entry_id`, a commit whose event lacks its type, an evidence write without `record_id`, an event without its sequence identity, an acquisition without its caller-known resource identity, and an empty materialization |
+| RO-EX-170 | RO-INV-92 | deterministic example | the in-memory session and workspace create their resources UNDER the caller-minted identity, never under a name that exists only in the acknowledgement |
+| RO-EX-171 | RO-INV-92 | deterministic example | one event identity names exactly one event: an identical replay lands once, and a different event wearing a landed identity is refused |
+| RO-EX-172 | RO-INV-93 | adversarial (reviewer-authored) | a journal entry identity acknowledges an exact replay and refuses a different fact, with the landed transition unchanged |
+| RO-EX-173 | RO-INV-93 | adversarial (reviewer-authored) | an evidence record identity acknowledges an exact replay and refuses a different record, with the landed record unchanged |
+| RO-EX-174 | RO-INV-90 | adversarial (reviewer-authored) | caller-supplied expiry metadata never survives the boundary: the finalizer receives the boundary's winning instant and provenance unconditionally |
+| RO-EX-175 | RO-INV-93 | deterministic example | the journal's replay rule is one mechanism across categories: an acquisition conflict refuses, and a cross-category collision under one identity is a conflict, never a fresh append |
+| RO-EX-176 | RO-INV-93 | deterministic example | a materialization replays by identity and canonical change set: an exact replay applies once and a different change set at a landed identity refuses |
+| RO-EX-177 | RO-INV-93 | adversarial (reviewer-authored) | a conflicting event replay is never ownership loss and never reclaims its sequence: the occupied identity stays consumed, the durable event stands, and the emission lands at the next fresh identity |
+| RO-EX-178 | RO-INV-93 | adversarial (reviewer-authored) | a staged terminal event answers to the SAME (run, sequence) identity authority as ordinary emission: a different durable event occupying the sequence refuses `conflicting_replay` before publication, the transaction publishes nothing, and the first event stands — the reason is preserved through Staging and CommitOutcome alike |
+| RO-EX-179 | RO-INV-92 | structural (compiler-shaped) | the finalization commit identity is REQUIRED by the public type and no implementation fallback derives it — the logical identity exists before the request crosses the port |
+| RO-EX-180 | RO-INV-92 | adversarial (reviewer-authored) | the staged event's domain identity is STRUCTURAL: the envelope's sequence is required by the stageEmit contract, so identity enforcement can never be optional |
+| RO-EX-181 | RO-INV-93 | adversarial (reviewer-authored) | exact staged replay is idempotent — one physical row, one visible event — and a same-commit conflicting stage refuses: transaction-identity equality never makes different domain facts equivalent |
+| RO-EX-182 | RO-INV-94 | adversarial (reviewer-authored) | one in-flight commit identity binds one canonical intent from the instant it is in flight: a different intent wearing it refuses conflicting_replay with no participant staging, before any publication exists |
+| RO-EX-183 | RO-INV-94 | adversarial (reviewer-authored) | one in-flight generation has one terminal transaction: overlapping commit identities stage invisibly, exactly one publishes, and the competitor refuses already_committed at the publication gate |
+| RO-EX-184 | RO-INV-94 | deterministic example | an exact concurrent finalization replay is single-flight: two equivalent callers share the one underlying transaction, participants stage exactly once, and one bundle publishes |
+| RO-EX-185 | RO-INV-95 | adversarial (reviewer-authored) | a losing transaction's cleanup releases only its own stage: the winner's exact-canonical event row survives the loser's abandon and publishes as the one visible terminal event |
+| RO-EX-186 | RO-INV-95 | adversarial (reviewer-authored) | a transaction that staged its own row can complete after the equivalent owner fails and abandons; success with a missing terminal event is unrepresentable |
+| RO-EX-187 | RO-INV-95 | adversarial (reviewer-authored) | ordinary emission consults the unpublished staged reservation: a different canonical fact refuses `conflicting_replay`, never lands, and publication exposes exactly the staged event |
+| RO-EX-188 | RO-INV-95 | deterministic example | two transactions cannot reserve two different facts at one event identity: the second canonical refuses whatever its commit identity |
+| RO-EX-189 | RO-INV-96 | adversarial (reviewer-authored) | exact staged-versus-ordinary replay never exposes two durable rows: after the staged transaction publishes, the one identity shows one visible fact |
+| RO-EX-190 | RO-INV-96 | adversarial (reviewer-authored) | acknowledgement truthfulness: if the ordinary exact replay reported success the fact stays durable through the staged sibling's abandonment; if it refused, no durability was claimed |
+| RO-EX-191 | RO-INV-96 | deterministic example | an ordinary exact landing retires EVERY equivalent unpublished stage: publishing or abandoning any sibling afterwards neither duplicates nor erases the one durable fact |
+| RO-MUT-57 | RO-INV-66 | mutation | leaving the canonical table mutable while freezing only supplied ones is killed by RO-EX-116 |
+| RO-MUT-58 | RO-INV-67 | mutation | guarding only the call sites already known to hang, rather than the complete injected port surface, is killed by RO-EX-118 |
+| RO-MUT-59 | RO-INV-67 | mutation | adding or restarting the profile wall clock instead of establishing one absolute expiry is killed by RO-EX-119 |
+| RO-MUT-60 | RO-INV-68 | mutation | polling the caller's interrupt only between phases is killed by RO-EX-120 |
+| RO-MUT-61 | RO-INV-69 | mutation | proving a structural guard by scanning its own source text is killed by RO-EX-121 |
+| RO-MUT-62 | RO-INV-61 | mutation | applying workspace changes back before the fence is consulted, so a dispossessed run still writes, is killed by RO-EX-122 |
+| RO-MUT-63 | RO-INV-70 | mutation | taking an already-created promise instead of a thunk, so the effect starts before the abort is checked, is killed by RO-EX-123 |
+| RO-MUT-64 | RO-INV-71 | mutation | returning a mutable twin of the frozen projection is killed by RO-EX-124 |
+| RO-MUT-65 | RO-INV-72 | mutation | trusting a caller's interrupt reason instead of coercing it to cancellation is killed by RO-EX-125 |
+| RO-MUT-66 | RO-INV-73 | mutation | abandoning an aborted walk immediately, so its record depends on which interrupt arrived, is killed by RO-EX-127 |
+| RO-MUT-67 | RO-INV-58 | mutation | proving the typestate with a runtime count alone, which a tree that stopped holding it can still satisfy, is killed by RO-EX-128 |
+| RO-MUT-68 | RO-INV-75 | mutation | racing and abandoning the whole walk instead of rejecting the awaited call is killed by RO-EX-129 |
+| RO-MUT-69 | RO-INV-73 | mutation | omitting bounded terminal settlement, so interrupted runs produce `none` based on port latency, is killed by RO-EX-130 |
+| RO-MUT-70 | RO-INV-68 | mutation | guarding only named provider/gate calls rather than the whole port surface is killed by RO-EX-131 |
+| RO-MUT-71 | RO-INV-70 | mutation | allowing the next effect in a phase to start after abort is killed by RO-EX-132 |
+| RO-MUT-72 | RO-INV-74 | mutation | leaving ownership or cleanup outside every finite boundary is killed by RO-EX-133 |
+| RO-MUT-73 | RO-INV-74 | mutation | restarting the profile clock or letting the proof override widen acquisition is killed by RO-EX-134 |
+| RO-MUT-74 | RO-INV-76 | mutation | using settlement expiry as timeout provenance, or disabling cancellation/timeout while finalization remains non-terminal, is killed by RO-EX-135 |
+| RO-MUT-75 | RO-INV-77 | mutation | retaining mutable transition/rejection entry references at mint or across the journal boundary is killed by RO-EX-136 |
+| RO-MUT-76 | RO-INV-72 | mutation | letting a throwing public cancellation probe escape the polling timer is killed by RO-EX-137 |
+| RO-MUT-77 | RO-INV-78 | mutation | starting lease claim outside the guard or allowing an aborted claim attempt to become ownership is killed by RO-EX-138 |
+| RO-MUT-78 | RO-INV-79 | mutation | recovering after authority capture without the mandatory full bundle, or bypassing the finite port boundary in recovery, is killed by RO-EX-139 |
+| RO-MUT-79 | RO-INV-76 | mutation | replacing the typed settlement capability with a mutable deadline mode flag, or reintroducing local duplicate deadline wrappers, is killed by RO-EX-140 |
+| RO-MUT-80 | RO-INV-77 | mutation | making acquisition or event mechanisms depend on an orchestration-owned interruption type is killed by RO-EX-141 |
+| RO-MUT-81 | RO-INV-79 | mutation | terminalizing from the strict phase typestate alone, dropping facts recorded before RUNNING earned its transition, is killed by RO-EX-142 |
+| RO-MUT-82 | RO-INV-80 | mutation | swallowing lifecycle control at a journal boundary and treating it as transient storage failure is killed by RO-EX-143 |
+| RO-MUT-83 | RO-INV-81 | mutation | interrupting the same session again from evidence settlement, or disarming the governed deadline before recovery publication, is killed by RO-EX-144 |
+| RO-MUT-84 | RO-INV-78 | mutation | starting lease claim before the guard or allowing an aborted claim attempt to become ownership is killed by RO-EX-145 |
+| RO-MUT-85 | RO-INV-73 | mutation | presenting a terminal with no governed durable record as `terminal + produced:none` is killed by RO-EX-146 |
+| RO-MUT-86 | RO-INV-67 | mutation | relying only on the event-loop timer without synchronously checking the absolute expiry at call boundaries is killed by RO-EX-147 |
+| RO-MUT-87 | RO-INV-67 | mutation | accepting a raced result without re-checking absolute expiry when the ordinary call returns is killed by RO-EX-151 |
+| RO-MUT-88 | RO-INV-67 | mutation | letting recovery consume a result that resolved past the governed deadline or its own settlement ceiling is killed by RO-EX-151 |
+| RO-MUT-89 | RO-INV-63 | mutation | narrowing the pre-seal journal gate back to pending transitions only is killed by RO-EX-150 |
+| RO-MUT-90 | RO-INV-82 | mutation | deriving the lease attempt id from the run id alone is killed by RO-EX-148 |
+| RO-MUT-91 | RO-INV-82 | mutation | returning `not_started` without resolving the unacknowledged claim attempt at the resource is killed by RO-EX-149 |
+| RO-MUT-92 | RO-INV-82 | mutation | granting an abandoned attempt at the in-memory lease is killed by RO-EX-149 |
+| RO-MUT-93 | RO-INV-83 | mutation | skipping the synchronous expiry check at the publication point inside the commit is killed by RO-EX-153 |
+| RO-MUT-94 | RO-INV-83 | mutation | routing the finalization port through the ordinary result-discarding call boundary is killed by RO-EX-153 |
+| RO-MUT-95 | RO-INV-63 | mutation | writing acquisitions or holds directly at their call sites, outside the outbox, is killed by RO-EX-154 |
+| RO-MUT-96 | RO-INV-63 | mutation | gating the seal on pending transitions alone rather than the whole outbox is killed by RO-EX-150 and RO-EX-154 |
+| RO-MUT-97 | RO-INV-82 | mutation | minting a new generation for a replayed attempt whose grant was released is killed by RO-EX-155 |
+| RO-MUT-98 | RO-INV-86 | mutation | recording the operation fact only after its event acknowledgement returns is killed by RO-EX-158 |
+| RO-MUT-99 | RO-INV-87 | mutation | minting the logical commit identity per call instead of taking the caller's is killed by RO-EX-160 |
+| RO-MUT-100 | RO-INV-87 | mutation | skipping the published-identity reconciliation before staging is killed by RO-EX-160 |
+| RO-MUT-101 | RO-INV-86 | mutation | ignoring the journal's replay ledger and appending a repeated entry identity again is killed by RO-EX-161 |
+| RO-MUT-102 | RO-INV-88 | mutation | letting a conclusion claim a durable terminal or hold while the outbox holds a pending fact is killed by RO-EX-157 and RO-EX-154 |
+| RO-MUT-103 | RO-INV-89 | mutation | relabelling an attempt-bound commit expiry as the lifecycle timeout is killed by RO-EX-159 |
+| RO-MUT-104 | RO-INV-85 | mutation | crossing the finalization commit through the result-discarding call boundary is killed by RO-EX-153 |
+| RO-MUT-105 | RO-INV-91 | mutation | making the finalization identity terminal-only again — every repeat of a published identity treated as a replay — is killed by RO-EX-162 |
+| RO-MUT-106 | RO-INV-90 | mutation | deriving the recovery expiry instant and its provenance independently is killed by RO-EX-163 |
+| RO-MUT-107 | RO-INV-92 | mutation | incrementing the event sequence only after the acknowledgement is killed by RO-EX-164 |
+| RO-MUT-108 | RO-INV-92 | mutation | accepting a duplicate evidence record identity as a new append is killed by RO-EX-165 |
+| RO-MUT-109 | RO-INV-92 | mutation | generating the resource identity only in the acquisition response is killed by RO-EX-170 |
+| RO-MUT-110 | RO-INV-92 | mutation | keeping a different event that wears a landed identity is killed by RO-EX-171 |
+| RO-MUT-111 | RO-INV-93 | mutation | storing identity membership only in the journal replay ledger is killed by RO-EX-172 and RO-EX-175 |
+| RO-MUT-112 | RO-INV-93 | mutation | storing identity membership only in the evidence replay ledger is killed by RO-EX-173 |
+| RO-MUT-113 | RO-INV-93 | mutation | acknowledging a conflicting replay as success is killed by RO-EX-172, RO-EX-173, and RO-EX-175 |
+| RO-MUT-114 | RO-INV-90 | mutation | preferring caller-supplied expiry metadata over the boundary's winning value is killed by RO-EX-174 |
+| RO-MUT-115 | RO-INV-90 | mutation | taking the expiry provenance from the caller rather than the winning value is killed by RO-EX-174 |
+| RO-MUT-116 | RO-INV-93 | mutation | re-applying or accepting a different materialization at a landed identity is killed by RO-EX-176 |
+| RO-MUT-117 | RO-INV-93 | mutation | collapsing a conflicting event replay into stale_fence and rewinding the sequence is killed by RO-EX-177 |
+| RO-MUT-118 | RO-INV-93 | mutation | staging a terminal event without consulting the event-domain identity authority is killed by RO-EX-178 |
+| RO-MUT-119 | RO-INV-93 | mutation | reporting a staged event conflict as stale_fence is killed by RO-EX-178 |
+| RO-MUT-120 | RO-INV-92 | mutation | restoring the optional commit identity and its derivation fallback is killed by RO-EX-179 at typecheck |
+| RO-MUT-121 | RO-INV-92 | mutation | making the staged event's sequence optional again is killed by RO-EX-180 at typecheck |
+| RO-MUT-122 | RO-INV-93 | mutation | staging a second physical row for an exact staged replay is killed by RO-EX-181 |
+| RO-MUT-123 | RO-INV-93 | mutation | letting transaction-identity equality excuse a different staged domain fact is killed by RO-EX-181 |
+| RO-MUT-124 | RO-INV-94 | mutation | deferring the in-flight commit-identity binding until after the first await is killed by RO-EX-182 and RO-EX-184 |
+| RO-MUT-125 | RO-INV-94 | mutation | removing the generation gate entirely — both its finalized re-check and its in-flight owner check — is killed by RO-EX-183 |
+| RO-MUT-126 | RO-INV-94 | mutation | independently re-staging the same logical commit for an equivalent concurrent caller is killed by RO-EX-184 |
+| RO-MUT-127 | RO-INV-95 | mutation | letting a different-commit exact replay borrow the first transaction's physical row is killed by RO-EX-185 and RO-EX-186 |
+| RO-MUT-128 | RO-INV-95 | mutation | aiming a staged handle's abandon at another transaction's row while its label names this commit is killed by RO-EX-185 |
+| RO-MUT-129 | RO-INV-95 | mutation | acknowledging a cross-transaction replay with no owned stage is killed by RO-EX-186 |
+| RO-MUT-130 | RO-INV-93 | mutation | disabling the per-transaction own-stage lookup so a commit's exact replay stages a duplicate row is killed by RO-EX-181 |
+| RO-MUT-131 | RO-INV-95 | mutation | letting ordinary emission ignore an active staged reservation is killed by RO-EX-187 |
+| RO-MUT-132 | RO-INV-96 | mutation | landing the ordinary exact replay while equivalent stages stay independently publishable is killed by RO-EX-189 and RO-EX-191 |
+| RO-MUT-133 | RO-INV-96 | mutation | acknowledging the exact reserved canonical with no durable state of its own is killed by RO-EX-190 and RO-EX-191 |
+| RO-MUT-134 | RO-INV-96 | mutation | retiring only the first equivalent stage at an ordinary exact landing is killed by RO-EX-191 |
+| RO-MUT-46 | RO-INV-50 | mutation | applying a failure terminal without checking the machine's answer — the `failClosed` and exception-handler shape — so a refused terminal concludes the run in a progress state, is killed by RO-EX-88/89 (verified) |
 | RO-MUT-38 | RO-INV-49 | mutation | advancing the journal cursor before the append lands is killed by RO-EX-67 (verified) |
-| RO-MUT-39 | RO-INV-47 | mutation | retracting the whole run instead of the attempt is killed by RO-EX-71 (verified) |
+| RO-MUT-39 | RO-INV-47 | mutation | a reader that ignores commit visibility, or a second publication site turning the commit back into a sequence, is killed by RO-EX-79/80/82 (verified: unconditional visibility kills seven proofs) |
 | RO-MUT-40 | RO-INV-53 | mutation | applying back without asking the core is killed by RO-EX-72/73 |
 | RO-MUT-41 | RO-INV-54 | mutation | sealing `COMPLETED` after a failed apply-back is killed by RO-EX-74 |
 | RO-MUT-02 | INV-011 ordering | mutation | reordering the seal is killed by RO-ADV-03 |
@@ -405,6 +651,43 @@ per the standing first-consumer note, its suite re-validates the L3
 surface it consumes rather than trusting L3's passing suite (task 6.2),
 and the anticipated runner-core allowlist amendment follows the recorded
 L3-arrival precedent with owner authorization.
+
+### Falsification rounds actually run
+
+Nine recorded falsification passes ran against frozen heads, each
+returning REQUEST_CHANGES and each supplying failing tests rather than
+prose. Their tests live in the package, unmodified except where noted:
+
+| Round | Findings | Where the tests live |
+|---|---|---|
+| 1–3 | 5 P1 + 1 P2, then 6, then 6 | merged into `conformance/falsification.test.ts` |
+| second reviewer | 3 P1 + 1 P2 | merged into `conformance/falsification.test.ts` |
+| 4 | 5 | `conformance/falsification-round4.test.ts`, as supplied |
+| 5 | 5 | `conformance/falsification-round5.test.ts`, as supplied |
+| 6 | 10 findings + 6 controls | `conformance/falsification-round6.test.ts`; assertions and fixtures unchanged, Prettier-only wrapping applied |
+| 7 | 7 new findings + carry-forward blockers | `conformance/falsification-round7.test.ts`; settlement provenance/precedence, immutable history, signal containment, neutral dependency direction, proof-net consistency, late ownership, bounded recovery, and full-bundle recovery |
+| 8 | 7 findings, 11 focused proofs | `conformance/falsification-round8.test.ts`; partial terminal evidence, journal control propagation, one-shot interruption, recovery precedence, abortable lease claims, explicit settlement failure, and synchronous absolute-expiry enforcement |
+
+The finding this record exists for: across rounds, the recurring verdict
+was that a fix repaired the counterexample without closing the class —
+signal preserved at two boundaries of three, the walk halted at the next
+phase but not the current one, a prototype closed while the mutable
+reference stayed open. Round 6 found the same error at the coordinator
+level: the whole-walk race bounded the CALLER'S WAIT and abandoned a live
+continuation, so a concluded run kept acting. The resolution replaces
+abandonment with a complete guarded-port boundary and a separate bounded
+terminal-settlement boundary.
+
+Round 4's last finding is the same shape aimed at the suite itself:
+RO-EX-94 was a substring scan standing in for a structural property, and
+nothing exercised it against something it had to catch. RO-INV-69 is that
+lesson stated as an invariant.
+
+**One reviewer assertion was edited**, and only this one. Round 4's
+RO-EX-94 test asserted against a *copy* of the guard's substring
+predicate, so it could go green only if the guard stayed lexical — the
+defect it reported. The finding is fixed and the edit is annotated in
+place; the reviewer's premise assertion is untouched and still passes.
 
 ## Rollout and Rollback
 

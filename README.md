@@ -7,19 +7,32 @@ problems, answering questions — running under controls strong enough that they
 can be trusted near a door lock, and local enough that the house keeps working
 when the internet does not.
 
-> ## Status: foundation accepted, nothing built
+> ## Status: contracts, core, orchestration, and the knowledge toolchain are landed — nothing is deployed
 >
-> This repository currently contains **documentation, governance, and workspace
-> scaffolding**. There is **no runtime**: no Home Assistant, no services, no
-> OpenFGA, no Keycloak, no runner image, no credentials, no database connection.
+> **Landed:** the runner domain contracts; the trusted runner core
+> ([`packages/runner-core`](packages/runner-core/)); L4 orchestration
+> ([`services/runner-control`](services/runner-control/)) — the typed run
+> lifecycle, authority acquisition, the effect boundary, and finalization; and
+> the knowledge toolchain with repository content admission
+> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)).
+>
+> **There is still no deployed or activated runtime**: no Home Assistant, no
+> running service, no OpenFGA, no Keycloak, no runner image, no launcher or
+> process spawn, no L9 physical enforcement, no credentials, no database
+> connection, and no durable persistence
+> ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
+> running system.
 >
 > **ADR-0001 … ADR-0018** are **`Accepted`** and immutable — the foundational set
 > on 2026-08-05, the implementation stack on 2026-08-06, and the runner
 > effect-boundary and identity decisions on 2026-08-17 — so implementation may
 > proceed against them under an authorizing task contract.
 >
-> **Acceptance resolved none of the eleven open questions**, and is **not**
-> authorization to deploy. `BOUNDED` still behaves as `FAIL CLOSED`.
+> Of the eleven tracked open questions,
+> [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013 and
+> [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015; the rest remain
+> open. Acceptance is **not** authorization to deploy, and `BOUNDED` still
+> behaves as `FAIL CLOSED`.
 >
 > [What acceptance does and does not unblock →](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock) ·
 > [What has not been implemented →](#what-has-not-been-implemented)
@@ -432,10 +445,11 @@ Two workspaces: **`pnpm`** for TypeScript — the primary stack, covering
 retained **only** for `services/workers/python-inference`, the single admitted
 Python boundary.
 
-> **Every package boundary is empty on purpose.** They exist so the workspace,
-> dependency direction, and CI target selection are real and testable. The
-> NestJS shells (#26, #27), Zod contracts (#28), Next.js app, and `worker-base`
-> implementation are their own issues.
+> **Some package boundaries carry real implementations now** — the contracts,
+> `runner-core`, `runner-control`, and `knowledge-toolchain`. Others remain
+> deliberately empty so the workspace, dependency direction, and CI target
+> selection stay real and testable. An empty boundary is a placeholder, not a
+> claim that nothing is built.
 
 ## How to navigate this repository
 
@@ -515,29 +529,33 @@ superseding ADR. Acceptance records and the unblocked/still-blocked breakdown:
 
 ## What has not been implemented
 
-Nothing runs yet. Specifically absent, on purpose:
+**Nothing is deployed or activated.** Code has landed; no process runs anywhere.
+Specifically absent, on purpose:
 
 | Area | State |
 |---|---|
 | Home Assistant | **not installed.** No instance, no credential, no configuration. |
-| Services | Five workspace members with manifests and placeholder packages. **No endpoints, no logic.** |
+| Services | `runner-control` carries the landed L4 orchestration behind ports, with **no endpoint served and no process started**; the remaining members are manifests and placeholders. |
 | Authorization | **No household model.** The shared coarse model is explicitly not adopted. |
 | Safety policy | **No declaration format, no evaluator.** |
-| Runner substrate | **No image, no sandbox, no adapter.** |
+| Runner substrate | Orchestration semantics are implemented; **no image, no sandbox, no launcher, and no L9 physical enforcement.** |
 | Execution profiles | **No schema, no profile.** |
 | Schemas | All four are documented placeholders. |
-| Knowledge bundles | **None.** The validator must exist before the first bundle. |
+| Knowledge bundles | **None authored.** The toolchain and content admission exist and run in CI; the ten `platform/**` modules are authoring-eligible, and publication is unavailable while no governed Proof B producer exists. |
 | Web application | Deliberately not scaffolded — depends on an open decision. |
 | Deployment | **No Compose file, no Dockerfile, no proxy or tailnet configuration.** |
 | Credentials | **None, anywhere.** |
-| Runtime dependencies | **None yet.** Nothing is implemented, so nothing is installed. ADR-0012 commits the stack; dependencies arrive with the work that needs them. |
+| Runtime dependencies | Only what the landed packages need. No service dependency is installed for a runtime that does not run. |
 
 ### Deliberately undecided
 
 Eleven open questions are tracked in
 [`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
-closed by a **new** ADR, never by an implementation — and **no acceptance so far
-has closed any of them**; both acceptances were granted on that basis.
+closed by a **new** ADR, never by an implementation.
+[U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013
+(2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015
+(2026-08-15) — each by *answering* the question, which is the only mechanism
+that file admits. Every other item is open, and
 [U11](docs/architecture/unresolved-decisions.md#u11) (persistence toolkit) was
 *added* by ADR-0012 rather than answered by it.
 

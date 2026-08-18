@@ -118,7 +118,18 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
     readonly source: string
     readonly outcome: 'acquired' | 'failed' | 'refused_token'
     readonly detail?: string
-  }) => Promise<void> = () => Promise.resolve(),
+  }) => Promise<unknown> = () => Promise.resolve(),
+  /**
+   * Consulted before each source. Returning a reason STOPS the epoch.
+   *
+   * An epoch acquires; it does not decide who owns the run. But once the
+   * caller knows ownership has moved — a journal refusing this
+   * generation is proof of it — reading the next source is an authority
+   * read by an orchestrator that does not hold the run, which the
+   * ownership requirement forbids outright. Halting the NEXT PHASE is
+   * not enough while the current one is still reading.
+   */
+  shouldStop: () => string | undefined = () => undefined,
 ): Promise<EpochResult<E>> => {
   const values: EpochValue<E>[] = []
   const captured: {
@@ -128,6 +139,14 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
   } = {}
 
   for (const name of required) {
+    const stop = shouldStop()
+    if (stop !== undefined) {
+      // Reported as an operational failure carrying the caller's reason.
+      // A run that stopped because it lost the run has refused no
+      // contract; the caller tells the two apart by the fence it already
+      // knows it lost.
+      return { ok: false, failure: { kind: 'operational_failure', source: name, detail: stop } }
+    }
     const outcome = await set.consume(name)
     if (!outcome.ok) {
       await journal({
@@ -168,6 +187,18 @@ export const runEpoch = async <E extends AcquisitionEpoch>(
     ;(captured as Record<string, unknown>)[name] = result
   }
 
+  // CHECKED AFTER THE LOOP TOO. The hook ran before each source, so a
+  // refusal raised while journaling the LAST one was never seen: the
+  // epoch reported success, the phase continued, and a dispossessed run
+  // went on to apply its changes back before reporting that no further
+  // write was made.
+  const after = shouldStop()
+  if (after !== undefined) {
+    return {
+      ok: false,
+      failure: { kind: 'operational_failure', source: 'epoch', detail: after },
+    }
+  }
   return { ok: true, snapshots: captured, values }
 }
 

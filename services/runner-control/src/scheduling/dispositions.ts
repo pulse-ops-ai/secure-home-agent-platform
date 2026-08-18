@@ -37,6 +37,12 @@ export const toDisposition = (report: GateReport): GateOutcomeT | undefined => {
       return { disposition: 'SKIP_ENV', truncated: false, reason: report.reason }
     case 'environmental_fault':
       return undefined
+    // Neither is a stale fence. A gate the run was not permitted to
+    // execute has no disposition at all — inventing one would record a
+    // verdict for work that never ran, on behalf of a caller that no
+    // longer owns the run.
+    case 'stale_fence':
+      return undefined
   }
 }
 

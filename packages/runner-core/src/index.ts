@@ -39,6 +39,12 @@ export {
   indeterminateOutcome,
 } from './evidence/index.js'
 export type { EvidenceInputs, SealEligible, SealInputs } from './evidence/index.js'
+export { classifyTerminalObservations, TERMINAL_CONFLICTS } from './outcome/index.js'
+export type {
+  TerminalClassification,
+  TerminalConflict,
+  TerminalObservationInput,
+} from './outcome/index.js'
 export { decideMaterialization, enforceBound } from './policy/index.js'
 export type { InBounds, Materializable } from './policy/index.js'
 export { reconcileClaims } from './reconciliation/index.js'

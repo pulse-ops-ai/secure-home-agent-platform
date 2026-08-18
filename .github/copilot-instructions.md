@@ -23,15 +23,22 @@ platform for household agents, controlling physical devices in a home.
 
 ## What this repository currently is
 
-Documentation, governance, and workspace scaffolding. **No runtime.** No Home
-Assistant, no services, no OpenFGA, no Keycloak, no runner image, no credentials.
+Documentation, governance, workspace scaffolding — **and landed code**: the
+runner domain contracts, `packages/runner-core`, `services/runner-control`'s L4
+orchestration, and `packages/knowledge-toolchain` with repository content
+admission.
+
+**No deployed or activated runtime.** No Home Assistant, no running service, no
+OpenFGA, no Keycloak, no runner image, no launcher or process spawn, no L9
+physical enforcement, no credentials. Landed code is not a running system, and
+neither half of that sentence may be dropped.
 
 ADR-0001 … ADR-0018 are `Accepted` and **immutable** (foundational set
 2026-08-05; the implementation stack 2026-08-06; the runner effect-boundary and
-identity decisions 2026-08-17). ADR-0013 (2026-08-12) is `Accepted` and closed
-[U6](../docs/architecture/unresolved-decisions.md#u6) — the only item of the
-tracked set U1–U11 ever closed. Acceptance is **not** authorization to
-deploy.
+identity decisions 2026-08-17). Of the tracked set U1–U11, **two** are closed:
+[U6](../docs/architecture/unresolved-decisions.md#u6) by ADR-0013 (2026-08-12)
+and [U7](../docs/architecture/unresolved-decisions.md#u7) by ADR-0015
+(2026-08-15). Acceptance is **not** authorization to deploy.
 
 Do not suggest application code, service implementations, deployments, or
 dependencies unless the task explicitly authorizes them — and never for work

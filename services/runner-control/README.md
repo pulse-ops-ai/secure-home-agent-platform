@@ -17,12 +17,17 @@ The runner substrate.
 | `consent/` | consent-to-spend, which gates spend and is never authority |
 | `acquisition/` | acquire-once tokens in two epoch roles; the production and verification epochs |
 | `scheduling/` | gate plans built only from the captured registry; one disposition per identity |
-| `observation/` | workspace and artifact observation, handed to the core to interpret |
+| `workspace/` | workspace provisioning and observation, handed to the core to interpret |
+| `execution/` | the execution session behind its port — prepare, start, interrupt, close |
 | `finalization/` | the reference implementation of **invisible staging plus one publication transition** ([`distributed-effect-lifecycle.md`](../../docs/architecture/distributed-effect-lifecycle.md)), and the durable record shapes. Not a write ordering: nothing a participant stages is observable until the single visibility transition publishes what the transaction owes |
 | `events/` | emission at the moments the closed L2 vocabulary represents |
+| `orchestration/` | the effect boundary: per-method effect classes, bounded calls, the absolute expiry, interruption, and the phase walk ([`effect-boundary-model.md`](../../docs/architecture/effect-boundary-model.md)) |
+| `run/` | run scope and interruption — what an attempt established, and how it unwinds |
+| `run-state/` | the run's authority and visibility state: the fencing token, the outbox, and the publication marker |
 | `ports/` | the port interfaces and their value shapes |
 | `adapters/` | the shipped implementations — real read-only filesystem, deterministic in-memory everything else |
 | `app/` | the **inert** NestJS module tree; nothing in this repository starts it |
+| `conformance/` | the executable proofs for the boundaries above |
 | `runner.ts` | the framework-free composition root: one run's walk |
 
 ## The properties this service is built to hold
@@ -34,9 +39,10 @@ The runner substrate.
   A run that terminalizes under this attempt produces a sealed evidence bundle,
   or — if it terminated before authority completed — an early-terminal refusal
   record. If the finite settlement boundary expires before that mandatory record
-  becomes durable, the attempt reports settlement failure and never presents an
-  unevidenced lifecycle terminal as recorded. An attempt that lost ownership
-  reports only the ending of itself. A fabricated bundle is unreachable, not
+  becomes durable, the attempt reports the distinct failure `settlement_failed`;
+  it never presents an unevidenced lifecycle terminal as recorded. An attempt
+  that **lost ownership** reports only the ending of itself, and manufactures no
+  verdict for a run it no longer owns. A fabricated bundle is unreachable, not
   merely forbidden. The full outcome vocabulary is
   [`distributed-effect-lifecycle.md`](../../docs/architecture/distributed-effect-lifecycle.md).
 - **Ordering claims are scoped to one run.** Port implementations may be shared

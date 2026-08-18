@@ -488,3 +488,51 @@ the pre-#82 tree. The README correction targets the same lines #82 touched and
 folds in #82's `settlement_failed` refinement rather than reverting it; a small
 merge conflict in that one bullet is expected and is resolvable in favour of the
 text landed here.
+
+## PR-3B integration — merge of `origin/main`
+
+`origin/main` (`1bc56e2`, containing merged PR #82) was merged into this branch
+with a **merge commit**. The branch was **not rebased**: the ADR-0017 and
+ADR-0018 acceptance records bind to exact historical SHAs (`f6746be`/`0b2be16`
+and `f41fee5`/`4c3c421`), and rewriting them would break the one property an
+acceptance record exists to hold.
+
+**One conflict, resolved semantically:** `services/runner-control/README.md`, the
+"governed shapes" bullet. Neither side was taken mechanically. The resolution
+keeps **main's** concrete `settlement_failed` discriminant *and* **Prompt 3B's**
+attempt-versus-terminal distinction, including that an attempt which lost
+ownership manufactures no verdict for a run it no longer owns.
+
+The merge also made the README's directory table checkable against a real tree
+for the first time: `observation/` no longer exists, and `orchestration/`,
+`run/`, `run-state/`, `workspace/`, `execution/`, and `conformance/` were
+missing. Corrected to the merged tree.
+
+**ADR blobs verified byte-identical after the merge**, by object hash rather than
+by inspection:
+
+```text
+ADR-0017  724d0b66fee7af34052fe22605423b4ee425965a  == its blob at 0b2be16
+ADR-0018  9111b435c0b8f80c02e7d1f257579cdae84c7075  == its blob at 4c3c421
+```
+
+## Out-of-scope follow-up — `workflow_dispatch` and the identity ledger
+
+**Not addressed in this landing, deliberately, and no workflow file was edited.**
+
+`.github/workflows/checks.yml` declares `workflow_dispatch`, but under that
+trigger the run cannot satisfy `packages/contracts`' identity-ledger conformance
+proof: the proof resolves its trusted base with `git merge-base HEAD origin/main`
+and is explicitly fail-closed — *"resolve the trusted base commit or throw —
+never a silent skip"* — while the dispatch checkout does not provide
+`origin/main`. A dispatched run therefore fails with
+`fatal: Not a valid object name origin/main`.
+
+This was observed directly: a `workflow_dispatch` run at `b799d0d` failed for
+exactly that reason while its other four jobs passed, and every `pull_request`
+run of the same tree passed.
+
+The fix is a choice between two, and it is CI work rather than documentation:
+fetch enough history when the workflow is dispatched, or stop advertising a
+trigger the gate cannot satisfy. The proof itself is correct and should not be
+weakened to accommodate a trigger.
