@@ -140,6 +140,30 @@ const REQUIRED_SET_FIELDS = [
   'rationale',
 ]
 
+/**
+ * PROVIDER ADAPTERS ARE NEVER CANONICAL GOVERNING SOURCES.
+ *
+ * ADR-0014 makes provider-specific instruction surfaces SUBORDINATE: they adapt
+ * governed contracts for one tool, and they never own a platform truth. A
+ * catalog entry naming one as a governing source inverts that — the portable
+ * projection would then cite a provider adapter as the origin of a rule, and
+ * the rule would live in exactly one vendor's file.
+ *
+ * Rejected by IDENTITY, not by shape. `.github/agents/**` is a provider adapter;
+ * `agents/**` is this product's own content, and the two differ by one path
+ * prefix. A pattern loose enough to catch both would reject the repository's own
+ * agent implementations, so the surfaces are named.
+ *
+ * The canonical home for a rule found only in an adapter is a provider-neutral
+ * governed contract — `AGENTS.md`, `CONTRIBUTING.md`, an ADR — and moving it
+ * there is the fix. Removing the citation while leaving the rule stranded is not.
+ */
+const PROVIDER_SURFACES = new Set(['CLAUDE.md', '.github/copilot-instructions.md'])
+const PROVIDER_PREFIXES = ['.github/agents/', '.claude/']
+
+const isProviderSurface = (source) =>
+  PROVIDER_SURFACES.has(source) || PROVIDER_PREFIXES.some((p) => source.startsWith(p))
+
 /** Fields that may legitimately be null while a module is unauthored. */
 const NULLABLE_WHILE_PLANNED = new Set(['version', 'asOf'])
 
@@ -331,6 +355,14 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of m.governingSources ?? []) {
+      if (isProviderSurface(source)) {
+        fail(
+          `module "${id}": governingSources names "${source}", a provider-specific ` +
+            'instruction surface. ADR-0014 makes those subordinate projections, never ' +
+            'canonical sources — promote the rule to a provider-neutral governed ' +
+            'contract and cite that instead',
+        )
+      }
       if (!existsSync(join(root, source))) {
         fail(`module "${id}": governingSources names "${source}", which does not exist`)
       }
@@ -426,6 +458,14 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of s.governingSources ?? []) {
+      if (isProviderSurface(source)) {
+        fail(
+          `set "${id}": governingSources names "${source}", a provider-specific ` +
+            'instruction surface. ADR-0014 makes those subordinate projections, never ' +
+            'canonical sources — promote the rule to a provider-neutral governed ' +
+            'contract and cite that instead',
+        )
+      }
       if (!existsSync(join(root, source))) {
         fail(`set "${id}": governingSources names "${source}", which does not exist`)
       }

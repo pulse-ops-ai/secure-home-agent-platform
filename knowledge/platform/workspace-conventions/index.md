@@ -14,3 +14,4 @@ This is **context, not authority**. It grants nothing and names no version.
 |---|---|
 | dependency governance, and the jobs it splits between mechanisms | [dependencies.md](dependencies.md) |
 | what runs in CI, and why some gates never skip | [gates.md](gates.md) |
+| how a change is branched, committed, and opened for review | [landing.md](landing.md) |

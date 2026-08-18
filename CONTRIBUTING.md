@@ -171,6 +171,26 @@ lockfile-strict flags matter: they fail on a stale `uv.lock` or a
 `pnpm-lock.yaml` that no longer matches the manifests, rather than quietly
 updating either.
 
+## Review findings that are always worth raising
+
+These are review policy, and they live here — provider-neutrally — rather than in
+any provider's instruction file. A provider adapter may point at this section; it
+does not own it, and a rule that exists only in an adapter is not repository
+policy.
+
+1. **Prose that "reads as enforced" with no mechanism behind it.** A description
+   of a control is not a control. If a document says something is prevented,
+   something must prevent it.
+2. **A test or assertion that cannot fail.** It reports success unconditionally
+   and is worse than no test, because it occupies the space where a real one
+   would go.
+3. **One defect, unswept.** Finding an instance means looking for the class. A
+   fix that repairs the reported occurrence and leaves its siblings has not
+   finished the work.
+4. **A claim stronger than its mechanism.** Where the mechanism has a known
+   limit, the limit belongs in the claim — a guarantee stated more broadly than
+   it holds is relied on as though it were true.
+
 ## Proof quality
 
 This applies **whenever a change or a review claims to have proved a property**.

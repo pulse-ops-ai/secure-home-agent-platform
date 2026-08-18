@@ -843,3 +843,50 @@ No packaging · no publication · no set release · no household or runbook cont
 · no Proof B producer · no runtime resolver · no gate or rollout change. The
 `workflow_dispatch` ancestry defect and the Dependabot advisory remain
 out of scope for this PR.
+
+## Cohort A — independent review correction round
+
+The reviewer approved the lifecycle/evidence mechanism and `platform/governance`
+semantics, and found a defect **class** rather than an instance.
+
+**Provider adapters were being cited as canonical sources.** ADR-0014 makes
+provider-specific instruction surfaces subordinate projections; two catalog
+entries named one as a governing source, which would have made a vendor file the
+origin of a platform truth. A deterministic registry rule now refuses them, for
+modules and sets, by identity rather than shape — `.github/agents/**` is a
+provider adapter while `agents/**` is product content, and a pattern loose enough
+to catch both would reject the repository's own agent implementations.
+
+The rule found both live occurrences on its first run:
+`platform/review-conventions` and `runbooks/repository-validation`. Four mutants,
+four deaths — one survived until a set-side fixture existed, because the rule was
+tested for modules only.
+
+**The stranded rules were promoted, not deleted.** Four review findings existed
+only in the provider adapter, so removing the citation would have left them with
+no canonical home. They now sit provider-neutrally in `CONTRIBUTING.md` beside
+Proof quality. The profile-is-a-security-change fact uses its real owners,
+ADR-0006 §2 and `profiles/README.md`.
+
+**Four modules changed bytes, and their reviews failed as required.** Before any
+replacement was written, real admission refused exactly those four on
+`attestation.digest.binding` and nothing else, with `platform/governance` and
+`platform/runner-model` absent — the prior approvals did not migrate to new
+bytes. `platform/governance` changed no byte and keeps its original review.
+
+| Module | old digest | new digest |
+|---|---|---|
+| `platform/repository-taxonomy` | `84a84163…e002` | `96613fed…61d4` |
+| `platform/workspace-conventions` | `82a03e7f…2d0d` | `1aba9b1a…a913` |
+| `platform/implementation-rules` | `dcb0cc34…f64c` | `148c9831…57e7` |
+| `platform/review-conventions` | `d1dd02d2…00b9` | `04c926a4…dde5` |
+
+Re-reviewed by `human:mikegtech` at `2026-08-18T19:19:44Z`.
+`generated.by` is `claude-code/2.1.234`, re-established from the running binary;
+`generated.at` on every changed concept is `2026-08-18T18:53:35Z`, the real edit
+instant.
+
+**Set state is now derived, not counted.** The old rationale said every selected
+module is unversioned, which stopped being true as modules were authored. Each
+set's limitation now states how many required members remain unversioned, and no
+set is released or versioned — set lifecycle is Prompt 6's.

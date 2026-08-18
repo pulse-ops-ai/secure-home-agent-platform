@@ -8,10 +8,11 @@ stale_after: 2027-08-18
 governs:
   - CONTRIBUTING.md
   - .github/pull_request_template.md
-  - .github/agents/review.agent.md
+  - docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md
+  - profiles/README.md
 generated:
   by: claude-code/2.1.234
-  at: 2026-08-18T16:20:50Z
+  at: 2026-08-18T18:53:35Z
 ---
 
 # What a reviewable change reports

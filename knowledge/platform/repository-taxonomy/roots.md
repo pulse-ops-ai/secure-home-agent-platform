@@ -7,10 +7,16 @@ status: draft
 stale_after: 2027-08-18
 governs:
   - docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md
+  - docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md
   - AGENTS.md
+  - agents/README.md
+  - profiles/README.md
+  - knowledge/README.md
+  - deploy/README.md
+  - docs/README.md
 generated:
   by: claude-code/2.1.234
-  at: 2026-08-18T16:20:50Z
+  at: 2026-08-18T18:53:35Z
 ---
 
 # The roots, and the test that decides each one
@@ -56,6 +62,19 @@ language.
 because that is where its code already lived inverts the boundary the roots
 exist to hold. If the placement test says the role changed, the change is to move
 it — or to reconsider whether it should have that role at all.
+
+## Two rules that decide the boundary inside a root
+
+**A directory's README owns that directory's boundary.** It says what belongs
+there and — usually more usefully — what does not. Read it before adding a file
+to a directory you have not worked in; the placement question is often already
+answered there.
+
+**The nearest applicable `AGENTS.md` governs the file you are editing.** Walk up
+from the file: the first one you find wins for its subtree, and the root one
+governs everything else. Editing files under two subtrees means both apply.
+
+Neither of these is an inventory, and neither goes stale when a member is added.
 
 ## What this module will not tell you
 

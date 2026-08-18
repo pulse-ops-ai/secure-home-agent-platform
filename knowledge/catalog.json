@@ -19,7 +19,7 @@
     "implemented. The ADR-0015 12 obligation was discharged on 2026-08-16 after",
     "independent review, so blockedByToolchain is false on every entry and",
     "Validated and Packaged - post-toolchain lifecycle states - are representable",
-    "for a module that has earned them. platform/runner-model is authored and",
+    "for a module that has earned them. Six platform modules are authored and",
     "Validated at 1.0.0; every other entry is still Planned. blockedByRollout is",
     "unchanged and still holds household,",
     "runbooks, and every set: authoring eligibility requires BOTH gates false.",
@@ -77,13 +77,19 @@
       "limitations": "Portable projection only. Names roots and their roles, never a file inventory. Grants nothing.",
       "governingSources": [
         "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
-        "AGENTS.md"
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+        "AGENTS.md",
+        "agents/README.md",
+        "profiles/README.md",
+        "knowledge/README.md",
+        "deploy/README.md",
+        "docs/README.md"
       ],
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T17:37:10Z",
-        "sourceDigest": "sha256:84a84163751827600b1d2d6bdf1a33ae284764a22637247702a5c1ccac10e002"
+        "at": "2026-08-18T19:19:44Z",
+        "sourceDigest": "sha256:96613fed5f5f9df78bff3fda37ff7bb8beac0dc10bc292f21b270493696661d4"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a taxonomy root is added, removed, or redefined.",
@@ -133,8 +139,8 @@
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T17:37:10Z",
-        "sourceDigest": "sha256:82a03e7fb0e8f53be03e56506aca12d208c688dddf1d3f03f251504fd38d2d0d"
+        "at": "2026-08-18T19:19:44Z",
+        "sourceDigest": "sha256:1aba9b1af024d5badfce073d05ac164e52b35ac7e791f51ac7d4e3455f0ca913"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-governance triad or the merge-gate model changes.",
@@ -152,14 +158,16 @@
       "limitations": "Portable projection only. States that rules are enforced; never carries the enforced rule data itself. Grants nothing.",
       "governingSources": [
         "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+        "AGENTS.md",
         "packages/README.md",
         "services/AGENTS.md"
       ],
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T17:37:10Z",
-        "sourceDigest": "sha256:dcb0cc34481753fb0baf7f071cf48fa8cbfe5909642e2d17ee27a8a18f20f64c"
+        "at": "2026-08-18T19:19:44Z",
+        "sourceDigest": "sha256:148c98319d0fe2002b0803c62e3aa493dc979e262032c55f753e48f5406857e7"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-direction model or the language boundary changes.",
@@ -178,13 +186,14 @@
       "governingSources": [
         "CONTRIBUTING.md",
         ".github/pull_request_template.md",
-        ".github/agents/review.agent.md"
+        "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+        "profiles/README.md"
       ],
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T17:37:10Z",
-        "sourceDigest": "sha256:d1dd02d2c226cbb492e70b868452349215e608a0a2c3174f28527d05a21600b9"
+        "at": "2026-08-18T19:19:44Z",
+        "sourceDigest": "sha256:04c926a41596d58ac46edb48a57fc0ddfb5c74e96d174f82eda3bef77024dde5"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the pull-request template or the reporting obligations change.",
@@ -357,7 +366,7 @@
       "version": null,
       "asOf": null,
       "limitations": "No content authored. Quotes no expected counts or sample output, both of which drift.",
-      "governingSources": ["CONTRIBUTING.md", "scripts/README.md", "CLAUDE.md"],
+      "governingSources": ["CONTRIBUTING.md", "scripts/README.md"],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a check is added or removed, or reporting obligations change.",
       "blockedByToolchain": false,
@@ -410,7 +419,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned, so a pin would resolve to nothing. Composition only; it grants no capability.",
+      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. Composition only; it grants no capability.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -447,7 +456,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned. The optional API-contract module means two runs of this set can see different context; evidence records which.",
+      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. The optional API-contract module means two runs of this set can see different context; evidence records which.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -485,7 +494,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "limitations": "No version assigned: two required members are still unversioned, and no set has been released. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -520,7 +529,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned. Describes the house; carries no live state and confers no ability to read or change any device.",
+      "limitations": "No version assigned: four required members are still unversioned, and no set has been released. Describes the house; carries no live state and confers no ability to read or change any device.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -562,7 +571,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
+      "limitations": "No version assigned: four required members are still unversioned, and no set has been released. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -605,7 +614,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: every module it selects is unversioned. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
+      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",

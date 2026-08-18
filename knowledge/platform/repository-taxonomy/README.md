@@ -13,7 +13,8 @@
 
 ## Intended facts
 
-- The four roots and what each is for: `services/` deployable backend processes,
+- Every governed root and what each is for, as a **test** rather than a list:
+  `services/` deployable backend processes,
   `apps/` human-facing applications, `packages/` reusable libraries with no
   runtime identity, `agents/` agent implementations and profiles.
 - That a directory `README.md` is authoritative for its directory, including

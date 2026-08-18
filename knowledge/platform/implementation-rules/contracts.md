@@ -7,11 +7,13 @@ status: draft
 stale_after: 2027-08-18
 governs:
   - docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md
+  - docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md
+  - AGENTS.md
   - packages/README.md
   - services/AGENTS.md
 generated:
   by: claude-code/2.1.234
-  at: 2026-08-18T16:20:50Z
+  at: 2026-08-18T18:53:35Z
 ---
 
 # Authored contracts and generated artifacts

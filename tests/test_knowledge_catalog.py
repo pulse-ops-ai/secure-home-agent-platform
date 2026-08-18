@@ -977,3 +977,101 @@ def test_the_gate_value_lives_only_in_the_catalog() -> None:
         assert "Blocked by" not in text, f"{module['id']}: README mirrors a gate value"
         for gate in ("blockedByToolchain", "blockedByRollout"):
             assert gate not in text, f"{module['id']}: README duplicates {gate}"
+
+
+# --- a provider adapter is never a canonical governing source ------------------
+#
+# ADR-0014 makes provider-specific instruction surfaces SUBORDINATE projections.
+# A catalog entry naming one as a governing source inverts that: it would make a
+# provider adapter the origin of a platform truth, and the portable projection
+# would then cite it as canonical.
+#
+# The rule lives here, with catalog/registry governance, rather than inside the
+# knowledge adapter — the adapter owns no content rules, and a second copy would
+# become a second answer.
+
+
+def test_a_provider_instruction_file_is_rejected_as_a_governing_source(
+    tmp_path: Path,
+) -> None:
+    """Each provider surface the root governance names, rejected by identity."""
+    provider_surfaces = [
+        "CLAUDE.md",
+        ".github/copilot-instructions.md",
+        ".github/agents/review.agent.md",
+        ".claude/settings.json",
+    ]
+    for index, surface in enumerate(provider_surfaces):
+
+        def mutate(catalog: Any, root: Path, surface: str = surface) -> None:
+            catalog["modules"][0]["governingSources"] = [surface]
+            target = root / surface
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# provider adapter\n")
+
+        result = _run(_fixture(tmp_path, f"provider-source-{index}", mutate))
+        assert result.returncode != 0, f"{surface} must not be a governing source"
+        assert "provider-specific" in _output(result), surface
+
+
+def test_provider_neutral_governed_contracts_are_still_accepted(tmp_path: Path) -> None:
+    """CONTROL. The rule rejects by provider identity, not by being a Markdown file.
+
+    Without this, tightening the pattern until everything fails would look like
+    success.
+    """
+    for index, source in enumerate(
+        ["AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"]
+    ):
+
+        def mutate(catalog: Any, root: Path, source: str = source) -> None:
+            catalog["modules"][0]["governingSources"] = [source]
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# governed contract\n")
+
+        result = _run(_fixture(tmp_path, f"neutral-source-{index}", mutate))
+        assert "provider-specific" not in _output(result), (
+            f"{source} is provider-neutral and must remain usable"
+        )
+
+
+def test_ordinary_agents_content_is_not_a_provider_surface(tmp_path: Path) -> None:
+    """`agents/**` is product content; `.github/agents/**` is a provider adapter.
+
+    The two differ by one path prefix, and conflating them would make the rule
+    reject the repository's own agent implementations.
+    """
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["governingSources"] = ["agents/README.md"]
+        (root / "agents").mkdir(parents=True, exist_ok=True)
+        (root / "agents" / "README.md").write_text("# agents\n")
+
+    result = _run(_fixture(tmp_path, "product-agents", mutate))
+    assert "provider-specific" not in _output(result)
+
+
+def test_a_set_may_not_name_a_provider_surface_either(tmp_path: Path) -> None:
+    """Sets carry governing sources too, and a mutant that applied the rule to
+    modules only survived until this existed."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["sets"][0]["governingSources"] = ["CLAUDE.md"]
+        (root / "CLAUDE.md").write_text("# provider adapter\n")
+
+    result = _run(_fixture(tmp_path, "provider-set-source", mutate))
+    assert result.returncode != 0
+    assert "provider-specific" in _output(result)
+
+
+def test_no_live_catalog_entry_names_a_provider_surface() -> None:
+    """The live registry, not a fixture."""
+    catalog = _catalog()
+    for entry in [*catalog["modules"], *catalog["sets"]]:
+        for source in entry.get("governingSources", []):
+            assert not (
+                source in {"CLAUDE.md", ".github/copilot-instructions.md"}
+                or source.startswith(".github/agents/")
+                or source.startswith(".claude/")
+            ), f"{entry['id']}: governingSources names the provider surface {source}"

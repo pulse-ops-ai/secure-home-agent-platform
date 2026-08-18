@@ -880,19 +880,19 @@ REVIEWED_DIGEST = "sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f
 REVIEWED_DIGESTS = {
     "platform/runner-model": REVIEWED_DIGEST,
     "platform/repository-taxonomy": (
-        "sha256:84a84163751827600b1d2d6bdf1a33ae284764a22637247702a5c1ccac10e002"
+        "sha256:96613fed5f5f9df78bff3fda37ff7bb8beac0dc10bc292f21b270493696661d4"
     ),
     "platform/governance": (
         "sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5"
     ),
     "platform/workspace-conventions": (
-        "sha256:82a03e7fb0e8f53be03e56506aca12d208c688dddf1d3f03f251504fd38d2d0d"
+        "sha256:1aba9b1af024d5badfce073d05ac164e52b35ac7e791f51ac7d4e3455f0ca913"
     ),
     "platform/implementation-rules": (
-        "sha256:dcb0cc34481753fb0baf7f071cf48fa8cbfe5909642e2d17ee27a8a18f20f64c"
+        "sha256:148c98319d0fe2002b0803c62e3aa493dc979e262032c55f753e48f5406857e7"
     ),
     "platform/review-conventions": (
-        "sha256:d1dd02d2c226cbb492e70b868452349215e608a0a2c3174f28527d05a21600b9"
+        "sha256:04c926a41596d58ac46edb48a57fc0ddfb5c74e96d174f82eda3bef77024dde5"
     ),
 }
 

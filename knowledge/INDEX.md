@@ -10,9 +10,11 @@ The canonical registry of knowledge **modules** and **sets**.
 > `false` on all 23 entries and the ten `platform/**` modules are
 > **authoring-eligible**.
 >
-> [`platform/runner-model`](platform/runner-model/) is **`Validated`**: its exact
-> repository bytes carry a human content review bound to their digest and pass
-> canonical admission. Every other module is `Planned`. Nothing is packaged and
+> Six `platform/**` modules are **`Validated`** at `1.0.0` — `runner-model`,
+> `repository-taxonomy`, `governance`, `workspace-conventions`,
+> `implementation-rules`, and `review-conventions`. Each carries **its own**
+> human content review bound to **its own** digest and passes canonical
+> admission independently. Every other module is `Planned`. Nothing is packaged and
 > nothing is published — `household/**`, `runbooks/**`, and every set remain
 > rollout-blocked, and publication additionally requires Proof B, for which no
 > governed producer exists.
