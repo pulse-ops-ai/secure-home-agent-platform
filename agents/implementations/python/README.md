@@ -39,4 +39,4 @@ and which capability classes its profile must grant.
 
 ## Validation
 
-`uv sync --all-packages`, `uv run ruff check .`, `uv run mypy`, `uv run pytest`.
+`uv sync --all-packages --locked`, `uv run ruff check .`, `uv run mypy`, `uv run pytest`.

@@ -170,13 +170,35 @@ const REQUIRED_SET_FIELDS = [
  * One canonical form removes the alias space, and provider classification then
  * runs on an identity that has exactly one spelling.
  */
-/** `existsSync` follows links, so a broken alias reads as absent. This does not. */
-const isSymbolicLink = (absolute) => {
-  try {
-    return lstatSync(absolute).isSymbolicLink()
-  } catch {
-    return false
+/**
+ * The FIRST aliased component of a repository-relative path, or undefined.
+ *
+ * `lstatSync` declines to follow only the LAST component; the operating system
+ * still resolves every parent. So `alias -> .` with a source of
+ * `alias/CLAUDE.md` reached a regular CLAUDE.md, while provider classification
+ * read a string beginning `alias/` and saw nothing provider-shaped. Checking the
+ * final component alone cannot establish "this is a real repository file".
+ *
+ * Walks from the trusted repository root, one component at a time, with
+ * no-follow metadata. A missing component is not this rule's business — the
+ * existence rule reports that — so it stops rather than refusing.
+ *
+ * Resolving the alias and accepting an in-repository target is deliberately NOT
+ * the rule: two spellings of one file is the whole defect.
+ */
+const aliasedComponent = (root, source) => {
+  let current = root
+  for (const segment of source.split('/')) {
+    current = join(current, segment)
+    let stats
+    try {
+      stats = lstatSync(current)
+    } catch {
+      return undefined
+    }
+    if (stats.isSymbolicLink()) return current.slice(root.length + 1)
   }
+  return undefined
 }
 
 /**
@@ -440,24 +462,23 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         continue
       }
       const absolute = join(root, source)
-      if (existsSync(absolute) || isSymbolicLink(absolute)) {
-        const stats = lstatSync(absolute)
-        if (stats.isSymbolicLink()) {
-          fail(
-            `module "${id}": governingSources names "${source}", which is a symbolic link. ` +
-              'A governing source must be a real repository file: an alias is classified by ' +
-              'its own spelling, so a neutral-looking link could point at a provider ' +
-              'adapter or outside the repository entirely',
-          )
-          continue
-        }
-        if (!stats.isFile()) {
-          fail(
-            `module "${id}": governingSources names "${source}", which is not a regular file. ` +
-              'A directory governs nothing',
-          )
-          continue
-        }
+      const aliased = aliasedComponent(root, source)
+      if (aliased !== undefined) {
+        fail(
+          `module "${id}": governingSources names "${source}", whose component ` +
+            `"${aliased}" is a symbolic link. A governing source must be a real repository ` +
+            'file in every component: an alias is classified by its own spelling, so a ' +
+            'neutral-looking path could resolve to a provider adapter or outside the ' +
+            'repository entirely',
+        )
+        continue
+      }
+      if (existsSync(absolute) && !lstatSync(absolute).isFile()) {
+        fail(
+          `module "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
       }
       if (isProviderSurface(source)) {
         fail(
@@ -573,24 +594,23 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         continue
       }
       const absolute = join(root, source)
-      if (existsSync(absolute) || isSymbolicLink(absolute)) {
-        const stats = lstatSync(absolute)
-        if (stats.isSymbolicLink()) {
-          fail(
-            `set "${id}": governingSources names "${source}", which is a symbolic link. ` +
-              'A governing source must be a real repository file: an alias is classified by ' +
-              'its own spelling, so a neutral-looking link could point at a provider ' +
-              'adapter or outside the repository entirely',
-          )
-          continue
-        }
-        if (!stats.isFile()) {
-          fail(
-            `set "${id}": governingSources names "${source}", which is not a regular file. ` +
-              'A directory governs nothing',
-          )
-          continue
-        }
+      const aliased = aliasedComponent(root, source)
+      if (aliased !== undefined) {
+        fail(
+          `set "${id}": governingSources names "${source}", whose component ` +
+            `"${aliased}" is a symbolic link. A governing source must be a real repository ` +
+            'file in every component: an alias is classified by its own spelling, so a ' +
+            'neutral-looking path could resolve to a provider adapter or outside the ' +
+            'repository entirely',
+        )
+        continue
+      }
+      if (existsSync(absolute) && !lstatSync(absolute).isFile()) {
+        fail(
+          `set "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
       }
       if (isProviderSurface(source)) {
         fail(

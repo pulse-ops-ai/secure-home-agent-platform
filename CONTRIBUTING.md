@@ -93,7 +93,7 @@ bash scripts/check.sh
 
 # individually
 bash scripts/validate-scaffold.sh          # structure, indexes, secrets, generated dirs
-uv sync --all-packages                     # Python workspace resolves
+uv sync --all-packages --locked            # Python workspace resolves, lockfile unchanged
 uv run ruff check .                        # Python lint
 uv run ruff format --check .               # Python format
 uv run mypy                                # Python types (targets configured in pyproject.toml)

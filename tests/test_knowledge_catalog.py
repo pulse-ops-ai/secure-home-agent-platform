@@ -1329,3 +1329,63 @@ def test_readme_links_resolve_relative_to_the_module_readme(tmp_path: Path) -> N
 
     result = _run(_fixture(tmp_path, "readme-relative", mutate))
     assert result.returncode == 0, _output(result)
+
+
+# --- no symbolic alias ANYWHERE in a governing-source path ---------------------
+#
+# `lstatSync` declines to follow only the LAST component. The operating system
+# still resolves every parent, so `alias -> .` plus a source of
+# `alias/CLAUDE.md` reaches a regular CLAUDE.md while provider classification
+# reads a string beginning `alias/` and sees nothing provider-shaped. The
+# invariant is a real repository file path with no alias in ANY component, so
+# the check has to walk components from the repository root.
+
+
+def _component_alias(
+    tmp_path: Path, name: str, link_target: str, source: str, *, on_set: bool = False
+) -> Path:
+    def mutate(catalog: Any, root: Path) -> None:
+        (root / "CLAUDE.md").write_text("# provider adapter\n")
+        (root / "AGENTS.md").write_text("# governed contract\n")
+        (root / "ordinary.md").write_text("# an ordinary governed file\n")
+        adapters = root / ".github" / "agents"
+        adapters.mkdir(parents=True, exist_ok=True)
+        (adapters / "review.agent.md").write_text("# provider adapter\n")
+        (root / "alias").symlink_to(root / link_target, target_is_directory=True)
+        holder = catalog["sets"][0] if on_set else catalog["modules"][0]
+        holder["governingSources"] = [source]
+
+    return _fixture(tmp_path, name, mutate)
+
+
+def test_an_intermediate_symlink_component_is_refused(tmp_path: Path) -> None:
+    """A, B, C. The aliased component is a parent, not the file itself."""
+    cases = [
+        (".", "alias/CLAUDE.md", "provider adapter behind an aliased parent"),
+        (".github/agents", "alias/review.agent.md", "provider directory aliased"),
+        (".", "alias/ordinary.md", "ordinary file behind an aliased parent"),
+    ]
+    for index, (target, source, why) in enumerate(cases):
+        result = _run(_component_alias(tmp_path, f"component-{index}", target, source))
+        assert result.returncode != 0, f"{source} ({why}) must be refused"
+        assert "symbolic link" in _output(result), f"{source}: {why}"
+
+
+def test_an_intermediate_symlink_component_is_refused_for_a_set(tmp_path: Path) -> None:
+    """D. Sets carry governing sources; the no-alias walk applies there too."""
+    result = _run(_component_alias(tmp_path, "component-set", ".", "alias/AGENTS.md", on_set=True))
+    assert result.returncode != 0
+    assert "symbolic link" in _output(result)
+
+
+def test_a_nested_real_path_remains_valid(tmp_path: Path) -> None:
+    """E. CONTROL. Every component a real directory or file — must still pass."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["governingSources"] = ["docs/decisions/ordinary.md"]
+        target = root / "docs" / "decisions" / "ordinary.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# a real nested governed file\n")
+
+    result = _run(_fixture(tmp_path, "nested-real", mutate))
+    assert result.returncode == 0, _output(result)

@@ -35,7 +35,7 @@ A skipped check MUST be listed with the reason. Never omit it.
 |---|---|
 | `git status --short` | |
 | `bash scripts/validate-scaffold.sh` | |
-| `uv sync --all-packages` | |
+| `uv sync --all-packages --locked` | |
 | `uv run ruff check .` | |
 | `uv run ruff format --check .` | |
 | `uv run mypy` | |

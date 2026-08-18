@@ -134,7 +134,7 @@ directory with a valid `pyproject.toml` — the glob picks it up.
 ## Validation
 
 ```sh
-uv sync --all-packages
+uv sync --all-packages --locked
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pytest

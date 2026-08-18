@@ -206,7 +206,7 @@ bash scripts/validate-scaffold.sh
 bash scripts/scan-secrets.sh
 
 # Python (uv workspace)
-uv sync --all-packages
+uv sync --all-packages --locked
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy

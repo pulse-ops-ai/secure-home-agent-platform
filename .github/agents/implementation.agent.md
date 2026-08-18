@@ -132,7 +132,7 @@ pnpm run check:workspace && pnpm run check:imports
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 # Python — retained for inference workers under services/workers/*
-uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+uv sync --all-packages --locked && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
 Run both. A TypeScript-only change still runs the Python suite, because the

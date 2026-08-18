@@ -141,7 +141,7 @@ MCP tool, and a test without any of them re-declaring it.
 ## Validation
 
 ```sh
-uv sync --all-packages && uv run ruff check . && uv run mypy && uv run pytest
+uv sync --all-packages --locked && uv run ruff check . && uv run mypy && uv run pytest
 pnpm install --frozen-lockfile
 pnpm run deps:check && pnpm run format:check
 pnpm run check:workspace && pnpm run check:imports
