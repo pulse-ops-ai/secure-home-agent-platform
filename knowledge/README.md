@@ -163,8 +163,9 @@ pnpm run check:knowledge-content
 ```
 
 It runs unconditionally in `scripts/check.sh` and in CI, so a change touching
-only `knowledge/**` cannot skip it. With no module authored, it reports that
-there is nothing to admit.
+only `knowledge/**` cannot skip it. Today it admits one module —
+`platform/runner-model@1.0.0` — and reports the exact byte identity admission
+bound.
 
 `validate`/`admit` runs in CI today and fails on prohibited-content indicators,
 missing or wrongly-typed metadata, envelope violations, unresolvable references,

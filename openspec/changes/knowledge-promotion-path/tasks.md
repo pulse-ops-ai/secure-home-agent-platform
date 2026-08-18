@@ -734,3 +734,47 @@ PR #83's body and of the repository's guidance. It does **not** authorize
 rewriting historical commit or acceptance narrative, and none was rewritten.
 Per-module READMEs for modules that remain unauthored still say so, because that
 is still true of them.
+
+## 4C Phase B and 4D — the provenance correction landed
+
+Appended after the fact. The Phase-A section above said Phase B was *not in that
+landing*, which was true of it; this records what happened next rather than
+editing that statement.
+
+### The chain, with both digests
+
+```text
+original reviewed bytes          sha256:6ded34da…7d20   reviewed 2026-08-18, landed 10ffd9a
+    ↓  provenance defect discovered by independent review
+source bytes corrected           generated.by human:mikegtech -> claude-code/2.1.234
+                                 generated.at  midnight date -> 2026-08-18T10:43:10Z
+    ↓  digest necessarily moves
+old Proof A FAILS                attestation.digest.binding, and nothing else
+    ↓  human re-reviews the NEW exact bytes
+new digest approved              sha256:e738f985…04d0
+    ↓
+new attestation binds it         contentReview.at 2026-08-18T10:59:26Z
+    ↓
+admission succeeds again         Validated, re-earned
+```
+
+**The first review was never stretched to cover the new bytes.** It failed, it
+was replaced, and the failure is the evidence that exact-byte binding works. A
+review that survived a byte change would have been the defect.
+
+### What 4D did and did not change
+
+| | |
+|---|---|
+| renewed | `contentReview.sourceDigest` and `contentReview.at` |
+| unchanged | `policy`, `by`, module `status` (`Validated`), `version` (`1.0.0`), and the OKF document `status: draft` |
+| **not** done | no packaging, no publication, no set release, no second module, no gate change |
+
+`generated.by` is `claude-code/2.1.234`, established from the running binary
+rather than asserted — the tool that actually produced the bytes. The module
+owner stays `human:mikegtech`: producing content and being accountable for it
+are different facts, which is why the conformance rule was widened for
+`generated.by` alone.
+
+Landed at `3caa7bb`, on top of the Phase-A conformance hardening at `7e9694e`.
+Neither commit was amended or squashed.
