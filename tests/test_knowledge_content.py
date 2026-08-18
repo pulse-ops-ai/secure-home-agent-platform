@@ -868,7 +868,7 @@ def test_a_closed_rollout_gate_is_reported_even_when_status_also_mismatches(
 
 # --- the first validated module, proven against the real mechanism -------------
 
-REVIEWED_DIGEST = "sha256:6ded34da42ef0c6c0463a1ad584c5f1a1e9270fafb2596c13ae867613eba7d20"
+REVIEWED_DIGEST = "sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0"
 
 
 def test_the_live_runner_model_module_is_validated_against_its_reviewed_bytes() -> None:

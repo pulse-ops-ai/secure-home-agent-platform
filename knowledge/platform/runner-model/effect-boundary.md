@@ -17,8 +17,8 @@ governs:
   - docs/architecture/distributed-effect-lifecycle.md
   - docs/architecture/knowledge-selection-model.md
 generated:
-  by: human:mikegtech
-  at: 2026-08-18T00:00:00Z
+  by: claude-code/2.1.234
+  at: 2026-08-18T10:43:10Z
 ---
 
 # How one effect is bounded

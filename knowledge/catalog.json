@@ -221,8 +221,8 @@
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T09:58:22Z",
-        "sourceDigest": "sha256:6ded34da42ef0c6c0463a1ad584c5f1a1e9270fafb2596c13ae867613eba7d20"
+        "at": "2026-08-18T10:59:26Z",
+        "sourceDigest": "sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the runner concepts, the grant model, the effect-boundary semantics, the identity model, or the evidence contract change.",
