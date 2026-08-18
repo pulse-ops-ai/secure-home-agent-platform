@@ -62,11 +62,12 @@ Household runners reasoning about comfort or energy. Always paired with
 - "Is this outdoor temperature outside the unit's documented range?"
 - "What does this household mean by comfortable?"
 
-## Governed by
+## Governing sources
 
-[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) · ADRs
-[0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md),
-[0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+Precedence runs `knowledge/README.md` → `knowledge/AGENTS.md` → the ADRs below.
+
+[ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 

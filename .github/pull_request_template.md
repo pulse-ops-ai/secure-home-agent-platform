@@ -40,8 +40,10 @@ A skipped check MUST be listed with the reason. Never omit it.
 | `uv run ruff format --check .` | |
 | `uv run mypy` | |
 | `uv run pytest` | |
-| `pnpm install --lockfile-only` | |
-| `pnpm -r --if-present run check` | |
+| `pnpm install --frozen-lockfile` | |
+| `pnpm run deps:check` · `pnpm run format:check` | |
+| `pnpm run check:workspace` · `pnpm run check:imports` | |
+| `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` | |
 | `bash scripts/scan-secrets.sh` | |
 | `.github/workflows/checks.yml` (merge gate) | |
 

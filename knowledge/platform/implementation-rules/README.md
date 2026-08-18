@@ -50,6 +50,8 @@ Coding runners with write access to the repository.
 ## Governing sources
 
 [ADR-0012 §15](../../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) ·
+[ADR-0006](../../../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md) ·
+[`AGENTS.md`](../../../AGENTS.md) ·
 [`packages/README.md`](../../../packages/README.md) ·
 [`services/AGENTS.md`](../../../services/AGENTS.md)
 

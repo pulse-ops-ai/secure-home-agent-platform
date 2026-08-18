@@ -99,8 +99,15 @@ uv run ruff format --check .               # Python format
 uv run mypy                                # Python types (targets configured in pyproject.toml)
 uv run pytest                              # scaffold conformance tests
 bash scripts/scan-secrets.sh               # secret-shaped values, all tracked text files
-pnpm install --lockfile-only               # TypeScript workspace resolves
-pnpm -r --if-present run check             # TypeScript package manifests
+pnpm install --frozen-lockfile             # TypeScript workspace resolves, lockfile unchanged
+pnpm run deps:check                        # Syncpack: dependency version policy
+pnpm run format:check                      # Prettier
+pnpm run check:workspace                   # workspace taxonomy and declared direction
+pnpm run check:imports                     # what source actually imports
+pnpm lint                                  # ESLint, every package
+pnpm typecheck                             # tsc --noEmit, every package
+pnpm test                                  # vitest, every package
+pnpm build                                 # tsc build, every package
 ```
 
 If a tool is unavailable on your machine, say so in the PR rather than dropping

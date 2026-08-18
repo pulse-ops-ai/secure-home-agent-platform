@@ -54,9 +54,10 @@ Household runners. A coding runner has no reason to know the shape of the house.
 - "What is the canonical name for the room a person just called `the den`?"
 - "Are these two areas thermally adjacent?"
 
-## Governed by
+## Governing sources
 
-[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) ·
+Precedence runs `knowledge/README.md` → `knowledge/AGENTS.md` → the ADRs below.
+
 [ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation

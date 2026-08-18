@@ -342,6 +342,19 @@ def test_the_check_runs_before_install() -> None:
 # --- negative tests, against fixtures ----------------------------------------
 
 
+def _up(module_id: str) -> str:
+    """`knowledge/` plus each id segment — how far a module README sits from root."""
+    return "../" * (module_id.count("/") + 2)
+
+
+def _governing_section(module: Any, sources: list[str] | None = None) -> str:
+    """The README section the drift rule reads, written the way real ones are."""
+    listed = module.get("governingSources", []) if sources is None else sources
+    up = _up(module["id"])
+    links = " ·\n".join(f"[`{s}`]({up}{s})" for s in listed)
+    return f"## Governing sources\n\n{links}\n"
+
+
 def _fixture(
     tmp_path: Path, name: str, mutate: Any, extra_index_rows: list[str] | None = None
 ) -> Path:
@@ -371,6 +384,7 @@ def _fixture(
                 f"| Field | Value |\n|---|---|\n"
                 f"| Status | `{module.get('status', '')}` |\n"
                 f"| Owner | {module.get('owner', '')} |\n"
+                f"\n{_governing_section(module)}"
             )
         index_lines.append(f"| `{module['id']}` | fixture |")
     index_lines += ["", "## Sets", "", "| Set | For |", "|---|---|"]
@@ -1161,3 +1175,157 @@ def test_a_set_governing_source_is_path_checked_too(tmp_path: Path) -> None:
     result = _run(_fixture(tmp_path, "set-noncanon", mutate))
     assert result.returncode != 0
     assert "canonical repository path" in _output(result)
+
+
+# --- a governing source is a REAL repository file ------------------------------
+#
+# The canonical-path rule used statSync, which FOLLOWS symlinks. So a
+# canonical-looking, provider-neutral spelling could be a symbolic alias to
+# CLAUDE.md, to .github/agents/**, or to a file outside the repository, and
+# provider classification saw only the alias. The rule is "a governing source is
+# a real regular repository file" — not the narrower "a symlink to a provider is
+# bad" — so a symlink to an ordinary file is refused too.
+
+
+def _symlink_fixture(tmp_path: Path, name: str, target: str, *, on_set: bool = False) -> Path:
+    def mutate(catalog: Any, root: Path) -> None:
+        (root / "CLAUDE.md").write_text("# provider adapter\n")
+        (root / "AGENTS.md").write_text("# governed contract\n")
+        (root / "ordinary.md").write_text("# an ordinary governed file\n")
+        adapters = root / ".github" / "agents"
+        adapters.mkdir(parents=True, exist_ok=True)
+        (adapters / "review.agent.md").write_text("# provider adapter\n")
+        (root / "alias.md").symlink_to(root / target)
+        holder = catalog["sets"][0] if on_set else catalog["modules"][0]
+        holder["governingSources"] = ["alias.md"]
+
+    return _fixture(tmp_path, name, mutate)
+
+
+def test_a_symlinked_governing_source_is_refused(tmp_path: Path) -> None:
+    """A. alias to a provider surface. B. alias to an ordinary file. Both refused."""
+    for index, target in enumerate(["CLAUDE.md", ".github/agents/review.agent.md", "ordinary.md"]):
+        result = _run(_symlink_fixture(tmp_path, f"symlink-{index}", target))
+        assert result.returncode != 0, f"symlink to {target} must be refused"
+        assert "symbolic link" in _output(result), f"symlink to {target}: wrong reason"
+
+
+def test_a_broken_symlinked_governing_source_is_refused(tmp_path: Path) -> None:
+    """A dangling alias resolves to nothing and still must not pass."""
+    result = _run(_symlink_fixture(tmp_path, "symlink-broken", "does-not-exist.md"))
+    assert result.returncode != 0
+    assert "symbolic link" in _output(result)
+
+
+def test_a_set_symlinked_governing_source_is_refused(tmp_path: Path) -> None:
+    """C. Sets carry governing sources; the no-alias rule applies there too."""
+    result = _run(_symlink_fixture(tmp_path, "symlink-set", "CLAUDE.md", on_set=True))
+    assert result.returncode != 0
+    assert "symbolic link" in _output(result)
+
+
+def test_real_regular_governing_sources_remain_valid(tmp_path: Path) -> None:
+    """D and E. CONTROLS — the no-alias rule must not refuse real files."""
+    for index, source in enumerate(["AGENTS.md", "agents/README.md"]):
+
+        def mutate(catalog: Any, root: Path, source: str = source) -> None:
+            catalog["modules"][0]["governingSources"] = [source]
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# governed contract\n")
+
+        out = _output(_run(_fixture(tmp_path, f"real-file-{index}", mutate)))
+        assert "symbolic link" not in out, source
+        assert "canonical repository path" not in out, source
+
+
+# --- the README's governing sources must equal the catalog's -------------------
+#
+# catalog.json is the metadata authority, but every module README repeats the
+# list for humans. A duplicated statement drifts silently: 2a3d9c9 added sources
+# to the catalog and left six READMEs behind, so the human-facing page named a
+# governing set the machine did not agree with. Compare resolved repository
+# identities, never display labels — a link may be spelled any number of ways.
+
+
+def _drifted(tmp_path: Path, name: str, sources: list[str]) -> Path:
+    """Write a README section that disagrees with the catalog in one way."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        module = catalog["modules"][0]
+        directory = root / "knowledge" / module["id"]
+        directory.mkdir(parents=True, exist_ok=True)
+        for source in sources:
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                target.write_text("fixture\n")
+        (directory / "README.md").write_text(
+            f"# {module['id']}\n\n"
+            f"| Field | Value |\n|---|---|\n"
+            f"| Status | `{module.get('status', '')}` |\n"
+            f"| Owner | {module.get('owner', '')} |\n"
+            f"\n{_governing_section(module, sources)}"
+        )
+
+    return _fixture(tmp_path, name, mutate)
+
+
+def test_a_readme_missing_a_governing_source_is_refused(tmp_path: Path) -> None:
+    """The README under-states what governs the module."""
+    catalog = _catalog()
+    full = catalog["modules"][0]["governingSources"]
+    result = _run(_drifted(tmp_path, "readme-missing", full[:-1]))
+    assert result.returncode != 0
+    output = _output(result)
+    assert "README" in output and "governing" in output.lower()
+    assert full[-1] in output, "the failure must name the source that went missing"
+
+
+def test_a_readme_with_an_extra_governing_source_is_refused(tmp_path: Path) -> None:
+    """The README claims something governs the module that the catalog does not."""
+    catalog = _catalog()
+    full = catalog["modules"][0]["governingSources"]
+    result = _run(_drifted(tmp_path, "readme-extra", [*full, "docs/README.md"]))
+    assert result.returncode != 0
+    output = _output(result)
+    assert "README" in output and "docs/README.md" in output
+
+
+def test_readme_governing_sources_compare_by_identity_not_order(tmp_path: Path) -> None:
+    """CONTROL. Same set, different order — a set comparison, not a sequence one."""
+    catalog = _catalog()
+    full = list(reversed(catalog["modules"][0]["governingSources"]))
+    result = _run(_drifted(tmp_path, "readme-reordered", full))
+    assert result.returncode == 0, _output(result)
+
+
+def test_readme_links_resolve_relative_to_the_module_readme(tmp_path: Path) -> None:
+    """A destination is a path FROM the README, and may carry a fragment."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        module = catalog["modules"][0]
+        module["governingSources"] = ["AGENTS.md", "docs/README.md"]
+        for source in module["governingSources"]:
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("fixture\n")
+        directory = root / "knowledge" / module["id"]
+        directory.mkdir(parents=True, exist_ok=True)
+        up = _up(module["id"])
+        # A section fence, an external link, and a fragment: none of these is a
+        # governing source, and all three must survive extraction untouched.
+        (directory / "README.md").write_text(
+            f"# {module['id']}\n\n"
+            f"| Field | Value |\n|---|---|\n"
+            f"| Status | `{module.get('status', '')}` |\n"
+            f"| Owner | {module.get('owner', '')} |\n\n"
+            f"## Governing sources\n\n"
+            f"[the contract]({up}AGENTS.md) ·\n"
+            f"[docs §2]({up}docs/README.md#section-two) ·\n"
+            f"[upstream](https://example.invalid/spec)\n\n"
+            f"## Freshness\n\n[not a source]({up}CONTRIBUTING.md)\n"
+        )
+
+    result = _run(_fixture(tmp_path, "readme-relative", mutate))
+    assert result.returncode == 0, _output(result)

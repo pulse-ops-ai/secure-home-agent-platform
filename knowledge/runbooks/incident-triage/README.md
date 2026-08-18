@@ -45,8 +45,10 @@ Household runners.
 ## Governing sources
 
 [ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
-[ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) ·
-[`../../household/security-semantics/`](../../household/security-semantics/)
+[ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)
+
+Reads alongside `knowledge/household/security-semantics/`, which is a peer
+module rather than a source that governs this one.
 
 ## Freshness and update trigger
 

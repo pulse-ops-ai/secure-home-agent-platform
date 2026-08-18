@@ -126,7 +126,10 @@ bash scripts/validate-scaffold.sh
 bash scripts/scan-secrets.sh
 
 # TypeScript — the primary stack, including services/**
-pnpm install --frozen-lockfile && pnpm -r --if-present run check
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 # Python — retained for inference workers under services/workers/*
 uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest

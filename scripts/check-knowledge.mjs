@@ -82,7 +82,7 @@
  * Governed by AGENTS.md and ADR-0010.
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, statSync, lstatSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -170,6 +170,56 @@ const REQUIRED_SET_FIELDS = [
  * One canonical form removes the alias space, and provider classification then
  * runs on an identity that has exactly one spelling.
  */
+/** `existsSync` follows links, so a broken alias reads as absent. This does not. */
+const isSymbolicLink = (absolute) => {
+  try {
+    return lstatSync(absolute).isSymbolicLink()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * THE README'S GOVERNING SOURCES MUST EQUAL THE CATALOG'S.
+ *
+ * `catalog.json` is the metadata authority, but every module README repeats the
+ * list for a human reader, and a duplicated statement drifts silently. It did:
+ * one landing added governing sources to the catalog and left six READMEs
+ * behind, so the human-facing page named a governing set the machine did not
+ * agree with, and a reader had no way to tell which was current.
+ *
+ * Compared as resolved repository identities and as a SET. Never as display
+ * labels — a link's text is arbitrary and says nothing about what it points at —
+ * and never as a sequence, because order carries no meaning here.
+ */
+const GOVERNING_HEADING = /^##\s+Governing sources\s*$/im
+const MARKDOWN_LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
+const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
+
+/** The section's own body: from its heading to the next heading of any depth. */
+const governingSection = (text) => {
+  const heading = GOVERNING_HEADING.exec(text)
+  if (!heading) return undefined
+  const rest = text.slice(heading.index + heading[0].length)
+  const next = /^#{1,6}\s/m.exec(rest)
+  return next ? rest.slice(0, next.index) : rest
+}
+
+/** Local link destinations, resolved from the README to repository-relative. */
+const readmeGoverningSources = (section, moduleId) => {
+  const from = `knowledge/${moduleId}`
+  const found = new Set()
+  for (const match of section.matchAll(MARKDOWN_LINK)) {
+    const destination = match[1]
+    // An external URL or a bare in-page anchor is not a repository source.
+    if (EXTERNAL.test(destination) || destination.startsWith('#')) continue
+    const withoutFragment = destination.split('#')[0]
+    if (withoutFragment === '') continue
+    found.add(posix.normalize(posix.join(from, withoutFragment)))
+  }
+  return found
+}
+
 const canonicalPathProblem = (source) => {
   if (typeof source !== 'string' || source === '') return 'is empty'
   if (source.includes('\\')) return 'uses a backslash separator; paths are POSIX'
@@ -389,12 +439,25 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         )
         continue
       }
-      if (existsSync(join(root, source)) && !statSync(join(root, source)).isFile()) {
-        fail(
-          `module "${id}": governingSources names "${source}", which is not a regular file. ` +
-            'A directory governs nothing',
-        )
-        continue
+      const absolute = join(root, source)
+      if (existsSync(absolute) || isSymbolicLink(absolute)) {
+        const stats = lstatSync(absolute)
+        if (stats.isSymbolicLink()) {
+          fail(
+            `module "${id}": governingSources names "${source}", which is a symbolic link. ` +
+              'A governing source must be a real repository file: an alias is classified by ' +
+              'its own spelling, so a neutral-looking link could point at a provider ' +
+              'adapter or outside the repository entirely',
+          )
+          continue
+        }
+        if (!stats.isFile()) {
+          fail(
+            `module "${id}": governingSources names "${source}", which is not a regular file. ` +
+              'A directory governs nothing',
+          )
+          continue
+        }
       }
       if (isProviderSurface(source)) {
         fail(
@@ -509,12 +572,25 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         )
         continue
       }
-      if (existsSync(join(root, source)) && !statSync(join(root, source)).isFile()) {
-        fail(
-          `set "${id}": governingSources names "${source}", which is not a regular file. ` +
-            'A directory governs nothing',
-        )
-        continue
+      const absolute = join(root, source)
+      if (existsSync(absolute) || isSymbolicLink(absolute)) {
+        const stats = lstatSync(absolute)
+        if (stats.isSymbolicLink()) {
+          fail(
+            `set "${id}": governingSources names "${source}", which is a symbolic link. ` +
+              'A governing source must be a real repository file: an alias is classified by ' +
+              'its own spelling, so a neutral-looking link could point at a provider ' +
+              'adapter or outside the repository entirely',
+          )
+          continue
+        }
+        if (!stats.isFile()) {
+          fail(
+            `set "${id}": governingSources names "${source}", which is not a regular file. ` +
+              'A directory governs nothing',
+          )
+          continue
+        }
       }
       if (isProviderSurface(source)) {
         fail(
@@ -640,6 +716,33 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         `module "${m.id}": README states owner ${JSON.stringify(registry.owner)} but the ` +
           `catalog says ${JSON.stringify(m.owner)}`,
       )
+    }
+
+    const section = governingSection(text)
+    if (section === undefined) {
+      fail(
+        `module "${m.id}": README has no "## Governing sources" section. The catalog ` +
+          'names what governs this module; the README must state the same thing',
+      )
+    } else {
+      const stated = readmeGoverningSources(section, m.id)
+      const declared = new Set(m.governingSources ?? [])
+      for (const source of declared) {
+        if (!stated.has(source)) {
+          fail(
+            `module "${m.id}": README "Governing sources" omits "${source}", which the ` +
+              'catalog declares. The prose view must not understate what governs the module',
+          )
+        }
+      }
+      for (const source of stated) {
+        if (!declared.has(source)) {
+          fail(
+            `module "${m.id}": README "Governing sources" links "${source}", which the ` +
+              'catalog does not declare. The catalog is the metadata authority',
+          )
+        }
+      }
     }
 
     const ipv4 = IPV4.exec(text)

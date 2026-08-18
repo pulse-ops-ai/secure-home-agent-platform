@@ -43,6 +43,6 @@ audio dependency requires it
 ## Validation
 
 ```sh
-pnpm -r --if-present run check   # TypeScript workers
+pnpm lint && pnpm typecheck && pnpm test   # TypeScript workers
 uv run pytest                    # Python inference workers
 ```

@@ -60,6 +60,8 @@ Applications join the `pnpm` workspace via the `apps/*` glob in
 ## Validation
 
 ```sh
-pnpm install --lockfile-only
-pnpm -r --if-present run check
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```

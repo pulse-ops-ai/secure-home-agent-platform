@@ -214,8 +214,10 @@ uv run pytest
 
 # TypeScript (pnpm workspace, Corepack-provisioned)
 corepack enable
-pnpm install --lockfile-only
-pnpm -r --if-present run check
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 Run at least `bash scripts/validate-scaffold.sh` before proposing any change
