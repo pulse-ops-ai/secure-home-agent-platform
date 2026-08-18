@@ -11,7 +11,7 @@ governs:
   - scripts/README.md
 generated:
   by: claude-code/2.1.234
-  at: 2026-08-18T18:53:35Z
+  at: 2026-08-18T22:01:53Z
 ---
 
 # How a change lands
@@ -27,10 +27,7 @@ is for without opening it.
 
 ## Commits
 
-Commits follow a conventional prefixed form, scoped to what they touch. Prefer
-**one coherent commit**, or a small logical sequence where each step stands on
-its own. A commit per file is not a sequence; it is a diff cut into arbitrary
-pieces.
+Commits follow a conventional prefixed form, scoped to what they touch.
 
 ## Opening a change for review
 

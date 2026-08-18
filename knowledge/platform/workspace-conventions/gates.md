@@ -11,7 +11,7 @@ governs:
   - scripts/README.md
 generated:
   by: claude-code/2.1.234
-  at: 2026-08-18T18:53:35Z
+  at: 2026-08-18T16:20:50Z
 ---
 
 # What runs, and why some gates never skip

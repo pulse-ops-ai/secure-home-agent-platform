@@ -41,8 +41,7 @@ Coding runners.
 ## Governing sources
 
 [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) ·
-[`scripts/README.md`](../../../scripts/README.md) ·
-[`../../../CLAUDE.md`](../../../CLAUDE.md)
+[`scripts/README.md`](../../../scripts/README.md)
 
 ## Freshness and update trigger
 

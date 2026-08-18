@@ -1075,3 +1075,89 @@ def test_no_live_catalog_entry_names_a_provider_surface() -> None:
                 or source.startswith(".github/agents/")
                 or source.startswith(".claude/")
             ), f"{entry['id']}: governingSources names the provider surface {source}"
+
+
+# --- a governing source is a canonical repository file path --------------------
+#
+# Provider classification read the raw catalog string while existence used a
+# resolving filesystem join. So `./CLAUDE.md` and `docs/../CLAUDE.md` denoted a
+# provider adapter while matching no provider pattern — the alias, not the
+# identity, decided. One canonical path rule closes that: a governing source is
+# repository-relative, POSIX, normalized, and a regular file, and provider
+# classification then runs on an identity that has only one spelling.
+
+NON_CANONICAL = [
+    ("./CLAUDE.md", "dot-segment alias of a provider surface"),
+    ("docs/../CLAUDE.md", "parent-traversal alias of a provider surface"),
+    ("./.github/agents/review.agent.md", "dot-segment alias of a provider adapter"),
+    ("../outside.md", "escapes the repository"),
+    ("/etc/passwd", "absolute path"),
+    (".github\\agents\\review.agent.md", "backslash spelling"),
+]
+
+
+def test_a_non_canonical_governing_source_path_is_refused(tmp_path: Path) -> None:
+    """Each alias is refused as a PATH, before provider classification matters."""
+    for index, (source, why) in enumerate(NON_CANONICAL):
+
+        def mutate(catalog: Any, root: Path, source: str = source) -> None:
+            catalog["modules"][0]["governingSources"] = [source]
+            (root / "CLAUDE.md").write_text("# provider adapter\n")
+            adapters = root / ".github" / "agents"
+            adapters.mkdir(parents=True, exist_ok=True)
+            (adapters / "review.agent.md").write_text("# provider adapter\n")
+
+        result = _run(_fixture(tmp_path, f"noncanon-{index}", mutate))
+        assert result.returncode != 0, f"{source} ({why}) must be refused"
+        assert "canonical repository path" in _output(result), f"{source}: {why}"
+
+
+def test_a_directory_is_not_a_governing_source(tmp_path: Path) -> None:
+    """A governing source names a file. A directory governs nothing."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["governingSources"] = [".github/agents"]
+        (root / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+    result = _run(_fixture(tmp_path, "dir-source", mutate))
+    assert result.returncode != 0
+    assert "regular file" in _output(result)
+
+
+def test_canonical_provider_and_neutral_sources_still_classify_correctly(
+    tmp_path: Path,
+) -> None:
+    """CONTROLS. The path rule must not swallow the provider rule, or the valid ones."""
+
+    def provider(catalog: Any, root: Path) -> None:
+        catalog["modules"][0]["governingSources"] = ["CLAUDE.md"]
+        (root / "CLAUDE.md").write_text("# provider adapter\n")
+
+    result = _run(_fixture(tmp_path, "canon-provider", provider))
+    assert "provider-specific" in _output(result), (
+        "canonical provider path still refused as provider"
+    )
+
+    for index, source in enumerate(["AGENTS.md", "agents/README.md"]):
+
+        def neutral(catalog: Any, root: Path, source: str = source) -> None:
+            catalog["modules"][0]["governingSources"] = [source]
+            target = root / source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("# governed contract\n")
+
+        out = _output(_run(_fixture(tmp_path, f"canon-neutral-{index}", neutral)))
+        assert "canonical repository path" not in out, source
+        assert "provider-specific" not in out, source
+
+
+def test_a_set_governing_source_is_path_checked_too(tmp_path: Path) -> None:
+    """Sets carry governing sources; the path rule applies there as well."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["sets"][0]["governingSources"] = ["./CLAUDE.md"]
+        (root / "CLAUDE.md").write_text("# provider adapter\n")
+
+    result = _run(_fixture(tmp_path, "set-noncanon", mutate))
+    assert result.returncode != 0
+    assert "canonical repository path" in _output(result)

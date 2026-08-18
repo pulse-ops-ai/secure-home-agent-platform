@@ -83,7 +83,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -158,6 +158,30 @@ const REQUIRED_SET_FIELDS = [
  * governed contract — `AGENTS.md`, `CONTRIBUTING.md`, an ADR — and moving it
  * there is the fix. Removing the citation while leaving the rule stranded is not.
  */
+/**
+ * A GOVERNING SOURCE IS A CANONICAL REPOSITORY FILE PATH.
+ *
+ * Provider classification compared the raw catalog string while existence used a
+ * resolving `join`. So `./CLAUDE.md` and `docs/../CLAUDE.md` denoted a provider
+ * adapter, existed happily, and matched no provider pattern — the SPELLING
+ * decided rather than the identity, and a rule keyed on one spelling of a path
+ * is not a rule about that path.
+ *
+ * One canonical form removes the alias space, and provider classification then
+ * runs on an identity that has exactly one spelling.
+ */
+const canonicalPathProblem = (source) => {
+  if (typeof source !== 'string' || source === '') return 'is empty'
+  if (source.includes('\\')) return 'uses a backslash separator; paths are POSIX'
+  if (source.startsWith('/')) return 'is an absolute path'
+  const segments = source.split('/')
+  if (segments.includes('.')) return 'contains a "." segment'
+  if (segments.includes('..')) return 'contains a ".." segment and may escape the repository'
+  if (segments.includes('')) return 'contains an empty segment'
+  if (posix.normalize(source) !== source) return 'is not normalized'
+  return undefined
+}
+
 const PROVIDER_SURFACES = new Set(['CLAUDE.md', '.github/copilot-instructions.md'])
 const PROVIDER_PREFIXES = ['.github/agents/', '.claude/']
 
@@ -355,6 +379,23 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of m.governingSources ?? []) {
+      const pathProblem = canonicalPathProblem(source)
+      if (pathProblem !== undefined) {
+        fail(
+          `module "${id}": governingSources names "${source}", which ${pathProblem}. ` +
+            'It must be a canonical repository path — repository-relative, POSIX, ' +
+            'normalized — so one file has exactly one spelling and cannot evade ' +
+            'classification by alias',
+        )
+        continue
+      }
+      if (existsSync(join(root, source)) && !statSync(join(root, source)).isFile()) {
+        fail(
+          `module "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
+      }
       if (isProviderSurface(source)) {
         fail(
           `module "${id}": governingSources names "${source}", a provider-specific ` +
@@ -458,6 +499,23 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of s.governingSources ?? []) {
+      const pathProblem = canonicalPathProblem(source)
+      if (pathProblem !== undefined) {
+        fail(
+          `set "${id}": governingSources names "${source}", which ${pathProblem}. ` +
+            'It must be a canonical repository path — repository-relative, POSIX, ' +
+            'normalized — so one file has exactly one spelling and cannot evade ' +
+            'classification by alias',
+        )
+        continue
+      }
+      if (existsSync(join(root, source)) && !statSync(join(root, source)).isFile()) {
+        fail(
+          `set "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
+      }
       if (isProviderSurface(source)) {
         fail(
           `set "${id}": governingSources names "${source}", a provider-specific ` +

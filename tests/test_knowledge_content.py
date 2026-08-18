@@ -886,7 +886,7 @@ REVIEWED_DIGESTS = {
         "sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5"
     ),
     "platform/workspace-conventions": (
-        "sha256:1aba9b1af024d5badfce073d05ac164e52b35ac7e791f51ac7d4e3455f0ca913"
+        "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
     "platform/implementation-rules": (
         "sha256:148c98319d0fe2002b0803c62e3aa493dc979e262032c55f753e48f5406857e7"

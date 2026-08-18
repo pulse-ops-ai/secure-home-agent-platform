@@ -139,8 +139,8 @@
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-18T19:19:44Z",
-        "sourceDigest": "sha256:1aba9b1af024d5badfce073d05ac164e52b35ac7e791f51ac7d4e3455f0ca913"
+        "at": "2026-08-18T22:28:37Z",
+        "sourceDigest": "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
       },
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-governance triad or the merge-gate model changes.",

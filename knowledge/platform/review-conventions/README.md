@@ -44,7 +44,8 @@ Coding runners performing pre-pull-request review.
 
 [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) ·
 [`.github/pull_request_template.md`](../../../.github/pull_request_template.md) ·
-[`.github/agents/review.agent.md`](../../../.github/agents/review.agent.md)
+[ADR-0006](../../../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md) ·
+[`profiles/README.md`](../../../profiles/README.md)
 
 ## Freshness and update trigger
 
