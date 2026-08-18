@@ -3,7 +3,8 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: `Planned` — specification only.** No module content is authored.
+> **Status: one module authored.** `runner-model` is `Validated` at `1.0.0`;
+> every other module here is `Planned` and specification-only.
 
 ## What belongs here
 

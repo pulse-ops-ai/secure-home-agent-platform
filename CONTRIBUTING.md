@@ -17,13 +17,20 @@ requires it, the correct output is a new ADR proposal, not a quiet exception.
 
 ## Current phase
 
-This repository is at the **foundation** stage: documentation, governance, and
-workspace scaffolding. There is intentionally **no runtime**.
+This repository has landed contracts, the trusted runner core
+([`packages/runner-core`](packages/runner-core/)), L4 orchestration
+([`services/runner-control`](services/runner-control/)), and the knowledge
+toolchain ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)).
+There is intentionally **no deployed or activated runtime**: no launcher, no
+process spawn, no household service running anywhere. Landed code is not a
+running system, and the distinction is the point.
 
 The ADRs are accepted, so implementation may proceed against them under an
 authorizing task contract. **Acceptance is not authorization to deploy.** Of the
-tracked set U1–U11, only [U6](docs/architecture/unresolved-decisions.md#u6) has
-been closed (ADR-0013, 2026-08-12); every other item is open. Do not:
+tracked set U1–U11, [U6](docs/architecture/unresolved-decisions.md#u6) was closed
+by ADR-0013 (2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7)
+by ADR-0015 (2026-08-15); every other item is open, including
+[U11](docs/architecture/unresolved-decisions.md#u11). Do not:
 
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,
@@ -164,6 +171,65 @@ lockfile-strict flags matter: they fail on a stale `uv.lock` or a
 `pnpm-lock.yaml` that no longer matches the manifests, rather than quietly
 updating either.
 
+## Proof quality
+
+This applies **whenever a change or a review claims to have proved a property**.
+It is not a requirement to prove everything, and it does not ask for mutation
+testing on an ordinary pull request. The obligation is narrower and harder to
+evade: **the evidence must actually support whatever claim is made.**
+
+A claimed proof reaches the mechanism it names:
+
+```text
+claim
+  -> mechanism
+  -> contract-valid fixture
+  -> valid control
+  -> adversarial perturbation / mutant / negative case
+  -> expected failure
+  -> actual failure FOR THE INTENDED REASON
+```
+
+The last line is the one that is usually skipped. A test that fails is not
+evidence; a test that fails *for the reason the claim names* is.
+
+1. **A fixture rejected before reaching the named mechanism proves nothing about
+   that mechanism.** A malformed input refused by an earlier validator never
+   arrived.
+2. **A compiler failure caused by an unrelated error is not a compile-time
+   proof.** A missing property elsewhere in the object will fail the build while
+   saying nothing about the rule under test.
+3. **A structural guard is not proven by reading or grepping its own
+   implementation.** Scanning the guard's source tests the text, not the
+   property. Exercise it against **a planted violation it must catch** and **a
+   valid control it must allow**.
+4. **A mutant that dies from setup noise, environment failure, or a different
+   guard is not evidence** that the named mechanism killed it.
+5. **A passing control must establish that the negative fixture reached the
+   target boundary** — otherwise the negative may be failing somewhere harmless.
+6. **If the intended perturbation survives, investigate which of two things is
+   wrong**: the implementation, or the proof. Do not weaken the assertion to make
+   it green. A surviving mutant is information, and deleting it destroys the
+   information rather than the defect.
+7. **Where a review supplies failing (RED) cases, preserve the failing premise
+   and the failure reason.** Do not turn a reviewer's test into a different test
+   that happens to pass. If the original is itself invalid, prove that and
+   document the correction.
+8. **Match proof strength to the claim:**
+
+   | Claim | Evidence that supports it |
+   |---|---|
+   | runtime behaviour | behavioural / adversarial proof |
+   | type-level impossibility | compiler-shaped proof |
+   | exhaustive structural property | structural proof exercised against a counterexample |
+   | replay / idempotency | repeated and cross-path behavioural proof |
+   | "a mutant would be caught" | an actually applied mutant, or an equivalent perturbation |
+
+This rule is governance, not architecture: it belongs to how this repository
+reviews changes. Provider instruction files may **link** to this section; they
+must not restate or own it, because two copies of a rule become two different
+rules.
+
 ## Issues
 
 Implementation issues and epics are created by the human/ChatGPT planning
@@ -181,10 +247,10 @@ asks for it.
   what belongs there, what does not, the ownership and boundary rules, the
   higher-level document that governs it, and the validation commands it will
   eventually carry.
-- ADR-0001 … ADR-0012 are `Accepted` and **immutable** — the foundational set on
-  2026-08-05, ADR-0012 on 2026-08-06. Never edit an accepted ADR; supersede it
-  with a new one and update
-  [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) in the same change.
+- ADR-0001 … ADR-0018 are `Accepted` and **immutable**. Never edit an accepted
+  ADR; supersede it with a new one and update
+  [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) in the same change. The
+  index records each acceptance date.
 - A new ADR starts `Proposed`. **Do not self-accept it**, and **never change any
   ADR's status without an explicit human-acceptance task**; acceptance is a human
   decision made in its own reviewed change.

@@ -4,7 +4,8 @@
     "",
     "This is REPOSITORY SPECIFICATION METADATA. It is not the knowledge bundle",
     "format, not an OKF schema, and not the runtime serialization of a profile's",
-    "knowledge selection. Choosing the bundle format is U7 and is untouched here;",
+    "knowledge selection. The bundle format is decided — U7 was resolved by",
+    "accepted ADR-0015, which adopts OKF v0.2 as the source representation;",
     "choosing the profile serialization belongs to the profile schema, which does",
     "not exist yet. JSON is used because it parses with the standard library in",
     "both Node and Python, so scripts/check-knowledge.mjs runs before install and",
@@ -14,8 +15,15 @@
     "is the human-facing view of it, and check-knowledge.mjs asserts the two agree",
     "in both directions so they cannot drift.",
     "",
-    "Nothing here may be marked Validated, Packaged, or Published until the",
-    "ADR-0010 validator exists (U7).",
+    "The toolchain, its conformance suite, and repository content admission are",
+    "implemented. The ADR-0015 12 obligation was discharged on 2026-08-16 after",
+    "independent review, so blockedByToolchain is false on every entry and",
+    "Validated and Packaged - post-toolchain lifecycle states - are representable",
+    "for a module that has earned them. Nothing is authored yet, so every entry",
+    "is still Planned. blockedByRollout is unchanged and still holds household,",
+    "runbooks, and every set: authoring eligibility requires BOTH gates false.",
+    "Published additionally requires Proof B, for which no governed producer",
+    "exists (ADR-0016 5a).",
     "",
     "Two freshness fields exist on a set and they are not the same thing:",
     "  freshnessPolicy  \u2014 when the COMPOSITION should be reviewed (prose)",
@@ -33,14 +41,15 @@
     "Deprecated",
     "Retired"
   ],
-  "publishableStatuses": ["Validated", "Packaged", "Published"],
+  "publishableStatuses": ["Published"],
+  "postToolchainStatuses": ["Validated", "Packaged", "Published"],
   "sensitivityVocabulary": ["portable-nonsensitive"],
   "modules": [
     {
       "id": "platform/core-operating-model",
       "purpose": "How this platform behaves, in the terms an agent must reason in.",
       "consumers": ["coding-runner", "household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -53,13 +62,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when an ADR changes the operating model.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/repository-taxonomy",
       "purpose": "What lives in which repository root, and what does not belong there.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -70,13 +80,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a taxonomy root is added, removed, or redefined.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/governance",
       "purpose": "Instruction precedence, ADR immutability, and how a decision changes.",
       "consumers": ["coding-runner", "household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -89,13 +100,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the precedence order or the ADR lifecycle changes.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/workspace-conventions",
       "purpose": "How the workspace is assembled and how a change is landed.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -107,13 +119,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-governance triad or the merge-gate model changes.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/implementation-rules",
       "purpose": "The rules an agent writing code in this repository must hold.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -125,13 +138,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the dependency-direction model or the language boundary changes.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/review-conventions",
       "purpose": "What a review looks for, and what a reviewable change contains.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -143,13 +157,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the pull-request template or the reporting obligations change.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/api-contract-conventions",
       "purpose": "How API surface is authored so one definition produces every downstream artifact.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -160,13 +175,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the contract-authoring model or the normalization pipeline changes.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/worker-conventions",
       "purpose": "What every background worker owes the platform.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -178,33 +194,46 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the worker runtime contract or the inference boundary changes.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/runner-model",
       "purpose": "How agent runs execute, and where authority actually comes from.",
       "consumers": ["coding-runner", "household-runner"],
-      "owner": "@mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Never names an image digest or the contents of any profile.",
+      "owner": "human:mikegtech",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-18",
+      "limitations": "Portable projection only. Names no image digest, no profile contents, and no live run state. Grants nothing.",
       "governingSources": [
         "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md",
         "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
         "docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md",
+        "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md",
+        "docs/decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md",
+        "docs/decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md",
         "docs/architecture/runner-model.md",
+        "docs/architecture/effect-boundary-model.md",
+        "docs/architecture/distributed-effect-lifecycle.md",
         "docs/architecture/knowledge-selection-model.md"
       ],
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-18T10:59:26Z",
+        "sourceDigest": "sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0"
+      },
       "sensitivity": "portable-nonsensitive",
-      "freshnessPolicy": "Review when the runner concepts, the grant model, or the evidence contract change.",
-      "blockedByU7": true
+      "freshnessPolicy": "Review when the runner concepts, the grant model, the effect-boundary semantics, the identity model, or the evidence contract change.",
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "platform/degraded-operation",
       "purpose": "How the platform behaves when parts of it are unreachable.",
       "consumers": ["coding-runner", "household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -216,13 +245,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the degraded-mode classification changes, or when U1 resolves.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": false
     },
     {
       "id": "household/topology",
       "purpose": "The structure of the house: floors, areas, rooms, and how they relate.",
       "consumers": ["household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -230,13 +260,14 @@
       "governingSources": ["docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on renovation, room repurposing, or a change to area naming.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "household/climate",
       "purpose": "HVAC equipment mapping, zones, capacities, and documented operating limits.",
       "consumers": ["household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -247,13 +278,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on equipment replacement or service.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "household/security-semantics",
       "purpose": "What household security signals mean, and what the system does not detect.",
       "consumers": ["household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -264,13 +296,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a change to security equipment classes or signal semantics.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "household/energy-semantics",
       "purpose": "Tariff and telemetry semantics: what the energy data means and how to read it.",
       "consumers": ["household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -281,13 +314,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "runbooks/repository-validation",
       "purpose": "How to prove a repository change is sound, and what each check establishes.",
       "consumers": ["coding-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -295,13 +329,14 @@
       "governingSources": ["CONTRIBUTING.md", "scripts/README.md", "CLAUDE.md"],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a check is added or removed, or reporting obligations change.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "runbooks/incident-triage",
       "purpose": "The ordered procedure for reasoning about a household incident.",
       "consumers": ["household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -312,13 +347,14 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     },
     {
       "id": "runbooks/safe-escalation",
       "purpose": "When an agent must stop, and how it hands a situation to a human.",
       "consumers": ["coding-runner", "household-runner"],
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "status": "Planned",
       "version": null,
       "asOf": null,
@@ -330,7 +366,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the stop conditions or the handover contract change.",
-      "blockedByU7": true
+      "blockedByToolchain": false,
+      "blockedByRollout": true
     }
   ],
   "sets": [
@@ -339,7 +376,7 @@
       "purpose": "Reviewing a change before a pull request is opened.",
       "runnerClass": "coding-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned, so a pin would resolve to nothing. Composition only; it grants no capability.",
@@ -350,7 +387,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the review conventions or the validation procedure change.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -375,7 +413,7 @@
       "purpose": "Implementing a change in this repository on the local host.",
       "runnerClass": "coding-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned. The optional API-contract module means two runs of this set can see different context; evidence records which.",
@@ -386,7 +424,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the implementation rules, workspace conventions, or worker contract change.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -412,7 +451,7 @@
       "purpose": "Reasoning about architecture and proposing decisions.",
       "runnerClass": "coding-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
@@ -423,7 +462,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the runner model or the degraded-mode classification changes.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -446,7 +486,7 @@
       "purpose": "Answering questions about the state and structure of the house.",
       "runnerClass": "household-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned. Describes the house; carries no live state and confers no ability to read or change any device.",
@@ -457,7 +497,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a change to household topology or security equipment classes.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -487,7 +528,7 @@
       "purpose": "Reasoning about comfort and HVAC behaviour.",
       "runnerClass": "household-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
@@ -498,7 +539,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on equipment replacement or a change to comfort conventions.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -529,7 +571,7 @@
       "purpose": "Reasoning about energy cost and load shifting.",
       "runnerClass": "household-runner",
       "status": "Planned",
-      "owner": "@mikegtech",
+      "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
       "limitations": "No version assigned: every module it selects is unversioned. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
@@ -540,7 +582,8 @@
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
-      "blockedByU7": true,
+      "blockedByToolchain": false,
+      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",

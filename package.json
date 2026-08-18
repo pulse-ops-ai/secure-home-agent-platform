@@ -2,7 +2,7 @@
   "name": "secure-home-agent-platform",
   "version": "0.0.0",
   "private": true,
-  "description": "Local-first, security-first household agent platform — TypeScript workspace root.",
+  "description": "Local-first, security-first household agent platform \u2014 TypeScript workspace root.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.18.0",
   "engines": {
@@ -12,9 +12,10 @@
     "affected": "node scripts/affected-targets.mjs",
     "build": "pnpm -r --if-present run build",
     "check": "bash scripts/check.sh",
-    "check:scaffold": "bash scripts/validate-scaffold.sh",
     "check:imports": "node scripts/check-source-imports.mjs",
     "check:knowledge": "node scripts/check-knowledge.mjs",
+    "check:knowledge-content": "node scripts/check-knowledge-content.mjs",
+    "check:scaffold": "bash scripts/validate-scaffold.sh",
     "check:secrets": "bash scripts/scan-secrets.sh",
     "check:workspace": "node scripts/check-workspace.mjs",
     "deps:check": "syncpack lint",
@@ -27,6 +28,7 @@
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
+    "@secure-home/knowledge-toolchain": "workspace:*",
     "prettier": "catalog:",
     "syncpack": "catalog:",
     "typescript": "catalog:"

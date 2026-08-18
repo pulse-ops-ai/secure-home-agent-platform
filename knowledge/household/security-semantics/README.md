@@ -9,8 +9,7 @@ their signals mean, and what to do about them.
 | Field | Value |
 |---|---|
 | Status | `Planned` |
-| Owner | @mikegtech |
-| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+| Owner | human:mikegtech |
 
 > Registered as module `household/security-semantics` in [`../../INDEX.md`](../../INDEX.md).
 > Specification only, and not runtime-authoritative.

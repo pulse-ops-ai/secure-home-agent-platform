@@ -53,20 +53,23 @@ value be different in ten minutes?** If yes, it is state.
 - **Every bundle declares owner, as-of date, and limitations.**
 - **Nothing reads a bundle file directly.** Access is through the `query`
   interface, so the format stays replaceable.
-- **Do not invent an OKF schema.** The format is experimental and unvalidated
-  ([U7](../docs/architecture/unresolved-decisions.md#u7)).
+- **Do not invent an OKF schema.** The format is decided by ADR-0015 and the
+  repository profile is enforced by `packages/knowledge-toolchain`. Extend it
+  there, under an accepted decision — never by writing a new shape here.
 - **No secrets in examples either.** An example token is still a token-shaped
   string in the repository.
 
 ## Do not
 
-- Author a real bundle. **The validator does not exist yet**, so nothing can be
-  checked and the prohibited-content rule would be unenforced.
-  [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
-  is accepted, which makes *building* the validator in scope under a task
-  contract — the validator still comes first.
-- Choose the knowledge format — that is
-  [U7](../docs/architecture/unresolved-decisions.md#u7) and requires an ADR.
+- Author content for a module that is **not authoring-eligible**. Eligibility
+  requires *both* gates false. `blockedByToolchain` was discharged on
+  2026-08-16, so the ten `platform/**` modules are eligible; `household/**`,
+  `runbooks/**`, and every set are still `blockedByRollout`. Whatever you author
+  must pass `pnpm run check:knowledge-content`, and publication still requires
+  Proof B, which has no producer.
+- Change the source format. It is decided by
+  [ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+  (OKF v0.2); replacing it requires a superseding ADR, not a change here.
 - Copy household member names, device identifiers, or network addresses into
   this directory.
 
@@ -79,10 +82,51 @@ value be different in ten minutes?** If yes, it is state.
 3. Add it to [`INDEX.md`](INDEX.md).
 4. Add it to the sets that should receive it, **and to the `deny` list of the
    sets that should not.**
-5. Do not author content until the validator exists.
+5. Author content only for an authoring-eligible module — **both** gates
+   false. `blockedByToolchain` is discharged; `blockedByRollout` is not, outside
+   `platform/**`. Whatever you author must pass
+   `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module
 no profile can select is invisible, and invisible things do not get reviewed.
+
+## Three clocks, and who produced the bytes
+
+The first real module exposed this: `generated` is **production provenance**, and
+it was being written as though it described the owner or the reviewer. It
+describes neither.
+
+| Field | What it records | Wrong answer it attracts |
+|---|---|---|
+| `as_of` | **factual currency** — how current the facts are | the day you edited the file |
+| `generated.at` | the **actual last meaningful change** to these bytes | midnight padding, or a copy of `as_of` because the dates matched |
+| `generated.by` | **who actually produced the current bytes** | the module owner, or the human who reviewed it |
+| `contentReview.at` | the human **content-review event** | the authoring time |
+
+`generated.by` takes the OKF actor convention, which is **wider** than the owner
+rule: `human:<id>`, `process:<id>`, or `<producer>/<version>`. A tool or an
+automated process may produce content — and does not thereby become the module
+**owner**, which stays `human:<id>`. Production and accountability are different
+facts, and a module authored by an agent must say so rather than crediting a
+person who did not write the bytes.
+
+`generated.at` is an instant, not a date. Padding a date to midnight states a
+time that did not happen; if you do not know the real instant, take the real one
+at the moment you make the change.
+
+**What admission can and cannot check.** It checks that `generated.by` is
+present and is a well-formed actor, and that `generated.at` is an ISO-8601
+instant. It **cannot** check that either is *true* — that is provenance,
+established by authoring discipline and human review. A regular expression
+establishes shape, never honesty.
+
+**Changing either field changes source bytes**, so it invalidates
+`contentReview.sourceDigest` and requires a new human content review. Provenance
+is not free to correct after review, which is the point: the review binds exact
+bytes.
+
+See [ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+§5 for the decision; this is the authoring rule that follows from it.
 
 ## Validation
 
@@ -93,9 +137,17 @@ node scripts/check-knowledge.mjs
 
 `check-knowledge.mjs` validates the **specification** — registry coherence,
 metadata completeness, set references, status claims, and that no specification
-directory contains authored content. **It is not the ADR-0010 bundle validator**,
-which machine-checks prohibited content over real content and does not exist yet
-([U7](../docs/architecture/unresolved-decisions.md#u7)).
+directory contains authored content while its toolchain gate is true. **It owns
+no content rules.**
 
-Future: `validate` fails on prohibited content, missing metadata, or schema
-violations — as a gate, not a warning.
+Content admission is the separate canonical command
+`pnpm run check:knowledge-content`, which hands real bytes to
+`packages/knowledge-toolchain`. Prohibited content is enforced there under the
+ADR-0016 A/B/C model — class B indicators with named blind spots, class C
+classes with no detector by design — plus Proof A. It is not a full machine
+check, and the code says so in `COVERAGE` and `BLIND_SPOTS`.
+
+`admit` fails on prohibited-content indicators, missing or wrongly-typed
+metadata, envelope violations, unresolvable references, and an attestation that
+does not bind the exact bytes — as a gate, not a warning. What remains is a
+governed Proof B producer, without which nothing may be published.

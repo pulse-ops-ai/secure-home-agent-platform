@@ -3,13 +3,21 @@
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
-> **Status: specification only, and empty on purpose.** No bundle exists. No
-> schema is asserted. The format is **experimental** — see
-> [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md).
-> The validator must exist **before** the first real bundle is authored.
+> **Status: the first module is authored and validated.**
+> [`platform/runner-model`](platform/runner-model/) is `Validated` at version
+> `1.0.0`; the other sixteen modules are `Planned`. Authoring is open for the ten
+> rollout-eligible `platform/**` modules. The FORMAT is decided
+> ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
+> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
+> toolchain and its conformance suite are implemented and are invoked over real
+> content by `scripts/check-knowledge-content.mjs`; and the ADR-0015 §12
+> obligation was **discharged on 2026-08-16** after independent review, so
+> `blockedByToolchain` is `false` on all 23 entries.
 >
-> **`knowledge/` is not runtime-authoritative**
-> ([U7](../docs/architecture/unresolved-decisions.md#u7)).
+> `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
+> authoring eligibility requires *both* gates false. Publication is blocked
+> separately and still is — no Proof B producer exists (ADR-0016 §5a) — so a
+> module may be authored, admitted, and packaged, but not published.
 
 ## Start here
 
@@ -65,9 +73,19 @@ freshness metadata.
 - **camera media** or any recording
 - **raw personal telemetry**
 
-This list is **machine-checked**. A bundle that violates it is not published —
-it is not a warning
-([ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)).
+These are enforced under the ADR-0016 coverage model, and the honesty of that
+model matters more than the promise. There are **no class-A detectors**: A
+requires a closed authoring grammar in which every representation is
+structurally visible, and Markdown has none — arbitrary bytes fit inside it as
+base64 or hex. Every implemented indicator is **class B**: deterministic,
+useful, and incomplete, each naming its own blind spot in `COVERAGE` and
+`BLIND_SPOTS`. Live state, presence, automation state, and personal telemetry
+are **class C**, semantically undecidable, and have no detector by design.
+
+A deterministic finding refuses admission outright; no attestation waives it
+(ADR-0016 §6). Admission additionally requires **Proof A**, an attestation bound
+to the exact bytes. Saying the list is "machine-checked" would overclaim four of
+the seven classes.
 
 ### The boundary that is easy to get wrong
 
@@ -95,7 +113,7 @@ fact with no owner and no date is not knowledge; it is a rumour with formatting.
 
 ## Access is through an interface, never a file read
 
-Four future interfaces isolate the format so it can be replaced:
+Four interfaces isolate the format so it can be replaced. All four are implemented in `packages/knowledge-toolchain`:
 
 | Interface | Responsibility |
 |---|---|
@@ -133,10 +151,26 @@ directory contains authored content.
 node scripts/check-knowledge.mjs
 ```
 
-**This is not the ADR-0010 validator.** It checks that the registry is coherent.
-It does not machine-check prohibited content, because there is no content — and
-it enforces that there is none.
+**This is the registry checker, not content admission.** It checks that the
+registry is coherent and that no specification directory has grown authored
+content while its `blockedByToolchain` gate is true. It owns no content rules.
 
-**Future** — `validate` runs in CI and fails on any prohibited content, missing
-metadata, or schema violation. Also a repository check that nothing imports a
-bundle file directly.
+Content admission is a separate, canonical command that hands real repository
+bytes to the package that owns those rules:
+
+```sh
+pnpm run check:knowledge-content
+```
+
+It runs unconditionally in `scripts/check.sh` and in CI, so a change touching
+only `knowledge/**` cannot skip it. Today it admits one module —
+`platform/runner-model@1.0.0` — and reports the exact byte identity admission
+bound.
+
+`validate`/`admit` runs in CI today and fails on prohibited-content indicators,
+missing or wrongly-typed metadata, envelope violations, unresolvable references,
+and an attestation that does not bind the exact bytes. `check-source-imports.mjs`
+separately proves that no production source imports a bundle file directly.
+
+**Still outstanding** — a governed Proof B producer, without which nothing is
+publishable, and rollout for `household/**`, `runbooks/**`, and the sets.

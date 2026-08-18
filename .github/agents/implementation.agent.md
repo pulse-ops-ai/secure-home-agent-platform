@@ -33,15 +33,16 @@ If any precondition fails, **stop and report which one**. Do not proceed with a
 narrowed version, do not infer the intent, and do not implement against a
 `Proposed` ADR.
 
-> ADR-0001 … ADR-0012 are **`Accepted`**, so precondition 3 is satisfiable —
+> ADR-0001 … ADR-0018 are **`Accepted`**, so precondition 3 is satisfiable —
 > including the implementation stack (ADR-0012, 2026-08-06), which governs
 > workspace, service, package, and contract work. Preconditions 1, 2, and 4 are
 > still not automatic:
 >
 > - there is still **no issue or task contract**, so this agent has no authorized
 >   work until one exists;
-> - of the tracked set **U1–U11** only
->   [U6](../../docs/architecture/unresolved-decisions.md#u6) has been closed
+> - of the tracked set **U1–U11**, two are closed —
+>   [U6](../../docs/architecture/unresolved-decisions.md#u6) by ADR-0013 and
+>   [U7](../../docs/architecture/unresolved-decisions.md#u7) by ADR-0015
 >   (ADR-0013, 2026-08-12), so anything depending on any other item is still
 >   blocked — most of the runtime surface is, and no persistence work is
 >   possible until [U11](../../docs/architecture/unresolved-decisions.md#u11);

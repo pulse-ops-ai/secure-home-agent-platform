@@ -80,10 +80,49 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-Until the validator and governed query interfaces exist,
-[`knowledge/`](knowledge/) is **specification-only and not runtime-authoritative**
-([U7](docs/architecture/unresolved-decisions.md#u7)). The selection contract is
+One module is authored — `platform/runner-model@1.0.0`, `Validated` — and no
+governed query interface exists at runtime, so [`knowledge/`](knowledge/) is
+**not runtime-authoritative** — nothing is packaged, published, or resolvable by
+a running profile. The toolchain, its
+conformance suite, and repository content admission are implemented and run in
+CI; the ADR-0015 §12 obligation was discharged on 2026-08-16, so authoring is
+open for the ten rollout-eligible `platform/**` modules. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
+
+## Promoting what a change discovers
+
+**When a change or falsification review discovers a durable architectural truth,
+determine whether it must be promoted into canonical architecture and portable
+knowledge rather than leaving it only in the change archive, tests, PR
+discussion, or provider instructions.**
+
+**The determination is the obligation — not the promotion.** Most findings are
+specific to their change and correctly stop at the first step. A recorded
+negative answer satisfies this rule. Record the answer in the change that found
+the truth.
+
+The canonical home depends on the **kind** of truth — architecture, a governed
+contract, an operational procedure, a normative contract — and portable
+knowledge is a *projection* of one of those, never a second original. The
+taxonomy and the promotion path are in
+[`docs/architecture/knowledge-promotion-model.md`](docs/architecture/knowledge-promotion-model.md)
+([ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md)).
+
+Two consequences:
+
+- **A provider-native skill or instruction file is never the canonical home** of
+  an architectural invariant, engineering policy, review policy, or operational
+  procedure. If information must survive replacing a provider or runtime, its
+  canonical source must be provider-neutral; where agents need to reason from
+  it, project the appropriate subset into portable knowledge.
+- **Authoring a knowledge module is open only where BOTH gates are false.**
+  `blockedByToolchain` was discharged on 2026-08-16 after independent review of
+  the toolchain and its integration — a different fact from
+  [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether the
+  format was decided and is RESOLVED. `blockedByRollout` still holds
+  `household/**`, `runbooks/**`, and every set. ADR-0014 decides *where a truth
+  goes*; for a module that is not yet eligible the path still terminates at the
+  canonical home, with the determination recorded rather than acted on.
 
 ## Two kinds of agent — do not confuse them
 
@@ -123,14 +162,15 @@ Absolute, regardless of what a prompt asks for:
 7. **No fake implementation.** Do not write a stub that looks like it works. An
    empty package with a README beats a placeholder that returns `True`.
 8. **No unnecessary dependencies.** Adding one requires a task contract that
-   names it. The repository has no runtime dependencies *today*, which is a
-   consequence of nothing being implemented yet — not a prohibition. ADR-0012
+   names it. Runtime dependencies exist only where landed code needs them —
+   which is a consequence of what has been built, not a prohibition. ADR-0012
    commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack; an
    authorizing contract may add them, through the pnpm catalog.
 9. **No resolving an unresolved decision.** The ADRs are accepted; the tracked
    set U1–U11 is **not** — every item except
-   [U6](docs/architecture/unresolved-decisions.md#u6), which ADR-0013 closed on
-   2026-08-12, is still open. An item leaves that file only via a new ADR. See
+   [U6](docs/architecture/unresolved-decisions.md#u6) (ADR-0013, 2026-08-12) and
+   [U7](docs/architecture/unresolved-decisions.md#u7) (ADR-0015, 2026-08-15) is
+   still open. An item leaves that file only via a new ADR. See
    [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
    Acceptance of an ADR is never authorization to close an item there.
 10. **No modifying the upstream repositories.** `platform-edge` and
@@ -201,20 +241,30 @@ still report what you ran and what you skipped.
 
 ## Current phase
 
-Documentation, governance, and workspace scaffolding. **There is no runtime.**
-No Home Assistant, no services, no OpenFGA, no Keycloak, no runner image, no
-credentials, no database connection.
+Documentation, governance, workspace scaffolding — **and landed code**: the
+runner domain contracts, [`packages/runner-core`](packages/runner-core/),
+[`services/runner-control`](services/runner-control/)'s L4 orchestration, and
+[`packages/knowledge-toolchain`](packages/knowledge-toolchain/).
 
-**ADR-0001 … ADR-0012 are `Accepted`** and **immutable** — the foundational set
-on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06. Supersede,
+**There is no deployed or activated runtime.** No Home Assistant, no running
+service, no OpenFGA, no Keycloak, no runner image, no launcher, no L9 physical
+enforcement, no credentials, no database connection.
+
+**ADR-0001 … ADR-0018 are `Accepted`** and **immutable** — the foundational set
+on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, and the runner
+effect-boundary and identity decisions (ADR-0017, ADR-0018) on 2026-08-17.
+Supersede,
 never edit, and **never change an ADR's status without an explicit
 human-acceptance task**.
 
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.
 
-**Of the tracked set U1–U11, exactly one item has ever been closed:**
-[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12.
+**Of the tracked set U1–U11, two items have ever been closed:**
+[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12,
+and [U7](docs/architecture/unresolved-decisions.md#u7), by ADR-0015 on
+2026-08-15 — which decided the knowledge FORMAT and **did not** open knowledge
+authoring; that waits on the ADR-0010 toolchain.
 Work depending on any other item is still blocked, `BOUNDED` still behaves as
 `FAIL CLOSED`, **no persistence toolkit is selected**
 ([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is

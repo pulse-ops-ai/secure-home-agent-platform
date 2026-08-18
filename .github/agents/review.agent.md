@@ -110,6 +110,16 @@ never learns, and the finding is never discussed.
 19. **Unreported skipped validation.** A change claiming success without saying
     what it skipped.
 
+## Proof quality
+
+When a change **claims to have proved** a property, the governed rule is
+[`CONTRIBUTING.md` → Proof quality](../../CONTRIBUTING.md#proof-quality). Review
+against it; do not restate it here. It owns the rule, and a second copy would
+become a second rule.
+
+The question it makes reviewable in one line: **did the evidence reach the
+mechanism the claim names, and did it fail for that reason?**
+
 ## Reporting
 
 For each finding: the file and line, the specific contract violated with a link,

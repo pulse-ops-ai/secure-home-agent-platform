@@ -81,7 +81,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, basename, extname, sep } from 'node:path'
+import { join, relative, basename, extname, sep, posix } from 'node:path'
 
 import ts from 'typescript'
 
@@ -132,6 +132,80 @@ const IGNORED_DIRS = new Set([
   '.turbo',
   '.next',
 ])
+
+/**
+ * KNOWLEDGE IS NOT IMPORTED DIRECTLY.
+ *
+ * ADR-0010: "No agent, service, or profile reads a bundle file directly."
+ * Direct access would make an unvalidated format load-bearing and would skip
+ * every admission rule the toolchain exists to apply.
+ *
+ * WHAT THIS PROVES, EXACTLY. Every module specifier in production source is
+ * read from the TypeScript AST — static imports, `export ... from`,
+ * `import x = require()`, type-position `import('…')`, and dynamic
+ * `import()`/`require()` with a literal argument. None may resolve into
+ * `knowledge/`. For *imports* that is complete: a specifier is either a literal
+ * this parser sees, or it is non-literal, and non-literal specifiers are
+ * already refused by the rule below.
+ *
+ * WHAT IT DOES NOT PROVE. It does not prove a direct FILESYSTEM read is
+ * impossible. `readFileSync(join('knowledge', name))` is a call, not an import,
+ * and a path assembled at runtime is not statically decidable at all. Claiming
+ * otherwise would be the overclaim this repository keeps refusing — so the
+ * boundary is named here rather than papered over, and
+ * `tests/test_source_imports.py` pins it with a fixture that is NOT caught.
+ *
+ * Enforced inside the existing import governance rather than in a parallel
+ * scanner, so it travels with the other rules and a new member cannot miss it.
+ */
+const KNOWLEDGE_SPECIFIER = /(?:^|\/)knowledge\//
+const KNOWLEDGE_READER_EXEMPT = new Set(['packages/knowledge-toolchain'])
+
+/**
+ * A MEMBER BOUNDARY IS A FILESYSTEM BOUNDARY TOO.
+ *
+ * Every rule above keys on an `@secure-home/*` specifier, so an ordinary
+ * relative import was never examined. That made the package boundary
+ * enforceable only against code that chose to respect it: a member could ignore
+ * another member's public API entirely by walking to its source.
+ *
+ *     packages/query-model/src/index.ts
+ *     import { sealAdmitted } from '../../knowledge-toolchain/src/admitted.js'
+ *
+ * Node resolves it and so does TypeScript, which pulls the other member's source
+ * into THIS member's program. Layering never sees it, and the `exports` field is
+ * irrelevant because nothing consulted it.
+ *
+ * Measured on this repository rather than assumed: a service importing
+ * `sealAdmitted` alone typechecks clean. Adding `query.js` does surface errors —
+ * but they are `node:crypto` and `TextEncoder` missing from the *importing*
+ * member's `types`, an accident of the consumer's tsconfig, and it is the other
+ * package's files that are being compiled. A configuration accident is not a
+ * boundary control; it fails on unrelated grounds and passes just as easily.
+ *
+ * The architecture now leans
+ * on package-private modules — `admitted.ts` mints the admission proof and
+ * `query.ts` holds the tolerant foreign reader, both deliberately absent from
+ * the package root — and absence from the root is worth nothing if the file is
+ * one `../` away.
+ *
+ * So: a relative specifier must resolve INSIDE the importing member. Intra-member
+ * structure is untouched, which matters because the rule above tells a package
+ * to address its own modules by relative path.
+ *
+ * The rule is ZONE-INDEPENDENT, unlike the layering relaxations. Exempting test
+ * files would leave a laundering step — a test re-exports another member's
+ * private module and production source imports the test file by an intra-member
+ * path, which is allowed. Tests keep every relaxation they had; they simply do
+ * not get to reach across a member boundary either.
+ *
+ * Absolute specifiers are covered for the same reason the non-literal dynamic
+ * import is: a rule that only understood `../` would name the blind spot and
+ * leave it open. A path is outside the member whether it is spelled relatively
+ * or from the filesystem root.
+ */
+const RELATIVE_SPECIFIER = /^\.\.?(?:\/|$)/
+const ABSOLUTE_SPECIFIER = /^(?:\/|[A-Za-z]:[\\/]|file:)/
 
 const TEST_DIR = /(?:^|\/)(?:tests|__tests__|__fixtures__)(?:\/|$)/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
@@ -315,8 +389,63 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
       }
 
       for (const { specifier, line } of specifiers) {
-        if (!specifier.startsWith(INTERNAL_SCOPE)) continue
+        // NO DIRECT KNOWLEDGE IMPORT (ADR-0010). Checked over the PARSED
+        // specifier, not over the file's text, so a `knowledge/` mention in a
+        // comment or an unrelated string is not a finding and a real import
+        // cannot hide behind formatting. The toolchain is exempt because it is
+        // the seam — and it does not import a bundle either; it takes bytes.
+        if (
+          zone === 'production' &&
+          !KNOWLEDGE_READER_EXEMPT.has(member.rel) &&
+          KNOWLEDGE_SPECIFIER.test(specifier)
+        ) {
+          fail(
+            `${path}:${line}: imports "${specifier}" — knowledge is read through the ` +
+              'query seam, never imported directly (ADR-0010)',
+          )
+          continue
+        }
+
         const where = `${path}:${line}`
+
+        // NO REACHING INTO ANOTHER MEMBER'S SOURCE TREE. Checked for every
+        // zone: this one is not a layering rule, so the test relaxations do not
+        // apply to it.
+        // An absolute specifier is decided by MATCHING it. There is no portable
+        // workspace model in which `/x`, `C:\x`, or `file:///x` is inside this
+        // member, so there is nothing left to resolve.
+        //
+        // The first version asked whether the resolved string began with `/`,
+        // `../`, or was exactly `..` — which only the POSIX spelling satisfies.
+        // A `file:` URL and a drive path matched the guard, failed that test,
+        // and fell through to `continue`: recognised, then waved past. A rule
+        // that names three shapes and enforces one is worse than a rule that
+        // names one, because the other two read as covered.
+        if (ABSOLUTE_SPECIFIER.test(specifier)) {
+          fail(
+            `${where}: imports "${specifier}", an absolute specifier — it is outside its own ` +
+              'workspace member by construction, and members communicate through published ' +
+              "package exports, never by reaching into another member's source tree",
+          )
+          continue
+        }
+
+        if (RELATIVE_SPECIFIER.test(specifier)) {
+          // Resolved against the importing file's own directory: `../` is not a
+          // violation by itself, and a prefix test would flag ordinary
+          // intra-member structure.
+          const resolved = posix.normalize(posix.join(posix.dirname(file), specifier))
+          if (resolved === '..' || resolved.startsWith('../')) {
+            fail(
+              `${where}: imports "${specifier}", which resolves outside its own workspace ` +
+                `member (${resolved}) — members communicate through published package ` +
+                "exports, never by reaching into another member's source tree",
+            )
+          }
+          continue
+        }
+
+        if (!specifier.startsWith(INTERNAL_SCOPE)) continue
         const name = packageNameOf(specifier)
 
         if (!name) {

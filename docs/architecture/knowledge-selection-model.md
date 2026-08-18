@@ -7,11 +7,18 @@ and what the run records about it. Governed by
 [ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md),
 and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.md).
 
-> **Status: not implemented, and deliberately not schema.** No resolver exists,
-> no profile field is defined, no bundle is packaged. This document is the
-> contract those things must satisfy. The registry it refers to is
-> [`knowledge/INDEX.md`](../../knowledge/INDEX.md), which is specification-only
-> and blocked on [U7](unresolved-decisions.md#u7).
+> **Status: the toolchain exists; runtime selection does not.** The format is
+> decided
+> ([ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
+> which resolved [U7](unresolved-decisions.md#u7)), and compile / validate /
+> package / query are **implemented** in
+> [`packages/knowledge-toolchain`](../../packages/knowledge-toolchain/) and
+> invoked over real repository content in CI.
+>
+> What this document describes is still absent: **no runtime resolver**, **no
+> profile knowledge field or schema**, **no deployed knowledge delivery**, **no
+> released set**, **no published module**, and **no Proof B producer**. This is
+> the contract those things must satisfy.
 
 ## The rule everything else follows from
 
@@ -83,10 +90,15 @@ knowledge:
 |---|---|
 | `set` | the named base composition, pinned to a version. A moving reference is not permitted, for the reason automations bind pinned profile versions ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)). |
 
-> **No set version is assignable yet.** Every registered set carries a `version`
-> field — the registry is version-capable, because this contract and the evidence
-> fields below both require it — but every one is currently `null`, because the
-> modules they select are unversioned while U7 is open. A set version that pins
+> **No set version is assignable yet, and the reason is now concrete.** Every
+> registered set carries a `version` field — the registry is version-capable,
+> because this contract and the evidence fields below both require it — but every
+> one is `null`, because **every set still has required members that carry no
+> version**. Exactly one module is versioned today,
+> `platform/runner-model@1.0.0`, and the sets that select it also require
+> unversioned ones: `architecture-default` requires four modules and three are
+> unversioned; the other five sets have no versioned required member at all.
+> Every set is additionally rollout-blocked. A set version that pins
 > nothing resolvable would make two different resolutions look identical in
 > evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
 > a set that carries a version while selecting an unversioned module. The
@@ -112,9 +124,23 @@ knowledge seam: **if adding a provider requires changing these field names, the
 contract was not neutral.** Provider names may appear only as opaque values of an
 `adapter` field, and in prose or examples.
 
-Note that "OKF" is excluded too. The knowledge *format* is undecided
-([U7](unresolved-decisions.md#u7)), and a field named after a candidate format
-would decide it by accident.
+Note that **"OKF" is excluded too, and the reason has changed.** The format is
+no longer undecided —
+[ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+pinned OKF v0.2 as the source representation. The exclusion stands anyway,
+because the selection seam is **format-neutral by design**, not by default: a
+profile selects a named set and the runner resolves it to module versions and
+digests, none of which depends on how the source is written. An `okf` field
+would bind the selection contract to a source format it has no business knowing
+about, and would have to be renegotiated the day the format moved.
+
+Three separable facts, and this document owns only the middle one:
+
+| | |
+|---|---|
+| **format decision** | ADR-0015 — pinned OKF v0.2 source representation |
+| **selection contract** | this document — provider-neutral **and** format-neutral, structurally |
+| **implementation** | compile / validate / package / query — **implemented**; the runtime resolver that would consume them is not |
 
 ## 2. Resolution semantics
 
@@ -270,8 +296,11 @@ around what actually exists rather than replacing working code.
 ## What this document does not do
 
 - It does not author or publish knowledge content.
-- It does not invent an OKF schema, or choose the knowledge format — that is
-  [U7](unresolved-decisions.md#u7).
+- It does not choose the knowledge format.
+  [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+  already did, pinning OKF v0.2. This document defines the selection seam
+  **independently of the source format**, which is why no `okf` field appears in
+  it.
 - It does not implement compile, validate, package, or query.
 - It does not define concrete profiles, runner images, or sandbox enforcement.
 - It does not resolve any item in [`unresolved-decisions.md`](unresolved-decisions.md).

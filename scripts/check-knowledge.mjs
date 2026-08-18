@@ -8,24 +8,39 @@
  *
  * ## What this is NOT
  *
- * **This is not the ADR-0010 bundle validator.** That validator machine-checks
- * the prohibited-content rules over real bundle content, and it does not exist:
- * it is gated on U7, and it is the deliverable that must land BEFORE the first
- * real module content is authored.
+ * **This is not the content admission validator.** That is
+ * `@secure-home/knowledge-toolchain`, which owns every REAL-CONTENT rule:
+ * the OKF version pin, the repository metadata profile, the catalog/frontmatter
+ * mirror, execution-bearing refusal, reference integrity, envelope rules, the
+ * prohibited-content indicators, and Proof A. This file owns REGISTRY and
+ * SCAFFOLD concerns only, and the two do not implement the same rule twice.
  *
- * What this checks is that the repository's *specification* is coherent — that
- * every registered module exists, carries its metadata, is reachable from the
- * index, and is not claiming a status it has not earned. Confusing the two would
- * be the worst outcome here, because a green run on this file could be mistaken
- * for evidence that content was checked. Nothing is checked, because no content
- * exists — and check 6 below enforces that no content exists.
+ * **Prohibited content is not established by machine inspection alone**, and
+ * saying otherwise was a falsified claim that ADR-0016 corrected. The accepted
+ * model:
  *
- * The prohibited-content scanning here is deliberately narrow and lexical:
- * network and hardware addresses, which are prohibited by ADR-0010 and by every
- * module README, and which have unambiguous shapes. Semantic prohibitions —
- * "this sentence is a live reading" — are not detectable this way and are not
- * attempted. Credential-shaped strings are already covered repository-wide by
- * `scan-secrets.sh`.
+ *   deterministic A/B indicators → machine checks, in the toolchain
+ *   the semantic remainder       → a human content-review attestation
+ *   Proof A                      → the toolchain validates exact-byte binding
+ *   Proof B                      → governed human-review evidence, which no
+ *                                  mechanism in this repository produces
+ *   publication                  → admission + Proof B
+ *
+ * There are currently **no A classes**: every implemented indicator is B —
+ * deterministic, useful, and incomplete, with its blind spot named in the
+ * toolchain's coverage table.
+ *
+ * What this file checks is that the repository's *specification* is coherent —
+ * that every registered module exists, carries its metadata, is reachable from
+ * the index, is not claiming a status it has not earned, and carries the two
+ * structural gates. Confusing the two would be the worst outcome here, because a
+ * green run could be mistaken for evidence that content was admitted. No content
+ * exists, and check 6 below enforces that.
+ *
+ * The address scanning that remains here is a SCAFFOLD concern over
+ * specification READMEs, not content admission: network and hardware addresses
+ * have unambiguous shapes and must not appear in the specification either.
+ * Credential-shaped strings are covered repository-wide by `scan-secrets.sh`.
  *
  * ## Checks
  *
@@ -40,9 +55,16 @@
  *      identical in run evidence;
  *   5. the README registry block of each module agrees with the catalog, so the
  *      prose view cannot drift from the machine-readable one;
- *   6. no module directory contains authored content — a specification directory
- *      holds its README and nothing else;
- *   7. no module or set claims a publishable status while U7 is open;
+ *   6. while a module's blockedByToolchain gate is TRUE, its directory holds
+ *      only its README. Once that gate is discharged — as it now is — authored
+ *      source is expected there, and whether the content is ACCEPTABLE is
+ *      `check-knowledge-content.mjs`'s question, not this checker's. This file
+ *      owns registry coherence and never content rules;
+ *   7. no module or set claims a status it has not earned, and every entry
+ *      carries blockedByToolchain: false — discharged 2026-08-16, and pinned so
+ *      that re-blocking is as visible a transition as opening was;
+ *   7b. every entry carries the blockedByRollout value ADR-0016 §7a fixes —
+ *      an INDEPENDENT fact from toolchain readiness;
  *   8. INDEX.md and the catalog correspond in BOTH directions, for modules and
  *      for sets. Module IDs are recognised by shape, since they always contain a
  *      slash. Set IDs cannot be — `Planned`, `warn`, and `catalog.json` are
@@ -78,7 +100,8 @@ const REQUIRED_MODULE_FIELDS = [
   'governingSources',
   'sensitivity',
   'freshnessPolicy',
-  'blockedByU7',
+  'blockedByToolchain',
+  'blockedByRollout',
 ]
 
 /**
@@ -102,7 +125,8 @@ const REQUIRED_SET_FIELDS = [
   'governingSources',
   'sensitivity',
   'freshnessPolicy',
-  'blockedByU7',
+  'blockedByToolchain',
+  'blockedByRollout',
   'required',
   'optional',
   'deny',
@@ -131,8 +155,9 @@ const DENY_PATTERN = /^[a-z][a-z0-9-]*\/(?:\*|[a-z][a-z0-9-]*)$/
 
 /**
  * Addresses prohibited by ADR-0010 and by the module READMEs. Deliberately
- * narrow: these have unambiguous shapes. Semantic prohibitions are the bundle
- * validator's job (U7), not this file's.
+ * narrow: these have unambiguous shapes. Content admission — indicators,
+ * attestation, and everything else over real module content — belongs to
+ * `@secure-home/knowledge-toolchain`, not to this file.
  */
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
 const MAC = /\b(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\b/
@@ -188,12 +213,39 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
   }
 
   const statuses = new Set(catalog.statusVocabulary ?? [])
+  // THREE STAGES, NOT ONE FLAG.
+  //
+  //   authoring -> admission/validation -> packaging -> publication
+  //
+  // `publishableStatuses` had named all three of Validated, Packaged, and
+  // Published, so the absent Proof B producer refused all three — which said
+  // that a module could not even be VALIDATED until a governed human-review
+  // mechanism existed. Proof B gates publication and nothing earlier. Admission
+  // and `packageBundle()` never require it, and must not start.
+  //
+  //   postToolchainStatuses  unreachable while blockedByToolchain is true,
+  //                          because the reviewed obligation is still open
+  //   publishableStatuses    additionally requires Proof B, which has no
+  //                          producer — so Published stays refused after the
+  //                          readiness gate opens
   const publishable = new Set(catalog.publishableStatuses ?? [])
+  const postToolchain = new Set(catalog.postToolchainStatuses ?? [])
   const sensitivities = new Set(catalog.sensitivityVocabulary ?? [])
   if (statuses.size === 0) fail('catalog: statusVocabulary is empty')
   for (const s of publishable) {
     if (!statuses.has(s))
       fail(`catalog: publishableStatuses names "${s}", absent from statusVocabulary`)
+  }
+  for (const s of postToolchain) {
+    if (!statuses.has(s))
+      fail(`catalog: postToolchainStatuses names "${s}", absent from statusVocabulary`)
+  }
+  for (const s of publishable) {
+    if (!postToolchain.has(s))
+      fail(
+        `catalog: publishableStatuses names "${s}" but postToolchainStatuses does not — ` +
+          'publication is downstream of readiness, so it cannot be reachable earlier',
+      )
   }
 
   const modules = catalog.modules ?? []
@@ -230,10 +282,52 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (m.sensitivity && !sensitivities.has(m.sensitivity)) {
       fail(`module "${id}": sensitivity "${m.sensitivity}" is not in the sensitivity vocabulary`)
     }
-    if (publishable.has(m.status)) {
+    // TWO DIFFERENT REFUSALS, so the reason is never guessed from the state.
+    if (m.blockedByToolchain === true && postToolchain.has(m.status)) {
       fail(
-        `module "${id}": status "${m.status}" claims a published artifact, but the ` +
-          'ADR-0010 validator does not exist (U7). Nothing may be published yet',
+        `module "${id}": status "${m.status}" is a post-toolchain lifecycle state, but ` +
+          'blockedByToolchain is true — readiness has not been discharged',
+      )
+    } else if (publishable.has(m.status)) {
+      fail(
+        `module "${id}": status "${m.status}" claims publication, which additionally ` +
+          'requires Proof B, and no governed producer exists (ADR-0016 §5a)',
+      )
+    }
+    // THE AUTHORING GATE, ASSERTED RATHER THAN MERELY PRESENT — NOW DISCHARGED.
+    //
+    // U7 asked whether the format architecture was decided; ADR-0015 answered
+    // it and U7 is RESOLVED. Authoring readiness is a DIFFERENT fact, and this
+    // is where it lives. Requiring only that the field exist would have let
+    // `false` pass on the day U7 closed — turning "the question is answered"
+    // into "the work is done" by omission.
+    //
+    // The ADR-0015 §12 obligation was discharged on 2026-08-16, after the
+    // toolchain, its conformance suite, and repository content admission passed
+    // independent review. The assertion is INVERTED rather than deleted: the
+    // reason it existed — that a gate flipping silently is indistinguishable
+    // from a gate nobody read — applies in both directions. Re-blocking must
+    // also be a diff someone signed.
+    if (m.blockedByToolchain !== false) {
+      fail(
+        `module "${id}": blockedByToolchain must be false — the ADR-0015 §12 obligation ` +
+          'was discharged on 2026-08-16 after independent review of the toolchain and its ' +
+          'integration. Re-blocking authoring is an explicit reviewed transition too, and ' +
+          'must show as one',
+      )
+    }
+    // ROLLOUT ELIGIBILITY, A DIFFERENT FACT FROM TOOLCHAIN READINESS.
+    //
+    // ADR-0016 §7a fixes the initial value by scope, and acceptance of that ADR
+    // is what set it — not the toolchain gate, which is why the two are checked
+    // independently here. A `platform/**` module being rollout-eligible says
+    // nothing about whether the toolchain exists, and `blockedByToolchain`
+    // above still refuses it.
+    const rollout = id.startsWith('platform/') ? false : true
+    if (m.blockedByRollout !== rollout) {
+      fail(
+        `module "${id}": blockedByRollout must be ${String(rollout)} — ` +
+          'ADR-0016 §7a sets platform/** false and household/** and runbooks/** true',
       )
     }
     for (const source of m.governingSources ?? []) {
@@ -300,8 +394,36 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (s.sensitivity && !sensitivities.has(s.sensitivity)) {
       fail(`set "${id}": sensitivity "${s.sensitivity}" is not in the sensitivity vocabulary`)
     }
-    if (publishable.has(s.status)) {
-      fail(`set "${id}": status "${s.status}" claims a published artifact while U7 is open`)
+    // The same two refusals, for sets. See the module check above.
+    if (s.blockedByToolchain === true && postToolchain.has(s.status)) {
+      fail(
+        `set "${id}": status "${s.status}" is a post-toolchain lifecycle state, but ` +
+          'blockedByToolchain is true — readiness has not been discharged',
+      )
+    } else if (publishable.has(s.status)) {
+      fail(
+        `set "${id}": status "${s.status}" claims publication, which additionally ` +
+          'requires Proof B, and no governed producer exists',
+      )
+    }
+    // The same gate, for sets. See the module check above.
+    if (s.blockedByToolchain !== false) {
+      fail(
+        `set "${id}": blockedByToolchain must be false — the ADR-0015 §12 obligation was ` +
+          'discharged on 2026-08-16. Re-blocking is an explicit reviewed transition too',
+      )
+    }
+    // EVERY SET STARTS ROLLOUT-BLOCKED (ADR-0016 §7a). A set's gate means the
+    // COMPOSITION has been released for profile use, which is a different
+    // question from whether its members may author — and releasing a set must
+    // never become a back door around a blocked member. Enforcing the
+    // Composition itself is resolved by `resolveSet` in the toolchain, which
+    // holds a set closed unless BOTH of its gates are open.
+    if (s.blockedByRollout !== true) {
+      fail(
+        `set "${id}": blockedByRollout must be true — ADR-0016 §7a starts every ` +
+          'set rollout-blocked, and releasing one is an explicit reviewed transition',
+      )
     }
     for (const source of s.governingSources ?? []) {
       if (!existsSync(join(root, source))) {
@@ -387,12 +509,20 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     const dir = join(knowledgeRoot, m.id)
     if (!existsSync(dir)) continue
 
+    // SCOPED TO THIS MODULE'S GATE, not to the repository's era.
+    //
+    // While `blockedByToolchain` is true the directory is specification-only
+    // and authored content is a finding. Once that gate is discharged, candidate
+    // source is exactly what belongs here — and `check-knowledge-content.mjs` is
+    // what evaluates it, because a registry checker owns no content rules and
+    // must not pretend to. Leaving this unconditional would make the registry a
+    // second, weaker authority over content the moment authoring opened.
     const entries = readdirSync(dir)
     const extra = entries.filter((e) => e !== 'README.md')
-    if (extra.length > 0) {
+    if (m.blockedByToolchain === true && extra.length > 0) {
       fail(
         `module "${m.id}": specification directory contains ${JSON.stringify(extra)} — ` +
-          'only README.md is permitted until the ADR-0010 validator exists (U7)',
+          'only README.md is permitted while blockedByToolchain is true',
       )
     }
 
@@ -524,5 +654,5 @@ if (isMain) {
     process.exit(1)
   }
 
-  console.log(`✓ knowledge registry — ${modules} module(s), ${sets} set(s), all specification-only`)
+  console.log(`✓ knowledge registry — ${modules} module(s), ${sets} set(s)`)
 }

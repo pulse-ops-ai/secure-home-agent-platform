@@ -6,8 +6,7 @@ terms an agent must reason in.
 | Field | Value |
 |---|---|
 | Status | `Planned` |
-| Owner | @mikegtech |
-| Blocked by | [U7](../../../docs/architecture/unresolved-decisions.md#u7) |
+| Owner | human:mikegtech |
 
 > Specification only. No module content is authored, and this directory is not
 > runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).

@@ -33,11 +33,14 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 | [`system-context.md`](system-context.md) | Who and what is in the system, and where each part lives |
 | [`trust-boundaries.md`](trust-boundaries.md) | Which boundaries exist, and what evidence each crossing requires |
 | [`runner-model.md`](runner-model.md) | How agents are executed: base image, derived image, profile, adapter, run, evidence |
+| [`effect-boundary-model.md`](effect-boundary-model.md) | How orchestration crosses an asynchronous effect boundary: lifecycle authority, effect classes, expiry, interruption, acquisition, fencing |
+| [`distributed-effect-lifecycle.md`](distributed-effect-lifecycle.md) | What identities a run and its finalization carry, and how a durable effect becomes visible |
 | [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) | How identity, delegation, authorization, the envelope, and safety policy compose |
 | [`local-remote-routing.md`](local-remote-routing.md) | Local, remote, and cloud call paths and their routing classes |
 | [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
 | [`api-contract-model.md`](api-contract-model.md) | How one Zod definition becomes DTOs, validation, OpenAPI, metadata, SDKs, and MCP tools |
 | [`knowledge-selection-model.md`](knowledge-selection-model.md) | How a profile selects knowledge, how a runner resolves it, and what the run records |
+| [`knowledge-promotion-model.md`](knowledge-promotion-model.md) | Where a durable architectural truth lives, and how it reaches an agent |
 | [`unresolved-decisions.md`](unresolved-decisions.md) | Open questions that are deliberately **not** decided yet |
 
 ## Reading order
@@ -46,6 +49,8 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 2. [`trust-boundaries.md`](trust-boundaries.md) — the rules that constrain the map
 3. [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) — how a request earns the right to act
 4. [`runner-model.md`](runner-model.md) — how agents run inside those rules
+   1. [`effect-boundary-model.md`](effect-boundary-model.md) — how one asynchronous effect is bounded
+   2. [`distributed-effect-lifecycle.md`](distributed-effect-lifecycle.md) — what its identities prove, and how it is published
 5. [`local-remote-routing.md`](local-remote-routing.md) — where work executes
 6. [`degraded-mode.md`](degraded-mode.md) — what happens when parts are missing
 7. [`api-contract-model.md`](api-contract-model.md) — how contracts are authored and generated
@@ -54,10 +59,16 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 
 ## Status
 
-**Nothing described here is implemented.** There is no runtime in this
-repository: no Home Assistant, no live services, no OpenFGA, no Keycloak, no
-runner image, no credentials. These documents describe the target the ADRs
-propose. Where a document describes something that does not exist, it says so.
+**Some of this is implemented; none of it is running.** The distinction matters
+more than either half alone.
+
+| | |
+|---|---|
+| **Landed** | runner domain contracts; the trusted runner core ([`packages/runner-core`](../../packages/runner-core/)); L4 orchestration ([`services/runner-control`](../../services/runner-control/)) — lifecycle, effect boundary, and finalization semantics, behind ports against deterministic reference mechanisms; the knowledge toolchain and repository content admission |
+| **Not implemented, or not activated** | no Home Assistant, no live services, no OpenFGA, no Keycloak, no runner image, no credentials; no launcher or process spawn; no deployed process; no L9 physical enforcement of isolation; no durable persistence ([U11](unresolved-decisions.md#u11)) |
+
+Where a document describes something that does not exist, it says so. Where
+something **is** implemented, saying it is not is equally a defect.
 
 ## Rules for this folder
 

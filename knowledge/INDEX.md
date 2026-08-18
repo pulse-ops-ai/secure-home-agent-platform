@@ -2,10 +2,20 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **Specification only, and not runtime-authoritative.** No module content is
-> authored, nothing is packaged, and nothing is published. The ADR-0010 validator
-> does not exist — it is [U7](../docs/architecture/unresolved-decisions.md#u7),
-> and it is the gating deliverable that must land *before* any real content.
+> **The first module is authored and validated; nothing is packaged or
+> published, and none of this is runtime-authoritative.** The toolchain and its
+> conformance suite are implemented and are invoked over real repository content
+> by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
+> obligation was **discharged on 2026-08-16** — so `blockedByToolchain` is
+> `false` on all 23 entries and the ten `platform/**` modules are
+> **authoring-eligible**.
+>
+> [`platform/runner-model`](platform/runner-model/) is **`Validated`**: its exact
+> repository bytes carry a human content review bound to their digest and pass
+> canonical admission. Every other module is `Planned`. Nothing is packaged and
+> nothing is published — `household/**`, `runbooks/**`, and every set remain
+> rollout-blocked, and publication additionally requires Proof B, for which no
+> governed producer exists.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
 human-facing view, and
@@ -19,7 +29,7 @@ nothing appears here that is not registered. They cannot drift apart quietly.
 |---|---|---|---|
 | **Knowledge module** | one independently versioned body of portable knowledge | yes, independently | as a specification directory only |
 | **Knowledge set** | a named, profile-oriented composition of allowed modules | yes | as a specification entry only |
-| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — blocked on U7 |
+| **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — none exists yet |
 
 A profile selects a **set**. The runner resolves that set to exact module
 versions and produces a **packaged bundle**, whose digest is recorded in run
@@ -46,9 +56,13 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**Everything below is `Planned`.** `Validated`, `Packaged`, and `Published` are
-unreachable while U7 is open, and `check-knowledge.mjs` fails if anything claims
-one of them.
+**`platform/runner-model` is `Validated`; everything else below is `Planned`.**
+`blockedByToolchain` was discharged on 2026-08-16, so `Validated` and `Packaged`
+are representable for a module that has **earned** them — a status is validated
+against the real mechanism rather than claimed, and no checker promotes a module
+on its own. `Published` additionally requires Proof B, for which no governed
+producer exists, and stays refused. `check-knowledge.mjs` distinguishes the two
+reasons.
 
 ## Modules
 
@@ -85,7 +99,7 @@ one of them.
 | [`runbooks/safe-escalation`](runbooks/safe-escalation/) | when to stop, and how to hand over to a human | coding · household |
 
 Full metadata for each — owner, version, as-of date, limitations, governing
-sources, sensitivity, freshness policy, and U7 blocking — is in
+sources, sensitivity, freshness policy, and toolchain blocking — is in
 [`catalog.json`](catalog.json). Each module's own README states its intended
 facts, prohibited facts, expected queries, and update trigger.
 
@@ -108,7 +122,7 @@ point.
 
 A set carries the **same metadata contract as a module** — owner, status,
 version, as-of date, limitations, governing sources, sensitivity, freshness
-policy, and U7 blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
+policy, and toolchain blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
 its intended-consumer field.
 
 Two of those need care:
@@ -142,7 +156,7 @@ Three worth stating here:
 
 **None.** There is no packaged bundle, no digest, and no resolver.
 
-When U7 closes, a packaged bundle will be registered here by ID, version, and
+When authoring opens, a packaged bundle will be registered here by ID, version, and
 digest, and the compile → validate → package → query interfaces required by
 [ADR-0010](../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 will own its lifecycle. Nothing reads a bundle file directly, then or now.

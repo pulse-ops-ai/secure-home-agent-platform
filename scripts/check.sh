@@ -80,6 +80,11 @@ if command -v pnpm >/dev/null 2>&1; then
   run "typescript: types"     pnpm typecheck
   run "typescript: tests"     pnpm test
   run "typescript: build"     pnpm build
+  # REAL repository content through the package's admission rules. It runs
+  # after the build because it invokes the published package export rather than
+  # a copy of the logic — which is the point: one admission authority, exercised
+  # the way a consumer would exercise it.
+  run "knowledge content"     pnpm run check:knowledge-content
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else
