@@ -55,8 +55,11 @@
  *      identical in run evidence;
  *   5. the README registry block of each module agrees with the catalog, so the
  *      prose view cannot drift from the machine-readable one;
- *   6. no module directory contains authored content — a specification directory
- *      holds its README and nothing else;
+ *   6. while a module's blockedByToolchain gate is TRUE, its directory holds
+ *      only its README. Once that gate is discharged — as it now is — authored
+ *      source is expected there, and whether the content is ACCEPTABLE is
+ *      `check-knowledge-content.mjs`'s question, not this checker's. This file
+ *      owns registry coherence and never content rules;
  *   7. no module or set claims a status it has not earned, and every entry
  *      carries blockedByToolchain: false — discharged 2026-08-16, and pinned so
  *      that re-blocking is as visible a transition as opening was;

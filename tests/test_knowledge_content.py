@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -87,6 +88,8 @@ class Repo:
         rollout: bool = False,
         digest_override: str | None = None,
         owner: str = OWNER,
+        status: str | None = None,
+        stale_source: bool = False,
     ) -> Repo:
         directory = self.root / "knowledge" / module_id
         directory.mkdir(parents=True, exist_ok=True)
@@ -99,8 +102,24 @@ class Repo:
             path.write_text(text)
             members[name] = text.encode("utf-8")
 
+        if stale_source:
+            # The attestation was established over THESE bytes; the file is then
+            # edited. Proof A must catch the drift before packaging can claim
+            # anything, which is what test G proves.
+            extra = "\nEdited after review.\n"
+            assert sources is not None
+            (directory / "model.md").write_text(sources["model.md"] + extra)
+
+        # A fixture that carries source is Source-ready unless the test is
+        # specifically about a different claim. Defaulting to Planned would make
+        # every content fixture fail rule A for a reason it is not testing.
+        resolved_status = (
+            status if status is not None else ("Source-ready" if members else "Planned")
+        )
+
         entry: dict[str, object] = {
             "id": module_id,
+            "status": resolved_status,
             "owner": owner,
             "asOf": AS_OF,
             "limitations": "Describes the model only.",
@@ -122,6 +141,15 @@ class Repo:
         catalog = {"modules": self.modules, "sets": []}
         (self.root / "knowledge" / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
         return self
+
+
+def _reviewed_digest(repo: Repo) -> str:
+    """The hex of the fixture's Proof A binding, typed for mypy."""
+    review = repo.modules[0]["contentReview"]
+    assert isinstance(review, dict)
+    digest = review["sourceDigest"]
+    assert isinstance(digest, str)
+    return digest.split(":", 1)[1]
 
 
 def _valid_sources(**overrides: str) -> dict[str, str]:
@@ -606,3 +634,123 @@ def test_a_symlink_inside_a_previously_skipped_directory_still_fails_closed(
     result = _run(tmp_path / "repo")
     assert result.returncode != 0
     assert "not a regular file" in _output(result)
+
+
+# --- lifecycle status must be EARNED, not claimed -------------------------------
+#
+# A catalog status was a coordinated prose/metadata claim: nothing tied
+# `Validated` to admission having actually run, or `Packaged` to a package having
+# actually been produced. These prove each claim is backed by the real mechanism.
+#
+# The checker VALIDATES a claimed status. It never promotes one — lifecycle
+# transitions stay explicit reviewed catalog changes.
+
+
+def test_planned_with_authored_source_fails(tmp_path: Path) -> None:
+    """A: the registry says no source exists, and source exists."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Planned").write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "Planned must not coexist with authored source"
+    assert "Planned" in _output(result)
+    assert "authored source" in _output(result)
+
+
+def test_a_source_claiming_status_without_source_fails(tmp_path: Path) -> None:
+    """B and C: the lifecycle claims content that has no bytes behind it."""
+    for status in ("Source-ready", "Validated", "Packaged", "Published"):
+        Repo(tmp_path / f"repo-{status}").module(status=status).write()
+        result = _run(tmp_path / f"repo-{status}")
+        assert result.returncode != 0, f"{status} without source must fail"
+        assert "no authored source" in _output(result), status
+
+
+def test_validated_with_valid_source_reports_admission_evidence(tmp_path: Path) -> None:
+    """D: admission actually ran, and its exact byte identity is reported."""
+    repo = Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Validated")
+    digest = _reviewed_digest(repo)
+    repo.write()
+
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "Validated" in _output(result)
+    assert digest in _output(result), "the admitted byte identity must be reported"
+
+
+def test_validated_with_refused_source_fails_on_the_packages_own_rule(tmp_path: Path) -> None:
+    """E: the refusal is the package's exact rule, never a lifecycle proxy."""
+    Repo(tmp_path / "repo").module(
+        sources=_valid_sources(runtime="wasm"), status="Validated"
+    ).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "execution.runtime" in _output(result), "the package's rule, not a proxy"
+
+
+def test_packaged_runs_packagebundle_and_reports_a_package_identity(tmp_path: Path) -> None:
+    """F: packaging actually happened, and its identity is the reviewed identity.
+
+    The equality proved here is the whole point of reusing the existing digest:
+
+        human review exact-byte binding
+            == admitted byte identity
+            == package identity
+    """
+    repo = Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Packaged")
+    reviewed = _reviewed_digest(repo)
+    repo.write()
+
+    result = _run(tmp_path / "repo")
+    assert result.returncode == 0, _output(result)
+    assert "Packaged" in _output(result)
+    assert "package " + reviewed in _output(result), (
+        "the package digest must equal the reviewed/admitted byte identity"
+    )
+    # NOT CIRCULAR. The digest alone is satisfiable by echoing the catalog's own
+    # claim — a mutant doing exactly that survived until this was added. The
+    # member count and manifest size can only come from a real PackagedBundle,
+    # so the evidence has to have been produced by packageBundle().
+    assert "2 members" in _output(result), "the artifact itself must report its members"
+    assert re.search(r"\d+-byte manifest", _output(result)), (
+        "the manifest must come from the packaged artifact"
+    )
+
+
+def test_packaged_with_source_edited_after_review_fails_before_packaging(
+    tmp_path: Path,
+) -> None:
+    """G: Proof A's exact-byte binding catches the drift first."""
+    Repo(tmp_path / "repo").module(
+        sources=_valid_sources(), status="Packaged", stale_source=True
+    ).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    assert "attestation.digest.binding" in _output(result)
+    assert "package " not in _output(result), "packaging must not have established anything"
+
+
+def test_published_stays_refused_without_proof_b(tmp_path: Path) -> None:
+    """H: successful admission and packaging do not imply publication."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Published").write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0, "Published must remain unreachable"
+    out = _output(result)
+    assert "Proof B" in out or "proof_b" in out.lower()
+
+
+def test_the_live_repository_is_planned_with_no_source(tmp_path: Path) -> None:
+    """I: 17 Planned modules, 0 authored source, and it passes."""
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    modules = catalog["modules"]
+    assert len(modules) == 17
+    assert all(m["status"] == "Planned" for m in modules)
+    assert all(s["status"] == "Planned" for s in catalog["sets"])
+
+    authored = [
+        m["id"]
+        for m in modules
+        if sorted(p.name for p in (REPO_ROOT / "knowledge" / m["id"]).iterdir()) != ["README.md"]
+    ]
+    assert authored == [], authored
+
+    result = _run(REPO_ROOT)
+    assert result.returncode == 0, _output(result)

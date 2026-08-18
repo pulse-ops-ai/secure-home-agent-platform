@@ -536,3 +536,100 @@ The fix is a choice between two, and it is CI work rather than documentation:
 fetch enough history when the workflow is dispatched, or stop advertising a
 trigger the gate cannot satisfy. The proof itself is correct and should not be
 weakened to accommodate a trigger.
+
+---
+
+# PRE-PROMPT-4 — lifecycle status becomes evidence-backed
+
+Appended. Prompt-1/2/3/3B history above is untouched.
+
+## Implementation Authorization
+
+| | |
+|---|---|
+| **Granted by** | the repository owner, in the pre-Prompt-4 task contract issued after Prompt 3B landed |
+| **Starting head** | `efcb3d2b500817831bc9a38da8204119094be7a9` |
+| **Kind** | mechanism only — **not** Prompt 4, and no knowledge authored |
+
+```text
+Prompt 3B complete at efcb3d2
+    ↓
+lifecycle-evidence tightening   ← THIS LANDING
+    ↓
+independent review
+    ↓
+Prompt 4 — first real module authoring
+```
+
+## The gap this closes
+
+A catalog lifecycle status was a coordinated prose/metadata claim. Two edits in
+agreement — the catalog and the module README — were indistinguishable from a
+fact. Nothing tied `Validated` to admission having run over the real bytes, or
+`Packaged` to a package having been produced.
+
+## The mechanism
+
+`scripts/check-knowledge-content.mjs` now **validates a claimed status**. It
+never promotes one: a lifecycle transition stays an explicit reviewed catalog
+change, and a checker that advanced state would be deciding rather than
+verifying.
+
+| Claim | What the repository now establishes |
+|---|---|
+| `Planned` | no authored source exists |
+| `Source-ready` | authored source exists |
+| `Validated` | source exists · both gates permit · canonical `admit()` returned `admitted: true` over the exact enumerated bytes |
+| `Packaged` | everything above · `packageBundle(proof)` consumed the **opaque admission proof** · an artifact was produced |
+| `Published` | still refused — Proof B has no governed producer |
+
+**No duplicate content rule was introduced.** The registry checker still owns
+vocabulary, metadata shape, README/catalog correspondence, and the gates; the
+package still owns admission, Proof A, prohibited content, OKF rules, and
+package identity. The adapter only enumerates bytes, calls the package, and
+reports.
+
+## No new catalog digest field — the existing identity was sufficient
+
+Investigated before adding metadata, and proven empirically rather than assumed:
+
+```text
+contentReview.sourceDigest  = sha256:<bundleDigest(members)>   (Proof A binding)
+admit()                     hashes those same members
+packageBundle(proof).digest = bundleDigest(the admitted snapshot)
+                            → EQUAL
+```
+
+So `sha256:packageBundle(...).digest == contentReview.sourceDigest` already
+holds, giving *human review exact-byte binding == admitted byte identity ==
+package identity* with **no new field and no package API change**. A second
+stored digest would have been a second fact that can drift.
+
+## Two surviving mutants, and what each meant
+
+**M3 exposed a circular proof of mine.** The packaging test asserted the
+reported digest equalled the reviewed digest — which a fabricated
+`{ digest: <the catalog's own claim> }` satisfies without packaging anything.
+The evidence now includes the member count and manifest size taken **from the
+artifact**, which a fabrication cannot produce. M3 dies, including a stronger
+version of the fake that supplies `members` and `manifest()`.
+
+**M6 survives, and is reported rather than hidden.** Disabling the
+package-identity-equality guard kills no test, because the guard is unreachable
+through the public API: admission already refuses via
+`attestation.digest.binding` when the reviewed digest does not match the bytes,
+and package identity is computed from the members `admit` hashed. It is retained
+as the assertion that would fail first if package identity were ever decoupled
+from admitted identity, and the code says exactly that.
+
+## Out of scope, still open
+
+`workflow_dispatch` does not guarantee the git ancestry the identity-ledger
+conformance proof requires. **No workflow file edited here** — see the PR-3B
+integration section above.
+
+## Live state — unchanged by this landing
+
+17 modules `Planned` · 6 sets `Planned` · 0 authored source · 0 packaged
+artifacts · `blockedByToolchain` false 23/23 · rollout untouched · `Published`
+unreachable.

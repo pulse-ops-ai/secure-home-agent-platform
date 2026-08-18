@@ -60,9 +60,25 @@
 import { readFileSync, lstatSync, readdirSync } from 'node:fs'
 import { join, sep } from 'node:path'
 
-import { admit, authoringEligibility } from '@secure-home/knowledge-toolchain'
+import { admit, authoringEligibility, packageBundle } from '@secure-home/knowledge-toolchain'
 
 const DEFAULT_ROOT = process.cwd()
+
+/**
+ * A LIFECYCLE STATUS IS A CLAIM, AND THIS IS WHERE IT IS EARNED.
+ *
+ * A status used to be a coordinated prose/metadata claim: nothing tied
+ * `Validated` to admission having actually run over the real bytes, or
+ * `Packaged` to a package having actually been produced. Two edits in agreement
+ * were indistinguishable from a fact.
+ *
+ * This command VALIDATES a claimed status. It never promotes one — a lifecycle
+ * transition stays an explicit reviewed catalog change, and a checker that
+ * advanced state on its own would be deciding rather than verifying.
+ */
+const CLAIMS_SOURCE = new Set(['Source-ready', 'Validated', 'Packaged', 'Published'])
+const REQUIRES_ADMISSION = new Set(['Validated', 'Packaged', 'Published'])
+const REQUIRES_PACKAGING = new Set(['Packaged', 'Published'])
 
 /**
  * Generated or vendored trees are never GOVERNING SOURCES.
@@ -164,6 +180,7 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
   }
 
   const paths = repositoryPaths(root)
+  const evidence = []
   let evaluated = 0
   let authoredModules = 0
 
@@ -191,6 +208,24 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
     // The module README is the specification for the directory, never a member
     // of the bundle it describes.
     const sources = entries.filter((e) => e.path !== 'README.md')
+    const status = module.status
+
+    // SOURCE PRESENCE AND STATUS MUST AGREE, in both directions.
+    if (status === 'Planned' && sources.length > 0) {
+      problems.push(
+        `${module.id}: status "Planned" claims no authored source, but ` +
+          `${sources.length} authored source file(s) exist`,
+      )
+      continue
+    }
+    if (CLAIMS_SOURCE.has(status) && sources.length === 0) {
+      problems.push(
+        `${module.id}: status "${status}" claims content, but no authored source ` +
+          'exists to substantiate it',
+      )
+      continue
+    }
+
     if (sources.length === 0) continue
     authoredModules += 1
 
@@ -228,9 +263,70 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
     // accepted design (ADR-0016 §5a) — treating its absence as an admission
     // failure would make every module unadmittable and would misreport which
     // of the two stages actually blocked.
+    //
+    // A `Source-ready` module is still admitted above: the merge gate requires
+    // every authored byte to pass admission whatever the lifecycle claims. The
+    // status says how far the REVIEWED lifecycle has advanced, and is never
+    // permission to merge invalid content.
+
+    if (!outcome.admitted || outcome.proof === undefined) continue
+
+    // VALIDATED — admission actually ran, over these exact bytes.
+    if (REQUIRES_ADMISSION.has(status)) {
+      const reviewed = module.contentReview?.sourceDigest
+      evidence.push({ id: module.id, status, admittedDigest: reviewed })
+    }
+
+    // PACKAGED — through the OPAQUE PROOF, never from compiled bytes.
+    // `packageBundle` accepts only what `admit()` minted, so this chain is the
+    // mechanism: compile -> package would prove nothing about admission.
+    if (REQUIRES_PACKAGING.has(status)) {
+      const packaged = packageBundle(outcome.proof)
+      const reviewed = (module.contentReview?.sourceDigest ?? '').replace(/^sha256:/, '')
+      // A REGRESSION GUARD THAT IS UNREACHABLE TODAY, AND SAYS SO.
+      //
+      // It cannot fire through the public API: admission already refuses via
+      // `attestation.digest.binding` when the reviewed digest does not match the
+      // bytes, and `packageBundle` computes its identity from the very members
+      // `admit` hashed — so the two are equal by construction. A mutation
+      // disabling this branch therefore survives every test, which is reported
+      // rather than hidden.
+      //
+      // It is kept because it is the assertion that would fail first if package
+      // identity were ever decoupled from admitted identity. It is defence
+      // against a future change, not evidence about the present one.
+      if (packaged.digest !== reviewed) {
+        problems.push(
+          `${module.id}: package identity ${packaged.digest} does not equal the ` +
+            `reviewed byte identity ${reviewed} — the artifact is not the bytes a ` +
+            'human reviewed',
+        )
+        continue
+      }
+      // The member count and manifest size come FROM THE ARTIFACT, not from a
+      // string. Reporting the digest alone was a circular proof: a fabricated
+      // `{ digest }` echoing the catalog's claim satisfied it without packaging
+      // anything, and a mutation doing exactly that survived.
+      evidence.push({
+        id: module.id,
+        status,
+        packageDigest: packaged.digest,
+        members: packaged.members.length,
+        manifestBytes: packaged.manifest().length,
+      })
+    }
+
+    // PUBLISHED is a further stage, and packaging does not reach it.
+    if (status === 'Published') {
+      problems.push(
+        `${module.id}: status "Published" requires Proof B — governed human-review ` +
+          'evidence — and no producer exists (ADR-0016 §5a). Admission and packaging ' +
+          'succeeding does not make a module publishable',
+      )
+    }
   }
 
-  return { problems, evaluated, authoredModules }
+  return { problems, evaluated, authoredModules, evidence }
 }
 
 // --- CLI -------------------------------------------------------------------
@@ -238,12 +334,25 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 if (isMain) {
   const root = process.argv[2] ?? DEFAULT_ROOT
-  const { problems, evaluated, authoredModules } = checkKnowledgeContent(root)
+  const { problems, evaluated, authoredModules, evidence } = checkKnowledgeContent(root)
 
   if (problems.length > 0) {
     console.error(`✗ knowledge content admission — ${problems.length} problem(s)\n`)
     for (const p of problems) console.error(`    ${p}`)
     process.exit(1)
+  }
+
+  // The lifecycle evidence is printed because a claim nobody can see is a claim
+  // nobody can check — including the tests that prove packaging actually ran.
+  for (const item of evidence ?? []) {
+    if (item.packageDigest !== undefined) {
+      console.log(
+        `    ${item.id}: ${item.status} — package ${item.packageDigest} ` +
+          `(${item.members} members, ${item.manifestBytes}-byte manifest)`,
+      )
+    } else {
+      console.log(`    ${item.id}: ${item.status} — admitted ${item.admittedDigest}`)
+    }
   }
 
   if (authoredModules === 0) {

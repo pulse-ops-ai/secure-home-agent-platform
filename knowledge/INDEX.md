@@ -2,12 +2,15 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **Specification only, and not runtime-authoritative.** No module content is
-> authored, nothing is packaged, and nothing is published. The ADR-0010
-> toolchain and its conformance suite are implemented and are invoked over real
-> repository content by `scripts/check-knowledge-content.mjs`; independent
-> review of that integration is what `blockedByToolchain` still records, and it
-> must complete *before* any real content is authored.
+> **No content authored yet, and not runtime-authoritative.** The toolchain and
+> its conformance suite are implemented and are invoked over real repository
+> content by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12
+> readiness obligation was **discharged on 2026-08-16** — so
+> `blockedByToolchain` is `false` on all 23 entries and the ten `platform/**`
+> modules are **authoring-eligible**. Nothing is authored, nothing is packaged,
+> and nothing is published: `household/**`, `runbooks/**`, and every set remain
+> rollout-blocked, and publication additionally requires Proof B, for which no
+> governed producer exists.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
 human-facing view, and
