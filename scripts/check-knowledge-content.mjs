@@ -168,7 +168,18 @@ const toEntry = (module) => ({
   ...(module.contentReview ? { contentReview: module.contentReview } : {}),
 })
 
-export function checkKnowledgeContent(root = DEFAULT_ROOT) {
+/**
+ * @param root repository root
+ * @param deps narrow seam, defaulted to the real package. It exists so a test
+ *   can wrap the REAL `packageBundle` and observe that it was invoked with the
+ *   admission proof. Reporting the artifact's digest, member count, and
+ *   manifest size proved nothing: a fabricated object carrying the catalog's own
+ *   digest, the real member array, and a zero-length manifest satisfied all
+ *   three without packaging anything. Invocation is the fact; the artifact's
+ *   fields are a description a forgery can also produce.
+ */
+export function checkKnowledgeContent(root = DEFAULT_ROOT, deps = {}) {
+  const pack = deps.packageBundle ?? packageBundle
   const problems = []
   const catalogPath = join(root, 'knowledge', 'catalog.json')
 
@@ -210,6 +221,31 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
     const sources = entries.filter((e) => e.path !== 'README.md')
     const status = module.status
 
+    // AUTHORING ELIGIBILITY PRECEDES LIFECYCLE EVIDENCE.
+    //
+    // Authoring is the act being gated, so once source exists the gate is the
+    // first question. Checking lifecycle coherence first MASKED the gate: a
+    // Planned module with authored source under a closed rollout reported only
+    // "Planned claims no source" and never mentioned rollout at all — the
+    // weaker finding hiding the stronger one.
+    //
+    // A no-source lifecycle claim is not gated here: there is no authored act
+    // to refuse, and the claim fails on its own terms below.
+    if (sources.length > 0) {
+      const eligibility = authoringEligibility({
+        blockedByToolchain: module.blockedByToolchain === true,
+        blockedByRollout: module.blockedByRollout === true,
+      })
+      if (!eligibility.eligible) {
+        problems.push(
+          `${module.id}: ${sources.length} authored source file(s) under a closed gate ` +
+            `(refused by ${eligibility.refusedBy}) — authoring eligibility precedes ` +
+            'admission and lifecycle evidence',
+        )
+        continue
+      }
+    }
+
     // SOURCE PRESENCE AND STATUS MUST AGREE, in both directions.
     if (status === 'Planned' && sources.length > 0) {
       problems.push(
@@ -228,20 +264,6 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
 
     if (sources.length === 0) continue
     authoredModules += 1
-
-    // Gates first: authored source under a closed gate is a finding no matter
-    // what the content says, and admission is not the place that decides it.
-    const eligibility = authoringEligibility({
-      blockedByToolchain: module.blockedByToolchain === true,
-      blockedByRollout: module.blockedByRollout === true,
-    })
-    if (!eligibility.eligible) {
-      problems.push(
-        `${module.id}: ${sources.length} authored source file(s) under a closed gate ` +
-          `(refused by ${eligibility.refusedBy}) — authoring eligibility precedes admission`,
-      )
-      continue
-    }
 
     const members = sources.map((source) => ({
       path: source.path,
@@ -281,7 +303,7 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT) {
     // `packageBundle` accepts only what `admit()` minted, so this chain is the
     // mechanism: compile -> package would prove nothing about admission.
     if (REQUIRES_PACKAGING.has(status)) {
-      const packaged = packageBundle(outcome.proof)
+      const packaged = pack(outcome.proof)
       const reviewed = (module.contentReview?.sourceDigest ?? '').replace(/^sha256:/, '')
       // A REGRESSION GUARD THAT IS UNREACHABLE TODAY, AND SAYS SO.
       //

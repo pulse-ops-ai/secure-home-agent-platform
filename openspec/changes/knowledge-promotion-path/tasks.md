@@ -605,6 +605,28 @@ holds, giving *human review exact-byte binding == admitted byte identity ==
 package identity* with **no new field and no package API change**. A second
 stored digest would have been a second fact that can drift.
 
+## Falsification correction after review of `30bc1fd`
+
+Two narrow defects were found, and both were mine.
+
+**The packaging proof was still forgeable.** Reporting the artifact's digest,
+member count, and manifest size described the artifact; it did not prove one was
+produced. A fabrication carrying the catalog's own digest, the real member
+array, and a short manifest satisfied every assertion. `checkKnowledgeContent`
+now takes a narrow defaulted seam for `packageBundle`, and the proof is a test
+that wraps the **real** function: it must be called exactly once, with the
+opaque proof `admit()` minted — established by delegating to the real
+`packageBundle`, which refuses a handle it did not mint. Any fabricated artifact
+now dies because the injected function was never invoked.
+
+**Gate precedence was inverted.** Lifecycle coherence ran before authoring
+eligibility, so a `Planned` module with authored source under a closed rollout
+reported only *"Planned claims no source"* and never mentioned rollout — the
+weaker finding masking the stronger one, and sending a reader to fix the catalog
+status when the real repair is that the module was never eligible to be
+authored. Eligibility now precedes lifecycle evidence whenever source exists. A
+no-source claim is still judged directly: there is no authored act to gate.
+
 ## Two surviving mutants, and what each meant
 
 **M3 exposed a circular proof of mine.** The packaging test asserted the

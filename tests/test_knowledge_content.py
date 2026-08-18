@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import subprocess
 from pathlib import Path
+from typing import TypedDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTENT_CHECK = REPO_ROOT / "scripts" / "check-knowledge-content.mjs"
@@ -705,14 +705,11 @@ def test_packaged_runs_packagebundle_and_reports_a_package_identity(tmp_path: Pa
     assert "package " + reviewed in _output(result), (
         "the package digest must equal the reviewed/admitted byte identity"
     )
-    # NOT CIRCULAR. The digest alone is satisfiable by echoing the catalog's own
-    # claim — a mutant doing exactly that survived until this was added. The
-    # member count and manifest size can only come from a real PackagedBundle,
-    # so the evidence has to have been produced by packageBundle().
-    assert "2 members" in _output(result), "the artifact itself must report its members"
-    assert re.search(r"\d+-byte manifest", _output(result)), (
-        "the manifest must come from the packaged artifact"
-    )
+    # These DESCRIBE the artifact; they do not prove it was produced. A forgery
+    # carrying the catalog's digest, the real member array, and a zero-length
+    # manifest satisfies all of them. Invocation is proven separately, by
+    # `test_packaged_actually_invokes_packagebundle_with_the_admission_proof`.
+    assert "2 members" in _output(result)
 
 
 def test_packaged_with_source_edited_after_review_fails_before_packaging(
@@ -754,3 +751,98 @@ def test_the_live_repository_is_planned_with_no_source(tmp_path: Path) -> None:
 
     result = _run(REPO_ROOT)
     assert result.returncode == 0, _output(result)
+
+
+class Spy(TypedDict):
+    calls: int
+    argTypes: list[str]
+    problems: list[str]
+    evidence: list[dict[str, object]]
+
+
+def _spy_packaging(root: Path) -> Spy:
+    """Run the checker with a SPY WRAPPING THE REAL packageBundle.
+
+    This is the only thing that proves packaging ran. Reporting the artifact's
+    digest, member count, and manifest size proved nothing: a fabricated object
+    can produce all three. Invocation is the fact.
+
+    The spy delegates to the real `packageBundle`, so a checker that passed
+    anything other than the genuine admission proof would be refused by
+    `openAdmitted` and the run would throw — which is the second half of the
+    proof, and why the spy does not simply return a stub.
+    """
+    script = """
+import { checkKnowledgeContent } from './scripts/check-knowledge-content.mjs'
+import { packageBundle } from '@secure-home/knowledge-toolchain'
+
+const calls = []
+const spy = (proof) => {
+  calls.push(typeof proof)
+  return packageBundle(proof)   // the REAL one: a forged proof is refused here
+}
+
+const result = checkKnowledgeContent(process.argv[1], { packageBundle: spy })
+console.log(JSON.stringify({
+  calls: calls.length,
+  argTypes: calls,
+  problems: result.problems,
+  evidence: result.evidence,
+}))
+"""
+    proc = subprocess.run(
+        ["node", "--input-type=module", "-e", script, str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    parsed: Spy = json.loads(proc.stdout)
+    return parsed
+
+
+def test_packaged_actually_invokes_packagebundle_with_the_admission_proof(
+    tmp_path: Path,
+) -> None:
+    """THE INVOCATION PROOF. A fabricated artifact cannot satisfy this.
+
+    packageBundle must be called exactly once, and the object it receives must
+    be the opaque proof `admit()` minted — established by delegating to the real
+    packageBundle, which refuses a handle it did not mint.
+    """
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Packaged").write()
+    seen = _spy_packaging(tmp_path / "repo")
+
+    assert seen["problems"] == [], seen["problems"]
+    assert seen["calls"] == 1, "packageBundle must be invoked exactly once for Packaged"
+    assert seen["argTypes"] == ["object"], "it must receive the opaque admission proof"
+    assert any("packageDigest" in e for e in seen["evidence"]), "a real artifact was produced"
+
+
+def test_a_validated_claim_does_not_invoke_packaging(tmp_path: Path) -> None:
+    """Control: the spy is only exercised by claims that require packaging."""
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Validated").write()
+    seen = _spy_packaging(tmp_path / "repo")
+    assert seen["problems"] == [], seen["problems"]
+    assert seen["calls"] == 0, "Validated does not package"
+
+
+def test_a_closed_rollout_gate_is_reported_even_when_status_also_mismatches(
+    tmp_path: Path,
+) -> None:
+    """Gate precedence: the weaker finding must not hide the stronger one.
+
+    `Planned` with authored source under a closed rollout is two problems, and
+    the one that matters is that the module was never eligible to be authored.
+    Reporting only the status mismatch would send a reader to fix the catalog
+    status, which is the wrong repair.
+    """
+    Repo(tmp_path / "repo").module(sources=_valid_sources(), status="Planned", rollout=True).write()
+    result = _run(tmp_path / "repo")
+    assert result.returncode != 0
+    out = _output(result)
+    assert "refused by rollout" in out, "the authoring gate must be reported"
+    assert "claims no authored source" not in out, (
+        "the status mismatch must not replace the gate reason"
+    )
