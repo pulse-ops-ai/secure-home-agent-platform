@@ -193,11 +193,16 @@ def _output(result: subprocess.CompletedProcess[str]) -> str:
 # --- controls ---------------------------------------------------------------
 
 
-def test_the_live_repository_has_no_authored_source_and_passes() -> None:
-    """The no-content control, on the real repository."""
+def test_the_live_repository_admits_its_authored_content() -> None:
+    """The real repository, through the real toolchain.
+
+    `platform/runner-model` is authored, so this is no longer a no-content
+    control: it is the first module whose exact repository bytes pass canonical
+    admission, with a human content review bound to those bytes.
+    """
     result = _run(REPO_ROOT)
     assert result.returncode == 0, _output(result)
-    assert "no authored module source" in _output(result)
+    assert "module(s) admitted" in _output(result)
 
 
 def test_a_repository_with_no_authored_modules_passes(tmp_path: Path) -> None:
@@ -734,20 +739,33 @@ def test_published_stays_refused_without_proof_b(tmp_path: Path) -> None:
     assert "Proof B" in out or "proof_b" in out.lower()
 
 
-def test_the_live_repository_is_planned_with_no_source(tmp_path: Path) -> None:
-    """I: 17 Planned modules, 0 authored source, and it passes."""
+def test_the_live_authored_set_is_exactly_what_the_registry_claims(tmp_path: Path) -> None:
+    """I: authoring has begun, and the two descriptions still agree.
+
+    Asserting a frozen count would have to be edited on every future authoring
+    landing, which makes it a chore rather than a check. What is asserted is the
+    property: the modules with authored source are exactly the modules whose
+    status claims content, every authored module is rollout-eligible, and no set
+    has been released.
+    """
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
     modules = catalog["modules"]
     assert len(modules) == 17
-    assert all(m["status"] == "Planned" for m in modules)
-    assert all(s["status"] == "Planned" for s in catalog["sets"])
 
     authored = [
-        m["id"]
+        m
         for m in modules
         if sorted(p.name for p in (REPO_ROOT / "knowledge" / m["id"]).iterdir()) != ["README.md"]
     ]
-    assert authored == [], authored
+    claiming = [m for m in modules if m["status"] in {"Source-ready", "Validated", "Packaged"}]
+    assert [m["id"] for m in authored] == [m["id"] for m in claiming]
+
+    for m in authored:
+        assert m["blockedByToolchain"] is False and m["blockedByRollout"] is False, m["id"]
+        assert m["id"].startswith("platform/"), m["id"]
+
+    assert all(s["status"] == "Planned" for s in catalog["sets"]), "no set is released"
+    assert not any(m["status"] == "Published" for m in modules), "nothing is published"
 
     result = _run(REPO_ROOT)
     assert result.returncode == 0, _output(result)
@@ -846,3 +864,69 @@ def test_a_closed_rollout_gate_is_reported_even_when_status_also_mismatches(
     assert "claims no authored source" not in out, (
         "the status mismatch must not replace the gate reason"
     )
+
+
+# --- the first validated module, proven against the real mechanism -------------
+
+REVIEWED_DIGEST = "sha256:6ded34da42ef0c6c0463a1ad584c5f1a1e9270fafb2596c13ae867613eba7d20"
+
+
+def test_the_live_runner_model_module_is_validated_against_its_reviewed_bytes() -> None:
+    """The causal chain, asserted end to end on the real repository.
+
+        exact reviewed bytes
+            -> human content review bound to their digest
+            -> canonical admit()
+            -> Proof A succeeds
+            -> admitted
+            -> the catalog may truthfully claim Validated
+
+    Asserting this module specifically is deliberate. Moving it off `Validated`
+    is itself an explicit lifecycle transition, and it should require a reviewed
+    change to this test rather than passing silently.
+    """
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    module = next(m for m in catalog["modules"] if m["id"] == "platform/runner-model")
+
+    assert module["status"] == "Validated"
+    review = module["contentReview"]
+    assert isinstance(review, dict)
+    assert review["policy"] == "portable-knowledge-prohibited-content-v1"
+    assert review["by"] == "human:mikegtech"
+    assert review["sourceDigest"] == REVIEWED_DIGEST
+
+    # The attestation binds the bytes that are actually on disk, recomputed here
+    # rather than trusted: a review that names a digest nothing produces is not
+    # a review of this content.
+    directory = REPO_ROOT / "knowledge" / "platform" / "runner-model"
+    members = {
+        f.name: f.read_bytes()
+        for f in sorted(directory.iterdir())
+        if f.is_file() and f.name != "README.md"
+    }
+    assert "sha256:" + _bundle_digest(members) == REVIEWED_DIGEST
+
+
+def test_the_live_lifecycle_evidence_names_the_reviewed_digest() -> None:
+    """The evidence the checker emits for the live repository.
+
+    Uses the spy harness so the assertions are on structured evidence, and so
+    the packaging control is proven at the same time: `Validated` must invoke
+    packageBundle **zero** times.
+    """
+    seen = _spy_packaging(REPO_ROOT)
+    assert seen["problems"] == [], seen["problems"]
+    assert seen["calls"] == 0, "Validated does not package"
+
+    evidence = [e for e in seen["evidence"] if e["id"] == "platform/runner-model"]
+    assert len(evidence) == 1, seen["evidence"]
+    assert evidence[0]["status"] == "Validated"
+    assert evidence[0]["admittedDigest"] == REVIEWED_DIGEST
+    assert "packageDigest" not in evidence[0], "Validated claims no packaged artifact"
+
+
+def test_no_module_is_packaged_or_published() -> None:
+    """This landing validates; it does not package or publish."""
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    for entry in [*catalog["modules"], *catalog["sets"]]:
+        assert entry["status"] not in {"Packaged", "Published"}, entry["id"]

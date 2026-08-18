@@ -127,7 +127,7 @@ def test_no_set_references_a_file_path() -> None:
             assert ref.count("/") <= 1, f"set {s['id']}: {ref} is not a module id"
 
 
-def test_every_status_is_from_the_vocabulary_and_nothing_claims_more_than_planned() -> None:
+def test_every_status_is_from_the_vocabulary_and_nothing_claims_packaging() -> None:
     """Readiness is discharged, but nothing has been authored, so nothing has
 
     earned a later state. ``Validated`` and ``Packaged`` are now *representable*
@@ -138,9 +138,15 @@ def test_every_status_is_from_the_vocabulary_and_nothing_claims_more_than_planne
     for entry in [*catalog["modules"], *catalog["sets"]]:
         assert entry["status"] in STATUSES, f"{entry['id']}: unknown status {entry['status']}"
         assert entry["blockedByToolchain"] is False
-        assert entry["status"] == "Planned", (
-            f"{entry['id']}: status {entry['status']} claims progress, but no module "
-            "content is authored yet"
+        # `Validated` is now legitimately claimable: platform/runner-model earned
+        # it, and `tests/test_knowledge_content.py` proves that against the real
+        # mechanism — a human review bound to the exact bytes, admitted by the
+        # canonical toolchain. What no entry may claim is PACKAGING or
+        # PUBLICATION: no artifact has been produced, and publication
+        # additionally requires a Proof B producer that does not exist.
+        assert entry["status"] not in {"Packaged", "Published"}, (
+            f"{entry['id']}: status {entry['status']} claims a packaged or published "
+            "artifact, neither of which has been established"
         )
 
 
@@ -218,20 +224,27 @@ def test_a_gated_specification_directory_contains_no_authored_content() -> None:
         assert entries == ["README.md"], f"{module['id']}: authored content present — {entries}"
 
 
-def test_no_module_has_authored_source_yet() -> None:
-    """A STATE observation, not a rule.
+# A status that claims content exists. Kept in step with the content checker's
+# own vocabulary rather than restated as a bare list of names.
+CLAIMS_SOURCE = {"Source-ready", "Validated", "Packaged", "Published"}
 
-    Authoring is now permitted for the ten rollout-eligible ``platform/**``
-    modules, and none has been written. This records that the discharge landing
-    changed a gate and nothing else — it is expected to change the first time a
-    module is genuinely authored, and `check-knowledge-content.mjs` is what will
-    judge that content.
+
+def test_source_presence_and_status_agree_across_the_live_registry() -> None:
+    """THE COHERENCE RULE, asserted live rather than as a frozen count.
+
+    The first module has been authored, so "no module has source" is no longer
+    the fact. What must hold as authoring proceeds is that the two descriptions
+    of a module never diverge: a directory with authored source and a status
+    claiming none is the defect this rule exists to catch, and so is the reverse.
     """
-    authored = {
-        module["id"]: sorted(p.name for p in (KNOWLEDGE / module["id"]).iterdir())
-        for module in _catalog()["modules"]
-    }
-    assert all(entries == ["README.md"] for entries in authored.values()), authored
+    for module in _catalog()["modules"]:
+        entries = sorted(p.name for p in (KNOWLEDGE / module["id"]).iterdir())
+        has_source = entries != ["README.md"]
+        claims_source = module["status"] in CLAIMS_SOURCE
+        assert has_source == claims_source, (
+            f"{module['id']}: status {module['status']} and directory contents "
+            f"{entries} disagree about whether content exists"
+        )
 
 
 def test_this_file_does_not_police_content_once_the_gate_opens() -> None:

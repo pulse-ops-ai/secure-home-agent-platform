@@ -2,13 +2,18 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **No content authored yet, and not runtime-authoritative.** The toolchain and
-> its conformance suite are implemented and are invoked over real repository
-> content by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12
-> readiness obligation was **discharged on 2026-08-16** — so
-> `blockedByToolchain` is `false` on all 23 entries and the ten `platform/**`
-> modules are **authoring-eligible**. Nothing is authored, nothing is packaged,
-> and nothing is published: `household/**`, `runbooks/**`, and every set remain
+> **The first module is authored and validated; nothing is packaged or
+> published, and none of this is runtime-authoritative.** The toolchain and its
+> conformance suite are implemented and are invoked over real repository content
+> by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
+> obligation was **discharged on 2026-08-16** — so `blockedByToolchain` is
+> `false` on all 23 entries and the ten `platform/**` modules are
+> **authoring-eligible**.
+>
+> [`platform/runner-model`](platform/runner-model/) is **`Validated`**: its exact
+> repository bytes carry a human content review bound to their digest and pass
+> canonical admission. Every other module is `Planned`. Nothing is packaged and
+> nothing is published — `household/**`, `runbooks/**`, and every set remain
 > rollout-blocked, and publication additionally requires Proof B, for which no
 > governed producer exists.
 
@@ -51,11 +56,13 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**Everything below is `Planned`**, because nothing is authored yet.
+**`platform/runner-model` is `Validated`; everything else below is `Planned`.**
 `blockedByToolchain` was discharged on 2026-08-16, so `Validated` and `Packaged`
-are now representable for a module that has earned them. `Published`
-additionally requires Proof B, for which no governed producer exists, and stays
-refused. `check-knowledge.mjs` distinguishes the two reasons.
+are representable for a module that has **earned** them — a status is validated
+against the real mechanism rather than claimed, and no checker promotes a module
+on its own. `Published` additionally requires Proof B, for which no governed
+producer exists, and stays refused. `check-knowledge.mjs` distinguishes the two
+reasons.
 
 ## Modules
 
