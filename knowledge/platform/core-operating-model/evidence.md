@@ -11,9 +11,10 @@ governs:
   - docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md
   - docs/architecture/system-context.md
   - services/README.md
+  - services/AGENTS.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T03:36:46Z
+  at: 2026-08-19T04:22:58Z
 ---
 
 # What to believe
@@ -22,8 +23,17 @@ generated:
 
 A run may read knowledge to *understand*. It may not use knowledge to decide
 whether something is permitted, to judge whether an action is safe, or to stand
-in for reading the current state of the house. Those three answers come from
-controls, and no amount of confident documentation substitutes for any of them.
+in for reading the current state of the house. Each of those three answers has
+its own source, and they are not interchangeable:
+
+| Question | Answered by |
+|---|---|
+| may this principal do this? | the authorization decision point |
+| is this action within bounds? | deterministic safety policy |
+| what is true right now? | the governed API |
+
+Knowledge substitutes for none of them, and no amount of confident
+documentation substitutes for any of them.
 
 Holding a document that says a run may do something does not mean it may. The
 document is describing; the controls are deciding.

@@ -7,9 +7,9 @@ machinery ADR-0015 and ADR-0016 require.
 > **Real modules are authored and admitted through this package.** Every
 > `Validated` `platform/**` module sits at `1.0.0`: each one's exact repository
 > bytes carry its own human content review bound to its own digest, and each
-> passes canonical admission independently. `knowledge/catalog.json` says which
-> modules those are. Nothing is packaged and nothing is
-> published. The
+> passes canonical admission independently. The initial Prompt-4 `platform/**`
+> corpus is complete, and `knowledge/catalog.json` is authoritative for the
+> current inventory. Nothing is packaged and nothing is published. The
 > toolchain, its conformance suite, and repository content admission are
 > implemented, and the ADR-0015 §12 readiness obligation was **discharged on
 > 2026-08-16** after independent review. `blockedByToolchain` is `false` on all

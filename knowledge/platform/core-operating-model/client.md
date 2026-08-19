@@ -11,9 +11,10 @@ governs:
   - docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md
   - docs/architecture/system-context.md
   - services/README.md
+  - services/AGENTS.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T03:36:46Z
+  at: 2026-08-19T04:22:58Z
 ---
 
 # What an agent is here

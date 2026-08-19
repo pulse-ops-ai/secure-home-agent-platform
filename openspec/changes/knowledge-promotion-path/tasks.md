@@ -890,3 +890,74 @@ instant.
 module is unversioned, which stopped being true as modules were authored. Each
 set's limitation now states how many required members remain unversioned, and no
 set is released or versioned — set lifecycle is Prompt 6's.
+
+---
+
+## Prompt 4E — final closure record
+
+The initial `platform/**` corpus is complete. OpenSpec records the work; it does
+not authorize it, and nothing below is authority for anything.
+
+Prior sections are unmodified.
+
+### Cohort A — final reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/repository-taxonomy` | 1.0.0 | `sha256:96613fed5f5f9df78bff3fda37ff7bb8beac0dc10bc292f21b270493696661d4` |
+| `platform/governance` | 1.0.0 | `sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5` |
+| `platform/workspace-conventions` | 1.0.0 | `sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42` |
+| `platform/implementation-rules` | 1.0.0 | `sha256:148c98319d0fe2002b0803c62e3aa493dc979e262032c55f753e48f5406857e7` |
+| `platform/review-conventions` | 1.0.0 | `sha256:04c926a41596d58ac46edb48a57fc0ddfb5c74e96d174f82eda3bef77024dde5` |
+
+`workspace-conventions` was re-reviewed after a correction round removed a
+commit-granularity rule that only a provider adapter stated.
+
+### Cohort B — final reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/api-contract-conventions` | 1.0.0 | `sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca` |
+| `platform/worker-conventions` | 1.0.0 | `sha256:502c3bbd28420d1891e5f0125ad5752db456e39230b6161dd12c07059d311dc7` |
+
+The API module was re-reviewed after a correction restored the canonical
+mechanism names its projection had generalised away — Zod, OpenAPI, MCP
+allowlisting, and the validated query AST.
+
+### The tenth module, from #83
+
+`platform/runner-model` is frozen at
+`sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0`
+and was not touched by any cohort.
+
+### Cohort C — final corrected reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/core-operating-model` | 1.0.0 | `sha256:e9644f110c63dfd939fc3569703eaff28251d2c5e6b473d32057e4730e567c7a` |
+| `platform/degraded-operation` | 1.0.0 | `sha256:1d4b4c2cf10c0a2749e1bc5b760244dffff9a365094ce817f16817465b52ef3e` |
+
+Both were re-reviewed after a correction round. `core-operating-model` gained
+`services/AGENTS.md`, which owns the physical-action rules it was projecting
+without a declared source, and stopped collapsing authorization, safety, and live
+state into one word. `degraded-operation` restored the second half of ADR-0009's
+`CONTINUE` condition — absence of physical risk alone does not earn it — and
+narrowed a prohibition that had overreached into governance: a run must not infer
+or implement a bounded-authority mechanism from this module, but proposing one
+through a governed decision record remains a legitimate authorized act.
+
+### Prompt 4 — initial platform corpus COMPLETE
+
+Ten `platform/**` modules are `Validated` at `1.0.0`, each against its own
+human-reviewed bytes, each admitted independently.
+
+### Standing state
+
+- No packaging. No publication. No set released.
+- **No Proof B producer exists**, so publication is unreachable by design
+  (ADR-0016 §5a), and every admitted module reports `proof_b_unavailable`.
+- No runtime query resolver; `knowledge/` is not runtime-authoritative.
+- `blockedByRollout` still holds `household/**`, `runbooks/**`, and every set.
+- Landing: PR #84, branch `knowledge/platform-projections`. The exact head is
+  whatever git records for the commit carrying this section — a commit cannot
+  contain its own hash, and a stale one would be worse than none.

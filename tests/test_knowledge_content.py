@@ -889,10 +889,10 @@ REVIEWED_DIGESTS = {
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
     "platform/core-operating-model": (
-        "sha256:e5a79debc78069cb035627dd17217b9aa71d4a50dc3d2de8ad0bdd2d30c2b099"
+        "sha256:e9644f110c63dfd939fc3569703eaff28251d2c5e6b473d32057e4730e567c7a"
     ),
     "platform/degraded-operation": (
-        "sha256:6caadb46490dafbe6ce927a6a44483d8dc68b2a96cf4b3a45f4d3d12bb920e4d"
+        "sha256:1d4b4c2cf10c0a2749e1bc5b760244dffff9a365094ce817f16817465b52ef3e"
     ),
     "platform/api-contract-conventions": (
         "sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca"

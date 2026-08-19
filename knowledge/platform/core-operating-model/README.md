@@ -50,9 +50,11 @@ Every runner class. This is the one module no set should omit.
 [ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
 [ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) ·
 [`system-context.md`](../../../docs/architecture/system-context.md) ·
-[`services/README.md`](../../../services/README.md)
+[`services/README.md`](../../../services/README.md) ·
+[`services/AGENTS.md`](../../../services/AGENTS.md)
 
 ## Freshness and update trigger
 
 Update when an ADR changes the operating model — a new control, a changed
-outcome vocabulary, a changed agent posture. Not on routine implementation work.
+outcome vocabulary, a changed agent posture — or when the services
+physical-action contract changes. Not on routine implementation work.

@@ -11,9 +11,10 @@ governs:
   - docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md
   - docs/architecture/system-context.md
   - services/README.md
+  - services/AGENTS.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T03:36:46Z
+  at: 2026-08-19T04:22:58Z
 ---
 
 # The separate controls
@@ -34,7 +35,8 @@ They are ordered, and the order carries meaning.
 The temptation is to treat one passing control as evidence about another. It is
 not.
 
-**Capability is not a security boundary.** It is the outermost bound — it decides
+**Capability is not a security boundary on its own.** It is the outermost
+bound — it decides
 whether a request can be attempted, not whether it should succeed. A run that can
 reach something has learned nothing about whether it may use it.
 

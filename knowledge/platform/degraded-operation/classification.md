@@ -12,7 +12,7 @@ governs:
   - docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T03:36:46Z
+  at: 2026-08-19T04:22:58Z
 ---
 
 # How degraded behaviour is decided
@@ -29,7 +29,7 @@ Four outcomes exist, and they are the whole vocabulary:
 
 | Class | Meaning |
 |---|---|
-| `CONTINUE` | proceeds without a live decision, because authority was already established and is locally available, or because no physical risk attaches |
+| `CONTINUE` | proceeds without a live decision, because authority was already established and is locally available, or because the operation carries no physical risk **and** refusing it would break the house for no security benefit |
 | `BOUNDED` | target posture for proceeding on previously-established local authority — see [bounded.md](bounded.md) before assuming anything |
 | `FAIL CLOSED` | does not proceed without a live decision; refused, explained, audited |
 | `EMERGENCY` | deterministic life-safety response under an explicitly reviewed policy |
@@ -51,9 +51,14 @@ The distinguishing question between the two permissive classes is whether a
 a decision someone already made is a different act from making one now, and a run
 asking for something during an outage is always making a new request.
 
+Note both halves of that `CONTINUE` condition. **Absence of physical risk does
+not by itself earn `CONTINUE`** — the refusal must also cost something real and
+buy no security. A harmless-looking operation whose refusal is merely
+inconvenient does not qualify.
+
 Sensitive operations fail closed for every requester, and that includes sensitive
-**reads**. "Reads are safe" is false when the read tells someone whether the
-house is empty.
+**reads** — which carry no physical risk at all. "Reads are safe" is false when
+the read tells someone whether the house is empty.
 
 ## `EMERGENCY` is not a fallback
 

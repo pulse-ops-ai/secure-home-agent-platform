@@ -3,10 +3,11 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: some modules here are authored and `Validated` at `1.0.0`,** each
-> against its own human-reviewed bytes; the rest are `Planned` and
-> specification-only. [`../INDEX.md`](../INDEX.md) and
-> [`../catalog.json`](../catalog.json) carry the per-module rows.
+> **Status: the initial Prompt-4 corpus here is complete,** each module
+> `Validated` at `1.0.0` against its own human-reviewed bytes. Further modules
+> may be added when new durable truths are earned;
+> [`../catalog.json`](../catalog.json) is authoritative for the current
+> inventory and lifecycle state.
 
 ## What belongs here
 

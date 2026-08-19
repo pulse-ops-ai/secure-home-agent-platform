@@ -12,7 +12,7 @@ governs:
   - docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T03:36:46Z
+  at: 2026-08-19T04:22:58Z
 ---
 
 # `BOUNDED` is not a yes
@@ -41,10 +41,11 @@ is recorded as unresolved and needs its own decision.
 
 - **Do not treat a `BOUNDED` classification as permission.** It is a refusal
   today.
-- **Do not propose, select, imply, or recommend a bounded-authority mechanism.**
-  The decision is open on purpose. A run suggesting how to close it is
-  contributing to a decision that is explicitly not its to make, and a plausible
-  suggestion is worse than none because it invites implementation.
+- **Do not infer a mechanism from this module, and do not implement one.** No
+  mechanism is selected here, and nothing in this document is a basis for
+  choosing or building one. Selecting one requires its own governed decision
+  record and human acceptance; until that exists, `BOUNDED` behaves as
+  `FAIL CLOSED`.
 - **Do not design around it** — no caching of a prior answer, no reusing an
   earlier approval, no local re-derivation of what a decision would probably have
   been.

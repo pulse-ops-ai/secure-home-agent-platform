@@ -2,8 +2,9 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **Some `platform/**` modules are authored and validated — [`catalog.json`](catalog.json)
-> says which; nothing is packaged or published, and none of this is
+> **The initial Prompt-4 `platform/**` corpus is complete —
+> [`catalog.json`](catalog.json) is authoritative for the current inventory and
+> lifecycle state; nothing is packaged or published, and none of this is
 > runtime-authoritative.** The toolchain and its
 > conformance suite are implemented and are invoked over real repository content
 > by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
@@ -11,8 +12,8 @@ The canonical registry of knowledge **modules** and **sets**.
 > `false` on all 23 entries and the ten `platform/**` modules are
 > **authoring-eligible**.
 >
-> Every `Validated` `platform/**` module sits at `1.0.0`; the module rows below
-> name them, and `catalog.json` is authoritative. Each carries **its own**
+> Every `Validated` `platform/**` module sits at `1.0.0`, and further modules may
+> be added when new durable truths are earned. Each carries **its own**
 > human content review bound to **its own** digest and passes canonical
 > admission independently. Every other module is `Planned`. Nothing is packaged and
 > nothing is published — `household/**`, `runbooks/**`, and every set remain
