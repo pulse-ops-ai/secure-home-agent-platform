@@ -17,7 +17,8 @@ machinery ADR-0015 and ADR-0016 require.
 > are **authoring-eligible**. `knowledge/catalog.json` is authoritative for the
 > current inventory and lifecycle state.
 >
-> `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
+> `household/**` and every set remain **rollout-blocked**, and runbook rollout is
+> per module — `knowledge/catalog.json` is authoritative for current eligibility:
 > eligibility requires *both* gates false. Publication is blocked separately and
 > still is — no governed Proof B producer exists — so a module may be authored,
 > admitted, and packaged, and still not be published.

@@ -961,3 +961,74 @@ human-reviewed bytes, each admitted independently.
 - Landing: PR #84, branch `knowledge/platform-projections`. The exact head is
   whatever git records for the commit carrying this section — a commit cannot
   contain its own hash, and a stale one would be worse than none.
+
+---
+
+## Prompt 5A — runbook rollout eligibility
+
+**External authorization.** The repository owner explicitly authorized beginning
+Prompt 5 on 2026-08-19. OpenSpec records that authorization and its result; it
+does not create either, and this section is not authority for anything.
+
+Prompt 1–4 history above is unmodified.
+
+### Why this landing exists
+
+ADR-0016 §7a says runbooks "are allowlisted individually, never by directory. A
+new runbook is ineligible on creation and becomes eligible only when a reviewed
+change adds it to the allowlist — so a household-oriented runbook cannot become
+eligible because of where it was filed. The allowlist is empty in this ADR;
+populating it is a separate reviewed change."
+
+This is that separate reviewed change.
+
+The checker could not express it. `blockedByRollout` was derived as
+`platform/** → false, everything else → true`, which encoded the accepted
+INITIAL state exactly and could represent nothing after it. Flipping three
+catalog booleans against that rule would have required weakening the assertion
+until the values passed — replacing a reviewed policy with an unchecked field.
+
+### The rule implemented
+
+`knowledge/catalog.json` gains `runbookRolloutAllowlist`, a required array of
+exact module IDs. The checker derives each module's expected `blockedByRollout`
+and asserts it:
+
+```
+platform/**   → false                        (released as a class by ADR acceptance)
+runbooks/**   → false only if allowlisted     (per module, never by directory)
+everything    → true
+```
+
+The allowlist is validated rather than trusted: an entry that names no
+registered module, that is not under `runbooks/`, that is a wildcard or
+directory, that repeats, or that is not a string, is refused. The derivation
+consults the allowlist only for `runbooks/**`, so `household/**` cannot be
+released through it even if that validation were bypassed.
+
+### Released for authoring — exactly three
+
+| Module | `blockedByRollout` | `blockedByToolchain` |
+|---|---|---|
+| `runbooks/repository-validation` | `true` → **`false`** | `false` (unchanged) |
+| `runbooks/incident-triage` | `true` → **`false`** | `false` (unchanged) |
+| `runbooks/safe-escalation` | `true` → **`false`** | `false` (unchanged) |
+
+All three keep `status: Planned`, `version: null`, `asOf: null`, and carry no
+`contentReview`. Their directories remain specification-only.
+
+### Unchanged
+
+- All four `household/**` modules stay `blockedByRollout: true`.
+- All six sets stay `blockedByRollout: true`. No set version, release, or
+  lifecycle transition.
+- The ten `platform/**` reviewed modules are untouched — no bundle byte, digest,
+  provenance, version, status, or `contentReview` moved.
+- **No knowledge content was authored.** This landing makes three runbooks
+  eligible to author; it does not author them.
+- No `contentReview`. No packaging. No publication. No Proof B producer. No
+  runtime resolver.
+
+Authoring eligibility is not admission: candidate bytes must still pass
+admission, and publication remains unreachable while no governed Proof B
+producer exists (ADR-0016 §5a).

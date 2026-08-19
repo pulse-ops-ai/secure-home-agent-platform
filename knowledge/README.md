@@ -6,8 +6,8 @@ that agents read to *understand* the house.
 > **Status: the initial Prompt-4 `platform/**` corpus is complete.**
 > [`catalog.json`](catalog.json) is authoritative for the current module
 > inventory and lifecycle state, and further modules may be added when new
-> durable truths are earned. `blockedByRollout` still holds `household/**`,
-> `runbooks/**`, and every set. The FORMAT is decided
+> durable truths are earned. `blockedByRollout` still holds `household/**`
+> and every set; runbook rollout is per module. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
 > which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
 > toolchain and its conformance suite are implemented and are invoked over real
@@ -17,7 +17,9 @@ that agents read to *understand* the house.
 > [`catalog.json`](catalog.json) is authoritative for the current inventory and
 > lifecycle state.
 >
-> `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
+> `household/**` and every set remain **rollout-blocked**, and runbook rollout is
+> per module — [`catalog.json`](catalog.json) is authoritative for current
+> eligibility:
 > authoring eligibility requires *both* gates false. Publication is blocked
 > separately and still is — no Proof B producer exists (ADR-0016 §5a) — so a
 > module may be authored, admitted, and packaged, but not published.

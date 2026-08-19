@@ -45,6 +45,11 @@
   "publishableStatuses": ["Published"],
   "postToolchainStatuses": ["Validated", "Packaged", "Published"],
   "sensitivityVocabulary": ["portable-nonsensitive"],
+  "runbookRolloutAllowlist": [
+    "runbooks/repository-validation",
+    "runbooks/incident-triage",
+    "runbooks/safe-escalation"
+  ],
   "modules": [
     {
       "id": "platform/core-operating-model",
@@ -397,7 +402,7 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when a check is added or removed, or reporting obligations change.",
       "blockedByToolchain": false,
-      "blockedByRollout": true
+      "blockedByRollout": false
     },
     {
       "id": "runbooks/incident-triage",
@@ -415,7 +420,7 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
       "blockedByToolchain": false,
-      "blockedByRollout": true
+      "blockedByRollout": false
     },
     {
       "id": "runbooks/safe-escalation",
@@ -434,7 +439,7 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the stop conditions or the handover contract change.",
       "blockedByToolchain": false,
-      "blockedByRollout": true
+      "blockedByRollout": false
     }
   ],
   "sets": [

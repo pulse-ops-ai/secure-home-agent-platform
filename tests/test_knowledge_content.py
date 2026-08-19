@@ -503,22 +503,40 @@ def test_the_readme_only_rule_is_scoped_to_the_toolchain_gate(tmp_path: Path) ->
 
 
 def test_the_live_gates_are_exactly_what_the_discharge_intended() -> None:
-    """Readiness discharged for all 23; rollout untouched.
+    """Readiness discharged for every entry; rollout moves only by review.
 
     The discharge landing changed one gate. If it had released everything, the
     two gates were never independent — so the rollout distribution is asserted
     as part of the same fact rather than as a separate courtesy.
+
+    Prompt 5A then allowlisted three runbooks. That is a reviewed rollout
+    transition, not a gate conflation, and eligibility is derived from the
+    allowlist here so the assertion keeps its force: anything eligible that is
+    neither a platform module nor an allowlisted runbook is a defect.
     """
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
     entries = [*catalog["modules"], *catalog["sets"]]
     assert len(entries) == 23
     assert all(e["blockedByToolchain"] is False for e in entries)
 
+    allowlist = set(catalog["runbookRolloutAllowlist"])
+    assert allowlist and all(i.startswith("runbooks/") for i in allowlist), sorted(allowlist)
+
     eligible = sorted(
         e["id"] for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]
     )
-    assert len(eligible) == 10 and all(i.startswith("platform/") for i in eligible), eligible
-    assert len([e for e in entries if e["blockedByRollout"] is True]) == 13
+    expected = sorted(
+        [m["id"] for m in catalog["modules"] if m["id"].startswith("platform/")] + sorted(allowlist)
+    )
+    assert eligible == expected, eligible
+    assert not any(i.startswith("household/") for i in eligible), eligible
+
+    blocked = [e["id"] for e in entries if e["blockedByRollout"] is True]
+    # Every household module and every set, and nothing else.
+    assert {i for i in blocked if not i.startswith("household/")} == {
+        s["id"] for s in catalog["sets"]
+    }, blocked
+    assert len(blocked) == 10, blocked
 
 
 # --- live catalog / profile contract alignment ------------------------------
