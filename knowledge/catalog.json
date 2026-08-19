@@ -19,8 +19,8 @@
     "implemented. The ADR-0015 12 obligation was discharged on 2026-08-16 after",
     "independent review, so blockedByToolchain is false on every entry and",
     "Validated and Packaged - post-toolchain lifecycle states - are representable",
-    "for a module that has earned them. Six platform modules are authored and",
-    "Validated at 1.0.0; every other entry is still Planned. blockedByRollout is",
+    "for a module that has earned them. The per-entry status fields below are the",
+    "authoritative answer for which modules those are. blockedByRollout is",
     "unchanged and still holds household,",
     "runbooks, and every set: authoring eligibility requires BOTH gates false.",
     "Published additionally requires Proof B, for which no governed producer",
@@ -212,8 +212,8 @@
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-19T02:01:51Z",
-        "sourceDigest": "sha256:10b07fcdd4032f6763d8c6734fe457329baffc8b75ba6b8c4be0eea97d2b9995"
+        "at": "2026-08-19T03:16:59Z",
+        "sourceDigest": "sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca"
       },
       "governingSources": [
         "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",

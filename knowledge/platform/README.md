@@ -3,11 +3,10 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: six modules authored.** `runner-model`, `repository-taxonomy`,
-> `governance`, `workspace-conventions`, `implementation-rules`, and
-> `review-conventions` are each `Validated` at `1.0.0`, each against its own
-> human-reviewed bytes. The remaining modules here are `Planned` and
-> specification-only.
+> **Status: some modules here are authored and `Validated` at `1.0.0`,** each
+> against its own human-reviewed bytes; the rest are `Planned` and
+> specification-only. [`../INDEX.md`](../INDEX.md) and
+> [`../catalog.json`](../catalog.json) carry the per-module rows.
 
 ## What belongs here
 

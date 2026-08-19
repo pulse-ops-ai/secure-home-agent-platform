@@ -80,8 +80,9 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-Six `platform/**` modules are authored and `Validated` at `1.0.0`, and no
-governed query interface exists at runtime, so [`knowledge/`](knowledge/) is
+Some `platform/**` modules are authored and `Validated`; `knowledge/catalog.json`
+is authoritative for which, and for their exact lifecycle state. No governed
+query interface exists at runtime, so [`knowledge/`](knowledge/) is
 **not runtime-authoritative** — nothing is packaged, published, or resolvable by
 a running profile. The toolchain, its
 conformance suite, and repository content admission are implemented and run in

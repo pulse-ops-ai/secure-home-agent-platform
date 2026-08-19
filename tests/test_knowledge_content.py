@@ -889,7 +889,7 @@ REVIEWED_DIGESTS = {
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
     "platform/api-contract-conventions": (
-        "sha256:10b07fcdd4032f6763d8c6734fe457329baffc8b75ba6b8c4be0eea97d2b9995"
+        "sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca"
     ),
     "platform/worker-conventions": (
         "sha256:502c3bbd28420d1891e5f0125ad5752db456e39230b6161dd12c07059d311dc7"

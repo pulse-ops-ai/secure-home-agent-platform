@@ -10,7 +10,7 @@ governs:
   - docs/architecture/api-contract-model.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T00:05:05Z
+  at: 2026-08-19T03:06:26Z
 ---
 
 # How an operation becomes callable
@@ -26,8 +26,8 @@ what lets one reviewer see the whole shape of an operation at once.
 
 ## Exposure is an act, not a consequence
 
-**External tool surfaces are generated from an allowlisted subset of the
-catalog.** Exposing every route automatically is prohibited.
+**MCP tools are generated only from the allowlisted subset of the governed
+operation catalog.** Exposing every route automatically is prohibited.
 
 The reasoning is worth keeping: eligibility is a deliberate, reviewable property
 of an operation. If exposure were a side effect of an operation merely existing,
@@ -54,6 +54,6 @@ published query metadata, the runtime metadata answer, the tool guidance, and th
 repository-level query validation from a single declaration.
 
 The asymmetry is the load-bearing part: **authorization may narrow it for a
-caller; nothing may widen it.** Callers — models and external tools included —
-produce a validated query structure, never raw query language or arbitrary field
+caller; nothing may widen it.** Models and MCP clients produce only a
+**validated query AST**, never raw query language or arbitrary field
 expressions.

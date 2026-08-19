@@ -4,10 +4,11 @@ The four ADR-0010 interfaces over portable OKF v0.2 knowledge — **compile**,
 **validate/admit**, **package**, **query** — plus the gate and attestation
 machinery ADR-0015 and ADR-0016 require.
 
-> **Real modules are authored and admitted through this package.** Six
-> `platform/**` modules are `Validated` at `1.0.0`: each one's exact repository
+> **Real modules are authored and admitted through this package.** Every
+> `Validated` `platform/**` module sits at `1.0.0`: each one's exact repository
 > bytes carry its own human content review bound to its own digest, and each
-> passes canonical admission independently. Nothing is packaged and nothing is
+> passes canonical admission independently. `knowledge/catalog.json` says which
+> modules those are. Nothing is packaged and nothing is
 > published. The
 > toolchain, its conformance suite, and repository content admission are
 > implemented, and the ADR-0015 §12 readiness obligation was **discharged on

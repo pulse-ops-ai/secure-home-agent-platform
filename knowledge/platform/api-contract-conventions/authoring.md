@@ -10,20 +10,21 @@ governs:
   - docs/architecture/api-contract-model.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-19T00:05:05Z
+  at: 2026-08-19T03:06:26Z
 ---
 
 # Where a contract is authored
 
-**One definition per contract. Everything else is generated.**
+**Zod is the single authored source for API and domain-facing contracts.**
+One definition per contract; everything else is generated.
 
-That sentence is the whole model, and its consequence is the part worth
+That rule is the whole model, and its consequence is the part worth
 internalising: if a second artifact describes the same contract — a validation
 class, a documentation decorator, a hand-written interface, a parallel schema —
 **the second artifact is the defect, not the missing piece.** The instinct to add
 one is the instinct this convention exists to interrupt.
 
-The authored definition is a schema, and it carries its own semantics as
+The authored definition carries its own semantics as
 metadata rather than in a comment. That metadata is not decoration: the same text
 becomes the published description, the generated client's documentation, the
 runtime metadata answer, and the tool description an agent reads. Writing it
@@ -51,8 +52,8 @@ in production rather than at build time.
 
 ## The boundary is narrower than the language
 
-Only constructs representable in the published schema format may cross the
-boundary. The converter refuses the rest by default, and **that default is
+Only Zod constructs representable in the published schema format may cross
+the boundary. The converter refuses the rest by default, and **that default is
 kept**: the alternative emits an empty schema, which validates anything while
 appearing to constrain something. A refusal at build time is the cheaper
 outcome.

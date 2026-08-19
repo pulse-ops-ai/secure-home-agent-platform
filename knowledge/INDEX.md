@@ -2,17 +2,17 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **Six platform modules are authored and validated; nothing is packaged or
-> published, and none of this is runtime-authoritative.** The toolchain and its
+> **Some `platform/**` modules are authored and validated — [`catalog.json`](catalog.json)
+> says which; nothing is packaged or published, and none of this is
+> runtime-authoritative.** The toolchain and its
 > conformance suite are implemented and are invoked over real repository content
 > by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
 > obligation was **discharged on 2026-08-16** — so `blockedByToolchain` is
 > `false` on all 23 entries and the ten `platform/**` modules are
 > **authoring-eligible**.
 >
-> Six `platform/**` modules are **`Validated`** at `1.0.0` — `runner-model`,
-> `repository-taxonomy`, `governance`, `workspace-conventions`,
-> `implementation-rules`, and `review-conventions`. Each carries **its own**
+> Every `Validated` `platform/**` module sits at `1.0.0`; the module rows below
+> name them, and `catalog.json` is authoritative. Each carries **its own**
 > human content review bound to **its own** digest and passes canonical
 > admission independently. Every other module is `Planned`. Nothing is packaged and
 > nothing is published — `household/**`, `runbooks/**`, and every set remain
@@ -58,7 +58,8 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**`platform/runner-model` is `Validated`; everything else below is `Planned`.**
+**[`catalog.json`](catalog.json) carries each module's lifecycle status and is
+authoritative for it; the tables below name purpose and consumers.**
 `blockedByToolchain` was discharged on 2026-08-16, so `Validated` and `Packaged`
 are representable for a module that has **earned** them — a status is validated
 against the real mechanism rather than claimed, and no checker promotes a module
