@@ -12,9 +12,10 @@ machinery ADR-0015 and ADR-0016 require.
 > current inventory. Nothing is packaged and nothing is published. The
 > toolchain, its conformance suite, and repository content admission are
 > implemented, and the ADR-0015 §12 readiness obligation was **discharged on
-> 2026-08-16** after independent review. `blockedByToolchain` is `false` on all
-> 23 registered entries, so the ten `platform/**` modules are
-> **authoring-eligible**.
+> 2026-08-16** after independent review. `blockedByToolchain` is `false` for
+> every current registered entry, so the rollout-eligible `platform/**` modules
+> are **authoring-eligible**. `knowledge/catalog.json` is authoritative for the
+> current inventory and lifecycle state.
 >
 > `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
 > eligibility requires *both* gates false. Publication is blocked separately and

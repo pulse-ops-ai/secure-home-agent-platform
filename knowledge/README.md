@@ -13,7 +13,9 @@ that agents read to *understand* the house.
 > toolchain and its conformance suite are implemented and are invoked over real
 > content by `scripts/check-knowledge-content.mjs`; and the ADR-0015 §12
 > obligation was **discharged on 2026-08-16** after independent review, so
-> `blockedByToolchain` is `false` on all 23 entries.
+> `blockedByToolchain` is `false` for every current registered entry.
+> [`catalog.json`](catalog.json) is authoritative for the current inventory and
+> lifecycle state.
 >
 > `household/**`, `runbooks/**`, and every set remain **rollout-blocked**:
 > authoring eligibility requires *both* gates false. Publication is blocked

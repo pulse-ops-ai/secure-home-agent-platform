@@ -9,8 +9,10 @@ The canonical registry of knowledge **modules** and **sets**.
 > conformance suite are implemented and are invoked over real repository content
 > by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
 > obligation was **discharged on 2026-08-16** — so `blockedByToolchain` is
-> `false` on all 23 entries and the ten `platform/**` modules are
-> **authoring-eligible**.
+> `false` for every current registered entry, and the rollout-eligible
+> `platform/**` modules are **authoring-eligible**.
+> [`catalog.json`](catalog.json) is authoritative for the current inventory and
+> lifecycle state.
 >
 > Every `Validated` `platform/**` module sits at `1.0.0`, and further modules may
 > be added when new durable truths are earned. Each carries **its own**
