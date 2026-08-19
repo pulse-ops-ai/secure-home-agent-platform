@@ -39,4 +39,5 @@ authority.
 
 ## Validation
 
-`pnpm install --lockfile-only`, `pnpm -r --if-present run check`.
+`pnpm install --frozen-lockfile`, then `pnpm lint`, `pnpm typecheck`,
+`pnpm test`, `pnpm build`. `bash scripts/check.sh` runs all of it.

@@ -93,14 +93,21 @@ bash scripts/check.sh
 
 # individually
 bash scripts/validate-scaffold.sh          # structure, indexes, secrets, generated dirs
-uv sync --all-packages                     # Python workspace resolves
+uv sync --all-packages --locked            # Python workspace resolves, lockfile unchanged
 uv run ruff check .                        # Python lint
 uv run ruff format --check .               # Python format
 uv run mypy                                # Python types (targets configured in pyproject.toml)
 uv run pytest                              # scaffold conformance tests
 bash scripts/scan-secrets.sh               # secret-shaped values, all tracked text files
-pnpm install --lockfile-only               # TypeScript workspace resolves
-pnpm -r --if-present run check             # TypeScript package manifests
+pnpm install --frozen-lockfile             # TypeScript workspace resolves, lockfile unchanged
+pnpm run deps:check                        # Syncpack: dependency version policy
+pnpm run format:check                      # Prettier
+pnpm run check:workspace                   # workspace taxonomy and declared direction
+pnpm run check:imports                     # what source actually imports
+pnpm lint                                  # ESLint, every package
+pnpm typecheck                             # tsc --noEmit, every package
+pnpm test                                  # vitest, every package
+pnpm build                                 # tsc build, every package
 ```
 
 If a tool is unavailable on your machine, say so in the PR rather than dropping
@@ -170,6 +177,26 @@ automatically so a later change cannot merge without reproducing them. The two
 lockfile-strict flags matter: they fail on a stale `uv.lock` or a
 `pnpm-lock.yaml` that no longer matches the manifests, rather than quietly
 updating either.
+
+## Review findings that are always worth raising
+
+These are review policy, and they live here — provider-neutrally — rather than in
+any provider's instruction file. A provider adapter may point at this section; it
+does not own it, and a rule that exists only in an adapter is not repository
+policy.
+
+1. **Prose that "reads as enforced" with no mechanism behind it.** A description
+   of a control is not a control. If a document says something is prevented,
+   something must prevent it.
+2. **A test or assertion that cannot fail.** It reports success unconditionally
+   and is worse than no test, because it occupies the space where a real one
+   would go.
+3. **One defect, unswept.** Finding an instance means looking for the class. A
+   fix that repairs the reported occurrence and leaves its siblings has not
+   finished the work.
+4. **A claim stronger than its mechanism.** Where the mechanism has a known
+   limit, the limit belongs in the claim — a guarantee stated more broadly than
+   it holds is relied on as though it were true.
 
 ## Proof quality
 

@@ -5,11 +5,12 @@ terms an agent must reason in.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile. Registered in [`../../INDEX.md`](../../INDEX.md).
 
 ## Intended facts
 
@@ -48,9 +49,12 @@ Every runner class. This is the one module no set should omit.
 [ADR-0004](../../../docs/decisions/ADR-0004-treat-agents-as-clients.md) ·
 [ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
 [ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) ·
-[`system-context.md`](../../../docs/architecture/system-context.md)
+[`system-context.md`](../../../docs/architecture/system-context.md) ·
+[`services/README.md`](../../../services/README.md) ·
+[`services/AGENTS.md`](../../../services/AGENTS.md)
 
 ## Freshness and update trigger
 
 Update when an ADR changes the operating model — a new control, a changed
-outcome vocabulary, a changed agent posture. Not on routine implementation work.
+outcome vocabulary, a changed agent posture — or when the services
+physical-action contract changes. Not on routine implementation work.

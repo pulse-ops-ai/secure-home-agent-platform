@@ -80,13 +80,16 @@ authorized by the active execution profile; knowledge informs reasoning but neve
 grants tools, capabilities, authorization, or permission to override live state
 or accepted ADRs.
 
-One module is authored — `platform/runner-model@1.0.0`, `Validated` — and no
-governed query interface exists at runtime, so [`knowledge/`](knowledge/) is
+The initial Prompt-4 `platform/**` corpus is complete. `knowledge/catalog.json` is
+authoritative for the current module inventory and lifecycle state, and further
+modules may be added when new durable truths are earned. No governed
+query interface exists at runtime, so [`knowledge/`](knowledge/) is
 **not runtime-authoritative** — nothing is packaged, published, or resolvable by
 a running profile. The toolchain, its
 conformance suite, and repository content admission are implemented and run in
-CI; the ADR-0015 §12 obligation was discharged on 2026-08-16, so authoring is
-open for the ten rollout-eligible `platform/**` modules. The selection contract is
+CI; the ADR-0015 §12 obligation was discharged on 2026-08-16. Every
+rollout-eligible `platform/**` module is now authored and `Validated`;
+`blockedByRollout` still holds `household/**`, `runbooks/**`, and every set. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers
@@ -206,7 +209,7 @@ bash scripts/validate-scaffold.sh
 bash scripts/scan-secrets.sh
 
 # Python (uv workspace)
-uv sync --all-packages
+uv sync --all-packages --locked
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
@@ -214,8 +217,10 @@ uv run pytest
 
 # TypeScript (pnpm workspace, Corepack-provisioned)
 corepack enable
-pnpm install --lockfile-only
-pnpm -r --if-present run check
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 Run at least `bash scripts/validate-scaffold.sh` before proposing any change

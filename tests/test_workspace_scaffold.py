@@ -356,6 +356,92 @@ def test_aggregate_check_uses_a_locked_python_sync() -> None:
             assert "--locked" in line, f"unlocked uv sync in check.sh: {line.strip()}"
 
 
+# Every surface that TELLS someone how to validate this repository. The merge
+# gate was already safe; the guidance was not, so a contributor following the
+# canonical contract could relock during what they were told was validation and
+# report success against a repository state they had just mutated.
+VALIDATION_SURFACES = (
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "CLAUDE.md",
+    "README.md",
+    "packages/README.md",
+    "services/README.md",
+    "services/AGENTS.md",
+    "services/workers/python-inference/README.md",
+    "agents/AGENTS.md",
+    "agents/implementations/python/README.md",
+    "docs/operations/pi-bootstrap.md",
+    ".github/pull_request_template.md",
+    ".github/agents/implementation.agent.md",
+    "scripts/check.sh",
+)
+
+
+def _command_lines(text: str, path: str) -> list[str]:
+    """Strings that PRESCRIBE a command, not prose that mentions one.
+
+    Three ways this repository gives a command: a fenced block, a code span in a
+    table cell, and a code span in a sentence. All three are prescriptions. A
+    code span is only counted when its CONTENT begins with a command verb, so
+    prose may still discuss `uv sync` or name a file without tripping the guard.
+    """
+    found, fenced = [], False
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("```"):
+            fenced = not fenced
+            continue
+        if path.endswith(".sh"):
+            if not stripped.startswith("#"):
+                found.append(raw)
+            continue
+        if fenced:
+            found.append(raw)
+            continue
+        found.extend(
+            span
+            for span in re.findall(r"`([^`]+)`", raw)
+            if re.match(r"(uv|pnpm|bash|node|corepack)\s", span)
+        )
+    return found
+
+
+def test_no_current_validation_surface_prescribes_an_unlocked_uv_sync() -> None:
+    """The lockfile-mutation class, closed for pnpm, must stay closed for uv.
+
+    `uv sync` without `--locked` repairs a stale `uv.lock` and then reports
+    success, so validation both mutates the working tree and describes a state
+    that did not exist when the run began.
+    """
+    offenders = []
+    for surface in VALIDATION_SURFACES:
+        path = REPO_ROOT / surface
+        if not path.exists():
+            continue
+        for line in _command_lines(path.read_text(), surface):
+            if "uv sync" in line and "--locked" not in line:
+                offenders.append(f"{surface}: {line.strip()}")
+    assert not offenders, "unlocked `uv sync` in current validation guidance:\n" + "\n".join(
+        offenders
+    )
+
+
+def test_the_unlocked_sync_guard_can_actually_see_each_surface() -> None:
+    """Guard the guard: a parser that finds no commands proves nothing.
+
+    Without this, deleting every validation surface — or breaking the fence
+    parser — would leave the test above passing vacuously.
+    """
+    for surface in VALIDATION_SURFACES:
+        path = REPO_ROOT / surface
+        assert path.exists(), f"{surface} is named as a validation surface but is missing"
+        commands = _command_lines(path.read_text(), surface)
+        assert any("uv " in line or "pnpm " in line or "bash " in line for line in commands), (
+            f"{surface}: parsed {len(commands)} command lines but found no command in them"
+        )
+
+
 # --- regression: extended dependency-boundary enforcement (#25) --------------
 
 

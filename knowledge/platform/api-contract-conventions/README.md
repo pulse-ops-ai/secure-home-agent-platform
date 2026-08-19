@@ -5,11 +5,12 @@ that one definition produces every downstream artifact.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile. Registered in [`../../INDEX.md`](../../INDEX.md).
 >
 > This module is the one [`../README.md`](../README.md) anticipates under
 > ADR-0012. It is registered here so its selection is governed like any other.

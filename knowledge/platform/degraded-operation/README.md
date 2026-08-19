@@ -5,11 +5,12 @@ it are unreachable.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile. Registered in [`../../INDEX.md`](../../INDEX.md).
 
 ## Intended facts
 
@@ -47,7 +48,8 @@ understand why a request failed.
 
 [ADR-0002](../../../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md) ·
 [ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) ·
-[`degraded-mode.md`](../../../docs/architecture/degraded-mode.md)
+[`degraded-mode.md`](../../../docs/architecture/degraded-mode.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Freshness and update trigger
 

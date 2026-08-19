@@ -3,8 +3,11 @@
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
-> **Status: one module authored.** `runner-model` is `Validated` at `1.0.0`;
-> every other module here is `Planned` and specification-only.
+> **Status: the initial Prompt-4 corpus here is complete,** each module
+> `Validated` at `1.0.0` against its own human-reviewed bytes. Further modules
+> may be added when new durable truths are earned;
+> [`../catalog.json`](../catalog.json) is authoritative for the current
+> inventory and lifecycle state.
 
 ## What belongs here
 

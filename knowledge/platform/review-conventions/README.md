@@ -5,11 +5,12 @@ looks for, and what a reviewable change contains.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile.
 
 ## Intended facts
 
@@ -43,7 +44,8 @@ Coding runners performing pre-pull-request review.
 
 [`../../../CONTRIBUTING.md`](../../../CONTRIBUTING.md) ·
 [`.github/pull_request_template.md`](../../../.github/pull_request_template.md) ·
-[`.github/agents/review.agent.md`](../../../.github/agents/review.agent.md)
+[ADR-0006](../../../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md) ·
+[`profiles/README.md`](../../../profiles/README.md)
 
 ## Freshness and update trigger
 

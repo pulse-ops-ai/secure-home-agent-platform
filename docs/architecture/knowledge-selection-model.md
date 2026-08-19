@@ -94,11 +94,12 @@ knowledge:
 > registered set carries a `version` field — the registry is version-capable,
 > because this contract and the evidence fields below both require it — but every
 > one is `null`, because **every set still has required members that carry no
-> version**. Exactly one module is versioned today,
-> `platform/runner-model@1.0.0`, and the sets that select it also require
-> unversioned ones: `architecture-default` requires four modules and three are
-> unversioned; the other five sets have no versioned required member at all.
-> Every set is additionally rollout-blocked. A set version that pins
+> version**, and **no set has been released**. Whether a set becomes
+> version-assignable is derived from its actual members rather than from any
+> count: as platform modules are authored some required members are now
+> versioned and some are not, and a set can only pin what resolves. Every set is
+> additionally rollout-blocked, and set release and composition lifecycle are
+> not settled here. A set version that pins
 > nothing resolvable would make two different resolutions look identical in
 > evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
 > a set that carries a version while selecting an unversioned module. The

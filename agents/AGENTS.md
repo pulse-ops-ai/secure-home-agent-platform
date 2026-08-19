@@ -72,6 +72,6 @@ and act on the house. You, the coding agent editing these files, are governed by
 ## Validation
 
 ```sh
-uv sync --all-packages && uv run ruff check . && uv run mypy && uv run pytest
+uv sync --all-packages --locked && uv run ruff check . && uv run mypy && uv run pytest
 bash scripts/validate-scaffold.sh
 ```

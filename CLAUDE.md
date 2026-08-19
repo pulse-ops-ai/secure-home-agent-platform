@@ -54,8 +54,8 @@ After changing files, run what your change touched:
 | You changed | Run |
 |---|---|
 | any file added/moved/removed | `bash scripts/validate-scaffold.sh` |
-| TypeScript anywhere — `services/`, `apps/`, `packages/` | `pnpm install --frozen-lockfile && pnpm -r --if-present run check` |
-| Python — only the admitted inference boundary under `services/workers/` | `uv sync --all-packages && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
+| TypeScript anywhere — `services/`, `apps/`, `packages/` | `pnpm install --frozen-lockfile` then `pnpm lint && pnpm typecheck && pnpm test && pnpm build` |
+| Python — only the admitted inference boundary under `services/workers/` | `uv sync --all-packages --locked && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` |
 | workspace manifests, catalog, or Syncpack policy | both of the above |
 | documentation or ADRs | `bash scripts/validate-scaffold.sh` |
 | anything substantial | `bash scripts/check.sh` |
@@ -138,8 +138,8 @@ no report.
   but never grants tools, capabilities, authorization, or permission to override
   live state or accepted ADRs. The toolchain, its conformance suite, and
   repository content admission are implemented and run in CI,
-  `blockedByToolchain` was discharged on 2026-08-16, and the first module
-  (`platform/runner-model@1.0.0`) is authored and `Validated`. No governed query
+  `blockedByToolchain` was discharged on 2026-08-16, and some `platform/**`
+  modules are authored and `Validated` — `knowledge/catalog.json` says which. No governed query
   interface exists at runtime and nothing is packaged or published, so
   `knowledge/` is **not runtime-authoritative**
   ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format

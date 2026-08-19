@@ -61,11 +61,12 @@ Household runners performing triage, paired with
 - "Is this a supervisory state or an alarm?"
 - "What does the system not detect?"
 
-## Governed by
+## Governing sources
 
-[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) · ADRs
-[0008](../../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md),
-[0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
+Precedence runs `knowledge/README.md` → `knowledge/AGENTS.md` → the ADRs below.
+
+[ADR-0008](../../../docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation
 

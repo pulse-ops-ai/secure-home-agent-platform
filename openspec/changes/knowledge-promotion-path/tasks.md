@@ -778,3 +778,186 @@ are different facts, which is why the conformance rule was widened for
 
 Landed at `3caa7bb`, on top of the Phase-A conformance hardening at `7e9694e`.
 Neither commit was amended or squashed.
+
+---
+
+# PROMPT 4E — the remaining platform projections
+
+Appended. Prompt 1–4 history above is untouched.
+
+## Implementation Authorization
+
+| | |
+|---|---|
+| **Granted by** | the repository owner, in the Prompt-4E task contract issued after PR #83 merged |
+| **Starting head** | `3bf5892c37dbf309817e85a391b3b5026627f4ca` (main, PR #83 merged) |
+| **Branch** | `knowledge/platform-projections` — a new branch, not a continuation of the merged PR-83 branch |
+
+OpenSpec records that authorization; it does not create it.
+
+```text
+PR #83 merged on main
+    ↓
+Prompt 4E — remaining platform projections
+    ↓
+Cohort A review     ← this section
+    ↓
+Cohort B review
+    ↓
+Cohort C review
+    ↓
+Prompt 4 COMPLETE
+```
+
+## Cohort A — five modules, five independent reviews
+
+A cohort is **review convenience only**. It is not one bundle and not one review
+identity: every module carries its own source bytes, its own digest, its own
+human content review, and earns `Validated` on its own evidence.
+
+| Module | version | digest |
+|---|---|---|
+| `platform/repository-taxonomy` | 1.0.0 | `sha256:84a84163…e002` |
+| `platform/governance` | 1.0.0 | `sha256:d5a4c13d…5dc5` |
+| `platform/workspace-conventions` | 1.0.0 | `sha256:82a03e7f…2d0d` |
+| `platform/implementation-rules` | 1.0.0 | `sha256:dcb0cc34…f64c` |
+| `platform/review-conventions` | 1.0.0 | `sha256:d1dd02d2…00b9` |
+
+Reviewed by `human:mikegtech` under `portable-knowledge-prohibited-content-v1`
+at `2026-08-18T17:37:10Z`. Each digest was recomputed and required to equal its
+approved value **before** any attestation was written; a mismatch on any one
+module would have stopped that module alone.
+
+**A note on the approval itself.** The first approval message carried unfilled
+`sha256:<FULL DIGEST>` placeholders. No attestation was written from it — a
+review that names no digest cannot be bound to bytes, and the bytes were instead
+re-verified as unchanged and the five digests put back for confirmation. The
+confirmed approval is what these attestations record.
+
+`generated.by` is `claude-code/2.1.234`, re-established from the running binary
+for this cohort rather than carried over from the first module.
+
+## Deliberately not done
+
+No packaging · no publication · no set release · no household or runbook content
+· no Proof B producer · no runtime resolver · no gate or rollout change. The
+`workflow_dispatch` ancestry defect and the Dependabot advisory remain
+out of scope for this PR.
+
+## Cohort A — independent review correction round
+
+The reviewer approved the lifecycle/evidence mechanism and `platform/governance`
+semantics, and found a defect **class** rather than an instance.
+
+**Provider adapters were being cited as canonical sources.** ADR-0014 makes
+provider-specific instruction surfaces subordinate projections; two catalog
+entries named one as a governing source, which would have made a vendor file the
+origin of a platform truth. A deterministic registry rule now refuses them, for
+modules and sets, by identity rather than shape — `.github/agents/**` is a
+provider adapter while `agents/**` is product content, and a pattern loose enough
+to catch both would reject the repository's own agent implementations.
+
+The rule found both live occurrences on its first run:
+`platform/review-conventions` and `runbooks/repository-validation`. Four mutants,
+four deaths — one survived until a set-side fixture existed, because the rule was
+tested for modules only.
+
+**The stranded rules were promoted, not deleted.** Four review findings existed
+only in the provider adapter, so removing the citation would have left them with
+no canonical home. They now sit provider-neutrally in `CONTRIBUTING.md` beside
+Proof quality. The profile-is-a-security-change fact uses its real owners,
+ADR-0006 §2 and `profiles/README.md`.
+
+**Four modules changed bytes, and their reviews failed as required.** Before any
+replacement was written, real admission refused exactly those four on
+`attestation.digest.binding` and nothing else, with `platform/governance` and
+`platform/runner-model` absent — the prior approvals did not migrate to new
+bytes. `platform/governance` changed no byte and keeps its original review.
+
+| Module | old digest | new digest |
+|---|---|---|
+| `platform/repository-taxonomy` | `84a84163…e002` | `96613fed…61d4` |
+| `platform/workspace-conventions` | `82a03e7f…2d0d` | `1aba9b1a…a913` |
+| `platform/implementation-rules` | `dcb0cc34…f64c` | `148c9831…57e7` |
+| `platform/review-conventions` | `d1dd02d2…00b9` | `04c926a4…dde5` |
+
+Re-reviewed by `human:mikegtech` at `2026-08-18T19:19:44Z`.
+`generated.by` is `claude-code/2.1.234`, re-established from the running binary;
+`generated.at` on every changed concept is `2026-08-18T18:53:35Z`, the real edit
+instant.
+
+**Set state is now derived, not counted.** The old rationale said every selected
+module is unversioned, which stopped being true as modules were authored. Each
+set's limitation now states how many required members remain unversioned, and no
+set is released or versioned — set lifecycle is Prompt 6's.
+
+---
+
+## Prompt 4E — final closure record
+
+The initial `platform/**` corpus is complete. OpenSpec records the work; it does
+not authorize it, and nothing below is authority for anything.
+
+Prior sections are unmodified.
+
+### Cohort A — final reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/repository-taxonomy` | 1.0.0 | `sha256:96613fed5f5f9df78bff3fda37ff7bb8beac0dc10bc292f21b270493696661d4` |
+| `platform/governance` | 1.0.0 | `sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5` |
+| `platform/workspace-conventions` | 1.0.0 | `sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42` |
+| `platform/implementation-rules` | 1.0.0 | `sha256:148c98319d0fe2002b0803c62e3aa493dc979e262032c55f753e48f5406857e7` |
+| `platform/review-conventions` | 1.0.0 | `sha256:04c926a41596d58ac46edb48a57fc0ddfb5c74e96d174f82eda3bef77024dde5` |
+
+`workspace-conventions` was re-reviewed after a correction round removed a
+commit-granularity rule that only a provider adapter stated.
+
+### Cohort B — final reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/api-contract-conventions` | 1.0.0 | `sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca` |
+| `platform/worker-conventions` | 1.0.0 | `sha256:502c3bbd28420d1891e5f0125ad5752db456e39230b6161dd12c07059d311dc7` |
+
+The API module was re-reviewed after a correction restored the canonical
+mechanism names its projection had generalised away — Zod, OpenAPI, MCP
+allowlisting, and the validated query AST.
+
+### The tenth module, from #83
+
+`platform/runner-model` is frozen at
+`sha256:e738f985db0ab56611f5fe3dc40e7324e4a699dd18c8e56adf9f2f87204004d0`
+and was not touched by any cohort.
+
+### Cohort C — final corrected reviewed identities
+
+| Module | version | reviewed digest |
+|---|---|---|
+| `platform/core-operating-model` | 1.0.0 | `sha256:e9644f110c63dfd939fc3569703eaff28251d2c5e6b473d32057e4730e567c7a` |
+| `platform/degraded-operation` | 1.0.0 | `sha256:1d4b4c2cf10c0a2749e1bc5b760244dffff9a365094ce817f16817465b52ef3e` |
+
+Both were re-reviewed after a correction round. `core-operating-model` gained
+`services/AGENTS.md`, which owns the physical-action rules it was projecting
+without a declared source, and stopped collapsing authorization, safety, and live
+state into one word. `degraded-operation` restored the second half of ADR-0009's
+`CONTINUE` condition — absence of physical risk alone does not earn it — and
+narrowed a prohibition that had overreached into governance: a run must not infer
+or implement a bounded-authority mechanism from this module, but proposing one
+through a governed decision record remains a legitimate authorized act.
+
+### Prompt 4 — initial platform corpus COMPLETE
+
+Ten `platform/**` modules are `Validated` at `1.0.0`, each against its own
+human-reviewed bytes, each admitted independently.
+
+### Standing state
+
+- No packaging. No publication. No set released.
+- **No Proof B producer exists**, so publication is unreachable by design
+  (ADR-0016 §5a), and every admitted module reports `proof_b_unavailable`.
+- No runtime query resolver; `knowledge/` is not runtime-authoritative.
+- `blockedByRollout` still holds `household/**`, `runbooks/**`, and every set.
+- Landing: PR #84, branch `knowledge/platform-projections`. The exact head is
+  whatever git records for the commit carrying this section — a commit cannot
+  contain its own hash, and a stale one would be worse than none.

@@ -104,13 +104,15 @@ Individually:
 
 ```sh
 bash scripts/validate-scaffold.sh
-uv sync --all-packages
+uv sync --all-packages --locked
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run pytest
-pnpm install --lockfile-only
-pnpm -r --if-present run check
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 ## 6. Read before going further
@@ -156,5 +158,5 @@ rm -rf ~/.nvm                                 # nvm and its Node versions
 | `uv: command not found` | `~/.local/bin` not on `PATH` | `export PATH="$HOME/.local/bin:$PATH"` and add it to your shell profile |
 | `corepack: command not found` | system Node predates Corepack, or nvm not sourced | source nvm, then `nvm install --lts` |
 | `pnpm` resolves to an unexpected version | a globally installed pnpm shadows Corepack | uninstall the global pnpm; let `packageManager` decide |
-| `uv run mypy` reports missing packages | workspace not synced | `uv sync --all-packages` first |
+| `uv run mypy` reports missing packages | workspace not synced | `uv sync --all-packages --locked` first |
 | `check.sh` reports skipped checks | a toolchain is missing | install it, or report the skip explicitly in your PR |

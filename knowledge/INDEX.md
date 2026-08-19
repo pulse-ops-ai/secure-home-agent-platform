@@ -2,17 +2,22 @@
 
 The canonical registry of knowledge **modules** and **sets**.
 
-> **The first module is authored and validated; nothing is packaged or
-> published, and none of this is runtime-authoritative.** The toolchain and its
+> **The initial Prompt-4 `platform/**` corpus is complete —
+> [`catalog.json`](catalog.json) is authoritative for the current inventory and
+> lifecycle state; nothing is packaged or published, and none of this is
+> runtime-authoritative.** The toolchain and its
 > conformance suite are implemented and are invoked over real repository content
 > by `scripts/check-knowledge-content.mjs`, and the ADR-0015 §12 readiness
 > obligation was **discharged on 2026-08-16** — so `blockedByToolchain` is
-> `false` on all 23 entries and the ten `platform/**` modules are
-> **authoring-eligible**.
+> `false` for every current registered entry, and the rollout-eligible
+> `platform/**` modules are **authoring-eligible**.
+> [`catalog.json`](catalog.json) is authoritative for the current inventory and
+> lifecycle state.
 >
-> [`platform/runner-model`](platform/runner-model/) is **`Validated`**: its exact
-> repository bytes carry a human content review bound to their digest and pass
-> canonical admission. Every other module is `Planned`. Nothing is packaged and
+> Every `Validated` `platform/**` module sits at `1.0.0`, and further modules may
+> be added when new durable truths are earned. Each carries **its own**
+> human content review bound to **its own** digest and passes canonical
+> admission independently. Every other module is `Planned`. Nothing is packaged and
 > nothing is published — `household/**`, `runbooks/**`, and every set remain
 > rollout-blocked, and publication additionally requires Proof B, for which no
 > governed producer exists.
@@ -56,7 +61,8 @@ fields are specified in
 | `Deprecated` | superseded; still resolvable, and it should not be newly selected |
 | `Retired` | no longer resolvable |
 
-**`platform/runner-model` is `Validated`; everything else below is `Planned`.**
+**[`catalog.json`](catalog.json) carries each module's lifecycle status and is
+authoritative for it; the tables below name purpose and consumers.**
 `blockedByToolchain` was discharged on 2026-08-16, so `Validated` and `Packaged`
 are representable for a module that has **earned** them — a status is validated
 against the real mechanism rather than claimed, and no checker promotes a module

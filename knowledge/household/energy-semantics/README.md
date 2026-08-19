@@ -61,9 +61,11 @@ Household runners reasoning about cost or load shifting.
 - "What does this metric represent, and in what units?"
 - "What are the known caveats of this data?"
 
-## Governed by
+## Governing sources
 
-[`../README.md`](../../README.md) → [`../AGENTS.md`](../../AGENTS.md) ·
+Precedence runs `knowledge/README.md` → `knowledge/AGENTS.md` → the ADRs below.
+
+[ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
 [ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 
 ## Validation

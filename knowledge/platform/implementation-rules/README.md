@@ -5,11 +5,12 @@ must hold.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile.
 
 ## Intended facts
 
@@ -24,7 +25,11 @@ must hold.
 - No credential, `.env`, or realistic secret example belongs in the repository —
   including in test fixtures.
 - A fix converts an assumption into a mechanism: when a defect is found, the
-  class is swept and a negative test proves the fix.
+  class is swept and a negative test proves the fix. **The procedure for that —
+  proof quality, defect-class sweeps, what counts as evidence — is
+  `platform/review-conventions`', not this module's.** What this module keeps is
+  the implementation invariant: a security-relevant rule is a mechanism, not
+  prose.
 
 ## Prohibited facts
 
@@ -45,6 +50,8 @@ Coding runners with write access to the repository.
 ## Governing sources
 
 [ADR-0012 §15](../../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) ·
+[ADR-0006](../../../docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md) ·
+[`AGENTS.md`](../../../AGENTS.md) ·
 [`packages/README.md`](../../../packages/README.md) ·
 [`services/AGENTS.md`](../../../services/AGENTS.md)
 

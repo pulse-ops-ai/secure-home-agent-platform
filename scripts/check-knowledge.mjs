@@ -82,8 +82,8 @@
  * Governed by AGENTS.md and ADR-0010.
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, existsSync, readdirSync, statSync, lstatSync } from 'node:fs'
+import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -139,6 +139,126 @@ const REQUIRED_SET_FIELDS = [
   'overrideAuthority',
   'rationale',
 ]
+
+/**
+ * PROVIDER ADAPTERS ARE NEVER CANONICAL GOVERNING SOURCES.
+ *
+ * ADR-0014 makes provider-specific instruction surfaces SUBORDINATE: they adapt
+ * governed contracts for one tool, and they never own a platform truth. A
+ * catalog entry naming one as a governing source inverts that — the portable
+ * projection would then cite a provider adapter as the origin of a rule, and
+ * the rule would live in exactly one vendor's file.
+ *
+ * Rejected by IDENTITY, not by shape. `.github/agents/**` is a provider adapter;
+ * `agents/**` is this product's own content, and the two differ by one path
+ * prefix. A pattern loose enough to catch both would reject the repository's own
+ * agent implementations, so the surfaces are named.
+ *
+ * The canonical home for a rule found only in an adapter is a provider-neutral
+ * governed contract — `AGENTS.md`, `CONTRIBUTING.md`, an ADR — and moving it
+ * there is the fix. Removing the citation while leaving the rule stranded is not.
+ */
+/**
+ * A GOVERNING SOURCE IS A CANONICAL REPOSITORY FILE PATH.
+ *
+ * Provider classification compared the raw catalog string while existence used a
+ * resolving `join`. So `./CLAUDE.md` and `docs/../CLAUDE.md` denoted a provider
+ * adapter, existed happily, and matched no provider pattern — the SPELLING
+ * decided rather than the identity, and a rule keyed on one spelling of a path
+ * is not a rule about that path.
+ *
+ * One canonical form removes the alias space, and provider classification then
+ * runs on an identity that has exactly one spelling.
+ */
+/**
+ * The FIRST aliased component of a repository-relative path, or undefined.
+ *
+ * `lstatSync` declines to follow only the LAST component; the operating system
+ * still resolves every parent. So `alias -> .` with a source of
+ * `alias/CLAUDE.md` reached a regular CLAUDE.md, while provider classification
+ * read a string beginning `alias/` and saw nothing provider-shaped. Checking the
+ * final component alone cannot establish "this is a real repository file".
+ *
+ * Walks from the trusted repository root, one component at a time, with
+ * no-follow metadata. A missing component is not this rule's business — the
+ * existence rule reports that — so it stops rather than refusing.
+ *
+ * Resolving the alias and accepting an in-repository target is deliberately NOT
+ * the rule: two spellings of one file is the whole defect.
+ */
+const aliasedComponent = (root, source) => {
+  let current = root
+  for (const segment of source.split('/')) {
+    current = join(current, segment)
+    let stats
+    try {
+      stats = lstatSync(current)
+    } catch {
+      return undefined
+    }
+    if (stats.isSymbolicLink()) return current.slice(root.length + 1)
+  }
+  return undefined
+}
+
+/**
+ * THE README'S GOVERNING SOURCES MUST EQUAL THE CATALOG'S.
+ *
+ * `catalog.json` is the metadata authority, but every module README repeats the
+ * list for a human reader, and a duplicated statement drifts silently. It did:
+ * one landing added governing sources to the catalog and left six READMEs
+ * behind, so the human-facing page named a governing set the machine did not
+ * agree with, and a reader had no way to tell which was current.
+ *
+ * Compared as resolved repository identities and as a SET. Never as display
+ * labels — a link's text is arbitrary and says nothing about what it points at —
+ * and never as a sequence, because order carries no meaning here.
+ */
+const GOVERNING_HEADING = /^##\s+Governing sources\s*$/im
+const MARKDOWN_LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
+const EXTERNAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
+
+/** The section's own body: from its heading to the next heading of any depth. */
+const governingSection = (text) => {
+  const heading = GOVERNING_HEADING.exec(text)
+  if (!heading) return undefined
+  const rest = text.slice(heading.index + heading[0].length)
+  const next = /^#{1,6}\s/m.exec(rest)
+  return next ? rest.slice(0, next.index) : rest
+}
+
+/** Local link destinations, resolved from the README to repository-relative. */
+const readmeGoverningSources = (section, moduleId) => {
+  const from = `knowledge/${moduleId}`
+  const found = new Set()
+  for (const match of section.matchAll(MARKDOWN_LINK)) {
+    const destination = match[1]
+    // An external URL or a bare in-page anchor is not a repository source.
+    if (EXTERNAL.test(destination) || destination.startsWith('#')) continue
+    const withoutFragment = destination.split('#')[0]
+    if (withoutFragment === '') continue
+    found.add(posix.normalize(posix.join(from, withoutFragment)))
+  }
+  return found
+}
+
+const canonicalPathProblem = (source) => {
+  if (typeof source !== 'string' || source === '') return 'is empty'
+  if (source.includes('\\')) return 'uses a backslash separator; paths are POSIX'
+  if (source.startsWith('/')) return 'is an absolute path'
+  const segments = source.split('/')
+  if (segments.includes('.')) return 'contains a "." segment'
+  if (segments.includes('..')) return 'contains a ".." segment and may escape the repository'
+  if (segments.includes('')) return 'contains an empty segment'
+  if (posix.normalize(source) !== source) return 'is not normalized'
+  return undefined
+}
+
+const PROVIDER_SURFACES = new Set(['CLAUDE.md', '.github/copilot-instructions.md'])
+const PROVIDER_PREFIXES = ['.github/agents/', '.claude/']
+
+const isProviderSurface = (source) =>
+  PROVIDER_SURFACES.has(source) || PROVIDER_PREFIXES.some((p) => source.startsWith(p))
 
 /** Fields that may legitimately be null while a module is unauthored. */
 const NULLABLE_WHILE_PLANNED = new Set(['version', 'asOf'])
@@ -331,6 +451,43 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of m.governingSources ?? []) {
+      const pathProblem = canonicalPathProblem(source)
+      if (pathProblem !== undefined) {
+        fail(
+          `module "${id}": governingSources names "${source}", which ${pathProblem}. ` +
+            'It must be a canonical repository path — repository-relative, POSIX, ' +
+            'normalized — so one file has exactly one spelling and cannot evade ' +
+            'classification by alias',
+        )
+        continue
+      }
+      const absolute = join(root, source)
+      const aliased = aliasedComponent(root, source)
+      if (aliased !== undefined) {
+        fail(
+          `module "${id}": governingSources names "${source}", whose component ` +
+            `"${aliased}" is a symbolic link. A governing source must be a real repository ` +
+            'file in every component: an alias is classified by its own spelling, so a ' +
+            'neutral-looking path could resolve to a provider adapter or outside the ' +
+            'repository entirely',
+        )
+        continue
+      }
+      if (existsSync(absolute) && !lstatSync(absolute).isFile()) {
+        fail(
+          `module "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
+      }
+      if (isProviderSurface(source)) {
+        fail(
+          `module "${id}": governingSources names "${source}", a provider-specific ` +
+            'instruction surface. ADR-0014 makes those subordinate projections, never ' +
+            'canonical sources — promote the rule to a provider-neutral governed ' +
+            'contract and cite that instead',
+        )
+      }
       if (!existsSync(join(root, source))) {
         fail(`module "${id}": governingSources names "${source}", which does not exist`)
       }
@@ -426,6 +583,43 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
       )
     }
     for (const source of s.governingSources ?? []) {
+      const pathProblem = canonicalPathProblem(source)
+      if (pathProblem !== undefined) {
+        fail(
+          `set "${id}": governingSources names "${source}", which ${pathProblem}. ` +
+            'It must be a canonical repository path — repository-relative, POSIX, ' +
+            'normalized — so one file has exactly one spelling and cannot evade ' +
+            'classification by alias',
+        )
+        continue
+      }
+      const absolute = join(root, source)
+      const aliased = aliasedComponent(root, source)
+      if (aliased !== undefined) {
+        fail(
+          `set "${id}": governingSources names "${source}", whose component ` +
+            `"${aliased}" is a symbolic link. A governing source must be a real repository ` +
+            'file in every component: an alias is classified by its own spelling, so a ' +
+            'neutral-looking path could resolve to a provider adapter or outside the ' +
+            'repository entirely',
+        )
+        continue
+      }
+      if (existsSync(absolute) && !lstatSync(absolute).isFile()) {
+        fail(
+          `set "${id}": governingSources names "${source}", which is not a regular file. ` +
+            'A directory governs nothing',
+        )
+        continue
+      }
+      if (isProviderSurface(source)) {
+        fail(
+          `set "${id}": governingSources names "${source}", a provider-specific ` +
+            'instruction surface. ADR-0014 makes those subordinate projections, never ' +
+            'canonical sources — promote the rule to a provider-neutral governed ' +
+            'contract and cite that instead',
+        )
+      }
       if (!existsSync(join(root, source))) {
         fail(`set "${id}": governingSources names "${source}", which does not exist`)
       }
@@ -542,6 +736,33 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
         `module "${m.id}": README states owner ${JSON.stringify(registry.owner)} but the ` +
           `catalog says ${JSON.stringify(m.owner)}`,
       )
+    }
+
+    const section = governingSection(text)
+    if (section === undefined) {
+      fail(
+        `module "${m.id}": README has no "## Governing sources" section. The catalog ` +
+          'names what governs this module; the README must state the same thing',
+      )
+    } else {
+      const stated = readmeGoverningSources(section, m.id)
+      const declared = new Set(m.governingSources ?? [])
+      for (const source of declared) {
+        if (!stated.has(source)) {
+          fail(
+            `module "${m.id}": README "Governing sources" omits "${source}", which the ` +
+              'catalog declares. The prose view must not understate what governs the module',
+          )
+        }
+      }
+      for (const source of stated) {
+        if (!declared.has(source)) {
+          fail(
+            `module "${m.id}": README "Governing sources" links "${source}", which the ` +
+              'catalog does not declare. The catalog is the metadata authority',
+          )
+        }
+      }
     }
 
     const ipv4 = IPV4.exec(text)

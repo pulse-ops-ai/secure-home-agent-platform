@@ -141,8 +141,11 @@ MCP tool, and a test without any of them re-declaring it.
 ## Validation
 
 ```sh
-uv sync --all-packages && uv run ruff check . && uv run mypy && uv run pytest
-pnpm install --lockfile-only && pnpm -r --if-present run check
+uv sync --all-packages --locked && uv run ruff check . && uv run mypy && uv run pytest
+pnpm install --frozen-lockfile
+pnpm run deps:check && pnpm run format:check
+pnpm run check:workspace && pnpm run check:imports
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 Future: a cross-language check that the Python and TypeScript contract packages
