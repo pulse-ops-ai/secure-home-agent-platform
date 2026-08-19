@@ -888,6 +888,12 @@ REVIEWED_DIGESTS = {
     "platform/workspace-conventions": (
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
+    "platform/core-operating-model": (
+        "sha256:e5a79debc78069cb035627dd17217b9aa71d4a50dc3d2de8ad0bdd2d30c2b099"
+    ),
+    "platform/degraded-operation": (
+        "sha256:6caadb46490dafbe6ce927a6a44483d8dc68b2a96cf4b3a45f4d3d12bb920e4d"
+    ),
     "platform/api-contract-conventions": (
         "sha256:7a6d86d0ad5e6f07ae96b05e47c082614ba0910e5ef64fd14f489d8fc0f81cca"
     ),

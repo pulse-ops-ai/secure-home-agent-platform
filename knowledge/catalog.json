@@ -51,15 +51,22 @@
       "purpose": "How this platform behaves, in the terms an agent must reason in.",
       "consumers": ["coding-runner", "household-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Describes the operating model only; confers no authority and states no enforced threshold.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-19",
+      "limitations": "Portable projection only. States no enforced rule, threshold, endpoint, credential, or live platform state. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-19T03:59:25Z",
+        "sourceDigest": "sha256:e5a79debc78069cb035627dd17217b9aa71d4a50dc3d2de8ad0bdd2d30c2b099"
+      },
       "governingSources": [
         "docs/decisions/ADR-0004-treat-agents-as-clients.md",
         "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
-        "docs/architecture/system-context.md"
+        "docs/architecture/system-context.md",
+        "services/README.md"
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when an ADR changes the operating model.",
@@ -286,14 +293,21 @@
       "purpose": "How the platform behaves when parts of it are unreachable.",
       "consumers": ["coding-runner", "household-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. BOUNDED behaves as FAIL CLOSED until U1 is resolved, and the module must say so.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-19",
+      "limitations": "Portable projection only. Carries no per-operation policy table, no current outage or service health, and no live policy configuration. Names no bounded-authority mechanism, because none is selected. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-19T03:59:25Z",
+        "sourceDigest": "sha256:6caadb46490dafbe6ce927a6a44483d8dc68b2a96cf4b3a45f4d3d12bb920e4d"
+      },
       "governingSources": [
         "docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md",
         "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
-        "docs/architecture/degraded-mode.md"
+        "docs/architecture/degraded-mode.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md"
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the degraded-mode classification changes, or when U1 resolves.",

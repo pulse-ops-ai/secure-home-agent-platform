@@ -86,8 +86,9 @@ query interface exists at runtime, so [`knowledge/`](knowledge/) is
 **not runtime-authoritative** — nothing is packaged, published, or resolvable by
 a running profile. The toolchain, its
 conformance suite, and repository content admission are implemented and run in
-CI; the ADR-0015 §12 obligation was discharged on 2026-08-16, so authoring is
-open for the ten rollout-eligible `platform/**` modules. The selection contract is
+CI; the ADR-0015 §12 obligation was discharged on 2026-08-16. Every
+rollout-eligible `platform/**` module is now authored and `Validated`;
+`blockedByRollout` still holds `household/**`, `runbooks/**`, and every set. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers

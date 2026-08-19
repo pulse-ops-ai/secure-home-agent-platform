@@ -5,8 +5,9 @@ that agents read to *understand* the house.
 
 > **Status: several `platform/**` modules are authored and validated; the rest
 > are `Planned`.** [`catalog.json`](catalog.json) and [`INDEX.md`](INDEX.md)
-> record each module's lifecycle status and are authoritative for it. Authoring is open for the ten
-> rollout-eligible `platform/**` modules. The FORMAT is decided
+> record each module's lifecycle status and are authoritative for it. Every rollout-eligible `platform/**`
+> module is authored and `Validated`; `blockedByRollout` still holds
+> `household/**`, `runbooks/**`, and every set. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
 > which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
 > toolchain and its conformance suite are implemented and are invoked over real
