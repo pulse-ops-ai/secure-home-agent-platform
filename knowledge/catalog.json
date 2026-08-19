@@ -205,10 +205,16 @@
       "purpose": "How API surface is authored so one definition produces every downstream artifact.",
       "consumers": ["coding-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Carries no endpoint path, hostname, or generated document.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-19",
+      "limitations": "Portable projection only. Names no endpoint path, hostname, or environment URL, and reproduces no generated document. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-19T02:01:51Z",
+        "sourceDigest": "sha256:10b07fcdd4032f6763d8c6734fe457329baffc8b75ba6b8c4be0eea97d2b9995"
+      },
       "governingSources": [
         "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
         "docs/architecture/api-contract-model.md"
@@ -223,10 +229,16 @@
       "purpose": "What every background worker owes the platform.",
       "consumers": ["coding-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Carries no broker address and no live worker state.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-19",
+      "limitations": "Portable projection only. Names no broker address, queue endpoint, or connection detail, and carries no live worker state. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-19T02:01:51Z",
+        "sourceDigest": "sha256:502c3bbd28420d1891e5f0125ad5752db456e39230b6161dd12c07059d311dc7"
+      },
       "governingSources": [
         "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
         "services/README.md",

@@ -163,7 +163,7 @@ pnpm run check:knowledge-content
 ```
 
 It runs unconditionally in `scripts/check.sh` and in CI, so a change touching
-only `knowledge/**` cannot skip it. Today it admits six `platform/**` modules,
+only `knowledge/**` cannot skip it. Today it admits eight `platform/**` modules,
 and reports for each the exact byte identity admission
 bound.
 

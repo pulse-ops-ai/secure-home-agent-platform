@@ -138,7 +138,7 @@ no report.
   but never grants tools, capabilities, authorization, or permission to override
   live state or accepted ADRs. The toolchain, its conformance suite, and
   repository content admission are implemented and run in CI,
-  `blockedByToolchain` was discharged on 2026-08-16, and six `platform/**`
+  `blockedByToolchain` was discharged on 2026-08-16, and eight `platform/**`
   modules are authored and `Validated` at `1.0.0`. No governed query
   interface exists at runtime and nothing is packaged or published, so
   `knowledge/` is **not runtime-authoritative**
