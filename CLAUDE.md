@@ -144,5 +144,6 @@ no report.
   `knowledge/` is **not runtime-authoritative**
   ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format
   decision is Accepted; readiness was always a different fact). Authoring
-  requires BOTH gates false: `blockedByRollout` still holds `household/**`,
-  `runbooks/**`, and every set.
+  requires BOTH gates false: `blockedByRollout` still holds `household/**` and
+  every set. Runbook rollout is per module — `knowledge/catalog.json` is
+  authoritative for current eligibility.

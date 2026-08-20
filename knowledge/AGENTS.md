@@ -63,8 +63,9 @@ value be different in ten minutes?** If yes, it is state.
 
 - Author content for a module that is **not authoring-eligible**. Eligibility
   requires *both* gates false. `blockedByToolchain` was discharged on
-  2026-08-16, so the ten `platform/**` modules are eligible; `household/**`,
-  `runbooks/**`, and every set are still `blockedByRollout`. Whatever you author
+  2026-08-16, so the `platform/**` modules are eligible and runbooks are eligible
+  per module by explicit allowlist; `household/**` and every set are still
+  `blockedByRollout`. `catalog.json` is authoritative for current eligibility. Whatever you author
   must pass `pnpm run check:knowledge-content`, and publication still requires
   Proof B, which has no producer.
 - Change the source format. It is decided by
@@ -83,8 +84,12 @@ value be different in ten minutes?** If yes, it is state.
 4. Add it to the sets that should receive it, **and to the `deny` list of the
    sets that should not.**
 5. Author content only for an authoring-eligible module — **both** gates
-   false. `blockedByToolchain` is discharged; `blockedByRollout` is not, outside
-   `platform/**`. Whatever you author must pass
+   false. `blockedByToolchain` is discharged everywhere.
+   [`catalog.json`](catalog.json) is authoritative for `blockedByRollout`, and
+   the rule differs by class: `platform/**` is rollout-eligible **by class**;
+   a runbook is eligible **individually**, only when a reviewed change adds it
+   to `runbookRolloutAllowlist`; `household/**` modules remain blocked; every
+   set remains blocked. Whatever you author must pass
    `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module

@@ -34,8 +34,14 @@
  * that every registered module exists, carries its metadata, is reachable from
  * the index, is not claiming a status it has not earned, and carries the two
  * structural gates. Confusing the two would be the worst outcome here, because a
- * green run could be mistaken for evidence that content was admitted. No content
- * exists, and check 6 below enforces that.
+ * green run could be mistaken for evidence that content was admitted. It is not.
+ *
+ * The division, precisely: while a module's toolchain gate is closed, check 6
+ * below enforces README-only, so no authored source can exist there. Once that
+ * gate opens — as it now has — authored source is expected, and whether those
+ * real bytes are ADMISSIBLE is decided by `check-knowledge-content.mjs` and the
+ * toolchain it invokes, never here. This file owns specification and gate
+ * coherence; it owns no content rules at all.
  *
  * The address scanning that remains here is a SCAFFOLD concern over
  * specification READMEs, not content admission: network and hardware addresses
@@ -242,6 +248,80 @@ const readmeGoverningSources = (section, moduleId) => {
   return found
 }
 
+/**
+ * RUNBOOK ROLLOUT IS PER MODULE, NEVER PER DIRECTORY.
+ *
+ * ADR-0016 §7a: "Runbooks are allowlisted individually, never by directory. A
+ * new runbook is ineligible on creation and becomes eligible only when a
+ * reviewed change adds it to the allowlist — so a household-oriented runbook
+ * cannot become eligible because of where it was filed."
+ *
+ * The previous derivation — platform/** false, everything else true — encoded
+ * the INITIAL state exactly and could express nothing after it. This reads the
+ * allowlist the ADR names, and validates it hard: an entry that names no
+ * registered module, that is not a runbook, that is a directory or wildcard, or
+ * that repeats, is refused rather than silently releasing nothing (or something).
+ *
+ * The key is REQUIRED. An absent policy would fail closed, but it would also be
+ * invisible, and a rollout policy nobody can see is not reviewable.
+ */
+const readRunbookAllowlist = (catalog, moduleIds, fail) => {
+  const raw = catalog['runbookRolloutAllowlist']
+  if (raw === undefined) {
+    fail(
+      'catalog: "runbookRolloutAllowlist" is missing. ADR-0016 §7a releases a runbook ' +
+        'only by explicit per-module entry, so the list must be stated even when empty',
+    )
+    return new Set()
+  }
+  if (!Array.isArray(raw)) {
+    fail('catalog: "runbookRolloutAllowlist" must be an array of module IDs')
+    return new Set()
+  }
+  const allowed = new Set()
+  for (const entry of raw) {
+    if (typeof entry !== 'string') {
+      fail('catalog: "runbookRolloutAllowlist" must be an array of strings')
+      continue
+    }
+    if (allowed.has(entry)) {
+      fail(`catalog: "runbookRolloutAllowlist" repeats "${entry}"`)
+      continue
+    }
+    allowed.add(entry)
+    if (entry.includes('*') || entry.endsWith('/')) {
+      fail(
+        `catalog: "runbookRolloutAllowlist" entry "${entry}" is a directory or wildcard. ` +
+          'ADR-0016 §7a allowlists runbooks individually, never by directory',
+      )
+      continue
+    }
+    if (!entry.startsWith('runbooks/')) {
+      fail(
+        `catalog: "runbookRolloutAllowlist" entry "${entry}" is not a runbook. The list ` +
+          'releases runbooks/** modules only; every other class has its own reviewed route',
+      )
+      continue
+    }
+    if (!moduleIds.has(entry)) {
+      fail(`catalog: "runbookRolloutAllowlist" entry "${entry}" names no registered module`)
+    }
+  }
+  return allowed
+}
+
+/**
+ * The reviewed rollout value for one module, ASSERTED rather than accepted.
+ *
+ * The allowlist is consulted only for `runbooks/**`, so even a validation slip
+ * above cannot release `household/**` — the smaller claim, structurally.
+ */
+const expectedRollout = (id, allowlist) => {
+  if (id.startsWith('platform/')) return false
+  if (id.startsWith('runbooks/')) return !allowlist.has(id)
+  return true
+}
+
 const canonicalPathProblem = (source) => {
   if (typeof source !== 'string' || source === '') return 'is empty'
   if (source.includes('\\')) return 'uses a backslash separator; paths are POSIX'
@@ -371,6 +451,12 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
   const modules = catalog.modules ?? []
   const sets = catalog.sets ?? []
 
+  // Every declared module id, needed before the allowlist can be validated:
+  // an entry naming no registered module is a typo that releases nothing while
+  // reading as though it released something.
+  const declaredModuleIds = new Set(modules.map((m) => m.id).filter((id) => typeof id === 'string'))
+  const runbookAllowlist = readRunbookAllowlist(catalog, declaredModuleIds, fail)
+
   // --- 2. module identity and metadata -------------------------------------
   const moduleIds = new Set()
   for (const m of modules) {
@@ -443,11 +529,12 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     // independently here. A `platform/**` module being rollout-eligible says
     // nothing about whether the toolchain exists, and `blockedByToolchain`
     // above still refuses it.
-    const rollout = id.startsWith('platform/') ? false : true
+    const rollout = expectedRollout(id, runbookAllowlist)
     if (m.blockedByRollout !== rollout) {
       fail(
         `module "${id}": blockedByRollout must be ${String(rollout)} — ` +
-          'ADR-0016 §7a sets platform/** false and household/** and runbooks/** true',
+          'ADR-0016 §7a sets platform/** false, household/** true, and runbooks/** true ' +
+          'unless the module appears in "runbookRolloutAllowlist"',
       )
     }
     for (const source of m.governingSources ?? []) {

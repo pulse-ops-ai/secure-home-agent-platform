@@ -78,7 +78,7 @@ questions the ADRs deliberately left open:
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
 | Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Authoring knowledge outside `platform/**` | `blockedByRollout` — `household/**`, `runbooks/**`, and every set remain rollout-blocked (ADR-0016 §7a) |
+| Authoring `household/**` knowledge, or releasing any set | `blockedByRollout` — both remain rollout-blocked (ADR-0016 §7a). Runbooks are allowlisted per module, never by directory; `knowledge/catalog.json` is authoritative for current eligibility |
 | **Publishing** any knowledge bundle | no governed **Proof B** producer exists ([ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §5a). Discharging readiness did not unblock publication |
 | Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
 | Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |

@@ -89,7 +89,9 @@ a running profile. The toolchain, its
 conformance suite, and repository content admission are implemented and run in
 CI; the ADR-0015 §12 obligation was discharged on 2026-08-16. Every
 rollout-eligible `platform/**` module is now authored and `Validated`;
-`blockedByRollout` still holds `household/**`, `runbooks/**`, and every set. The selection contract is
+`blockedByRollout` still holds `household/**` and every set. Runbook rollout is
+per module — ADR-0016 §7a allowlists runbooks individually, never by directory —
+and `knowledge/catalog.json` is authoritative for current eligibility. The selection contract is
 [`docs/architecture/knowledge-selection-model.md`](docs/architecture/knowledge-selection-model.md).
 
 ## Promoting what a change discovers
@@ -123,7 +125,8 @@ Two consequences:
   the toolchain and its integration — a different fact from
   [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether the
   format was decided and is RESOLVED. `blockedByRollout` still holds
-  `household/**`, `runbooks/**`, and every set. ADR-0014 decides *where a truth
+  `household/**` and every set; runbooks are eligible per module by explicit
+  allowlist. ADR-0014 decides *where a truth
   goes*; for a module that is not yet eligible the path still terminates at the
   canonical home, with the determination recorded rather than acted on.
 

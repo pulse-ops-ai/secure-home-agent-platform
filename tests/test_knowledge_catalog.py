@@ -480,11 +480,21 @@ def test_rollout_eligibility_matches_the_accepted_initial_values() -> None:
     starts blocked.
     """
     catalog = _catalog()
+    allowlist = set(catalog[ALLOWLIST])
     for module in catalog["modules"]:
-        expected = not module["id"].startswith("platform/")
+        mid = module["id"]
+        if mid.startswith("platform/"):
+            expected = False
+        elif mid.startswith("runbooks/"):
+            expected = mid not in allowlist
+        else:
+            expected = True
         assert module["blockedByRollout"] is expected, (
-            f"{module['id']}: blockedByRollout must be {expected} per ADR-0016 §7a"
+            f"{mid}: blockedByRollout must be {expected} per ADR-0016 §7a"
         )
+    assert allowlist and all(i.startswith("runbooks/") for i in allowlist), (
+        f"the allowlist releases runbooks and nothing else: {sorted(allowlist)}"
+    )
     for s in catalog["sets"]:
         assert s["blockedByRollout"] is True, (
             f"{s['id']}: every set starts rollout-blocked per ADR-0016 §7a"
@@ -499,11 +509,15 @@ def test_discharging_readiness_did_not_move_the_rollout_gate() -> None:
     that assertion is VACUOUS: every entry has ``blockedByToolchain`` false, so
     checking it of the rollout-eligible ones proves nothing.
 
-    What is not vacuous is the other direction — 13 entries now carry
+    What is not vacuous is the other direction — entries carrying
     ``blockedByToolchain: false`` together with ``blockedByRollout: true``. That
     combination can only exist if discharging one gate left the other alone, and
     it is the assertion that would fail if a future change conflated them again,
     which is how the U7 defect looked the first time.
+
+    The count dropped from 13 to 10 when Prompt 5A allowlisted three runbooks —
+    a reviewed rollout transition, not a gate conflation. It stays explicit so a
+    future release has to move it deliberately.
     """
     catalog = _catalog()
     entries = [*catalog["modules"], *catalog["sets"]]
@@ -512,19 +526,23 @@ def test_discharging_readiness_did_not_move_the_rollout_gate() -> None:
         for e in entries
         if e["blockedByToolchain"] is False and e["blockedByRollout"] is True
     ]
-    assert len(divergent) == 13, (
+    assert len(divergent) == 10, (
         f"discharging readiness must not have released rollout: {divergent}"
     )
+    assert all(
+        i.startswith("household/") or i in {e["id"] for e in catalog["sets"]} for i in divergent
+    ), f"only household modules and sets remain rollout-blocked: {divergent}"
     assert all(e["blockedByToolchain"] is False for e in entries)
 
 
 def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> None:
     """Authoring eligibility requires BOTH gates false.
 
-    Discharging readiness opened authoring for the ten ``platform/**`` modules
-    and for nothing else. This is the proof that the two gates were genuinely
-    independent rather than one fact spelled twice: if discharging readiness had
-    released everything, ``blockedByRollout`` was never load-bearing.
+    Discharging readiness opened authoring for the ``platform/**`` modules and
+    for nothing else; Prompt 5A then opened exactly the allowlisted runbooks.
+    This is the proof that the two gates were genuinely independent rather than
+    one fact spelled twice: if discharging readiness had released everything,
+    ``blockedByRollout`` was never load-bearing.
     """
     catalog = _catalog()
     open_on_both = sorted(
@@ -532,13 +550,22 @@ def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> N
         for e in [*catalog["modules"], *catalog["sets"]]
         if e["blockedByToolchain"] is False and e["blockedByRollout"] is False
     )
-    assert len(open_on_both) == 10, open_on_both
-    assert all(i.startswith("platform/") for i in open_on_both), open_on_both
+    allowlist = set(catalog[ALLOWLIST])
+    expected_open = sorted(
+        [m["id"] for m in catalog["modules"] if m["id"].startswith("platform/")] + sorted(allowlist)
+    )
+    assert open_on_both == expected_open, open_on_both
+    assert all(i.startswith(("platform/", "runbooks/")) for i in open_on_both), open_on_both
+    assert not any(i.startswith("household/") for i in open_on_both), open_on_both
 
     still_blocked = [
         e["id"] for e in [*catalog["modules"], *catalog["sets"]] if e["blockedByRollout"] is True
     ]
-    assert len(still_blocked) == 13, still_blocked
+    assert len(still_blocked) == 10, still_blocked
+    # Every set, and every household module. Nothing else.
+    assert {i for i in still_blocked if not i.startswith("household/")} == {
+        e["id"] for e in catalog["sets"]
+    }, still_blocked
 
 
 def test_a_module_with_the_wrong_rollout_value_is_rejected(tmp_path: Path) -> None:
@@ -1389,3 +1416,182 @@ def test_a_nested_real_path_remains_valid(tmp_path: Path) -> None:
 
     result = _run(_fixture(tmp_path, "nested-real", mutate))
     assert result.returncode == 0, _output(result)
+
+
+# --- runbooks are allowlisted individually, never by directory -----------------
+#
+# ADR-0016 §7a: "Runbooks are allowlisted individually, never by directory. A new
+# runbook is ineligible on creation and becomes eligible only when a reviewed
+# change adds it to the allowlist — so a household-oriented runbook cannot become
+# eligible because of where it was filed."
+#
+# The derivation `platform/** ? false : true` could express the INITIAL state and
+# nothing after it. These prove the allowlist is the mechanism, that it is
+# runbook-only, and that living under runbooks/ earns nothing by itself.
+
+ALLOWLIST = "runbookRolloutAllowlist"
+
+
+def _sync_runbooks(catalog: Any) -> None:
+    """Make every runbook's flag agree with whatever allowlist the test set.
+
+    The fixture copies the LIVE catalog, where some runbooks are released. A test
+    that rewrites the allowlist without resyncing them would fail on that
+    inherited inconsistency rather than on the thing it is probing.
+    """
+    allowed = catalog.get(ALLOWLIST)
+    allowed = {x for x in allowed if isinstance(x, str)} if isinstance(allowed, list) else set()
+    for module in catalog["modules"]:
+        if module["id"].startswith("runbooks/"):
+            module["blockedByRollout"] = module["id"] not in allowed
+
+
+def _with_allowlist(tmp_path: Path, name: str, mutate_allowlist: Any) -> Path:
+    def mutate(catalog: Any, root: Path) -> None:
+        mutate_allowlist(catalog)
+
+    return _fixture(tmp_path, name, mutate)
+
+
+def test_an_allowlisted_runbook_may_be_rollout_eligible(tmp_path: Path) -> None:
+    """POSITIVE CONTROL. Without this the negatives below prove only strictness."""
+
+    def mutate(catalog: Any) -> None:
+        target = next(m for m in catalog["modules"] if m["id"].startswith("runbooks/"))
+        catalog[ALLOWLIST] = [target["id"]]
+        _sync_runbooks(catalog)
+
+    result = _run(_with_allowlist(tmp_path, "runbook-allowed", mutate))
+    assert result.returncode == 0, _output(result)
+
+
+def test_a_runbook_not_on_the_allowlist_may_not_be_eligible(tmp_path: Path) -> None:
+    """Living under runbooks/ earns nothing. The allowlist is the only route."""
+
+    def mutate(catalog: Any) -> None:
+        catalog[ALLOWLIST] = []
+        _sync_runbooks(catalog)
+        next(m for m in catalog["modules"] if m["id"].startswith("runbooks/"))[
+            "blockedByRollout"
+        ] = False
+
+    result = _run(_with_allowlist(tmp_path, "runbook-unlisted", mutate))
+    assert result.returncode != 0
+    assert "blockedByRollout" in _output(result)
+
+
+def test_a_new_runbook_defaults_to_blocked(tmp_path: Path) -> None:
+    """A runbook added later is ineligible on creation, not eligible by class."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        listed = next(m for m in catalog["modules"] if m["id"].startswith("runbooks/"))
+        catalog[ALLOWLIST] = [listed["id"]]
+        _sync_runbooks(catalog)
+        fresh = json.loads(json.dumps(listed))
+        # A newcomer that copies an allowlisted sibling's flags wholesale is the
+        # realistic mistake; it must still be refused.
+        fresh["id"] = "runbooks/newly-added"
+        catalog["modules"].append(fresh)
+
+    root = _fixture(
+        tmp_path, "runbook-new", mutate, extra_index_rows=["| `runbooks/newly-added` | fixture |"]
+    )
+    result = _run(root)
+    assert result.returncode != 0
+    assert "runbooks/newly-added" in _output(result)
+
+
+def test_household_cannot_be_released_through_the_runbook_allowlist(tmp_path: Path) -> None:
+    """The allowlist is runbook-only. It is not a general rollout back door."""
+
+    def mutate(catalog: Any) -> None:
+        target = next(m for m in catalog["modules"] if m["id"].startswith("household/"))
+        catalog[ALLOWLIST] = [target["id"]]
+        _sync_runbooks(catalog)
+        target["blockedByRollout"] = False
+
+    result = _run(_with_allowlist(tmp_path, "household-via-allowlist", mutate))
+    assert result.returncode != 0
+    assert "is not a runbook" in _output(result), (
+        "must be refused BY THE ALLOWLIST rule, not merely by the rollout assertion"
+    )
+
+
+def test_platform_stays_eligible_without_being_allowlisted(tmp_path: Path) -> None:
+    """CONTROL. platform/** was released as a class by ADR acceptance."""
+
+    def mutate(catalog: Any) -> None:
+        catalog[ALLOWLIST] = []
+        _sync_runbooks(catalog)
+
+    result = _run(_with_allowlist(tmp_path, "platform-unlisted", mutate))
+    assert result.returncode == 0, _output(result)
+
+
+def test_an_unknown_allowlist_identity_is_rejected(tmp_path: Path) -> None:
+    """An entry naming no registered module releases nothing and hides a typo."""
+
+    def mutate(catalog: Any) -> None:
+        catalog[ALLOWLIST] = ["runbooks/does-not-exist"]
+        _sync_runbooks(catalog)
+
+    result = _run(_with_allowlist(tmp_path, "allowlist-unknown", mutate))
+    assert result.returncode != 0
+    assert "runbooks/does-not-exist" in _output(result)
+
+
+def test_a_directory_wildcard_cannot_release_runbooks(tmp_path: Path) -> None:
+    """The prohibition ADR-0016 §7a states outright: never by directory."""
+    for index, entry in enumerate(["runbooks/*", "runbooks/**", "runbooks/"]):
+
+        def mutate(catalog: Any, entry: str = entry) -> None:
+            catalog[ALLOWLIST] = [entry]
+            _sync_runbooks(catalog)
+
+        result = _run(_with_allowlist(tmp_path, f"allowlist-wildcard-{index}", mutate))
+        assert result.returncode != 0, f"{entry} must not release a class"
+        assert "directory or wildcard" in _output(result), (
+            f"{entry}: must be refused AS A WILDCARD, not merely as an unknown module"
+        )
+
+
+def test_a_malformed_allowlist_is_rejected(tmp_path: Path) -> None:
+    """Duplicates and wrong types are refused rather than silently tolerated."""
+    runbook = next(m for m in _catalog()["modules"] if m["id"].startswith("runbooks/"))["id"]
+    cases = [
+        ([runbook, runbook], "duplicate"),
+        ("not-a-list", "must be an array"),
+        ([{"id": runbook}], "must be an array of strings"),
+    ]
+    for index, (value, why) in enumerate(cases):
+
+        def mutate(catalog: Any, value: Any = value) -> None:
+            catalog[ALLOWLIST] = value
+            _sync_runbooks(catalog)
+
+        result = _run(_with_allowlist(tmp_path, f"allowlist-malformed-{index}", mutate))
+        assert result.returncode != 0, f"{why}: {value!r} must be refused"
+
+
+def test_a_missing_allowlist_is_rejected(tmp_path: Path) -> None:
+    """The policy must be stated, not inferred from an absent key."""
+
+    def mutate(catalog: Any) -> None:
+        catalog.pop(ALLOWLIST, None)
+        _sync_runbooks(catalog)
+
+    result = _run(_with_allowlist(tmp_path, "allowlist-absent", mutate))
+    assert result.returncode != 0
+    assert ALLOWLIST in _output(result)
+
+
+def test_every_set_stays_rollout_blocked_regardless_of_the_allowlist(tmp_path: Path) -> None:
+    """Set release is a separate reviewed transition; the allowlist is not it."""
+
+    def mutate(catalog: Any) -> None:
+        catalog[ALLOWLIST] = [catalog["sets"][0]["id"]]
+        _sync_runbooks(catalog)
+        catalog["sets"][0]["blockedByRollout"] = False
+
+    result = _run(_with_allowlist(tmp_path, "set-via-allowlist", mutate))
+    assert result.returncode != 0
