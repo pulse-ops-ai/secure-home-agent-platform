@@ -34,8 +34,14 @@
  * that every registered module exists, carries its metadata, is reachable from
  * the index, is not claiming a status it has not earned, and carries the two
  * structural gates. Confusing the two would be the worst outcome here, because a
- * green run could be mistaken for evidence that content was admitted. No content
- * exists, and check 6 below enforces that.
+ * green run could be mistaken for evidence that content was admitted. It is not.
+ *
+ * The division, precisely: while a module's toolchain gate is closed, check 6
+ * below enforces README-only, so no authored source can exist there. Once that
+ * gate opens — as it now has — authored source is expected, and whether those
+ * real bytes are ADMISSIBLE is decided by `check-knowledge-content.mjs` and the
+ * toolchain it invokes, never here. This file owns specification and gate
+ * coherence; it owns no content rules at all.
  *
  * The address scanning that remains here is a SCAFFOLD concern over
  * specification READMEs, not content admission: network and hardware addresses
