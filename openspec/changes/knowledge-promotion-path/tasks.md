@@ -1122,3 +1122,156 @@ control survives.
 - No runtime query resolver; `knowledge/` is not runtime-authoritative.
 - `household/**` and every set remain rollout-blocked.
 - The ten Prompt-4 `platform/**` reviewed identities are unchanged.
+
+---
+
+## Prompt 5C-A — canonical source for incident triage and safe escalation
+
+**External authorization.** The repository owner authorized Prompt 5 on
+2026-08-19 and authorized this canonical-source landing explicitly. OpenSpec
+records the work and its authorization; it creates neither.
+
+- Starting main: `fd42a747e26f73815ef4f2526b35a8af78ef4230`
+- Branch: `docs/agent-triage-escalation-contract`
+
+Prior Prompt 1–5B history is unmodified.
+
+### Why this landing exists
+
+Two rollout-eligible runbook specifications declared intended facts whose
+canonical owner was, in several cases, the knowledge specification itself. ADR-0014
+§2 forbids that: *"A knowledge module or runbook is never the sole original."*
+Prompt 5B established the same rule the hard way, by finding a runbook projecting
+`check.sh` exit semantics that no prose source stated.
+
+So the source audit ran **before** any bundle byte was authored.
+
+### Source-ownership matrix result
+
+Every retained fact classified **A (already owned)** or **B (derivable
+procedure)**. **No fact required a new normative decision**, so **CASE 1** applied
+and no ADR was proposed. What was missing was never policy — it was the *order*
+in which accepted invariants apply to an agent facing an incident, which had no
+canonical home.
+
+Two facts were **narrowed** rather than retained as written:
+
+- *"an `indeterminate` outcome is not retried reflexively"* overstated its
+  sources. `services/AGENTS.md` forbids an automatic **inverse**, and
+  `effect-boundary-model.md` establishes that a retry preserving effect identity
+  is a **replay rather than a second fact** — a governed mechanism, not a
+  prohibition. Narrowed to: an agent does not resolve its own uncertainty by
+  acting again **on its own authority**, because a re-attempt is a new proposal.
+- *"which classes of incident are never agent-handled"* retained the **rule**
+  (ADR-0009 §2, §3) and explicitly deferred the **taxonomy**. Household domain
+  semantics do not exist and remain rollout-blocked; inventing a vocabulary here
+  would freeze household meaning inside a platform contract.
+
+### Canonical source created
+
+`docs/architecture/agent-triage-and-escalation.md`, registered in
+`docs/architecture/INDEX.md`.
+
+Placed by ADR-0014 §1: these are architectural invariants and what follows from
+them, not repository governance and not a human terminal procedure. It was
+deliberately **not** placed under `docs/operations/`, which is for people
+operating the deployed platform.
+
+It marks each statement **invariant** or **procedure**, cites the decision that
+owns every invariant, and separates six kinds of statement — observation,
+interpretation, unknown, attempted action, disposition, proposed next decision.
+
+### A dangling citation found while auditing
+
+Two provider adapters and the pull-request template cited
+`services/control-plane/README.md` as the owner of physical-action semantics.
+That file is a 39-line package-boundary stub containing no such rule; the actual
+owner is `services/AGENTS.md`. All three citations were corrected to the real
+owner — adapters reference canonical sources, and a reference to a stub is a
+reference to nothing.
+
+Three further citations of that stub remain, for **idempotency** rather than
+physical-action semantics: `docs/architecture/runner-model.md`,
+`docs/architecture/api-contract-model.md`, and `schemas/action/README.md`. They
+are the same defect class and are **reported, not fixed** — establishing where
+idempotency is canonically owned needs its own audit, and guessing would repeat
+the error this landing exists to correct.
+
+### State
+
+- **No `incident-triage` bundle authored.** **No `safe-escalation` bundle
+  authored.** Both directories contain only `README.md`.
+- Both remain `Planned`, `version: null`, `asOf: null`, with no `contentReview`.
+- Their specification READMEs changed as **metadata only**: governing sources now
+  name the canonical contract, two intended facts were narrowed, and the update
+  triggers point at the contract.
+- No packaging. No publication. No set released. No Proof B producer. No runtime
+  resolver.
+- `household/**` and every set remain rollout-blocked, unchanged.
+- The eleven reviewed module identities are unchanged.
+- **Prompt 5C-B not begun.**
+
+### Prompt 5C-A — falsification correction
+
+Independent falsification of the new canonical source found five semantic
+overclaims. **CASE 1 remains unchanged: no new normative decision was discovered,
+and no ADR is required.** The prior Prompt-5C-A record above is unmodified.
+
+**Sensor observation versus fault interpretation.** The contract said declaring
+an instrument faulty *is* discarding live state. Too strong: diagnosing a fault
+from evidence does not discard the original observation. Corrected to keep the
+two apart — *the sensor reported X* is an observation, *the sensor may be faulty*
+is an interpretation of it, and concluding a fault does not delete the reading,
+which remains evidence. What ADR-0010 §3 owns is narrower: a reading may not be
+ignored or suppressed merely because it conflicts with expectation. Supporting
+evidence is illustrative, not a closed grammar, and no diagnostic algorithm is
+invented.
+
+**Indeterminate human-exclusivity.** The stop table said only a person can decide
+what follows. `effect-boundary-model.md` supports governed resolution postures
+and identity-preserving replay, so that overstated the architecture. Corrected to
+separate the **procedure** — the agent neither guesses nor independently repeats
+the effect, and hands the unresolved disposition over — from the **platform
+fact** that the effect may later be resolved by a governed mechanism or remain
+explicitly unresolved. The contract no longer claims a human is the only
+mechanism able to establish what physically happened.
+
+**Denial retry narrowing.** "Never a reason to try again" created an eternal
+no-retry rule the sources do not establish. Narrowed to the intended invariant:
+disagreement alone does not authorize resending an **unchanged** denied action to
+obtain a different answer. A genuinely new request whose inputs, authorization,
+policy, or context have changed is a new proposal and passes every normal
+control.
+
+**Invariant → procedure provenance.** "Escalation is a successful outcome" was
+labelled *"Invariant, already entailed"* while the source matrix classified it
+**B**. Relabelled *"Procedure — a derived consequence, not an ADR statement"*,
+and the text now says explicitly that this document composes accepted facts into
+a framing no ADR states. Every remaining `Invariant` label was audited against
+the matrix; the one at the remediation section is genuinely class A and stands.
+
+**Routing absolute narrowed.** The contract said routing is "never portable
+platform knowledge or portable knowledge of any kind". ADR-0010 does not
+establish that universal. Narrowed to what is decided: this contract does not
+define who is contacted, in what order, or by what means; identities, contact
+details, and current availability must not enter these portable runbooks; and
+whether some future provider-neutral, non-sensitive, role-based representation
+could be portable is **explicitly left open and not designed here**.
+
+**Corrected source-ownership accounting.** Three facts are now distinguished
+rather than collapsed:
+
+| Fact | Class |
+|---|---|
+| `indeterminate` remains `indeterminate` | **A** — already owned |
+| the agent stops and hands over on `indeterminate` | **B** — derivable procedure |
+| escalation is successful completion of this procedure | **B** — derivable procedure |
+
+Both runbook specifications were aligned with the corrected contract as metadata
+only. They remain `Planned`, `version: null`, `asOf: null`, without
+`contentReview`, and their directories still contain only `README.md`. No OKF
+member was authored.
+
+The three idempotency citations of `services/control-plane/README.md` remain
+**deliberately untouched** — the canonical owner has not been audited, and
+guessing would repeat the error this landing corrects.

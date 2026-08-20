@@ -22,10 +22,13 @@ to a human.
 - What a good handover contains: what was observed, what was inferred, what
   remains unknown, what was attempted and its disposition, and what decision is
   being asked for.
-- That an agent never escalates by widening its own authority, retrying a denied
-  action, or routing around a control.
-- That repeated escalation of the same condition is a signal about the system,
-  and is reported as one.
+- That an agent never escalates by widening its own authority, resending an
+  unchanged denied action to obtain a different answer, or routing around a
+  control. A genuinely new request whose inputs, authorization, policy, or
+  context have changed is a new proposal and passes every normal control.
+- That repeated escalation of the same condition is an **observation** about the
+  system and belongs in the report as one. It creates no new mechanism and no
+  obligation on any component.
 
 ## Prohibited facts
 
@@ -47,10 +50,13 @@ apply to them.
 
 ## Governing sources
 
+[`agent-triage-and-escalation.md`](../../../docs/architecture/agent-triage-and-escalation.md) ·
 [ADR-0004](../../../docs/decisions/ADR-0004-treat-agents-as-clients.md) ·
 [ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
 [ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)
 
 ## Freshness and update trigger
 
-Update when the stop conditions or the handover contract change.
+Update when the stop conditions or the handover contract in
+[`agent-triage-and-escalation.md`](../../../docs/architecture/agent-triage-and-escalation.md)
+change.
