@@ -1275,3 +1275,81 @@ member was authored.
 The three idempotency citations of `services/control-plane/README.md` remain
 **deliberately untouched** — the canonical owner has not been audited, and
 guessing would repeat the error this landing corrects.
+
+---
+
+## Prompt 5C-B — triage and escalation runbooks
+
+The `runbooks/**` layer is complete. OpenSpec records the work and its
+authorization; it creates neither.
+
+- Starting merged main: `9505972f4714aef516b9e0fb8f1864f76acc61a5`
+- Branch: `knowledge/triage-escalation-runbooks`
+
+**External authorization.** The repository owner authorized Prompt 5 on
+2026-08-19 and authorized 5C-B on the merged 5C-A main.
+
+Prior Prompt 1–5C-A history is unmodified.
+
+### One cohort, two independent modules
+
+The cohort is **review convenience only**. Each module has its own source bytes,
+its own bundle digest, its own admission result, and will earn its own
+`contentReview`. There is no cohort digest and no shared review identity, and a
+finding in one must not move the other.
+
+Proved rather than asserted: mutating one byte of `incident-triage` changed its
+digest and left `safe-escalation` byte-identical, and the reverse held in the
+other direction. Both digests were restored exactly afterwards.
+
+### Projection matrices completed before authoring
+
+Every portable statement in both candidates traces to
+`docs/architecture/agent-triage-and-escalation.md` or to a declared ADR. No
+provider adapter, OpenSpec record, or peer knowledge module was used as
+provenance.
+
+### Final reviewed identities
+
+| Module | Version | Members | Bytes | Reviewed digest |
+|---|---|---:|---:|---|
+| `runbooks/incident-triage` | 1.0.0 | 4 | 9776 | `sha256:ab8e4067ab3ddcdb7eb4996dd5656e323bc11c536781baede09d78d08c79b67e` |
+| `runbooks/safe-escalation` | 1.0.0 | 3 | 7280 | `sha256:05bc4f62cb50e457ddeb4e15c8b01ccfad8fcde0ac51c939f5f1b932b8da21ad` |
+
+Each derived twice — canonical `bundleDigest()` and an oracle rebuilt from
+ADR-0015 §6 — and required equal before either attestation was written. Reviewed
+at those exact bytes by `human:mikegtech` under
+`portable-knowledge-prohibited-content-v1`, **independently**: two separate
+approvals, two separate `contentReview` records, no shared review identity.
+
+Both landed directly `Planned → Validated`; nothing unreviewed was ever committed
+as `Source-ready`.
+
+### `stale_after` — candidate-specific metadata, not a rule
+
+Stated precisely, because the earlier phrasing risked reading as policy:
+
+- the repository profile **requires an absolute `stale_after`** date, and the
+  toolchain enforces the `YYYY-MM-DD` shape;
+- **no global interval is currently governed** — nothing in the repository
+  determines how far ahead that date should sit;
+- these two modules carry `as_of: 2026-08-20` and `stale_after: 2027-08-20`,
+  reviewed and approved by `human:mikegtech` as **module-specific metadata for
+  these revisions**, alongside every other byte in them;
+- **that approval establishes no repository-wide stale-after default.** That the
+  reviewed modules happen to share an `as_of + 1 year` spacing is an observation
+  about those modules, not a policy, and a future module must still make and
+  justify its own choice.
+
+If the interval should become governed, that is a separate decision this landing
+does not make and does not presume.
+
+### State
+
+- Both modules carry their own `contentReview`, bound to their own digest.
+- No packaging. No publication. No set release. No set version.
+- No Proof B producer, so publication remains unreachable by design.
+- No runtime query resolver.
+- `household/**` and every set remain rollout-blocked.
+- The 11 existing reviewed identities are unchanged.
+- **Prompt 6 not begun.**
