@@ -429,7 +429,7 @@
         "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md"
       ],
       "sensitivity": "portable-nonsensitive",
-      "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
+      "freshnessPolicy": "Review when the triage or stopping contract changes, or when household domain semantics supplies a classification vocabulary.",
       "blockedByToolchain": false,
       "blockedByRollout": false
     },
