@@ -20,10 +20,13 @@ a household incident.
   on its own authority.
 - How to distinguish a sensor fault from the condition the sensor reports, and
   that "the system cannot tell" is a legitimate and valuable conclusion.
-- Which classes of incident are **never** agent-handled and go straight to
-  [`../safe-escalation/`](../safe-escalation/).
-- That an `indeterminate` action outcome is reported as such, not retried
-  reflexively.
+- That some conditions are **never** agent-handled and go straight to
+  [`../safe-escalation/`](../safe-escalation/) — the rule, not a taxonomy. Which
+  conditions those are is household domain semantics and is not defined here.
+- That an `indeterminate` action outcome is reported as `indeterminate`, and that
+  an agent does not resolve its own uncertainty by acting again on its own
+  authority. This is narrower than "never retry": a retry preserving effect
+  identity is a governed replay, not a prohibited act.
 
 ## Prohibited facts
 
@@ -44,12 +47,17 @@ Household runners.
 
 ## Governing sources
 
+[`agent-triage-and-escalation.md`](../../../docs/architecture/agent-triage-and-escalation.md) ·
 [ADR-0005](../../../docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md) ·
-[ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)
+[ADR-0009](../../../docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) ·
+[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) ·
+[ADR-0013](../../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md)
 
 Reads alongside `knowledge/household/security-semantics/`, which is a peer
 module rather than a source that governs this one.
 
 ## Freshness and update trigger
 
-Update when the escalation classes change or a new incident class is defined.
+Update when the triage or stopping contract in
+[`agent-triage-and-escalation.md`](../../../docs/architecture/agent-triage-and-escalation.md)
+changes, or when household domain semantics supply a classification vocabulary.

@@ -1122,3 +1122,91 @@ control survives.
 - No runtime query resolver; `knowledge/` is not runtime-authoritative.
 - `household/**` and every set remain rollout-blocked.
 - The ten Prompt-4 `platform/**` reviewed identities are unchanged.
+
+---
+
+## Prompt 5C-A — canonical source for incident triage and safe escalation
+
+**External authorization.** The repository owner authorized Prompt 5 on
+2026-08-19 and authorized this canonical-source landing explicitly. OpenSpec
+records the work and its authorization; it creates neither.
+
+- Starting main: `fd42a747e26f73815ef4f2526b35a8af78ef4230`
+- Branch: `docs/agent-triage-escalation-contract`
+
+Prior Prompt 1–5B history is unmodified.
+
+### Why this landing exists
+
+Two rollout-eligible runbook specifications declared intended facts whose
+canonical owner was, in several cases, the knowledge specification itself. ADR-0014
+§2 forbids that: *"A knowledge module or runbook is never the sole original."*
+Prompt 5B established the same rule the hard way, by finding a runbook projecting
+`check.sh` exit semantics that no prose source stated.
+
+So the source audit ran **before** any bundle byte was authored.
+
+### Source-ownership matrix result
+
+Every retained fact classified **A (already owned)** or **B (derivable
+procedure)**. **No fact required a new normative decision**, so **CASE 1** applied
+and no ADR was proposed. What was missing was never policy — it was the *order*
+in which accepted invariants apply to an agent facing an incident, which had no
+canonical home.
+
+Two facts were **narrowed** rather than retained as written:
+
+- *"an `indeterminate` outcome is not retried reflexively"* overstated its
+  sources. `services/AGENTS.md` forbids an automatic **inverse**, and
+  `effect-boundary-model.md` establishes that a retry preserving effect identity
+  is a **replay rather than a second fact** — a governed mechanism, not a
+  prohibition. Narrowed to: an agent does not resolve its own uncertainty by
+  acting again **on its own authority**, because a re-attempt is a new proposal.
+- *"which classes of incident are never agent-handled"* retained the **rule**
+  (ADR-0009 §2, §3) and explicitly deferred the **taxonomy**. Household domain
+  semantics do not exist and remain rollout-blocked; inventing a vocabulary here
+  would freeze household meaning inside a platform contract.
+
+### Canonical source created
+
+`docs/architecture/agent-triage-and-escalation.md`, registered in
+`docs/architecture/INDEX.md`.
+
+Placed by ADR-0014 §1: these are architectural invariants and what follows from
+them, not repository governance and not a human terminal procedure. It was
+deliberately **not** placed under `docs/operations/`, which is for people
+operating the deployed platform.
+
+It marks each statement **invariant** or **procedure**, cites the decision that
+owns every invariant, and separates six kinds of statement — observation,
+interpretation, unknown, attempted action, disposition, proposed next decision.
+
+### A dangling citation found while auditing
+
+Two provider adapters and the pull-request template cited
+`services/control-plane/README.md` as the owner of physical-action semantics.
+That file is a 39-line package-boundary stub containing no such rule; the actual
+owner is `services/AGENTS.md`. All three citations were corrected to the real
+owner — adapters reference canonical sources, and a reference to a stub is a
+reference to nothing.
+
+Three further citations of that stub remain, for **idempotency** rather than
+physical-action semantics: `docs/architecture/runner-model.md`,
+`docs/architecture/api-contract-model.md`, and `schemas/action/README.md`. They
+are the same defect class and are **reported, not fixed** — establishing where
+idempotency is canonically owned needs its own audit, and guessing would repeat
+the error this landing exists to correct.
+
+### State
+
+- **No `incident-triage` bundle authored.** **No `safe-escalation` bundle
+  authored.** Both directories contain only `README.md`.
+- Both remain `Planned`, `version: null`, `asOf: null`, with no `contentReview`.
+- Their specification READMEs changed as **metadata only**: governing sources now
+  name the canonical contract, two intended facts were narrowed, and the update
+  triggers point at the contract.
+- No packaging. No publication. No set released. No Proof B producer. No runtime
+  resolver.
+- `household/**` and every set remain rollout-blocked, unchanged.
+- The eleven reviewed module identities are unchanged.
+- **Prompt 5C-B not begun.**

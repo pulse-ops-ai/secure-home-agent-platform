@@ -38,6 +38,7 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 | [`identity-and-authorization-flow.md`](identity-and-authorization-flow.md) | How identity, delegation, authorization, the envelope, and safety policy compose |
 | [`local-remote-routing.md`](local-remote-routing.md) | Local, remote, and cloud call paths and their routing classes |
 | [`degraded-mode.md`](degraded-mode.md) | What continues, what is bounded, and what fails closed during an outage |
+| [`agent-triage-and-escalation.md`](agent-triage-and-escalation.md) | How an agent reasons about a situation it did not cause, and when it stops and hands it to a person |
 | [`api-contract-model.md`](api-contract-model.md) | How one Zod definition becomes DTOs, validation, OpenAPI, metadata, SDKs, and MCP tools |
 | [`knowledge-selection-model.md`](knowledge-selection-model.md) | How a profile selects knowledge, how a runner resolves it, and what the run records |
 | [`knowledge-promotion-model.md`](knowledge-promotion-model.md) | Where a durable architectural truth lives, and how it reaches an agent |

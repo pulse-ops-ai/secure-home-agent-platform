@@ -422,8 +422,11 @@
       "asOf": null,
       "limitations": "No content authored. Procedure only; carries no live state and no contact detail.",
       "governingSources": [
+        "docs/architecture/agent-triage-and-escalation.md",
         "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
-        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"
+        "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
+        "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+        "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md"
       ],
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when escalation classes change or an incident class is added.",
@@ -440,6 +443,7 @@
       "asOf": null,
       "limitations": "No content authored. Describes when and how to hand over, never to whom.",
       "governingSources": [
+        "docs/architecture/agent-triage-and-escalation.md",
         "docs/decisions/ADR-0004-treat-agents-as-clients.md",
         "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
         "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md"

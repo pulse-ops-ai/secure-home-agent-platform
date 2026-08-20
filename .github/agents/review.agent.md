@@ -70,7 +70,7 @@ never learns, and the finding is never discussed.
    missing `indeterminate` terminal state; success inferred from a dispatch
    response rather than observed; a missing idempotency key on an actuating
    action; an automatic inverse or compensating command.
-   ([`services/control-plane/README.md`](../../services/control-plane/README.md))
+   ([`services/AGENTS.md`](../../services/AGENTS.md))
 7. **Degraded-mode classification.** A physically-safe direction treated as
    authorization-free; a classification that omits the **requester** axis; an
    interactive or agent request classified `CONTINUE` on direction alone; the
