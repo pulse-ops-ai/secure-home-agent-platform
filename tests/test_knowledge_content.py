@@ -778,9 +778,13 @@ def test_the_live_authored_set_is_exactly_what_the_registry_claims(tmp_path: Pat
     claiming = [m for m in modules if m["status"] in {"Source-ready", "Validated", "Packaged"}]
     assert [m["id"] for m in authored] == [m["id"] for m in claiming]
 
+    allowlist = set(catalog["runbookRolloutAllowlist"])
     for m in authored:
         assert m["blockedByToolchain"] is False and m["blockedByRollout"] is False, m["id"]
-        assert m["id"].startswith("platform/"), m["id"]
+        # Rollout eligibility has two legitimate routes, and no others: released
+        # as a class, or allowlisted individually. household/** has neither.
+        assert m["id"].startswith("platform/") or m["id"] in allowlist, m["id"]
+        assert not m["id"].startswith("household/"), m["id"]
 
     assert all(s["status"] == "Planned" for s in catalog["sets"]), "no set is released"
     assert not any(m["status"] == "Published" for m in modules), "nothing is published"
@@ -905,6 +909,9 @@ REVIEWED_DIGESTS = {
     ),
     "platform/workspace-conventions": (
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
+    ),
+    "runbooks/repository-validation": (
+        "sha256:4a2c138c5f02f726fdff81207e971a20e3639e6b3b0e3b6e6e579b033d5a7e0a"
     ),
     "platform/core-operating-model": (
         "sha256:e9644f110c63dfd939fc3569703eaff28251d2c5e6b473d32057e4730e567c7a"

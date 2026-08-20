@@ -873,7 +873,17 @@ def test_a_set_version_that_pins_unversioned_modules_is_rejected(tmp_path: Path)
     """A pin to nothing makes two different resolutions look identical in evidence."""
 
     def mutate(catalog: Any, root: Path) -> None:
-        catalog["sets"][0]["version"] = "1.0.0"
+        # Choose by PROPERTY, not by index: as modules are authored, a given set
+        # stops selecting anything unversioned and the negative silently dies.
+        versions = {m["id"]: m["version"] for m in catalog["modules"]}
+        target = next(
+            s
+            for s in catalog["sets"]
+            if any(
+                versions.get(m) is None for m in [*s.get("required", []), *s.get("optional", [])]
+            )
+        )
+        target["version"] = "1.0.0"
 
     result = _run(_fixture(tmp_path, "phantom-pin", mutate))
     assert result.returncode != 0
