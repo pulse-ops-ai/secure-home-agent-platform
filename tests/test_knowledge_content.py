@@ -911,7 +911,7 @@ REVIEWED_DIGESTS = {
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
     "runbooks/repository-validation": (
-        "sha256:4a2c138c5f02f726fdff81207e971a20e3639e6b3b0e3b6e6e579b033d5a7e0a"
+        "sha256:4469de1dcabc6e34b6605efa46ae656ebfeebb2025918d2d787d3a1dc62515aa"
     ),
     "platform/core-operating-model": (
         "sha256:e9644f110c63dfd939fc3569703eaff28251d2c5e6b473d32057e4730e567c7a"

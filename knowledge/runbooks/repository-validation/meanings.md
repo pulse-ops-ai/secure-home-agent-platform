@@ -10,7 +10,7 @@ governs:
   - scripts/README.md
 generated:
   by: claude-code/2.1.235
-  at: 2026-08-20T01:26:06Z
+  at: 2026-08-20T08:08:13Z
 ---
 
 # What each check establishes
@@ -21,7 +21,7 @@ question, because a green result is only evidence about that one.
 | Check | Establishes | Does **not** establish |
 |---|---|---|
 | structural scaffold validation | the repository's shape: navigation files, index integrity, required READMEs, workspace manifests, absence of tracked secrets and generated directories | that anything compiles, or that any behaviour is correct |
-| secret scan | no secret-shaped value is present in tracked text | that a real credential is absent — a value with no recognisable shape is a named blind spot |
+| secret scan | that the scanner found no **unallowlisted** secret-shaped value in tracked text, under the validated allowlist policy | that no real credential exists. Detection is shape-based and has blind spots, and an allowlisted line is a governed exception someone justified — not evidence the scanner never saw that shape |
 | manifest conformance | what a manifest may **declare**: taxonomy, naming, script surface, dependency direction | what the source actually imports |
 | source-import direction | direction as the source really imports it, parsed from the real import nodes | that the manifests declare it correctly |
 | dependency policy | declared versions are consistent and follow the catalog | that the resolved tree is what the lockfile says |
@@ -29,7 +29,7 @@ question, because a green result is only evidence about that one.
 | tests | the assertions written actually pass | anything about behaviour nobody asserted |
 | build | the thing compiles and emits | that it runs correctly |
 | knowledge registry conformance | the specification is coherent: entries, statuses, gates, indexes | whether any authored knowledge byte is admissible |
-| knowledge content admission | real authored bytes pass admission and bind to their reviewed digest | that the content is *true*, which is a human review question |
+| knowledge content admission | that real authored bytes pass repository admission, and that the review attestation binds the **exact current source digest** | semantic correctness, fidelity to the governing source, or continuing freshness after that source changes. None of those is what it checks |
 
 ## Pairs that look redundant and are not
 

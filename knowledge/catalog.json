@@ -403,8 +403,8 @@
       "contentReview": {
         "policy": "portable-knowledge-prohibited-content-v1",
         "by": "human:mikegtech",
-        "at": "2026-08-20T01:34:18Z",
-        "sourceDigest": "sha256:4a2c138c5f02f726fdff81207e971a20e3639e6b3b0e3b6e6e579b033d5a7e0a"
+        "at": "2026-08-20T08:27:58Z",
+        "sourceDigest": "sha256:4469de1dcabc6e34b6605efa46ae656ebfeebb2025918d2d787d3a1dc62515aa"
       },
       "governingSources": ["CONTRIBUTING.md", "scripts/README.md"],
       "sensitivity": "portable-nonsensitive",
