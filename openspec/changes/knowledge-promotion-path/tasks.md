@@ -1210,3 +1210,68 @@ the error this landing exists to correct.
 - `household/**` and every set remain rollout-blocked, unchanged.
 - The eleven reviewed module identities are unchanged.
 - **Prompt 5C-B not begun.**
+
+### Prompt 5C-A — falsification correction
+
+Independent falsification of the new canonical source found five semantic
+overclaims. **CASE 1 remains unchanged: no new normative decision was discovered,
+and no ADR is required.** The prior Prompt-5C-A record above is unmodified.
+
+**Sensor observation versus fault interpretation.** The contract said declaring
+an instrument faulty *is* discarding live state. Too strong: diagnosing a fault
+from evidence does not discard the original observation. Corrected to keep the
+two apart — *the sensor reported X* is an observation, *the sensor may be faulty*
+is an interpretation of it, and concluding a fault does not delete the reading,
+which remains evidence. What ADR-0010 §3 owns is narrower: a reading may not be
+ignored or suppressed merely because it conflicts with expectation. Supporting
+evidence is illustrative, not a closed grammar, and no diagnostic algorithm is
+invented.
+
+**Indeterminate human-exclusivity.** The stop table said only a person can decide
+what follows. `effect-boundary-model.md` supports governed resolution postures
+and identity-preserving replay, so that overstated the architecture. Corrected to
+separate the **procedure** — the agent neither guesses nor independently repeats
+the effect, and hands the unresolved disposition over — from the **platform
+fact** that the effect may later be resolved by a governed mechanism or remain
+explicitly unresolved. The contract no longer claims a human is the only
+mechanism able to establish what physically happened.
+
+**Denial retry narrowing.** "Never a reason to try again" created an eternal
+no-retry rule the sources do not establish. Narrowed to the intended invariant:
+disagreement alone does not authorize resending an **unchanged** denied action to
+obtain a different answer. A genuinely new request whose inputs, authorization,
+policy, or context have changed is a new proposal and passes every normal
+control.
+
+**Invariant → procedure provenance.** "Escalation is a successful outcome" was
+labelled *"Invariant, already entailed"* while the source matrix classified it
+**B**. Relabelled *"Procedure — a derived consequence, not an ADR statement"*,
+and the text now says explicitly that this document composes accepted facts into
+a framing no ADR states. Every remaining `Invariant` label was audited against
+the matrix; the one at the remediation section is genuinely class A and stands.
+
+**Routing absolute narrowed.** The contract said routing is "never portable
+platform knowledge or portable knowledge of any kind". ADR-0010 does not
+establish that universal. Narrowed to what is decided: this contract does not
+define who is contacted, in what order, or by what means; identities, contact
+details, and current availability must not enter these portable runbooks; and
+whether some future provider-neutral, non-sensitive, role-based representation
+could be portable is **explicitly left open and not designed here**.
+
+**Corrected source-ownership accounting.** Three facts are now distinguished
+rather than collapsed:
+
+| Fact | Class |
+|---|---|
+| `indeterminate` remains `indeterminate` | **A** — already owned |
+| the agent stops and hands over on `indeterminate` | **B** — derivable procedure |
+| escalation is successful completion of this procedure | **B** — derivable procedure |
+
+Both runbook specifications were aligned with the corrected contract as metadata
+only. They remain `Planned`, `version: null`, `asOf: null`, without
+`contentReview`, and their directories still contain only `README.md`. No OKF
+member was authored.
+
+The three idempotency citations of `services/control-plane/README.md` remain
+**deliberately untouched** — the canonical owner has not been audited, and
+guessing would repeat the error this landing corrects.

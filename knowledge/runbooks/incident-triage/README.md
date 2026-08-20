@@ -18,8 +18,10 @@ a household incident.
   then propose.
 - That an agent triages and reports; it does not remediate a physical condition
   on its own authority.
-- How to distinguish a sensor fault from the condition the sensor reports, and
-  that "the system cannot tell" is a legitimate and valuable conclusion.
+- That a reading is an **observation** and a sensor fault is an **interpretation**
+  of it: concluding a fault does not delete the reading, and the inference needs
+  independent support rather than mere inconvenience. That "the system cannot
+  tell" is a legitimate and valuable conclusion.
 - That some conditions are **never** agent-handled and go straight to
   [`../safe-escalation/`](../safe-escalation/) — the rule, not a taxonomy. Which
   conditions those are is household domain semantics and is not defined here.

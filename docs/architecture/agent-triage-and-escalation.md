@@ -84,11 +84,20 @@ A reading that seems impossible supports two hypotheses at once: the condition i
 real, or the instrument is wrong. **Neither is established by preferring it.**
 
 **Invariant.** Live state wins over the agent's model of the world
-([ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) §3).
-Declaring an instrument faulty *is* discarding live state in favour of a model,
-so it needs evidence of the same standard as any other conclusion — corroborating
-signals, a known failure mode — and not merely that the reading is inconvenient
-or contradicts an expectation.
+([ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) §3), so
+a reading may not be ignored or suppressed merely because it conflicts with
+expectation.
+
+**Procedure.** *The sensor reported X* is an **observation**. *The sensor may be
+faulty* is an **interpretation** of that observation, and the two are recorded
+separately: concluding a fault does not delete the reading, which remains
+evidence and is still reported. What changes is what the agent believes the
+reading means.
+
+Because it is an inference, it needs independent support — corroborating signals
+or a known failure mode are the obvious kinds, offered as illustration rather
+than as a closed list. Inconvenience, or disagreement with prior knowledge, is
+not support by itself.
 
 Where the two cannot be separated, that is an **unknown**, and unknown is a real
 answer.
@@ -131,6 +140,18 @@ This is narrower than "never retry", and deliberately so: retry with preserved
 identity is a governed mechanism, not a prohibition. What an agent may not do is
 resolve its own uncertainty by acting again on its own authority.
 
+**The agent stopping is not the effect being settled.** Two different statements:
+
+| | |
+|---|---|
+| **procedure** | the agent does not guess, and does not independently repeat the effect. It stops and hands the unresolved disposition over |
+| **platform fact** | the underlying effect may later be resolved by a governed reconciliation or resolution mechanism, or may remain explicitly unresolved ([`effect-boundary-model.md`](effect-boundary-model.md)) |
+
+A person is one way an unresolved disposition gets decided; the platform's own
+governed mechanisms are another. This contract does not claim that only a human
+can establish what physically happened — it says the agent is not the thing that
+establishes it.
+
 ## Stopping
 
 **Procedure.** Stop and hand over when any of these holds:
@@ -139,22 +160,23 @@ resolve its own uncertainty by acting again on its own authority.
 |---|---|
 | a life-safety signal | life-safety response is deterministic, local, and **off the agent path** ([ADR-0009](../decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md) §2) |
 | the situation requires physical presence | an agent has none, and no procedure supplies one |
-| a denial the agent believes is wrong | a denial is a governed outcome; disagreeing with one is a finding to report, never a reason to try again ([ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md), [ADR-0005](../decisions/ADR-0005-separate-capability-authorization-and-safety.md)) |
+| a denial the agent believes is wrong | a denial is a governed outcome; disagreement is a finding to report, and by itself does not authorize resending the same action to obtain a different answer ([ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md), [ADR-0005](../decisions/ADR-0005-separate-capability-authorization-and-safety.md)) |
 | contradictory live state | the contradiction is the finding; forcing a classification discards it |
-| an `indeterminate` action outcome | the disposition is unresolved and only a person can decide what follows |
+| an `indeterminate` action outcome | the disposition is unresolved, and the agent is not the mechanism that resolves it |
 | the agent cannot describe the situation accurately | a report that misdescribes is worse than one that stops, because it is acted upon |
 
 ### Stopping is a successful outcome
 
-**Invariant, already entailed.** A denial is a normal, expected result and not an
-error to work around
+**Procedure — a derived consequence, not an ADR statement.** A denial is a
+normal, expected result and not an error to work around
 ([ADR-0004](../decisions/ADR-0004-treat-agents-as-clients.md),
 [ADR-0005](../decisions/ADR-0005-separate-capability-authorization-and-safety.md)),
 and an undecidable authorization is never a permit
 ([ADR-0009](../decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)).
 
-It follows that handing a situation to a person is the procedure completing, not
-the procedure failing. An agent that stops early and reports clearly has done the
+This document composes those accepted facts into a procedural framing that no ADR
+states: handing a situation over at a stop condition is **successful completion
+of the agent's triage procedure**, not its failure. An agent that stops early and reports clearly has done the
 work. Treating a stop as failure is what produces the pressure to press on.
 
 ### What stopping never means
@@ -168,6 +190,13 @@ answer, and not reaching the same effect by another path
 
 A control added on one path and missing on another is a bypass, and an agent that
 finds one has found a defect to report rather than a door to use.
+
+**This is not a permanent bar on ever asking again.** What is prohibited is
+resending an unchanged denied action in the hope of a different answer. A
+genuinely new request — one whose inputs, authorization, policy, or context have
+legitimately changed — is a new proposal, and it passes every normal control
+exactly as the first one did. The distinction is whether something changed, not
+how much time passed.
 
 ## The handover
 
@@ -206,10 +235,19 @@ condition is an **unknown** handed over as one, never a guess dressed as a
 category.
 
 The same boundary applies to **routing**. *When* to stop and *how* to hand over
-are platform semantics and are stated here. *Who* is contacted, in what order,
-and by what means is **household configuration** — it identifies people, and it
-is never portable platform knowledge or portable knowledge of any kind
+are platform triage semantics and are stated here. **This contract does not
+define who is contacted, in what order, or by what means** — that is household
+configuration rather than platform triage semantics.
+
+What is settled is what may not enter these portable runbooks: household member
+identities, contact details, current availability or presence, and any other
+live or prohibited value
 ([ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)).
+
+What is **not** settled here is whether some future provider-neutral,
+non-sensitive, role-based representation of household configuration could ever be
+portable. That question is open, and this contract neither decides it nor designs
+such a representation.
 
 ## What this document does not contain
 
