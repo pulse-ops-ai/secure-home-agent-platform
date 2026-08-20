@@ -17,7 +17,8 @@ The canonical registry of knowledge **modules** and **sets**.
 > Every `Validated` `platform/**` module sits at `1.0.0`, and further modules may
 > be added when new durable truths are earned. Each carries **its own**
 > human content review bound to **its own** digest and passes canonical
-> admission independently. Every other module is `Planned`. Nothing is packaged and
+> admission independently. Every other module is still at an earlier lifecycle
+> state; [`catalog.json`](catalog.json) records which. Nothing is packaged and
 > nothing is published — `household/**` and every set remain rollout-blocked,
 > runbook rollout is per module, and publication additionally requires Proof B,
 > for which no governed producer exists.
@@ -32,7 +33,7 @@ nothing appears here that is not registered. They cannot drift apart quietly.
 
 | | Is | Versioned | Exists today |
 |---|---|---|---|
-| **Knowledge module** | one independently versioned body of portable knowledge | yes, independently | as a specification directory only |
+| **Knowledge module** | one independently versioned body of portable knowledge | yes, independently | a specification directory for every registered module; authored source presence follows the catalog lifecycle state |
 | **Knowledge set** | a named, profile-oriented composition of allowed modules | yes | as a specification entry only |
 | **Packaged bundle** | the immutable, digest-addressed artifact delivered to a run | yes, by digest | **no** — none exists yet |
 

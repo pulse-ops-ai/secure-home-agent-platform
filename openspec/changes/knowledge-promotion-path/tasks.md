@@ -1032,3 +1032,93 @@ All three keep `status: Planned`, `version: null`, `asOf: null`, and carry no
 Authoring eligibility is not admission: candidate bytes must still pass
 admission, and publication remains unreachable while no governed Proof B
 producer exists (ADR-0016 §5a).
+
+---
+
+## Prompt 5B — repository-validation runbook
+
+The first portable runbook, and the first knowledge module outside `platform/**`.
+OpenSpec records the work and its authorization; it creates neither, and nothing
+below is authority for anything.
+
+Prior sections are unmodified.
+
+**External authorization.** The repository owner authorized Prompt 5 on
+2026-08-19 and approved beginning 5B on the merged Prompt-5A main.
+
+- Starting main: `1583e6d520a9ccb52f9202521a7977f370d63c89`
+- Branch: `feat/repository-validation-runbook`
+
+### Canonical-source corrections made BEFORE authoring
+
+`scripts/README.md` said `check.sh` "exits non-zero on a genuine failure" and
+stopped there, leaving the skip-only case unstated — the case that most needs
+stating, because it is the one that looks green. It now carries the three exit
+codes and says a skip-only run is not a pass. Verified empirically with `uv` off
+`PATH`: exit `2`, skip named. **`check.sh` itself is unchanged**; the prose was
+made true, not the behaviour.
+
+The same file claimed `check-knowledge.mjs` verifies "no specification directory
+holds authored content", false since the platform modules landed. Projecting
+from it would have taught a falsehood. Corrected, and
+`check-knowledge-content.mjs` — which had no row at all — was given one.
+
+One intended fact was **withheld rather than invented**: the specification said
+"read the specific failure, do not re-run hoping". `CONTRIBUTING.md` owns the
+first half; neither governing source owns the retry prescription, so it was not
+projected and the specification README now states the supported meaning.
+
+### First reviewed identity, since invalidated
+
+`sha256:4a2c138c5f02f726fdff81207e971a20e3639e6b3b0e3b6e6e579b033d5a7e0a`
+
+### Final falsification
+
+Independent review found two overclaims in `meanings.md`:
+
+- the secret-scan row claimed the scan establishes that **no** secret-shaped
+  value is present, ignoring the governed exact-line allowlist the mechanism
+  actually carries;
+- the admission row said the check does not establish that content is "true",
+  which invited reading the human content review as a general truth proof. The
+  machine check establishes byte admission and attestation binding; it does not
+  establish semantic correctness, fidelity to the governing source, or
+  continuing freshness after that source changes.
+
+Correcting those bytes **intentionally invalidated the first review**, which is
+the digest binding working as designed.
+
+### Final reviewed identity
+
+`runbooks/repository-validation@1.0.0`
+`sha256:4469de1dcabc6e34b6605efa46ae656ebfeebb2025918d2d787d3a1dc62515aa`
+
+Derived twice — canonical `bundleDigest()` and an oracle rebuilt from ADR-0015 §6
+— and required equal before the replacement attestation was written. Reviewed at
+those exact bytes by `human:mikegtech` under
+`portable-knowledge-prohibited-content-v1`.
+
+Only `meanings.md` changed in the correction; `index.md`, `procedure.md`, and
+`failures.md` are byte-identical to the first reviewed candidate, and their
+`generated.at` values are untouched.
+
+### A negative proof that had inverted
+
+`test_a_set_version_that_pins_unversioned_modules_is_rejected` borrowed its
+premise from the live catalog. Versioning this runbook left the set it targeted
+with every member versioned, so a test whose whole purpose was to REJECT a
+phantom pin had quietly become one that accepted a legitimate one. The fixture
+now constructs the premise it tests, asserts the specific rule's message rather
+than a non-zero exit, and dies when that rule is disabled while its positive
+control survives.
+
+### Standing state
+
+- `runbooks/incident-triage` and `runbooks/safe-escalation` **not begun** — they
+  carry canonical-source gaps requiring their own preflight.
+- No packaging. No publication. No set released.
+- No Proof B producer, so publication remains unreachable by design
+  (ADR-0016 §5a).
+- No runtime query resolver; `knowledge/` is not runtime-authoritative.
+- `household/**` and every set remain rollout-blocked.
+- The ten Prompt-4 `platform/**` reviewed identities are unchanged.

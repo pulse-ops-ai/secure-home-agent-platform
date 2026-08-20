@@ -3,9 +3,17 @@
 **Procedural knowledge modules** — ordered procedures an agent follows, as
 opposed to the domain semantics it reasons over.
 
-> **Status: specification only.** No module content is authored. Every directory
-> here is registered in [`../INDEX.md`](../INDEX.md) and blocked on
-> [U7](../../docs/architecture/unresolved-decisions.md#u7).
+> **Runbooks are released for authoring individually**, through the governed
+> per-module rollout allowlist in [`../catalog.json`](../catalog.json) — never by
+> directory, so filing a runbook here earns it nothing
+> ([ADR-0016](../../docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7a).
+> `repository-validation` is authored and `Validated`; the others remain
+> specification-only. [`../catalog.json`](../catalog.json) is authoritative for
+> lifecycle and eligibility, and every directory here is registered in
+> [`../INDEX.md`](../INDEX.md).
+>
+> [U7](../../docs/architecture/unresolved-decisions.md#u7) is **RESOLVED**. Nothing
+> here is packaged, published, or resolvable by a running profile.
 
 ## Modules
 

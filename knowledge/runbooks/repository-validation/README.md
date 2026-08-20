@@ -5,11 +5,12 @@ sound, and what each check actually establishes.
 
 | Field | Value |
 |---|---|
-| Status | `Planned` |
+| Status | `Validated` |
 | Owner | human:mikegtech |
 
-> Specification only. No module content is authored, and this directory is not
-> runtime-authoritative. Registered in [`../../INDEX.md`](../../INDEX.md).
+> **Specification.** This README is not bundle source; the authored candidate
+> beside it is. Not runtime-authoritative: nothing here is packaged, published,
+> or resolvable by a running profile. Registered in [`../../INDEX.md`](../../INDEX.md).
 
 ## Intended facts
 
@@ -20,7 +21,8 @@ sound, and what each check actually establishes.
 - That a skipped check is reported with its reason, never dropped silently, and
   that the aggregate check exits non-zero when only skips occurred.
 - That local evidence does not substitute for the merge gate.
-- What to do when a check fails: read the specific failure, do not re-run hoping.
+- When a check fails, identify the specific failing mechanism and reason; a
+  failure caused elsewhere is not evidence about the property being checked.
 
 ## Prohibited facts
 

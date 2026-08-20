@@ -873,11 +873,26 @@ def test_a_set_version_that_pins_unversioned_modules_is_rejected(tmp_path: Path)
     """A pin to nothing makes two different resolutions look identical in evidence."""
 
     def mutate(catalog: Any, root: Path) -> None:
-        catalog["sets"][0]["version"] = "1.0.0"
+        # CONSTRUCT the premise rather than borrowing it from live state. Both
+        # earlier shapes depended on today's catalog: picking sets[0] broke when
+        # its members were versioned, and searching for a set that happens to
+        # select an unversioned module dies the day none does — as fixture
+        # setup, not as a validator verdict. Here the set and the unversioned
+        # member it selects are built for the test, so the premise cannot expire.
+        target = catalog["sets"][0]
+        selected = set(target["required"]) | set(target["optional"])
+        for module in catalog["modules"]:
+            if module["id"] in selected:
+                module["version"] = "1.0.0"
+        pinned = next(m for m in catalog["modules"] if m["id"] in target["required"])
+        pinned["version"] = None
+        target["version"] = "1.0.0"
 
     result = _run(_fixture(tmp_path, "phantom-pin", mutate))
     assert result.returncode != 0
-    assert "unversioned module" in _output(result)
+    assert "selects unversioned" in _output(result), (
+        "must be refused by the set-version rule, not by some earlier validator"
+    )
 
 
 def test_a_set_version_is_accepted_once_its_modules_are_versioned(tmp_path: Path) -> None:
@@ -893,6 +908,7 @@ def test_a_set_version_is_accepted_once_its_modules_are_versioned(tmp_path: Path
 
     result = _run(_fixture(tmp_path, "real-pin", mutate))
     assert result.returncode == 0, _output(result)
+    assert "selects unversioned" not in _output(result)
 
 
 def test_an_unregistered_set_advertised_in_the_index_is_rejected(tmp_path: Path) -> None:

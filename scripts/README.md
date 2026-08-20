@@ -18,7 +18,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
 | [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file with the TypeScript compiler and enforces direction on the real import nodes |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
-| [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, and that no specification directory holds authored content. **Not** the ADR-0010 bundle validator |
+| [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, gates, and README-only while a module's toolchain gate is closed. **Not** the content validator |
+| [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
 
 ## What belongs here
 
@@ -53,9 +54,23 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    after `pnpm install --frozen-lockfile` in both CI and `check.sh`, and
    `tests/test_source_imports.py` asserts that ordering and that this is the
    only third-party import any of these scripts takes.
-3. **Skips are reported, never silent.** `check.sh` prints a skipped check and
-   exits non-zero on a genuine failure. A check that quietly disappears is how a
-   broken repository looks healthy.
+3. **Skips are reported, never silent.** `check.sh` prints every skipped check
+   with its reason. A check that quietly disappears is how a broken repository
+   looks healthy.
+
+   Its exit status distinguishes three outcomes, and the third is the one worth
+   knowing:
+
+   | Exit | Meaning |
+   |---|---|
+   | `0` | everything that could run, ran and passed |
+   | `1` | something failed — skips, if any, are still listed |
+   | `2` | nothing failed, but a check was skipped because a toolchain is missing |
+
+   **A skip-only run is not a pass.** `2` exists so an incomplete run cannot be
+   read as a green one, and so a caller can tell "this repository is sound" from
+   "this machine could not check it".
+
 4. **The secret scan has exactly one suppression mechanism, and it is
    enforced.** `scan-secrets.sh` scans every tracked text file, including
    `.github/workflows/` and itself. There is no file-level exclusion and **no
