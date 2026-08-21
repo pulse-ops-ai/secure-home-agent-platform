@@ -4,7 +4,7 @@
 - **Date:** 2026-08-21
 - **Deciders:** @mikegtech (repository owner)
 - **Depends on:** [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) for byte identity, [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) for the two gates and module admission
-- **Refines in part:** [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7a — *only* the sentence "All sets start blocked. Releasing one later is an explicit reviewed rollout transition". That ADR left the transition undefined; this one defines it. **Every module and runbook rollout decision in ADR-0016 is preserved unchanged**, including that a set never resolves a blocked module
+- **Refines in part:** [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7/§7a **on the SET side only** — both the undefined release transition *and* the representation in which set rollout eligibility lives. See §0 for the exact scope. **Every MODULE and RUNBOOK decision in ADR-0016 is preserved unchanged**, including the per-module gate representation, the runbook allowlist, and that a set never resolves a blocked module
 - **Preserves:** [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) — knowledge is context and never authority; [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) §1 canonical homes
 - **Closes:** nothing yet. It proposes the contract; acceptance is a separate human act
 
@@ -55,6 +55,40 @@ exactly the failure the set version exists to prevent. §11 below replaces it.
 ---
 
 ## Decision
+
+### 0. Exactly what this refines in ADR-0016, and what it does not
+
+An earlier revision of this ADR claimed it refined only one sentence of §7a. That
+understated it. ADR-0016 §7 also fixes the *representation*: "`blockedByRollout`
+is a required boolean on every module **and set** in `knowledge/catalog.json`",
+and §7a gives it a set-side meaning — the composition has been released for
+profile use. This ADR changes that representation for sets, and says so.
+
+**Preserved unchanged — ADR-0016 remains the authority:**
+
+- the two gates as independent facts (§7);
+- `blockedByToolchain` and `blockedByRollout` on every **module**, and their
+  meanings;
+- the `platform/**` class release, `household/**` block, and the per-runbook
+  allowlist (§7a);
+- that a set never resolves a blocked module — already mechanised in
+  `resolveSet`;
+- module admission, attestation, and the publication gate in every other section.
+
+**Refined on the set side only:**
+
+| ADR-0016 as accepted | Under this ADR |
+|---|---|
+| a set carries a `blockedByRollout` boolean in the catalog | that family-level boolean is the **legacy pre-release representation**. Prompt 6B migrates it away from being an authority |
+| a set's `blockedByRollout` means the composition is released for profile use | eligibility belongs to an **immutable release record**, never to a mutable family row (§8b, §10) |
+| "All sets start blocked. Releasing one later is an explicit reviewed rollout transition" | the transition is now defined: a reviewed immutable release in state `Released` (§10) |
+
+**No family-level boolean may compete with release eligibility.** Until 6B
+migrates the schema the field remains present and `true`, and it authorizes
+nothing.
+
+**ADR-0016 is not edited.** A refinement is written here and recorded in the
+decision index; the accepted text stays immutable, per the repository's own rule.
 
 ### 1. A set family and a set release are different things
 
@@ -167,6 +201,37 @@ sequences, so an editor reordering a JSON array must not change identity:
 A `deny` pattern, a required id, and an optional id are each unique within a
 release; duplicates are a refusal, not a sort question.
 
+#### Admissible bytes — refusal, not escaping
+
+The format uses `SP`, `NUL`, and `LF` structurally, so no value may contain one.
+**There is deliberately no escaping scheme**: an escape mechanism is a second
+grammar, and two grammars over the same bytes is how one byte sequence acquires
+two readings.
+
+- Every string value is **NFC UTF-8**.
+- **No logical string value may contain `NUL` (0x00), `LF` (0x0A), or `CR`
+  (0x0D).** A value that does is **refused** — the release cannot be built.
+- A scalar serialized after `SP` as a single token additionally contains **no
+  ASCII whitespace at all**. No current field needs whitespace, and none may
+  acquire it without defining its own encoding here first.
+- `deny` patterns, module ids, versions, and every policy token are subject to
+  both rules above.
+
+**Release version grammar** — syntax only:
+
+```text
+release-version := DIGIT+ "." DIGIT+ "." DIGIT+
+```
+
+Three dot-separated decimal runs, no leading `v`, no pre-release or build
+suffix, no whitespace. **This establishes no SemVer compatibility meaning** — §5
+already declines to infer one. It exists so the token is unambiguous inside a
+`SP`-delimited line.
+
+**Module version strings** inside `NUL`-delimited member records preserve the
+**exact catalog string**, so the manifest cannot silently disagree with the
+catalog it pins. They are still refused if they contain `NUL`, `LF`, or `CR`.
+
 **The manifest is derived from logical release content, not from any file.** Two
 implementations reading the same logical release must produce byte-identical
 manifests, which is what makes an independent second implementation meaningful.
@@ -264,11 +329,25 @@ describe a composition. Sets get their own — and it is **per release**:
 Released  →  Deprecated  →  Retired
 ```
 
-- **Released** — reviewed; may be newly requested by a profile.
-- **Deprecated** — still identifiable and still explains old runs; **should not**
-  be newly requested.
-- **Retired** — **must not** be newly requested. **Identity and evidence
-  survive.**
+"Should not" is not an executable disposition, so each state is defined as a rule
+a mechanism can apply:
+
+| State | New profile revision may **adopt** it | Existing profile revision already pinning it | Historical identity |
+|---|---|---|---|
+| **Released** | **yes** | resolves; services new runs | resolvable |
+| **Deprecated** | **no** | **still resolves**, and may service new runs | resolvable |
+| **Retired** | **no** | **does not** resolve; may not service a new run | **still resolvable for explanation** |
+
+- **Released** — may be pinned by new profile revisions and may service new runs.
+- **Deprecated** — a **new profile revision may not newly adopt it**, while
+  revisions that already pin it keep resolving and keep running. It is a stop on
+  new adoption, not a runtime break. Runtime warning or evidence semantics may be
+  added later; none is asserted here.
+- **Retired** — **may not service a new run** at all, whoever pins it. Identity
+  and historical evidence remain resolvable so an old run stays explicable.
+
+The distinction that matters: **deprecation restricts adoption; retirement
+restricts execution; neither restricts explanation.**
 
 Deprecation and retirement govern **new-request eligibility only**. Neither ever
 touches the immutable manifest or the digest, so an old run stays explicable
@@ -391,19 +470,53 @@ runner class. Today that is an explicit human review event, recorded as such.
 different question, no mechanism linking them. Automating composition review is a
 later decision that would need its own ADR.
 
-### 10. Rollout eligibility belongs to a release, not to a family
+### 10. There is exactly one set-release rollout authority
 
-Refining ADR-0016 §7a's undefined transition:
+**Eligibility is not a boolean anywhere.** It is a release's `state`.
 
-- `blockedByRollout: true → false` requires a **valid `releaseReview` bound to a
-  specific release digest** whose preconditions in §6 hold.
-- The transition attaches to **that release**, never to the mutable family.
-- A family with one released revision does **not** make a later unreviewed
-  revision eligible. Each release earns its own transition.
-- A candidate composition that is not yet released is not eligible for anything.
+```text
+candidate composition
+      │   preconditions of §6 hold for every selected member
+      │   canonical manifest (§4) → releaseDigest
+      │   releaseReview binds that digest (§9)
+      ▼
+immutable release record, state = Released      ← eligible
+```
+
+- **`Released` is the eligibility.** A release in that state has earned it; there
+  is nothing further to flip.
+- **There is no release-level `blockedByRollout` boolean.** Adding one would
+  recreate the two-authority problem in a new place: state and boolean could
+  disagree, and the permissive reading would eventually win.
+- A family holding one released revision confers **nothing** on a later
+  unreviewed revision. Each release earns its own review.
+- A candidate that is not a reviewed release is not eligible for anything, and no
+  field on the family can make it so.
+
+The legacy family-level `blockedByRollout` stays `true` until Prompt 6B migrates
+the schema, and it is never what authorizes a release. After migration it must
+not survive as a second authority (§0, §8a).
 
 ADR-0016's module and runbook rollout rules are untouched, and `resolveSet`'s
-refusal to resolve a blocked member through an unblocked set continues to apply.
+refusal to resolve a blocked member through an unblocked set continues to apply —
+a released set still cannot deliver a blocked module.
+
+### 10a. `blockedByToolchain` on the set side
+
+ADR-0016 also requires this field on every set. This ADR does not make it release
+identity, and 6B must not invent an answer:
+
+- **Module `blockedByToolchain` is unchanged**, exactly as ADR-0016 defines it.
+- **Set-family `blockedByToolchain` is a repository-wide readiness mirror**, not a
+  per-set fact. It is already `false` everywhere following the accepted toolchain
+  discharge, and it is **neither release identity nor per-release eligibility** —
+  it never appears in the canonical manifest (§4).
+
+Prompt 6B may either **(A)** retain it on the family as a non-identity readiness
+mirror, or **(B)** move the repository-wide readiness fact to one canonical global
+location and drop the per-set copy. Either is acceptable; **what is not acceptable
+is two readiness authorities that can disagree.** If (B) is chosen, no per-set
+copy may remain.
 
 ### 11. Task additions and narrowing produce a manifest, not a version
 
@@ -584,7 +697,7 @@ alone would mean it is not ready.
 | 14 | does release change tools, sandbox, API capability, authorization, safety, or live state? | §7; *What this decision does NOT prove*; ADR-0010 | no — context only | **PASS** |
 | 15 | household set whose platform and runbook members are valid | §6 — **every** selected member must have both gates false | cannot be opened; household members are rollout-blocked | **PASS** |
 | 16 | `1.0.0` released, then the family candidate is edited toward `1.1.0` | §8a family carries no version/status; §10 eligibility attaches to a release | `1.0.0` stays eligible and identifiable; the candidate inherits **no** rollout | **PASS** |
-| 17 | family holds `1.0.0 Deprecated` and `1.1.0 Released` | §8 lifecycle is per release; state is the only mutable part of a record | both identities representable; new-request semantics unambiguous | **PASS** |
+| 17 | family holds `1.0.0 Deprecated` and `1.1.0 Released` | §8 lifecycle is per release, **and its state table**: Deprecated blocks new adoption, keeps resolving for revisions already pinning it | both identities representable; request semantics have exactly one reading | **PASS** |
 | 18 | member goes `Validated → Packaged → Published`, version and digest unchanged | §6 eligibility table | still selectable by a new release — progressing never disqualifies | **PASS** |
 | 19 | `releaseReview` is written after `releaseDigest` exists | §4 excludes the field from the manifest; §9 fixes the order | digest unchanged; no circular identity | **PASS** |
 | 20 | `required` / `optional` / `deny` array order changes only | §4 ordering is normative and non-semantic — sorted by UTF-8 bytes | canonical identity **does not** change | **PASS** |
@@ -623,10 +736,30 @@ mechanism, and every case above is a test somebody has to write:
 14. release changes nothing about tools, sandbox, API capability, authorization,
     deterministic safety, or live state;
 15. a set whose household members are rollout-blocked cannot be opened because
-    its platform and runbook members are valid.
+    its platform and runbook members are valid;
+16. release `1.0.0` exists and the mutable family candidate is edited toward
+    `1.1.0` → `1.0.0`'s manifest, digest, review, and state are unchanged, and
+    the candidate inherits **no** eligibility from it;
+17. `1.0.0` is `Deprecated` while `1.1.0` is `Released` → both manifests and
+    digests survive byte-identical, and §8's request semantics apply exactly: a
+    new profile revision may not adopt `1.0.0`, one already pinning it keeps
+    resolving, and both stay explicable;
+18. a member progresses `Validated → Packaged → Published` with version and
+    digest unchanged → it remains eligible for a **new** release, and no existing
+    release's identity moves;
+19. a `releaseReview` is written after its `releaseDigest` exists → the digest is
+    byte-identical before and after, proving the review is not an input to it;
+20. the input order of `required`, `optional`, or `deny` changes with no other
+    edit → the canonical manifest and `releaseDigest` are unchanged.
 
-The canonicalization in §4 additionally requires an independent second
-implementation of the digest, as ADR-0015 §6 identity has.
+Two further obligations that are not scenarios:
+
+- the canonicalization in §4 requires an **independent second implementation** of
+  the digest, as ADR-0015 §6 identity has — a single implementation agreeing with
+  itself proves nothing;
+- the byte-admissibility rules in §4 must **refuse** a value containing `NUL`,
+  `LF`, or `CR`, proven against a planted violation rather than by reading the
+  code.
 
 ---
 

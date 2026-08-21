@@ -1553,3 +1553,73 @@ answer is not a mechanism.
 No set version assigned, no set released, no rollout gate moved, no resolver, no
 profile schema, no packaging, no publication. ADR-0016 is not edited.
 **ADR-0019 is still `Proposed` and human acceptance is still required.**
+
+### Prompt 6A — acceptance-readiness correction
+
+**ADR-0019 remains `Proposed`.** Prior 6A records above are unmodified. One
+accepted-ADR representation conflict and five under-specified seams are closed.
+
+**Set-side ADR-0016 refinement scope, stated honestly.** The ADR claimed it
+refined only one sentence of §7a. That understated it: §7 also fixes the
+*representation* — "`blockedByRollout` is a required boolean on every module
+**and set**" — and §7a gives the set-side boolean its meaning. A new §0 states
+the real scope. **Every module and runbook decision in ADR-0016 is preserved**:
+the per-module gate representation, the `platform/**` class release, the
+`household/**` block, the runbook allowlist, and `resolveSet`'s refusal to
+deliver a blocked module. **Refined on the set side only:** the family-level
+boolean is the legacy pre-release representation, 6B migrates it away from being
+an authority, and eligibility thereafter belongs to immutable release records.
+ADR-0016 is not edited.
+
+**One rollout authority, and it is not a boolean.** §10 still described
+`blockedByRollout: true → false` while §8b had already made release state the
+authority — two authorities inside one document. §10 is rewritten: **`Released`
+*is* the eligibility**, there is no release-level `blockedByRollout` boolean, and
+adding one would recreate the same defect in a new place where state and boolean
+could disagree. A candidate that is not a reviewed release is eligible for
+nothing, and no family field can make it so.
+
+**`blockedByToolchain` mapped explicitly (§10a).** Module semantics unchanged.
+The set-family field is a repository-wide **readiness mirror**, already `false`
+after the accepted discharge — neither release identity nor per-release
+eligibility, and it never enters the canonical manifest. 6B may retain it as a
+non-identity mirror or move the readiness fact to one canonical global location,
+but **not both**: two readiness authorities that can disagree are prohibited.
+
+**Deterministic request semantics.** "Should not be newly requested" is not
+executable. A state table now fixes it: **Released** may be newly adopted;
+**Deprecated** may not be newly adopted but keeps resolving and running for
+revisions that already pin it; **Retired** may not service a new run at all.
+Historical identity survives all three. The distinction: deprecation restricts
+adoption, retirement restricts execution, neither restricts explanation.
+Falsification case 17 now cites this rule rather than gesturing at §8.
+
+**Delimiter and version grammar.** The format uses `SP`, `NUL`, and `LF`
+structurally, so **no value may contain one** — and there is deliberately **no
+escaping scheme**, because an escape mechanism is a second grammar over the same
+bytes. A value containing `NUL`, `LF`, or `CR` is **refused**; a `SP`-delimited
+scalar contains no ASCII whitespace at all. `release-version := DIGIT+ "."
+DIGIT+ "." DIGIT+`, **syntax only, establishing no SemVer meaning**. Module
+version strings preserve the exact catalog string so the manifest cannot silently
+disagree with what it pins, subject to the same refusals.
+
+**Obligations 16–20 added.** The ADR required all twenty cases to hold
+mechanically in 6B while the numbered list stopped at 15. It now runs to 20, plus
+two non-scenario obligations: an **independent second implementation** of the
+digest, and proof that byte-admissibility refuses a **planted** violation rather
+than being read from the code.
+
+**Targeted A–F falsification, answered directly from the ADR:**
+
+| | Question | Answer | Established by |
+|---|---|---|---|
+| A | can ADR-0016 and ADR-0019 disagree on where a set rollout decision lives? | **no** | §0 scope table |
+| B | can a mutable family field authorize a release? | **no** | §0, §10 — "authorizes nothing", "no field on the family can make it so" |
+| C | can release state and a release rollout boolean disagree? | **impossible** | §10 — no such boolean exists |
+| D | can Deprecated be read two ways? | **no** | §8 state table |
+| E | can a field inject a separator and create two readings? | **no** | §4 admissible bytes — refusal, no escaping |
+| F | are all 20 architecture cases also 6B mechanical obligations? | **yes** | obligations 1–20 |
+
+No set version, no release, no rollout migration, no runtime work. ADR-0016,
+`knowledge/catalog.json`, `scripts/`, `tests/`, modules, and sets are untouched.
+**Human acceptance of ADR-0019 is the next step.**
