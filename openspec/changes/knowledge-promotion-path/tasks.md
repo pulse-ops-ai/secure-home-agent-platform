@@ -1275,3 +1275,122 @@ member was authored.
 The three idempotency citations of `services/control-plane/README.md` remain
 **deliberately untouched** — the canonical owner has not been audited, and
 guessing would repeat the error this landing corrects.
+
+---
+
+## Prompt 5C-B — triage and escalation runbooks
+
+The `runbooks/**` layer is complete. OpenSpec records the work and its
+authorization; it creates neither.
+
+- Starting merged main: `9505972f4714aef516b9e0fb8f1864f76acc61a5`
+- Branch: `knowledge/triage-escalation-runbooks`
+
+**External authorization.** The repository owner authorized Prompt 5 on
+2026-08-19 and authorized 5C-B on the merged 5C-A main.
+
+Prior Prompt 1–5C-A history is unmodified.
+
+### One cohort, two independent modules
+
+The cohort is **review convenience only**. Each module has its own source bytes,
+its own bundle digest, its own admission result, and will earn its own
+`contentReview`. There is no cohort digest and no shared review identity, and a
+finding in one must not move the other.
+
+Proved rather than asserted: mutating one byte of `incident-triage` changed its
+digest and left `safe-escalation` byte-identical, and the reverse held in the
+other direction. Both digests were restored exactly afterwards.
+
+### Projection matrices completed before authoring
+
+Every portable statement in both candidates traces to
+`docs/architecture/agent-triage-and-escalation.md` or to a declared ADR. No
+provider adapter, OpenSpec record, or peer knowledge module was used as
+provenance.
+
+### Final reviewed identities
+
+| Module | Version | Members | Bytes | Reviewed digest |
+|---|---|---:|---:|---|
+| `runbooks/incident-triage` | 1.0.0 | 4 | 9776 | `sha256:ab8e4067ab3ddcdb7eb4996dd5656e323bc11c536781baede09d78d08c79b67e` |
+| `runbooks/safe-escalation` | 1.0.0 | 3 | 7280 | `sha256:05bc4f62cb50e457ddeb4e15c8b01ccfad8fcde0ac51c939f5f1b932b8da21ad` |
+
+Each derived twice — canonical `bundleDigest()` and an oracle rebuilt from
+ADR-0015 §6 — and required equal before either attestation was written. Reviewed
+at those exact bytes by `human:mikegtech` under
+`portable-knowledge-prohibited-content-v1`, **independently**: two separate
+approvals, two separate `contentReview` records, no shared review identity.
+
+Both landed directly `Planned → Validated`; nothing unreviewed was ever committed
+as `Source-ready`.
+
+### `stale_after` — candidate-specific metadata, not a rule
+
+Stated precisely, because the earlier phrasing risked reading as policy:
+
+- the repository profile **requires an absolute `stale_after`** date, and the
+  toolchain enforces the `YYYY-MM-DD` shape;
+- **no global interval is currently governed** — nothing in the repository
+  determines how far ahead that date should sit;
+- these two modules carry `as_of: 2026-08-20` and `stale_after: 2027-08-20`,
+  reviewed and approved by `human:mikegtech` as **module-specific metadata for
+  these revisions**, alongside every other byte in them;
+- **that approval establishes no repository-wide stale-after default.** That the
+  reviewed modules happen to share an `as_of + 1 year` spacing is an observation
+  about those modules, not a policy, and a future module must still make and
+  justify its own choice.
+
+If the interval should become governed, that is a separate decision this landing
+does not make and does not presume.
+
+### State
+
+- Both modules carry their own `contentReview`, bound to their own digest.
+- No packaging. No publication. No set release. No set version.
+- No Proof B producer, so publication remains unreachable by design.
+- No runtime query resolver.
+- `household/**` and every set remain rollout-blocked.
+- The 11 existing reviewed identities are unchanged.
+- **Prompt 6 not begun.**
+
+### Prompt 5C-B — landed-byte review correction
+
+**Prompt 5C-B remains COMPLETE.** Both reviewed module identities were
+recomputed before and after this correction and are **unchanged**:
+
+- `runbooks/incident-triage@1.0.0` — `sha256:ab8e4067…b67e`
+- `runbooks/safe-escalation@1.0.0` — `sha256:05bc4f62…21ad`
+
+**No bundle byte changed. No `contentReview` changed.** The seven bundle members
+have zero diff against the landing commit, and this correction did not trigger a
+new exact-byte review.
+
+Final review found two standing-guidance snapshots that the landing itself had
+made false — the recurring defect of writing down a state instead of routing to
+the thing that records it:
+
+- `knowledge/INDEX.md` claimed every module other than a `Validated`
+  `platform/**` one was "still at an earlier lifecycle state", which stopped
+  being true the moment `runbooks/**` gained `Validated` modules. It now states
+  the durable property — every `Validated` module carries its own review bound to
+  its own digest and admits independently — and routes current lifecycle state
+  and version to `catalog.json`.
+- `knowledge/runbooks/README.md` named which runbook was authored and said the
+  others were specification-only. It now states that lifecycle is per module and
+  that authored-source presence follows lifecycle state, with `catalog.json`
+  authoritative.
+
+The same README's routing exclusion was also **narrowed to the accepted 5C-A
+boundary**. It had said routing "belongs to household configuration, not to a
+portable document", which is broader than what was decided. It now scopes the
+exclusion to these runbooks — who is contacted, in what order, by what means,
+plus identities, contact details, and current availability — and records
+explicitly that whether a future provider-neutral, non-sensitive, role-based
+representation could be portable is deliberately left open and not designed here.
+
+A search-driven sweep across `knowledge/README.md`, `knowledge/INDEX.md`,
+`knowledge/runbooks/README.md`, and `knowledge/AGENTS.md` found no further
+current-state falsehood. The one remaining "not to a portable document" phrase,
+in the `incident-triage` specification README, is scoped to emergency-service
+numbers and addresses specifically — accurate, and not a universal routing claim.

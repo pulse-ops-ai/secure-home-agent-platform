@@ -910,6 +910,12 @@ REVIEWED_DIGESTS = {
     "platform/workspace-conventions": (
         "sha256:0b3db0030d91021ad5add7a7096047f93aeec99f854440f80c6928b5b99bbf42"
     ),
+    "runbooks/incident-triage": (
+        "sha256:ab8e4067ab3ddcdb7eb4996dd5656e323bc11c536781baede09d78d08c79b67e"
+    ),
+    "runbooks/safe-escalation": (
+        "sha256:05bc4f62cb50e457ddeb4e15c8b01ccfad8fcde0ac51c939f5f1b932b8da21ad"
+    ),
     "runbooks/repository-validation": (
         "sha256:4469de1dcabc6e34b6605efa46ae656ebfeebb2025918d2d787d3a1dc62515aa"
     ),

@@ -417,10 +417,16 @@
       "purpose": "The ordered procedure for reasoning about a household incident.",
       "consumers": ["household-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Procedure only; carries no live state and no contact detail.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-20",
+      "limitations": "Portable projection only. Defines no incident taxonomy, and carries no live device state, sensor value, occupancy, presence, member identity, contact detail, access history, or device identifier. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-20T19:46:52Z",
+        "sourceDigest": "sha256:ab8e4067ab3ddcdb7eb4996dd5656e323bc11c536781baede09d78d08c79b67e"
+      },
       "governingSources": [
         "docs/architecture/agent-triage-and-escalation.md",
         "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
@@ -438,10 +444,16 @@
       "purpose": "When an agent must stop, and how it hands a situation to a human.",
       "consumers": ["coding-runner", "household-runner"],
       "owner": "human:mikegtech",
-      "status": "Planned",
-      "version": null,
-      "asOf": null,
-      "limitations": "No content authored. Describes when and how to hand over, never to whom.",
+      "status": "Validated",
+      "version": "1.0.0",
+      "asOf": "2026-08-20",
+      "limitations": "Portable projection only. Names no person, contact, address, emergency number, or role assignment, and carries no live availability, presence, or other live state. Grants nothing.",
+      "contentReview": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-20T19:46:52Z",
+        "sourceDigest": "sha256:05bc4f62cb50e457ddeb4e15c8b01ccfad8fcde0ac51c939f5f1b932b8da21ad"
+      },
       "governingSources": [
         "docs/architecture/agent-triage-and-escalation.md",
         "docs/decisions/ADR-0004-treat-agents-as-clients.md",
