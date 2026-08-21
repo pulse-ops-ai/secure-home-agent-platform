@@ -93,18 +93,16 @@ knowledge:
 > **No set version is assignable yet, and the reason is now concrete.** Every
 > registered set carries a `version` field — the registry is version-capable,
 > because this contract and the evidence fields below both require it — but every
-> one is `null`, because **every set still has required members that carry no
-> version**, and **no set has been released**. Whether a set becomes
-> version-assignable is derived from its actual members rather than from any
-> count: as platform modules are authored some required members are now
-> versioned and some are not, and a set can only pin what resolves. Every set is
-> additionally rollout-blocked, and set release and composition lifecycle are
-> not settled here. A set version that pins
-> nothing resolvable would make two different resolutions look identical in
-> evidence, so [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects
-> a set that carries a version while selecting an unversioned module. The
-> `@1` in the example above is therefore illustrative of the *shape*, not
-> something a profile could write today.
+> one is `null`, and **no set has been released**. Having versioned selected
+> members is **necessary but not sufficient**: some sets now satisfy that
+> member-identity prerequisite, and they still carry no version, because the set
+> release and version lifecycle is not yet settled. Every set is additionally
+> rollout-blocked. A set version that pins nothing resolvable would make two
+> different resolutions look identical in evidence, so
+> [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects a set that
+> carries a version while selecting an unversioned module — a necessary
+> condition, not a release procedure. The `@1` in the example above is therefore
+> illustrative of the *shape*, not something a profile could write today.
 | `required` | modules whose absence, invalidity, or staleness **rejects the run**. |
 | `optional` | modules whose absence produces a typed warning and is recorded. |
 | `deny` | module IDs or single-level `group/*` patterns. Denial beats every other rule, including a task addition. |

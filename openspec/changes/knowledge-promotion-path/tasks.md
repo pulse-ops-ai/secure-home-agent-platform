@@ -1394,3 +1394,264 @@ A search-driven sweep across `knowledge/README.md`, `knowledge/INDEX.md`,
 current-state falsehood. The one remaining "not to a portable document" phrase,
 in the `incident-triage` specification README, is scoped to emergency-service
 numbers and addresses specifically — accurate, and not a universal routing claim.
+
+---
+
+## Prompt 6A — the knowledge-set release lifecycle (Proposed)
+
+**External authorization.** The repository owner authorized Prompt 6A. OpenSpec
+records the work and its authorization; it creates neither, and **ADR-0019 is
+`Proposed` — nothing below is operative.**
+
+- Starting main: `be05e2f2c6e576bf0d4e268d42f67bb11e87e3ec`
+- Branch: `architecture/knowledge-set-release-lifecycle`
+
+Prior Prompt 1–5C history is unmodified.
+
+### The live six-set baseline
+
+Derived from the merged catalog, not assumed:
+
+| Set | Runner class | Required | Optional | Structurally versionable |
+|---|---|---:|---:|---|
+| `prepr-review-default` | coding | 6 | 0 | **yes** |
+| `implement-local-default` | coding | 7 | 1 | **yes** |
+| `architecture-default` | coding | 4 | 1 | **yes** |
+| `home-status-default` | household | 4 | 1 | no — 2 required household members unversioned |
+| `climate-default` | household | 4 | 2 | no — 2 required + 1 optional unversioned |
+| `gridwise-default` | household | 3 | 2 | no — 1 required + 2 optional unversioned |
+
+All six remain `Planned`, `version: null`, `blockedByRollout: true`.
+"Structurally versionable" means only that every selected member has a concrete
+reviewed identity — never released, rollout-open, published, packaged, or
+runtime-usable.
+
+### Current-state drift repaired first (separate commit)
+
+All six set `limitations` carried snapshot counts of unversioned required
+members, and **all six were wrong** — the coding sets said three, three, and two
+where the truth is zero; the household sets said four, four, and three where the
+truth is two, two, and one. They now state the lifecycle reason instead.
+`knowledge-selection-model.md` claimed every set still had unversioned required
+members, which the module program had falsified.
+
+### Why a new ADR is required
+
+Accepted architecture explicitly left composition lifecycle unsettled, and three
+sets are now structurally capable of naming exact identities. The unanswered
+questions — what a version identifies, what it pins, where history lives, what
+release means, what reopens the gate — would otherwise be answered by accident on
+the first release.
+
+One shipped-model defect was found while auditing: `knowledge-selection-model.md`
+§4 records `resolvedSetVersion` as differing from the requested version under
+task narrowing. **A narrowed composition is not a registered release, so there is
+no version to name.** ADR-0019 §11 replaces it with a resolved-manifest digest.
+
+### Proposed ADR
+
+`docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md`
+— **Status: Proposed.** Registered in `docs/decisions/INDEX.md`.
+
+It refines **only** the sentence in ADR-0016 §7a leaving the set rollout
+transition undefined. ADR-0016 is not edited, and its module and runbook rollout
+decisions are preserved.
+
+### Candidate release table — after acceptance, not now
+
+| Set | Meets proposed preconditions | Blocking facts |
+|---|---|---|
+| `prepr-review-default` | **candidate** | ADR-0019 unaccepted |
+| `implement-local-default` | **candidate** | ADR-0019 unaccepted |
+| `architecture-default` | **candidate** | ADR-0019 unaccepted |
+| `home-status-default` | blocked | selected household modules unversioned and rollout-blocked |
+| `climate-default` | blocked | same |
+| `gridwise-default` | blocked | same |
+
+### State
+
+- **No set version assigned. No set released. No `blockedByRollout` flipped.**
+- No packaging, no publication, no Proof B producer, no runtime resolver, no
+  profile knowledge schema.
+- The 13 reviewed module identities are unchanged.
+- **ADR-0019 is not accepted. Prompt 6B is not authorized and has not begun.**
+
+### Prompt 6A — falsification correction
+
+**ADR-0019 remains `Proposed`.** The prior 6A record above is unmodified. The
+architecture direction was approved; four under-decided seams are now closed, and
+the twenty falsification cases were run against the proposal rather than deferred.
+
+**Canonicalization chosen.** §4 previously offered two mechanisms and left the
+choice to the accepting review, which is not a decision. One normative
+representation is now specified: a canonical line-oriented UTF-8 manifest
+`okf-set-release-v1`, modelled on ADR-0015 §6 — fixed field order, `LF` only,
+`SP` and `NUL` separators, NFC, every line terminated, booleans as literal
+`true`/`false`, integers as shortest decimal, member digests as bare lowercase
+64-hex. `required`, `optional`, and `deny` are **sets, not sequences**, and are
+sorted by ascending UTF-8 bytes so that reordering a JSON array cannot change
+identity. `releaseDigest = sha256(manifest bytes)`. The rejected alternative —
+making a committed file's incidental bytes normative — moved to *Alternatives
+considered*, because identity would then depend on whatever wrote the file.
+
+**Family and release representation.** §8a and §8b were added. A family row must
+not carry `version` or `status`: a mutable row holding "the current release
+version" stops representing `1.0.0` the moment `1.1.0` exists, which is the exact
+defect the ADR exists to prevent. Both fields leave the family row in 6B; the
+family keeps descriptive metadata and candidate policy only. A profile pins
+`familyId@releaseVersion` and resolution reads the **release record**, never the
+family. `(familyId, version) → releaseDigest` is unique and immutable for all
+time, and a version is never reused — not after deprecation, retirement, or
+withdrawal.
+
+**Lifecycle is per release.** `Released → Deprecated → Retired` describes a
+release, not a family, so `1.0.0 Deprecated` and `1.1.0 Released` coexist with
+both manifests byte-identical to their review. State is the only mutable part of
+a release record; deprecation and retirement govern **new-request eligibility
+only** and never touch identity or evidence. A family has no lifecycle status of
+its own — one field cannot describe both a mutable candidate and a set of
+immutable revisions.
+
+**One rollout authority.** Family-level `blockedByRollout` ceases to be the
+authority; eligibility attaches to a reviewed release. Until 6B migrates the
+representation the field stays present and `true`, and is never what authorizes a
+release. Two authorities would eventually be resolved by the permissive one.
+
+**Precondition lifecycle corrected.** Requiring exactly `Validated` would have
+made a module ineligible *for progressing* to `Packaged` or `Published` — a rule
+that punishes the lifecycle for advancing. The precondition is now semantic, with
+each current state decided explicitly: `Validated`, `Packaged`, and `Published`
+are eligible for a new release; `Planned` and `Source-ready` are not; and
+`Deprecated` and `Retired` are **not**, decided rather than left to fall through
+— an existing release pinning such a member stays exact, but a new composition
+must not adopt what the module program is retiring.
+
+**`releaseReview` made non-circular.** The order is fixed: logical content →
+canonical manifest → `releaseDigest` → review binds that digest. The review is
+**excluded from the manifest**, so writing it cannot change the digest it
+attests. Policy identifier `knowledge-set-release-review-v1`, with its subject
+enumerated: exact member identities, the required/optional split, least-context
+posture, deny rules, task posture, failure semantics, `maxBytes`,
+`maxFreshnessDays`, `runnerClass`, and override authority. Review authority is
+stated provider-neutrally, and **no automated producer is claimed** — in
+particular this is not ADR-0016's absent Proof B producer.
+
+**Task-delta evidence.** Fields fixed: `requestedSetId`, `requestedSetVersion`,
+`requestedSetReleaseDigest`, `taskDelta`, `taskDeltaDigest`,
+`resolvedManifestDigest`. No `resolvedSetVersion` is minted. Every
+task-added module resolves to an exact `(id, version, digest)`, so two runs of one
+base release that saw different context differ in their resolved manifest digest
+and nothing hides behind the shared base.
+
+**Twenty-case falsification: 20 PASS, 0 FAIL, no unanswerable case.** Cases 16–20
+were added this round. Four ambiguities were found and closed by running them —
+the deferred canonicalization choice, the family-versus-release lifecycle
+question, the over-tight `Validated` precondition, and the unfixed review
+ordering. The cases remain implementation obligations for 6B: an architecture
+answer is not a mechanism.
+
+No set version assigned, no set released, no rollout gate moved, no resolver, no
+profile schema, no packaging, no publication. ADR-0016 is not edited.
+**ADR-0019 is still `Proposed` and human acceptance is still required.**
+
+### Prompt 6A — acceptance-readiness correction
+
+**ADR-0019 remains `Proposed`.** Prior 6A records above are unmodified. One
+accepted-ADR representation conflict and five under-specified seams are closed.
+
+**Set-side ADR-0016 refinement scope, stated honestly.** The ADR claimed it
+refined only one sentence of §7a. That understated it: §7 also fixes the
+*representation* — "`blockedByRollout` is a required boolean on every module
+**and set**" — and §7a gives the set-side boolean its meaning. A new §0 states
+the real scope. **Every module and runbook decision in ADR-0016 is preserved**:
+the per-module gate representation, the `platform/**` class release, the
+`household/**` block, the runbook allowlist, and `resolveSet`'s refusal to
+deliver a blocked module. **Refined on the set side only:** the family-level
+boolean is the legacy pre-release representation, 6B migrates it away from being
+an authority, and eligibility thereafter belongs to immutable release records.
+ADR-0016 is not edited.
+
+**One rollout authority, and it is not a boolean.** §10 still described
+`blockedByRollout: true → false` while §8b had already made release state the
+authority — two authorities inside one document. §10 is rewritten: **`Released`
+*is* the eligibility**, there is no release-level `blockedByRollout` boolean, and
+adding one would recreate the same defect in a new place where state and boolean
+could disagree. A candidate that is not a reviewed release is eligible for
+nothing, and no family field can make it so.
+
+**`blockedByToolchain` mapped explicitly (§10a).** Module semantics unchanged.
+The set-family field is a repository-wide **readiness mirror**, already `false`
+after the accepted discharge — neither release identity nor per-release
+eligibility, and it never enters the canonical manifest. 6B may retain it as a
+non-identity mirror or move the readiness fact to one canonical global location,
+but **not both**: two readiness authorities that can disagree are prohibited.
+
+**Deterministic request semantics.** "Should not be newly requested" is not
+executable. A state table now fixes it: **Released** may be newly adopted;
+**Deprecated** may not be newly adopted but keeps resolving and running for
+revisions that already pin it; **Retired** may not service a new run at all.
+Historical identity survives all three. The distinction: deprecation restricts
+adoption, retirement restricts execution, neither restricts explanation.
+Falsification case 17 now cites this rule rather than gesturing at §8.
+
+**Delimiter and version grammar.** The format uses `SP`, `NUL`, and `LF`
+structurally, so **no value may contain one** — and there is deliberately **no
+escaping scheme**, because an escape mechanism is a second grammar over the same
+bytes. A value containing `NUL`, `LF`, or `CR` is **refused**; a `SP`-delimited
+scalar contains no ASCII whitespace at all. `release-version := DIGIT+ "."
+DIGIT+ "." DIGIT+`, **syntax only, establishing no SemVer meaning**. Module
+version strings preserve the exact catalog string so the manifest cannot silently
+disagree with what it pins, subject to the same refusals.
+
+**Obligations 16–20 added.** The ADR required all twenty cases to hold
+mechanically in 6B while the numbered list stopped at 15. It now runs to 20, plus
+two non-scenario obligations: an **independent second implementation** of the
+digest, and proof that byte-admissibility refuses a **planted** violation rather
+than being read from the code.
+
+**Targeted A–F falsification, answered directly from the ADR:**
+
+| | Question | Answer | Established by |
+|---|---|---|---|
+| A | can ADR-0016 and ADR-0019 disagree on where a set rollout decision lives? | **no** | §0 scope table |
+| B | can a mutable family field authorize a release? | **no** | §0, §10 — "authorizes nothing", "no field on the family can make it so" |
+| C | can release state and a release rollout boolean disagree? | **impossible** | §10 — no such boolean exists |
+| D | can Deprecated be read two ways? | **no** | §8 state table |
+| E | can a field inject a separator and create two readings? | **no** | §4 admissible bytes — refusal, no escaping |
+| F | are all 20 architecture cases also 6B mechanical obligations? | **yes** | obligations 1–20 |
+
+No set version, no release, no rollout migration, no runtime work. ADR-0016,
+`knowledge/catalog.json`, `scripts/`, `tests/`, modules, and sets are untouched.
+**Human acceptance of ADR-0019 is the next step.**
+
+### Prompt 6A — ADR-0019 accepted
+
+**The repository owner accepted ADR-0019 in full on 2026-08-21, at the exact
+reviewed commit `43170c76e64917dc91303e544297d177688cc811`.** Prior 6A records
+above are unmodified.
+
+The transition is a **status change and its record — nothing else**:
+
+- ADR-0019 `Proposed → Accepted`, carrying the acceptance date and the exact
+  accepted commit;
+- `docs/decisions/INDEX.md` — status column, an acceptance record beside the
+  others, the standing note rewritten from "decides nothing yet" to what
+  acceptance does and does not unblock, and the applicability table taught that
+  set versioning and release are governed by ADR-0019.
+
+**What acceptance authorizes.** The *shape* of the work, as every accepted ADR
+here does. Implementing it still requires its own task contract.
+
+**What acceptance did NOT do**, verified rather than asserted: no set version
+assigned, no set released, no rollout gate moved, no release record, no canonical
+manifest written, no resolver, no profile knowledge schema, no packaging, no
+publication. All six sets remain `Planned`, `version: null`,
+`blockedByRollout: true`; `household/**` remains rollout-blocked; the 13 reviewed
+module identities are unchanged; ADR-0016 is not edited.
+
+The twenty falsification cases are answered **architecturally**. They remain
+**mechanical obligations** for whoever implements this — an architecture answer
+is not a mechanism — along with the independent second implementation of the
+release digest and the planted-violation test for byte admissibility.
+
+**Prompt 6B is not begun and is not authorized by this acceptance.**
