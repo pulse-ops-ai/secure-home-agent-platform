@@ -14,14 +14,13 @@ The canonical registry of knowledge **modules** and **sets**.
 > [`catalog.json`](catalog.json) is authoritative for the current inventory and
 > lifecycle state.
 >
-> Every `Validated` `platform/**` module sits at `1.0.0`, and further modules may
-> be added when new durable truths are earned. Each carries **its own**
-> human content review bound to **its own** digest and passes canonical
-> admission independently. Every other module is still at an earlier lifecycle
-> state; [`catalog.json`](catalog.json) records which. Nothing is packaged and
-> nothing is published — `household/**` and every set remain rollout-blocked,
-> runbook rollout is per module, and publication additionally requires Proof B,
-> for which no governed producer exists.
+> Every `Validated` module carries **its own** human content review bound to
+> **its own** digest and passes canonical admission independently.
+> [`catalog.json`](catalog.json) records the authoritative current lifecycle
+> state and version for every module. Nothing is packaged and nothing is
+> published — `household/**` and every set remain rollout-blocked, runbook
+> rollout is per module, and publication additionally requires Proof B, for which
+> no governed producer exists.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
 human-facing view, and

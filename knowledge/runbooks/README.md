@@ -7,9 +7,10 @@ opposed to the domain semantics it reasons over.
 > per-module rollout allowlist in [`../catalog.json`](../catalog.json) — never by
 > directory, so filing a runbook here earns it nothing
 > ([ADR-0016](../../docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7a).
-> `repository-validation` is authored and `Validated`; the others remain
-> specification-only. [`../catalog.json`](../catalog.json) is authoritative for
-> lifecycle and eligibility, and every directory here is registered in
+> **Lifecycle is per module.** [`../catalog.json`](../catalog.json) is
+> authoritative for each runbook's current status, version, eligibility, and
+> whether authored source exists beside its README — authored-source presence
+> follows lifecycle state. Every directory here is registered in
 > [`../INDEX.md`](../INDEX.md).
 >
 > [U7](../../docs/architecture/unresolved-decisions.md#u7) is **RESOLVED**. Nothing
@@ -30,8 +31,16 @@ signals that select a branch and the conditions that end the procedure.
 
 ## What does not belong here
 
-- **Escalation routing** — who is contacted, how, and in what order. That names
-  people and belongs to household configuration, not to a portable document.
+- **Escalation routing** — who is contacted, in what order, and by what means,
+  along with household identities, contact details, and current availability or
+  presence. Those are operational household configuration rather than runbook
+  procedure, and a runbook here defines *when* to stop and *how* to hand over,
+  never *to whom*. This is a boundary for these runbooks, not a claim that every
+  conceivable routing representation is unportable: whether a future
+  provider-neutral, non-sensitive, role-based representation could be portable is
+  deliberately left open
+  ([`../../docs/architecture/agent-triage-and-escalation.md`](../../docs/architecture/agent-triage-and-escalation.md)),
+  and is not designed here.
 - **Live state** of any kind, including whatever the runbook reacts to.
 - **Authority.** A runbook describes a procedure; it never grants the capability
   to perform one of its steps.

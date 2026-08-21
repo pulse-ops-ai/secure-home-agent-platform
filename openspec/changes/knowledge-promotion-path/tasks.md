@@ -1353,3 +1353,44 @@ does not make and does not presume.
 - `household/**` and every set remain rollout-blocked.
 - The 11 existing reviewed identities are unchanged.
 - **Prompt 6 not begun.**
+
+### Prompt 5C-B — landed-byte review correction
+
+**Prompt 5C-B remains COMPLETE.** Both reviewed module identities were
+recomputed before and after this correction and are **unchanged**:
+
+- `runbooks/incident-triage@1.0.0` — `sha256:ab8e4067…b67e`
+- `runbooks/safe-escalation@1.0.0` — `sha256:05bc4f62…21ad`
+
+**No bundle byte changed. No `contentReview` changed.** The seven bundle members
+have zero diff against the landing commit, and this correction did not trigger a
+new exact-byte review.
+
+Final review found two standing-guidance snapshots that the landing itself had
+made false — the recurring defect of writing down a state instead of routing to
+the thing that records it:
+
+- `knowledge/INDEX.md` claimed every module other than a `Validated`
+  `platform/**` one was "still at an earlier lifecycle state", which stopped
+  being true the moment `runbooks/**` gained `Validated` modules. It now states
+  the durable property — every `Validated` module carries its own review bound to
+  its own digest and admits independently — and routes current lifecycle state
+  and version to `catalog.json`.
+- `knowledge/runbooks/README.md` named which runbook was authored and said the
+  others were specification-only. It now states that lifecycle is per module and
+  that authored-source presence follows lifecycle state, with `catalog.json`
+  authoritative.
+
+The same README's routing exclusion was also **narrowed to the accepted 5C-A
+boundary**. It had said routing "belongs to household configuration, not to a
+portable document", which is broader than what was decided. It now scopes the
+exclusion to these runbooks — who is contacted, in what order, by what means,
+plus identities, contact details, and current availability — and records
+explicitly that whether a future provider-neutral, non-sensitive, role-based
+representation could be portable is deliberately left open and not designed here.
+
+A search-driven sweep across `knowledge/README.md`, `knowledge/INDEX.md`,
+`knowledge/runbooks/README.md`, and `knowledge/AGENTS.md` found no further
+current-state falsehood. The one remaining "not to a portable document" phrase,
+in the `incident-triage` specification README, is scoped to emergency-service
+numbers and addresses specifically — accurate, and not a universal routing claim.
