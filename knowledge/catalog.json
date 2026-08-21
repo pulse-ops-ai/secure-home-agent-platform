@@ -475,7 +475,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. Composition only; it grants no capability.",
+      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. Composition only; it grants no capability.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -512,7 +512,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. The optional API-contract module means two runs of this set can see different context; evidence records which.",
+      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. The optional API-contract module means two runs of this set can see different context; evidence records which.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -550,7 +550,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: two required members are still unversioned, and no set has been released. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -585,7 +585,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: four required members are still unversioned, and no set has been released. Describes the house; carries no live state and confers no ability to read or change any device.",
+      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Describes the house; carries no live state and confers no ability to read or change any device.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -627,7 +627,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: four required members are still unversioned, and no set has been released. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
+      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -670,7 +670,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: three required members are still unversioned, and no set has been released. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
+      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
