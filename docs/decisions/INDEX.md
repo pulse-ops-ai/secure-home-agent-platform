@@ -138,7 +138,15 @@ implementation-neutral. These decide how it is built.
 | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
+| [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | **Proposed** | [`knowledge/`](../../knowledge/) set families and releases |
 
+> **ADR-0019 is `Proposed`** and decides nothing yet. It defines what a knowledge
+> *set release* would be — immutable, digest-identified, pinning exact member
+> versions — and the reviewed transition ADR-0016 §7a left undefined. **No set
+> may be versioned or released, and no set rollout gate may move, until it is
+> accepted.** It refines only that one sentence of ADR-0016 §7a; every module and
+> runbook rollout decision there is preserved.
+>
 > **ADR-0017 is `Accepted`** (2026-08-17) and **immutable**. See
 > [the ADR-0017 acceptance record](#adr-0017-acceptance-record).
 >

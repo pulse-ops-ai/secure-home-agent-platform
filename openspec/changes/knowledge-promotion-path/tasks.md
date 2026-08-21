@@ -1394,3 +1394,84 @@ A search-driven sweep across `knowledge/README.md`, `knowledge/INDEX.md`,
 current-state falsehood. The one remaining "not to a portable document" phrase,
 in the `incident-triage` specification README, is scoped to emergency-service
 numbers and addresses specifically — accurate, and not a universal routing claim.
+
+---
+
+## Prompt 6A — the knowledge-set release lifecycle (Proposed)
+
+**External authorization.** The repository owner authorized Prompt 6A. OpenSpec
+records the work and its authorization; it creates neither, and **ADR-0019 is
+`Proposed` — nothing below is operative.**
+
+- Starting main: `be05e2f2c6e576bf0d4e268d42f67bb11e87e3ec`
+- Branch: `architecture/knowledge-set-release-lifecycle`
+
+Prior Prompt 1–5C history is unmodified.
+
+### The live six-set baseline
+
+Derived from the merged catalog, not assumed:
+
+| Set | Runner class | Required | Optional | Structurally versionable |
+|---|---|---:|---:|---|
+| `prepr-review-default` | coding | 6 | 0 | **yes** |
+| `implement-local-default` | coding | 7 | 1 | **yes** |
+| `architecture-default` | coding | 4 | 1 | **yes** |
+| `home-status-default` | household | 4 | 1 | no — 2 required household members unversioned |
+| `climate-default` | household | 4 | 2 | no — 2 required + 1 optional unversioned |
+| `gridwise-default` | household | 3 | 2 | no — 1 required + 2 optional unversioned |
+
+All six remain `Planned`, `version: null`, `blockedByRollout: true`.
+"Structurally versionable" means only that every selected member has a concrete
+reviewed identity — never released, rollout-open, published, packaged, or
+runtime-usable.
+
+### Current-state drift repaired first (separate commit)
+
+All six set `limitations` carried snapshot counts of unversioned required
+members, and **all six were wrong** — the coding sets said three, three, and two
+where the truth is zero; the household sets said four, four, and three where the
+truth is two, two, and one. They now state the lifecycle reason instead.
+`knowledge-selection-model.md` claimed every set still had unversioned required
+members, which the module program had falsified.
+
+### Why a new ADR is required
+
+Accepted architecture explicitly left composition lifecycle unsettled, and three
+sets are now structurally capable of naming exact identities. The unanswered
+questions — what a version identifies, what it pins, where history lives, what
+release means, what reopens the gate — would otherwise be answered by accident on
+the first release.
+
+One shipped-model defect was found while auditing: `knowledge-selection-model.md`
+§4 records `resolvedSetVersion` as differing from the requested version under
+task narrowing. **A narrowed composition is not a registered release, so there is
+no version to name.** ADR-0019 §11 replaces it with a resolved-manifest digest.
+
+### Proposed ADR
+
+`docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md`
+— **Status: Proposed.** Registered in `docs/decisions/INDEX.md`.
+
+It refines **only** the sentence in ADR-0016 §7a leaving the set rollout
+transition undefined. ADR-0016 is not edited, and its module and runbook rollout
+decisions are preserved.
+
+### Candidate release table — after acceptance, not now
+
+| Set | Meets proposed preconditions | Blocking facts |
+|---|---|---|
+| `prepr-review-default` | **candidate** | ADR-0019 unaccepted |
+| `implement-local-default` | **candidate** | ADR-0019 unaccepted |
+| `architecture-default` | **candidate** | ADR-0019 unaccepted |
+| `home-status-default` | blocked | selected household modules unversioned and rollout-blocked |
+| `climate-default` | blocked | same |
+| `gridwise-default` | blocked | same |
+
+### State
+
+- **No set version assigned. No set released. No `blockedByRollout` flipped.**
+- No packaging, no publication, no Proof B producer, no runtime resolver, no
+  profile knowledge schema.
+- The 13 reviewed module identities are unchanged.
+- **ADR-0019 is not accepted. Prompt 6B is not authorized and has not begun.**
