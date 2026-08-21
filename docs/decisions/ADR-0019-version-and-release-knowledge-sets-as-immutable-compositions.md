@@ -111,27 +111,72 @@ The test is mechanical: **if changing the value can change what context resolves
 what may be added or dropped, what rejects a run, or who may alter those, it is
 identity.** Any identity-bearing change requires a new release.
 
-### 4. A release carries a deterministic release digest
+### 4. The canonical release manifest, and the digest over it
 
-A semantic version is a human label. Exact identity is a digest.
+A version string is a human label. Exact identity is a digest over a **canonical
+line-oriented UTF-8 manifest**, modelled on ADR-0015 §6 so that both identities in
+this repository are computed the same way.
 
-Each release carries a **release digest** binding: the family id, the release
-version, the ordered required member `(id, version, digest)` tuples, the ordered
-optional member tuples, the deny rules, and every identity-bearing policy field
-in §3.
+**This is the single normative representation.** The alternative considered — a
+committed file whose incidental bytes are normative — is recorded under
+*Alternatives considered* and is not adopted.
 
-**Canonicalization is normative and must be independently reproducible.** Two
-acceptable mechanisms, and the accepting review picks one:
+```text
+release_manifest :=
+  "okf-set-release-v1"                              LF
+  "family"             SP <family-id>               LF
+  "version"            SP <release-version>         LF
+  "runnerClass"        SP <runner-class>            LF
+  "allowTaskAdditions" SP <bool>                    LF
+  "allowTaskNarrowing" SP <bool>                    LF
+  "maxBytes"           SP <int>                     LF
+  "maxFreshnessDays"   SP <int>                     LF
+  "requiredFailure"    SP <token>                   LF
+  "optionalFailure"    SP <token>                   LF
+  "overrideAuthority"  SP <token>                   LF
+  ( "deny"     SP <pattern>                            LF )*
+  ( "required" SP <id> NUL <version> NUL <sha256-hex>  LF )*
+  ( "optional" SP <id> NUL <version> NUL <sha256-hex>  LF )*
 
-- **(a)** a normative canonical manifest byte format — field order, encoding,
-  separators, and newline fixed by this ADR, digested exactly as ADR-0015 §6
-  digests a bundle; or
-- **(b)** an immutable committed release-manifest file whose **exact bytes** are
-  normative, with its path, encoding, and trailing-newline requirements fixed
-  here.
+releaseDigest := "sha256:" <lowercase hex of sha256(release_manifest)>
+```
 
-**Arbitrary JSON object serialization is not acceptable.** Key order and escaping
-are library behaviour, and an identity that depends on them is not an identity.
+Exactly specified, because an identity with a loose spelling is not an identity:
+
+| Aspect | Rule |
+|---|---|
+| encoding | UTF-8, **NFC-normalized**, no byte-order mark |
+| newline | `LF` (0x0A) only; **never** CR or CRLF |
+| separators | `SP` is one 0x20; `NUL` is one 0x00 |
+| terminator | **every** line ends `LF`, including the last |
+| whitespace | no leading or trailing whitespace on any line; never two consecutive `SP` |
+| scalar block | the eleven fixed lines above, **in exactly that order**, each present exactly once |
+| booleans | the literal lowercase token `true` or `false` — never `1`, `yes`, or `True` |
+| integers | shortest decimal, no sign, no leading zeros, `0` written as `0` |
+| tokens | the exact catalog string; no case folding, no aliasing |
+| member digest | the module's reviewed `sourceDigest` as **bare lowercase 64-hex**, the `sha256:` prefix stripped, matching ADR-0015 §6 |
+| version | the module's exact catalog `version` string |
+
+**Ordering is normative and non-semantic.** These three collections are sets, not
+sequences, so an editor reordering a JSON array must not change identity:
+
+- `deny` lines sorted ascending by the **UTF-8 bytes** of the pattern;
+- `required` lines sorted ascending by the UTF-8 bytes of the module id;
+- `optional` lines sorted ascending by the UTF-8 bytes of the module id.
+
+A `deny` pattern, a required id, and an optional id are each unique within a
+release; duplicates are a refusal, not a sort question.
+
+**The manifest is derived from logical release content, not from any file.** Two
+implementations reading the same logical release must produce byte-identical
+manifests, which is what makes an independent second implementation meaningful.
+
+**Arbitrary JSON serialization remains prohibited.** Key order, escaping, and
+number formatting are library behaviour, and an identity that depends on them is
+not an identity.
+
+**`releaseReview` is deliberately absent from the manifest.** See §9 — including
+it would make the digest depend on a review of the digest.
 
 ### 5. Version semantics
 
@@ -153,9 +198,34 @@ alike** — must have:
 
 - a concrete `version`;
 - an exact reviewed digest;
-- catalog status `Validated` (admitted under ADR-0016);
 - `blockedByToolchain: false`;
-- `blockedByRollout: false`.
+- `blockedByRollout: false`;
+- a lifecycle state that is **eligible for new composition** — stated
+  semantically below rather than pinned to one status name.
+
+**The precondition is semantic, not a single status.** Requiring exactly
+`Validated` would make a module *ineligible by progressing*: moving to `Packaged`
+or `Published` would remove it from new releases even though its identity and
+review are unchanged and strictly stronger. That is a rule that punishes the
+lifecycle for advancing.
+
+What is actually required is: **the member has a concrete reviewed and admitted
+identity, and is in a state a new composition may select.** Against today's
+vocabulary:
+
+| Module state | Eligible for a NEW release | Why |
+|---|---|---|
+| `Planned` | **no** | no identity to pin |
+| `Source-ready` | **no** | authored but not admitted; nothing has validated the bytes |
+| `Validated` | **yes** | admitted, with an exact reviewed digest |
+| `Packaged` | **yes** | strictly further along; identity and review unchanged |
+| `Published` | **yes** | same, plus deliverability — never a reason to exclude |
+| `Deprecated` | **no** | it is identifiable, and an existing release that pins it stays exact; but a **new** composition must not adopt something the module program is retiring. Superseding it is a deliberate act |
+| `Retired` | **no** | same, more strongly |
+
+**Deprecated and Retired are decided here rather than left to fall through.** An
+existing release pinning such a member remains exact and explicable — §8's
+survival rule — but it may not be newly selected.
 
 **Module `Published` is deliberately NOT required.** Three different facts:
 
@@ -185,26 +255,85 @@ A coding set may therefore become **released** while remaining unusable by any
 deployed profile. **Prose asserting "released, therefore agents can use it" is
 prohibited** until runtime delivery exists.
 
-### 8. Sets get their own lifecycle vocabulary
+### 8. Lifecycle belongs to a RELEASE, not to the family
 
 The module vocabulary describes bytes moving toward delivery and does not
-describe a composition. Sets use:
+describe a composition. Sets get their own — and it is **per release**:
 
 ```
-Planned  →  Released  →  Deprecated  →  Retired
+Released  →  Deprecated  →  Retired
 ```
 
-- **Planned** — a family exists; no release.
-- **Released** — at least one immutable release exists.
-- **Deprecated** — still identifiable and still explains old runs; should not be
-  newly requested.
-- **Retired** — must not be newly requested. **Identity and evidence survive.**
+- **Released** — reviewed; may be newly requested by a profile.
+- **Deprecated** — still identifiable and still explains old runs; **should not**
+  be newly requested.
+- **Retired** — **must not** be newly requested. **Identity and evidence
+  survive.**
 
-A set is never `Packaged` — no package exists whose identity that would name —
-and never `Published`, which is a module-content fact under ADR-0016.
+Deprecation and retirement govern **new-request eligibility only**. Neither ever
+touches the immutable manifest or the digest, so an old run stays explicable
+forever. This is what lets one family hold `1.0.0 Deprecated` alongside
+`1.1.0 Released` with both manifests byte-identical to the day they were
+reviewed.
 
-Relation to the gate: **a released set must never be simultaneously represented
-as rollout-blocked.** See §10.
+**A family has no lifecycle status of its own.** It is authoring state, and a
+status on it would be exactly the ambiguity this section exists to remove: one
+field cannot describe both a mutable candidate and a set of immutable revisions.
+Whether a family has any release is *derived* — it either has release records or
+it does not.
+
+A release is never `Packaged` — no package exists whose identity that would name
+— and never `Published`, which is a module-content fact under ADR-0016.
+
+### 8a. What happens to the current catalog fields
+
+The family rows in `knowledge/catalog.json` carry `status`, `version`, and
+`blockedByRollout` today. After acceptance, **these are reconciled in Prompt 6B**
+as follows, and this ADR fixes the target so the implementation is not left to
+invent one:
+
+| Field today | After acceptance |
+|---|---|
+| `version` | **removed from the family row.** A mutable row must never carry "the current release version": the moment `1.1.0` exists the row stops representing `1.0.0`, which is precisely the historical-identity defect this ADR exists to prevent. Versions live only on release records |
+| `status` | **removed from the family row.** Lifecycle is per release (§8). A family's having-any-release state is derived from the release records |
+| `blockedByRollout` | **ceases to be the rollout authority.** Eligibility attaches to a release (§10). Until 6B migrates the representation the field remains present and must stay `true`; it is never the thing that authorizes a release |
+
+**There must be exactly one rollout authority.** Leaving a family gate that can
+say "open" beside a release record that can say "not reviewed" would create two
+answers to one question, and the permissive one would eventually win by accident.
+
+### 8b. The release record, and what a profile pins
+
+Two artifacts, with different mutability:
+
+```text
+SET FAMILY                          (mutable, authoring)
+  id, purpose, owner, limitations, governingSources,
+  sensitivity, freshnessPolicy, rationale
+  candidate composition + candidate identity-bearing policy
+  NOT a release · NOT what a profile pins
+
+SET RELEASE RECORD                  (immutable once reviewed)
+  familyId
+  version
+  manifestPath          the canonical manifest of §4
+  releaseDigest         sha256 over those exact bytes
+  releaseReview         §9, bound to releaseDigest
+  state                 Released | Deprecated | Retired   (the only mutable part)
+```
+
+A profile pins **`familyId@releaseVersion`**, and resolution looks up the release
+record, never the family row.
+
+**Invariant: `(familyId, version) → releaseDigest` is unique and immutable for
+all time.** A version, once used, is never reused — not after deprecation, not
+after retirement, not if the release is withdrawn. Reuse would make an old run's
+evidence ambiguous, which is the one thing release identity exists to prevent.
+
+Where release records live is a 6B representation choice, constrained by this
+ADR to satisfy: addressable by `(familyId, version)`, immutable after review,
+never deleted, and resolvable without consulting a mutable row or reconstructing
+history from Git.
 
 ### 9. Release review is its own evidence, not `contentReview`
 
@@ -218,17 +347,49 @@ things. A release therefore carries its own binding:
 
 ```
 releaseReview
-  policy          the review class applied
-  by              the human actor
+  policy          "knowledge-set-release-review-v1"
+  by              the reviewing actor
   at              the review instant
   releaseDigest   the exact immutable release revision reviewed
 ```
 
-It binds to the **release digest**, so a release cannot be edited after review
-without invalidating it — the same property the module attestation has.
+**The order is strict, and it is what makes the binding non-circular:**
 
-**No claim is made that ADR-0016's absent Proof B producer also produces this.**
-They are different reviews of different objects, and no mechanism links them.
+```text
+logical release content  →  canonical manifest (§4)  →  releaseDigest
+                                                             ↓
+                                              releaseReview binds releaseDigest
+```
+
+**`releaseReview` is never an input to the manifest** and therefore never affects
+the digest. Writing the review after the digest exists changes nothing about the
+digest — a property §4 secures by excluding the field, and case 19 below tests.
+A release cannot be edited after review without invalidating it, exactly as a
+module attestation cannot.
+
+#### What `knowledge-set-release-review-v1` reviews
+
+The named policy is a composition review, and it examines:
+
+- the exact member identities — id, version, digest — required and optional;
+- the required/optional split, and what each disposition means for a run;
+- the **least-context posture**: whether this is the smallest context that serves
+  the runner class, rather than the most convenient;
+- the `deny` rules, and whether any has been weakened relative to a prior release;
+- the task-addition and task-narrowing posture;
+- the failure semantics for required and optional members;
+- `maxBytes` and `maxFreshnessDays`;
+- `runnerClass`;
+- `overrideAuthority`.
+
+**Review authority is stated provider-neutrally**: an actor the repository's
+governance recognises as competent to approve a context boundary for the named
+runner class. Today that is an explicit human review event, recorded as such.
+
+**No automated producer exists, and none is claimed.** In particular this is
+*not* ADR-0016's absent Proof B producer wearing a second hat: different object,
+different question, no mechanism linking them. Automating composition review is a
+later decision that would need its own ADR.
 
 ### 10. Rollout eligibility belongs to a release, not to a family
 
@@ -259,10 +420,31 @@ requestedSetId + requestedSetVersion + requestedSetReleaseDigest
 The base release stays immutable and is recorded as requested. The delta and the
 resolved manifest are **evidence**, each with its own digest.
 
-**This replaces `resolvedSetVersion`.** Recording a resolved *version* that
-differs from the requested one asserts a release that was never reviewed and does
-not exist. `knowledge-selection-model.md` §4 must be corrected on acceptance —
-its current text describes an unrepresentable field.
+Run evidence therefore carries:
+
+| Field | Records |
+|---|---|
+| `requestedSetId` | the family a profile pinned |
+| `requestedSetVersion` | the release version it pinned |
+| `requestedSetReleaseDigest` | the exact release those two resolved to |
+| `taskDelta` | the additions and narrowings actually applied |
+| `taskDeltaDigest` | identity of that delta |
+| `resolvedManifestDigest` | identity of the exact context delivered |
+
+**No `resolvedSetVersion` is minted.** Recording a resolved *version* differing
+from the requested one asserts a release that was never reviewed and does not
+exist. `knowledge-selection-model.md` §4 must be corrected on acceptance — its
+current text describes an unrepresentable field.
+
+**Every module a task adds resolves to an exact `(id, version, digest)` inside
+the resolved manifest**, exactly as a release member does. An addition is never a
+floating reference: if it cannot be resolved to an exact identity it is not
+addable.
+
+It follows that a later catalog change can change a later resolution **only by
+changing that resolution's own recorded identities**. Two runs of the same base
+release that saw different context have different `resolvedManifestDigest`
+values, so no ambiguity hides behind the shared base release.
 
 Denial still beats every addition, exactly as today.
 
@@ -319,6 +501,16 @@ a governance review to an unbuilt producer.
 **Mint a resolved set version on task narrowing.** Rejected in §11 — it fabricates
 a release identity nothing reviewed.
 
+**Make a committed release-manifest file's incidental bytes normative** rather
+than specifying a canonical form. Considered and **not adopted** in §4. It is
+tempting because it needs no format specification, but it makes identity depend
+on whatever wrote the file — an editor's trailing newline, a formatter's key
+order, a line-ending conversion on a different platform. A second implementation
+could not reproduce the digest from logical content, which is the property that
+makes an independent check meaningful. §4 specifies the manifest instead, and a
+committed file may still *carry* those bytes without being the reason they are
+what they are.
+
 ---
 
 ## Security implications
@@ -368,10 +560,48 @@ reviewed releases.
 
 ---
 
+## Architecture falsification — performed against this proposal
+
+Run **now**, against the rules above, not deferred to the implementer. Each case
+names the rule that decides it. A case that cannot be answered from this ADR
+alone would mean it is not ready.
+
+| # | Scenario | Deciding rule | Expected | Result |
+|---|---|---|---|---|
+| 1 | required member has no version | §6 preconditions | release refused | **PASS** |
+| 2 | optional member has no version | §6 — "required **and optional** alike" | refused; and §2 pins optional identity, so the same release cannot later acquire one | **PASS** |
+| 3 | selected member `blockedByRollout: true` | §6; and `resolveSet` already refuses a blocked member through an unblocked set | refused — release is not a back door | **PASS** (already mechanised) |
+| 4 | required member's version changes after release | §2 pins id+version+digest; §5 forbids mutating a released version | old release still names the old version and digest | **PASS** |
+| 5 | optional member's version changes after release | §2 — optional pinned identically | same | **PASS** |
+| 6 | `deny` changes, version does not | §3 identity-bearing; §5 any identity change needs a new version | impossible without a new release | **PASS** |
+| 7 | `maxFreshnessDays` changes, version does not | §3, §5 | impossible | **PASS** |
+| 8 | `allowTaskAdditions` changes, version does not | §3, §5 | impossible | **PASS** |
+| 9 | a task narrows the set | §11 | base identity unchanged; `resolvedManifestDigest` separate; no version minted | **PASS** |
+| 10 | a task adds an allowed catalog module | §11 | same, and the addition resolves to an exact `(id, version, digest)` | **PASS** |
+| 11 | catalog gains a new module later | §2 pins exact members; §4 digests only what the release names | no old release acquires it | **PASS** |
+| 12 | `@1.1.0` exists | §1 invariant; §8b `(familyId, version) → releaseDigest` unique and immutable | `@1.0.0` remains representable and resolvable | **PASS** |
+| 13 | release while nothing is `Published` and no resolver exists | §6 (publication not a precondition); §7 | representable; runtime usability explicitly false | **PASS** |
+| 14 | does release change tools, sandbox, API capability, authorization, safety, or live state? | §7; *What this decision does NOT prove*; ADR-0010 | no — context only | **PASS** |
+| 15 | household set whose platform and runbook members are valid | §6 — **every** selected member must have both gates false | cannot be opened; household members are rollout-blocked | **PASS** |
+| 16 | `1.0.0` released, then the family candidate is edited toward `1.1.0` | §8a family carries no version/status; §10 eligibility attaches to a release | `1.0.0` stays eligible and identifiable; the candidate inherits **no** rollout | **PASS** |
+| 17 | family holds `1.0.0 Deprecated` and `1.1.0 Released` | §8 lifecycle is per release; state is the only mutable part of a record | both identities representable; new-request semantics unambiguous | **PASS** |
+| 18 | member goes `Validated → Packaged → Published`, version and digest unchanged | §6 eligibility table | still selectable by a new release — progressing never disqualifies | **PASS** |
+| 19 | `releaseReview` is written after `releaseDigest` exists | §4 excludes the field from the manifest; §9 fixes the order | digest unchanged; no circular identity | **PASS** |
+| 20 | `required` / `optional` / `deny` array order changes only | §4 ordering is normative and non-semantic — sorted by UTF-8 bytes | canonical identity **does not** change | **PASS** |
+
+**Ambiguities found and closed by this round:** §4 previously offered two
+canonicalizations and deferred the choice; §8 did not say whether lifecycle
+described a family or a release; §6 pinned `Validated` exactly, which would have
+disqualified a module for progressing; §9 did not fix the ordering that keeps the
+review non-circular. Each is now decided rather than left to the implementer.
+
+**No case is unanswerable from this ADR alone.**
+
 ## Validation and follow-up obligations
 
-Before any implementation of this ADR is considered complete, each of these must
-hold **mechanically**, not by prose:
+The twenty cases above are answered by the architecture. **Prompt 6B must make
+each of them hold mechanically, not by prose** — an architecture answer is not a
+mechanism, and every case above is a test somebody has to write:
 
 1. a required member without a version → release refused;
 2. an optional member without a version → release refused, and the same release

@@ -1475,3 +1475,81 @@ decisions are preserved.
   profile knowledge schema.
 - The 13 reviewed module identities are unchanged.
 - **ADR-0019 is not accepted. Prompt 6B is not authorized and has not begun.**
+
+### Prompt 6A — falsification correction
+
+**ADR-0019 remains `Proposed`.** The prior 6A record above is unmodified. The
+architecture direction was approved; four under-decided seams are now closed, and
+the twenty falsification cases were run against the proposal rather than deferred.
+
+**Canonicalization chosen.** §4 previously offered two mechanisms and left the
+choice to the accepting review, which is not a decision. One normative
+representation is now specified: a canonical line-oriented UTF-8 manifest
+`okf-set-release-v1`, modelled on ADR-0015 §6 — fixed field order, `LF` only,
+`SP` and `NUL` separators, NFC, every line terminated, booleans as literal
+`true`/`false`, integers as shortest decimal, member digests as bare lowercase
+64-hex. `required`, `optional`, and `deny` are **sets, not sequences**, and are
+sorted by ascending UTF-8 bytes so that reordering a JSON array cannot change
+identity. `releaseDigest = sha256(manifest bytes)`. The rejected alternative —
+making a committed file's incidental bytes normative — moved to *Alternatives
+considered*, because identity would then depend on whatever wrote the file.
+
+**Family and release representation.** §8a and §8b were added. A family row must
+not carry `version` or `status`: a mutable row holding "the current release
+version" stops representing `1.0.0` the moment `1.1.0` exists, which is the exact
+defect the ADR exists to prevent. Both fields leave the family row in 6B; the
+family keeps descriptive metadata and candidate policy only. A profile pins
+`familyId@releaseVersion` and resolution reads the **release record**, never the
+family. `(familyId, version) → releaseDigest` is unique and immutable for all
+time, and a version is never reused — not after deprecation, retirement, or
+withdrawal.
+
+**Lifecycle is per release.** `Released → Deprecated → Retired` describes a
+release, not a family, so `1.0.0 Deprecated` and `1.1.0 Released` coexist with
+both manifests byte-identical to their review. State is the only mutable part of
+a release record; deprecation and retirement govern **new-request eligibility
+only** and never touch identity or evidence. A family has no lifecycle status of
+its own — one field cannot describe both a mutable candidate and a set of
+immutable revisions.
+
+**One rollout authority.** Family-level `blockedByRollout` ceases to be the
+authority; eligibility attaches to a reviewed release. Until 6B migrates the
+representation the field stays present and `true`, and is never what authorizes a
+release. Two authorities would eventually be resolved by the permissive one.
+
+**Precondition lifecycle corrected.** Requiring exactly `Validated` would have
+made a module ineligible *for progressing* to `Packaged` or `Published` — a rule
+that punishes the lifecycle for advancing. The precondition is now semantic, with
+each current state decided explicitly: `Validated`, `Packaged`, and `Published`
+are eligible for a new release; `Planned` and `Source-ready` are not; and
+`Deprecated` and `Retired` are **not**, decided rather than left to fall through
+— an existing release pinning such a member stays exact, but a new composition
+must not adopt what the module program is retiring.
+
+**`releaseReview` made non-circular.** The order is fixed: logical content →
+canonical manifest → `releaseDigest` → review binds that digest. The review is
+**excluded from the manifest**, so writing it cannot change the digest it
+attests. Policy identifier `knowledge-set-release-review-v1`, with its subject
+enumerated: exact member identities, the required/optional split, least-context
+posture, deny rules, task posture, failure semantics, `maxBytes`,
+`maxFreshnessDays`, `runnerClass`, and override authority. Review authority is
+stated provider-neutrally, and **no automated producer is claimed** — in
+particular this is not ADR-0016's absent Proof B producer.
+
+**Task-delta evidence.** Fields fixed: `requestedSetId`, `requestedSetVersion`,
+`requestedSetReleaseDigest`, `taskDelta`, `taskDeltaDigest`,
+`resolvedManifestDigest`. No `resolvedSetVersion` is minted. Every
+task-added module resolves to an exact `(id, version, digest)`, so two runs of one
+base release that saw different context differ in their resolved manifest digest
+and nothing hides behind the shared base.
+
+**Twenty-case falsification: 20 PASS, 0 FAIL, no unanswerable case.** Cases 16–20
+were added this round. Four ambiguities were found and closed by running them —
+the deferred canonicalization choice, the family-versus-release lifecycle
+question, the over-tight `Validated` precondition, and the unfixed review
+ordering. The cases remain implementation obligations for 6B: an architecture
+answer is not a mechanism.
+
+No set version assigned, no set released, no rollout gate moved, no resolver, no
+profile schema, no packaging, no publication. ADR-0016 is not edited.
+**ADR-0019 is still `Proposed` and human acceptance is still required.**
