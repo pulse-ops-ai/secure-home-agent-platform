@@ -138,14 +138,18 @@ implementation-neutral. These decide how it is built.
 | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
 | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
-| [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | **Proposed** | [`knowledge/`](../../knowledge/) set families and releases |
+| [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
 
-> **ADR-0019 is `Proposed`** and decides nothing yet. It defines what a knowledge
-> *set release* would be — immutable, digest-identified, pinning exact member
-> versions — and the reviewed transition ADR-0016 §7a left undefined. **No set
-> may be versioned or released, and no set rollout gate may move, until it is
-> accepted.** It refines only that one sentence of ADR-0016 §7a; every module and
-> runbook rollout decision there is preserved.
+> **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
+> [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
+> ADR-0016 §7/§7a on the set side only** — the release transition and the
+> representation in which set rollout eligibility lives — **without editing
+> it**; every module and runbook decision there is preserved.
+>
+> **Acceptance authorizes the shape of the work, not the work.** No set is
+> versioned or released, no rollout gate has moved, and no release record,
+> resolver, or profile schema exists. Implementing it needs its own task
+> contract.
 >
 > **ADR-0017 is `Accepted`** (2026-08-17) and **immutable**. See
 > [the ADR-0017 acceptance record](#adr-0017-acceptance-record).
@@ -422,6 +426,42 @@ commit changes only a decision document. Manufacturing a further commit to coax
 the dispatch would have broken the chain between the reviewed bytes and the
 accepted bytes.
 
+### ADR-0019 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-21 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Accepted at** | `43170c76e64917dc91303e544297d177688cc811` — the exact reviewed commit |
+| **Depends on** | [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) §6 byte identity and [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md), both already accepted |
+| **Refines** | [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7/§7a **on the set side only**, without editing it. Every module and runbook decision there is preserved |
+| **Scope** | ADR-0019 in full: set family distinct from immutable set release; the canonical `okf-set-release-v1` manifest and `releaseDigest`; exact `(id, version, digest)` pins for required **and** optional members; identity-bearing policy fields; per-release lifecycle with executable request semantics; `releaseReview` bound non-circularly to the digest; semantic member-eligibility preconditions; one rollout authority; and task deltas producing a resolved manifest rather than a minted set version |
+| **Unresolved decisions resolved** | **none** |
+
+**What was accepted.** A mutable catalog row cannot explain a version it has
+moved past, so a set *family* and a set *release* are different objects: the
+family is authoring state, the release is an immutable, digest-identified
+revision, and a profile pins the release. `(familyId, version) → releaseDigest`
+is unique and immutable for all time, and a version is never reused.
+
+Identity is a digest over a canonical line-oriented manifest, not over a JSON
+serializer's output — with field order, separators, encoding, admissible bytes,
+and set ordering all fixed, so a second implementation can reproduce it from
+logical content. Optional members are pinned exactly like required ones:
+*optional* governs omission, never substitution.
+
+**One authority, deliberately.** `Released` **is** the eligibility; there is no
+release-level boolean that could disagree with it, and the legacy family-level
+`blockedByRollout` authorizes nothing and must not survive migration as a second
+authority.
+
+**What acceptance does NOT do.** It assigns no set version, releases no set,
+moves no rollout gate, and creates no release record, resolver, or profile
+schema. The twenty falsification cases are answered *architecturally* and remain
+mechanical obligations for the implementation — an architecture answer is not a
+mechanism. Module publication is deliberately **not** a release precondition, so
+no set release waits on the absent Proof B producer.
+
 ### ADR-0018 acceptance record
 
 | | |
@@ -497,6 +537,7 @@ separated the reviewed bytes from the accepted bytes.
 | a knowledge module, set, or the selection contract | ADR-0010, ADR-0003, ADR-0006 + [`../architecture/knowledge-selection-model.md`](../architecture/knowledge-selection-model.md) |
 | the knowledge format, validator, packaging, or query interfaces | ADR-0010, **ADR-0015** |
 | prohibited-content enforcement, or a knowledge content review | ADR-0010, ADR-0015, **ADR-0016** |
+| versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |

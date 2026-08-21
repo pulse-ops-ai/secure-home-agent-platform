@@ -1623,3 +1623,35 @@ than being read from the code.
 No set version, no release, no rollout migration, no runtime work. ADR-0016,
 `knowledge/catalog.json`, `scripts/`, `tests/`, modules, and sets are untouched.
 **Human acceptance of ADR-0019 is the next step.**
+
+### Prompt 6A — ADR-0019 accepted
+
+**The repository owner accepted ADR-0019 in full on 2026-08-21, at the exact
+reviewed commit `43170c76e64917dc91303e544297d177688cc811`.** Prior 6A records
+above are unmodified.
+
+The transition is a **status change and its record — nothing else**:
+
+- ADR-0019 `Proposed → Accepted`, carrying the acceptance date and the exact
+  accepted commit;
+- `docs/decisions/INDEX.md` — status column, an acceptance record beside the
+  others, the standing note rewritten from "decides nothing yet" to what
+  acceptance does and does not unblock, and the applicability table taught that
+  set versioning and release are governed by ADR-0019.
+
+**What acceptance authorizes.** The *shape* of the work, as every accepted ADR
+here does. Implementing it still requires its own task contract.
+
+**What acceptance did NOT do**, verified rather than asserted: no set version
+assigned, no set released, no rollout gate moved, no release record, no canonical
+manifest written, no resolver, no profile knowledge schema, no packaging, no
+publication. All six sets remain `Planned`, `version: null`,
+`blockedByRollout: true`; `household/**` remains rollout-blocked; the 13 reviewed
+module identities are unchanged; ADR-0016 is not edited.
+
+The twenty falsification cases are answered **architecturally**. They remain
+**mechanical obligations** for whoever implements this — an architecture answer
+is not a mechanism — along with the independent second implementation of the
+release digest and the planted-violation test for byte admissibility.
+
+**Prompt 6B is not begun and is not authorized by this acceptance.**

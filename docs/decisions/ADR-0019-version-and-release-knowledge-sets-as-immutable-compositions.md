@@ -1,7 +1,9 @@
 # ADR-0019: Version and release knowledge sets as immutable compositions
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-21
+- **Accepted:** 2026-08-21
+- **Accepted at:** `43170c76e64917dc91303e544297d177688cc811` — the exact reviewed commit
 - **Deciders:** @mikegtech (repository owner)
 - **Depends on:** [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) for byte identity, [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) for the two gates and module admission
 - **Refines in part:** [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §7/§7a **on the SET side only** — both the undefined release transition *and* the representation in which set rollout eligibility lives. See §0 for the exact scope. **Every MODULE and RUNBOOK decision in ADR-0016 is preserved unchanged**, including the per-module gate representation, the runbook allowlist, and that a set never resolves a blocked module
