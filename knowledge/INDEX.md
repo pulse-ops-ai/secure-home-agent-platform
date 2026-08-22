@@ -18,8 +18,11 @@ The canonical registry of knowledge **modules** and **sets**.
 > **its own** digest and passes canonical admission independently.
 > [`catalog.json`](catalog.json) records the authoritative current lifecycle
 > state and version for every module. Nothing is packaged and nothing is
-> published — `household/**` and every set remain rollout-blocked, runbook
-> rollout is per module, and publication additionally requires Proof B, for which
+> published — `household/**` remains rollout-blocked, runbook rollout is
+> per module, and set release eligibility lives on immutable release records
+> in [`set-releases.json`](set-releases.json), which is authoritative for which
+> releases exist and what state each is in
+> ([`set-releases.json`](set-releases.json)), and publication additionally requires Proof B, for which
 > no governed producer exists.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its
@@ -126,20 +129,21 @@ point.
 | `climate-default` | reasoning about comfort and HVAC behaviour | core-operating-model · degraded-operation · topology · climate | energy-semantics · safe-escalation | every developer-platform module · security-semantics |
 | `gridwise-default` | reasoning about energy cost and load shifting | core-operating-model · degraded-operation · energy-semantics | climate · topology | every developer-platform module · security-semantics |
 
-A set carries the **same metadata contract as a module** — owner, status,
-version, as-of date, limitations, governing sources, sensitivity, freshness
-policy, and toolchain blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
-its intended-consumer field.
+A set entry in [`catalog.json`](catalog.json) is a mutable **family** —
+authoring intent, not a release. It carries composition and policy plus owner,
+limitations, governing sources, sensitivity, and freshness policy. Its
+`runnerClass` is its intended-consumer field.
 
-Two of those need care:
+Two things it deliberately does **not** carry:
 
-- **`version` is currently `null` on every set, and that is enforced rather than
-  incidental.** A profile pins its base set as `name@version`, and run evidence
-  records both requested and resolved set versions — so the registry must be
-  version-capable. But a set version is only meaningful once the modules it
-  selects have versions of their own; otherwise two different resolutions of
-  `set@1` would look identical in evidence. `check-knowledge.mjs` rejects a set
-  that carries a version while selecting an unversioned module.
+- **no `version`, `status`, or `asOf`, and no rollout gate.** Under
+  [ADR-0019](../docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)
+  those belong to immutable **release records** in
+  [`set-releases.json`](set-releases.json), each identified by a digest over a
+  canonical manifest that pins every member's exact id, version, and digest. A
+  profile pins `family@version` and resolves the release. `Released` **is** the
+  eligibility, and a release is never `Packaged` or `Published` — those name
+  facts about module bytes.
 - **`freshnessPolicy` and `maxFreshnessDays` are different things.**
   `freshnessPolicy` says when the *composition* should be reviewed;
   `maxFreshnessDays` is the ceiling the set imposes on the *modules* it selects,
@@ -151,9 +155,12 @@ Three worth stating here:
 - `climate-default` **requires** topology rather than treating it as optional:
   climate equipment is described per zone, and a zone means nothing without the
   area mapping.
-- `architecture-default` deliberately omits the implementation and workspace
-  modules. An architecture run reasons about the model; loading implementation
-  rules invites it to start editing instead.
+- `architecture-default`'s **base composition** omits the implementation and
+  workspace modules. An architecture run reasons about the model; loading
+  implementation rules invites it to start editing instead. The release permits
+  task widening, so a governed delta may still add eligible context — and the
+  resolved manifest records exactly what was added. Widening knowledge grants no
+  edit or tool authority.
 - Household sets carry a **shorter freshness window** than coding sets. A stale
   description of a house is confidently wrong about physical reality; a stale
   description of a convention is merely out of date.

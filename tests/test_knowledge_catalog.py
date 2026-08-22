@@ -135,7 +135,12 @@ def test_every_status_is_from_the_vocabulary_and_nothing_claims_packaging() -> N
     while its directory holds no source that admission has seen.
     """
     catalog = _catalog()
-    for entry in [*catalog["modules"], *catalog["sets"]]:
+    for entry in catalog["sets"]:
+        # A family has no lifecycle of its own under ADR-0019: lifecycle is a
+        # property of an immutable release, not of mutable authoring intent.
+        assert "status" not in entry, f"{entry['id']}: a set family carries no status"
+        assert entry["blockedByToolchain"] is False
+    for entry in catalog["modules"]:
         assert entry["status"] in STATUSES, f"{entry['id']}: unknown status {entry['status']}"
         assert entry["blockedByToolchain"] is False
         # `Validated` is now legitimately claimable: platform/runner-model earned
@@ -367,6 +372,11 @@ def _fixture(
     mutate(catalog, root)
 
     (root / "knowledge" / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
+    # The set-release registry exists even when empty (ADR-0019): its absence
+    # must never be ambiguous with "there are no releases".
+    releases = catalog.pop("_releases", {"version": 1, "releases": []})
+    (root / "knowledge" / "set-releases.json").write_text(json.dumps(releases, indent=2) + "\n")
+    (root / "knowledge" / "releases").mkdir(exist_ok=True)
 
     # Directories and READMEs for whatever survived the mutation. The index
     # mirrors the real one's shape — a Modules section and a Sets TABLE —
@@ -495,10 +505,10 @@ def test_rollout_eligibility_matches_the_accepted_initial_values() -> None:
     assert allowlist and all(i.startswith("runbooks/") for i in allowlist), (
         f"the allowlist releases runbooks and nothing else: {sorted(allowlist)}"
     )
+    # Sets no longer carry a rollout boolean: under ADR-0019 eligibility belongs
+    # to an immutable release record, and "Released" IS the eligibility.
     for s in catalog["sets"]:
-        assert s["blockedByRollout"] is True, (
-            f"{s['id']}: every set starts rollout-blocked per ADR-0016 §7a"
-        )
+        assert "blockedByRollout" not in s, f"{s['id']}: a family carries no rollout authority"
 
 
 def test_discharging_readiness_did_not_move_the_rollout_gate() -> None:
@@ -520,18 +530,18 @@ def test_discharging_readiness_did_not_move_the_rollout_gate() -> None:
     future release has to move it deliberately.
     """
     catalog = _catalog()
-    entries = [*catalog["modules"], *catalog["sets"]]
+    entries = list(catalog["modules"])
     divergent = [
         e["id"]
         for e in entries
         if e["blockedByToolchain"] is False and e["blockedByRollout"] is True
     ]
-    assert len(divergent) == 10, (
-        f"discharging readiness must not have released rollout: {divergent}"
+    # Six of the original thirteen were SETS. Under ADR-0019 a family carries no
+    # rollout boolean at all, so only the four household modules remain.
+    assert len(divergent) == 4, f"discharging readiness must not have released rollout: {divergent}"
+    assert all(i.startswith("household/") for i in divergent), (
+        f"only household modules remain rollout-blocked: {divergent}"
     )
-    assert all(
-        i.startswith("household/") or i in {e["id"] for e in catalog["sets"]} for i in divergent
-    ), f"only household modules and sets remain rollout-blocked: {divergent}"
     assert all(e["blockedByToolchain"] is False for e in entries)
 
 
@@ -547,7 +557,7 @@ def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> N
     catalog = _catalog()
     open_on_both = sorted(
         e["id"]
-        for e in [*catalog["modules"], *catalog["sets"]]
+        for e in catalog["modules"]
         if e["blockedByToolchain"] is False and e["blockedByRollout"] is False
     )
     allowlist = set(catalog[ALLOWLIST])
@@ -558,14 +568,10 @@ def test_authoring_eligibility_is_exactly_the_rolled_out_platform_modules() -> N
     assert all(i.startswith(("platform/", "runbooks/")) for i in open_on_both), open_on_both
     assert not any(i.startswith("household/") for i in open_on_both), open_on_both
 
-    still_blocked = [
-        e["id"] for e in [*catalog["modules"], *catalog["sets"]] if e["blockedByRollout"] is True
-    ]
-    assert len(still_blocked) == 10, still_blocked
+    still_blocked = [e["id"] for e in catalog["modules"] if e["blockedByRollout"] is True]
+    assert len(still_blocked) == 4, still_blocked
     # Every set, and every household module. Nothing else.
-    assert {i for i in still_blocked if not i.startswith("household/")} == {
-        e["id"] for e in catalog["sets"]
-    }, still_blocked
+    assert all(i.startswith("household/") for i in still_blocked), still_blocked
 
 
 def test_a_module_with_the_wrong_rollout_value_is_rejected(tmp_path: Path) -> None:
@@ -591,7 +597,9 @@ def test_a_set_that_unblocks_its_rollout_is_rejected(tmp_path: Path) -> None:
 
     result = _run(_fixture(tmp_path, "set-rollout-open", mutate))
     assert result.returncode != 0
-    assert "blockedByRollout must be true" in _output(result)
+    # ADR-0019: a family carries no rollout authority at all, so the refusal is
+    # now about the FIELD existing rather than about its value.
+    assert "legacy family field" in _output(result)
 
 
 def test_the_gate_is_discharged_for_every_registered_entry() -> None:
@@ -602,6 +610,8 @@ def test_the_gate_is_discharged_for_every_registered_entry() -> None:
     obligation, and it was discharged once.
     """
     catalog = _catalog()
+    # Readiness is repository-wide, so it is mirrored onto families too — it is
+    # the one gate a family still carries, and it authorizes nothing.
     entries = [*catalog["modules"], *catalog["sets"]]
     assert len(entries) == 23
     for entry in entries:
@@ -838,77 +848,24 @@ def test_every_set_has_every_required_metadata_field() -> None:
         "purpose",
         "runnerClass",
         "owner",
-        "status",
-        "version",
-        "asOf",
         "limitations",
         "governingSources",
         "sensitivity",
         "freshnessPolicy",
         "blockedByToolchain",
-        "blockedByRollout",
     }
     for s in _catalog()["sets"]:
         missing = required - set(s)
         assert not missing, f"{s.get('id')}: missing {sorted(missing)}"
+        # blockedByToolchain is the ONE gate a family still carries, and it is a
+        # repository-wide readiness mirror rather than release authority.
+        assert "blockedByRollout" not in s, f"{s.get('id')}: family carries no rollout gate"
 
 
 def test_set_governing_sources_exist() -> None:
     for s in _catalog()["sets"]:
         for source in s["governingSources"]:
             assert (REPO_ROOT / source).exists(), f"set {s['id']}: {source} does not exist"
-
-
-def test_the_registry_is_version_capable() -> None:
-    """A set is what a profile pins and what evidence records, so it must carry a version field.
-
-    The field is present and currently null, which is the same rule modules
-    follow: nothing is versioned until there is content to version.
-    """
-    for s in _catalog()["sets"]:
-        assert "version" in s, f"set {s['id']}: no version field — a profile could not pin it"
-
-
-def test_a_set_version_that_pins_unversioned_modules_is_rejected(tmp_path: Path) -> None:
-    """A pin to nothing makes two different resolutions look identical in evidence."""
-
-    def mutate(catalog: Any, root: Path) -> None:
-        # CONSTRUCT the premise rather than borrowing it from live state. Both
-        # earlier shapes depended on today's catalog: picking sets[0] broke when
-        # its members were versioned, and searching for a set that happens to
-        # select an unversioned module dies the day none does — as fixture
-        # setup, not as a validator verdict. Here the set and the unversioned
-        # member it selects are built for the test, so the premise cannot expire.
-        target = catalog["sets"][0]
-        selected = set(target["required"]) | set(target["optional"])
-        for module in catalog["modules"]:
-            if module["id"] in selected:
-                module["version"] = "1.0.0"
-        pinned = next(m for m in catalog["modules"] if m["id"] in target["required"])
-        pinned["version"] = None
-        target["version"] = "1.0.0"
-
-    result = _run(_fixture(tmp_path, "phantom-pin", mutate))
-    assert result.returncode != 0
-    assert "selects unversioned" in _output(result), (
-        "must be refused by the set-version rule, not by some earlier validator"
-    )
-
-
-def test_a_set_version_is_accepted_once_its_modules_are_versioned(tmp_path: Path) -> None:
-    """The rule constrains a phantom pin, not versioning itself."""
-
-    def mutate(catalog: Any, root: Path) -> None:
-        target = catalog["sets"][0]
-        selected = set(target["required"]) | set(target["optional"])
-        for module in catalog["modules"]:
-            if module["id"] in selected:
-                module["version"] = "1.0.0"
-        target["version"] = "1.0.0"
-
-    result = _run(_fixture(tmp_path, "real-pin", mutate))
-    assert result.returncode == 0, _output(result)
-    assert "selects unversioned" not in _output(result)
 
 
 def test_an_unregistered_set_advertised_in_the_index_is_rejected(tmp_path: Path) -> None:
@@ -1611,3 +1568,103 @@ def test_every_set_stays_rollout_blocked_regardless_of_the_allowlist(tmp_path: P
 
     result = _run(_with_allowlist(tmp_path, "set-via-allowlist", mutate))
     assert result.returncode != 0
+
+
+# --- ADR-0019: version and lifecycle moved off the family ----------------------
+
+
+def test_a_set_family_carrying_a_legacy_field_is_rejected(tmp_path: Path) -> None:
+    """A family holds no lifecycle, version, or rollout authority.
+
+    A mutable row carrying "the current release version" stops representing
+    1.0.0 the moment 1.1.0 exists, which is the historical-identity defect
+    ADR-0019 exists to prevent.
+    """
+    for legacy, value in (
+        ("status", "Released"),
+        ("version", "1.0.0"),
+        ("asOf", "2026-08-21"),
+        ("blockedByRollout", False),
+    ):
+
+        def mutate(catalog: Any, root: Path, legacy: str = legacy, value: Any = value) -> None:
+            catalog["sets"][0][legacy] = value
+
+        result = _run(_fixture(tmp_path, f"legacy-{legacy}", mutate))
+        assert result.returncode != 0, legacy
+        assert f'legacy family field "{legacy}"' in _output(result), legacy
+
+
+def test_the_release_registry_must_exist(tmp_path: Path) -> None:
+    """Its absence must never be ambiguous with "there are no releases"."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["_releases"] = None
+
+    root = _fixture(tmp_path, "no-registry", mutate)
+    (root / "knowledge" / "set-releases.json").unlink()
+    result = _run(root)
+    assert result.returncode != 0
+    assert "set-releases.json is missing" in _output(result)
+
+
+def test_a_release_record_without_a_manifest_is_rejected(tmp_path: Path) -> None:
+    """A record with no manifest is an identity with no content."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        catalog["_releases"] = {
+            "version": 1,
+            "releases": [
+                {
+                    "familyId": catalog["sets"][0]["id"],
+                    "version": "1.0.0",
+                    "manifestPath": f"knowledge/releases/{catalog['sets'][0]['id']}@1.0.0.manifest",
+                    "releaseDigest": "sha256:" + "a" * 64,
+                    "releaseReview": {
+                        "policy": "knowledge-set-release-review-v1",
+                        "by": "human:mikegtech",
+                        "at": "2026-08-21T00:00:00Z",
+                        "releaseDigest": "sha256:" + "a" * 64,
+                    },
+                    "state": "Released",
+                }
+            ],
+        }
+
+    result = _run(_fixture(tmp_path, "record-no-manifest", mutate))
+    assert result.returncode != 0
+    assert "does not exist" in _output(result)
+
+
+def test_a_release_record_carrying_a_gate_boolean_is_rejected(tmp_path: Path) -> None:
+    """Released IS the eligibility; a second authority could disagree with it."""
+
+    def mutate(catalog: Any, root: Path) -> None:
+        fid = catalog["sets"][0]["id"]
+        manifest = root / "knowledge" / "releases" / f"{fid}@1.0.0.manifest"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text("placeholder\n")
+        digest = "sha256:" + "a" * 64
+        catalog["_releases"] = {
+            "version": 1,
+            "releases": [
+                {
+                    "familyId": fid,
+                    "version": "1.0.0",
+                    "manifestPath": f"knowledge/releases/{fid}@1.0.0.manifest",
+                    "releaseDigest": digest,
+                    "releaseReview": {
+                        "policy": "knowledge-set-release-review-v1",
+                        "by": "human:mikegtech",
+                        "at": "2026-08-21T00:00:00Z",
+                        "releaseDigest": digest,
+                    },
+                    "state": "Released",
+                    "blockedByRollout": False,
+                }
+            ],
+        }
+
+    result = _run(_fixture(tmp_path, "release-gate", mutate))
+    assert result.returncode != 0
+    assert "carries a gate boolean" in _output(result)

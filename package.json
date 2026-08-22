@@ -25,7 +25,8 @@
     "format:check": "prettier --check .",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
-    "typecheck": "pnpm -r --if-present run typecheck"
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "check:set-releases": "node scripts/check-set-releases.mjs"
   },
   "devDependencies": {
     "@secure-home/knowledge-toolchain": "workspace:*",

@@ -15,10 +15,23 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 > [`packages/knowledge-toolchain`](../../packages/knowledge-toolchain/) and
 > invoked over real repository content in CI.
 >
-> What this document describes is still absent: **no runtime resolver**, **no
-> profile knowledge field or schema**, **no deployed knowledge delivery**, **no
-> released set**, **no published module**, and **no Proof B producer**. This is
-> the contract those things must satisfy.
+> Three coding set releases are human-reviewed and recorded in
+> [`set-releases.json`](../../knowledge/set-releases.json). What this document
+> describes is still absent: **no runtime resolver**, **no deployed knowledge
+> delivery**, **no published module**, and **no Proof B producer**.
+>
+> Be precise about the profile, because "no profile knowledge field" is not
+> true. The execution-profile contract has long carried an **opaque
+> `knowledge.selection` string** — a named reference and nothing more, with no
+> tool, mount, egress, or credential field beside it. What does not exist is a
+> **release-aware** knowledge-selection contract: no profile pins
+> `familyId@releaseVersion`, nothing validates a selection against
+> `set-releases.json`, and no resolver turns a selection into context. Binding
+> that field to a release is runtime-integration work and is not done here.
+>
+> **Released is not runtime-resolvable** — a recorded release is an identity a
+> reviewer approved, not context any run can obtain. This is the contract those
+> things must satisfy.
 
 ## The rule everything else follows from
 
@@ -90,19 +103,20 @@ knowledge:
 |---|---|
 | `set` | the named base composition, pinned to a version. A moving reference is not permitted, for the reason automations bind pinned profile versions ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)). |
 
-> **No set version is assignable yet, and the reason is now concrete.** Every
-> registered set carries a `version` field — the registry is version-capable,
-> because this contract and the evidence fields below both require it — but every
-> one is `null`, and **no set has been released**. Having versioned selected
-> members is **necessary but not sufficient**: some sets now satisfy that
-> member-identity prerequisite, and they still carry no version, because the set
-> release and version lifecycle is not yet settled. Every set is additionally
-> rollout-blocked. A set version that pins nothing resolvable would make two
-> different resolutions look identical in evidence, so
-> [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects a set that
-> carries a version while selecting an unversioned module — a necessary
-> condition, not a release procedure. The `@1` in the example above is therefore
-> illustrative of the *shape*, not something a profile could write today.
+> **A profile pins a RELEASE, not a family**
+> ([ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)).
+> The entry in [`catalog.json`](../../knowledge/catalog.json) is a mutable set
+> **family** — authoring intent. It carries **no version, no lifecycle status,
+> and no rollout gate**, because a mutable row holding "the current release
+> version" stops representing `1.0.0` the moment `1.1.0` exists.
+>
+> Version, lifecycle, and eligibility live on **immutable release records** in
+> [`set-releases.json`](../../knowledge/set-releases.json), each identified by a
+> digest over a canonical manifest and each carrying its own review. `Released`
+> **is** the eligibility; there is no second boolean that could disagree with it.
+>
+> **Released is not runtime-resolvable.** No resolver exists, so a release may be
+> recorded and reviewed while remaining unusable by any deployed profile.
 | `required` | modules whose absence, invalidity, or staleness **rejects the run**. |
 | `optional` | modules whose absence produces a typed warning and is recorded. |
 | `deny` | module IDs or single-level `group/*` patterns. Denial beats every other rule, including a task addition. |
@@ -179,10 +193,15 @@ Properties the algorithm must have, whatever implements it:
    set composition, or by any ordering of the steps.
 2. **Additions are catalog-only.** A task contract selects from the approved
    catalog; it never supplies content and never names a path.
-3. **Narrowing is always permitted to fail closed.** Removing a module can only
-   reduce what a run understands, so it is the safe direction — but a set may
-   still forbid narrowing away a module it considers load-bearing, by marking it
-   required and disallowing narrowing.
+3. **Narrowing reduces OPTIONAL context and nothing else.** Removing a module
+   can only reduce what a run understands, so it is the safe direction — but
+   "safe" is not "unbounded". A task delta may narrow away a member the release
+   pinned as **optional**; it may never make a reviewed **required** pin
+   disappear. A release that sets `requiredFailure: reject-run` and then let a
+   task delete a required member would be describing a run that cannot legally
+   happen, so the mechanism refuses the delta instead of returning a selection
+   nobody can act on. `allowTaskNarrowing: false` forbids narrowing entirely;
+   `allowTaskNarrowing: true` permits it over optional members only.
 4. **Evidence precedes execution.** Step 10 happens before step 11. A run that
    crashes during launch still has a record of what it was about to be given.
 5. **Resolution is reproducible.** The same profile version, task contract, and
@@ -223,8 +242,10 @@ know?" is answerable without re-running it.
   "knowledge": {
     "requestedSetId": "implement-local-default",
     "requestedSetVersion": "1.0.0",
-    "resolvedSetId": "implement-local-default",
-    "resolvedSetVersion": "1.0.0",
+    "requestedSetReleaseDigest": "sha256:...",
+    "taskDelta": { "add": [], "narrow": [] },
+    "taskDeltaDigest": "sha256:...",
+    "resolvedManifestDigest": "sha256:...",
     "resolverVersion": "0.0.0",
     "catalogDigest": "sha256:...",
     "modules": [
@@ -247,8 +268,10 @@ know?" is answerable without re-running it.
 
 | Field | Why it is recorded |
 |---|---|
-| `requestedSetId` / `requestedSetVersion` | what the profile asked for |
-| `resolvedSetId` / `resolvedSetVersion` | what it actually got — these differ when a task narrowed the selection |
+| `requestedSetId` / `requestedSetVersion` | the family and release version the profile pinned |
+| `requestedSetReleaseDigest` | the exact immutable release those two resolved to ([ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) §8b) |
+| `taskDelta` / `taskDeltaDigest` | the additions and narrowings actually applied, and their identity |
+| `resolvedManifestDigest` | identity of the exact context delivered, after the delta |
 | `resolverVersion` | a resolver change can change the outcome; without this, an old run is not explicable |
 | `catalogDigest` | pins the catalog the resolution was computed against |
 | `modules[]` | exact ID, version, digest, as-of date, and whether it was required or optional |
@@ -256,12 +279,58 @@ know?" is answerable without re-running it.
 | `warnings[]` | typed, so they can be counted and alerted on rather than read |
 | `compiledDigest` | identifies the packaged artifact actually delivered |
 
-Recording both requested and resolved is what makes a narrowed run reviewable: a
-run that quietly received less than its profile selected would otherwise be
-indistinguishable from one that received everything.
+**There is no `resolvedSetVersion`.** A task-modified composition is not a
+registered release, so no version names it; minting one would assert a release
+nobody reviewed (ADR-0019 §11). What makes a narrowed run reviewable is the pair
+of digests: the base release is recorded exactly as requested, and the resolved
+manifest carries its own identity. Two runs of one release that saw different
+context differ in `resolvedManifestDigest`, so a run that quietly received less
+than its profile selected is distinguishable from one that received everything.
 
 **Persistence is not implemented here.** This defines the fields; where run
 evidence is stored is [U11](unresolved-decisions.md#u11) and the run schema.
+
+## 4a. The two canonical evidence forms
+
+[ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)
+§11 requires a task delta and a resolved manifest to carry digests rather than a
+minted set version. These are the **repository-internal canonical forms** that
+implement it. Neither is a set release, and neither is a profile schema.
+
+```text
+task_delta :=
+  "okf-set-task-delta-v1"       LF
+  ( "add"    SP <module-id>     LF )*
+  ( "narrow" SP <module-id>     LF )*
+
+taskDeltaDigest := "sha256:" || hex(sha256(task_delta))
+```
+
+```text
+resolved_selection :=
+  "okf-resolved-knowledge-v1"                          LF
+  "family"          SP <family-id>                     LF
+  "version"         SP <release-version>               LF
+  "releaseDigest"   SP <bare-hex>                      LF
+  "taskDeltaDigest" SP <bare-hex>                      LF
+  ( "module" SP <id> NUL <version> NUL <bare-hex>      LF )*
+
+resolvedManifestDigest := "sha256:" || hex(sha256(resolved_selection))
+```
+
+Same rules as the release manifest: UTF-8/NFC, `LF` only, final `LF` required,
+`add`, `narrow`, and `module` sorted by ascending UTF-8 bytes, duplicates
+refused, and no escaping — a value containing `NUL`, `LF`, or `CR` is refused.
+
+**Every module a task adds resolves to an exact `(id, version, digest)`.** There
+is no floating reference, `deny` beats every addition, and an addition or
+narrowing happens only where the release permits it. A task addition may not
+name a module the release already pinned — that would let "optional" mean
+"whatever revision exists later" — and a narrowing may not name a required
+member, so every resolved selection still carries every required pin.
+
+**The resolver that would use these does not exist.** These forms make the
+identity mechanical; delivering context to a run is later work.
 
 ## 5. Adoption note for the existing runner substrate
 

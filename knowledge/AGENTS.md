@@ -64,8 +64,9 @@ value be different in ten minutes?** If yes, it is state.
 - Author content for a module that is **not authoring-eligible**. Eligibility
   requires *both* gates false. `blockedByToolchain` was discharged on
   2026-08-16, so the `platform/**` modules are eligible and runbooks are eligible
-  per module by explicit allowlist; `household/**` and every set are still
-  `blockedByRollout`. `catalog.json` is authoritative for current eligibility. Whatever you author
+  per module by explicit allowlist; `household/**` modules are still
+  `blockedByRollout`. A set family carries no rollout gate — release eligibility
+  lives on immutable release records in `set-releases.json` (ADR-0019). `catalog.json` is authoritative for current eligibility. Whatever you author
   must pass `pnpm run check:knowledge-content`, and publication still requires
   Proof B, which has no producer.
 - Change the source format. It is decided by
@@ -88,8 +89,10 @@ value be different in ten minutes?** If yes, it is state.
    [`catalog.json`](catalog.json) is authoritative for `blockedByRollout`, and
    the rule differs by class: `platform/**` is rollout-eligible **by class**;
    a runbook is eligible **individually**, only when a reviewed change adds it
-   to `runbookRolloutAllowlist`; `household/**` modules remain blocked; every
-   set remains blocked. Whatever you author must pass
+   to `runbookRolloutAllowlist`; `household/**` modules remain blocked. A set
+   family carries no rollout gate at all: release eligibility belongs to an
+   immutable release record in [`set-releases.json`](set-releases.json), where
+   `Released` **is** the eligibility (ADR-0019). Whatever you author must pass
    `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module

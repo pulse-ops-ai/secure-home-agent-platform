@@ -122,6 +122,9 @@ jobs:
       - name: Knowledge content admission
         run: pnpm run check:knowledge-content
 
+      - name: Set releases
+        run: pnpm run check:set-releases
+
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL
   # The classifier decides which target gates run, so it is itself governance.

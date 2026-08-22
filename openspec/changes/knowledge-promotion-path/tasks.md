@@ -1655,3 +1655,506 @@ is not a mechanism — along with the independent second implementation of the
 release digest and the planted-violation test for byte admissibility.
 
 **Prompt 6B is not begun and is not authorized by this acceptance.**
+
+---
+
+## Prompt 6B — implement immutable set releases (IN PROGRESS)
+
+**Not a completion claim.** OpenSpec records the work and its authorization; it
+creates neither. Prior history is unmodified.
+
+- Starting main: `458990533f0c959c4c0b213d49fd7641a026f694`
+- Branch: `feat/knowledge-set-releases`
+- Implementing **accepted** ADR-0019 (accepted 2026-08-21 at
+  `43170c76e64917dc91303e544297d177688cc811`)
+
+### Literal baseline at the start of 6B
+
+| | |
+|---|---|
+| modules admitted | **13**, refusals **0** |
+| reviewed identities | 13/13 bound to their pins |
+| set families | six, each `status: Planned`, `version: null`, `blockedByRollout: true`, `blockedByToolchain: false` |
+| packaged · published modules | 0 · 0 |
+| set releases | **0** — no registry, no manifests |
+| Proof B producer | absent |
+| runtime resolver | absent |
+| profile knowledge schema | absent |
+
+### Acceptance-landing prose corrected first
+
+Two surfaces did not move when ADR-0019 was accepted, and both were false at this
+head:
+
+- `knowledge-selection-model.md` §4 still recorded `resolvedSetId` and
+  `resolvedSetVersion`, and still said requested and resolved versions differ
+  under task narrowing. ADR-0019 §11 forbids minting a resolved set version — a
+  task-modified composition is not a registered release. The evidence model now
+  records `requestedSetReleaseDigest`, `taskDelta`, `taskDeltaDigest`, and
+  `resolvedManifestDigest`, keeping `resolverVersion`, `catalogDigest`,
+  `modules[]`, `omittedOptional[]`, `warnings[]`, and `compiledDigest`.
+- The six set-family `limitations` said the release lifecycle "is not yet
+  accepted", which acceptance falsified. They now carry durable wording: the
+  family is mutable, release identity and eligibility live on immutable release
+  records, and the family grants no capability — with each family's own
+  meaningful limitation retained and no count encoded.
+
+**At this point no mechanism, no release, and no `releaseReview` exists.**
+
+### Prompt 6B — mechanism implemented, releases pending review
+
+**ADR-0019 is implemented. No set release exists.**
+
+**Family schema migrated.** `status`, `version`, `asOf`, and `blockedByRollout`
+are **removed** from every set-family row and are now **refused** by the checker:
+a mutable row carrying "the current release version" stops representing `1.0.0`
+the moment `1.1.0` exists. `blockedByToolchain` stays as ADR-0019 §10a option A —
+a repository-wide readiness mirror that never enters a manifest and authorizes
+nothing. Module rows are untouched.
+
+**Release registry.** `knowledge/set-releases.json` (`version: 1`, `releases: []`)
+plus a flat `knowledge/releases/<familyId>@<version>.manifest` layout. A record
+carries exactly `familyId`, `version`, `manifestPath`, `releaseDigest`,
+`releaseReview`, `state` — and **no gate boolean**, because `Released` *is* the
+eligibility and a second authority could disagree with it.
+
+**Mechanism** in `packages/knowledge-toolchain/src/set-release.ts`: canonical
+serialization, strict parsing, candidate building with the §6 preconditions,
+record validation, lookup, adoption and run decisions, and the task-delta and
+resolved-selection forms. Historical validation never consults current module
+rows, so an old release stays exact as the catalog advances.
+
+**Independent oracle.** `tests/set_release_oracle.py` is implementation **B** — a
+different language, importing nothing from the package, sharing no helper,
+rebuilding the ADR-0019 bytes from logical content. A planted one-byte defect in
+A's serializer moved A's digest to `sha256:8177842d…` while B held
+`sha256:6a7b9492…`. A test also guards that B never imports A or shells out to it.
+
+**Twenty-two cases mechanized**, in `set-release.test.ts` and
+`tests/test_set_releases.py`. One found a real defect in my own work: the
+strict-parsing refusals asserted only the rule *prefix*, so a CRLF mutant
+survived by being refused for a different reason. Tightened to exact rules; the
+mutant now dies on its own named test.
+
+**Candidates prepared, not landed** — built outside committed state, never added
+to the registry, no `releaseReview` written, no manifest committed:
+
+| Family | Bytes | Release digest |
+|---|---:|---|
+| `prepr-review-default@1.0.0` | 925 | `sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7` |
+| `implement-local-default@1.0.0` | 1154 | `sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336` |
+| `architecture-default@1.0.0` | 867 | `sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c` |
+
+Each verified **three ways** — implementation A, independent oracle B, and the
+reviewer's independent expectation — byte counts and digests all identical.
+
+**Household negative control.** All three household families **refuse**, and the
+refusals name each blocking member through four distinct member-precondition
+rules rather than a family label.
+
+### State at this point
+
+- **No set release exists.** `releases: []`.
+- **No `releaseReview` written.** No candidate manifest committed.
+- No runtime resolver, no profile knowledge schema, no session wiring.
+- No module packaged or published; the 13 reviewed identities are unchanged.
+- `household/**` modules remain rollout-blocked.
+- **Human release review is required before any release is recorded.**
+
+### Prompt 6B — mechanism falsification correction
+
+**The three candidate identities are unchanged** — rebuilt after every fix and
+byte-identical to the pending review packet. No `releaseReview`, no committed
+manifest, no live release.
+
+**Live release validation was not wired.** `validateSetReleaseRecord` existed and
+nothing in the tree called it — the same defect this repository has hit before: a
+mechanism implemented and tested while the real bytes never reach it. A new
+`scripts/check-set-releases.mjs` reads the registry, derives each manifest path,
+refuses a symlink or irregular file, reads the exact bytes, and hands them to the
+package, reporting the package's own refusal rules. It reimplements nothing, and
+it is wired into `check.sh` and CI. Six integration tests run real records through
+it: a valid control, a one-byte manifest mutation, a wrong `releaseDigest`, a
+non-canonical manifest, a review bound to the wrong digest, and a family
+mismatch.
+
+**A task addition could substitute a pinned member.** Demonstrated red first:
+with a release pinning `platform/two@1.0.0/B` and the catalog at `1.1.0/C`, an
+addition of `platform/two` **resolved to C**. That is precisely what ADR-0019 §2
+forbids — "optional" meaning "whatever version exists later". Now refused with
+`delta.add-already-selected`, checked against what the **release** pinned rather
+than what narrowing left behind, so narrow-then-add cannot launder it. All three
+shapes are tested.
+
+**Version reuse was detected, not refused.** The old suite proved a changed
+composition yields a different digest, which shows identity is sensitive and
+nothing more. `validateNewSetReleaseAgainstRegistry` now refuses a reused
+`(familyId, version)` regardless of digest, difference, or predecessor state —
+`Released`, `Deprecated`, or `Retired`. `lookupSetRelease` throws on an ambiguous
+registry rather than returning the first match.
+
+**State transitions were unmechanized.** `releaseTransitionDecision` allows only
+`Released → Deprecated → Retired`; every reverse and the skipping
+`Released → Retired` are refused, and reactivation is not invented.
+
+**The identity grammar was not total.** The release code used a weaker module-id
+grammar than the repository (`[a-z0-9-]+` vs `[a-z][a-z0-9-]*`); the serializer
+applied a weaker rule to member versions than its own parser, so A could emit
+bytes A would refuse to read; `/\s/` made the admissible domain Unicode-wide
+rather than the ADR's ASCII rule; a non-safe integer would have serialized to a
+spelling the parser rejects; and `sourceDigest` accepted a bare hex string as
+though it were a catalog attestation. All five fixed, with boundary tests.
+
+**The oracle proof was about input sensitivity.** It now proves what matters: a
+defective serializer **output** differs while B, recomputing from honest logical
+content, stays at the accepted bytes — plus a reordering defect that must *not*
+change identity.
+
+**Standing guidance completed.** `knowledge-selection-model.md` §1 and the
+`knowledge/INDEX.md` sets section still described the pre-ADR-0019 model — "no set
+version is assignable", "same metadata contract as a module", a family `version`
+enforced null. Both now describe family versus release. Checker comments that
+claimed content admission validates set releases are corrected.
+
+Household negative control re-run: all three families refuse at member level.
+`bash scripts/check.sh` — **19 checks**, all pass.
+
+### Prompt 6B — final mechanism closure before human release review
+
+**Task contract.** Direct user task, 2026-08-22. Four items, none of which
+touched the frozen candidate bytes.
+
+**The resolved-selection form was not strict.** `canonicalResolvedSelection`
+serialized whatever it was handed. It now enforces the same grammar as the
+release manifest: `family` against the set-id rule and the separator rule,
+`version` against `RELEASE_VERSION`, `releaseDigest` and `taskDeltaDigest` as
+exactly `sha256:<64 lowercase hex>`, each member id against `MODULE_ID`, each
+member version against the separator rule, each member digest as bare 64-hex,
+and duplicate members refused. Fourteen negative cases assert the *exact* rule,
+not the rule prefix. The real path is proved too: a catalog module whose version
+carries NUL, LF, CR, or a space is refused by `applyTaskDelta` at the point of
+addition (`delta.add-version`), so malformed catalog content cannot reach the
+resolved bytes at all.
+
+**The two implementations had never been differentially tested on the domain.**
+Byte parity on three well-formed inputs proves agreement where both accept; it
+says nothing about where they *refuse*. `test_the_two_implementations_accept_the_same_domain`
+now runs 17 boundary cases through both and asserts `(a is None) == (b is None)`.
+It immediately found a real disagreement: **B accepted a `sha256:`-prefixed
+member digest that A refused**, because the oracle silently stripped the prefix.
+B was wrong; the stripping is gone. B's whitespace rule (`str.isspace()`, which is
+Unicode-wide) and its missing module-id and MAX_SAFE_INTEGER rules were aligned
+to the ADR the same way — independently, not by importing A.
+
+**`releaseReview.at` was shape-checked, not calendar-checked.** `2026-13-01T00:00:00Z`
+and `2026-02-30T00:00:00Z` satisfy the regex and are not instants.
+`isRealUtcInstant` round-trips the value through `Date`/`toISOString` and
+`validateSetReleaseRecord` uses it. There is exactly one calendar authority:
+`check-knowledge.mjs` checks shape and delegates, and `check-set-releases.mjs`
+duplicates no calendar logic.
+
+**Standing guidance, again.** `knowledge/README.md` claimed `blockedByRollout`
+"still holds `household/**` and every set" — false since ADR-0019 removed the
+gate from families — and described `INDEX.md` as carrying set *status*, which a
+family does not have. `knowledge/AGENTS.md` carried the same false set claim. Both
+now route to the release records instead of restating a state. The Module/set/bundle
+explanation distinguishes set family, set release, and packaged bundle, and says
+plainly that Released is not runtime-resolvable. No counts are encoded.
+
+**Re-proof.** All eight prior fixes re-run green by name. The three candidates
+were rebuilt by A and B: 925 B / `sha256:6a7b9492…`, 1154 B / `sha256:b609d4a0…`,
+867 B / `sha256:f3adc66f…` — byte-identical to the frozen review checkpoints, A
+and B agreeing on all three. 263 TypeScript tests, 37 Python tests.
+`bash scripts/check.sh` — **19 checks**, all pass.
+
+**Still true, and the reason this stops here:** no `releaseReview` has been
+written, no candidate manifest has been committed, and no live release exists.
+
+### Prompt 6B — final pre-release contract closure
+
+**Task contract.** Direct user task, 2026-08-22, on top of `3d29d40`. Four
+contract items plus re-proof. No candidate byte moved.
+
+**The legacy set-gate authority is gone from the public toolchain.** The package
+still exported `resolveSet(set: GateState, members)`, which decided whether a
+COMPOSITION could be used from `blockedByToolchain` / `blockedByRollout`. That is
+the pre-ADR-0019 set representation, and it contradicted the family/release model
+the same package now implements: a family has no gate, and §8b makes release
+state the single composition authority. `resolveSet` and `SetResolution` are
+removed. `gates.ts` keeps `GateState` and `authoringEligibility` for MODULE
+semantics and gains `gateRefusal`, the gate arithmetic with no verdict attached —
+authoring and release-time resolution ask the same two booleans and mean
+different things by the answer, so they now share that and nothing else.
+`resolveReleaseMembers(use, state, members)` replaces it: adoption accepts only
+`Released`; a run accepts `Released` and `Deprecated` and refuses `Retired`; and
+once the release passes, every selected module is still checked against its own
+two gates, so a `Released` or `Deprecated` release is not a back door around
+per-module control. The set gate is not merely unused — it is **untypeable**,
+because the function takes a `ReleaseState` and there is no set `GateState` left
+to hand it. Two structural tests hold that: one asserts the public surface
+exports no `resolveSet`/`SetResolution` and that no exported interface but
+`MemberCandidate` declares gate fields; the other asserts the module gates
+themselves survived. Both die under mutation.
+
+**Required members are load-bearing.** `applyTaskDelta` put required and optional
+into one selected map and deleted anything `delta.narrow` named, so a task could
+remove `platform/governance` from a release whose `requiredFailure` is
+`reject-run` and still get a successful `ResolvedSelection` back — a selection
+describing a run the failure contract says cannot happen. `delta.narrow-required`
+now refuses it, checked before membership so a required id is reported as
+required rather than as unknown. Narrowing reduces OPTIONAL context;
+`allowTaskNarrowing: false` forbids it entirely. The whole delta is refused when
+one narrowing is illegal, and every successfully produced selection is asserted
+to still carry every required pin. `knowledge-selection-model.md` invariant 3 said
+a set could protect a load-bearing module "by marking it required **and
+disallowing narrowing**" — that was the old model, and it is corrected.
+
+**The family-id grammar is complete.** `SET_FAMILY_ID` existed but only
+`tokenProblem` was applied to `release.family`, so `Demo`, `1demo`, and
+`demo/default` would all have serialized. The last is the dangerous one: a slash
+makes the release manifest PATH ambiguous. Both the serializer (`manifest.family`)
+and the parser now apply the repository grammar, so A never reads what A would
+not write, and the check runs only once the value is a well-formed token so the
+rule a reader is sent to is the one that actually applies. B enforces the same
+grammar independently. Nine new differential cases cover it — and one of them
+corrected a stale claim: the "family with NBSP" case was documented as proving
+both implementations accept non-ASCII whitespace, which stopped being true when
+the grammar landed. That property moved to `runnerClass`, where the token rule
+still governs it alone.
+
+**Two family rationales were false, and are metadata, not identity.**
+`implement-local-default` said a task "may add" api-contract-conventions; the
+release pins it as an optional member and `delta.add-already-selected`
+deliberately refuses adding a pinned id. `architecture-default` claimed a run
+"cannot look up how to build what it proposes", which `allowTaskAdditions: true`
+contradicts. Both corrected to the actual model, in `catalog.json` and in
+`knowledge/INDEX.md`. Checked before rewriting: nothing in the accepted ADRs
+requires absolute context isolation for architecture runs — ADR-0012's
+"authorization may narrow, never widen" is about authorization, not context — so
+there was no STOP condition and no identity-bearing field was touched.
+
+**Re-proof.** Every named obligation re-run green, plus the four new ones. The
+three candidates were rebuilt by A and B: 925 B / `sha256:6a7b9492…`, 1154 B /
+`sha256:b609d4a0…`, 867 B / `sha256:f3adc66f…` — byte-identical, A and B agreeing.
+277 TypeScript tests; 48 set-release Python cases, 288 pytest in total. `bash scripts/check.sh` — **19 checks**,
+all pass.
+
+**One trap worth recording:** the A/B differential probes the BUILT package, so a
+source change without a rebuild silently compares against stale bytes. It showed
+up as A accepting six family ids B refused. `check.sh` builds before it runs the
+Python tests, so CI cannot hit it; a local run can.
+
+**Still true:** no `releaseReview` has been written, no candidate manifest has
+been committed, and no live release exists.
+
+### Prompt 6B — the three human-approved set releases, landed
+
+**Human release review occurred.** A human approved three independent exact
+release identities under `knowledge-set-release-review-v1`, naming each digest
+and byte count, at the pre-approval head `7f16e9b`. The approval was for those
+exact bytes and confers nothing on any other family, version, or future release.
+
+| familyId | version | releaseDigest | manifest bytes | initial state |
+|---|---|---|---:|---|
+| `prepr-review-default` | 1.0.0 | `sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7` | 925 | Released |
+| `implement-local-default` | 1.0.0 | `sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336` | 1154 | Released |
+| `architecture-default` | 1.0.0 | `sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c` | 867 | Released |
+
+Review policy `knowledge-set-release-review-v1`; actor `human:mikegtech`;
+instant `2026-08-22T15:48:52Z`, captured at receipt of the approval. Each record carries its
+**own** `releaseReview` binding **only its own** digest — one message approved
+three releases independently, so the actor and instant repeat while the binding
+does not. There is no cohort digest and no shared identity.
+
+**Freeze check before anything was written.** All three were rebuilt from the
+branch state by implementation A and implementation B: byte-for-byte equal to
+each other and to the approved identities, with every identity-bearing input
+enumerated — `runnerClass`, `deny`, the four booleans and integers, the three
+failure/authority scalars, and every member id, version, and reviewed digest.
+
+**Versions proved unused through the governed mechanism.**
+`validateNewSetReleaseAgainstRegistry` was called for each candidate against the
+live registry and passed. It was not skipped because the JSON looked empty: the
+rule that a used version is never reusable in any state is the mechanism's to
+enforce, not the author's to assume.
+
+**Manifests written, never hand-edited.** Each file was produced by the canonical
+serializer and then re-read from disk and checked: regular file, not a symlink,
+exact byte count, final LF, accepted as canonical, parses, A's reserialization
+byte-identical, raw SHA-256 equal to the approved digest, and B independently
+reproducing the same bytes from the catalog.
+
+**Live checker validated all three real records.** `pnpm run check:set-releases`
+reads `set-releases.json`, derives each path, and hands the exact bytes to
+`validateSetReleaseRecord`: 3/3. Every named property was also asserted
+per-record through the real repository path — family exists, version grammar,
+derived path exact, canonical bytes, manifest family/version match, digest equals
+the raw hash, policy exact, actor valid, instant a real UTC instant, review
+binding exact, state Released.
+
+**Historical identity pins installed.** `HISTORICAL_RELEASES` pins the three
+identities by exact digest, byte count, path, policy, actor, and review binding —
+and deliberately does **not** pin `state`, which is mutable by design
+(`Released -> Deprecated -> Retired`). A separate current-state test asserts the
+three landed `Released`. No `len(releases) == 3` assertion exists anywhere:
+future releases are legitimate. Mutation-checked — flipping one byte of a landed
+manifest fails both the identity pin and the live checker.
+
+**Household families still refuse.** `home-status-default`, `climate-default`,
+and `gridwise-default` each still refuse candidate creation through the
+selected-member precondition mechanism (`release.member-*`), naming the blocking
+household modules. There is no family-level label to hide behind, and no
+household release record was added. The three coding releases confer nothing.
+
+**Current-state guidance corrected.** `tests/test_knowledge_content.py` asserted
+`releases == []`; that is replaced by the durable truths — `set-releases.json` is
+authoritative, no household family is released, nothing is published. The root
+`README.md`, `knowledge/INDEX.md`, and `knowledge-selection-model.md` no longer
+say no set is released. Historical OpenSpec narrative is untouched.
+
+**The runtime boundary is unchanged.** No runtime resolver, no knowledge delivery,
+no runner-control wiring, no session knowledge argument, no packaged bundle, no
+published module (0 packaged, 0 published; 13 reviewed module identities
+unchanged), and no Proof B producer. One precision: the execution-profile
+contract has carried an opaque `knowledge.selection` **string** since before this
+work; it pins no release and gained nothing here, and `packages/contracts` is
+untouched by this commit. **Released is not runtime-resolvable.** No agent uses
+these sets, no profile loads them, and no knowledge is delivered at runtime.
+
+**PROMPT 6B COMPLETE.**
+
+**PROMPT 6 COMPLETE.**
+
+Runtime knowledge integration is **not** complete and has not begun.
+
+#### Landing addendum — the tracked-binary decision
+
+The landing failed CI on a check `check.sh` had passed locally, for an instructive
+reason: `validate-scaffold.sh` forbids **tracked** binaries, and the manifests
+were still untracked when the local run measured them. A local green measured
+the wrong state.
+
+The collision is structural, not incidental. ADR-0019 §4 fixes **NUL** as the
+member field delimiter, so every canonical release manifest is binary to git, by
+specification. The format cannot change without re-identifying compositions a
+human already reviewed.
+
+The check's own comment names the correct response — "a reviewed decision that
+also says how they will be checked for embedded credentials — not deleting this
+check" — so the decision was put to the repository owner rather than taken here.
+**The owner chose a narrow reviewed exemption on 2026-08-22.**
+
+What replaces pattern matching for these files: every byte is fixed by a SHA-256
+recorded in `set-releases.json`, re-derived from the catalog by two independent
+implementations, and verified on every CI run by `check:set-releases`.
+
+The exemption is **validated, not a glob**. A file is exempt only if it is BOTH
+at the derived release path AND registered in `set-releases.json` — a glob alone
+would let an unregistered blob be dropped into the directory and inherit an
+exemption nothing verifies. Every exemption applied is printed, never silent.
+
+Four negative controls, all confirmed:
+
+| control | result |
+|---|---|
+| unregistered `knowledge/releases/evil@9.9.9.manifest` | **still fails** — glob-only would have exempted it |
+| tracked binary elsewhere (`docs/blob.bin`) | **still fails** |
+| registered manifest + appended secret-shaped value | refused `manifest.row` (canonical form breaks first) |
+| registered manifest, still canonical, one value changed | refused `record.digest` |
+
+The last two are asserted separately in `test_a_tampered_registered_manifest_is_still_caught`,
+because naming only one would let the other class through while the test passed.
+
+### Prompt 6B — final merge-gate correction
+
+Merge-gate verdict: HOLD for one P1 and one P2. Both closed. **No release
+manifest byte and no `releaseReview` moved**, so the existing human approval
+still covers exactly what it approved.
+
+**P1 — digest verification proves INTEGRITY, not the ABSENCE OF EMBEDDED
+CREDENTIALS.** The tracked-binary exemption landed in `9ff73dc` justified itself
+with "these bytes are digest-verified", and that is an answer to a different
+question. A digest says the bytes have not *changed*; it says nothing about
+whether the reviewed bytes carried a credential in the first place. Worse, the
+gap was already written down: `scan-secrets.sh` said in its own header that
+`git grep -I` cannot inspect binary content and that "if binary artifacts are
+ever permitted, this scan needs a companion policy for them". Canonical
+ADR-0019 manifests became exactly that permitted class, and the companion was
+not written. That header is corrected and the companion now exists.
+
+**Registered NUL-delimited manifests now receive companion secret scanning.**
+For each file that is BOTH at the derived release path AND registered as a
+`manifestPath`, `scan-secrets.sh` reads the exact bytes and pipes them through an
+ephemeral `NUL -> LF` projection so the existing line-oriented detectors can see
+every field. Both detector families run over it — assignment-shaped values and
+known credential formats. The projection is inspection-only: `tr` writes to a
+pipe, the manifest is never modified, no digest is recomputed, nothing reaches
+disk, and no second grammar is created. Release-manifest findings are
+deliberately **not allowlistable** — there is no legitimate reason for a
+canonical release identity field to hold a credential-shaped value, and reusing
+the text allowlist would have required inventing line numbers for a projection
+that has none.
+
+**The load-bearing falsification.** `test_a_release_can_pass_integrity_and_fail_secret_content`
+builds a release whose `runnerClass` is an AWS-key-shaped token — a *valid* token
+under the ADR-0019 grammar, so the manifest is well-formed, the digest is
+correct, the record is syntactically valid, and `releaseReview` binds that
+digest. `check:set-releases` **passes** it, because integrity is internally
+coherent. `scan-secrets.sh` **fails** it, because the bytes carry a credential.
+Integrity PASS, content-safety FAIL, in one fixture. Without it the two
+properties could be conflated again and nothing would notice.
+
+**Coverage accounting is now mechanically true.** The old summary printed
+"binary content is NOT pattern-scannable", which reads as an accepted gap. There
+are now three classes and no gap: N text files scanned by `git grep`, M
+registered manifests scanned by the companion, and **0 unscanned tracked
+binaries** — and if that last number is ever non-zero the check fails and names
+the files. Currently 673 text, 1 empty, 3 binary, 3 companion-scanned, 0
+unscanned.
+
+**P2 — the scaffold exemption now matches its own prose.** It said "derived
+release path" and implemented `knowledge/releases/*@*.manifest` plus a grep for
+the quoted path *anywhere* in the JSON. Both are tightened: the full grammar
+`^knowledge/releases/[a-z][a-z0-9-]*@[0-9]+\.[0-9]+\.[0-9]+\.manifest$`, and
+registration specifically as `"manifestPath": "<exact path>"`. Deep JSON
+semantics stay with `check:knowledge` and `check:set-releases`.
+
+The tests for it asserted that certain source strings were present — which would
+have passed just as happily if the logic beneath them were wrong. They are
+replaced by behaviour: the real script runs in a throwaway repo and its
+tracked-binary verdict is read. Nine cases, all mutation-checked. **One mutant
+survived the first attempt**: loosening the registration match back to a quoted
+substring, because the fixture had embedded the path inside a longer sentence
+where neither matcher fired. The fixture now places the exact quoted path under
+a *different key*, so a substring matcher accepts it and only a
+manifestPath-shaped matcher refuses. The mutant then died.
+
+**The profile-schema absence claim was false.** `knowledge-selection-model.md`
+said "no profile knowledge field or schema". The execution-profile contract has
+long carried an opaque `knowledge.selection` string. Corrected to the precise
+durable statement: that field exists and is a named reference only; what does
+not exist is a release-aware contract — no profile pins
+`familyId@releaseVersion`, nothing validates a selection against
+`set-releases.json`, and no resolver turns a selection into context. The
+execution-profile schema was not redesigned and `packages/contracts` is
+untouched.
+
+**All three human-reviewed release identities are unchanged** — 925 /
+`sha256:6a7b9492…`, 1154 / `sha256:b609d4a0…`, 867 / `sha256:f3adc66f…` — with
+`policy = knowledge-set-release-review-v1`, `by = human:mikegtech`,
+`at = 2026-08-22T15:48:52Z`, each binding its own original digest. No new human
+release review is required.
+
+Two existing scanner tests encoded the OLD contract and were migrated, not
+deleted. `test_coverage_output_accounts_for_every_tracked_file` asserted the
+summary said binary content is "NOT pattern-scannable" — the exact phrasing this
+correction removes — and now asserts the three exhaustive categories and that a
+non-zero unscanned count fails. `test_secret_inside_a_binary_is_not_pattern_scannable`
+asserted that a secret in a tracked binary yields a CLEAN exit; its own docstring
+said "if this ever fails, pattern matching gained binary coverage and the binary
+policy can be revisited". Half of that came true. The property worth keeping is
+sharper than either reading: pattern matching still cannot see inside an
+arbitrary binary, and the scan now **fails and names the file** instead of
+passing in silence. The test asserts both halves — the file is absent from the
+findings sections and present in the coverage failure — so "found it" and
+"refused to pretend it looked" can never be confused.

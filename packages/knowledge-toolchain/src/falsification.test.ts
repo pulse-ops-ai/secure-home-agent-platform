@@ -7,7 +7,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { admit, compile, packageBundle, query } from './index.js'
-import { authoringEligibility, resolveSet } from './gates.js'
+import { authoringEligibility } from './gates.js'
+import { resolveReleaseMembers } from './set-release.js'
 import { bundleDigest, POLICY_V1 } from './index.js'
 import type { CatalogEntry, ContentReview, Refusal, SourceFile } from './types.js'
 
@@ -800,36 +801,67 @@ describe('P1: internal references resolve relative to the source document', () =
   })
 })
 
-// ══ P1 — the set toolchain gate is decorative ═════════════════════════════
+// ══ P1 — composition eligibility comes from a set gate ════════════════════
 
-describe('P1: BOTH set gates are load-bearing before member resolution', () => {
+/**
+ * The ORIGINAL P1 was that `resolveSet` consulted only `blockedByRollout`, so a
+ * set's toolchain gate was decorative. ADR-0019 dissolved the premise rather
+ * than patching it: a set family has no gate, and release state is the single
+ * authority over composition use.
+ *
+ * So this block no longer asks "are both set gates load-bearing?" — it asks the
+ * stronger question the refactor is supposed to have settled: can a composition
+ * be authorized by gate booleans at all? It must not be expressible.
+ */
+describe('P1: no composition is authorized by a set-level gate', () => {
   const openMember = [
     { id: 'platform/ok', gates: { blockedByToolchain: false, blockedByRollout: false } },
   ]
 
-  it('control: a fully open set resolves its open member', () => {
-    const resolution = resolveSet(
-      { blockedByToolchain: false, blockedByRollout: false },
-      openMember,
-    )
-    expect('resolved' in resolution && resolution.resolved).toEqual(['platform/ok'])
+  it('control: a Released release resolves its open member', () => {
+    const resolution = resolveReleaseMembers('run', 'Released', openMember)
+    expect(resolution.ok && resolution.resolved).toEqual(['platform/ok'])
   })
 
-  it('a set blocked by TOOLCHAIN resolves nothing, even with open members', () => {
-    // THE DEFECT. `resolveSet` consulted only `blockedByRollout`, so the set's
-    // toolchain gate was decorative.
-    const resolution = resolveSet({ blockedByToolchain: true, blockedByRollout: false }, openMember)
-    expect(resolution).toEqual({ refusedBy: 'set-toolchain' })
+  it('adoption accepts only Released', () => {
+    expect(resolveReleaseMembers('adoption', 'Released', openMember).ok).toBe(true)
+    for (const state of ['Deprecated', 'Retired'] as const) {
+      const r = resolveReleaseMembers('adoption', state, openMember)
+      expect(r.ok, state).toBe(false)
+      if (!r.ok) expect(r.refusedBy).toBe('release-state')
+    }
   })
 
-  it('a set blocked by ROLLOUT resolves nothing', () => {
-    const resolution = resolveSet({ blockedByToolchain: false, blockedByRollout: true }, openMember)
-    expect(resolution).toEqual({ refusedBy: 'set-rollout' })
+  it('a run accepts Released and Deprecated, and refuses Retired', () => {
+    expect(resolveReleaseMembers('run', 'Released', openMember).ok).toBe(true)
+    // Deprecated is the whole point of the two-question split: a profile
+    // revision that already pinned this release keeps running.
+    expect(resolveReleaseMembers('run', 'Deprecated', openMember).ok).toBe(true)
+    const retired = resolveReleaseMembers('run', 'Retired', openMember)
+    expect(retired.ok).toBe(false)
+    if (!retired.ok) expect(retired.state).toBe('Retired')
   })
 
-  it('a set blocked by both names both', () => {
-    const resolution = resolveSet({ blockedByToolchain: true, blockedByRollout: true }, openMember)
-    expect(resolution).toEqual({ refusedBy: 'set-both' })
+  it('neither Released nor Deprecated bypasses a blocked module', () => {
+    const blocked = [
+      { id: 'household/routines', gates: { blockedByToolchain: false, blockedByRollout: true } },
+      { id: 'platform/ok', gates: { blockedByToolchain: true, blockedByRollout: true } },
+    ]
+    for (const state of ['Released', 'Deprecated'] as const) {
+      const r = resolveReleaseMembers('run', state, blocked)
+      expect(r.ok, state).toBe(true)
+      if (!r.ok) continue
+      expect(r.resolved, state).toEqual([])
+      expect(r.refused, state).toEqual([
+        { module: 'household/routines', refusedBy: 'rollout' },
+        { module: 'platform/ok', refusedBy: 'both' },
+      ])
+    }
+  })
+
+  it('the legacy set-gate API is gone from the public surface', async () => {
+    const pkg: Record<string, unknown> = await import('./index.js')
+    expect('resolveSet' in pkg, 'resolveSet must not be exported').toBe(false)
   })
 
   it('and authoring eligibility still distinguishes its own four states', () => {

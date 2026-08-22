@@ -517,13 +517,18 @@ def test_the_live_gates_are_exactly_what_the_discharge_intended() -> None:
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
     entries = [*catalog["modules"], *catalog["sets"]]
     assert len(entries) == 23
+    # Readiness is repository-wide and still mirrored onto families; rollout is
+    # not, because under ADR-0019 eligibility belongs to a release record.
     assert all(e["blockedByToolchain"] is False for e in entries)
+    assert all("blockedByRollout" not in s for s in catalog["sets"])
 
     allowlist = set(catalog["runbookRolloutAllowlist"])
     assert allowlist and all(i.startswith("runbooks/") for i in allowlist), sorted(allowlist)
 
     eligible = sorted(
-        e["id"] for e in entries if not e["blockedByToolchain"] and not e["blockedByRollout"]
+        m["id"]
+        for m in catalog["modules"]
+        if not m["blockedByToolchain"] and not m["blockedByRollout"]
     )
     expected = sorted(
         [m["id"] for m in catalog["modules"] if m["id"].startswith("platform/")] + sorted(allowlist)
@@ -531,12 +536,10 @@ def test_the_live_gates_are_exactly_what_the_discharge_intended() -> None:
     assert eligible == expected, eligible
     assert not any(i.startswith("household/") for i in eligible), eligible
 
-    blocked = [e["id"] for e in entries if e["blockedByRollout"] is True]
-    # Every household module and every set, and nothing else.
-    assert {i for i in blocked if not i.startswith("household/")} == {
-        s["id"] for s in catalog["sets"]
-    }, blocked
-    assert len(blocked) == 10, blocked
+    blocked = [m["id"] for m in catalog["modules"] if m["blockedByRollout"] is True]
+    # Every household module, and nothing else: sets no longer carry the gate.
+    assert all(i.startswith("household/") for i in blocked), blocked
+    assert len(blocked) == 4, blocked
 
 
 # --- live catalog / profile contract alignment ------------------------------
@@ -786,7 +789,14 @@ def test_the_live_authored_set_is_exactly_what_the_registry_claims(tmp_path: Pat
         assert m["id"].startswith("platform/") or m["id"] in allowlist, m["id"]
         assert not m["id"].startswith("household/"), m["id"]
 
-    assert all(s["status"] == "Planned" for s in catalog["sets"]), "no set is released"
+    # Not a count: releases are added over time, and a test that pinned the
+    # number would fail the next legitimate release. What is durable is that
+    # set-releases.json is the authority, that no household family is released,
+    # and that a release confers nothing on publication.
+    releases = json.loads((REPO_ROOT / "knowledge" / "set-releases.json").read_text())
+    household_families = {s["id"] for s in catalog["sets"] if s["runnerClass"] != "coding-runner"}
+    for record in releases["releases"]:
+        assert record["familyId"] not in household_families, record["familyId"]
     assert not any(m["status"] == "Published" for m in modules), "nothing is published"
 
     result = _run(REPO_ROOT)
@@ -997,8 +1007,12 @@ def test_the_live_lifecycle_evidence_names_the_reviewed_digest() -> None:
 def test_no_module_is_packaged_or_published() -> None:
     """This landing validates; it does not package or publish."""
     catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
-    for entry in [*catalog["modules"], *catalog["sets"]]:
+    for entry in catalog["modules"]:
         assert entry["status"] not in {"Packaged", "Published"}, entry["id"]
+    # A family carries no status under ADR-0019, and a release is never
+    # "Packaged" or "Published" — those name facts about module bytes.
+    for family in catalog["sets"]:
+        assert "status" not in family, family["id"]
 
 
 def test_a_candidate_missing_generated_by_surfaces_the_packages_rule(tmp_path: Path) -> None:
