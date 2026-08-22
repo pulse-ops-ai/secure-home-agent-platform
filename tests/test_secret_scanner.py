@@ -316,10 +316,13 @@ def test_allowlist_entry_stops_applying_when_the_line_changes(tmp_path: Path) ->
 
 
 def test_coverage_output_accounts_for_every_tracked_file(tmp_path: Path) -> None:
-    """The scanner must not claim more coverage than pattern matching gives it.
+    """The scanner must not claim more coverage than it actually has.
 
-    Binary content cannot be pattern-scanned, so the summary reports the text /
-    empty / binary split rather than asserting "every file was scanned".
+    This used to assert the summary said binary content is "NOT
+    pattern-scannable" and stop there. That wording states a gap and accepts it.
+    Since ADR-0019 release manifests became a governed binary class, the summary
+    reports three exhaustive categories instead — text, companion-scanned
+    manifests, and unscanned binaries — and a non-zero third category FAILS.
     """
     repo = _make_repo(tmp_path, {"docs/a.md": "text\n", "src/empty.marker": ""})
     (repo / "assets").mkdir()
@@ -329,21 +332,37 @@ def test_coverage_output_accounts_for_every_tracked_file(tmp_path: Path) -> None
     result = _scan(repo)
     assert "text (scanned)" in result.stdout
     assert "1 binary" in result.stdout
-    assert "NOT pattern-scannable" in result.stdout
+    assert "unscanned tracked binary file(s)" in result.stdout
+    # The accounting is not decorative: an unscanned binary is a finding.
+    assert result.returncode == EXIT_FINDINGS
+    assert "assets/blob.bin" in result.stdout
 
 
-def test_secret_inside_a_binary_is_not_pattern_scannable(tmp_path: Path) -> None:
-    """Documents the real gap the binary policy exists to close.
+def test_a_secret_in_an_ungoverned_binary_still_fails_even_though_unfound(
+    tmp_path: Path,
+) -> None:
+    """The real gap, and what now happens to it.
 
-    The scanner does **not** find this, which is precisely why
-    ``scripts/validate-scaffold.sh`` refuses to let a binary be tracked at all.
+    Pattern matching still cannot see inside an arbitrary binary — that has not
+    changed and is not claimed. What changed is the consequence: an unscanned
+    tracked binary is no longer reported as covered, so the scan fails and names
+    the file rather than passing in silence. The scanner does not FIND this
+    secret; it refuses to pretend it looked.
     """
     repo = _make_repo(tmp_path, {"docs/a.md": "text\n"})
     (repo / "assets").mkdir()
     (repo / "assets" / "blob.bin").write_bytes(b"\x00\xff" + FAKE_AWS_KEY.encode() + b"\x00")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
-    assert _scan(repo).returncode == EXIT_CLEAN, (
-        "if this ever fails, pattern matching gained binary coverage and the "
-        "binary policy in validate-scaffold.sh can be revisited"
+    result = _scan(repo)
+    assert result.returncode == EXIT_FINDINGS
+    assert "assets/blob.bin" in result.stdout
+    # Not found by pattern matching -- caught by the coverage rule instead. The
+    # two are different, and conflating them is the mistake this file guards.
+    assert "assignment-shaped" in result.stdout
+    findings_section = result.stdout.split("== Coverage ==")[0]
+    assert "assets/blob.bin" not in findings_section, (
+        "pattern matching appears to have gained binary coverage; if that is real, "
+        "the governed-manifest companion scan and the scaffold binary policy can "
+        "both be revisited"
     )

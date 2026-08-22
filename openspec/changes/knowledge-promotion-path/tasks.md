@@ -2064,3 +2064,97 @@ Four negative controls, all confirmed:
 
 The last two are asserted separately in `test_a_tampered_registered_manifest_is_still_caught`,
 because naming only one would let the other class through while the test passed.
+
+### Prompt 6B — final merge-gate correction
+
+Merge-gate verdict: HOLD for one P1 and one P2. Both closed. **No release
+manifest byte and no `releaseReview` moved**, so the existing human approval
+still covers exactly what it approved.
+
+**P1 — digest verification proves INTEGRITY, not the ABSENCE OF EMBEDDED
+CREDENTIALS.** The tracked-binary exemption landed in `9ff73dc` justified itself
+with "these bytes are digest-verified", and that is an answer to a different
+question. A digest says the bytes have not *changed*; it says nothing about
+whether the reviewed bytes carried a credential in the first place. Worse, the
+gap was already written down: `scan-secrets.sh` said in its own header that
+`git grep -I` cannot inspect binary content and that "if binary artifacts are
+ever permitted, this scan needs a companion policy for them". Canonical
+ADR-0019 manifests became exactly that permitted class, and the companion was
+not written. That header is corrected and the companion now exists.
+
+**Registered NUL-delimited manifests now receive companion secret scanning.**
+For each file that is BOTH at the derived release path AND registered as a
+`manifestPath`, `scan-secrets.sh` reads the exact bytes and pipes them through an
+ephemeral `NUL -> LF` projection so the existing line-oriented detectors can see
+every field. Both detector families run over it — assignment-shaped values and
+known credential formats. The projection is inspection-only: `tr` writes to a
+pipe, the manifest is never modified, no digest is recomputed, nothing reaches
+disk, and no second grammar is created. Release-manifest findings are
+deliberately **not allowlistable** — there is no legitimate reason for a
+canonical release identity field to hold a credential-shaped value, and reusing
+the text allowlist would have required inventing line numbers for a projection
+that has none.
+
+**The load-bearing falsification.** `test_a_release_can_pass_integrity_and_fail_secret_content`
+builds a release whose `runnerClass` is an AWS-key-shaped token — a *valid* token
+under the ADR-0019 grammar, so the manifest is well-formed, the digest is
+correct, the record is syntactically valid, and `releaseReview` binds that
+digest. `check:set-releases` **passes** it, because integrity is internally
+coherent. `scan-secrets.sh` **fails** it, because the bytes carry a credential.
+Integrity PASS, content-safety FAIL, in one fixture. Without it the two
+properties could be conflated again and nothing would notice.
+
+**Coverage accounting is now mechanically true.** The old summary printed
+"binary content is NOT pattern-scannable", which reads as an accepted gap. There
+are now three classes and no gap: N text files scanned by `git grep`, M
+registered manifests scanned by the companion, and **0 unscanned tracked
+binaries** — and if that last number is ever non-zero the check fails and names
+the files. Currently 673 text, 1 empty, 3 binary, 3 companion-scanned, 0
+unscanned.
+
+**P2 — the scaffold exemption now matches its own prose.** It said "derived
+release path" and implemented `knowledge/releases/*@*.manifest` plus a grep for
+the quoted path *anywhere* in the JSON. Both are tightened: the full grammar
+`^knowledge/releases/[a-z][a-z0-9-]*@[0-9]+\.[0-9]+\.[0-9]+\.manifest$`, and
+registration specifically as `"manifestPath": "<exact path>"`. Deep JSON
+semantics stay with `check:knowledge` and `check:set-releases`.
+
+The tests for it asserted that certain source strings were present — which would
+have passed just as happily if the logic beneath them were wrong. They are
+replaced by behaviour: the real script runs in a throwaway repo and its
+tracked-binary verdict is read. Nine cases, all mutation-checked. **One mutant
+survived the first attempt**: loosening the registration match back to a quoted
+substring, because the fixture had embedded the path inside a longer sentence
+where neither matcher fired. The fixture now places the exact quoted path under
+a *different key*, so a substring matcher accepts it and only a
+manifestPath-shaped matcher refuses. The mutant then died.
+
+**The profile-schema absence claim was false.** `knowledge-selection-model.md`
+said "no profile knowledge field or schema". The execution-profile contract has
+long carried an opaque `knowledge.selection` string. Corrected to the precise
+durable statement: that field exists and is a named reference only; what does
+not exist is a release-aware contract — no profile pins
+`familyId@releaseVersion`, nothing validates a selection against
+`set-releases.json`, and no resolver turns a selection into context. The
+execution-profile schema was not redesigned and `packages/contracts` is
+untouched.
+
+**All three human-reviewed release identities are unchanged** — 925 /
+`sha256:6a7b9492…`, 1154 / `sha256:b609d4a0…`, 867 / `sha256:f3adc66f…` — with
+`policy = knowledge-set-release-review-v1`, `by = human:mikegtech`,
+`at = 2026-08-22T15:48:52Z`, each binding its own original digest. No new human
+release review is required.
+
+Two existing scanner tests encoded the OLD contract and were migrated, not
+deleted. `test_coverage_output_accounts_for_every_tracked_file` asserted the
+summary said binary content is "NOT pattern-scannable" — the exact phrasing this
+correction removes — and now asserts the three exhaustive categories and that a
+non-zero unscanned count fails. `test_secret_inside_a_binary_is_not_pattern_scannable`
+asserted that a secret in a tracked binary yields a CLEAN exit; its own docstring
+said "if this ever fails, pattern matching gained binary coverage and the binary
+policy can be revisited". Half of that came true. The property worth keeping is
+sharper than either reading: pattern matching still cannot see inside an
+arbitrary binary, and the scan now **fails and names the file** instead of
+passing in silence. The test asserts both halves — the file is absent from the
+findings sections and present in the coverage failure — so "found it" and
+"refused to pretend it looked" can never be confused.

@@ -17,11 +17,21 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 >
 > Three coding set releases are human-reviewed and recorded in
 > [`set-releases.json`](../../knowledge/set-releases.json). What this document
-> describes is still absent: **no runtime resolver**, **no profile knowledge
-> field or schema**, **no deployed knowledge delivery**, **no published module**,
-> and **no Proof B producer**. **Released is not runtime-resolvable** — a
-> recorded release is an identity a reviewer approved, not context any run can
-> obtain. This is the contract those things must satisfy.
+> describes is still absent: **no runtime resolver**, **no deployed knowledge
+> delivery**, **no published module**, and **no Proof B producer**.
+>
+> Be precise about the profile, because "no profile knowledge field" is not
+> true. The execution-profile contract has long carried an **opaque
+> `knowledge.selection` string** — a named reference and nothing more, with no
+> tool, mount, egress, or credential field beside it. What does not exist is a
+> **release-aware** knowledge-selection contract: no profile pins
+> `familyId@releaseVersion`, nothing validates a selection against
+> `set-releases.json`, and no resolver turns a selection into context. Binding
+> that field to a release is runtime-integration work and is not done here.
+>
+> **Released is not runtime-resolvable** — a recorded release is an identity a
+> reviewer approved, not context any run can obtain. This is the contract those
+> things must satisfy.
 
 ## The rule everything else follows from
 

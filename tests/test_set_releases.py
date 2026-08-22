@@ -743,18 +743,110 @@ process.stdout.write(JSON.stringify(r.ok ? { ok: true } : { refusals: r.refusals
 # must still be caught by the mechanism the exemption points at.
 
 
-def _scaffold_binary_section() -> str:
-    return (REPO_ROOT / "scripts" / "validate-scaffold.sh").read_text()
+def _scaffold_binary_verdict(tmp_path: Path, files: dict[str, bytes], registry: str) -> str:
+    """Run the REAL scaffold check in a throwaway repo; return its binary verdict.
 
-
-def test_the_binary_exemption_requires_registration_not_just_a_path() -> None:
-    """A path glob alone would exempt any blob dropped into the directory."""
-    source = _scaffold_binary_section()
-    assert "knowledge/releases/*@*.manifest" in source, "the exemption must be path-scoped"
-    # Registration is what makes it validated rather than blanket.
-    assert "grep -qF" in source and "set-releases.json" in source, (
-        "an exempt manifest must also be registered; a glob-only exemption is a hole"
+    Behaviour, not implementation strings: an earlier version of this test
+    asserted that certain source text appeared in the script, which would have
+    passed just as happily if the logic underneath it were wrong.
+    """
+    repo = tmp_path / "scaffold"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "scripts" / "validate-scaffold.sh").write_text(
+        (REPO_ROOT / "scripts" / "validate-scaffold.sh").read_text()
     )
+    (repo / "knowledge").mkdir(parents=True, exist_ok=True)
+    (repo / "knowledge" / "set-releases.json").write_text(registry)
+    for rel, data in files.items():
+        target = repo / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    result = subprocess.run(
+        ["bash", "scripts/validate-scaffold.sh"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(repo), "NO_COLOR": "1"},
+        check=False,
+    )
+    out = result.stdout + result.stderr
+    # Many other scaffold checks legitimately fail in a bare fixture. Only the
+    # tracked-binary verdict is under test here.
+    for line in out.splitlines():
+        if "binary" in line and ("FAIL" in line or "ok" in line):
+            return line.strip()
+    return "NO VERDICT:\n" + out
+
+
+NUL_MANIFEST = b"okf-set-release-v1\nfamily x\nrequired platform/a\x001.0.0\x00" + b"a" * 64 + b"\n"
+
+
+def _registered(path: str) -> str:
+    return json.dumps({"version": 1, "releases": [{"manifestPath": path}]}, indent=2)
+
+
+def test_a_registered_well_formed_manifest_is_exempt(tmp_path: Path) -> None:
+    """The control. Without it, a check that refuses everything would 'pass'."""
+    path = "knowledge/releases/demo-default@1.0.0.manifest"
+    verdict = _scaffold_binary_verdict(tmp_path, {path: NUL_MANIFEST}, _registered(path))
+    assert verdict.startswith("ok"), verdict
+    assert "1 registered release manifest(s) exempt" in verdict
+
+
+@pytest.mark.parametrize(
+    ("label", "path"),
+    [
+        # Malformed release filenames: the version must be exactly three parts,
+        # and the family must satisfy the repository grammar.
+        ("two-part version", "knowledge/releases/demo-default@1.0.manifest"),
+        ("uppercase family", "knowledge/releases/Demo@1.0.0.manifest"),
+        ("family starting with a digit", "knowledge/releases/1demo@1.0.0.manifest"),
+        ("no version", "knowledge/releases/demo-default.manifest"),
+        # Nested: the path is flat and derived, so a record cannot point into a
+        # subdirectory and have the file inherit an exemption.
+        ("nested release path", "knowledge/releases/sub/demo-default@1.0.0.manifest"),
+    ],
+)
+def test_a_malformed_release_path_is_never_exempt(tmp_path: Path, label: str, path: str) -> None:
+    # Registered under its own path, so ONLY the path grammar can refuse it.
+    verdict = _scaffold_binary_verdict(tmp_path, {path: NUL_MANIFEST}, _registered(path))
+    assert verdict.startswith("FAIL"), f"{label}: {verdict}"
+
+
+def test_an_unregistered_canonical_looking_manifest_is_never_exempt(tmp_path: Path) -> None:
+    path = "knowledge/releases/demo-default@1.0.0.manifest"
+    verdict = _scaffold_binary_verdict(
+        tmp_path, {path: NUL_MANIFEST}, '{"version": 1, "releases": []}'
+    )
+    assert verdict.startswith("FAIL"), verdict
+
+
+def test_registration_must_be_a_manifest_path_not_any_occurrence(tmp_path: Path) -> None:
+    """A loose substring match would accept the path appearing anywhere.
+
+    The fixture must DISCRIMINATE. An earlier version embedded the path inside a
+    longer sentence, so a `grep -F '"<path>"'` mutant never matched it either and
+    the mutant survived while this test still passed. Here the path is a
+    standalone quoted JSON string under a different key: a quoted-substring match
+    accepts it, and only a manifestPath-shaped match refuses it.
+    """
+    path = "knowledge/releases/demo-default@1.0.0.manifest"
+    registry = json.dumps(
+        {"_comment": [path], "documentedAt": path, "version": 1, "releases": []}, indent=2
+    )
+    assert f'"{path}"' in registry, "the fixture must contain the exact quoted path"
+    assert f'"manifestPath": "{path}"' not in registry
+    verdict = _scaffold_binary_verdict(tmp_path, {path: NUL_MANIFEST}, registry)
+    assert verdict.startswith("FAIL"), verdict
+
+
+def test_an_arbitrary_tracked_binary_is_never_exempt(tmp_path: Path) -> None:
+    verdict = _scaffold_binary_verdict(
+        tmp_path, {"docs/blob.bin": b"harmless\x00binary\n"}, '{"version": 1, "releases": []}'
+    )
+    assert verdict.startswith("FAIL"), verdict
 
 
 def test_a_tampered_registered_manifest_is_still_caught() -> None:
@@ -798,3 +890,212 @@ def test_a_tampered_registered_manifest_is_still_caught() -> None:
     finally:
         path.write_bytes(original)
     assert path.read_bytes() == original
+
+
+# ── integrity is not content safety ──────────────────────────────────────────
+#
+# The scaffold exemption for NUL-delimited release manifests rests on digest
+# verification. A digest proves the bytes have not CHANGED; it says nothing
+# about whether the reviewed bytes carried a credential in the first place.
+#
+# These tests exist so those two properties cannot be conflated again. The
+# load-bearing one builds a release that is internally coherent in every way the
+# release mechanism checks -- and still contains a credential-shaped value.
+
+
+def _scanner_repo(tmp_path: Path, manifests: dict[str, bytes], registry: str) -> Path:
+    """A throwaway git repo holding the real scanner plus binary manifests."""
+    repo = tmp_path / "scanrepo"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "scripts" / "scan-secrets.sh").write_text(
+        (REPO_ROOT / "scripts" / "scan-secrets.sh").read_text()
+    )
+    (repo / "knowledge" / "releases").mkdir(parents=True)
+    (repo / "knowledge" / "set-releases.json").write_text(registry)
+    for name, data in manifests.items():
+        (repo / "knowledge" / "releases" / name).write_bytes(data)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    return repo
+
+
+def _scan(repo: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "scripts/scan-secrets.sh"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(repo), "NO_COLOR": "1"},
+        check=False,
+    )
+
+
+def _poisoned(secret: str) -> tuple[bytes, str]:
+    """A VALID canonical manifest whose runnerClass is a credential-shaped token.
+
+    runnerClass is a free token in the ADR-0019 grammar, so this is not a
+    malformed manifest -- it is a perfectly well-formed release identity that
+    happens to carry a credential. That is precisely the case a digest cannot
+    detect.
+    """
+    logical = {
+        "family": "poisoned-default",
+        "version": "1.0.0",
+        "runnerClass": secret,
+        "allowTaskAdditions": False,
+        "allowTaskNarrowing": False,
+        "maxBytes": 1048576,
+        "maxFreshnessDays": 180,
+        "requiredFailure": "reject-run",
+        "optionalFailure": "warn",
+        "overrideAuthority": "profile-change-review",
+        "deny": [],
+        "required": [{"id": "platform/governance", "version": "1.0.0", "digest": "a" * 64}],
+        "optional": [],
+    }
+    manifest = canonical_manifest(logical)
+    return manifest, release_digest(logical)
+
+
+def _registry_for(family: str, digest: str) -> str:
+    return json.dumps(
+        {
+            "version": 1,
+            "releases": [
+                {
+                    "familyId": family,
+                    "version": "1.0.0",
+                    "manifestPath": f"knowledge/releases/{family}@1.0.0.manifest",
+                    "releaseDigest": digest,
+                    "releaseReview": {
+                        "policy": "knowledge-set-release-review-v1",
+                        "by": "human:reviewer",
+                        "at": "2026-08-22T00:00:00Z",
+                        "releaseDigest": digest,
+                    },
+                    "state": "Released",
+                }
+            ],
+        },
+        indent=2,
+    )
+
+
+def test_a_release_can_pass_integrity_and_fail_secret_content(tmp_path: Path) -> None:
+    """THE load-bearing falsification: integrity PASS, content-safety FAIL.
+
+    If these two ever collapse into one property again, this test is what
+    notices. A manifest whose digest, review binding, canonical form, and
+    registry record are all internally coherent still must not ship a
+    credential.
+    """
+    secret = "AKIA" + "IOSFODNN7EXAMPLE"
+    manifest, digest = _poisoned(secret)
+    registry = _registry_for("poisoned-default", digest)
+
+    # --- integrity: the release mechanism is satisfied -----------------------
+    fixture = tmp_path / "repo"
+    (fixture / "knowledge" / "releases").mkdir(parents=True)
+    (fixture / "knowledge" / "set-releases.json").write_text(registry)
+    (fixture / "knowledge" / "releases" / "poisoned-default@1.0.0.manifest").write_bytes(manifest)
+    (fixture / "knowledge" / "catalog.json").write_text(
+        json.dumps({"sets": [{"id": "poisoned-default"}], "modules": []})
+    )
+    integrity = subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "check-set-releases.mjs"), str(fixture)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert integrity.returncode == 0, (
+        "the fixture must be internally coherent, or it proves nothing: "
+        + integrity.stdout
+        + integrity.stderr
+    )
+
+    # --- content safety: the scanner is NOT satisfied ------------------------
+    repo = _scanner_repo(tmp_path, {"poisoned-default@1.0.0.manifest": manifest}, registry)
+    scan = _scan(repo)
+    assert scan.returncode == 1, (
+        "a digest-valid release carrying a credential passed the secret scan; "
+        "integrity was mistaken for content safety\n" + scan.stdout + scan.stderr
+    )
+    assert "poisoned-default@1.0.0.manifest" in scan.stdout
+    assert "NOT allowlistable" in scan.stdout
+
+
+def test_both_detector_families_fire_inside_a_release_manifest(tmp_path: Path) -> None:
+    """Known-credential AND assignment-shaped, not just one of them."""
+    for secret in ("AKIA" + "IOSFODNN7EXAMPLE", "token=" + "s3cret-value-long-enough"):
+        manifest, digest = _poisoned(secret)
+        repo = _scanner_repo(
+            tmp_path / secret[:6],
+            {"poisoned-default@1.0.0.manifest": manifest},
+            _registry_for("poisoned-default", digest),
+        )
+        scan = _scan(repo)
+        assert scan.returncode == 1, f"{secret!r} was not detected\n{scan.stdout}"
+
+
+def test_the_companion_scan_is_read_only(tmp_path: Path) -> None:
+    """The NUL->LF projection must never reach disk or move a digest."""
+    before = {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in (REPO_ROOT / "knowledge" / "releases").glob("*.manifest")
+    }
+    assert before, "expected landed manifests"
+    result = subprocess.run(
+        ["bash", "scripts/scan-secrets.sh"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    after = {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in (REPO_ROOT / "knowledge" / "releases").glob("*.manifest")
+    }
+    assert before == after, "the scan modified a release manifest"
+
+
+def test_the_real_manifests_produce_no_finding() -> None:
+    """The control. Without it, a scan that fails on everything would 'pass'."""
+    result = subprocess.run(
+        ["bash", "scripts/scan-secrets.sh"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "registered manifest(s) inspected" in result.stdout
+    assert "0 unscanned tracked binary file(s)" in result.stdout
+
+
+def test_an_unscanned_tracked_binary_fails_the_coverage_accounting(tmp_path: Path) -> None:
+    """'All tracked content scanned' must be mechanically true, or fail."""
+    repo = _scanner_repo(tmp_path, {}, '{"version": 1, "releases": []}')
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "blob.bin").write_bytes(b"harmless\x00binary\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    scan = _scan(repo)
+    assert scan.returncode == 1, "an unscanned tracked binary was reported as covered"
+    assert "unscanned tracked binary file(s)" in scan.stdout
+    assert "docs/blob.bin" in scan.stdout
+
+
+def test_an_unregistered_manifest_gets_no_companion_treatment(tmp_path: Path) -> None:
+    """Path shape alone must not buy coverage OR an exemption."""
+    manifest, _ = _poisoned("AKIA" + "IOSFODNN7EXAMPLE")
+    repo = _scanner_repo(
+        tmp_path,
+        {"unregistered-default@1.0.0.manifest": manifest},
+        '{"version": 1, "releases": []}',
+    )
+    scan = _scan(repo)
+    # Not scanned as a governed manifest, and therefore an unscanned binary.
+    assert scan.returncode == 1
+    assert "unscanned tracked binary file(s)" in scan.stdout
+    assert "unregistered-default@1.0.0.manifest" in scan.stdout

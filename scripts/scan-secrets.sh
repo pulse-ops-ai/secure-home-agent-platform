@@ -18,10 +18,24 @@
 #
 #    "Text" is not a hedge: `git grep -I` cannot inspect binary content, so a
 #    credential inside a binary blob would not be found by pattern matching at
-#    all. That gap is closed structurally instead — validate-scaffold.sh fails if
-#    any binary file is tracked, so the text-only assumption is enforced rather
-#    than assumed. If binary artifacts are ever permitted, this scan needs a
-#    companion policy for them.
+#    all. That gap was originally closed structurally — validate-scaffold.sh
+#    failed if any binary file was tracked — and that promise has since been
+#    qualified, so this scan carries the companion policy it demanded.
+#
+#    ONE binary class is now permitted: canonical ADR-0019 set-release manifests,
+#    which are NUL-delimited BY SPECIFICATION and so binary to git by
+#    construction. Their exemption in validate-scaffold.sh rests on digest
+#    verification — and **a digest proves INTEGRITY, not CONTENT SAFETY**. That a
+#    file has not changed says nothing about whether the reviewed bytes contained
+#    a credential in the first place. Conflating the two is exactly the mistake
+#    this comment exists to prevent.
+#
+#    So every registered release manifest is inspected here too, by the SAME two
+#    detector families, through an ephemeral NUL→LF projection that exists only
+#    so line-oriented patterns can see each field. The projection is never
+#    written, never digested, and is not a second grammar. Release-manifest
+#    findings are deliberately NOT allowlistable: there is no legitimate reason
+#    for a canonical release identity field to hold a credential-shaped value.
 #
 #    An earlier version filtered any result line containing a sentinel comment.
 #    That was a repository-wide bypass token: anyone who read this file could
@@ -203,6 +217,30 @@ allowlisted() {
 }
 
 # ---------------------------------------------------------------------------
+# The governed binary class: registered canonical release manifests.
+#
+# Two conditions, both required. The path grammar alone would let any blob
+# dropped into the directory inherit companion treatment; registration alone
+# would trust a JSON string that could name anything.
+# ---------------------------------------------------------------------------
+
+RELEASE_PATH_RE='^knowledge/releases/[a-z][a-z0-9-]*@[0-9]+\.[0-9]+\.[0-9]+\.manifest$'
+RELEASE_REGISTRY='knowledge/set-releases.json'
+
+governed_release_manifests() {
+  local path
+  [ -f "$RELEASE_REGISTRY" ] || return 0
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    printf '%s' "$path" | grep -qE "$RELEASE_PATH_RE" || continue
+    # Registered as a manifestPath specifically, not merely present somewhere in
+    # the JSON. -F so the path is matched literally, never as a pattern.
+    grep -qF "\"manifestPath\": \"$path\"" "$RELEASE_REGISTRY" || continue
+    printf '%s\n' "$path"
+  done <<< "$(git ls-files -- 'knowledge/releases/*.manifest' 2>/dev/null)"
+}
+
+# ---------------------------------------------------------------------------
 # Scan
 # ---------------------------------------------------------------------------
 
@@ -235,6 +273,39 @@ scan() {
   return 0
 }
 
+# Inspect the governed binary class with the SAME patterns.
+#
+# `tr` reads the file and writes to a pipe: the manifest is never modified, its
+# digest is never recomputed, and the projection never reaches disk. Line
+# numbers are positions in the projection, not in the file, so no allowlist
+# hint is printed — these findings are not allowlistable.
+scan_release_manifests() {
+  local hits=0 scanned=0 path matches
+  printf '\n%s== release manifests (NUL-aware companion scan) ==%s\n' "$C_BOLD" "$C_OFF"
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    scanned=$((scanned + 1))
+    matches="$(tr '\0' '\n' < "$path" | grep -nE "${ASSIGNED}|${KNOWN}" 2>/dev/null)"
+    [ -n "$matches" ] || continue
+    while IFS= read -r m; do
+      [ -n "$m" ] || continue
+      printf '  %sFINDING%s %s (projected field %s)\n' "$C_RED" "$C_OFF" "$path" "${m%%:*}"
+      hits=$((hits + 1))
+    done <<< "$matches"
+  done <<< "$(governed_release_manifests)"
+
+  GOVERNED_SCANNED="$scanned"
+  if [ "$hits" -gt 0 ]; then
+    printf '  %s%d finding(s) — NOT allowlistable.%s\n' "$C_RED" "$hits" "$C_OFF"
+    printf '  A canonical release identity field has no legitimate use for a\n'
+    printf '  credential-shaped value. Fix the release, not the scan.\n'
+    return 1
+  fi
+  printf '  %snone%s (%d registered manifest(s) inspected)\n' "$C_GREEN" "$C_OFF" "$scanned"
+  return 0
+}
+
 printf '%s== Allowlist ==%s\n' "$C_BOLD" "$C_OFF"
 if ! validate_allowlist; then
   printf '\n%sAllowlist is invalid — nothing was scanned.%s\n' "$C_RED" "$C_OFF"
@@ -244,24 +315,50 @@ fi
 printf '  %s%d validated entr(ies)%s\n' "$C_GREEN" "${#AL_PATHS[@]}" "$C_OFF"
 
 status=0
+GOVERNED_SCANNED=0
 scan "assignment-shaped values" "$ASSIGNED" || status=1
 scan "known credential formats" "$KNOWN"    || status=1
+scan_release_manifests                      || status=1
 
 printf '\n%s== Coverage ==%s\n' "$C_BOLD" "$C_OFF"
 # Exact accounting, so "scanned everything" is never an over-claim.
-# git ls-files --eol classifies index content: i/-text is binary, i/none is
-# empty. Everything else is text and was scanned.
+#
+# There are now THREE classes, not two-plus-a-gap: text scanned by git grep,
+# registered release manifests scanned through the NUL-aware companion, and
+# anything else binary — which is a real hole and fails the check. The old
+# wording said "binary content is NOT pattern-scannable" and left it there;
+# that reads as an accepted gap, and an accepted gap is what this now refuses.
 total_files="$(git ls-files | wc -l | tr -d ' ')"
 binary_files="$(git ls-files --eol | awk '$1=="i/-text"' | wc -l | tr -d ' ')"
 empty_files="$(git ls-files --eol | awk '$1=="i/none"' | wc -l | tr -d ' ')"
 text_files=$((total_files - binary_files - empty_files))
 
+# Only a binary that IS a governed manifest counts as covered. A registered
+# manifest that git happens to classify as text is not double-counted here.
+governed_binaries=0
+while IFS= read -r gp; do
+  [ -n "$gp" ] || continue
+  if git ls-files --eol -- "$gp" | awk '$1=="i/-text"' | grep -q .; then
+    governed_binaries=$((governed_binaries + 1))
+  fi
+done <<< "$(governed_release_manifests)"
+unscanned_binaries=$((binary_files - governed_binaries))
+
 printf '  %s tracked file(s): %s text (scanned), %s empty, %s binary\n' \
   "$total_files" "$text_files" "$empty_files" "$binary_files"
+printf '  %s registered release manifest(s) scanned via NUL-aware companion\n' \
+  "$GOVERNED_SCANNED"
+printf '  %s unscanned tracked binary file(s)\n' "$unscanned_binaries"
 printf '  no file-level exclusions, no sentinel, no line-level bypass\n'
-if [ "$binary_files" -ne 0 ]; then
-  printf '  %sbinary content is NOT pattern-scannable%s — see scripts/validate-scaffold.sh\n' \
-    "$C_YELLOW" "$C_OFF"
+
+if [ "$unscanned_binaries" -ne 0 ]; then
+  printf '  %sFINDING%s %d tracked binary file(s) are neither text nor a governed\n' \
+    "$C_RED" "$C_OFF" "$unscanned_binaries"
+  printf '  release manifest, so nothing inspected them for embedded credentials.\n'
+  git ls-files --eol | awk '$1=="i/-text" {sub(/^[^\t]*\t/, ""); print}' | while IFS= read -r b; do
+    printf '%s\n' "$(governed_release_manifests)" | grep -qxF "$b" || printf '    %s\n' "$b"
+  done
+  status=1
 fi
 
 if [ "$status" -ne 0 ]; then

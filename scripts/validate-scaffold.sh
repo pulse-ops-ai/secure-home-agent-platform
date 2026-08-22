@@ -351,11 +351,23 @@ fi
 #   let alone an inserted credential — changes the digest and fails that check
 #   and the historical identity pins in tests/test_set_releases.py.
 #
+#   Integrity is NOT content safety. A digest proves the bytes have not changed;
+#   it says nothing about whether the reviewed bytes carried a credential in the
+#   first place. So the exemption here is only half the answer, and the other
+#   half lives in scripts/scan-secrets.sh, which inspects every registered
+#   manifest through a NUL-aware projection using the same detectors it applies
+#   to text. Neither half is sufficient alone.
+#
 #   The exemption is deliberately NOT a path glob alone. A file is exempt only
-#   if it is BOTH at the derived release path AND registered in set-releases.json,
-#   because a glob would let an unregistered blob be dropped into the directory
-#   and inherit an exemption nothing verifies. An unregistered .manifest still
-#   fails here, and every exemption applied is reported rather than silent.
+#   if it is BOTH at the exact derived release path AND registered specifically
+#   as a manifestPath, because a glob would let an unregistered blob be dropped
+#   into the directory and inherit an exemption nothing verifies, and a loose
+#   substring match would accept the path appearing anywhere in the JSON.
+#   An unregistered or malformed .manifest still fails here, and every exemption
+#   applied is reported rather than silent.
+#
+#   Deep JSON semantics stay with check:knowledge and check:set-releases; this
+#   check is dependency-light on purpose and only needs the textual shape.
 #
 #   It grants nothing to any other path, and no other binary is exempt.
 # ---------------------------------------------------------------------------
@@ -367,20 +379,20 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   binaries="$(git ls-files --eol 2>/dev/null | awk '$1=="i/-text" {sub(/^[^\t]*\t/, ""); print}')"
 
   registry="knowledge/set-releases.json"
+  # The full derived path grammar: family id, exact three-part version, flat.
+  # A nested path, an uppercase family, or a version like "1.0" is not a
+  # derived release path and gets no exemption.
+  release_path_re='^knowledge/releases/[a-z][a-z0-9-]*@[0-9]+\.[0-9]+\.[0-9]+\.manifest$'
   exempted=""
   remaining=""
   for b in $binaries; do
-    case "$b" in
-      knowledge/releases/*@*.manifest)
-        # Registered? The record stores the exact path string. grep -F so a
-        # path is matched literally, never as a pattern.
-        if [ -f "$registry" ] && grep -qF "\"$b\"" "$registry" 2>/dev/null; then
-          exempted="$exempted$b
+    if printf '%s' "$b" | grep -qE "$release_path_re" &&
+       [ -f "$registry" ] &&
+       grep -qF "\"manifestPath\": \"$b\"" "$registry" 2>/dev/null; then
+      exempted="$exempted$b
 "
-          continue
-        fi
-        ;;
-    esac
+      continue
+    fi
     remaining="$remaining$b
 "
   done
@@ -396,7 +408,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
     count="$(printf '%s' "$exempted" | grep -c . || true)"
     pass "no unexempted binary is tracked; $count registered release manifest(s) exempt"
     printf '%s' "$exempted" | while IFS= read -r b; do
-      [ -n "$b" ] && detail "exempt (registered, digest-verified): $b"
+      [ -n "$b" ] && detail "exempt here; scanned by scan-secrets.sh companion: $b"
     done
   else
     pass "no binary file is tracked (secret scanning covers all tracked content)"
