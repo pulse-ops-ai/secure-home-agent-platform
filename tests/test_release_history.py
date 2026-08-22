@@ -31,15 +31,37 @@ def _git(repo: Path, *args: str) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
+        # The host's git configuration must not leak into the fixture: a
+        # system-scope /etc/gitconfig can set init.defaultBranch (colliding
+        # with the explicit `main` some fixtures create), commit.gpgsign (a
+        # fixture commit would demand a signing key), or hooks. HOME points at
+        # the fixture and the system scope is disabled outright. PATH is
+        # inherited rather than hardcoded, because /usr/bin:/bin holds no git
+        # on Homebrew- or Nix-provisioned hosts.
         env={
-            "PATH": "/usr/bin:/bin",
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": str(repo),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_AUTHOR_NAME": "t",
             "GIT_AUTHOR_EMAIL": "t@e",
             "GIT_COMMITTER_NAME": "t",
             "GIT_COMMITTER_EMAIL": "t@e",
         },
     )
+
+
+def _ambient() -> dict[str, str]:
+    """The real environment, minus the one variable that redirects the script.
+
+    RELEASE_HISTORY_BASE is authoritative when set — deliberately — so a value
+    exported in the developer's shell would silently repoint every no-base
+    invocation below at some other ref, and a test would assert against a
+    comparison nobody constructed.
+    """
+    env = dict(os.environ)
+    env.pop("RELEASE_HISTORY_BASE", None)
+    return env
 
 
 def _registry(releases: list[dict[str, Any]]) -> str:
@@ -77,7 +99,10 @@ def _repo_with_history(
     shutil.copy(REPO_ROOT / "knowledge" / "catalog.json", repo / "knowledge" / "catalog.json")
 
     (repo / "knowledge" / "set-releases.json").write_text(_registry(before))
-    _git(repo, "init", "-q")
+    # An explicit branch that is not `main`: resolveBase falls back to a bare
+    # `main` ref, and the never-HEAD test below creates `main` itself — a
+    # fixture born on `main` (host init.defaultBranch) would collide with both.
+    _git(repo, "init", "-q", "-b", "work")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "before")
 
@@ -96,6 +121,7 @@ def _check(repo: Path, base: str = "HEAD~1") -> subprocess.CompletedProcess[str]
         capture_output=True,
         text=True,
         check=False,
+        env=_ambient(),
     )
 
 
@@ -103,9 +129,20 @@ def _check(repo: Path, base: str = "HEAD~1") -> subprocess.CompletedProcess[str]
 
 
 def test_the_live_repository_passes_its_own_history_gate() -> None:
-    """The control. A gate that failed on the real tree would prove nothing."""
+    """The control. A gate that failed on the real tree would prove nothing.
+
+    Run exactly as check.sh runs it — no base — but in a scrubbed environment:
+    an ambient RELEASE_HISTORY_BASE would silently redirect this one test.
+    Inference never lands on HEAD, so even on a main checkout this compares a
+    real window rather than the registry with itself.
+    """
     result = subprocess.run(
-        ["node", str(SCRIPT)], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+        ["node", str(SCRIPT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_ambient(),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "carried" in result.stdout
@@ -235,7 +272,7 @@ def test_an_unresolvable_base_fails_rather_than_skipping(tmp_path: Path) -> None
     (repo / "knowledge").mkdir(parents=True)
     shutil.copy(REPO_ROOT / "knowledge" / "catalog.json", repo / "knowledge" / "catalog.json")
     (repo / "knowledge" / "set-releases.json").write_text(_registry([]))
-    _git(repo, "init", "-q")
+    _git(repo, "init", "-q", "-b", "work")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "only")
 
@@ -283,7 +320,7 @@ def test_an_invalid_env_base_fails_even_when_a_fallback_exists(tmp_path: Path) -
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "RELEASE_HISTORY_BASE": "does-not-exist"},
+        env={**_ambient(), "RELEASE_HISTORY_BASE": "does-not-exist"},
     )
     assert result.returncode == 1, result.stdout
     assert "RELEASE_HISTORY_BASE" in result.stderr
@@ -303,7 +340,7 @@ def test_an_empty_env_base_means_no_baseline_was_supplied(tmp_path: Path) -> Non
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "RELEASE_HISTORY_BASE": ""},
+        env={**_ambient(), "RELEASE_HISTORY_BASE": ""},
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -335,6 +372,7 @@ def test_an_inferred_baseline_is_never_head_itself(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         check=False,
+        env=_ambient(),
     )
     assert result.returncode == 1, "the check compared the registry with itself: " + result.stdout
     assert "is gone" in result.stderr

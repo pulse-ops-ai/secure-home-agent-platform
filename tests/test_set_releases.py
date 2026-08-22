@@ -82,21 +82,18 @@ def _logical(family_id: str) -> dict[str, Any]:
 def _implementation_a(family_id: str) -> tuple[bytes, str]:
     """Ask the PACKAGE for the same release, through its public API."""
     script = """
-import { buildSetReleaseCandidate } from '@secure-home/knowledge-toolchain'
+import {
+  buildSetReleaseCandidate, moduleCandidatesFromCatalog,
+} from '@secure-home/knowledge-toolchain'
 import catalog from './knowledge/catalog.json' with { type: 'json' }
-const id = process.argv[2]
-const f = catalog.sets.find((s) => s.id === id)
-const modules = catalog.modules.map((m) => ({
-  id: m.id, version: m.version ?? null,
-  sourceDigest: m.contentReview?.sourceDigest ?? null, status: m.status,
-  blockedByToolchain: m.blockedByToolchain, blockedByRollout: m.blockedByRollout,
-}))
-const r = buildSetReleaseCandidate({
-  id: f.id, runnerClass: f.runnerClass, required: f.required, optional: f.optional ?? [],
-  deny: f.deny, allowTaskAdditions: f.allowTaskAdditions, allowTaskNarrowing: f.allowTaskNarrowing,
-  maxBytes: f.maxBytes, maxFreshnessDays: f.maxFreshnessDays, requiredFailure: f.requiredFailure,
-  optionalFailure: f.optionalFailure, overrideAuthority: f.overrideAuthority,
-}, '1.0.0', modules)
+// The catalog->candidate projection is the package's own, not a copy: the
+// probe must exercise the same mapping the release gates run.
+const f = catalog.sets.find((s) => s.id === process.argv[2])
+const r = buildSetReleaseCandidate(
+  { ...f, optional: f.optional ?? [] },
+  '1.0.0',
+  moduleCandidatesFromCatalog(catalog),
+)
 if (!r.ok) { console.error(JSON.stringify(r.refusals)); process.exit(1) }
 process.stdout.write(Buffer.from(r.value.manifest).toString('base64'))
 """
@@ -692,20 +689,18 @@ def test_a_household_family_still_refuses_to_build_a_candidate(family_id: str) -
     naming each blocking module -- rather than through a family-level label.
     """
     script = """
-import { buildSetReleaseCandidate } from '@secure-home/knowledge-toolchain'
+import {
+  buildSetReleaseCandidate, moduleCandidatesFromCatalog,
+} from '@secure-home/knowledge-toolchain'
 import catalog from './knowledge/catalog.json' with { type: 'json' }
+// Same projection as the release gates — the control must fail through the
+// exact mechanism the gates run, not through a lookalike mapping.
 const f = catalog.sets.find((s) => s.id === process.argv[2])
-const modules = catalog.modules.map((m) => ({
-  id: m.id, version: m.version ?? null,
-  sourceDigest: m.contentReview?.sourceDigest ?? null, status: m.status,
-  blockedByToolchain: m.blockedByToolchain, blockedByRollout: m.blockedByRollout,
-}))
-const r = buildSetReleaseCandidate({
-  id: f.id, runnerClass: f.runnerClass, required: f.required, optional: f.optional ?? [],
-  deny: f.deny, allowTaskAdditions: f.allowTaskAdditions, allowTaskNarrowing: f.allowTaskNarrowing,
-  maxBytes: f.maxBytes, maxFreshnessDays: f.maxFreshnessDays, requiredFailure: f.requiredFailure,
-  optionalFailure: f.optionalFailure, overrideAuthority: f.overrideAuthority,
-}, '1.0.0', modules)
+const r = buildSetReleaseCandidate(
+  { ...f, optional: f.optional ?? [] },
+  '1.0.0',
+  moduleCandidatesFromCatalog(catalog),
+)
 process.stdout.write(JSON.stringify(r.ok ? { ok: true } : { refusals: r.refusals }))
 """
     path = REPO_ROOT / ".household-control-probe.mjs"
