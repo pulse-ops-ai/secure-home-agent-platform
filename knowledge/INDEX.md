@@ -153,9 +153,12 @@ Three worth stating here:
 - `climate-default` **requires** topology rather than treating it as optional:
   climate equipment is described per zone, and a zone means nothing without the
   area mapping.
-- `architecture-default` deliberately omits the implementation and workspace
-  modules. An architecture run reasons about the model; loading implementation
-  rules invites it to start editing instead.
+- `architecture-default`'s **base composition** omits the implementation and
+  workspace modules. An architecture run reasons about the model; loading
+  implementation rules invites it to start editing instead. The release permits
+  task widening, so a governed delta may still add eligible context — and the
+  resolved manifest records exactly what was added. Widening knowledge grants no
+  edit or tool authority.
 - Household sets carry a **shorter freshness window** than coding sets. A stale
   description of a house is confidently wrong about physical reality; a stale
   description of a convention is merely out of date.

@@ -17,7 +17,8 @@ import { packageBundle } from './packaging.js'
 import { query, readForeign } from './query.js'
 import { bundleDigest, manifestBytes, PACKAGE_FORMAT } from './identity.js'
 import { attestationRevision, checkProofB, POLICY_V1 } from './attestation.js'
-import { authoringEligibility, resolveSet } from './gates.js'
+import { authoringEligibility } from './gates.js'
+import { resolveReleaseMembers } from './set-release.js'
 import { BLIND_SPOTS, COVERAGE, UNDECIDABLE_CLASSES } from './indicators.js'
 import type { CatalogEntry, ContentReview, Refusal, ReviewEvidence, SourceFile } from './types.js'
 
@@ -551,22 +552,28 @@ describe('the two gates and their four states', () => {
     )
   })
 
-  it('a released set NEVER resolves a rollout-blocked member', () => {
-    const resolution = resolveSet({ blockedByToolchain: false, blockedByRollout: false }, [
+  // Migrated from `resolveSet`, which asked a SET-LEVEL GateState. ADR-0019
+  // removed that gate; the property it protected is unchanged and now hangs off
+  // release state instead.
+  it('a Released release NEVER resolves a rollout-blocked member', () => {
+    const resolution = resolveReleaseMembers('run', 'Released', [
       { id: 'platform/ok', gates: { blockedByToolchain: false, blockedByRollout: false } },
       { id: 'household/no', gates: { blockedByToolchain: false, blockedByRollout: true } },
     ])
-    expect('resolved' in resolution).toBe(true)
-    if (!('resolved' in resolution)) return
+    expect(resolution.ok).toBe(true)
+    if (!resolution.ok) return
     expect(resolution.resolved).toEqual(['platform/ok'])
     expect(resolution.refused).toEqual([{ module: 'household/no', refusedBy: 'rollout' }])
   })
 
-  it('a rollout-blocked set resolves nothing at all', () => {
-    const resolution = resolveSet({ blockedByToolchain: false, blockedByRollout: true }, [
+  it('a Retired release resolves nothing at all, however open its members', () => {
+    const resolution = resolveReleaseMembers('run', 'Retired', [
       { id: 'platform/ok', gates: { blockedByToolchain: false, blockedByRollout: false } },
     ])
-    expect(resolution).toEqual({ refusedBy: 'set-rollout' })
+    expect(resolution.ok).toBe(false)
+    if (resolution.ok) return
+    expect(resolution.refusedBy).toBe('release-state')
+    expect(resolution.state).toBe('Retired')
   })
 })
 

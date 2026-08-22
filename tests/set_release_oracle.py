@@ -59,6 +59,7 @@ _ASCII_WHITESPACE = frozenset("\t\n\x0b\x0c\r ")
 # The repository module-id and set-family grammars, restated here rather than
 # imported. B enforcing a weaker grammar would let it accept a manifest A refuses.
 _MODULE_ID = re.compile(r"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$")
+_SET_FAMILY_ID = re.compile(r"^[a-z][a-z0-9-]*$")
 
 # A's integers are JavaScript numbers, so the accepted authoring domain stops at
 # the safe-integer boundary: beyond it a decimal spelling would not round-trip.
@@ -101,13 +102,27 @@ def _check_digest(value: str, where: str) -> str:
     return value
 
 
+def _check_family(value: str) -> str:
+    """The grammar is "family" SP <family-id>, not "family" SP <any token>.
+
+    The token rule alone admits `Demo`, `1demo`, and `demo/default`. The last is
+    the dangerous one: a slash in a family id makes the release manifest PATH
+    ambiguous, so it must be refused where the identity is built, not where the
+    file is written.
+    """
+    _check_token(value, "family")
+    if not _SET_FAMILY_ID.match(value):
+        raise ManifestRefusalError("family is not a repository set-family id")
+    return value
+
+
 def canonical_manifest(release: dict[str, Any]) -> bytes:
     """Build the ADR-0019 canonical manifest bytes from logical content."""
     out = bytearray()
     out += SET_RELEASE_FORMAT + b"\n"
 
     scalars = {
-        "family": _check_token(release["family"], "family"),
+        "family": _check_family(release["family"]),
         "version": _check_version(release["version"], "version"),
         "runnerClass": _check_token(release["runnerClass"], "runnerClass"),
         "allowTaskAdditions": "true" if release["allowTaskAdditions"] else "false",

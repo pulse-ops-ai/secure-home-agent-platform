@@ -1869,3 +1869,80 @@ and B agreeing on all three. 263 TypeScript tests, 37 Python tests.
 
 **Still true, and the reason this stops here:** no `releaseReview` has been
 written, no candidate manifest has been committed, and no live release exists.
+
+### Prompt 6B — final pre-release contract closure
+
+**Task contract.** Direct user task, 2026-08-22, on top of `3d29d40`. Four
+contract items plus re-proof. No candidate byte moved.
+
+**The legacy set-gate authority is gone from the public toolchain.** The package
+still exported `resolveSet(set: GateState, members)`, which decided whether a
+COMPOSITION could be used from `blockedByToolchain` / `blockedByRollout`. That is
+the pre-ADR-0019 set representation, and it contradicted the family/release model
+the same package now implements: a family has no gate, and §8b makes release
+state the single composition authority. `resolveSet` and `SetResolution` are
+removed. `gates.ts` keeps `GateState` and `authoringEligibility` for MODULE
+semantics and gains `gateRefusal`, the gate arithmetic with no verdict attached —
+authoring and release-time resolution ask the same two booleans and mean
+different things by the answer, so they now share that and nothing else.
+`resolveReleaseMembers(use, state, members)` replaces it: adoption accepts only
+`Released`; a run accepts `Released` and `Deprecated` and refuses `Retired`; and
+once the release passes, every selected module is still checked against its own
+two gates, so a `Released` or `Deprecated` release is not a back door around
+per-module control. The set gate is not merely unused — it is **untypeable**,
+because the function takes a `ReleaseState` and there is no set `GateState` left
+to hand it. Two structural tests hold that: one asserts the public surface
+exports no `resolveSet`/`SetResolution` and that no exported interface but
+`MemberCandidate` declares gate fields; the other asserts the module gates
+themselves survived. Both die under mutation.
+
+**Required members are load-bearing.** `applyTaskDelta` put required and optional
+into one selected map and deleted anything `delta.narrow` named, so a task could
+remove `platform/governance` from a release whose `requiredFailure` is
+`reject-run` and still get a successful `ResolvedSelection` back — a selection
+describing a run the failure contract says cannot happen. `delta.narrow-required`
+now refuses it, checked before membership so a required id is reported as
+required rather than as unknown. Narrowing reduces OPTIONAL context;
+`allowTaskNarrowing: false` forbids it entirely. The whole delta is refused when
+one narrowing is illegal, and every successfully produced selection is asserted
+to still carry every required pin. `knowledge-selection-model.md` invariant 3 said
+a set could protect a load-bearing module "by marking it required **and
+disallowing narrowing**" — that was the old model, and it is corrected.
+
+**The family-id grammar is complete.** `SET_FAMILY_ID` existed but only
+`tokenProblem` was applied to `release.family`, so `Demo`, `1demo`, and
+`demo/default` would all have serialized. The last is the dangerous one: a slash
+makes the release manifest PATH ambiguous. Both the serializer (`manifest.family`)
+and the parser now apply the repository grammar, so A never reads what A would
+not write, and the check runs only once the value is a well-formed token so the
+rule a reader is sent to is the one that actually applies. B enforces the same
+grammar independently. Nine new differential cases cover it — and one of them
+corrected a stale claim: the "family with NBSP" case was documented as proving
+both implementations accept non-ASCII whitespace, which stopped being true when
+the grammar landed. That property moved to `runnerClass`, where the token rule
+still governs it alone.
+
+**Two family rationales were false, and are metadata, not identity.**
+`implement-local-default` said a task "may add" api-contract-conventions; the
+release pins it as an optional member and `delta.add-already-selected`
+deliberately refuses adding a pinned id. `architecture-default` claimed a run
+"cannot look up how to build what it proposes", which `allowTaskAdditions: true`
+contradicts. Both corrected to the actual model, in `catalog.json` and in
+`knowledge/INDEX.md`. Checked before rewriting: nothing in the accepted ADRs
+requires absolute context isolation for architecture runs — ADR-0012's
+"authorization may narrow, never widen" is about authorization, not context — so
+there was no STOP condition and no identity-bearing field was touched.
+
+**Re-proof.** Every named obligation re-run green, plus the four new ones. The
+three candidates were rebuilt by A and B: 925 B / `sha256:6a7b9492…`, 1154 B /
+`sha256:b609d4a0…`, 867 B / `sha256:f3adc66f…` — byte-identical, A and B agreeing.
+293 TypeScript tests, 48 Python tests. `bash scripts/check.sh` — **19 checks**,
+all pass.
+
+**One trap worth recording:** the A/B differential probes the BUILT package, so a
+source change without a rebuild silently compares against stale bytes. It showed
+up as A accepting six family ids B refused. `check.sh` builds before it runs the
+Python tests, so CI cannot hit it; a local run can.
+
+**Still true:** no `releaseReview` has been written, no candidate manifest has
+been committed, and no live release exists.

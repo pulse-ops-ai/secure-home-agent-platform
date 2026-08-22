@@ -180,10 +180,15 @@ Properties the algorithm must have, whatever implements it:
    set composition, or by any ordering of the steps.
 2. **Additions are catalog-only.** A task contract selects from the approved
    catalog; it never supplies content and never names a path.
-3. **Narrowing is always permitted to fail closed.** Removing a module can only
-   reduce what a run understands, so it is the safe direction — but a set may
-   still forbid narrowing away a module it considers load-bearing, by marking it
-   required and disallowing narrowing.
+3. **Narrowing reduces OPTIONAL context and nothing else.** Removing a module
+   can only reduce what a run understands, so it is the safe direction — but
+   "safe" is not "unbounded". A task delta may narrow away a member the release
+   pinned as **optional**; it may never make a reviewed **required** pin
+   disappear. A release that sets `requiredFailure: reject-run` and then let a
+   task delete a required member would be describing a run that cannot legally
+   happen, so the mechanism refuses the delta instead of returning a selection
+   nobody can act on. `allowTaskNarrowing: false` forbids narrowing entirely;
+   `allowTaskNarrowing: true` permits it over optional members only.
 4. **Evidence precedes execution.** Step 10 happens before step 11. A run that
    crashes during launch still has a record of what it was about to be given.
 5. **Resolution is reproducible.** The same profile version, task contract, and
@@ -306,7 +311,10 @@ refused, and no escaping — a value containing `NUL`, `LF`, or `CR` is refused.
 
 **Every module a task adds resolves to an exact `(id, version, digest)`.** There
 is no floating reference, `deny` beats every addition, and an addition or
-narrowing happens only where the release permits it.
+narrowing happens only where the release permits it. A task addition may not
+name a module the release already pinned — that would let "optional" mean
+"whatever revision exists later" — and a narrowing may not name a required
+member, so every resolved selection still carries every required pin.
 
 **The resolver that would use these does not exist.** These forms make the
 identity mechanical; delivering context to a run is later work.

@@ -39,6 +39,9 @@
  */
 import { createHash } from 'node:crypto'
 
+import { gateRefusal } from './gates.js'
+import type { GateRefusal, GateState } from './gates.js'
+
 export const SET_RELEASE_FORMAT = 'okf-set-release-v1'
 export const TASK_DELTA_FORMAT = 'okf-set-task-delta-v1'
 export const RESOLVED_KNOWLEDGE_FORMAT = 'okf-resolved-knowledge-v1'
@@ -188,6 +191,14 @@ export const canonicalSetReleaseManifest = (release: LogicalRelease): ReleaseRes
     if (problem !== undefined) refusals.push(refuse('manifest.token', `"${field}" ${problem}`))
   }
   token('family', release.family)
+  // The grammar is "family" SP <family-id>, not "family" SP <any token>. The
+  // token rule alone would emit `Demo`, `1demo`, or `demo/default` as a family
+  // -- all unparseable as repository family ids, and `demo/default` would make
+  // the manifest path ambiguous.
+  if (tokenProblem(release.family) === undefined && !SET_FAMILY_ID.test(release.family))
+    refusals.push(
+      refuse('manifest.family', `"${release.family}" is not a repository set-family id`),
+    )
   token('runnerClass', release.runnerClass)
   token('requiredFailure', release.requiredFailure)
   token('optionalFailure', release.optionalFailure)
@@ -355,6 +366,10 @@ export const parseSetReleaseManifest = (bytes: Uint8Array): ReleaseResult<Logica
   }
   if (!RELEASE_VERSION.test(scalars.get('version') as string))
     return bad('manifest.version', 'version is not DIGIT+.DIGIT+.DIGIT+')
+  // Same grammar the serializer applies. A stored manifest A would refuse to
+  // write must not be one A will read.
+  if (!SET_FAMILY_ID.test(scalars.get('family') as string))
+    return bad('manifest.family', 'family is not a repository set-family id')
 
   const deny: string[] = []
   const required: ReleaseMember[] = []
@@ -793,6 +808,69 @@ export const releaseRunDecision = (state: ReleaseState): ReleaseDecision =>
     ? { allowed: false, because: 'a Retired release may not service a new run' }
     : { allowed: true }
 
+// --- release-aware member resolution -----------------------------------------
+//
+// This replaces the pre-ADR-0019 `resolveSet`, which decided whether a
+// composition could be used from a SET-LEVEL `GateState`
+// (`blockedByToolchain` / `blockedByRollout`). ADR-0019 §8b makes release state
+// the single authority over composition use, and §8 leaves a family with no
+// gate at all, so that signature could no longer be expressed honestly.
+//
+// The set gate is not merely unused here — it is UNTYPEABLE. This function
+// accepts a `ReleaseState`, never a set `GateState`, so no caller can hand a
+// composition a boolean pair and get an eligibility answer back.
+
+/** Which question is being asked of the release. */
+export type ReleaseUse = 'adoption' | 'run'
+
+/** One selected module and its own two ADR-0016 gates. */
+export interface ReleaseMemberGate {
+  readonly id: string
+  readonly gates: GateState
+}
+
+export type ReleaseResolution =
+  | {
+      readonly ok: false
+      readonly refusedBy: 'release-state'
+      readonly state: ReleaseState
+      readonly because: string
+    }
+  | {
+      readonly ok: true
+      readonly resolved: readonly string[]
+      readonly refused: readonly { readonly module: string; readonly refusedBy: GateRefusal }[]
+    }
+
+/**
+ * Resolve a release's members: release state first, then each module's own gates.
+ *
+ * **A Released or Deprecated release never bypasses a blocked module.** Whether
+ * the composition may be used and whether each member may be used are separate
+ * questions, and passing the first has never answered the second (ADR-0016 §7a,
+ * ADR-0019 §6). Adoption and run differ only in what they accept of the release:
+ * `Deprecated` may still service a run for a profile revision that already pins
+ * it, but may not be newly adopted.
+ */
+export const resolveReleaseMembers = (
+  use: ReleaseUse,
+  state: ReleaseState,
+  members: readonly ReleaseMemberGate[],
+): ReleaseResolution => {
+  const decision = use === 'adoption' ? releaseAdoptionDecision(state) : releaseRunDecision(state)
+  if (!decision.allowed)
+    return { ok: false, refusedBy: 'release-state', state, because: decision.because }
+
+  const resolved: string[] = []
+  const refused: { module: string; refusedBy: GateRefusal }[] = []
+  for (const member of members) {
+    const problem = gateRefusal(member.gates)
+    if (problem === undefined) resolved.push(member.id)
+    else refused.push({ module: member.id, refusedBy: problem })
+  }
+  return { ok: true, resolved, refused }
+}
+
 // --- task delta and resolved selection --------------------------------------
 //
 // ADR-0019 section 11: a task-modified composition is NOT a registered release,
@@ -939,9 +1017,27 @@ export const applyTaskDelta = (
   const selected = new Map<string, ReleaseMember>()
   for (const m of [...release.required, ...release.optional]) selected.set(m.id, m)
 
+  // A REQUIRED member is load-bearing: the operative failure contract rejects a
+  // run whose required knowledge is missing, so silently removing one here would
+  // produce a successful ResolvedSelection that the contract says cannot run.
+  // Narrowing reduces OPTIONAL context; it never makes a reviewed required pin
+  // disappear. Checked before membership, because a required id IS selected --
+  // testing `selected` first would report the wrong reason.
+  const requiredIds = new Set(release.required.map((m) => m.id))
   for (const id of delta.narrow) {
-    if (!selected.has(id))
+    if (requiredIds.has(id)) {
+      refusals.push(
+        refuse(
+          'delta.narrow-required',
+          `"${id}" is a required member of this release and may not be narrowed away`,
+        ),
+      )
+      continue
+    }
+    if (!selected.has(id)) {
       refusals.push(refuse('delta.narrow-unknown', `"${id}" is not selected by this release`))
+      continue
+    }
     selected.delete(id)
   }
 

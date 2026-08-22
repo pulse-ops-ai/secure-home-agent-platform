@@ -418,10 +418,25 @@ MAX_SAFE = 2**53 - 1
 
 DOMAIN_CASES: list[tuple[str, dict[str, Any]]] = [
     ("baseline", {}),
-    # NBSP is Unicode whitespace but NOT ASCII whitespace: the ADR names ASCII,
-    # so BOTH must accept it. A Python str.isspace() oracle would refuse here.
+    # NBSP is Unicode whitespace but NOT ASCII whitespace. The ADR names ASCII,
+    # so the SEPARATOR rule must accept it -- a Python str.isspace() oracle would
+    # refuse here. runnerClass is governed by the token rule alone, so it is
+    # where that property is still visible.
+    ("runnerClass with NBSP", {"runnerClass": "coding\u00a0runner"}),
+    # family is different since the family-id grammar landed: NBSP is not a
+    # separator, but it is not in [a-z0-9-] either, so BOTH must now refuse.
     ("family with NBSP", {"family": "demo\u00a0default"}),
     ("family with ASCII SP", {"family": "demo default"}),
+    # The repository family-id grammar itself. `demo/default` matters most: a
+    # slash would make the release manifest PATH ambiguous.
+    ("family accepted: hyphenated", {"family": "prepr-review-default"}),
+    ("family accepted: single token", {"family": "coding"}),
+    ("family starting with a digit", {"family": "1demo"}),
+    ("family with a leading hyphen", {"family": "-demo"}),
+    ("family with an uppercase letter", {"family": "Demo"}),
+    ("family with a slash", {"family": "demo/default"}),
+    ("family with an underscore", {"family": "demo_default"}),
+    ("family empty", {"family": ""}),
     ("family with NUL", {"family": "demo\x00default"}),
     ("family with LF", {"family": "demo\ndefault"}),
     ("family with CR", {"family": "demo\rdefault"}),
@@ -502,3 +517,70 @@ def test_the_two_implementations_accept_the_same_domain(name: str, over: dict[st
     )
     if a is not None and b is not None:
         assert a == b, f"{name}: both accepted but produced different bytes"
+
+
+# ── the legacy set-gate authority is structurally gone ────────────────────────
+
+SRC = REPO_ROOT / "packages" / "knowledge-toolchain" / "src"
+
+
+def _exported_interfaces(source: str) -> dict[str, str]:
+    """Crude but sufficient: every `export interface X {...}` body, by name."""
+    out: dict[str, str] = {}
+    for match in re.finditer(r"export interface (\w+) \{(.*?)\n\}", source, re.S):
+        out[match.group(1)] = match.group(2)
+    return out
+
+
+def test_no_exported_set_resolution_api_takes_set_gate_booleans() -> None:
+    """ADR-0019 §8b: release state is the ONE composition authority.
+
+    The pre-ADR-0019 `resolveSet(set: GateState, members)` decided whether a
+    COMPOSITION could be used from `blockedByToolchain` / `blockedByRollout`.
+    Deleting the call sites would not be enough -- the signature must be
+    impossible to write. This is the structural search that says so.
+    """
+    index = (SRC / "index.ts").read_text()
+    for gone in ("resolveSet", "SetResolution"):
+        assert gone not in index, f"{gone} is still on the public surface"
+
+    gates = (SRC / "gates.ts").read_text()
+    assert "resolveSet" not in _exported_interfaces(gates)
+    # gates.ts may still DESCRIBE the removed function in prose; it must not
+    # export one. Anything callable is `export const NAME =`.
+    exported_values = set(re.findall(r"^export const (\w+)", gates, re.M))
+    assert exported_values == {"gateRefusal", "authoringEligibility"}, exported_values
+
+    release = (SRC / "set-release.ts").read_text()
+    interfaces = _exported_interfaces(release)
+    gate_fields = ("blockedByToolchain", "blockedByRollout")
+    for name, body in interfaces.items():
+        if any(field in body for field in gate_fields):
+            # A MODULE may carry its own two gates. A set family, a release, a
+            # release record, or a resolved selection may not.
+            assert name == "MemberCandidate", (
+                f"{name} declares module gate fields; only a module candidate may"
+            )
+    assert any(f in interfaces["MemberCandidate"] for f in gate_fields), (
+        "module gate semantics must be PRESERVED, not removed along with the set gate"
+    )
+
+    # And the release-side resolution entry point takes a state, not a gate pair.
+    signature = re.search(
+        r"export const resolveReleaseMembers = \((.*?)\): ReleaseResolution", release, re.S
+    )
+    assert signature is not None, "resolveReleaseMembers must exist"
+    params = signature.group(1)
+    assert "ReleaseState" in params
+    for field in gate_fields:
+        assert field not in params, f"resolveReleaseMembers accepts {field} at the set level"
+
+
+def test_module_gate_semantics_survive_the_refactor() -> None:
+    """The set gate went away. The MODULE gates are ADR-0016 and must not."""
+    gates = (SRC / "gates.ts").read_text()
+    for kept in ("blockedByToolchain", "blockedByRollout", "authoringEligibility"):
+        assert kept in gates, f"{kept} was lost in the refactor"
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    for module in catalog["modules"]:
+        assert "blockedByToolchain" in module and "blockedByRollout" in module, module["id"]

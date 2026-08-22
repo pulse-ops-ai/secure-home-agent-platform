@@ -22,6 +22,7 @@ import {
   releaseAdoptionDecision,
   releaseManifestPath,
   releaseRunDecision,
+  resolveReleaseMembers,
   validateSetReleaseRecord,
 } from './set-release.js'
 import type { LogicalRelease, MemberCandidate, SetFamily, SetReleaseRecord } from './set-release.js'
@@ -925,5 +926,168 @@ describe('ADR-0019 releaseReview.at must be a real instant', () => {
       expect(r.ok, at).toBe(false)
       expect(rulesOf(r), at).toContain('record.review-at')
     }
+  })
+})
+
+describe('ADR-0019 a required member is load-bearing and cannot be narrowed away', () => {
+  const catalogue = [
+    member({ id: 'platform/one' }),
+    member({ id: 'platform/two', sourceDigest: `sha256:${DIGEST_B}` }),
+    member({ id: 'platform/three', sourceDigest: `sha256:${DIGEST_C}` }),
+  ]
+  const release = (over: Partial<SetFamily> = {}): LogicalRelease => {
+    const r = buildSetReleaseCandidate(
+      family({
+        required: ['platform/one'],
+        optional: ['platform/three'],
+        allowTaskNarrowing: true,
+        ...over,
+      }),
+      '1.0.0',
+      catalogue,
+    )
+    if (!r.ok) throw new Error(JSON.stringify(r.refusals))
+    return r.value.release
+  }
+
+  it('refuses narrowing a REQUIRED member', () => {
+    // The operative failure contract is requiredFailure: reject-run. Removing a
+    // required pin here would hand back a successful selection describing a run
+    // that cannot legally happen.
+    const r = applyTaskDelta(release(), { add: [], narrow: ['platform/one'] }, catalogue)
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toContain('delta.narrow-required')
+  })
+
+  it('allows narrowing an OPTIONAL member when the release permits narrowing', () => {
+    const r = applyTaskDelta(release(), { add: [], narrow: ['platform/three'] }, catalogue)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.modules.map((m) => m.id)).toEqual(['platform/one'])
+  })
+
+  it('refuses narrowing an optional member when the release forbids narrowing', () => {
+    const r = applyTaskDelta(
+      release({ allowTaskNarrowing: false }),
+      { add: [], narrow: ['platform/three'] },
+      catalogue,
+    )
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toContain('delta.narrowing-forbidden')
+  })
+
+  it('refuses the WHOLE delta when one narrowing names a required member', () => {
+    // Not partial application: the optional narrowing is legal on its own, and
+    // must still not go through beside an illegal one.
+    const r = applyTaskDelta(
+      release(),
+      { add: [], narrow: ['platform/one', 'platform/three'] },
+      catalogue,
+    )
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toContain('delta.narrow-required')
+  })
+
+  it('names an unknown id as unknown, not as required', () => {
+    const r = applyTaskDelta(release(), { add: [], narrow: ['platform/absent'] }, catalogue)
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toEqual(['delta.narrow-unknown'])
+  })
+
+  it('every successfully produced resolved selection still carries every required pin', () => {
+    for (const narrow of [[], ['platform/three']]) {
+      const r = applyTaskDelta(release(), { add: [], narrow }, catalogue)
+      expect(r.ok, JSON.stringify(narrow)).toBe(true)
+      if (!r.ok) continue
+      const ids = new Set(r.value.modules.map((m) => m.id))
+      for (const req of release().required) expect(ids.has(req.id), req.id).toBe(true)
+    }
+  })
+})
+
+describe('ADR-0019 the family field obeys the repository family-id grammar', () => {
+  const withFamily = (id: string): LogicalRelease => {
+    const r = buildSetReleaseCandidate(family({ id: 'demo-default' }), '1.0.0', [
+      member({ id: 'platform/one' }),
+    ])
+    if (!r.ok) throw new Error(JSON.stringify(r.refusals))
+    return { ...r.value.release, family: id }
+  }
+
+  it('accepts the repository families', () => {
+    for (const id of ['prepr-review-default', 'demo-default'])
+      expect(canonicalSetReleaseManifest(withFamily(id)).ok, id).toBe(true)
+  })
+
+  it('refuses ids the token rule alone would have let through', () => {
+    // `demo/default` is the dangerous one: a slash makes the manifest PATH
+    // ambiguous, and the token rule does not forbid it. NBSP is not ASCII
+    // whitespace either, so only the grammar catches it.
+    for (const id of [
+      '1demo',
+      '-demo',
+      'Demo',
+      'demo/default',
+      'demo_default',
+      'demo\u00a0default',
+    ]) {
+      const r = canonicalSetReleaseManifest(withFamily(id))
+      expect(r.ok, JSON.stringify(id)).toBe(false)
+      expect(rulesOf(r), JSON.stringify(id)).toContain('manifest.family')
+    }
+  })
+
+  it('still refuses empty and separator-bearing values by the TOKEN rule', () => {
+    // These are refused for being empty or carrying a separator, not for the
+    // grammar. The rule a reader is sent to must be the one that actually
+    // applies, so the family check deliberately runs only once the value is a
+    // well-formed token.
+    for (const id of ['', 'demo x', 'demo\nx', 'demo\rx', `demo${'\u0000'}x`]) {
+      const r = canonicalSetReleaseManifest(withFamily(id))
+      expect(r.ok, JSON.stringify(id)).toBe(false)
+      expect(rulesOf(r), JSON.stringify(id)).toContain('manifest.token')
+    }
+  })
+
+  it('the PARSER applies the same grammar — A never reads what A would not write', () => {
+    const ok = bytesOf(withFamily('demo-default'))
+    expect(parseSetReleaseManifest(ok).ok).toBe(true)
+    const mutated = new TextEncoder().encode(
+      new TextDecoder().decode(ok).replace('family demo-default\n', 'family Demo\n'),
+    )
+    const r = parseSetReleaseManifest(mutated)
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toContain('manifest.family')
+  })
+})
+
+describe('ADR-0019 §8b release state is the ONLY composition authority', () => {
+  const open = [
+    { id: 'platform/one', gates: { blockedByToolchain: false, blockedByRollout: false } },
+  ]
+
+  it('a Deprecated release still services a run but is never newly adopted', () => {
+    expect(resolveReleaseMembers('run', 'Deprecated', open).ok).toBe(true)
+    const adopt = resolveReleaseMembers('adoption', 'Deprecated', open)
+    expect(adopt.ok).toBe(false)
+    if (!adopt.ok) expect(adopt.refusedBy).toBe('release-state')
+  })
+
+  it('a Retired release serves neither question', () => {
+    for (const use of ['adoption', 'run'] as const)
+      expect(resolveReleaseMembers(use, 'Retired', open).ok, use).toBe(false)
+  })
+
+  it('an allowed release still refuses each blocked module by its own gate', () => {
+    const r = resolveReleaseMembers('run', 'Released', [
+      ...open,
+      { id: 'household/a', gates: { blockedByToolchain: false, blockedByRollout: true } },
+      { id: 'household/b', gates: { blockedByToolchain: true, blockedByRollout: false } },
+      { id: 'household/c', gates: { blockedByToolchain: true, blockedByRollout: true } },
+    ])
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.resolved).toEqual(['platform/one'])
+    expect(r.refused.map((x) => x.refusedBy)).toEqual(['rollout', 'toolchain', 'both'])
   })
 })

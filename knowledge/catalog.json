@@ -532,14 +532,14 @@
       "requiredFailure": "reject-run",
       "optionalFailure": "warn",
       "overrideAuthority": "profile-change-review",
-      "rationale": "API contract conventions are optional rather than required because most changes do not touch API surface; a task that does may add it, which is why this set permits task additions."
+      "rationale": "The release pins api-contract-conventions as an OPTIONAL member at an exact revision. A task that does not touch API surface may narrow it away; a task that does keeps the pinned revision, not whatever the catalog holds later. allowTaskAdditions governs OTHER unselected eligible catalog context and never substitutes a different revision for this pin."
     },
     {
       "id": "architecture-default",
       "purpose": "Reasoning about architecture and proposing decisions.",
       "runnerClass": "coding-runner",
       "owner": "human:mikegtech",
-      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. The base composition omits implementation and workspace modules; a governed task delta may widen it, and the resolved manifest records exactly what was added.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -563,7 +563,7 @@
       "requiredFailure": "reject-run",
       "optionalFailure": "warn",
       "overrideAuthority": "profile-change-review",
-      "rationale": "Deliberately excludes the implementation and workspace modules. An architecture run reasons about the model, and loading implementation rules invites it to start editing."
+      "rationale": "The BASE composition deliberately omits the implementation and workspace modules: an architecture run reasons about the model, and loading implementation rules invites it to start editing. This release permits task widening, so an explicitly requested, deny-bounded task delta may add eligible catalog context and produce a distinct, exact, evidence-bearing resolved manifest. Widening knowledge grants no edit or tool authority; what a run may DO is decided elsewhere."
     },
     {
       "id": "home-status-default",
