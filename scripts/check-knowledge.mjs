@@ -890,6 +890,12 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           // (familyId, version) is unique and immutable FOREVER — a reused
           // version would make an old run's evidence ambiguous, which is the one
           // thing release identity exists to prevent.
+          //
+          // WITHIN THIS FILE only, because this file reads one revision. A
+          // record deleted or re-identified BETWEEN revisions is invisible here
+          // and is caught by scripts/check-release-history.mjs, which compares
+          // the registry with its prior governed revision. Neither half is
+          // sufficient alone.
           if (seen.has(rid)) fail(`release "${rid}": (familyId, version) is already used`)
           seen.add(rid)
           const expected = `knowledge/releases/${r?.familyId}@${r?.version}.manifest`
@@ -910,6 +916,10 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           ) {
             fail(`release "${rid}": releaseDigest must be "sha256:" + 64 lowercase hex`)
           }
+          // VOCABULARY only. Whether a state MOVE was legal is a two-revision
+          // question — Released -> Retired skips a step and reads as valid here
+          // — so releaseTransitionDecision is applied against the prior revision
+          // by scripts/check-release-history.mjs.
           if (!RELEASE_STATES.has(r?.state)) {
             fail(`release "${rid}": state must be Released, Deprecated, or Retired`)
           }

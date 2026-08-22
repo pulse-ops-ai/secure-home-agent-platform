@@ -55,6 +55,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Release history is a two-revision property: a deleted record, a
+          # re-identified version, and an illegal state jump are all invisible in
+          # a single revision. The comparison needs the prior one.
+          fetch-depth: 0
 
       # Needs no toolchain — the same property that lets it run on a
       # freshly-prepared Pi before uv or Node exist.
@@ -124,6 +129,17 @@ jobs:
 
       - name: Set releases
         run: pnpm run check:set-releases
+
+      - name: Release history
+        # CI knows the exact baseline; the script's local fallbacks are for
+        # developers, not for the gate. An unresolvable base FAILS rather than
+        # skipping — comparing against nothing would read as "no violations".
+        env:
+          RELEASE_HISTORY_BASE: >-
+            ${{ github.event_name == 'pull_request'
+                && github.event.pull_request.base.sha
+                || github.event.before }}
+        run: pnpm run check:release-history
 
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL

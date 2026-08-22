@@ -20,6 +20,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 | [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, gates, and README-only while a module's toolchain gate is closed. **Not** the content validator |
 | [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
+| [`check-set-releases.mjs`](check-set-releases.mjs) | Hands **real release-manifest bytes** to the toolchain: canonical form, digest, review binding, family/version agreement. Deliberately **one revision** — it never re-derives a release from the catalog |
+| [`check-release-history.mjs`](check-release-history.mjs) | The **two-revision** properties, compared against the prior governed revision: no released identity deleted or re-identified, only `Released → Deprecated → Retired`, and a **new** release must satisfy the ADR-0019 §6 member preconditions |
 
 ## What belongs here
 
@@ -96,6 +98,8 @@ bash scripts/scan-secrets.sh        # secret-shaped values in tracked text
 node scripts/check-workspace.mjs       # manifest conformance and declared direction
 node scripts/check-source-imports.mjs  # direction as source actually imports it
 node scripts/check-knowledge.mjs       # knowledge registry conformance
+node scripts/check-set-releases.mjs    # real release records and manifest bytes
+node scripts/check-release-history.mjs # what changed since the prior revision
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```

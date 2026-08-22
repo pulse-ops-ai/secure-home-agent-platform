@@ -11,6 +11,20 @@
  *   check-knowledge.mjs          registry and scaffold coherence
  *   check-knowledge-content.mjs  MODULE content admission
  *   this file                    real release records and manifest bytes
+ *   check-release-history.mjs    what changed since the last governed revision
+ *
+ * THIS FILE IS DELIBERATELY SINGLE-REVISION, AND THAT IS ONLY HALF THE STORY.
+ *
+ * Everything here proves a record is internally coherent: canonical bytes, a
+ * digest that hashes them, a review bound to that digest. It does NOT re-derive
+ * the release from the catalog, and must not — a historical release pins an
+ * older revision of a mutable family on purpose, so rebuilding it from today's
+ * catalog would fail precisely because the mechanism is working.
+ *
+ * The consequence is that a NEW record could be canonical, correctly hashed, and
+ * still pin an unreviewed, rollout-blocked, or non-composable module. That gap
+ * is real and is closed by check-release-history.mjs, which knows which records
+ * are new and applies the §6 preconditions to exactly those.
  *
  * Every semantic rule — canonical form, digest, review binding, family and
  * version agreement — belongs to `@secure-home/knowledge-toolchain` and is
