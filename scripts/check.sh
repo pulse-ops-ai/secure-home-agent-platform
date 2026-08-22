@@ -85,6 +85,9 @@ if command -v pnpm >/dev/null 2>&1; then
   # a copy of the logic — which is the point: one admission authority, exercised
   # the way a consumer would exercise it.
   run "knowledge content"     pnpm run check:knowledge-content
+  # Real release records handed to the toolchain, for the same reason: a
+  # mechanism nothing calls is a mechanism nothing enforces.
+  run "set releases"          pnpm run check:set-releases
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

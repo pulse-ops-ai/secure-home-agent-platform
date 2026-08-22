@@ -54,7 +54,8 @@
  *   2. module and set IDs are unique, well-shaped, and carry every required field;
  *   3. every module ID maps to a specification directory that exists and
  *      explains itself, and every such directory is registered — both directions;
- *   4. every set carries the same metadata contract as a module, references
+ *   4. every set FAMILY carries its own metadata contract — composition and
+ *      policy, and no version, lifecycle, or rollout gate (ADR-0019) — references
  *      registered module IDs only and never a file path, keeps its deny entries
  *      as patterns, and does not carry a version while selecting an unversioned
  *      module — a pin to nothing would make two different resolutions look
@@ -64,7 +65,8 @@
  *   6. while a module's blockedByToolchain gate is TRUE, its directory holds
  *      only its README. Once that gate is discharged — as it now is — authored
  *      source is expected there, and whether the content is ACCEPTABLE is
- *      `check-knowledge-content.mjs`'s question, not this checker's. This file
+ *      `check-knowledge-content.mjs`'s question for MODULES, and
+ *      `check-set-releases.mjs`'s for RELEASES — not this checker's. This file
  *      owns registry coherence and never content rules;
  *   7. no module or set claims a status it has not earned, and every entry
  *      carries blockedByToolchain: false — discharged 2026-08-16, and pinned so
@@ -111,8 +113,10 @@ const REQUIRED_MODULE_FIELDS = [
 ]
 
 /**
- * A set carries the same metadata contract as a module, plus its composition
- * and policy fields. `runnerClass` is a set's intended-consumer field.
+ * A set FAMILY carries composition and policy. It deliberately carries NO
+ * version, status, asOf, or rollout gate: those belong to immutable release
+ * records under ADR-0019, because a mutable row cannot explain a version it has
+ * moved past. `runnerClass` is a set's intended-consumer field.
  *
  * `version` is load-bearing rather than decorative: the selection model pins a
  * profile's base set as `name@version`, and run evidence records requested and

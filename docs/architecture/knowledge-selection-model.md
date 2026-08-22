@@ -90,19 +90,20 @@ knowledge:
 |---|---|
 | `set` | the named base composition, pinned to a version. A moving reference is not permitted, for the reason automations bind pinned profile versions ([ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md)). |
 
-> **No set version is assignable yet, and the reason is now concrete.** Every
-> registered set carries a `version` field — the registry is version-capable,
-> because this contract and the evidence fields below both require it — but every
-> one is `null`, and **no set has been released**. Having versioned selected
-> members is **necessary but not sufficient**: some sets now satisfy that
-> member-identity prerequisite, and they still carry no version, because the set
-> release and version lifecycle is not yet settled. Every set is additionally
-> rollout-blocked. A set version that pins nothing resolvable would make two
-> different resolutions look identical in evidence, so
-> [`check-knowledge.mjs`](../../scripts/check-knowledge.mjs) rejects a set that
-> carries a version while selecting an unversioned module — a necessary
-> condition, not a release procedure. The `@1` in the example above is therefore
-> illustrative of the *shape*, not something a profile could write today.
+> **A profile pins a RELEASE, not a family**
+> ([ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)).
+> The entry in [`catalog.json`](../../knowledge/catalog.json) is a mutable set
+> **family** — authoring intent. It carries **no version, no lifecycle status,
+> and no rollout gate**, because a mutable row holding "the current release
+> version" stops representing `1.0.0` the moment `1.1.0` exists.
+>
+> Version, lifecycle, and eligibility live on **immutable release records** in
+> [`set-releases.json`](../../knowledge/set-releases.json), each identified by a
+> digest over a canonical manifest and each carrying its own review. `Released`
+> **is** the eligibility; there is no second boolean that could disagree with it.
+>
+> **Released is not runtime-resolvable.** No resolver exists, so a release may be
+> recorded and reviewed while remaining unusable by any deployed profile.
 | `required` | modules whose absence, invalidity, or staleness **rejects the run**. |
 | `optional` | modules whose absence produces a typed warning and is recorded. |
 | `deny` | module IDs or single-level `group/*` patterns. Denial beats every other rule, including a task addition. |

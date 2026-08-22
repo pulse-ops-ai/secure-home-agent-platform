@@ -127,20 +127,21 @@ point.
 | `climate-default` | reasoning about comfort and HVAC behaviour | core-operating-model · degraded-operation · topology · climate | energy-semantics · safe-escalation | every developer-platform module · security-semantics |
 | `gridwise-default` | reasoning about energy cost and load shifting | core-operating-model · degraded-operation · energy-semantics | climate · topology | every developer-platform module · security-semantics |
 
-A set carries the **same metadata contract as a module** — owner, status,
-version, as-of date, limitations, governing sources, sensitivity, freshness
-policy, and toolchain blocking — in [`catalog.json`](catalog.json). Its `runnerClass` is
-its intended-consumer field.
+A set entry in [`catalog.json`](catalog.json) is a mutable **family** —
+authoring intent, not a release. It carries composition and policy plus owner,
+limitations, governing sources, sensitivity, and freshness policy. Its
+`runnerClass` is its intended-consumer field.
 
-Two of those need care:
+Two things it deliberately does **not** carry:
 
-- **`version` is currently `null` on every set, and that is enforced rather than
-  incidental.** A profile pins its base set as `name@version`, and run evidence
-  records both requested and resolved set versions — so the registry must be
-  version-capable. But a set version is only meaningful once the modules it
-  selects have versions of their own; otherwise two different resolutions of
-  `set@1` would look identical in evidence. `check-knowledge.mjs` rejects a set
-  that carries a version while selecting an unversioned module.
+- **no `version`, `status`, or `asOf`, and no rollout gate.** Under
+  [ADR-0019](../docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)
+  those belong to immutable **release records** in
+  [`set-releases.json`](set-releases.json), each identified by a digest over a
+  canonical manifest that pins every member's exact id, version, and digest. A
+  profile pins `family@version` and resolves the release. `Released` **is** the
+  eligibility, and a release is never `Packaged` or `Published` — those name
+  facts about module bytes.
 - **`freshnessPolicy` and `maxFreshnessDays` are different things.**
   `freshnessPolicy` says when the *composition* should be reviewed;
   `maxFreshnessDays` is the ceiling the set imposes on the *modules* it selects,

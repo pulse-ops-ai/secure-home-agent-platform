@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -195,3 +196,152 @@ def test_release_version_grammar_is_syntax_only() -> None:
     assert grammar.match("1.0.0")
     for bad in ("1.0", "v1.0.0", "1.0.0-rc1", "1.0.0+build"):
         assert not grammar.match(bad)
+
+
+# --- the live release checker, against real repository bytes -------------------
+#
+# The defect these close: a mechanism implemented and tested while the REAL
+# repository bytes are never handed to it. Each case builds a fixture repository
+# containing an actual release, then runs the checker over it.
+
+
+def _run_release_checker(root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(REPO_ROOT / "scripts" / "check-set-releases.mjs"), str(root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "NODE_PATH": str(REPO_ROOT / "node_modules")},
+    )
+
+
+def _release_fixture(tmp_path: Path, name: str, mutate: Any = None) -> Path:
+    """A repository containing one real, valid release — then one defect."""
+    root = tmp_path / name
+    (root / "knowledge" / "releases").mkdir(parents=True)
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+
+    catalog = json.loads((REPO_ROOT / "knowledge" / "catalog.json").read_text())
+    logical = _logical("prepr-review-default")
+    manifest = canonical_manifest(logical)
+    digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    record = {
+        "familyId": "prepr-review-default",
+        "version": "1.0.0",
+        "manifestPath": "knowledge/releases/prepr-review-default@1.0.0.manifest",
+        "releaseDigest": digest,
+        "releaseReview": {
+            "policy": "knowledge-set-release-review-v1",
+            "by": "human:mikegtech",
+            "at": "2026-08-22T00:00:00Z",
+            "releaseDigest": digest,
+        },
+        "state": "Released",
+    }
+    registry = {"version": 1, "releases": [record]}
+    if mutate is not None:
+        manifest = mutate(record, manifest) or manifest
+
+    (root / "knowledge" / "catalog.json").write_text(json.dumps(catalog, indent=2))
+    (root / "knowledge" / "set-releases.json").write_text(json.dumps(registry, indent=2))
+    (root / "knowledge" / "releases" / "prepr-review-default@1.0.0.manifest").write_bytes(manifest)
+    return root
+
+
+def test_a_valid_live_release_passes_the_checker(tmp_path: Path) -> None:
+    """The control. Without it the negatives prove only that something failed."""
+    result = _run_release_checker(_release_fixture(tmp_path, "valid"))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 release(s) validated" in result.stdout
+
+
+def test_a_one_byte_manifest_mutation_is_caught(tmp_path: Path) -> None:
+    """Real stored bytes must reach the package, not a summary of them."""
+
+    def mutate(record: dict[str, Any], manifest: bytes) -> bytes:
+        return manifest.replace(b"maxFreshnessDays 180", b"maxFreshnessDays 181")
+
+    result = _run_release_checker(_release_fixture(tmp_path, "mutated", mutate))
+    assert result.returncode != 0
+    assert "record.digest" in result.stderr
+
+
+def test_a_declared_digest_that_does_not_hash_the_manifest_is_caught(tmp_path: Path) -> None:
+    def mutate(record: dict[str, Any], manifest: bytes) -> bytes:
+        record["releaseDigest"] = "sha256:" + "a" * 64
+        record["releaseReview"]["releaseDigest"] = "sha256:" + "a" * 64
+        return manifest
+
+    result = _run_release_checker(_release_fixture(tmp_path, "wrong-digest", mutate))
+    assert result.returncode != 0
+    assert "record.digest" in result.stderr
+
+
+def test_a_noncanonical_manifest_is_caught(tmp_path: Path) -> None:
+    """Parseable is not canonical: stored bytes must be what the serializer emits."""
+
+    def mutate(record: dict[str, Any], manifest: bytes) -> bytes:
+        swapped = manifest.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        record["releaseDigest"] = "sha256:" + hashlib.sha256(swapped).hexdigest()
+        record["releaseReview"]["releaseDigest"] = record["releaseDigest"]
+        return swapped
+
+    result = _run_release_checker(_release_fixture(tmp_path, "noncanonical", mutate))
+    assert result.returncode != 0
+    assert "manifest." in result.stderr
+
+
+def test_a_review_bound_to_the_wrong_digest_is_caught(tmp_path: Path) -> None:
+    def mutate(record: dict[str, Any], manifest: bytes) -> bytes:
+        record["releaseReview"]["releaseDigest"] = "sha256:" + "b" * 64
+        return manifest
+
+    result = _run_release_checker(_release_fixture(tmp_path, "wrong-review", mutate))
+    assert result.returncode != 0
+    assert "record.review-binding" in result.stderr
+
+
+def test_a_manifest_family_or_version_mismatch_is_caught(tmp_path: Path) -> None:
+    def mutate(record: dict[str, Any], manifest: bytes) -> bytes:
+        swapped = manifest.replace(b"family prepr-review-default", b"family architecture-default")
+        record["releaseDigest"] = "sha256:" + hashlib.sha256(swapped).hexdigest()
+        record["releaseReview"]["releaseDigest"] = record["releaseDigest"]
+        return swapped
+
+    result = _run_release_checker(_release_fixture(tmp_path, "family-mismatch", mutate))
+    assert result.returncode != 0
+    assert "record.manifest-family" in result.stderr
+
+
+def test_the_live_repository_release_checker_runs_clean() -> None:
+    """The real tree, whatever it currently holds."""
+    result = _run_release_checker(REPO_ROOT)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_oracle_detects_a_serializer_output_defect() -> None:
+    """21. B must catch a defect in A's OUTPUT, not merely react to its own input.
+
+    Mutating the logical input and watching B's digest move proves only that B
+    reads the field. The property that matters is different: given honest logical
+    content, a defective serializer emits bytes B does not accept as the canonical
+    form of that content.
+    """
+    logical = _logical("prepr-review-default")
+    honest = canonical_manifest(logical)
+
+    # An A-style output with one identity-bearing byte wrong. B is never told
+    # this happened; it recomputes from the logical content and compares.
+    defective = honest.replace(b"maxFreshnessDays 180", b"maxFreshnessDays 181")
+    assert defective != honest, "the planted defect must actually change the bytes"
+
+    assert canonical_manifest(logical) == honest, "B must not drift with the mutant"
+    assert release_digest(logical) == "sha256:" + hashlib.sha256(honest).hexdigest()
+    assert hashlib.sha256(defective).hexdigest() != hashlib.sha256(honest).hexdigest()
+
+    # And the same for a reordering defect, which a naive serializer produces
+    # easily and which must NOT change identity.
+    reordered = dict(logical)
+    reordered["required"] = list(reversed(logical["required"]))
+    assert canonical_manifest(reordered) == honest, "ordering is normative, not incidental"

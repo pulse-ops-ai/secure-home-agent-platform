@@ -53,6 +53,8 @@ export {
   validateSetReleaseRecord,
   releaseManifestPath,
   lookupSetRelease,
+  validateNewSetReleaseAgainstRegistry,
+  releaseTransitionDecision,
   releaseAdoptionDecision,
   releaseRunDecision,
   canonicalTaskDelta,

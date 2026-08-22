@@ -1760,3 +1760,61 @@ rules rather than a family label.
 - No module packaged or published; the 13 reviewed identities are unchanged.
 - `household/**` modules remain rollout-blocked.
 - **Human release review is required before any release is recorded.**
+
+### Prompt 6B — mechanism falsification correction
+
+**The three candidate identities are unchanged** — rebuilt after every fix and
+byte-identical to the pending review packet. No `releaseReview`, no committed
+manifest, no live release.
+
+**Live release validation was not wired.** `validateSetReleaseRecord` existed and
+nothing in the tree called it — the same defect this repository has hit before: a
+mechanism implemented and tested while the real bytes never reach it. A new
+`scripts/check-set-releases.mjs` reads the registry, derives each manifest path,
+refuses a symlink or irregular file, reads the exact bytes, and hands them to the
+package, reporting the package's own refusal rules. It reimplements nothing, and
+it is wired into `check.sh` and CI. Six integration tests run real records through
+it: a valid control, a one-byte manifest mutation, a wrong `releaseDigest`, a
+non-canonical manifest, a review bound to the wrong digest, and a family
+mismatch.
+
+**A task addition could substitute a pinned member.** Demonstrated red first:
+with a release pinning `platform/two@1.0.0/B` and the catalog at `1.1.0/C`, an
+addition of `platform/two` **resolved to C**. That is precisely what ADR-0019 §2
+forbids — "optional" meaning "whatever version exists later". Now refused with
+`delta.add-already-selected`, checked against what the **release** pinned rather
+than what narrowing left behind, so narrow-then-add cannot launder it. All three
+shapes are tested.
+
+**Version reuse was detected, not refused.** The old suite proved a changed
+composition yields a different digest, which shows identity is sensitive and
+nothing more. `validateNewSetReleaseAgainstRegistry` now refuses a reused
+`(familyId, version)` regardless of digest, difference, or predecessor state —
+`Released`, `Deprecated`, or `Retired`. `lookupSetRelease` throws on an ambiguous
+registry rather than returning the first match.
+
+**State transitions were unmechanized.** `releaseTransitionDecision` allows only
+`Released → Deprecated → Retired`; every reverse and the skipping
+`Released → Retired` are refused, and reactivation is not invented.
+
+**The identity grammar was not total.** The release code used a weaker module-id
+grammar than the repository (`[a-z0-9-]+` vs `[a-z][a-z0-9-]*`); the serializer
+applied a weaker rule to member versions than its own parser, so A could emit
+bytes A would refuse to read; `/\s/` made the admissible domain Unicode-wide
+rather than the ADR's ASCII rule; a non-safe integer would have serialized to a
+spelling the parser rejects; and `sourceDigest` accepted a bare hex string as
+though it were a catalog attestation. All five fixed, with boundary tests.
+
+**The oracle proof was about input sensitivity.** It now proves what matters: a
+defective serializer **output** differs while B, recomputing from honest logical
+content, stays at the accepted bytes — plus a reordering defect that must *not*
+change identity.
+
+**Standing guidance completed.** `knowledge-selection-model.md` §1 and the
+`knowledge/INDEX.md` sets section still described the pre-ADR-0019 model — "no set
+version is assignable", "same metadata contract as a module", a family `version`
+enforced null. Both now describe family versus release. Checker comments that
+claimed content admission validates set releases are corrected.
+
+Household negative control re-run: all three families refuse at member level.
+`bash scripts/check.sh` — **19 checks**, all pass.

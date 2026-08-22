@@ -16,6 +16,8 @@ import {
   digestTaskDelta,
   isCanonicalSetReleaseManifest,
   lookupSetRelease,
+  releaseTransitionDecision,
+  validateNewSetReleaseAgainstRegistry,
   parseSetReleaseManifest,
   releaseAdoptionDecision,
   releaseManifestPath,
@@ -611,64 +613,195 @@ describe('ADR-0019 §11 task delta produces a manifest, never a version', () => 
   })
 })
 
-describe('ADR-0019 version reuse is impossible', () => {
-  const base = buildSetReleaseCandidate(family(), '1.0.0', [member({ id: 'platform/one' })])
-  const baseDigest = base.ok ? base.value.releaseDigest : ''
+describe('ADR-0019 a used version is never reused', () => {
+  const rec = (version: string, digest: string, state: 'Released' | 'Deprecated' | 'Retired') => ({
+    familyId: 'demo-default',
+    version,
+    manifestPath: releaseManifestPath('demo-default', version),
+    releaseDigest: digest,
+    releaseReview: {
+      policy: 'knowledge-set-release-review-v1',
+      by: 'human:reviewer',
+      at: '2026-08-21T00:00:00Z',
+      releaseDigest: digest,
+    },
+    state,
+  })
 
-  // Every one of these is "same family, same version, different content", which
-  // is the shape a reused version would take. The digest is what makes it
-  // detectable: identity is the bytes, not the label.
-  const variants: readonly [string, SetFamily][] = [
-    ['different deny', family({ deny: ['household/*', 'platform/x'] })],
-    ['different optional membership', family({ optional: ['platform/two'] })],
-    ['different policy field', family({ optionalFailure: 'omit' })],
-    ['different runner class', family({ runnerClass: 'household-runner' })],
-    ['different maxBytes', family({ maxBytes: 2048 })],
-    ['different override authority', family({ overrideAuthority: 'owner-only' })],
+  it('accepts a version the registry has never used — the control', () => {
+    const r = validateNewSetReleaseAgainstRegistry(
+      { familyId: 'demo-default', version: '1.1.0', releaseDigest: `sha256:${DIGEST_B}` },
+      [rec('1.0.0', `sha256:${DIGEST_A}`, 'Released')],
+    )
+    expect(r.ok).toBe(true)
+  })
+
+  // A DIFFERENT DIGEST IS NOT THE TEST. Proving the digest changed proves only
+  // that identity is sensitive; the ADR rule is that the VERSION may not recur.
+  const clashes: readonly [string, string, 'Released' | 'Deprecated' | 'Retired'][] = [
+    ['different digest', DIGEST_B, 'Released'],
+    ['identical digest', DIGEST_A, 'Released'],
+    ['deprecated predecessor', DIGEST_B, 'Deprecated'],
+    ['retired predecessor', DIGEST_B, 'Retired'],
   ]
-
-  for (const [name, f] of variants) {
-    it(`detects ${name} at the same family and version`, () => {
-      const r = buildSetReleaseCandidate(f, '1.0.0', [
-        member({ id: 'platform/one' }),
-        member({ id: 'platform/two', sourceDigest: `sha256:${DIGEST_B}` }),
-      ])
-      expect(r.ok, name).toBe(true)
-      if (r.ok) expect(r.value.releaseDigest, name).not.toBe(baseDigest)
+  for (const [name, digest, state] of clashes) {
+    it(`refuses reuse: ${name}`, () => {
+      const r = validateNewSetReleaseAgainstRegistry(
+        { familyId: 'demo-default', version: '1.0.0', releaseDigest: `sha256:${digest}` },
+        [rec('1.0.0', `sha256:${DIGEST_A}`, state)],
+      )
+      expect(r.ok, name).toBe(false)
+      expect(rulesOf(r), name).toContain('release.version-reused')
     })
   }
 
-  it('a different member digest at the same version is a different release', () => {
-    const r = buildSetReleaseCandidate(family(), '1.0.0', [
-      member({ id: 'platform/one', sourceDigest: `sha256:${DIGEST_B}` }),
-    ])
-    expect(r.ok).toBe(true)
-    if (r.ok) expect(r.value.releaseDigest).not.toBe(baseDigest)
+  it('lookup throws on an ambiguous registry rather than picking one', () => {
+    const registry = [
+      rec('1.0.0', `sha256:${DIGEST_A}`, 'Released'),
+      rec('1.0.0', `sha256:${DIGEST_B}`, 'Released'),
+    ]
+    expect(() => lookupSetRelease(registry, 'demo-default', '1.0.0')).toThrow(/ambiguous/)
+  })
+})
+
+describe('ADR-0019 §8 release state transitions', () => {
+  it('allows only the governed order', () => {
+    expect(releaseTransitionDecision('Released', 'Deprecated').allowed).toBe(true)
+    expect(releaseTransitionDecision('Deprecated', 'Retired').allowed).toBe(true)
   })
 
-  it('lookup resolves (familyId, version) to at most one record', () => {
-    const rec = (version: string, digest: string): SetReleaseRecord => ({
-      familyId: 'demo-default',
-      version,
-      manifestPath: releaseManifestPath('demo-default', version),
-      releaseDigest: digest,
-      releaseReview: {
-        policy: 'knowledge-set-release-review-v1',
-        by: 'human:reviewer',
-        at: '2026-08-21T00:00:00Z',
-        releaseDigest: digest,
-      },
-      state: 'Released',
-    })
-    const registry = [rec('1.0.0', baseDigest), rec('1.1.0', `sha256:${DIGEST_B}`)]
-    expect(lookupSetRelease(registry, 'demo-default', '1.0.0')?.releaseDigest).toBe(baseDigest)
-    expect(lookupSetRelease(registry, 'demo-default', '2.0.0')).toBeUndefined()
-  })
-
-  it('refuses a release version that is not the accepted grammar', () => {
-    for (const bad of ['1.0', 'v1.0.0', '1.0.0-rc1', '1.0.0 ', '01.0.0'.replace('01', '1') + 'x']) {
-      const r = buildSetReleaseCandidate(family(), bad, [member({ id: 'platform/one' })])
-      expect(r.ok, bad).toBe(false)
+  it('refuses every reverse and skipping transition', () => {
+    for (const [from, to] of [
+      ['Deprecated', 'Released'],
+      ['Retired', 'Deprecated'],
+      ['Retired', 'Released'],
+      ['Released', 'Retired'],
+    ] as const) {
+      const d = releaseTransitionDecision(from, to)
+      expect(d.allowed, `${from} -> ${to}`).toBe(false)
     }
+  })
+
+  it('treats same-state as a no-op, not a transition', () => {
+    for (const state of ['Released', 'Deprecated', 'Retired'] as const) {
+      expect(releaseTransitionDecision(state, state).allowed).toBe(true)
+    }
+  })
+})
+
+describe('ADR-0019 §2 a task addition never substitutes a pinned member', () => {
+  const B_DIGEST = `sha256:${DIGEST_B}`
+  const C_DIGEST = `sha256:${DIGEST_C}`
+  const rel = buildSetReleaseCandidate(
+    family({
+      required: ['platform/one'],
+      optional: ['platform/two'],
+      deny: [],
+      allowTaskAdditions: true,
+    }),
+    '1.0.0',
+    [
+      member({ id: 'platform/one', sourceDigest: B_DIGEST }),
+      member({ id: 'platform/two', sourceDigest: B_DIGEST }),
+    ],
+  )
+  // the catalog has since moved on
+  const current = [
+    member({ id: 'platform/one', sourceDigest: B_DIGEST }),
+    member({ id: 'platform/two', version: '1.1.0', sourceDigest: C_DIGEST }),
+    member({ id: 'platform/three', sourceDigest: C_DIGEST }),
+  ]
+
+  for (const [name, delta] of [
+    ['a pinned optional member', { add: ['platform/two'], narrow: [] }],
+    ['a pinned required member', { add: ['platform/one'], narrow: [] }],
+    [
+      'narrow then add — laundering the substitution',
+      { add: ['platform/two'], narrow: ['platform/two'] },
+    ],
+  ] as const) {
+    it(`refuses adding ${name}`, () => {
+      expect(rel.ok).toBe(true)
+      if (!rel.ok) return
+      const r = applyTaskDelta(rel.value.release, delta, current)
+      expect(r.ok, name).toBe(false)
+      expect(rulesOf(r), name).toContain('delta.add-already-selected')
+    })
+  }
+
+  it('still allows adding a module the release does not carry', () => {
+    expect(rel.ok).toBe(true)
+    if (!rel.ok) return
+    const r = applyTaskDelta(rel.value.release, { add: ['platform/three'], narrow: [] }, current)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // and the pinned member keeps its pinned revision, not the current one
+    const two = r.value.modules.find((m) => m.id === 'platform/two')
+    expect(two).toEqual({ id: 'platform/two', version: '1.0.0', digest: DIGEST_B })
+    expect(r.value.releaseDigest).toBe(rel.value.releaseDigest)
+  })
+})
+
+describe('ADR-0019 identity grammar is total', () => {
+  it('refuses ids the repository grammar refuses', () => {
+    for (const id of ['1group/name', 'group/1name', '-group/name', 'group/-name', 'Group/name']) {
+      const r = buildSetReleaseCandidate(family({ required: [id] }), '1.0.0', [member({ id })])
+      expect(r.ok, id).toBe(false)
+    }
+  })
+
+  it('refuses a member sourceDigest that is not a catalog attestation', () => {
+    for (const bad of [
+      DIGEST_A,
+      `SHA256:${DIGEST_A}`,
+      'sha256:abc',
+      `sha256:${DIGEST_A.toUpperCase()}`,
+    ]) {
+      const r = buildSetReleaseCandidate(family(), '1.0.0', [
+        member({ id: 'platform/one', sourceDigest: bad }),
+      ])
+      expect(r.ok, bad).toBe(false)
+      expect(rulesOf(r), bad).toContain('release.member-digest-form')
+    }
+  })
+
+  it('refuses an integer whose decimal spelling would not round-trip', () => {
+    const r = canonicalSetReleaseManifest({
+      family: 'demo-default',
+      version: '1.0.0',
+      runnerClass: 'coding-runner',
+      allowTaskAdditions: false,
+      allowTaskNarrowing: true,
+      maxBytes: Number.MAX_SAFE_INTEGER + 2,
+      maxFreshnessDays: 1,
+      requiredFailure: 'reject-run',
+      optionalFailure: 'warn',
+      overrideAuthority: 'profile-change-review',
+      deny: [],
+      required: [{ id: 'platform/one', version: '1.0.0', digest: DIGEST_A }],
+      optional: [],
+    })
+    expect(r.ok).toBe(false)
+    expect(rulesOf(r)).toContain('manifest.integer')
+  })
+
+  it('never serializes a member version its own parser would refuse', () => {
+    // TOTALITY: whatever A writes, A must read back canonically.
+    const r = canonicalSetReleaseManifest({
+      family: 'demo-default',
+      version: '1.0.0',
+      runnerClass: 'coding-runner',
+      allowTaskAdditions: false,
+      allowTaskNarrowing: true,
+      maxBytes: 1,
+      maxFreshnessDays: 1,
+      requiredFailure: 'reject-run',
+      optionalFailure: 'warn',
+      overrideAuthority: 'profile-change-review',
+      deny: [],
+      required: [{ id: 'platform/one', version: '1.0 .0', digest: DIGEST_A }],
+      optional: [],
+    })
+    expect(r.ok).toBe(false)
   })
 })

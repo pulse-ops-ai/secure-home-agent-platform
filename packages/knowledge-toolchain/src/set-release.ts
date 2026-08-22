@@ -47,7 +47,9 @@ export const RELEASE_REVIEW_POLICY = 'knowledge-set-release-review-v1'
 /** Syntax only. ADR-0019 section 5 declines to infer SemVer compatibility meaning. */
 export const RELEASE_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+$/
 const BARE_SHA256 = /^[0-9a-f]{64}$/
-const MODULE_ID = /^[a-z0-9-]+\/[a-z0-9-]+$/
+/** The REPOSITORY module-id grammar. A weaker local copy would admit ids the
+ * registry refuses, so the release could pin something that cannot exist. */
+const MODULE_ID = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/
 
 export type ReleaseState = 'Released' | 'Deprecated' | 'Retired'
 export const RELEASE_STATES: readonly ReleaseState[] = ['Released', 'Deprecated', 'Retired']
@@ -120,11 +122,30 @@ const stringProblem = (value: string): string | undefined => {
 }
 
 /** A scalar written after SP additionally admits no ASCII whitespace at all. */
+/**
+ * ASCII whitespace, by code point rather than by regex.
+ *
+ * Deliberately not `/\s/`: that matches Unicode whitespace, which would refuse
+ * values the accepted grammar permits and make the admissible domain depend on
+ * the language rather than on ADR-0019.
+ */
+const ASCII_WHITESPACE_CODES = new Set([0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20])
+const hasAsciiWhitespace = (value: string): boolean => {
+  for (const ch of value) {
+    const code = ch.codePointAt(0)
+    if (code !== undefined && ASCII_WHITESPACE_CODES.has(code)) return true
+  }
+  return false
+}
 const tokenProblem = (value: string): string | undefined =>
-  stringProblem(value) ?? (/\s/.test(value) ? 'contains whitespace' : undefined)
+  stringProblem(value) ?? (hasAsciiWhitespace(value) ? 'contains ASCII whitespace' : undefined)
 
 const intProblem = (value: number): string | undefined =>
-  !Number.isInteger(value) || value < 0 ? 'is not a non-negative integer' : undefined
+  !Number.isInteger(value) || value < 0
+    ? 'is not a non-negative integer'
+    : !Number.isSafeInteger(value)
+      ? 'is not a safe integer; its decimal spelling would not round-trip'
+      : undefined
 
 const concat = (chunks: readonly Uint8Array[]): Uint8Array => {
   const total = chunks.reduce((n, c) => n + c.length, 0)
@@ -196,7 +217,10 @@ export const canonicalSetReleaseManifest = (release: LogicalRelease): ReleaseRes
         ['version', m.version],
         ['digest', m.digest],
       ] as const) {
-        const problem = stringProblem(value)
+        // tokenProblem, not stringProblem: the PARSER applies the token rule to
+        // these, so a serializer using the weaker rule could emit bytes it would
+        // then refuse to read. Total means A can always parse what A writes.
+        const problem = tokenProblem(value)
         if (problem !== undefined)
           refusals.push(refuse(`manifest.${kind}`, `${kind} "${m.id}" ${field} ${problem}`))
       }
@@ -470,6 +494,16 @@ const memberProblems = (
     out.push(refuse('release.member-unversioned', `${kind} "${id}" has no version`))
   if (m.sourceDigest === null || m.sourceDigest === undefined)
     out.push(refuse('release.member-unreviewed', `${kind} "${id}" has no reviewed digest`))
+  else if (!/^sha256:[0-9a-f]{64}$/.test(m.sourceDigest))
+    // It represents the catalog's contentReview.sourceDigest, so it must arrive
+    // in that form. Accepting a bare hex string would let something that is not
+    // a catalog attestation be pinned as though it were one.
+    out.push(
+      refuse(
+        'release.member-digest-form',
+        `${kind} "${id}" sourceDigest must be "sha256:" + 64 lowercase hex`,
+      ),
+    )
   if (m.blockedByToolchain)
     out.push(refuse('release.member-toolchain-blocked', `${kind} "${id}" is toolchain-blocked`))
   if (m.blockedByRollout)
@@ -640,13 +674,87 @@ export const validateSetReleaseRecord = (
   return { ok: true, value: parsed.value }
 }
 
-/** (familyId, version) resolves to at most one record, forever. */
+/**
+ * (familyId, version) resolves to at most one record, forever.
+ *
+ * Throws on a duplicate rather than returning the first match. A registry with
+ * two records for one version has no single answer, and silently picking one
+ * would let the ambiguity reach run evidence — the exact thing release identity
+ * exists to prevent.
+ */
 export const lookupSetRelease = (
   records: readonly SetReleaseRecord[],
   familyId: string,
   version: string,
-): SetReleaseRecord | undefined =>
-  records.find((r) => r.familyId === familyId && r.version === version)
+): SetReleaseRecord | undefined => {
+  const found = records.filter((r) => r.familyId === familyId && r.version === version)
+  if (found.length > 1)
+    throw new Error(
+      `registry is ambiguous: ${found.length} records for ${familyId}@${version}. ` +
+        'A version resolves to exactly one release digest, forever',
+    )
+  return found[0]
+}
+
+/**
+ * May a NEW release be recorded for this family and version?
+ *
+ * The rule ADR-0019 §5 states and a digest comparison cannot enforce: an
+ * already-used version is **never** reused. Not with different content, not with
+ * identical content, and not because the earlier one was deprecated or retired —
+ * reuse would make an old run's evidence ambiguous.
+ */
+export const validateNewSetReleaseAgainstRegistry = (
+  candidate: {
+    readonly familyId: string
+    readonly version: string
+    readonly releaseDigest: string
+  },
+  existing: readonly SetReleaseRecord[],
+): ReleaseResult<true> => {
+  const clash = existing.find(
+    (r) => r.familyId === candidate.familyId && r.version === candidate.version,
+  )
+  if (clash !== undefined)
+    return {
+      ok: false,
+      refusals: [
+        refuse(
+          'release.version-reused',
+          `${candidate.familyId}@${candidate.version} already exists (state ${clash.state}, ` +
+            `digest ${clash.releaseDigest}). A used version is never reused — publish a new version`,
+        ),
+      ],
+    }
+  if (!RELEASE_VERSION.test(candidate.version))
+    return {
+      ok: false,
+      refusals: [refuse('release.version', `"${candidate.version}" is not DIGIT+.DIGIT+.DIGIT+`)],
+    }
+  return { ok: true, value: true }
+}
+
+/**
+ * May a release move from one state to another?
+ *
+ * ADR-0019 §8 fixes the order and gives no reverse. Reactivation is not invented
+ * here: a retired release becoming requestable again is a decision, not an
+ * implementation detail.
+ */
+export const releaseTransitionDecision = (
+  from: ReleaseState,
+  to: ReleaseState,
+): ReleaseDecision => {
+  if (from === to) return { allowed: true }
+  if (from === 'Released' && to === 'Deprecated') return { allowed: true }
+  if (from === 'Deprecated' && to === 'Retired') return { allowed: true }
+  return {
+    allowed: false,
+    because:
+      `${from} -> ${to} is not a governed transition. ADR-0019 §8 fixes ` +
+      'Released -> Deprecated -> Retired and defines no reverse or skipping step',
+  }
+}
 
 // --- state semantics ---------------------------------------------------------
 
@@ -795,7 +903,25 @@ export const applyTaskDelta = (
   }
 
   const byId = new Map(catalogue.map((m) => [m.id, m]))
+  // What the RELEASE pinned, before any narrowing removed it. An addition is
+  // checked against this rather than against what narrowing left behind, so
+  // narrow-then-add cannot launder a substitution.
+  const pinnedIds = new Set([...release.required, ...release.optional].map((m) => m.id))
   for (const id of delta.add) {
+    // A task addition adds context the release does not carry. It must NEVER
+    // swap a newer revision in for an id the release already pinned: that would
+    // make "optional" mean "whatever version exists later", which is exactly
+    // what ADR-0019 §2 forbids.
+    if (pinnedIds.has(id)) {
+      refusals.push(
+        refuse(
+          'delta.add-already-selected',
+          `"${id}" is already pinned by this release; a task addition may not substitute ` +
+            'a different revision for a pinned member',
+        ),
+      )
+      continue
+    }
     if (denied(id)) {
       refusals.push(
         refuse('delta.denied', `"${id}" is denied by this release; deny beats addition`),
