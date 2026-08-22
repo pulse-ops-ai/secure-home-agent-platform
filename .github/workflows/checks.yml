@@ -37,9 +37,17 @@ on:
 permissions:
   contents: read
 
+# Superseding a stale run is correct for a PULL REQUEST ref: the head moved,
+# and the newest run checks everything the old one would have. It is WRONG for
+# push and dispatch runs: each push-to-main run checks its own before->head
+# window (RELEASE_HISTORY_BASE below), so a run cancelled by the next merge
+# would leave its window examined by NO later run — quietly breaking the "the
+# baseline was itself governed" induction the release-history gate stands on.
+# Non-PR runs therefore each get a group of their own and always run to
+# completion.
 concurrency:
-  group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  group: checks-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NODE_VERSION: '24.18.1'
@@ -55,6 +63,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Release history is a two-revision property: a deleted record, a
+          # re-identified version, and an illegal state jump are all invisible in
+          # a single revision. The comparison needs the prior one.
+          fetch-depth: 0
 
       # Needs no toolchain — the same property that lets it run on a
       # freshly-prepared Pi before uv or Node exist.
@@ -125,6 +138,27 @@ jobs:
       - name: Set releases
         run: pnpm run check:set-releases
 
+      - name: Release history
+        # CI knows the exact baseline; the script's local inference is for
+        # developers, not for the gate. A SUPPLIED base is exclusive: if it does
+        # not resolve the run FAILS rather than quietly comparing against some
+        # other revision.
+        env:
+          EVENT_BASE: >-
+            ${{ github.event_name == 'pull_request'
+                && github.event.pull_request.base.sha
+                || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          # All-zeros is git's "no such commit" sentinel — first push,
+          # force-push, or manual dispatch. That means "no baseline to give",
+          # not "compare against nothing", so the script infers one instead and
+          # still fails if it cannot find a usable revision. Passing the
+          # sentinel through would fail every force-push for no reason.
+          case "$base" in *[!0]*) ;; *) base="" ;; esac
+          RELEASE_HISTORY_BASE="$base" pnpm run check:release-history
+
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL
   # The classifier decides which target gates run, so it is itself governance.
@@ -136,6 +170,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The governance suite runs here, and it now includes release-history
+          # tests that assert the LIVE repository passes its own two-revision
+          # gate. That control cannot run against a shallow clone, and the gate
+          # fails rather than skipping when no baseline resolves — correctly.
+          # So the requirement is declared here instead of weakened there.
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

@@ -90,7 +90,7 @@
  * Governed by AGENTS.md and ADR-0010.
  */
 
-import { readFileSync, existsSync, readdirSync, statSync, lstatSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, statSync, lstatSync, realpathSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -890,6 +890,12 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           // (familyId, version) is unique and immutable FOREVER — a reused
           // version would make an old run's evidence ambiguous, which is the one
           // thing release identity exists to prevent.
+          //
+          // WITHIN THIS FILE only, because this file reads one revision. A
+          // record deleted or re-identified BETWEEN revisions is invisible here
+          // and is caught by scripts/check-release-history.mjs, which compares
+          // the registry with its prior governed revision. Neither half is
+          // sufficient alone.
           if (seen.has(rid)) fail(`release "${rid}": (familyId, version) is already used`)
           seen.add(rid)
           const expected = `knowledge/releases/${r?.familyId}@${r?.version}.manifest`
@@ -910,6 +916,10 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
           ) {
             fail(`release "${rid}": releaseDigest must be "sha256:" + 64 lowercase hex`)
           }
+          // VOCABULARY only. Whether a state MOVE was legal is a two-revision
+          // question — Released -> Retired skips a step and reads as valid here
+          // — so releaseTransitionDecision is applied against the prior revision
+          // by scripts/check-release-history.mjs.
           if (!RELEASE_STATES.has(r?.state)) {
             fail(`release "${rid}": state must be Released, Deprecated, or Retired`)
           }
@@ -1053,7 +1063,19 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
 
 // --- CLI -------------------------------------------------------------------
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
+// process.argv[1] preserves a symlinked invocation path; the ESM loader
+// realpaths import.meta.url. Compared raw, a symlinked invocation matches
+// nothing, runs nothing, and exits 0 — a silent no-op where exit 0 reads as
+// PASS. Both sides are therefore resolved to REAL paths, and an entry path
+// that cannot be resolved is some other module importing this one.
+const isMain = (() => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+})()
 if (isMain) {
   const root = process.argv[2] ?? DEFAULT_ROOT
   const { problems, modules, sets } = checkKnowledge(root)

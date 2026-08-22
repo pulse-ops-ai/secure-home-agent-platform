@@ -16,8 +16,10 @@ import {
   digestTaskDelta,
   isCanonicalSetReleaseManifest,
   lookupSetRelease,
+  moduleCandidatesFromCatalog,
   releaseTransitionDecision,
   validateNewSetReleaseAgainstRegistry,
+  validateRegistrySuccession,
   parseSetReleaseManifest,
   releaseAdoptionDecision,
   releaseManifestPath,
@@ -1089,5 +1091,184 @@ describe('ADR-0019 §8b release state is the ONLY composition authority', () => 
     if (!r.ok) return
     expect(r.resolved).toEqual(['platform/one'])
     expect(r.refused.map((x) => x.refusedBy)).toEqual(['rollout', 'toolchain', 'both'])
+  })
+})
+
+describe('registry succession — the two-revision rules', () => {
+  const record = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    familyId: 'demo-default',
+    version: '1.0.0',
+    manifestPath: 'knowledge/releases/demo-default@1.0.0.manifest',
+    releaseDigest: `sha256:${DIGEST_A}`,
+    releaseReview: {
+      policy: 'knowledge-set-release-review-v1',
+      by: 'human:reviewer',
+      at: '2026-08-22T00:00:00Z',
+      releaseDigest: `sha256:${DIGEST_A}`,
+    },
+    state: 'Released',
+    ...over,
+  })
+  const rulesIn = (outcome: { refusals: readonly { rule: string }[] }): string[] =>
+    outcome.refusals.map((x) => x.rule)
+  const detailsIn = (outcome: { refusals: readonly { detail: string }[] }): string =>
+    outcome.refusals.map((x) => x.detail).join(' ')
+
+  it('an unchanged carried record is clean', () => {
+    const r = validateRegistrySuccession([record()], [record()])
+    expect(r.refusals).toEqual([])
+    expect(r.carried).toBe(1)
+    expect(r.added).toEqual([])
+  })
+
+  it('a deleted record refuses — a released identity is permanent', () => {
+    const r = validateRegistrySuccession([record()], [])
+    expect(rulesIn(r)).toEqual(['succession.deleted'])
+    expect(detailsIn(r)).toContain('is gone')
+  })
+
+  it('an identity field change refuses', () => {
+    const r = validateRegistrySuccession(
+      [record()],
+      [record({ releaseDigest: `sha256:${DIGEST_B}` })],
+    )
+    expect(rulesIn(r)).toContain('succession.mutated')
+    expect(detailsIn(r)).toContain('releaseDigest changed')
+    expect(detailsIn(r)).toContain('immutable')
+  })
+
+  it('a nested review change refuses with the full path', () => {
+    const r = validateRegistrySuccession(
+      [record()],
+      [
+        record({
+          releaseReview: {
+            policy: 'knowledge-set-release-review-v1',
+            by: 'human:someone-else',
+            at: '2026-08-22T00:00:00Z',
+            releaseDigest: `sha256:${DIGEST_A}`,
+          },
+        }),
+      ],
+    )
+    expect(rulesIn(r)).toEqual(['succession.mutated'])
+    expect(detailsIn(r)).toContain('releaseReview.by changed')
+  })
+
+  it('a field GRAFTED onto a carried record refuses — deep equality, not a field list', () => {
+    // The hole an enumerated field list leaves open: nothing named "note" or
+    // "supersededBy" exists to compare, so a future consumer could be handed
+    // annotations nobody reviewed, on a record every gate calls immutable.
+    const r = validateRegistrySuccession(
+      [record()],
+      [record({ note: 'revoked upstream; do not trust', supersededBy: '9.9.9' })],
+    )
+    expect(rulesIn(r)).toEqual(['succession.mutated', 'succession.mutated'])
+    expect(detailsIn(r)).toContain('note changed from (absent)')
+    expect(detailsIn(r)).toContain('supersededBy changed from (absent)')
+  })
+
+  it('a field REMOVED from a carried record refuses', () => {
+    const gone = record()
+    delete gone['manifestPath']
+    const r = validateRegistrySuccession([record()], [gone])
+    expect(rulesIn(r)).toEqual(['succession.mutated'])
+    expect(detailsIn(r)).toContain('manifestPath changed')
+    expect(detailsIn(r)).toContain('to (absent)')
+  })
+
+  it('state moves only the governed way', () => {
+    const forward = validateRegistrySuccession([record()], [record({ state: 'Deprecated' })])
+    expect(forward.refusals).toEqual([])
+
+    const skipped = validateRegistrySuccession([record()], [record({ state: 'Retired' })])
+    expect(rulesIn(skipped)).toEqual(['succession.transition'])
+    expect(detailsIn(skipped)).toContain('not a governed transition')
+  })
+
+  it('a state outside the vocabulary refuses even when it does not move', () => {
+    // The prior side arrives from `git show` and nothing else re-validates it;
+    // an equal-but-meaningless state must not read as "no transition, no
+    // problem".
+    const r = validateRegistrySuccession([record({ state: 'Bogus' })], [record({ state: 'Bogus' })])
+    expect(rulesIn(r)).toEqual(['succession.transition'])
+    expect(detailsIn(r)).toContain('names no governed lifecycle state')
+  })
+
+  it('a new record must be born Released', () => {
+    const refused = validateRegistrySuccession([], [record({ state: 'Retired' })])
+    expect(rulesIn(refused)).toEqual(['succession.born-state'])
+    expect(detailsIn(refused)).toContain('must start at Released')
+
+    const born = validateRegistrySuccession([], [record()])
+    expect(born.refusals).toEqual([])
+    expect(born.added).toHaveLength(1)
+    expect(born.carried).toBe(0)
+  })
+
+  it('a record that cannot be identified fails closed', () => {
+    // A record without a string identity cannot be tracked across revisions,
+    // so deleting it — or hiding a deletion behind it — must never pass.
+    const r = validateRegistrySuccession([{ version: '1.0.0', state: 'Released' }], [])
+    expect(rulesIn(r)).toEqual(['succession.record-malformed'])
+  })
+
+  it('an identity appearing twice on one side refuses', () => {
+    // Maps keep one entry per key, so without this rule the second record
+    // would silently shadow the first and every check on it would vanish.
+    const r = validateRegistrySuccession([], [record(), record({ state: 'Retired' })])
+    expect(rulesIn(r)).toContain('succession.identity-collision')
+  })
+})
+
+describe('moduleCandidatesFromCatalog — one projection, fail-closed', () => {
+  const row = {
+    id: 'platform/one',
+    version: '1.0.0',
+    status: 'Validated',
+    contentReview: { sourceDigest: `sha256:${DIGEST_A}` },
+    blockedByToolchain: false,
+    blockedByRollout: false,
+  }
+
+  it('projects exactly the member facts a release may pin', () => {
+    expect(moduleCandidatesFromCatalog({ modules: [row] })).toEqual([
+      {
+        id: 'platform/one',
+        version: '1.0.0',
+        sourceDigest: `sha256:${DIGEST_A}`,
+        status: 'Validated',
+        blockedByToolchain: false,
+        blockedByRollout: false,
+      },
+    ])
+  })
+
+  it('a module missing a gate key counts as BLOCKED, never unblocked', () => {
+    // These are the two gates a set release explicitly must not bypass, so
+    // only an explicit `false` opens one — absence is not an answer.
+    const { blockedByToolchain: _t, blockedByRollout: _r, ...bare } = row
+    const candidates = moduleCandidatesFromCatalog({ modules: [bare] })
+    const built = buildSetReleaseCandidate(family({ required: ['platform/one'] }), '1.0.0', [
+      ...candidates,
+    ])
+    expect(built.ok).toBe(false)
+    expect(rulesOf(built)).toContain('release.member-toolchain-blocked')
+    expect(rulesOf(built)).toContain('release.member-rollout-blocked')
+  })
+
+  it('a module without a review projects a null sourceDigest', () => {
+    const { contentReview: _c, ...unreviewed } = row
+    expect(moduleCandidatesFromCatalog({ modules: [unreviewed] })[0]?.sourceDigest).toBeNull()
+  })
+
+  it('a row without a string id is dropped, and a family naming it still refuses', () => {
+    const candidates = moduleCandidatesFromCatalog({ modules: [{ version: '1.0.0' }, null] })
+    expect(candidates).toEqual([])
+    const built = buildSetReleaseCandidate(family({ required: ['platform/one'] }), '1.0.0', [
+      ...candidates,
+    ])
+    expect(built.ok).toBe(false)
+    expect(rulesOf(built)).toContain('release.member-unknown')
   })
 })
