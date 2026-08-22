@@ -131,15 +131,25 @@ jobs:
         run: pnpm run check:set-releases
 
       - name: Release history
-        # CI knows the exact baseline; the script's local fallbacks are for
-        # developers, not for the gate. An unresolvable base FAILS rather than
-        # skipping — comparing against nothing would read as "no violations".
+        # CI knows the exact baseline; the script's local inference is for
+        # developers, not for the gate. A SUPPLIED base is exclusive: if it does
+        # not resolve the run FAILS rather than quietly comparing against some
+        # other revision.
         env:
-          RELEASE_HISTORY_BASE: >-
+          EVENT_BASE: >-
             ${{ github.event_name == 'pull_request'
                 && github.event.pull_request.base.sha
                 || github.event.before }}
-        run: pnpm run check:release-history
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          # All-zeros is git's "no such commit" sentinel — first push,
+          # force-push, or manual dispatch. That means "no baseline to give",
+          # not "compare against nothing", so the script infers one instead and
+          # still fails if it cannot find a usable revision. Passing the
+          # sentinel through would fail every force-push for no reason.
+          case "$base" in *[!0]*) ;; *) base="" ;; esac
+          RELEASE_HISTORY_BASE="$base" pnpm run check:release-history
 
   # ==========================================================================
   # GOVERNANCE-UNCONDITIONAL

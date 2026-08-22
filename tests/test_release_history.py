@@ -13,6 +13,7 @@ script, because a fixture that mocked git would prove only that the mock works.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -242,3 +243,126 @@ def test_an_unresolvable_base_fails_rather_than_skipping(tmp_path: Path) -> None
     assert result.returncode == 1
     assert "no prior governed revision" in result.stderr
     assert "fails rather" in result.stderr
+
+
+# ── an authoritative baseline is exclusive, never merely preferred ───────────
+#
+# These three cases were false negatives: the gate reported success while
+# comparing against a revision nobody asked for, or against itself.
+
+
+def test_an_invalid_explicit_base_fails_even_when_a_fallback_exists(tmp_path: Path) -> None:
+    """The blocker.
+
+    The earlier resolver ranked --base alongside its own inferences, so an
+    unresolvable explicit base fell through to HEAD~1 and the run compared a
+    DIFFERENT revision while exiting 0. The old regression missed it because its
+    fixture had no usable fallback, so the bad ref failed for the wrong reason.
+
+    Here HEAD~1 exists AND would pass. Only exclusivity can refuse this.
+    """
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    assert _check(repo, base="HEAD~1").returncode == 0, "the fallback must be usable"
+
+    result = _check(repo, base="does-not-exist")
+    assert result.returncode == 1, (
+        "an unresolvable explicit base fell back to another revision: " + result.stdout
+    )
+    assert "is not a commit" in result.stderr
+    assert "never falls back to a different revision" in result.stderr
+
+
+def test_an_invalid_env_base_fails_even_when_a_fallback_exists(tmp_path: Path) -> None:
+    """RELEASE_HISTORY_BASE is how CI speaks; it is authoritative the same way."""
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "RELEASE_HISTORY_BASE": "does-not-exist"},
+    )
+    assert result.returncode == 1, result.stdout
+    assert "RELEASE_HISTORY_BASE" in result.stderr
+
+
+def test_an_empty_env_base_means_no_baseline_was_supplied(tmp_path: Path) -> None:
+    """CI sets it to '' for workflow_dispatch and first pushes.
+
+    Empty must mean "I have nothing to give, infer" rather than "compare against
+    the empty ref", which would fail every dispatch run for no reason.
+    """
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "RELEASE_HISTORY_BASE": ""},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_an_inferred_baseline_is_never_head_itself(tmp_path: Path) -> None:
+    """On main, merge-base HEAD main is HEAD — and comparing HEAD with HEAD
+    detects nothing while exiting 0.
+
+    The fixture deletes a release, which is the single most important thing this
+    gate catches. If inference lands on HEAD, that deletion passes.
+    """
+    repo = _repo_with_history(tmp_path, [_record()], [])
+    _git(repo, "branch", "-f", "main", "HEAD")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    merge_base = subprocess.run(
+        ["git", "merge-base", "HEAD", "main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert merge_base == head, "the fixture must actually reproduce the vacuous case"
+
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, "the check compared the registry with itself: " + result.stdout
+    assert "is gone" in result.stderr
+
+
+# ── a lifecycle has a beginning ──────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("state", ["Deprecated", "Retired"])
+def test_a_new_release_may_not_be_created_already_past_released(tmp_path: Path, state: str) -> None:
+    """The transition check only runs where a PRIOR state exists, so creation is
+    a hole it structurally cannot cover.
+
+    The one-revision registry checker does not save this either: it validates
+    only that `state` is in the vocabulary.
+    """
+    new = _record(family="architecture-default", version="2.0.0", state=state)
+    result = _check(_repo_with_history(tmp_path, [], [new]))
+    assert result.returncode == 1
+    assert "must start at Released" in result.stderr
+
+
+def test_a_new_release_created_at_released_is_accepted(tmp_path: Path) -> None:
+    """The control: the state rule must not be what refuses every new release.
+
+    A real derivable release, so the only thing under test is the state.
+    """
+    registry = json.loads((REPO_ROOT / "knowledge" / "set-releases.json").read_text())
+    real = next(r for r in registry["releases"] if r["familyId"] == "architecture-default")
+    result = _check(_repo_with_history(tmp_path, [], [real]))
+    assert result.returncode == 0, result.stdout + result.stderr
