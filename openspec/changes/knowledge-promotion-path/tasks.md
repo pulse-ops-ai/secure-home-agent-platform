@@ -1946,3 +1946,83 @@ Python tests, so CI cannot hit it; a local run can.
 
 **Still true:** no `releaseReview` has been written, no candidate manifest has
 been committed, and no live release exists.
+
+### Prompt 6B — the three human-approved set releases, landed
+
+**Human release review occurred.** A human approved three independent exact
+release identities under `knowledge-set-release-review-v1`, naming each digest
+and byte count, at the pre-approval head `7f16e9b`. The approval was for those
+exact bytes and confers nothing on any other family, version, or future release.
+
+| familyId | version | releaseDigest | manifest bytes | initial state |
+|---|---|---|---:|---|
+| `prepr-review-default` | 1.0.0 | `sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7` | 925 | Released |
+| `implement-local-default` | 1.0.0 | `sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336` | 1154 | Released |
+| `architecture-default` | 1.0.0 | `sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c` | 867 | Released |
+
+Review policy `knowledge-set-release-review-v1`; actor `human:mikegtech`;
+instant `2026-08-22T15:48:52Z`, captured at receipt of the approval. Each record carries its
+**own** `releaseReview` binding **only its own** digest — one message approved
+three releases independently, so the actor and instant repeat while the binding
+does not. There is no cohort digest and no shared identity.
+
+**Freeze check before anything was written.** All three were rebuilt from the
+branch state by implementation A and implementation B: byte-for-byte equal to
+each other and to the approved identities, with every identity-bearing input
+enumerated — `runnerClass`, `deny`, the four booleans and integers, the three
+failure/authority scalars, and every member id, version, and reviewed digest.
+
+**Versions proved unused through the governed mechanism.**
+`validateNewSetReleaseAgainstRegistry` was called for each candidate against the
+live registry and passed. It was not skipped because the JSON looked empty: the
+rule that a used version is never reusable in any state is the mechanism's to
+enforce, not the author's to assume.
+
+**Manifests written, never hand-edited.** Each file was produced by the canonical
+serializer and then re-read from disk and checked: regular file, not a symlink,
+exact byte count, final LF, accepted as canonical, parses, A's reserialization
+byte-identical, raw SHA-256 equal to the approved digest, and B independently
+reproducing the same bytes from the catalog.
+
+**Live checker validated all three real records.** `pnpm run check:set-releases`
+reads `set-releases.json`, derives each path, and hands the exact bytes to
+`validateSetReleaseRecord`: 3/3. Every named property was also asserted
+per-record through the real repository path — family exists, version grammar,
+derived path exact, canonical bytes, manifest family/version match, digest equals
+the raw hash, policy exact, actor valid, instant a real UTC instant, review
+binding exact, state Released.
+
+**Historical identity pins installed.** `HISTORICAL_RELEASES` pins the three
+identities by exact digest, byte count, path, policy, actor, and review binding —
+and deliberately does **not** pin `state`, which is mutable by design
+(`Released -> Deprecated -> Retired`). A separate current-state test asserts the
+three landed `Released`. No `len(releases) == 3` assertion exists anywhere:
+future releases are legitimate. Mutation-checked — flipping one byte of a landed
+manifest fails both the identity pin and the live checker.
+
+**Household families still refuse.** `home-status-default`, `climate-default`,
+and `gridwise-default` each still refuse candidate creation through the
+selected-member precondition mechanism (`release.member-*`), naming the blocking
+household modules. There is no family-level label to hide behind, and no
+household release record was added. The three coding releases confer nothing.
+
+**Current-state guidance corrected.** `tests/test_knowledge_content.py` asserted
+`releases == []`; that is replaced by the durable truths — `set-releases.json` is
+authoritative, no household family is released, nothing is published. The root
+`README.md`, `knowledge/INDEX.md`, and `knowledge-selection-model.md` no longer
+say no set is released. Historical OpenSpec narrative is untouched.
+
+**The runtime boundary is unchanged.** No runtime resolver, no knowledge delivery,
+no runner-control wiring, no session knowledge argument, no packaged bundle, no
+published module (0 packaged, 0 published; 13 reviewed module identities
+unchanged), and no Proof B producer. One precision: the execution-profile
+contract has carried an opaque `knowledge.selection` **string** since before this
+work; it pins no release and gained nothing here, and `packages/contracts` is
+untouched by this commit. **Released is not runtime-resolvable.** No agent uses
+these sets, no profile loads them, and no knowledge is delivered at runtime.
+
+**PROMPT 6B COMPLETE.**
+
+**PROMPT 6 COMPLETE.**
+
+Runtime knowledge integration is **not** complete and has not begun.

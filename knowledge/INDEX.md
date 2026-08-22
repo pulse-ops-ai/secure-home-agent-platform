@@ -20,6 +20,8 @@ The canonical registry of knowledge **modules** and **sets**.
 > state and version for every module. Nothing is packaged and nothing is
 > published — `household/**` remains rollout-blocked, runbook rollout is
 > per module, and set release eligibility lives on immutable release records
+> in [`set-releases.json`](set-releases.json), which is authoritative for which
+> releases exist and what state each is in
 > ([`set-releases.json`](set-releases.json)), and publication additionally requires Proof B, for which
 > no governed producer exists.
 

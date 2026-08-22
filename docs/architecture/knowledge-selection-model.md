@@ -15,10 +15,13 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 > [`packages/knowledge-toolchain`](../../packages/knowledge-toolchain/) and
 > invoked over real repository content in CI.
 >
-> What this document describes is still absent: **no runtime resolver**, **no
-> profile knowledge field or schema**, **no deployed knowledge delivery**, **no
-> released set**, **no published module**, and **no Proof B producer**. This is
-> the contract those things must satisfy.
+> Three coding set releases are human-reviewed and recorded in
+> [`set-releases.json`](../../knowledge/set-releases.json). What this document
+> describes is still absent: **no runtime resolver**, **no profile knowledge
+> field or schema**, **no deployed knowledge delivery**, **no published module**,
+> and **no Proof B producer**. **Released is not runtime-resolvable** — a
+> recorded release is an identity a reviewer approved, not context any run can
+> obtain. This is the contract those things must satisfy.
 
 ## The rule everything else follows from
 

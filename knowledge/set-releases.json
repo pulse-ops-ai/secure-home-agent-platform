@@ -20,5 +20,45 @@
     "and are digested exactly as ADR-0019 section 4 fixes."
   ],
   "version": 1,
-  "releases": []
+  "releases": [
+    {
+      "familyId": "architecture-default",
+      "version": "1.0.0",
+      "manifestPath": "knowledge/releases/architecture-default@1.0.0.manifest",
+      "releaseDigest": "sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c",
+      "releaseReview": {
+        "policy": "knowledge-set-release-review-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-22T15:48:52Z",
+        "releaseDigest": "sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c"
+      },
+      "state": "Released"
+    },
+    {
+      "familyId": "implement-local-default",
+      "version": "1.0.0",
+      "manifestPath": "knowledge/releases/implement-local-default@1.0.0.manifest",
+      "releaseDigest": "sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336",
+      "releaseReview": {
+        "policy": "knowledge-set-release-review-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-22T15:48:52Z",
+        "releaseDigest": "sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336"
+      },
+      "state": "Released"
+    },
+    {
+      "familyId": "prepr-review-default",
+      "version": "1.0.0",
+      "manifestPath": "knowledge/releases/prepr-review-default@1.0.0.manifest",
+      "releaseDigest": "sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7",
+      "releaseReview": {
+        "policy": "knowledge-set-release-review-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-22T15:48:52Z",
+        "releaseDigest": "sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7"
+      },
+      "state": "Released"
+    }
+  ]
 }

@@ -789,8 +789,14 @@ def test_the_live_authored_set_is_exactly_what_the_registry_claims(tmp_path: Pat
         assert m["id"].startswith("platform/") or m["id"] in allowlist, m["id"]
         assert not m["id"].startswith("household/"), m["id"]
 
+    # Not a count: releases are added over time, and a test that pinned the
+    # number would fail the next legitimate release. What is durable is that
+    # set-releases.json is the authority, that no household family is released,
+    # and that a release confers nothing on publication.
     releases = json.loads((REPO_ROOT / "knowledge" / "set-releases.json").read_text())
-    assert releases["releases"] == [], "no set release exists"
+    household_families = {s["id"] for s in catalog["sets"] if s["runnerClass"] != "coding-runner"}
+    for record in releases["releases"]:
+        assert record["familyId"] not in household_families, record["familyId"]
     assert not any(m["status"] == "Published" for m in modules), "nothing is published"
 
     result = _run(REPO_ROOT)
