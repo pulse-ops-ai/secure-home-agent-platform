@@ -475,7 +475,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. Composition only; it grants no capability.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Composition only.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -512,7 +512,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. The optional API-contract module means two runs of this set can see different context; evidence records which.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. The optional API-contract module means two runs of one release can see different context; evidence records which.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -550,7 +550,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: the selected members have concrete identities, but the set release and version lifecycle is not yet accepted and no set release exists. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -585,7 +585,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Describes the house; carries no live state and confers no ability to read or change any device.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Describes the house; carries no live state and confers no ability to read or change any device.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -627,7 +627,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Documented equipment limits are not the enforced safety envelope, and this set grants no actuation.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Documented equipment limits are not the enforced safety envelope, and this family grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -670,7 +670,7 @@
       "owner": "human:mikegtech",
       "version": null,
       "asOf": null,
-      "limitations": "No version assigned: selected household knowledge remains unversioned and rollout-blocked, and no set release exists. Cost reasoning never justifies leaving the safety envelope, and this set grants no actuation.",
+      "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Cost reasoning never justifies leaving the safety envelope, and this family grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
         "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",

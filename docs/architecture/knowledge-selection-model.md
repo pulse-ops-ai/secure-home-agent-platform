@@ -223,8 +223,10 @@ know?" is answerable without re-running it.
   "knowledge": {
     "requestedSetId": "implement-local-default",
     "requestedSetVersion": "1.0.0",
-    "resolvedSetId": "implement-local-default",
-    "resolvedSetVersion": "1.0.0",
+    "requestedSetReleaseDigest": "sha256:...",
+    "taskDelta": { "add": [], "narrow": [] },
+    "taskDeltaDigest": "sha256:...",
+    "resolvedManifestDigest": "sha256:...",
     "resolverVersion": "0.0.0",
     "catalogDigest": "sha256:...",
     "modules": [
@@ -247,8 +249,10 @@ know?" is answerable without re-running it.
 
 | Field | Why it is recorded |
 |---|---|
-| `requestedSetId` / `requestedSetVersion` | what the profile asked for |
-| `resolvedSetId` / `resolvedSetVersion` | what it actually got — these differ when a task narrowed the selection |
+| `requestedSetId` / `requestedSetVersion` | the family and release version the profile pinned |
+| `requestedSetReleaseDigest` | the exact immutable release those two resolved to ([ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) §8b) |
+| `taskDelta` / `taskDeltaDigest` | the additions and narrowings actually applied, and their identity |
+| `resolvedManifestDigest` | identity of the exact context delivered, after the delta |
 | `resolverVersion` | a resolver change can change the outcome; without this, an old run is not explicable |
 | `catalogDigest` | pins the catalog the resolution was computed against |
 | `modules[]` | exact ID, version, digest, as-of date, and whether it was required or optional |
@@ -256,9 +260,13 @@ know?" is answerable without re-running it.
 | `warnings[]` | typed, so they can be counted and alerted on rather than read |
 | `compiledDigest` | identifies the packaged artifact actually delivered |
 
-Recording both requested and resolved is what makes a narrowed run reviewable: a
-run that quietly received less than its profile selected would otherwise be
-indistinguishable from one that received everything.
+**There is no `resolvedSetVersion`.** A task-modified composition is not a
+registered release, so no version names it; minting one would assert a release
+nobody reviewed (ADR-0019 §11). What makes a narrowed run reviewable is the pair
+of digests: the base release is recorded exactly as requested, and the resolved
+manifest carries its own identity. Two runs of one release that saw different
+context differ in `resolvedManifestDigest`, so a run that quietly received less
+than its profile selected is distinguishable from one that received everything.
 
 **Persistence is not implemented here.** This defines the fields; where run
 evidence is stored is [U11](unresolved-decisions.md#u11) and the run schema.

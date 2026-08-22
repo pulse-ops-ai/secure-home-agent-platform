@@ -1655,3 +1655,48 @@ is not a mechanism — along with the independent second implementation of the
 release digest and the planted-violation test for byte admissibility.
 
 **Prompt 6B is not begun and is not authorized by this acceptance.**
+
+---
+
+## Prompt 6B — implement immutable set releases (IN PROGRESS)
+
+**Not a completion claim.** OpenSpec records the work and its authorization; it
+creates neither. Prior history is unmodified.
+
+- Starting main: `458990533f0c959c4c0b213d49fd7641a026f694`
+- Branch: `feat/knowledge-set-releases`
+- Implementing **accepted** ADR-0019 (accepted 2026-08-21 at
+  `43170c76e64917dc91303e544297d177688cc811`)
+
+### Literal baseline at the start of 6B
+
+| | |
+|---|---|
+| modules admitted | **13**, refusals **0** |
+| reviewed identities | 13/13 bound to their pins |
+| set families | six, each `status: Planned`, `version: null`, `blockedByRollout: true`, `blockedByToolchain: false` |
+| packaged · published modules | 0 · 0 |
+| set releases | **0** — no registry, no manifests |
+| Proof B producer | absent |
+| runtime resolver | absent |
+| profile knowledge schema | absent |
+
+### Acceptance-landing prose corrected first
+
+Two surfaces did not move when ADR-0019 was accepted, and both were false at this
+head:
+
+- `knowledge-selection-model.md` §4 still recorded `resolvedSetId` and
+  `resolvedSetVersion`, and still said requested and resolved versions differ
+  under task narrowing. ADR-0019 §11 forbids minting a resolved set version — a
+  task-modified composition is not a registered release. The evidence model now
+  records `requestedSetReleaseDigest`, `taskDelta`, `taskDeltaDigest`, and
+  `resolvedManifestDigest`, keeping `resolverVersion`, `catalogDigest`,
+  `modules[]`, `omittedOptional[]`, `warnings[]`, and `compiledDigest`.
+- The six set-family `limitations` said the release lifecycle "is not yet
+  accepted", which acceptance falsified. They now carry durable wording: the
+  family is mutable, release identity and eligibility live on immutable release
+  records, and the family grants no capability — with each family's own
+  meaningful limitation retained and no count encoded.
+
+**At this point no mechanism, no release, and no `releaseReview` exists.**
