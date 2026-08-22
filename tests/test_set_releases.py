@@ -728,3 +728,73 @@ process.stdout.write(JSON.stringify(r.ok ? { ok: true } : { refusals: r.refusals
     assert all(r.startswith("release.member-") for r in rules), rules
     details = " ".join(r["detail"] for r in result["refusals"])
     assert "household/" in details, details
+
+
+# ── the tracked-binary exemption is narrow and fails closed ───────────────────
+#
+# ADR-0019 section 4 fixes NUL as the member field delimiter, so every canonical
+# release manifest is binary to git, and scripts/validate-scaffold.sh forbids
+# tracked binaries because the secret scanner cannot inspect them. The owner
+# took a reviewed decision on 2026-08-22 to exempt REGISTERED release manifests,
+# on the ground that they are verified by digest rather than by pattern matching.
+#
+# An exemption nobody tests is a hole. These prove it stays narrow: a glob-only
+# exemption would let an unregistered blob inherit it, and a tampered manifest
+# must still be caught by the mechanism the exemption points at.
+
+
+def _scaffold_binary_section() -> str:
+    return (REPO_ROOT / "scripts" / "validate-scaffold.sh").read_text()
+
+
+def test_the_binary_exemption_requires_registration_not_just_a_path() -> None:
+    """A path glob alone would exempt any blob dropped into the directory."""
+    source = _scaffold_binary_section()
+    assert "knowledge/releases/*@*.manifest" in source, "the exemption must be path-scoped"
+    # Registration is what makes it validated rather than blanket.
+    assert "grep -qF" in source and "set-releases.json" in source, (
+        "an exempt manifest must also be registered; a glob-only exemption is a hole"
+    )
+
+
+def test_a_tampered_registered_manifest_is_still_caught() -> None:
+    """The exemption's justification, exercised rather than asserted.
+
+    The scaffold check stops inspecting these files. What replaces it is the
+    digest: appending a secret-shaped value to a landed manifest must fail the
+    live checker, because the bytes no longer hash to the reviewed digest.
+    """
+    family_id = "prepr-review-default"
+    path = REPO_ROOT / "knowledge" / "releases" / f"{family_id}@1.0.0.manifest"
+    original = path.read_bytes()
+
+    def check() -> str:
+        result = subprocess.run(
+            ["node", "scripts/check-set-releases.mjs"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, "a tampered release manifest passed the live checker"
+        return result.stdout + result.stderr
+
+    # Two distinct tampers, refused for two distinct and correct reasons. Naming
+    # only one would let the other class through while the test still passed.
+    try:
+        # (a) appending a secret-shaped value breaks canonical form first.
+        # Assembled at runtime so no key-shaped literal exists in this file --
+        # scan-secrets.sh is right to flag one, and the fix is construction
+        # rather than an allowlist entry that would dull a working scanner.
+        secret_shaped = b"AKIA" + b"IOSFODNN7EXAMPLE"
+        path.write_bytes(original + secret_shaped + b"\x00\n")
+        assert "manifest.row" in check()
+
+        # (b) a tamper that KEEPS the file canonical is caught by the digest --
+        # which is the guarantee the scaffold exemption actually rests on.
+        assert b"maxFreshnessDays 180\n" in original
+        path.write_bytes(original.replace(b"maxFreshnessDays 180\n", b"maxFreshnessDays 181\n"))
+        assert "record.digest" in check()
+    finally:
+        path.write_bytes(original)
+    assert path.read_bytes() == original

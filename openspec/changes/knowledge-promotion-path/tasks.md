@@ -2026,3 +2026,41 @@ these sets, no profile loads them, and no knowledge is delivered at runtime.
 **PROMPT 6 COMPLETE.**
 
 Runtime knowledge integration is **not** complete and has not begun.
+
+#### Landing addendum — the tracked-binary decision
+
+The landing failed CI on a check `check.sh` had passed locally, for an instructive
+reason: `validate-scaffold.sh` forbids **tracked** binaries, and the manifests
+were still untracked when the local run measured them. A local green measured
+the wrong state.
+
+The collision is structural, not incidental. ADR-0019 §4 fixes **NUL** as the
+member field delimiter, so every canonical release manifest is binary to git, by
+specification. The format cannot change without re-identifying compositions a
+human already reviewed.
+
+The check's own comment names the correct response — "a reviewed decision that
+also says how they will be checked for embedded credentials — not deleting this
+check" — so the decision was put to the repository owner rather than taken here.
+**The owner chose a narrow reviewed exemption on 2026-08-22.**
+
+What replaces pattern matching for these files: every byte is fixed by a SHA-256
+recorded in `set-releases.json`, re-derived from the catalog by two independent
+implementations, and verified on every CI run by `check:set-releases`.
+
+The exemption is **validated, not a glob**. A file is exempt only if it is BOTH
+at the derived release path AND registered in `set-releases.json` — a glob alone
+would let an unregistered blob be dropped into the directory and inherit an
+exemption nothing verifies. Every exemption applied is printed, never silent.
+
+Four negative controls, all confirmed:
+
+| control | result |
+|---|---|
+| unregistered `knowledge/releases/evil@9.9.9.manifest` | **still fails** — glob-only would have exempted it |
+| tracked binary elsewhere (`docs/blob.bin`) | **still fails** |
+| registered manifest + appended secret-shaped value | refused `manifest.row` (canonical form breaks first) |
+| registered manifest, still canonical, one value changed | refused `record.digest` |
+
+The last two are asserted separately in `test_a_tampered_registered_manifest_is_still_caught`,
+because naming only one would let the other class through while the test passed.

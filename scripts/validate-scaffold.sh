@@ -336,6 +336,28 @@ fi
 # This is a policy check, not a capability limit. If binary artifacts ever need
 # to be tracked, the correct response is a reviewed decision that also says how
 # they will be checked for embedded credentials — not deleting this check.
+#
+# ONE such decision exists, taken by the repository owner on 2026-08-22.
+#
+#   Canonical set-release manifests under knowledge/releases/ are NUL-delimited
+#   BY SPECIFICATION (ADR-0019 §4 fixes NUL as the member field delimiter), so
+#   git classifies every one of them as binary. The format cannot be changed
+#   without re-identifying compositions a human already reviewed.
+#
+#   How they are checked instead — a STRONGER guarantee than pattern matching:
+#   every byte is fixed by a SHA-256 recorded in knowledge/set-releases.json,
+#   re-derived from the catalog by two independent implementations, and verified
+#   on every CI run by `pnpm run check:set-releases`. A single altered byte —
+#   let alone an inserted credential — changes the digest and fails that check
+#   and the historical identity pins in tests/test_set_releases.py.
+#
+#   The exemption is deliberately NOT a path glob alone. A file is exempt only
+#   if it is BOTH at the derived release path AND registered in set-releases.json,
+#   because a glob would let an unregistered blob be dropped into the directory
+#   and inherit an exemption nothing verifies. An unregistered .manifest still
+#   fails here, and every exemption applied is reported rather than silent.
+#
+#   It grants nothing to any other path, and no other binary is exempt.
 # ---------------------------------------------------------------------------
 
 section "No tracked binaries"
@@ -344,11 +366,38 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   # git ls-files --eol reports index content classification; i/-text is binary.
   binaries="$(git ls-files --eol 2>/dev/null | awk '$1=="i/-text" {sub(/^[^\t]*\t/, ""); print}')"
 
-  if [ -n "$binaries" ]; then
+  registry="knowledge/set-releases.json"
+  exempted=""
+  remaining=""
+  for b in $binaries; do
+    case "$b" in
+      knowledge/releases/*@*.manifest)
+        # Registered? The record stores the exact path string. grep -F so a
+        # path is matched literally, never as a pattern.
+        if [ -f "$registry" ] && grep -qF "\"$b\"" "$registry" 2>/dev/null; then
+          exempted="$exempted$b
+"
+          continue
+        fi
+        ;;
+    esac
+    remaining="$remaining$b
+"
+  done
+
+  if [ -n "$remaining" ]; then
     fail "binary files are tracked — the secret scanner cannot inspect them"
-    printf '%s\n' "$binaries" | head -20 | while IFS= read -r b; do detail "$b"; done
+    printf '%s' "$remaining" | head -20 | while IFS= read -r b; do
+      [ -n "$b" ] && detail "$b"
+    done
     detail "tracking a binary requires a reviewed decision covering how it is"
     detail "checked for embedded credentials — see scripts/scan-secrets.sh"
+  elif [ -n "$exempted" ]; then
+    count="$(printf '%s' "$exempted" | grep -c . || true)"
+    pass "no unexempted binary is tracked; $count registered release manifest(s) exempt"
+    printf '%s' "$exempted" | while IFS= read -r b; do
+      [ -n "$b" ] && detail "exempt (registered, digest-verified): $b"
+    done
   else
     pass "no binary file is tracked (secret scanning covers all tracked content)"
   fi
