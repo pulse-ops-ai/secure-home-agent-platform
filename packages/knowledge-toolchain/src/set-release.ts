@@ -791,6 +791,245 @@ export const releaseTransitionDecision = (
   }
 }
 
+// --- registry succession -----------------------------------------------------
+//
+// Every claim ADR-0019 makes about identity over time is a claim about TWO
+// revisions of the registry: "(familyId, version) resolves to one digest
+// forever", "Released -> Deprecated -> Retired, no reverse", "a lifecycle has a
+// beginning". scripts/check-release-history.mjs supplies the two revisions from
+// git; the RULES of the comparison live here, typed against the record shape
+// and unit-tested beside the transition rule they compose with — a semantic
+// rule that lived only in an untyped script would drift silently the first
+// time `SetReleaseRecord` grew a field.
+
+const isJsonObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const withoutState = (record: Record<string, unknown>): Record<string, unknown> => {
+  const rest: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(record)) if (k !== 'state') rest[k] = v
+  return rest
+}
+
+interface FieldChange {
+  readonly path: string
+  readonly was: unknown
+  readonly is: unknown
+}
+
+/**
+ * Every leaf-level difference between two JSON values.
+ *
+ * The WHOLE record is compared, not an enumerated field list: a list names the
+ * fields someone thought of, so a field added later — or a field grafted onto a
+ * historical record ("note", "supersededBy") — would mutate an "immutable"
+ * release without any named field changing. Absence and `null` are different
+ * facts and are reported as such.
+ */
+const fieldChanges = (was: unknown, is: unknown, path: string, out: FieldChange[]): void => {
+  if (was === is) return
+  if (isJsonObject(was) && isJsonObject(is)) {
+    const keys = [...new Set([...Object.keys(was), ...Object.keys(is)])].sort()
+    for (const k of keys) {
+      fieldChanges(was[k], is[k], path === '' ? k : `${path}.${k}`, out)
+    }
+    return
+  }
+  if (Array.isArray(was) && Array.isArray(is)) {
+    const length = Math.max(was.length, is.length)
+    for (let i = 0; i < length; i += 1) fieldChanges(was[i], is[i], `${path}[${i}]`, out)
+    return
+  }
+  out.push({ path, was, is })
+}
+
+const shown = (value: unknown): string => (value === undefined ? '(absent)' : JSON.stringify(value))
+
+/**
+ * The transition rule, made total over untrusted input.
+ *
+ * The prior revision arrives from `git show` and is re-validated by NOTHING
+ * else — the single-revision checkers only ever see the current file — so a
+ * state outside the vocabulary must refuse here rather than slide through a
+ * comparison typed for states that cannot occur.
+ */
+const successionTransition = (from: unknown, to: unknown): ReleaseDecision => {
+  const known = (value: unknown): value is ReleaseState =>
+    typeof value === 'string' && (RELEASE_STATES as readonly string[]).includes(value)
+  if (known(from) && known(to)) return releaseTransitionDecision(from, to)
+  return {
+    allowed: false,
+    because:
+      `state moved from ${shown(from)} to ${shown(to)}, and a value outside ` +
+      `${RELEASE_STATES.join(', ')} names no governed lifecycle state`,
+  }
+}
+
+/**
+ * The outcome deliberately carries refusals AND the work-list together, unlike
+ * `ReleaseResult`: a registry with one mutated record and one new record has
+ * two independent findings, and returning only the first class would make the
+ * caller's §6 report depend on which unrelated problem happened to exist.
+ */
+export interface RegistrySuccession {
+  readonly refusals: readonly ReleaseRefusal[]
+  /** Records present in both revisions, compared for immutability and transition. */
+  readonly carried: number
+  /**
+   * Records new in the current revision. Identity fields are guaranteed
+   * strings; nothing else is validated here — full record shape belongs to
+   * `validateSetReleaseRecord`, and the §6 catalog preconditions belong to the
+   * caller, because only NEW records are checked against today's catalog.
+   */
+  readonly added: ReadonlyArray<Record<string, unknown>>
+}
+
+/**
+ * Compare a registry revision with its prior governed revision.
+ *
+ * The rules a single revision cannot express, exactly:
+ *
+ *   1. a record that existed may not vanish — a released identity is permanent;
+ *   2. a carried record may not change outside `state` — deep equality, not an
+ *      enumerated field list;
+ *   3. `state` may move only the ADR-0019 §8 way;
+ *   4. a NEW record starts at `Released` — later states are reached by a
+ *      governed transition, never by creation (§10: a release is born by the
+ *      release procedure, which culminates in a reviewed record at Released);
+ *   5. a record that cannot be identified, or an identity that appears twice,
+ *      refuses — an untrackable record cannot be proven not to be a deletion
+ *      or a re-identification, so it fails closed.
+ */
+export const validateRegistrySuccession = (
+  prior: readonly unknown[],
+  current: readonly unknown[],
+): RegistrySuccession => {
+  const refusals: ReleaseRefusal[] = []
+
+  const index = (
+    side: 'prior' | 'current',
+    records: readonly unknown[],
+  ): Map<string, Record<string, unknown>> => {
+    const byKey = new Map<string, Record<string, unknown>>()
+    for (const record of records) {
+      if (
+        !isJsonObject(record) ||
+        typeof record['familyId'] !== 'string' ||
+        typeof record['version'] !== 'string'
+      ) {
+        refusals.push(
+          refuse(
+            'succession.record-malformed',
+            `a record in the ${side} revision has no string familyId and version ` +
+              `(${JSON.stringify(record)?.slice(0, 120) ?? String(record)}); a record that ` +
+              'cannot be identified cannot be proven not to be a deletion or a re-identification',
+          ),
+        )
+        continue
+      }
+      const k = `${record['familyId']}@${record['version']}`
+      if (byKey.has(k)) {
+        refusals.push(
+          refuse(
+            'succession.identity-collision',
+            `"${k}" appears more than once in the ${side} revision; ` +
+              '(familyId, version) resolves to at most one record, forever',
+          ),
+        )
+        continue
+      }
+      byKey.set(k, record)
+    }
+    return byKey
+  }
+
+  const priorByKey = index('prior', prior)
+  const currentByKey = index('current', current)
+
+  let carried = 0
+  for (const [id, was] of priorByKey) {
+    const now = currentByKey.get(id)
+    if (now === undefined) {
+      refusals.push(
+        refuse(
+          'succession.deleted',
+          `release "${id}" existed at the prior governed revision and is gone. A released ` +
+            'identity is permanent: deleting the record would let the version be minted ' +
+            "again with different bytes, and an old run's evidence would become ambiguous",
+        ),
+      )
+      continue
+    }
+    carried += 1
+    const changes: FieldChange[] = []
+    fieldChanges(withoutState(was), withoutState(now), '', changes)
+    for (const change of changes) {
+      refusals.push(
+        refuse(
+          'succession.mutated',
+          `release "${id}": ${change.path} changed from ${shown(change.was)} to ` +
+            `${shown(change.is)}. A release is immutable — state is the only thing that ` +
+            'may move; publish a new version',
+        ),
+      )
+    }
+    const decision = successionTransition(was['state'], now['state'])
+    if (!decision.allowed) {
+      refusals.push(refuse('succession.transition', `release "${id}": ${decision.because}`))
+    }
+  }
+
+  const added: Record<string, unknown>[] = []
+  for (const [id, record] of currentByKey) {
+    if (priorByKey.has(id)) continue
+    added.push(record)
+    if (record['state'] !== 'Released') {
+      refusals.push(
+        refuse(
+          'succession.born-state',
+          `new release "${id}": a newly introduced identity must start at Released, not ` +
+            `${JSON.stringify(record['state'])}. Deprecated and Retired are reached by a ` +
+            'governed transition from Released, never by creation',
+        ),
+      )
+    }
+  }
+
+  return { refusals, carried, added }
+}
+
+/**
+ * The catalog rows, projected to exactly the member facts a release may pin.
+ *
+ * One projection, exported, because it exists at every seam that hands catalog
+ * modules to `buildSetReleaseCandidate` — a hand-copied mapping at each call
+ * site desyncs the moment `MemberCandidate` moves.
+ *
+ * FAIL-CLOSED, deliberately: `blockedByToolchain` and `blockedByRollout` count
+ * as blocked unless the catalog says `false` explicitly. A module row missing
+ * either key is not an unblocked module — it is a row the gate model cannot
+ * vouch for, and these are the two gates a set release explicitly must not
+ * bypass (ADR-0019 §6). Rows without a string id are dropped: a family that
+ * names one still refuses, through `release.member-unknown`.
+ */
+export const moduleCandidatesFromCatalog = (catalog: unknown): readonly MemberCandidate[] => {
+  const rows = isJsonObject(catalog) && Array.isArray(catalog['modules']) ? catalog['modules'] : []
+  const out: MemberCandidate[] = []
+  for (const row of rows) {
+    if (!isJsonObject(row) || typeof row['id'] !== 'string') continue
+    const review = isJsonObject(row['contentReview']) ? row['contentReview'] : undefined
+    out.push({
+      id: row['id'],
+      version: typeof row['version'] === 'string' ? row['version'] : null,
+      sourceDigest: typeof review?.['sourceDigest'] === 'string' ? review['sourceDigest'] : null,
+      status: typeof row['status'] === 'string' ? row['status'] : '',
+      blockedByToolchain: row['blockedByToolchain'] !== false,
+      blockedByRollout: row['blockedByRollout'] !== false,
+    })
+  }
+  return out
+}
+
 // --- state semantics ---------------------------------------------------------
 
 export type ReleaseDecision =
