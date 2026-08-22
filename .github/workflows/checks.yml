@@ -37,9 +37,17 @@ on:
 permissions:
   contents: read
 
+# Superseding a stale run is correct for a PULL REQUEST ref: the head moved,
+# and the newest run checks everything the old one would have. It is WRONG for
+# push and dispatch runs: each push-to-main run checks its own before->head
+# window (RELEASE_HISTORY_BASE below), so a run cancelled by the next merge
+# would leave its window examined by NO later run — quietly breaking the "the
+# baseline was itself governed" induction the release-history gate stands on.
+# Non-PR runs therefore each get a group of their own and always run to
+# completion.
 concurrency:
-  group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  group: checks-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NODE_VERSION: '24.18.1'

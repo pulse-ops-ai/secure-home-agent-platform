@@ -31,7 +31,7 @@
  * reported here with the package's own refusal rule. Nothing is reimplemented:
  * a second copy of the canonicalization would be a second grammar.
  */
-import { existsSync, lstatSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -109,7 +109,19 @@ export function checkSetReleases(root = DEFAULT_ROOT) {
   return { problems, evaluated }
 }
 
-const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url)
+// process.argv[1] preserves a symlinked invocation path; the ESM loader
+// realpaths import.meta.url. Compared raw, a symlinked invocation matches
+// nothing, runs nothing, and exits 0 — a silent no-op where exit 0 reads as
+// PASS. Both sides are therefore resolved to REAL paths, and an entry path
+// that cannot be resolved is some other module importing this one.
+const invokedDirectly = (() => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+})()
 if (invokedDirectly) {
   // An explicit root lets a test point the REAL checker at a fixture tree,
   // rather than testing a reimplementation of it.

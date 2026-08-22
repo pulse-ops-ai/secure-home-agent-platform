@@ -57,8 +57,9 @@
  * Governed by AGENTS.md, ADR-0010, ADR-0015, and ADR-0016.
  */
 
-import { readFileSync, lstatSync, readdirSync } from 'node:fs'
+import { readFileSync, lstatSync, readdirSync, realpathSync } from 'node:fs'
 import { join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { admit, authoringEligibility, packageBundle } from '@secure-home/knowledge-toolchain'
 
@@ -353,7 +354,19 @@ export function checkKnowledgeContent(root = DEFAULT_ROOT, deps = {}) {
 
 // --- CLI -------------------------------------------------------------------
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
+// process.argv[1] preserves a symlinked invocation path; the ESM loader
+// realpaths import.meta.url. Compared raw, a symlinked invocation matches
+// nothing, runs nothing, and exits 0 — a silent no-op where exit 0 reads as
+// PASS. Both sides are therefore resolved to REAL paths, and an entry path
+// that cannot be resolved is some other module importing this one.
+const isMain = (() => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+})()
 if (isMain) {
   const root = process.argv[2] ?? DEFAULT_ROOT
   const { problems, evaluated, authoredModules, evidence } = checkKnowledgeContent(root)

@@ -80,8 +80,9 @@
  * Governed by AGENTS.md and ADR-0012 §15.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join, relative, basename, extname, sep, posix } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
@@ -529,7 +530,19 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
 
 // --- CLI -------------------------------------------------------------------
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
+// process.argv[1] preserves a symlinked invocation path; the ESM loader
+// realpaths import.meta.url. Compared raw, a symlinked invocation matches
+// nothing, runs nothing, and exits 0 — a silent no-op where exit 0 reads as
+// PASS. Both sides are therefore resolved to REAL paths, and an entry path
+// that cannot be resolved is some other module importing this one.
+const isMain = (() => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+})()
 if (isMain) {
   const root = process.argv[2] ?? DEFAULT_ROOT
   const { problems, scanned, members } = checkSourceImports(root)

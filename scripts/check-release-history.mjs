@@ -23,6 +23,14 @@
  *   check-set-releases.mjs     real manifest bytes vs the record, one revision
  *   this file                  what changed since the last governed revision
  *
+ * The succession RULES themselves — nothing vanishes, nothing mutates outside
+ * `state`, state moves only the governed way, a lifecycle begins at Released —
+ * live in `@secure-home/knowledge-toolchain` (`validateRegistrySuccession`),
+ * typed against the record shape and unit-tested beside the transition rule.
+ * This file is the git I/O adapter that feeds them two revisions; a semantic
+ * rule that lived only here would drift silently the first time the record
+ * shape grew a field.
+ *
  * WHY NEW RECORDS ARE TREATED DIFFERENTLY FROM OLD ONES.
  *
  * A NEW release must be derivable from today's catalog: its members must exist,
@@ -36,14 +44,15 @@
  * working, not a defect. So historical records are checked for identity only,
  * against bytes, never against the catalog.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
   buildSetReleaseCandidate,
-  releaseTransitionDecision,
+  moduleCandidatesFromCatalog,
+  validateRegistrySuccession,
 } from '@secure-home/knowledge-toolchain'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -116,30 +125,53 @@ export function resolveBase(root, explicit) {
   return { unresolvable: 'no inferred baseline resolved to a commit other than HEAD' }
 }
 
+/**
+ * The registry as it stood at the baseline — with ABSENCE and FAILURE apart.
+ *
+ * `git show` can fail for reasons that have nothing to do with the file not
+ * existing: a corrupt object, an I/O error, output past the subprocess buffer.
+ * Folding those into "absent" would hand the succession rules an empty prior
+ * registry and make every two-revision check silently vacuous — permanently,
+ * on every run, with nothing printed. So existence is probed on its own
+ * (`ls-tree` of the exact path: empty output means absent, and ONLY absent),
+ * and once the file is known to exist there, reading it must succeed.
+ */
 const registryAt = (root, ref) => {
+  const listed = git(root, ['ls-tree', '--name-only', ref, '--', REGISTRY])
+  if (listed === undefined) {
+    return {
+      failure: `git ls-tree ${ref} failed, so whether ${REGISTRY} existed there is unknown`,
+    }
+  }
   // Absent at the baseline means the registry was introduced here: every record
   // is new, which is the correct reading and not an error.
-  const raw = ref === undefined ? undefined : git(root, ['show', `${ref}:${REGISTRY}`])
-  if (raw === undefined) return { releases: [] }
+  if (listed.trim() === '') return { releases: [] }
+  let raw
+  try {
+    raw = execFileSync('git', ['show', `${ref}:${REGISTRY}`], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // The subprocess default is 1 MiB and overflowing it THROWS. The ceiling
+      // is raised so it stays unreachable — and if it is ever reached anyway,
+      // the failure lands in the branch below instead of reading as absence.
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim() : ''
+    return {
+      failure:
+        `git show ${ref}:${REGISTRY} failed although the file exists at that revision` +
+        (stderr === '' ? ` — ${error.message.split('\n')[0]}` : ` — ${stderr.split('\n')[0]}`),
+    }
+  }
   try {
     const parsed = JSON.parse(raw)
     return { releases: Array.isArray(parsed.releases) ? parsed.releases : [] }
   } catch {
-    return undefined
+    return { failure: `${REGISTRY} at that revision is not valid JSON` }
   }
 }
-
-const key = (record) => `${record?.familyId ?? '(unnamed)'}@${record?.version ?? '?'}`
-
-/** The identity a release carries forever. `state` is deliberately not in it. */
-const identityOf = (r) => ({
-  manifestPath: r?.manifestPath,
-  releaseDigest: r?.releaseDigest,
-  policy: r?.releaseReview?.policy,
-  by: r?.releaseReview?.by,
-  at: r?.releaseReview?.at,
-  reviewDigest: r?.releaseReview?.releaseDigest,
-})
 
 export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefined) {
   const problems = []
@@ -158,8 +190,12 @@ export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefine
   }
 
   const before = registryAt(root, base.ref)
-  if (before === undefined) {
-    fail(`${REGISTRY} at ${base.how} (${base.ref}) is not valid JSON`)
+  if (before.failure !== undefined) {
+    fail(
+      `the prior registry at ${base.how} (${base.ref}) could not be established — ` +
+        `${before.failure}. A failed read is not an absent file: treating it as "no prior ` +
+        'releases" would make every two-revision rule pass while checking nothing',
+    )
     return { problems, base, added: 0, carried: 0 }
   }
 
@@ -177,40 +213,14 @@ export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefine
     return { problems, base, added: 0, carried: 0 }
   }
 
-  const priorByKey = new Map(before.releases.map((r) => [key(r), r]))
-  const currentByKey = new Map()
-  for (const r of current) currentByKey.set(key(r), r)
-
-  // --- 1. nothing that existed may vanish or be re-identified ---------------
-  let carried = 0
-  for (const [id, prior] of priorByKey) {
-    const now = currentByKey.get(id)
-    if (now === undefined) {
-      fail(
-        `release "${id}" existed at ${base.how} and is gone. A released identity is ` +
-          'permanent: deleting the record would let the version be minted again ' +
-          "with different bytes, and an old run's evidence would become ambiguous",
-      )
-      continue
-    }
-    carried += 1
-    const was = identityOf(prior)
-    const is = identityOf(now)
-    for (const field of Object.keys(was)) {
-      if (was[field] !== is[field]) {
-        fail(
-          `release "${id}": ${field} changed from ${JSON.stringify(was[field])} to ` +
-            `${JSON.stringify(is[field])}. A release is immutable — publish a new version`,
-        )
-      }
-    }
-
-    // --- 2. state may move, but only the governed way ----------------------
-    const decision = releaseTransitionDecision(prior.state, now.state)
-    if (!decision.allowed) {
-      fail(`release "${id}": ${decision.because}`)
-    }
-  }
+  // --- 1./2. the succession rules, applied by their owner --------------------
+  // Nothing vanishes, nothing mutates outside `state` (DEEP equality, not an
+  // enumerated field list), state moves only the governed way, and a lifecycle
+  // begins at Released. The rules live in the toolchain and are unit-tested
+  // there; this file feeds them the two revisions and reports their refusals.
+  const succession = validateRegistrySuccession(before.releases, current)
+  for (const refusal of succession.refusals) fail(`${refusal.rule} — ${refusal.detail}`)
+  const carried = succession.carried
 
   // --- 3. a NEW release must satisfy the §6 preconditions -------------------
   const catalogPath = join(root, 'knowledge', 'catalog.json')
@@ -221,53 +231,45 @@ export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefine
     fail(`knowledge/catalog.json is unreadable — ${error.message}`)
     return { problems, base, added: 0, carried }
   }
-  const modules = (catalog.modules ?? []).map((m) => ({
-    id: m.id,
-    version: m.version ?? null,
-    sourceDigest: m.contentReview?.sourceDigest ?? null,
-    status: m.status,
-    blockedByToolchain: m.blockedByToolchain,
-    blockedByRollout: m.blockedByRollout,
-  }))
+  // One projection, owned by the package: it is the same mapping every other
+  // caller of buildSetReleaseCandidate uses, and it is FAIL-CLOSED — a module
+  // row missing a gate key counts as blocked, because these are the two gates
+  // a set release explicitly must not bypass and this script must hold that
+  // line standalone, without check-knowledge.mjs having run first.
+  const modules = moduleCandidatesFromCatalog(catalog)
 
-  let added = 0
-  for (const [id, record] of currentByKey) {
-    if (priorByKey.has(id)) continue
-    added += 1
-    // A lifecycle has a beginning, and the transition check cannot supply it:
-    // it only runs where a PRIOR state exists. Without this, an identity could
-    // be introduced already Deprecated or Retired -- skipping the reviewed
-    // Released state entirely, while every reachable check passed. ADR-0019's
-    // release procedure culminates in a reviewed record at Released; a state
-    // after that is reached by a governed transition, never by creation.
-    if (record.state !== 'Released') {
-      fail(
-        `new release "${id}": a newly introduced identity must start at Released, ` +
-          `not ${JSON.stringify(record.state)}. Deprecated and Retired are reached by ` +
-          'a governed transition from Released, never by creation',
-      )
-    }
-
+  for (const record of succession.added) {
+    const id = `${record.familyId}@${record.version}`
     const family = (catalog.sets ?? []).find((s) => s.id === record.familyId)
     if (family === undefined) {
       fail(`new release "${id}": familyId names no set family in catalog.json`)
       continue
     }
+    // A malformed family row is REFUSED, not crashed on: the builder iterates
+    // these fields, and an uncaught TypeError would replace the problem list
+    // with a stack trace — a diagnosis, not a gate.
+    const notArrays = [
+      ['required', family.required],
+      ['optional', family.optional ?? []],
+      ['deny', family.deny],
+    ]
+      .filter(([, value]) => !Array.isArray(value))
+      .map(([name]) => `"${name}"`)
+    if (notArrays.length > 0) {
+      fail(
+        `new release "${id}": set family "${record.familyId}" in catalog.json is ` +
+          `malformed — ${notArrays.join(', ')} must be ${
+            notArrays.length === 1 ? 'an array' : 'arrays'
+          }, so the §6 preconditions cannot be evaluated`,
+      )
+      continue
+    }
+    // The family row is SPREAD, not hand-copied field by field: SetFamily's
+    // property names match the catalog 1:1, extra catalog fields are inert to
+    // the builder, and a hand-copy silently drops any field the interface
+    // grows later.
     const built = buildSetReleaseCandidate(
-      {
-        id: family.id,
-        runnerClass: family.runnerClass,
-        required: family.required,
-        optional: family.optional ?? [],
-        deny: family.deny,
-        allowTaskAdditions: family.allowTaskAdditions,
-        allowTaskNarrowing: family.allowTaskNarrowing,
-        maxBytes: family.maxBytes,
-        maxFreshnessDays: family.maxFreshnessDays,
-        requiredFailure: family.requiredFailure,
-        optionalFailure: family.optionalFailure,
-        overrideAuthority: family.overrideAuthority,
-      },
+      { ...family, optional: family.optional ?? [] },
       record.version,
       modules,
     )
@@ -289,10 +291,22 @@ export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefine
     }
   }
 
-  return { problems, base, added, carried }
+  return { problems, base, added: succession.added.length, carried }
 }
 
-const invokedDirectly = process.argv[1] === fileURLToPath(import.meta.url)
+// process.argv[1] preserves a symlinked invocation path; the ESM loader
+// realpaths import.meta.url. Compared raw, `node <symlinked-dir>/check-...`
+// matches nothing, runs nothing, and exits 0 — indistinguishable from a
+// passing gate. Both sides are therefore resolved to REAL paths, and an entry
+// path that cannot be resolved is some other module importing this one.
+const invokedDirectly = (() => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+})()
 if (invokedDirectly) {
   const args = process.argv.slice(2)
   const baseIndex = args.indexOf('--base')
