@@ -1936,7 +1936,7 @@ there was no STOP condition and no identity-bearing field was touched.
 **Re-proof.** Every named obligation re-run green, plus the four new ones. The
 three candidates were rebuilt by A and B: 925 B / `sha256:6a7b9492…`, 1154 B /
 `sha256:b609d4a0…`, 867 B / `sha256:f3adc66f…` — byte-identical, A and B agreeing.
-293 TypeScript tests, 48 Python tests. `bash scripts/check.sh` — **19 checks**,
+277 TypeScript tests; 48 set-release Python cases, 288 pytest in total. `bash scripts/check.sh` — **19 checks**,
 all pass.
 
 **One trap worth recording:** the A/B differential probes the BUILT package, so a
