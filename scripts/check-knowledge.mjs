@@ -929,8 +929,10 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
             if (typeof review.by !== 'string' || !RELEASE_ACTOR.test(review.by)) {
               fail(`release "${rid}": releaseReview.by is not a governed human actor`)
             }
+            // SHAPE only. Whether it is a real instant is the package's rule,
+            // reported by check-set-releases.mjs — one calendar authority.
             if (typeof review.at !== 'string' || !RELEASE_INSTANT.test(review.at)) {
-              fail(`release "${rid}": releaseReview.at is not a UTC instant`)
+              fail(`release "${rid}": releaseReview.at is not a UTC timestamp`)
             }
             if (review.releaseDigest !== r?.releaseDigest) {
               fail(`release "${rid}": releaseReview.releaseDigest does not bind this release`)

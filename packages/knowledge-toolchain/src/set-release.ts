@@ -50,6 +50,10 @@ const BARE_SHA256 = /^[0-9a-f]{64}$/
 /** The REPOSITORY module-id grammar. A weaker local copy would admit ids the
  * registry refuses, so the release could pin something that cannot exist. */
 const MODULE_ID = /^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/
+/** The repository set-family grammar, for the same reason. */
+const SET_FAMILY_ID = /^[a-z][a-z0-9-]*$/
+/** A catalog attestation, before the prefix is stripped into a manifest. */
+const PREFIXED_SHA256 = /^sha256:[0-9a-f]{64}$/
 
 export type ReleaseState = 'Released' | 'Deprecated' | 'Retired'
 export const RELEASE_STATES: readonly ReleaseState[] = ['Released', 'Deprecated', 'Retired']
@@ -549,7 +553,7 @@ export const buildSetReleaseCandidate = (
         out.push({
           id,
           version: m.version as string,
-          digest: (m.sourceDigest as string).replace(/^sha256:/, ''),
+          digest: (m.sourceDigest as string).slice('sha256:'.length),
         })
     }
     return out
@@ -608,6 +612,22 @@ export const releaseManifestPath = (familyId: string, version: string): string =
   `knowledge/releases/${familyId}@${version}.manifest`
 
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
+
+/**
+ * A real UTC instant, not merely a well-shaped string.
+ *
+ * The shape regex accepts `2026-13-01T00:00:00Z` and `2026-02-30T00:00:00Z`.
+ * A review timestamped on a date that never happened is not a review event, so
+ * the value must also round-trip: parsed and re-rendered, it must be the same
+ * instant, which rejects both out-of-range fields and silent normalization.
+ */
+const isRealUtcInstant = (value: string): boolean => {
+  if (!ISO_INSTANT.test(value)) return false
+  const parsed = new Date(value)
+  const time = parsed.getTime()
+  if (Number.isNaN(time)) return false
+  return `${parsed.toISOString().slice(0, 19)}Z` === value
+}
 const REVIEW_ACTOR = /^human:[A-Za-z0-9._-]+$/
 
 /**
@@ -664,8 +684,8 @@ export const validateSetReleaseRecord = (
       add('record.review-policy', `policy must be "${RELEASE_REVIEW_POLICY}"`)
     if (typeof review.by !== 'string' || !REVIEW_ACTOR.test(review.by))
       add('record.review-actor', 'releaseReview.by is not a governed human actor')
-    if (typeof review.at !== 'string' || !ISO_INSTANT.test(review.at))
-      add('record.review-at', 'releaseReview.at is not a UTC instant')
+    if (typeof review.at !== 'string' || !isRealUtcInstant(review.at))
+      add('record.review-at', 'releaseReview.at is not a real UTC instant')
     if (review.releaseDigest !== record.releaseDigest)
       add('record.review-binding', 'releaseReview.releaseDigest does not bind this release')
   }
@@ -823,23 +843,46 @@ export interface ResolvedSelection {
   readonly modules: readonly ReleaseMember[]
 }
 
+/**
+ * The resolved selection carries the SAME admissibility rules as the release
+ * manifest, and for the same reason: it is the identity of what a run actually
+ * saw. A malformed value here would produce ambiguous bytes in exactly the place
+ * evidence is supposed to be unambiguous.
+ */
 export const canonicalResolvedSelection = (
   resolved: ResolvedSelection,
 ): ReleaseResult<Uint8Array> => {
   const refusals: ReleaseRefusal[] = []
+
+  const familyProblem = tokenProblem(resolved.family)
+  if (familyProblem !== undefined)
+    refusals.push(refuse('resolved.family', `family ${familyProblem}`))
+  else if (!SET_FAMILY_ID.test(resolved.family))
+    refusals.push(refuse('resolved.family', `"${resolved.family}" is not a set family id`))
+
+  // The logical contract is the prefixed catalog/release form. Stripping a bare
+  // value silently would accept something that was never a digest of ours.
   const bare = (value: string, field: string): string => {
-    const stripped = value.replace(/^sha256:/, '')
-    if (!BARE_SHA256.test(stripped))
-      refusals.push(refuse('resolved.digest', `${field} is not a sha256 digest`))
-    return stripped
+    if (!PREFIXED_SHA256.test(value)) {
+      refusals.push(
+        refuse('resolved.digest', `${field} must be "sha256:" + 64 lowercase hex, not "${value}"`),
+      )
+      return ''
+    }
+    return value.slice('sha256:'.length)
   }
   const releaseHex = bare(resolved.releaseDigest, 'releaseDigest')
   const deltaHex = bare(resolved.taskDeltaDigest, 'taskDeltaDigest')
+
   if (!RELEASE_VERSION.test(resolved.version))
     refusals.push(refuse('resolved.version', 'version is not DIGIT+.DIGIT+.DIGIT+'))
+
   const seen = new Set<string>()
   for (const m of resolved.modules) {
     if (!MODULE_ID.test(m.id)) refusals.push(refuse('resolved.id', `"${m.id}" is not a module id`))
+    const versionProblem = tokenProblem(m.version)
+    if (versionProblem !== undefined)
+      refusals.push(refuse('resolved.version', `"${m.id}" version ${versionProblem}`))
     if (!BARE_SHA256.test(m.digest))
       refusals.push(refuse('resolved.digest', `"${m.id}" digest is not bare lowercase 64-hex`))
     if (seen.has(m.id)) refusals.push(refuse('resolved.duplicate', `"${m.id}" repeats`))
@@ -935,10 +978,18 @@ export const applyTaskDelta = (
       continue
     }
     const found = m as MemberCandidate
+    // A catalog version carrying a separator would produce ambiguous resolved
+    // bytes. Refuse at the point of addition rather than at serialization, so
+    // the refusal names the module that caused it.
+    const versionProblem = tokenProblem(found.version as string)
+    if (versionProblem !== undefined) {
+      refusals.push(refuse('delta.add-version', `added "${id}" version ${versionProblem}`))
+      continue
+    }
     selected.set(id, {
       id,
       version: found.version as string,
-      digest: (found.sourceDigest as string).replace(/^sha256:/, ''),
+      digest: (found.sourceDigest as string).slice('sha256:'.length),
     })
   }
   if (refusals.length > 0) return { ok: false, refusals }

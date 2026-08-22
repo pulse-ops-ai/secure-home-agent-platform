@@ -16,6 +16,7 @@ planted in A's serializer changes A's answer and not B's.
 from __future__ import annotations
 
 import hashlib
+import re
 import unicodedata
 from typing import Any
 
@@ -49,10 +50,25 @@ def _check_string(value: str, where: str) -> str:
     return value
 
 
+# EXACTLY the ASCII whitespace ADR-0019 names. Deliberately not str.isspace(),
+# which is Unicode-wide: using it would make B refuse values A accepts, so the
+# two implementations would disagree about the accepted DOMAIN while agreeing on
+# today's fixtures.
+_ASCII_WHITESPACE = frozenset("\t\n\x0b\x0c\r ")
+
+# The repository module-id and set-family grammars, restated here rather than
+# imported. B enforcing a weaker grammar would let it accept a manifest A refuses.
+_MODULE_ID = re.compile(r"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$")
+
+# A's integers are JavaScript numbers, so the accepted authoring domain stops at
+# the safe-integer boundary: beyond it a decimal spelling would not round-trip.
+_MAX_SAFE_INTEGER = 2**53 - 1
+
+
 def _check_token(value: str, where: str) -> str:
     _check_string(value, where)
-    if any(ch.isspace() for ch in value):
-        raise ManifestRefusalError(f"{where} contains whitespace")
+    if any(ch in _ASCII_WHITESPACE for ch in value):
+        raise ManifestRefusalError(f"{where} contains ASCII whitespace")
     return value
 
 
@@ -67,14 +83,22 @@ def _check_version(value: str, where: str) -> str:
 def _check_int(value: int, where: str) -> str:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ManifestRefusalError(f"{where} is not a non-negative integer")
+    if value > _MAX_SAFE_INTEGER:
+        raise ManifestRefusalError(f"{where} is not a safe integer")
     return str(value)
 
 
 def _check_digest(value: str, where: str) -> str:
-    bare = value[7:] if value.startswith("sha256:") else value
-    if len(bare) != 64 or any(c not in "0123456789abcdef" for c in bare):
+    """A manifest member digest is BARE lowercase 64-hex.
+
+    Deliberately no prefix stripping. Accepting "sha256:..." here and silently
+    normalizing it would let B accept a logical release A refuses, so the two
+    implementations would disagree about the domain while agreeing on the bytes
+    they both happen to produce.
+    """
+    if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
         raise ManifestRefusalError(f"{where} is not bare lowercase 64-hex")
-    return bare
+    return value
 
 
 def canonical_manifest(release: dict[str, Any]) -> bytes:
@@ -113,6 +137,9 @@ def canonical_manifest(release: dict[str, Any]) -> bytes:
             for mid in ids:
                 if mid in required_ids:
                     raise ManifestRefusalError(f"{mid} is both required and optional")
+        for mid in ids:
+            if not _MODULE_ID.match(mid):
+                raise ManifestRefusalError(f"{kind} {mid} is not a module id")
         for m in sorted(members, key=lambda x: x["id"].encode("utf-8")):
             out += kind.encode("utf-8") + b" " + m["id"].encode("utf-8")
             out += b"\x00" + _check_token(m["version"], "member version").encode("utf-8")

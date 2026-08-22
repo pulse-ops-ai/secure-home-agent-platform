@@ -805,3 +805,125 @@ describe('ADR-0019 identity grammar is total', () => {
     expect(r.ok).toBe(false)
   })
 })
+
+describe('ADR-0019 §11 resolved-selection bytes are unambiguous', () => {
+  const ok = {
+    family: 'demo-default',
+    version: '1.0.0',
+    releaseDigest: `sha256:${DIGEST_A}`,
+    taskDeltaDigest: `sha256:${DIGEST_B}`,
+    modules: [{ id: 'platform/one', version: '1.0.0', digest: DIGEST_C }],
+  }
+
+  it('accepts a well-formed selection — the control', () => {
+    expect(canonicalResolvedSelection(ok).ok).toBe(true)
+  })
+
+  const bad: readonly [string, Record<string, unknown>, string][] = [
+    ['family with a space', { family: 'demo default' }, 'resolved.family'],
+    ['family with LF', { family: 'demo\ndefault' }, 'resolved.family'],
+    ['family with CR', { family: 'demo\rdefault' }, 'resolved.family'],
+    ['family with NUL', { family: `demo${'\u0000'}default` }, 'resolved.family'],
+    ['family not a set id', { family: 'Demo-Default' }, 'resolved.family'],
+    ['bare releaseDigest', { releaseDigest: DIGEST_A }, 'resolved.digest'],
+    ['malformed taskDeltaDigest', { taskDeltaDigest: 'sha256:nope' }, 'resolved.digest'],
+    ['bad version grammar', { version: 'v1' }, 'resolved.version'],
+    [
+      'malformed module id',
+      { modules: [{ id: '1platform/one', version: '1.0.0', digest: DIGEST_C }] },
+      'resolved.id',
+    ],
+    [
+      'prefixed module digest',
+      { modules: [{ id: 'platform/one', version: '1.0.0', digest: `sha256:${DIGEST_C}` }] },
+      'resolved.digest',
+    ],
+    [
+      'member version with NUL',
+      { modules: [{ id: 'platform/one', version: `1${'\u0000'}0`, digest: DIGEST_C }] },
+      'resolved.version',
+    ],
+    [
+      'member version with LF',
+      { modules: [{ id: 'platform/one', version: '1\n0', digest: DIGEST_C }] },
+      'resolved.version',
+    ],
+    [
+      'member version with CR',
+      { modules: [{ id: 'platform/one', version: '1\r0', digest: DIGEST_C }] },
+      'resolved.version',
+    ],
+    [
+      'duplicate module',
+      {
+        modules: [
+          { id: 'platform/one', version: '1.0.0', digest: DIGEST_C },
+          { id: 'platform/one', version: '1.0.0', digest: DIGEST_C },
+        ],
+      },
+      'resolved.duplicate',
+    ],
+  ]
+
+  for (const [name, over, rule] of bad) {
+    it(`refuses ${name}`, () => {
+      const r = canonicalResolvedSelection({ ...ok, ...over })
+      expect(r.ok, name).toBe(false)
+      expect(rulesOf(r), name).toContain(rule)
+    })
+  }
+
+  it('refuses at the point of ADDITION when a catalog version carries a separator', () => {
+    // The real path: a malformed catalog value must never reach the resolved
+    // bytes, and the refusal must name the module that caused it.
+    const rel = buildSetReleaseCandidate(
+      family({ required: ['platform/one'], optional: [], deny: [], allowTaskAdditions: true }),
+      '1.0.0',
+      [member({ id: 'platform/one' })],
+    )
+    expect(rel.ok).toBe(true)
+    if (!rel.ok) return
+    for (const version of [`1${'\u0000'}0`, '1\n0', '1\r0', '1 0']) {
+      const r = applyTaskDelta(rel.value.release, { add: ['platform/two'], narrow: [] }, [
+        member({ id: 'platform/one' }),
+        member({ id: 'platform/two', version }),
+      ])
+      expect(r.ok, JSON.stringify(version)).toBe(false)
+      expect(rulesOf(r), JSON.stringify(version)).toContain('delta.add-version')
+    }
+  })
+})
+
+describe('ADR-0019 releaseReview.at must be a real instant', () => {
+  const cand = buildSetReleaseCandidate(family(), '1.0.0', [member({ id: 'platform/one' })])
+  const bytes = cand.ok ? cand.value.manifest : new Uint8Array()
+  const digest = cand.ok ? cand.value.releaseDigest : ''
+  const withAt = (at: string): SetReleaseRecord => ({
+    familyId: 'demo-default',
+    version: '1.0.0',
+    manifestPath: releaseManifestPath('demo-default', '1.0.0'),
+    releaseDigest: digest,
+    releaseReview: {
+      policy: 'knowledge-set-release-review-v1',
+      by: 'human:reviewer',
+      at,
+      releaseDigest: digest,
+    },
+    state: 'Released',
+  })
+  const families = new Set(['demo-default'])
+
+  it('accepts a real UTC instant', () => {
+    expect(validateSetReleaseRecord(withAt('2026-08-22T13:45:07Z'), bytes, families).ok).toBe(true)
+  })
+
+  it('refuses a well-shaped date that never happened', () => {
+    // The shape regex accepts all of these. A review stamped on a date that does
+    // not exist is not a review event.
+    for (const at of ['2026-13-01T00:00:00Z', '2026-02-30T00:00:00Z', '2026-01-01T25:00:00Z']) {
+      const r = validateSetReleaseRecord(withAt(at), bytes, families)
+      expect(r.ok, at).toBe(false)
+      expect(rulesOf(r), at).toContain('record.review-at')
+    }
+  })
+})

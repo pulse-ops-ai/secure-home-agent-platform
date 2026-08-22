@@ -64,8 +64,9 @@ value be different in ten minutes?** If yes, it is state.
 - Author content for a module that is **not authoring-eligible**. Eligibility
   requires *both* gates false. `blockedByToolchain` was discharged on
   2026-08-16, so the `platform/**` modules are eligible and runbooks are eligible
-  per module by explicit allowlist; `household/**` and every set are still
-  `blockedByRollout`. `catalog.json` is authoritative for current eligibility. Whatever you author
+  per module by explicit allowlist; `household/**` modules are still
+  `blockedByRollout`. A set family carries no rollout gate — release eligibility
+  lives on immutable release records in `set-releases.json` (ADR-0019). `catalog.json` is authoritative for current eligibility. Whatever you author
   must pass `pnpm run check:knowledge-content`, and publication still requires
   Proof B, which has no producer.
 - Change the source format. It is decided by

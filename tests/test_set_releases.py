@@ -50,8 +50,16 @@ def _logical(family_id: str) -> dict[str, Any]:
         out: list[dict[str, Any]] = []
         for mid in ids:
             m = modules[mid]
-            digest = (m.get("contentReview") or {}).get("sourceDigest")
-            out.append({"id": mid, "version": m["version"], "digest": digest})
+            attestation = (m.get("contentReview") or {}).get("sourceDigest") or ""
+            # The CATALOG holds "sha256:<hex>"; a manifest member holds bare hex.
+            # Keeping the two apart is the point — see _check_digest in the oracle.
+            out.append(
+                {
+                    "id": mid,
+                    "version": m["version"],
+                    "digest": attestation.removeprefix("sha256:"),
+                }
+            )
         return out
 
     return {
@@ -345,3 +353,152 @@ def test_the_oracle_detects_a_serializer_output_defect() -> None:
     reordered = dict(logical)
     reordered["required"] = list(reversed(logical["required"]))
     assert canonical_manifest(reordered) == honest, "ordering is normative, not incidental"
+
+
+# --- A and B must agree on the accepted DOMAIN, not just the live candidates ---
+
+
+def _implementation_a_accepts(logical: dict[str, Any]) -> bool:
+    """Ask the package whether it can canonically serialize this logical release."""
+    script = """
+import { canonicalSetReleaseManifest } from '@secure-home/knowledge-toolchain'
+const input = JSON.parse(process.argv[2])
+const r = canonicalSetReleaseManifest(input)
+process.stdout.write(r.ok ? Buffer.from(r.value).toString('base64') : 'REFUSED')
+"""
+    path = REPO_ROOT / ".domain-probe.mjs"
+    path.write_text(script)
+    try:
+        out = subprocess.run(
+            ["node", str(path), json.dumps(logical)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    finally:
+        path.unlink(missing_ok=True)
+    return out.stdout != "REFUSED"
+
+
+def _implementation_a_bytes(logical: dict[str, Any]) -> bytes | None:
+    script = """
+import { canonicalSetReleaseManifest } from '@secure-home/knowledge-toolchain'
+const input = JSON.parse(process.argv[2])
+const r = canonicalSetReleaseManifest(input)
+process.stdout.write(r.ok ? Buffer.from(r.value).toString('base64') : 'REFUSED')
+"""
+    path = REPO_ROOT / ".domain-probe.mjs"
+    path.write_text(script)
+    try:
+        out = subprocess.run(
+            ["node", str(path), json.dumps(logical)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    finally:
+        path.unlink(missing_ok=True)
+    if out.stdout == "REFUSED":
+        return None
+    import base64
+
+    return base64.b64decode(out.stdout)
+
+
+def _implementation_b_bytes(logical: dict[str, Any]) -> bytes | None:
+    try:
+        return canonical_manifest(logical)
+    except ManifestRefusalError:
+        return None
+
+
+MAX_SAFE = 2**53 - 1
+
+DOMAIN_CASES: list[tuple[str, dict[str, Any]]] = [
+    ("baseline", {}),
+    # NBSP is Unicode whitespace but NOT ASCII whitespace: the ADR names ASCII,
+    # so BOTH must accept it. A Python str.isspace() oracle would refuse here.
+    ("family with NBSP", {"family": "demo\u00a0default"}),
+    ("family with ASCII SP", {"family": "demo default"}),
+    ("family with NUL", {"family": "demo\x00default"}),
+    ("family with LF", {"family": "demo\ndefault"}),
+    ("family with CR", {"family": "demo\rdefault"}),
+    ("maxBytes at MAX_SAFE_INTEGER", {"maxBytes": MAX_SAFE}),
+    ("maxBytes above MAX_SAFE_INTEGER", {"maxBytes": MAX_SAFE + 1}),
+    (
+        "module id starting with a digit",
+        {"required": [{"id": "1platform/one", "version": "1.0.0", "digest": "a" * 64}]},
+    ),
+    (
+        "module id with an uppercase letter",
+        {"required": [{"id": "Platform/one", "version": "1.0.0", "digest": "a" * 64}]},
+    ),
+    (
+        "module id with a leading hyphen",
+        {"required": [{"id": "-platform/one", "version": "1.0.0", "digest": "a" * 64}]},
+    ),
+    (
+        "member version with NUL",
+        {"required": [{"id": "platform/one", "version": "1.0\x000", "digest": "a" * 64}]},
+    ),
+    (
+        "member version with LF",
+        {"required": [{"id": "platform/one", "version": "1.0\n0", "digest": "a" * 64}]},
+    ),
+    (
+        "member version with a space",
+        {"required": [{"id": "platform/one", "version": "1.0 0", "digest": "a" * 64}]},
+    ),
+    (
+        "member version with NBSP",
+        {"required": [{"id": "platform/one", "version": "1.0\u00a00", "digest": "a" * 64}]},
+    ),
+    (
+        "prefixed member digest",
+        {"required": [{"id": "platform/one", "version": "1.0.0", "digest": "sha256:" + "a" * 64}]},
+    ),
+    (
+        "uppercase member digest",
+        {"required": [{"id": "platform/one", "version": "1.0.0", "digest": "A" * 64}]},
+    ),
+]
+
+
+def _domain_input(over: dict[str, Any]) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "family": "demo-default",
+        "version": "1.0.0",
+        "runnerClass": "coding-runner",
+        "allowTaskAdditions": False,
+        "allowTaskNarrowing": True,
+        "maxBytes": 1048576,
+        "maxFreshnessDays": 180,
+        "requiredFailure": "reject-run",
+        "optionalFailure": "warn",
+        "overrideAuthority": "profile-change-review",
+        "deny": ["household/*"],
+        "required": [{"id": "platform/one", "version": "1.0.0", "digest": "a" * 64}],
+        "optional": [],
+    }
+    return {**base, **over}
+
+
+@pytest.mark.parametrize(("name", "over"), DOMAIN_CASES, ids=[c[0] for c in DOMAIN_CASES])
+def test_the_two_implementations_accept_the_same_domain(name: str, over: dict[str, Any]) -> None:
+    """A accepts iff B accepts — and where both accept, the bytes are identical.
+
+    Agreeing on three live candidates is not agreement on a grammar. These probe
+    the boundaries where a convenience predicate in either implementation would
+    silently widen or narrow the accepted domain.
+    """
+    logical = _domain_input(over)
+    a = _implementation_a_bytes(logical)
+    b = _implementation_b_bytes(logical)
+    assert (a is None) == (b is None), (
+        f"{name}: A {'refused' if a is None else 'accepted'} but B "
+        f"{'refused' if b is None else 'accepted'}"
+    )
+    if a is not None and b is not None:
+        assert a == b, f"{name}: both accepted but produced different bytes"

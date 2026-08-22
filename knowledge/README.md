@@ -6,8 +6,9 @@ that agents read to *understand* the house.
 > **Status: the initial Prompt-4 `platform/**` corpus is complete.**
 > [`catalog.json`](catalog.json) is authoritative for the current module
 > inventory and lifecycle state, and further modules may be added when new
-> durable truths are earned. `blockedByRollout` still holds `household/**`
-> and every set; runbook rollout is per module. The FORMAT is decided
+> durable truths are earned. `blockedByRollout` still holds `household/**`;
+> runbook rollout is per module. A set family carries no rollout gate at all —
+> release eligibility lives on immutable release records. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
 > which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
 > toolchain and its conformance suite are implemented and are invoked over real
@@ -30,7 +31,7 @@ that agents read to *understand* the house.
 
 | Document | What it is |
 |---|---|
-| [`INDEX.md`](INDEX.md) | the **registry** — every knowledge module and set, and their status |
+| [`INDEX.md`](INDEX.md) | the **registry** — a human-facing inventory of modules, set families, and the release model |
 | [`catalog.json`](catalog.json) | the machine-readable source the registry is a view of |
 | [`../docs/architecture/knowledge-selection-model.md`](../docs/architecture/knowledge-selection-model.md) | how a profile **selects** knowledge and what a run records about it |
 
@@ -40,12 +41,20 @@ Three concepts, kept distinct:
 
 ```text
 knowledge module   one independently versioned body of portable knowledge
-knowledge set      a named, profile-oriented composition of allowed modules
+set family         a named, mutable composition of allowed modules —
+                   authoring intent, carrying no version or lifecycle
+set release        an immutable, digest-identified revision of a family,
+                   pinning every member's exact version and digest
 packaged bundle    the immutable, digest-addressed artifact delivered to a run
 ```
 
-A profile selects a **set** by name and version. It never references a repository
-file path. No packaged bundle exists.
+A profile pins a **set release** as `family@version` and never references a
+repository file path. The family is what a reviewer edits; the release is what a
+run resolves ([ADR-0019](../docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)).
+
+**Released is not runtime-resolvable.** No packaged bundle and no resolver exist,
+so a release can be reviewed and recorded while remaining unusable by any
+deployed profile.
 
 ## What knowledge is
 

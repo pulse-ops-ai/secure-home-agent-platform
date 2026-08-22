@@ -1818,3 +1818,54 @@ claimed content admission validates set releases are corrected.
 
 Household negative control re-run: all three families refuse at member level.
 `bash scripts/check.sh` — **19 checks**, all pass.
+
+### Prompt 6B — final mechanism closure before human release review
+
+**Task contract.** Direct user task, 2026-08-22. Four items, none of which
+touched the frozen candidate bytes.
+
+**The resolved-selection form was not strict.** `canonicalResolvedSelection`
+serialized whatever it was handed. It now enforces the same grammar as the
+release manifest: `family` against the set-id rule and the separator rule,
+`version` against `RELEASE_VERSION`, `releaseDigest` and `taskDeltaDigest` as
+exactly `sha256:<64 lowercase hex>`, each member id against `MODULE_ID`, each
+member version against the separator rule, each member digest as bare 64-hex,
+and duplicate members refused. Fourteen negative cases assert the *exact* rule,
+not the rule prefix. The real path is proved too: a catalog module whose version
+carries NUL, LF, CR, or a space is refused by `applyTaskDelta` at the point of
+addition (`delta.add-version`), so malformed catalog content cannot reach the
+resolved bytes at all.
+
+**The two implementations had never been differentially tested on the domain.**
+Byte parity on three well-formed inputs proves agreement where both accept; it
+says nothing about where they *refuse*. `test_the_two_implementations_accept_the_same_domain`
+now runs 17 boundary cases through both and asserts `(a is None) == (b is None)`.
+It immediately found a real disagreement: **B accepted a `sha256:`-prefixed
+member digest that A refused**, because the oracle silently stripped the prefix.
+B was wrong; the stripping is gone. B's whitespace rule (`str.isspace()`, which is
+Unicode-wide) and its missing module-id and MAX_SAFE_INTEGER rules were aligned
+to the ADR the same way — independently, not by importing A.
+
+**`releaseReview.at` was shape-checked, not calendar-checked.** `2026-13-01T00:00:00Z`
+and `2026-02-30T00:00:00Z` satisfy the regex and are not instants.
+`isRealUtcInstant` round-trips the value through `Date`/`toISOString` and
+`validateSetReleaseRecord` uses it. There is exactly one calendar authority:
+`check-knowledge.mjs` checks shape and delegates, and `check-set-releases.mjs`
+duplicates no calendar logic.
+
+**Standing guidance, again.** `knowledge/README.md` claimed `blockedByRollout`
+"still holds `household/**` and every set" — false since ADR-0019 removed the
+gate from families — and described `INDEX.md` as carrying set *status*, which a
+family does not have. `knowledge/AGENTS.md` carried the same false set claim. Both
+now route to the release records instead of restating a state. The Module/set/bundle
+explanation distinguishes set family, set release, and packaged bundle, and says
+plainly that Released is not runtime-resolvable. No counts are encoded.
+
+**Re-proof.** All eight prior fixes re-run green by name. The three candidates
+were rebuilt by A and B: 925 B / `sha256:6a7b9492…`, 1154 B / `sha256:b609d4a0…`,
+867 B / `sha256:f3adc66f…` — byte-identical to the frozen review checkpoints, A
+and B agreeing on all three. 263 TypeScript tests, 37 Python tests.
+`bash scripts/check.sh` — **19 checks**, all pass.
+
+**Still true, and the reason this stops here:** no `releaseReview` has been
+written, no candidate manifest has been committed, and no live release exists.
