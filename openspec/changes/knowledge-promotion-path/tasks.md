@@ -1700,3 +1700,63 @@ head:
   meaningful limitation retained and no count encoded.
 
 **At this point no mechanism, no release, and no `releaseReview` exists.**
+
+### Prompt 6B — mechanism implemented, releases pending review
+
+**ADR-0019 is implemented. No set release exists.**
+
+**Family schema migrated.** `status`, `version`, `asOf`, and `blockedByRollout`
+are **removed** from every set-family row and are now **refused** by the checker:
+a mutable row carrying "the current release version" stops representing `1.0.0`
+the moment `1.1.0` exists. `blockedByToolchain` stays as ADR-0019 §10a option A —
+a repository-wide readiness mirror that never enters a manifest and authorizes
+nothing. Module rows are untouched.
+
+**Release registry.** `knowledge/set-releases.json` (`version: 1`, `releases: []`)
+plus a flat `knowledge/releases/<familyId>@<version>.manifest` layout. A record
+carries exactly `familyId`, `version`, `manifestPath`, `releaseDigest`,
+`releaseReview`, `state` — and **no gate boolean**, because `Released` *is* the
+eligibility and a second authority could disagree with it.
+
+**Mechanism** in `packages/knowledge-toolchain/src/set-release.ts`: canonical
+serialization, strict parsing, candidate building with the §6 preconditions,
+record validation, lookup, adoption and run decisions, and the task-delta and
+resolved-selection forms. Historical validation never consults current module
+rows, so an old release stays exact as the catalog advances.
+
+**Independent oracle.** `tests/set_release_oracle.py` is implementation **B** — a
+different language, importing nothing from the package, sharing no helper,
+rebuilding the ADR-0019 bytes from logical content. A planted one-byte defect in
+A's serializer moved A's digest to `sha256:8177842d…` while B held
+`sha256:6a7b9492…`. A test also guards that B never imports A or shells out to it.
+
+**Twenty-two cases mechanized**, in `set-release.test.ts` and
+`tests/test_set_releases.py`. One found a real defect in my own work: the
+strict-parsing refusals asserted only the rule *prefix*, so a CRLF mutant
+survived by being refused for a different reason. Tightened to exact rules; the
+mutant now dies on its own named test.
+
+**Candidates prepared, not landed** — built outside committed state, never added
+to the registry, no `releaseReview` written, no manifest committed:
+
+| Family | Bytes | Release digest |
+|---|---:|---|
+| `prepr-review-default@1.0.0` | 925 | `sha256:6a7b9492d2dfcb9b14ce4adc4851510ca6fbad6fad59eaaeaa4d070b0f736cf7` |
+| `implement-local-default@1.0.0` | 1154 | `sha256:b609d4a06c816f9f451e8a6fec9e759741ab4d469846dcf3806d721c7f47e336` |
+| `architecture-default@1.0.0` | 867 | `sha256:f3adc66f39d5e8586cc2d83cec4076ea12f8341280608c4022e5427d6ea0850c` |
+
+Each verified **three ways** — implementation A, independent oracle B, and the
+reviewer's independent expectation — byte counts and digests all identical.
+
+**Household negative control.** All three household families **refuse**, and the
+refusals name each blocking member through four distinct member-precondition
+rules rather than a family label.
+
+### State at this point
+
+- **No set release exists.** `releases: []`.
+- **No `releaseReview` written.** No candidate manifest committed.
+- No runtime resolver, no profile knowledge schema, no session wiring.
+- No module packaged or published; the 13 reviewed identities are unchanged.
+- `household/**` modules remain rollout-blocked.
+- **Human release review is required before any release is recorded.**

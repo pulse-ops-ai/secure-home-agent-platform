@@ -471,10 +471,7 @@
       "id": "prepr-review-default",
       "purpose": "Reviewing a change before a pull request is opened.",
       "runnerClass": "coding-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Composition only.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -484,7 +481,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the review conventions or the validation procedure change.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -508,10 +504,7 @@
       "id": "implement-local-default",
       "purpose": "Implementing a change in this repository on the local host.",
       "runnerClass": "coding-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. The optional API-contract module means two runs of one release can see different context; evidence records which.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -521,7 +514,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the implementation rules, workspace conventions, or worker contract change.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -546,10 +538,7 @@
       "id": "architecture-default",
       "purpose": "Reasoning about architecture and proposing decisions.",
       "runnerClass": "coding-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Deliberately omits implementation and workspace modules, so a run using it cannot look up how to build what it proposes.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -559,7 +548,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review when the runner model or the degraded-mode classification changes.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/governance",
@@ -581,10 +569,7 @@
       "id": "home-status-default",
       "purpose": "Answering questions about the state and structure of the house.",
       "runnerClass": "household-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Describes the house; carries no live state and confers no ability to read or change any device.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -594,7 +579,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a change to household topology or security equipment classes.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -623,10 +607,7 @@
       "id": "climate-default",
       "purpose": "Reasoning about comfort and HVAC behaviour.",
       "runnerClass": "household-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Documented equipment limits are not the enforced safety envelope, and this family grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -636,7 +617,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on equipment replacement or a change to comfort conventions.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",
@@ -666,10 +646,7 @@
       "id": "gridwise-default",
       "purpose": "Reasoning about energy cost and load shifting.",
       "runnerClass": "household-runner",
-      "status": "Planned",
       "owner": "human:mikegtech",
-      "version": null,
-      "asOf": null,
       "limitations": "Mutable set family. Release identity, lifecycle, and rollout eligibility live on immutable release records under ADR-0019; the family itself grants no capability. Cost reasoning never justifies leaving the safety envelope, and this family grants no actuation.",
       "governingSources": [
         "docs/architecture/knowledge-selection-model.md",
@@ -679,7 +656,6 @@
       "sensitivity": "portable-nonsensitive",
       "freshnessPolicy": "Review on a tariff structure change or a change to upstream metric definitions.",
       "blockedByToolchain": false,
-      "blockedByRollout": true,
       "required": [
         "platform/core-operating-model",
         "platform/degraded-operation",

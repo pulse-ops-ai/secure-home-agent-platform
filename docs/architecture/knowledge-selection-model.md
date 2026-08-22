@@ -271,6 +271,45 @@ than its profile selected is distinguishable from one that received everything.
 **Persistence is not implemented here.** This defines the fields; where run
 evidence is stored is [U11](unresolved-decisions.md#u11) and the run schema.
 
+## 4a. The two canonical evidence forms
+
+[ADR-0019](../decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md)
+§11 requires a task delta and a resolved manifest to carry digests rather than a
+minted set version. These are the **repository-internal canonical forms** that
+implement it. Neither is a set release, and neither is a profile schema.
+
+```text
+task_delta :=
+  "okf-set-task-delta-v1"       LF
+  ( "add"    SP <module-id>     LF )*
+  ( "narrow" SP <module-id>     LF )*
+
+taskDeltaDigest := "sha256:" || hex(sha256(task_delta))
+```
+
+```text
+resolved_selection :=
+  "okf-resolved-knowledge-v1"                          LF
+  "family"          SP <family-id>                     LF
+  "version"         SP <release-version>               LF
+  "releaseDigest"   SP <bare-hex>                      LF
+  "taskDeltaDigest" SP <bare-hex>                      LF
+  ( "module" SP <id> NUL <version> NUL <bare-hex>      LF )*
+
+resolvedManifestDigest := "sha256:" || hex(sha256(resolved_selection))
+```
+
+Same rules as the release manifest: UTF-8/NFC, `LF` only, final `LF` required,
+`add`, `narrow`, and `module` sorted by ascending UTF-8 bytes, duplicates
+refused, and no escaping — a value containing `NUL`, `LF`, or `CR` is refused.
+
+**Every module a task adds resolves to an exact `(id, version, digest)`.** There
+is no floating reference, `deny` beats every addition, and an addition or
+narrowing happens only where the release permits it.
+
+**The resolver that would use these does not exist.** These forms make the
+identity mechanical; delivering context to a run is later work.
+
 ## 5. Adoption note for the existing runner substrate
 
 **Read this before building anything against it.**

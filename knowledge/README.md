@@ -17,7 +17,9 @@ that agents read to *understand* the house.
 > [`catalog.json`](catalog.json) is authoritative for the current inventory and
 > lifecycle state.
 >
-> `household/**` and every set remain **rollout-blocked**, and runbook rollout is
+> A set **family** is mutable authoring intent; a set **release** is an immutable, digest-identified revision, and a profile pins the release. [`set-releases.json`](set-releases.json) is authoritative for release lifecycle and eligibility. Knowledge remains context, never authority, and **released is not runtime-resolvable** — no resolver exists.
+>
+> `household/**` remains **rollout-blocked**, and runbook rollout is
 > per module — [`catalog.json`](catalog.json) is authoritative for current
 > eligibility:
 > authoring eligibility requires *both* gates false. Publication is blocked

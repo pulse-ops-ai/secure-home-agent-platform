@@ -18,8 +18,9 @@ The canonical registry of knowledge **modules** and **sets**.
 > **its own** digest and passes canonical admission independently.
 > [`catalog.json`](catalog.json) records the authoritative current lifecycle
 > state and version for every module. Nothing is packaged and nothing is
-> published — `household/**` and every set remain rollout-blocked, runbook
-> rollout is per module, and publication additionally requires Proof B, for which
+> published — `household/**` remains rollout-blocked, runbook rollout is
+> per module, and set release eligibility lives on immutable release records
+> ([`set-releases.json`](set-releases.json)), and publication additionally requires Proof B, for which
 > no governed producer exists.
 
 Metadata lives once, in [`catalog.json`](catalog.json). This document is its

@@ -37,6 +37,45 @@ export {
   RECOGNIZED_POLICIES,
 } from './attestation.js'
 export { authoringEligibility, resolveSet } from './gates.js'
+export {
+  SET_RELEASE_FORMAT,
+  TASK_DELTA_FORMAT,
+  RESOLVED_KNOWLEDGE_FORMAT,
+  RELEASE_REVIEW_POLICY,
+  RELEASE_VERSION,
+  RELEASE_STATES,
+  COMPOSABLE_MODULE_STATES,
+  canonicalSetReleaseManifest,
+  digestSetReleaseManifest,
+  parseSetReleaseManifest,
+  isCanonicalSetReleaseManifest,
+  buildSetReleaseCandidate,
+  validateSetReleaseRecord,
+  releaseManifestPath,
+  lookupSetRelease,
+  releaseAdoptionDecision,
+  releaseRunDecision,
+  canonicalTaskDelta,
+  digestTaskDelta,
+  canonicalResolvedSelection,
+  digestResolvedSelection,
+  applyTaskDelta,
+} from './set-release.js'
+export type {
+  ReleaseState,
+  ReleaseMember,
+  LogicalRelease,
+  ReleaseRefusal,
+  ReleaseResult,
+  MemberCandidate,
+  SetFamily,
+  SetReleaseCandidate,
+  ReleaseReview,
+  SetReleaseRecord,
+  ReleaseDecision,
+  TaskDelta,
+  ResolvedSelection,
+} from './set-release.js'
 export type { AuthoringDecision, GateState, SetResolution } from './gates.js'
 export { BLIND_SPOTS, COVERAGE, UNDECIDABLE_CLASSES } from './indicators.js'
 export type { EvidenceKind, IndicatorSpec } from './indicators.js'

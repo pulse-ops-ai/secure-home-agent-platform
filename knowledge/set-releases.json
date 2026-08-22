@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Immutable set RELEASE records (ADR-0019).",
+    "",
+    "A set FAMILY in catalog.json is mutable authoring intent. A RELEASE is an",
+    "immutable, digest-identified revision of it, and a profile pins the release,",
+    "never the family. (familyId, version) resolves to exactly one releaseDigest",
+    "for all time, and a version is never reused - not after deprecation, not",
+    "after retirement.",
+    "",
+    "state is the only mutable part of a record: Released -> Deprecated ->",
+    "Retired. Changing it never touches the manifest bytes, the digest, or the",
+    "review. Deprecation restricts new adoption; retirement restricts execution;",
+    "neither restricts explanation of an old run.",
+    "",
+    "There is no blockedByRollout here: Released IS the eligibility. A second",
+    "boolean could disagree with the state, and the permissive reading would win.",
+    "",
+    "Canonical manifest bytes live at knowledge/releases/<familyId>@<version>.manifest",
+    "and are digested exactly as ADR-0019 section 4 fixes."
+  ],
+  "version": 1,
+  "releases": []
+}

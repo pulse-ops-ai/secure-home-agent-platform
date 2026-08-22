@@ -88,8 +88,10 @@ value be different in ten minutes?** If yes, it is state.
    [`catalog.json`](catalog.json) is authoritative for `blockedByRollout`, and
    the rule differs by class: `platform/**` is rollout-eligible **by class**;
    a runbook is eligible **individually**, only when a reviewed change adds it
-   to `runbookRolloutAllowlist`; `household/**` modules remain blocked; every
-   set remains blocked. Whatever you author must pass
+   to `runbookRolloutAllowlist`; `household/**` modules remain blocked. A set
+   family carries no rollout gate at all: release eligibility belongs to an
+   immutable release record in [`set-releases.json`](set-releases.json), where
+   `Released` **is** the eligibility (ADR-0019). Whatever you author must pass
    `pnpm run check:knowledge-content`.
 
 An unregistered module directory fails validation. That is deliberate: a module

@@ -123,16 +123,12 @@ const REQUIRED_SET_FIELDS = [
   'id',
   'purpose',
   'runnerClass',
-  'status',
   'owner',
-  'version',
-  'asOf',
   'limitations',
   'governingSources',
   'sensitivity',
   'freshnessPolicy',
   'blockedByToolchain',
-  'blockedByRollout',
   'required',
   'optional',
   'deny',
@@ -333,6 +329,14 @@ const canonicalPathProblem = (source) => {
   if (posix.normalize(source) !== source) return 'is not normalized'
   return undefined
 }
+
+/** ADR-0019 release identity vocabulary. Syntax only — no SemVer meaning. */
+const RELEASE_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+$/
+const RELEASE_STATES = new Set(['Released', 'Deprecated', 'Retired'])
+const RELEASE_REVIEW_POLICY = 'knowledge-set-release-review-v1'
+/** A release review is a human act, recorded as one. */
+const RELEASE_ACTOR = /^human:[A-Za-z0-9._-]+$/
+const RELEASE_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
 
 const PROVIDER_SURFACES = new Set(['CLAUDE.md', '.github/copilot-instructions.md'])
 const PROVIDER_PREFIXES = ['.github/agents/', '.claude/']
@@ -632,41 +636,33 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (s.runnerClass && !RUNNER_CLASSES.has(s.runnerClass)) {
       fail(`set "${id}": runnerClass "${s.runnerClass}" is not a known runner class`)
     }
-    if (s.status && !statuses.has(s.status)) {
-      fail(`set "${id}": status "${s.status}" is not in the status vocabulary`)
+    // POST-ADR-0019: a family carries no lifecycle, version, or rollout authority.
+    //
+    // A mutable row holding "the current release version" stops representing
+    // 1.0.0 the moment 1.1.0 exists, which is the historical-identity defect
+    // ADR-0019 exists to prevent. Lifecycle and eligibility belong to immutable
+    // release records; the family is authoring intent.
+    for (const legacy of ['status', 'version', 'asOf', 'blockedByRollout']) {
+      if (legacy in s) {
+        fail(
+          `set "${id}": carries legacy family field "${legacy}". Under ADR-0019 a set ` +
+            'family holds no lifecycle, version, or rollout authority — those live on ' +
+            'immutable release records in knowledge/set-releases.json',
+        )
+      }
     }
     if (s.sensitivity && !sensitivities.has(s.sensitivity)) {
       fail(`set "${id}": sensitivity "${s.sensitivity}" is not in the sensitivity vocabulary`)
     }
-    // The same two refusals, for sets. See the module check above.
-    if (s.blockedByToolchain === true && postToolchain.has(s.status)) {
-      fail(
-        `set "${id}": status "${s.status}" is a post-toolchain lifecycle state, but ` +
-          'blockedByToolchain is true — readiness has not been discharged',
-      )
-    } else if (publishable.has(s.status)) {
-      fail(
-        `set "${id}": status "${s.status}" claims publication, which additionally ` +
-          'requires Proof B, and no governed producer exists',
-      )
-    }
-    // The same gate, for sets. See the module check above.
+    // A NON-IDENTITY READINESS MIRROR (ADR-0019 §10a option A).
+    //
+    // It is repository-wide toolchain readiness reflected onto the family, never
+    // release identity and never per-release eligibility. It does not enter a
+    // release manifest and it authorizes nothing.
     if (s.blockedByToolchain !== false) {
       fail(
         `set "${id}": blockedByToolchain must be false — the ADR-0015 §12 obligation was ` +
           'discharged on 2026-08-16. Re-blocking is an explicit reviewed transition too',
-      )
-    }
-    // EVERY SET STARTS ROLLOUT-BLOCKED (ADR-0016 §7a). A set's gate means the
-    // COMPOSITION has been released for profile use, which is a different
-    // question from whether its members may author — and releasing a set must
-    // never become a back door around a blocked member. Enforcing the
-    // Composition itself is resolved by `resolveSet` in the toolchain, which
-    // holds a set closed unless BOTH of its gates are open.
-    if (s.blockedByRollout !== true) {
-      fail(
-        `set "${id}": blockedByRollout must be true — ADR-0016 §7a starts every ` +
-          'set rollout-blocked, and releasing one is an explicit reviewed transition',
       )
     }
     for (const source of s.governingSources ?? []) {
@@ -755,19 +751,9 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     // pin to nothing: two runs of `set@1` could resolve to different content
     // and both look correct in evidence. So a set may carry a version only once
     // everything it selects has one.
-    if (s.version !== null && s.version !== undefined) {
-      const unversioned = [...required, ...optional].filter((ref) => {
-        const target = modules.find((m) => m.id === ref)
-        return target && (target.version === null || target.version === undefined)
-      })
-      if (unversioned.length > 0) {
-        fail(
-          `set "${id}": carries version ${JSON.stringify(s.version)} but selects unversioned ` +
-            `module(s) ${JSON.stringify(unversioned)} — a set version that pins nothing ` +
-            'resolvable makes two different resolutions look identical in run evidence',
-        )
-      }
-    }
+    // The member-identity precondition now lives where releases are built
+    // (ADR-0019 §6): a family carries no version, so there is nothing here that
+    // could pin an unversioned module.
 
     for (const pattern of s.deny ?? []) {
       if (!DENY_PATTERN.test(pattern)) {
@@ -856,6 +842,116 @@ export function checkKnowledge(root = DEFAULT_ROOT) {
     if (ipv4) fail(`module "${m.id}": README contains a network address (${ipv4[0]})`)
     const mac = MAC.exec(text)
     if (mac) fail(`module "${m.id}": README contains a hardware address (${mac[0]})`)
+  }
+
+  // --- 7c. SET RELEASE REGISTRY (ADR-0019) -----------------------------------
+  //
+  // A THIRD vocabulary, deliberately kept apart from module registry rules and
+  // set-family rules. One vocabulary silently serving all three is how a rule
+  // written for modules ends up deciding a composition.
+  //
+  // This validates REGISTRY COHERENCE only. Whether the manifest bytes are
+  // canonical, and whether the digest is right, is the toolchain's question —
+  // `check-knowledge-content.mjs` asks it, exactly as content admission is
+  // asked there rather than here.
+  const releasesPath = join(knowledgeRoot, 'set-releases.json')
+  const releaseDir = join(knowledgeRoot, 'releases')
+  if (!existsSync(releasesPath)) {
+    fail('knowledge/set-releases.json is missing — the set release registry must exist, even empty')
+  } else {
+    let registry
+    try {
+      registry = JSON.parse(readFileSync(releasesPath, 'utf8'))
+    } catch (error) {
+      fail(`knowledge/set-releases.json is not valid JSON — ${error.message}`)
+      registry = undefined
+    }
+    if (registry !== undefined) {
+      if (registry.version !== 1) {
+        fail('knowledge/set-releases.json: "version" must be exactly 1')
+      }
+      const releases = registry.releases
+      if (!Array.isArray(releases)) {
+        fail('knowledge/set-releases.json: "releases" must be an array')
+      } else {
+        const seen = new Set()
+        for (const r of releases) {
+          const rid = `${r?.familyId ?? '(unnamed)'}@${r?.version ?? '?'}`
+          if (!setIds.has(r?.familyId)) {
+            fail(`release "${rid}": familyId names no registered set family`)
+          }
+          if (typeof r?.version !== 'string' || !RELEASE_VERSION.test(r.version)) {
+            fail(`release "${rid}": version must be DIGIT+.DIGIT+.DIGIT+`)
+          }
+          // (familyId, version) is unique and immutable FOREVER — a reused
+          // version would make an old run's evidence ambiguous, which is the one
+          // thing release identity exists to prevent.
+          if (seen.has(rid)) fail(`release "${rid}": (familyId, version) is already used`)
+          seen.add(rid)
+          const expected = `knowledge/releases/${r?.familyId}@${r?.version}.manifest`
+          if (r?.manifestPath !== expected) {
+            fail(`release "${rid}": manifestPath must be "${expected}"`)
+          }
+          const abs = join(root, expected)
+          if (aliasedComponent(root, expected) !== undefined) {
+            fail(`release "${rid}": manifest path resolves through a symbolic link`)
+          } else if (!existsSync(abs)) {
+            fail(`release "${rid}": manifest "${expected}" does not exist`)
+          } else if (!statSync(abs).isFile()) {
+            fail(`release "${rid}": manifest "${expected}" is not a regular file`)
+          }
+          if (
+            typeof r?.releaseDigest !== 'string' ||
+            !/^sha256:[0-9a-f]{64}$/.test(r.releaseDigest)
+          ) {
+            fail(`release "${rid}": releaseDigest must be "sha256:" + 64 lowercase hex`)
+          }
+          if (!RELEASE_STATES.has(r?.state)) {
+            fail(`release "${rid}": state must be Released, Deprecated, or Retired`)
+          }
+          if ('blockedByRollout' in (r ?? {}) || 'blockedByToolchain' in (r ?? {})) {
+            fail(
+              `release "${rid}": carries a gate boolean. Under ADR-0019 "Released" IS the ` +
+                'eligibility; a second authority could disagree with the state',
+            )
+          }
+          const review = r?.releaseReview
+          if (review === undefined || review === null) {
+            fail(`release "${rid}": releaseReview is absent`)
+          } else {
+            if (review.policy !== RELEASE_REVIEW_POLICY) {
+              fail(`release "${rid}": releaseReview.policy must be "${RELEASE_REVIEW_POLICY}"`)
+            }
+            if (typeof review.by !== 'string' || !RELEASE_ACTOR.test(review.by)) {
+              fail(`release "${rid}": releaseReview.by is not a governed human actor`)
+            }
+            if (typeof review.at !== 'string' || !RELEASE_INSTANT.test(review.at)) {
+              fail(`release "${rid}": releaseReview.at is not a UTC instant`)
+            }
+            if (review.releaseDigest !== r?.releaseDigest) {
+              fail(`release "${rid}": releaseReview.releaseDigest does not bind this release`)
+            }
+          }
+        }
+        // BOTH DIRECTIONS. A manifest with no record is a release nobody
+        // reviewed; a record with no manifest is an identity with no content.
+        if (existsSync(releaseDir)) {
+          for (const entry of readdirSync(releaseDir)) {
+            // The directory README is its specification, exactly as a module
+            // directory's README is. It is never a release.
+            if (entry === 'README.md') continue
+            if (!entry.endsWith('.manifest')) {
+              fail(`knowledge/releases/${entry} is not a .manifest file`)
+              continue
+            }
+            const wanted = `knowledge/releases/${entry}`
+            if (!releases.some((r) => r?.manifestPath === wanted)) {
+              fail(`knowledge/releases/${entry} has no release record in set-releases.json`)
+            }
+          }
+        }
+      }
+    }
   }
 
   // --- 8. INDEX.md correspondence, both directions --------------------------
