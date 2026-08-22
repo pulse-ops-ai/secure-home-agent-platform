@@ -152,6 +152,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The governance suite runs here, and it now includes release-history
+          # tests that assert the LIVE repository passes its own two-revision
+          # gate. That control cannot run against a shallow clone, and the gate
+          # fails rather than skipping when no baseline resolves — correctly.
+          # So the requirement is declared here instead of weakened there.
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
