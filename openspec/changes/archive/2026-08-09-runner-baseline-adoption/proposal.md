@@ -4,7 +4,7 @@
 
 Issue #19 (Epic 4: runner substrate and execution profiles) cannot be
 decomposed honestly until the existing runner substrate is classified. A
-working substrate already exists in `agent-service`: a governed execution
+working substrate already exists in a governed execution
 platform with three operationally exercised, heavily tested run modes (packet review, sandboxed
 implementation, semantic review), a ~43.5k-line zero-runtime-dependency
 trusted host package, and 358k run artifacts of operational evidence.
@@ -146,9 +146,6 @@ accepted ADR requires a new superseding ADR through its own human review.
 
 ## Existing Evidence
 
-- Upstream repository, canonical identity: **`exprealtytech/agent-service`**
-  (GitHub; inventoried via the local working copy at
-  `/home/mike/dev/exp/agent-service`).
 - **Observed state during the review (audit context only — not a contract
   term):** the upstream integration state at `origin/dev` commit
   `941160c0bd6eafc0eb4c4bd708d86b21857e1ec2` (D11 PR-3a merged, inert);
