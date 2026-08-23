@@ -219,11 +219,21 @@ authority for: grammar + schema + canonical key order; the closed lineage
 classes; bidirectional registration (every `deploy/images/*/Dockerfile`
 registered, every entry's definition existing); digest forms; the
 parent/base chain equality; external-FROM immutability; base and gates
-neutrality (token list mirrored as data from the platform proof's
-vocabulary: claude, copilot, codex, anthropic, openai, langgraph,
-pydantic, docker, containerd, kata, runc, gvisor); exactly-one-runtime in
-the derived definition with lock/Dockerfile version equality; no
-`COPY`/`ADD` from `services/**`/`packages/**`; no credential-shaped
+neutrality (the token vocabulary mirrored as data from the platform
+proof's vocabulary — claude, copilot, codex, anthropic, openai, langgraph,
+pydantic, docker, containerd, kata, runc, gvisor — grouped into provider
+FAMILIES so a derived runtime owns its own family's tokens and no other's);
+exactly-one-runtime in the derived definition, held from BOTH sides: the
+lock's `runtime` fields carry value grammars (a lowercase kebab `name`, a
+single npm package `package`, an exact `version`, an npm sha512
+`integrity`) and an identity resolving to more than one provider family
+refuses, so lock free text can never launder a second provider's tokens
+into the allowed set; lock/Dockerfile version equality; `COPY`/`ADD`
+sources parsed the way BuildKit reads them (flags, JSON exec form,
+backslash continuations folded to logical lines) and normalized before the
+rules apply — repo-directory reach, `..` context escapes, absolute host
+paths, remote-URL fetches, and unpinned `--from` images all refuse in
+every spelling, not one; no credential-shaped
 `ENV`/`ARG` names; `deploy/runtime/` README-only; no `profiles/**`
 reference to any registered image name; no launcher/socket token in
 `services/runner-control/src`. Wired as `pnpm run check:images`, a
@@ -334,10 +344,15 @@ silently retries onto different bytes.
 
 Additive. No platform contract, schema, profile, or service changes. The
 pre-L5 status prose in `deploy/README.md` / `deploy/images/README.md` is
-rewritten to the landed truth; `runner-model.md`'s base-image bullet list
-is *not* edited here (docs/ is outside #53's scope) — its
-substrate-system reading is recorded above and flagged for a follow-up
-docs change.
+rewritten to the landed truth. The falsification review found the two
+standing governance contradictions this landing would otherwise create —
+`CONTRIBUTING.md`'s "no real runner image" phase line and
+`runner-model.md` § The base image still describing in-image substrate
+software — and directed fixing them here: both now state the landed truth
+(inert digest-locked definitions; substrate-system concerns owned by
+trusted code outside every image), as `docs/AGENTS.md` requires
+("implemented things as implemented"), together with the
+`architecture/INDEX.md` status table.
 
 ## Security implications
 
@@ -358,5 +373,4 @@ Copilot image + adapters (L7/#55) · conformance seed (L8/#56) ·
 placement (U4/#9) · launcher, egress default-deny, ceilings, teardown,
 runtime selection and `deploy/runtime/` content (L9/#57) ·
 knowledge-runtime integration (#93) · registry/distribution and rebuild
-cadence (post-U4 operational work) · `runner-model.md` base-image prose
-refresh (follow-up docs change).
+cadence (post-U4 operational work).

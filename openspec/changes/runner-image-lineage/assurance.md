@@ -125,7 +125,9 @@ An undecidable state never maps to success.
 | IL-ADV-09 | IL-INV-03 | hostile fixture | `COPY services/runner-control …` planted → refused |
 | IL-ADV-10 | IL-INV-12 | hostile fixture | `ENV ANTHROPIC_API_KEY=…`-shaped name planted → refused |
 | IL-ADV-11 | IL-INV-09 | governed CI evidence (bootstrap run) | first CI run with sentinels fails and reports built digests |
-| IL-MUT-01…05 | checker guards | hand-applied mutation | see Mutation targets |
+| IL-ADV-12 | IL-INV-03 | hostile fixture corpus (review round) | nine equivalent COPY/ADD spellings of a platform-code copy (`./`, `././`, flags, JSON exec form) all refused; remote-URL ADD, `..` escape, absolute path, unpinned `--from`, and a backslash-continuation hiding a source likewise refused |
+| IL-ADV-13 | IL-INV-04 | hostile fixture (review round) | a lock `runtime.package` carrying a second provider's tokens (`@example/agent-codex-copilot`) refused as resolving to more than one provider; value grammars on name/package/version/integrity refused per field |
+| IL-MUT-01…07 | checker guards | hand-applied mutation | see Mutation targets |
 
 ## Property tests
 
@@ -154,6 +156,8 @@ Hand-applied to the checker, verified killed by the named test, restored:
 | IL-MUT-03 | unregistered-definition sweep | IL-ADV-07 fixture |
 | IL-MUT-04 | external-FROM digest pin | IL-ADV-05 fixture |
 | IL-MUT-05 | base neutrality token scan | IL-ADV-01 fixture |
+| IL-MUT-06 | COPY source normalization (`./` stripping) | IL-ADV-12 `./services` spelling |
+| IL-MUT-07 | runtime provider-family exclusivity | IL-ADV-13 smuggling fixture (fails for the named reason, not a downstream one) |
 
 The CI rebuild-and-compare guard cannot be mutated locally without running
 Docker; its refusal behavior is proven by the bootstrap run itself
@@ -201,6 +205,13 @@ checker it proves. Authority posture: inert — nothing activates.
   import direction, full TS/python suites, strict OpenSpec validation.
 - Evidence review at the seam: the CI build/verify runs at the exact head,
   the lock's recorded identities, and the pin-resolution provenance.
+- **Review round (performed):** the owner-side falsification review of
+  `7445070` confirmed the digest provenance and returned three P2 findings —
+  eight bypass spellings of the decision-bearing COPY rule, lock free text
+  laundering a second provider's tokens into the owned set, and two standing
+  governance documents contradicting the landed artifacts. All three are
+  fixed with the review's own counter-fixtures turned into IL-ADV-12/13 and
+  killed mutants IL-MUT-06/07.
 - A fresh falsification-oriented pass against the frozen final head
   focused on: base neutrality, authority leakage into images, false
   reproducibility claims, index/manifest ambiguity, chain breakage,

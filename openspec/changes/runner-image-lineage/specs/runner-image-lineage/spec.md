@@ -110,6 +110,14 @@ in the definition SHALL equal the lock's recorded runtime version.
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming both versions
 
+#### Scenario: A runtime identity resolving to two providers is refused
+
+- **GIVEN** a lock `runtime` whose name or package text carries a second
+  provider's tokens
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the providers, and the extra tokens never enter
+  the definition's allowed set
+
 ### Requirement: The gates-toolchain image is an independent lineage
 
 `secure-home-gates-toolchain` SHALL NOT derive from

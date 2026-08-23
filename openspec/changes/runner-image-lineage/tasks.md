@@ -259,6 +259,30 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ---
 
+## Review-round record
+
+Owner-side falsification review of head `7445070` (verdict: request
+changes; digest provenance independently confirmed — every locked digest
+matched the CI logs of runs 32637608333 and 32638022249). Three P2
+findings, all fixed on this branch:
+
+1. **Decision-bearing COPY rule held for one spelling of nine.** Sources
+   are now parsed (flags, JSON exec form, logical-line folding) and
+   normalized before the rules apply; the review's nine-spelling corpus is
+   the IL-ADV-12 regression net, extended to remote-URL ADD, `..` escapes,
+   absolute paths, and unpinned `--from` images. IL-MUT-06 killed.
+2. **Owned provider tokens were inferred from lock free text.** Runtime
+   fields now carry value grammars, and the token vocabulary is grouped
+   into provider families with a more-than-one-family refusal; the
+   review's smuggling counter-fixture is IL-ADV-13. IL-MUT-07 killed.
+3. **Two governance documents contradicted the landed artifacts.**
+   `CONTRIBUTING.md` ("no real runner image"), `runner-model.md` § The base
+   image (in-image substrate software), and the `architecture/INDEX.md`
+   status table now state the landed truth, per `docs/AGENTS.md`'s
+   implemented-things-as-implemented rule.
+
+---
+
 ## PR-1 Completion Gate
 
 PR-1 may merge only when:
