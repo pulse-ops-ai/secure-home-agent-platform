@@ -10,35 +10,30 @@
 # runtime, no SDK, no credential handling: a provider or framework name
 # anywhere in this file is a lineage violation (ADR-0011).
 #
-# Every input is immutable: the external base is digest-pinned, and every apt
-# byte comes from one frozen snapshot, so rebuilding this definition through
-# the governed build path yields the same identity.
+# Every input is pinned: the external base by immutable digest, and every
+# named package to an exact archive version — so rebuilding this definition
+# through the governed build path yields the same identity while the pinned
+# archive inputs remain published, and any archive movement fails the build
+# or the digest comparison LOUDLY, never silently. (The snapshot service
+# refuses the governed builder's address space, so a frozen snapshot is not
+# an available mechanism; the narrowed claim is recorded in the child
+# design.)
 
 FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
-# The one governed apt source: a frozen snapshot. Moving this timestamp is a
-# reviewed change that moves every digest built from it.
-ARG DEBIAN_SNAPSHOT=20260819T205155Z
+# Exact archive versions, resolved from the trixie archive on 2026-08-23.
+# Moving a pin is a reviewed change that moves every digest built from it;
+# a vanished pin fails `apt-get install` rather than drifting.
+ARG CA_CERTIFICATES_VERSION=20250419
+ARG TINI_VERSION=0.19.0-3+b7
 # Fixed so layer metadata cannot carry build wall-clock into the identity.
 ARG SOURCE_DATE_EPOCH=0
 
 RUN set -eux; \
-    # apt's native per-source Snapshot field (apt >= 2.7.10; Debian 13):
-    # the STOCK sources and keyrings stay authoritative, and every fetch is
-    # served from the frozen snapshot via the CDN — the raw snapshot host
-    # rate-limits and its stale validity windows would otherwise make old
-    # snapshots unfetchable. The grep asserts the pin landed in BOTH stanzas
-    # (debian and debian-security), so a changed stock layout fails loudly
-    # instead of silently building from moving mirrors.
-    sed -i "s|^Components: main$|Components: main\nSnapshot: ${DEBIAN_SNAPSHOT}|" \
-      /etc/apt/sources.list.d/debian.sources; \
-    test "$(grep -c "^Snapshot: ${DEBIAN_SNAPSHOT}\$" /etc/apt/sources.list.d/debian.sources)" = 2; \
-    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' \
-      > /etc/apt/apt.conf.d/99secure-home-snapshot; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      ca-certificates \
-      tini; \
+      "ca-certificates=${CA_CERTIFICATES_VERSION}" \
+      "tini=${TINI_VERSION}"; \
     apt-get clean; \
     # Nondeterministic file CONTENT is removed, not just retimed: apt/dpkg
     # logs and the ldconfig aux-cache embed wall-clock and host facts.

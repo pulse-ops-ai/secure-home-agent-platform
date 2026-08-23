@@ -18,8 +18,14 @@
 FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
 ARG TARGETARCH
-ARG DEBIAN_SNAPSHOT=20260819T205155Z
 ARG SOURCE_DATE_EPOCH=0
+
+# Exact archive versions, resolved from the trixie archive on 2026-08-23 —
+# same pin-or-fail-loudly posture as runner-base (the snapshot service
+# refuses the governed builder's address space; see the child design).
+ARG CA_CERTIFICATES_VERSION=20250419
+ARG GIT_VERSION=1:2.47.3-0+deb13u1
+ARG CURL_VERSION=8.14.1-2+deb13u4
 
 # The gate toolchain pins, matching the merge gate exactly
 # (.github/workflows/checks.yml: NODE_VERSION / UV_VERSION; package.json:
@@ -37,19 +43,14 @@ ENV COREPACK_HOME=/opt/corepack \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python
 
 RUN set -eux; \
-    # Same frozen-snapshot mechanism as runner-base: apt's native Snapshot
-    # field over the stock sources, asserted into both stanzas, with the
-    # validity window relaxed for old snapshots and retries for the CDN.
-    sed -i "s|^Components: main$|Components: main\nSnapshot: ${DEBIAN_SNAPSHOT}|" \
-      /etc/apt/sources.list.d/debian.sources; \
-    test "$(grep -c "^Snapshot: ${DEBIAN_SNAPSHOT}\$" /etc/apt/sources.list.d/debian.sources)" = 2; \
-    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' \
-      > /etc/apt/apt.conf.d/99secure-home-snapshot; \
     apt-get update; \
     # git and ca-certificates: the shell gates (validate-scaffold,
     # scan-secrets, check.sh) need git + coreutils; TLS trust is needed at
     # BUILD time here and by nothing at gate run time. curl is build-only.
-    apt-get install -y --no-install-recommends ca-certificates git curl; \
+    apt-get install -y --no-install-recommends \
+      "ca-certificates=${CA_CERTIFICATES_VERSION}" \
+      "git=${GIT_VERSION}" \
+      "curl=${CURL_VERSION}"; \
     \
     case "$TARGETARCH" in \
       amd64) node_arch=x64;   node_sha="$NODE_SHA256_AMD64"; uv_triple=x86_64-unknown-linux-gnu;  uv_sha="$UV_SHA256_AMD64" ;; \

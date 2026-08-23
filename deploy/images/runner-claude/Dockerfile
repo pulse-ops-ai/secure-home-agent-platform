@@ -16,9 +16,12 @@
 FROM secure-home-runner-base
 
 ARG TARGETARCH
-# The apt snapshot pin is inherited from the base image's sources; this
-# stage adds no source of its own.
 ARG SOURCE_DATE_EPOCH=0
+
+# Exact archive versions, resolved from the trixie archive on 2026-08-23 —
+# same pin-or-fail-loudly posture as runner-base.
+ARG GIT_VERSION=1:2.47.3-0+deb13u1
+ARG CURL_VERSION=8.14.1-2+deb13u4
 
 # The runtime engine, pinned to the repository's own Node version and
 # verified against the published release checksums (nodejs.org SHASUMS256,
@@ -44,7 +47,9 @@ RUN set -eux; \
     apt-get update; \
     # git: repository operation is this runtime's function. curl: build-time
     # fetch only, purged below so the runtime surface stays minimal.
-    apt-get install -y --no-install-recommends git curl; \
+    apt-get install -y --no-install-recommends \
+      "git=${GIT_VERSION}" \
+      "curl=${CURL_VERSION}"; \
     \
     case "$TARGETARCH" in \
       amd64) node_arch=x64;   node_sha="$NODE_SHA256_AMD64";  cli_pkg=linux-x64;   cli_sha_b64="$CLAUDE_CODE_SHA512_B64_AMD64" ;; \

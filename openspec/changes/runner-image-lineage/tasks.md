@@ -82,7 +82,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
   **Change**
 
-  Digest-pinned `debian:trixie-slim`, frozen apt snapshot, minimal surface
+  Digest-pinned `debian:trixie-slim`, exact-version-pinned packages, minimal surface
   (`ca-certificates`, `tini`), non-root `runner` user, `/workspace` and
   `/run/platform` conventions, reproducibility normalizations, OCI labels.
   No provider/framework/runtime token anywhere in the definition. README

@@ -269,7 +269,7 @@ yields byte-identical manifests and therefore identical digests.
 | Drift source | Frozen by |
 |---|---|
 | external `FROM` tag | inline `@sha256` index digest |
-| apt package pool | `snapshot.debian.org/archive/debian/20260819T205155Z` as the only source |
+| apt packages | exact archive versions pinned as ARGs (a frozen snapshot was falsified in the first governed build: snapshot.debian.org refuses the builder's address space, so the claim is narrowed — see below) |
 | Node / uv archives | exact URLs + SHA-256 verification in the Dockerfile |
 | provider CLI | exact version, tarball verified against recorded `sha512` integrity, installed from the verified bytes |
 | transitive provider deps | the package declares none; the build fails if installation resolves anything else |
@@ -280,10 +280,14 @@ yields byte-identical manifests and therefore identical digests.
 | host architecture | per-platform builds under QEMU; identity is the two-platform index |
 
 **What is deliberately not claimed:** bit-reproducibility against a
-*different* builder or a moved snapshot. The residual supply-chain inputs
-are the availability of the pinned archives and the snapshot serving the
-recorded bytes — every one integrity-checked at fetch, so substitution
-fails the build rather than changing the digest silently.
+*different* builder, or across live-archive movement: the named packages
+are pinned to exact versions (a vanished pin fails `apt-get install`
+loudly), while their transitive dependencies follow the signed archive —
+so a point release can move the digest, and the governed
+rebuild-and-compare turns that movement into a LOUD verify failure and a
+reviewed pin bump, never silent drift. Every directly fetched artifact is
+integrity-checked, so substitution fails the build rather than changing
+the digest silently.
 
 ## Inherited obligations — L5 interpretation
 
@@ -307,7 +311,7 @@ fails the build rather than changing the digest silently.
   subset parser is smaller than the exception it would need.
 - **Distro Node in the Claude image.** Rejected: the runtime engine should
   be the same exact-versioned, checksum-verified artifact in both images
-  that need Node; the snapshot's distro Node would add a second version
+  that need Node; the archive's distro Node would add a second version
   authority.
 - **Toolchain inside the base** / **gates derived from base**: both
   rejected by D7 (constitution) — the base stays minimal and
@@ -322,7 +326,7 @@ fails the build rather than changing the digest silently.
 ## Failure classification boundaries
 
 Checker findings and CI digest mismatches are change-attributable
-refusals. Snapshot/mirror unavailability during a CI build is operational
+refusals. Archive/mirror unavailability during a CI build is operational
 failure — the build fails loudly; nothing reclassifies it as success or
 silently retries onto different bytes.
 

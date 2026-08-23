@@ -11,7 +11,7 @@ one coding agent per derived image; a multi-provider image is prohibited).
 |---|---|---|
 | Claude Code CLI | `@anthropic-ai/claude-code@2.1.241` + its platform executable package, both verified against their recorded registry integrity before installation | the one runtime |
 | Node.js | `24.18.1`, SHA-256-verified release archive | the runtime's engine |
-| `git` | frozen apt snapshot | repository operation is the runtime's function |
+| `git` | exact archive version (`1:2.47.3-0+deb13u1`) | repository operation is the runtime's function |
 
 Nothing else. `npm install --offline` makes any *additional* dependency a
 build failure rather than an unpinned download, so a future runtime version

@@ -159,7 +159,7 @@ This change proposes **no ADR status change**.
   authority. `design.md` § The trust split is the normative statement.
 - **Supply chain:** yes — every external input is pinned (digest-pinned
   OCI bases, checksum-verified toolchain archives, an exact
-  integrity-recorded provider package, a frozen apt snapshot), and the lock
+  integrity-recorded provider package, exact-version-pinned apt packages), and the lock
   makes the chain refusable rather than aspirational.
 - **Authorization / authentication / PII / persistence / migrations /
   transactions:** not applicable — nothing executes, nothing stores.
@@ -198,7 +198,7 @@ This change proposes **no ADR status change**.
   L5 prerequisite recorded satisfied in #53/#19.
 - **Accepted decisions:** ADR-0003/0006/0011/0013 (all Accepted).
 - **External:** Docker Hub (`debian:trixie-slim` by digest),
-  `snapshot.debian.org` (frozen apt snapshot), `nodejs.org` and
+  `deb.debian.org` (exact-version-pinned packages), `nodejs.org` and
   `github.com/astral-sh/uv` release artifacts (checksum-verified),
   `registry.npmjs.org` (`@anthropic-ai/claude-code`, exact version +
   integrity). All resolved and recorded at authoring time; none is fetched

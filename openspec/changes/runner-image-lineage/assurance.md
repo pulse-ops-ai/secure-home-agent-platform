@@ -42,7 +42,7 @@ complete. It creates no new product requirements.
 | Object | Authority source | Captured when | Agent-mutable after capture? | Transformation | Final verifier / consumer |
 |---|---|---|---|---|---|
 | external base identity | Docker Hub manifest index (`debian:trixie-slim`) | resolved 2026-08-23, inlined in Dockerfiles + lock | no — inline `@sha256` refuses drift | none (pull by digest) | buildkit digest check at build |
-| apt package pool | snapshot.debian.org `20260819T205155Z` | frozen in Dockerfiles | no — snapshot is append-only upstream | apt install from signed frozen InRelease | apt signature check at build |
+| apt packages | exact archive versions (trixie), resolved 2026-08-23 | pinned as Dockerfile ARGs | no — a vanished pin fails install; transitive drift fails the rebuild comparison | apt install `pkg=version` from the signed live archive | apt signature check at build; governed rebuild-and-compare at head |
 | Node / uv archives | published SHASUMS / release checksums | SHA-256 inlined in Dockerfiles | no | extract | `sha256sum -c` at build |
 | provider CLI | registry.npmjs.org exact version + `dist.integrity` | recorded in lock + Dockerfile | no | tarball verified then installed | integrity check at build; refusal if deps resolve |
 | image identities | governed CI build (OCI export digests) | recorded in lock from CI evidence | any edit is refused by rebuild comparison | none | `images.yml` verify at exact head; future profile/L9 consumption (deferred, named) |
@@ -87,7 +87,7 @@ Lock verification outcome:
 | any sentinel present | CI verify at head | fail, built digests reported for recording | change-attributable (bootstrap) |
 | sentinel present | static checker only | structurally valid, loudly reported; completion gate blocked | — |
 | chain inequality, malformed grammar, unregistered definition, tag-only FROM, second runtime, provider token, profile reference, runtime-dir content, launcher token, credential-shaped name | static checker | fail, position named | change-attributable |
-| snapshot/mirror unreachable during build | CI build log | build fails; no digest recorded | operational |
+| archive/mirror unreachable during build | CI build log | build fails; no digest recorded | operational |
 
 An undecidable state never maps to success.
 
