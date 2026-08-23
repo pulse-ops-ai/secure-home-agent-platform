@@ -69,12 +69,12 @@ images:
       package: "@github/copilot"
       version: 1.0.79
       integrity: sha512-uHBm2BYbKJgyfiKp1WokX7QUNHGvzEX0zaGeb3qM3CybP06rsJrX3JgQe95qwwma6vQz0ah9gV68ERW2JqaKRA==
-    digest: pending-first-governed-build
+    digest: sha256:ec0de5ce4603015b77f1f8c78f5f790836735b3d5ec2831373f2b1ee1d5cbf5c
     manifests:
       - platform: linux/amd64
-        digest: pending-first-governed-build
+        digest: sha256:c9daca6ce10b295e23318bad11ee4f52d30b0e8fa23a4b31b1f62170f95ef723
       - platform: linux/arm64
-        digest: pending-first-governed-build
+        digest: sha256:dd82074a476844b24c5706ba3c01beae97c3345e5f6efac320cfb3f00949eaa1
   - name: secure-home-gates-toolchain
     lineage: gates-toolchain
     definition: deploy/images/gates-toolchain/Dockerfile
