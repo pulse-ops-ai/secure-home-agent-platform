@@ -36,7 +36,12 @@ ARG NODE_SHA256_ARM64=df224555a083b918e46260cc969838501b9f9a87140c1195e5b9597b56
 # so the registry's mutable metadata is not on the build trust path. The
 # runtime ships its executable as a per-platform package at the same version;
 # the matching platform package is pinned and verified the same way.
-ARG CLAUDE_CODE_VERSION=2.1.241
+# The explicit runtime installation declaration: exact well-known ARG names
+# the lineage checker validates against the lock registration, and which the
+# install step below CONSUMES — the mechanical tie between "registered" and
+# "installed" is that this identity flows into an executed build instruction.
+ARG RUNTIME_PACKAGE=@anthropic-ai/claude-code
+ARG RUNTIME_VERSION=2.1.241
 ARG CLAUDE_CODE_SHA512_B64=S7DWEmJJAsI5taAUjhKm6soXcFJYIVeTH6Lg9kmp3yntFllCP612hGwZ7thOGh8r7YaRUH9+1jCX5A9QGazsxg==
 ARG CLAUDE_CODE_SHA512_B64_AMD64=yHcPvq6iSblC7Mj05yjWBJOfSC3scyyEYazdX/QRUmXmqYXc1hh8LGZaaZPGv+UFXOJZhpPnNCbyVLdMLFCr4Q==
 ARG CLAUDE_CODE_SHA512_B64_ARM64=tHsJhjwcoFyKTCQfYCclKjLtbnbbGKvcrzxUhMb6NDlPw9RrawmjSWUAdla7PtEVPaJsGkjGo4O2MQTlYIT+PA==
@@ -64,9 +69,10 @@ RUN set -eux; \
     node --version; \
     \
     sha512_hex() { printf '%s' "$1" | base64 -d | od -A n -t x1 | tr -d ' \n'; }; \
-    curl -fsSLo /tmp/cli.tgz "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${CLAUDE_CODE_VERSION}.tgz"; \
+    pkg_base="${RUNTIME_PACKAGE#*/}"; \
+    curl -fsSLo /tmp/cli.tgz "https://registry.npmjs.org/${RUNTIME_PACKAGE}/-/${pkg_base}-${RUNTIME_VERSION}.tgz"; \
     echo "$(sha512_hex "$CLAUDE_CODE_SHA512_B64")  /tmp/cli.tgz" | sha512sum -c -; \
-    curl -fsSLo /tmp/cli-platform.tgz "https://registry.npmjs.org/@anthropic-ai/claude-code-${cli_pkg}/-/claude-code-${cli_pkg}-${CLAUDE_CODE_VERSION}.tgz"; \
+    curl -fsSLo /tmp/cli-platform.tgz "https://registry.npmjs.org/${RUNTIME_PACKAGE}-${cli_pkg}/-/${pkg_base}-${cli_pkg}-${RUNTIME_VERSION}.tgz"; \
     echo "$(sha512_hex "$cli_sha_b64")  /tmp/cli-platform.tgz" | sha512sum -c -; \
     # --offline: nothing beyond the two verified tarballs may be resolved.
     # If a future version grows a required dependency, this line FAILS rather

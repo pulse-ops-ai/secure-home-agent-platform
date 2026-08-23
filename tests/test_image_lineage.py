@@ -28,8 +28,9 @@ USER nobody
 """
 
 DERIVED_DOCKERFILE = """FROM secure-home-runner-base
-ARG EXAMPLE_VERSION=1.2.3
-ARG EXAMPLE_PACKAGE=@example/agent
+ARG RUNTIME_PACKAGE=@example/agent
+ARG RUNTIME_VERSION=1.2.3
+RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}
 LABEL io.secure-home.lineage="runner-derived" \\
       io.secure-home.runtime.version="1.2.3"
 USER nobody
@@ -121,6 +122,16 @@ def _fixture(tmp_path: Path) -> Path:
         "deploy/images/runner-example/Dockerfile": DERIVED_DOCKERFILE,
         "deploy/images/gates-toolchain/Dockerfile": GATES_DOCKERFILE,
         "deploy/images/image-lock.yaml": _lock(),
+        "deploy/images/gates-toolchain/toolchain.json": (
+            '{ "tools": [\n'
+            '  { "name": "node", "provedBy": "arg", "arg": "NODE_VERSION",\n'
+            '    "versionSource": "checks.yml NODE_VERSION" },\n'
+            '  { "name": "pnpm", "provedBy": "arg", "arg": "PNPM_VERSION",\n'
+            '    "versionSource": "package.json packageManager" },\n'
+            '  { "name": "uv", "provedBy": "arg", "arg": "UV_VERSION",\n'
+            '    "versionSource": "checks.yml UV_VERSION" }\n'
+            "] }\n"
+        ),
         "deploy/runtime/README.md": "# runtime taxonomy only\n",
         "profiles/README.md": "# profiles placeholder\n",
         "services/runner-control/src/run.ts": "export const run = 1\n",
@@ -168,8 +179,10 @@ def test_a_conforming_fourth_image_needs_no_vocabulary_change(tmp_path: Path) ->
     extra = root / "deploy/images/runner-second/Dockerfile"
     extra.parent.mkdir(parents=True)
     extra.write_text(
-        "FROM secure-home-runner-base\nARG SECOND_VERSION=2.0.0\n"
-        "ARG SECOND_PACKAGE=@example/second\n"
+        "FROM secure-home-runner-base\n"
+        "ARG RUNTIME_PACKAGE=@example/second\n"
+        "ARG RUNTIME_VERSION=2.0.0\n"
+        "RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n"
         'LABEL io.secure-home.lineage="runner-derived" \\\n'
         '      io.secure-home.runtime.version="2.0.0"\n'
     )
@@ -362,7 +375,7 @@ def test_a_version_drifting_from_the_lock_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-example/Dockerfile"
     dockerfile.write_text(
-        dockerfile.read_text().replace("ARG EXAMPLE_VERSION=1.2.3", "ARG EXAMPLE_VERSION=9.9.9")
+        dockerfile.read_text().replace("ARG RUNTIME_VERSION=1.2.3", "ARG RUNTIME_VERSION=9.9.9")
     )
     result = _check(root)
     assert result.returncode == 1
@@ -494,6 +507,53 @@ def test_a_credential_shaped_env_name_is_refused(tmp_path: Path) -> None:
     result = _check(root)
     assert result.returncode == 1
     assert "images.credential-shape" in result.stderr
+
+
+def test_a_credential_shaped_name_in_a_multi_key_env_is_refused(tmp_path: Path) -> None:
+    """The review's bypass: `ENV SAFE=1 API_KEY=x` is one instruction with
+    two keys, and only the first was inspected. Every key is now parsed."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text() + "ENV SAFE_VALUE=1 PLATFORM_API_KEY=placeholder\n"
+    )
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "PLATFORM_API_KEY" in result.stderr
+
+
+# ── the gates inventory is a manifest, both directions ───────────────────────
+
+
+def test_a_missing_gates_toolchain_manifest_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    (root / "deploy/images/gates-toolchain/toolchain.json").unlink()
+    result = _check(root)
+    assert result.returncode == 1
+    assert "toolchain.json is missing" in result.stderr
+
+
+def test_a_manifested_tool_missing_from_the_definition_is_refused(tmp_path: Path) -> None:
+    """The inventory is the reviewed authority; a tool the manifest declares
+    must be evidenced in the definition."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("ARG UV_VERSION=3.0.0\n", ""))
+    result = _check(root)
+    assert result.returncode == 1
+    assert "which the definition does not declare" in result.stderr
+
+
+def test_an_unmanifested_version_pin_is_refused(tmp_path: Path) -> None:
+    """Inventory drift in the other direction: a version ARG the manifest
+    does not name is a tool nobody reviewed into the governed environment."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + "ARG JQ_VERSION=1.7.1\n")
+    result = _check(root)
+    assert result.returncode == 1
+    assert "not named by" in result.stderr
+    assert "JQ_VERSION" in result.stderr
 
 
 # ── the lock grammar is canonical ────────────────────────────────────────────
@@ -660,18 +720,55 @@ def test_missing_gate_pin_sources_fail_closed(tmp_path: Path) -> None:
 # ── the lock registration is the one-runtime authority ───────────────────────
 
 
-def test_a_derived_definition_must_install_its_registered_package(tmp_path: Path) -> None:
-    """The primary exactly-one mechanism is structural: one registered runtime
-    per derived image, and the definition installs exactly that package.
-    Token scans are secondary hardening."""
+def test_a_missing_runtime_declaration_is_refused(tmp_path: Path) -> None:
+    """No ARG RUNTIME_PACKAGE declaration at all — a comment mentioning the
+    package is not a declaration."""
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-example/Dockerfile"
     dockerfile.write_text(
-        dockerfile.read_text().replace("ARG EXAMPLE_PACKAGE=@example/agent\n", "")
+        dockerfile.read_text()
+        .replace("ARG RUNTIME_PACKAGE=@example/agent\n", "# ships @example/agent\n")
+        .replace("RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n", "")
     )
     result = _check(root)
     assert result.returncode == 1
-    assert "registered runtime package" in result.stderr
+    assert "must declare ARG RUNTIME_PACKAGE=@example/agent" in result.stderr
+
+
+def test_a_declaration_no_run_consumes_is_refused(tmp_path: Path) -> None:
+    """The review's ARG-only bypass: the package mentioned only in an ARG,
+    with no installation operation. A declaration nothing executes installs
+    nothing."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-example/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace(
+            "RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n", ""
+        )
+    )
+    result = _check(root)
+    assert result.returncode == 1
+    assert "no RUN instruction consumes" in result.stderr
+
+
+def test_a_run_consuming_the_package_across_a_commented_continuation_passes(
+    tmp_path: Path,
+) -> None:
+    """BuildKit strips full-line comments inside a continuation; the fold
+    must too, or a real installation detaches from its RUN and reads as
+    unconsumed — the false refusal the real Claude definition exposed."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-example/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace(
+            "RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n",
+            "RUN set -eux; \\\n"
+            "    # mid-block comment, as the real definition has\n"
+            "    install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n",
+        )
+    )
+    result = _check(root)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_an_underivable_neutrality_vocabulary_fails_closed(tmp_path: Path) -> None:

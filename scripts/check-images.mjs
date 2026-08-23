@@ -565,6 +565,10 @@ export function checkImages(root = DEFAULT_ROOT) {
     const lines = []
     let carry = ''
     for (const raw of text.split('\n')) {
+      // BuildKit strips full-line comments INSIDE a continuation; the fold
+      // must too, or a real instruction detaches at its first mid-block
+      // comment and the tail's arguments escape every instruction scan.
+      if (carry !== '' && /^\s*#/.test(raw)) continue
       const joined = carry + raw
       if (/\\\s*$/.test(joined) && !/^\s*#/.test(joined)) {
         carry = joined.replace(/\\\s*$/, ' ')
@@ -615,29 +619,88 @@ export function checkImages(root = DEFAULT_ROOT) {
       }
     }
     if (lineage === 'gates-toolchain') {
-      // The image claims to mirror the governed gate toolchain; the claim is
-      // mechanical, not a comment: the Dockerfile pins must equal what the
-      // gate sources declare, and this rule runs in the ALWAYS-ON governance
-      // gate — so moving a pin in checks.yml or package.json while the image
-      // stays stale refuses immediately, everywhere.
+      // The image's INVENTORY is a canonical machine-readable manifest
+      // (toolchain.json beside the definition); its version pins mirror the
+      // sources that RUN the gate. Both directions are enforced in the
+      // ALWAYS-ON governance gate: every arg-proved manifest entry must be
+      // declared by the definition (at the mirrored version where a source
+      // is named), and every version ARG in the definition must be named by
+      // the manifest — an unmanifested pin is inventory drift in the other
+      // direction. Inferring a dependency inventory from shell text would be
+      // fragile by construction; the manifest is the reviewed authority for
+      // what the governed gate environment intentionally carries.
+      const inventoryRel = entry.get('definition').replace(/Dockerfile$/, 'toolchain.json')
+      const inventoryPath = join(root, inventoryRel)
       const pins = gatePins(root)
-      if (pins === undefined) {
+      if (!existsSync(inventoryPath)) {
+        fail(
+          'gates-toolchain',
+          `"${name}": ${inventoryRel} is missing — the toolchain inventory is a manifest, not prose`,
+        )
+      } else if (pins === undefined) {
         fail(
           'gates-pin',
           `"${name}": the governed gate pins could not be derived from .github/workflows/checks.yml and package.json, so the toolchain mirror cannot be verified`,
         )
       } else {
-        for (const [arg, expected, source] of [
-          ['NODE_VERSION', pins.node, 'checks.yml NODE_VERSION'],
-          ['PNPM_VERSION', pins.pnpm, 'package.json packageManager'],
-          ['UV_VERSION', pins.uv, 'checks.yml UV_VERSION'],
-        ]) {
-          const declared = text.match(new RegExp(`^ARG ${arg}=(.+)$`, 'm'))?.[1]
-          if (declared !== expected) {
-            fail(
-              'gates-pin',
-              `"${name}": ARG ${arg}=${declared ?? '(missing)'} does not mirror the governed gate (${source} declares ${expected})`,
-            )
+        let tools
+        try {
+          tools = JSON.parse(readFileSync(inventoryPath, 'utf8')).tools
+        } catch {
+          tools = undefined
+        }
+        if (!Array.isArray(tools) || tools.length === 0) {
+          fail('gates-toolchain', `"${name}": ${inventoryRel} must carry a non-empty "tools" list`)
+        } else {
+          const SOURCES = {
+            'checks.yml NODE_VERSION': pins.node,
+            'checks.yml UV_VERSION': pins.uv,
+            'package.json packageManager': pins.pnpm,
+          }
+          const manifestArgs = new Set()
+          for (const tool of tools) {
+            if (
+              typeof tool !== 'object' ||
+              tool === null ||
+              typeof tool.name !== 'string' ||
+              typeof tool.provedBy !== 'string'
+            ) {
+              fail(
+                'gates-toolchain',
+                `"${name}": every ${inventoryRel} entry needs "name" and "provedBy"`,
+              )
+              continue
+            }
+            if (tool.provedBy !== 'arg') continue
+            manifestArgs.add(tool.arg)
+            const declared = text.match(new RegExp(`^ARG ${tool.arg}=(.+)$`, 'm'))?.[1]
+            if (declared === undefined) {
+              fail(
+                'gates-toolchain',
+                `"${name}": inventory tool "${tool.name}" is proved by ARG ${tool.arg}, which the definition does not declare`,
+              )
+            } else if (tool.versionSource !== undefined) {
+              const expected = SOURCES[tool.versionSource]
+              if (expected === undefined) {
+                fail(
+                  'gates-toolchain',
+                  `"${name}": inventory tool "${tool.name}" names unknown versionSource "${tool.versionSource}"`,
+                )
+              } else if (declared !== expected) {
+                fail(
+                  'gates-pin',
+                  `"${name}": ARG ${tool.arg}=${declared} does not mirror the governed gate (${tool.versionSource} declares ${expected})`,
+                )
+              }
+            }
+          }
+          for (const m of text.matchAll(/^ARG ([A-Z0-9_]+_VERSION)=/gm)) {
+            if (!manifestArgs.has(m[1])) {
+              fail(
+                'gates-toolchain',
+                `"${name}": ARG ${m[1]} is not named by ${inventoryRel}; an unmanifested pin is inventory drift`,
+              )
+            }
           }
         }
       }
@@ -684,26 +747,43 @@ export function checkImages(root = DEFAULT_ROOT) {
     }
 
     if (lineage === 'runner-derived' && isMap(runtime)) {
+      // The explicit runtime installation declaration, consumed by both this
+      // checker and the build definition: exact ARG names, exact lock
+      // values, and at least one RUN instruction that actually CONSUMES the
+      // package variable. Text presence proves a mention; a declaration
+      // nothing executes installs nothing — the review's ARG-only and
+      // comment-only fixtures both pass a mention test and both must fail.
+      // The claim, precisely: the registered identity flows into an executed
+      // build instruction. Whether that instruction semantically installs is
+      // proven by the governed build itself (the wiring assertion runs the
+      // installed runtime), never by static text.
       const version = runtime.get('version')
-      const pin = new RegExp(`^ARG [A-Z0-9_]*VERSION=${version.replaceAll('.', '\\.')}$`, 'm')
-      if (!pin.test(text)) {
+      const versionEscaped = String(version).replaceAll('.', '\\.')
+      if (!new RegExp(`^ARG RUNTIME_VERSION=${versionEscaped}$`, 'm').test(text)) {
         fail(
           'runtime-pin',
-          `"${name}": definition does not pin the runtime version ${version} in an ARG`,
+          `"${name}": definition must declare ARG RUNTIME_VERSION=${version} (the lock's runtime.version)`,
         )
       }
       if (!text.includes(`io.secure-home.runtime.version="${version}"`)) {
         fail('runtime-pin', `"${name}": runtime version label does not match the lock (${version})`)
       }
-      // The lock registration is the one-runtime authority; the definition
-      // must be tied to it mechanically, not by brand vocabulary: it installs
-      // exactly the registered package.
       const registeredPackage = runtime.get('package')
-      if (typeof registeredPackage === 'string' && !text.includes(registeredPackage)) {
-        fail(
-          'runtime-pin',
-          `"${name}": definition does not install its registered runtime package ${registeredPackage}`,
-        )
+      if (typeof registeredPackage === 'string') {
+        const packageEscaped = registeredPackage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        if (!new RegExp(`^ARG RUNTIME_PACKAGE=${packageEscaped}$`, 'm').test(text)) {
+          fail(
+            'runtime-pin',
+            `"${name}": definition must declare ARG RUNTIME_PACKAGE=${registeredPackage} (the lock's runtime.package)`,
+          )
+        } else if (
+          !lines.some((l) => /^RUN\s/i.test(l.trim()) && /\$\{?RUNTIME_PACKAGE\}?\b/.test(l))
+        ) {
+          fail(
+            'runtime-pin',
+            `"${name}": no RUN instruction consumes \${RUNTIME_PACKAGE}; a declaration nothing executes installs nothing`,
+          )
+        }
       }
     }
     if (!text.includes(`io.secure-home.lineage="${lineage}"`)) {
@@ -755,12 +835,30 @@ export function checkImages(root = DEFAULT_ROOT) {
           }
         }
       }
-      const declared = t.match(/^(?:ENV|ARG)\s+([A-Za-z0-9_]+)=?/)
-      if (declared && CREDENTIAL_NAME.test(declared[1])) {
-        fail(
-          'credential-shape',
-          `"${name}": ${declared[1]} is a credential-shaped ENV/ARG name; images carry no credential handling`,
-        )
+      const declared = t.match(/^(ENV|ARG)\s+(.+)$/i)
+      if (declared) {
+        // EVERY declared key, not the first: `ENV SAFE=1 API_KEY=x` is one
+        // instruction with two keys, and only inspecting the first was a
+        // bypass. ARG takes one name; ENV takes many (and a legacy
+        // space-separated single pair).
+        const keys = []
+        if (declared[1].toUpperCase() === 'ARG') {
+          keys.push(declared[2].trim().split('=')[0].trim())
+        } else if (!declared[2].includes('=')) {
+          keys.push(declared[2].trim().split(/\s+/)[0])
+        } else {
+          for (const m of declared[2].matchAll(/(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)=/g)) {
+            keys.push(m[1])
+          }
+        }
+        for (const key of keys) {
+          if (CREDENTIAL_NAME.test(key)) {
+            fail(
+              'credential-shape',
+              `"${name}": ${key} is a credential-shaped ENV/ARG name; images carry no credential handling`,
+            )
+          }
+        }
       }
     }
   }

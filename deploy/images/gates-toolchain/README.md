@@ -7,6 +7,13 @@ and its lock entry carries the explicit independent lineage class.
 
 ## What this image carries
 
+The inventory is **canonical and machine-readable** —
+[`toolchain.json`](toolchain.json) — and `scripts/check-images.mjs`
+enforces it against the Dockerfile in both directions (every manifested
+tool declared; every version pin manifested), mirroring versioned pins
+against the sources that run the gate. Adding a tool to the governed gate
+environment is a reviewed edit to that manifest, never an inference.
+
 Exactly the toolchain surface the governed gates invoke
 (`.github/workflows/checks.yml` and `scripts/check.sh`) — inventoried, not
 guessed:
