@@ -3,7 +3,7 @@
 ## Context
 
 The platform has contracts (`runner-model.md`, ADR-0003/0004/0006/0011) but
-no substrate. The upstream `agent-service` substrate is operationally
+no substrate. The upstream substrate is operationally
 exercised and heavily tested but provider-coupled, and it carries known gaps
 against the platform contract. The proposal decided: no IP re-homing —
 reimplementation against new platform-owned domain schemas, upstream
