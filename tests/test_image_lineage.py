@@ -803,6 +803,24 @@ def test_a_declaration_no_run_consumes_is_refused(tmp_path: Path) -> None:
     assert "no RUN instruction consumes" in result.stderr
 
 
+def test_a_version_no_run_consumes_is_refused(tmp_path: Path) -> None:
+    """PA-MUT-10 (L7): every ${RUNTIME_VERSION} usage replaced by a literal
+    survived the package-only rule — the declared pin and the installed
+    bytes could drift apart. The version must flow into an executed
+    instruction, exactly like the package."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-example/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace(
+            "RUN install-runtime ${RUNTIME_PACKAGE}@${RUNTIME_VERSION}\n",
+            "RUN install-runtime ${RUNTIME_PACKAGE}@1.2.3\n",
+        )
+    )
+    result = _check(root)
+    assert result.returncode == 1
+    assert "no RUN instruction consumes ${RUNTIME_VERSION}" in result.stderr
+
+
 def test_a_run_consuming_the_package_across_a_commented_continuation_passes(
     tmp_path: Path,
 ) -> None:
