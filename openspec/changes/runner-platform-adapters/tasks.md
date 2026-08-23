@@ -79,9 +79,11 @@ the ladder run and reported, including the known local plain-`uv` rows.
   conventions read; seam design decided (design.md)
 - [x] Copilot npm identities resolved from registry.npmjs.org
   (1.0.79 main + linux-x64 + linux-arm64 + detect-libc 2.1.2)
-- [ ] #55 body re-verified verbatim against the live issue before the PR
-  opens (GitHub API unreachable at authoring time; scope recorded from
-  the prior session's read)
+- [x] #55 body re-verified verbatim against the live issue before the PR
+  opened (GitHub API was unreachable at authoring time; the live body —
+  "Ships", expected scope, completion intent, translate-and-report rule —
+  matches what is recorded above; the issue's own "L5 open" prerequisite
+  line predates the #94 merge and is superseded by it)
 
 ## 1. Change artifacts
 
