@@ -83,7 +83,14 @@ const DEP_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'opti
 
 /** Discover pnpm workspace members exactly as pnpm-workspace.yaml does. */
 function discoverTypescriptTargets(ROOT) {
-  const globs = ['services', 'services/workers', 'apps', 'packages', 'agents']
+  const globs = [
+    'services',
+    'services/workers',
+    'apps',
+    'packages',
+    'agents',
+    'agents/adapters/coding',
+  ]
   const targets = new Map() // name -> { name, dir, deps: Set<string> }
 
   for (const g of globs) {

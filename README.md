@@ -7,21 +7,26 @@ problems, answering questions — running under controls strong enough that they
 can be trusted near a door lock, and local enough that the house keeps working
 when the internet does not.
 
-> ## Status: contracts, core, orchestration, the knowledge toolchain, and the image lineage are landed — nothing is deployed
+> ## Status: contracts, core, orchestration, the knowledge toolchain, the image lineage, and the coding adapters are landed — nothing is deployed
 >
 > **Landed:** the runner domain contracts; the trusted runner core
 > ([`packages/runner-core`](packages/runner-core/)); L4 orchestration
 > ([`services/runner-control`](services/runner-control/)) — the typed run
-> lifecycle, authority acquisition, the effect boundary, and finalization; and
+> lifecycle, authority acquisition, the effect boundary, and finalization;
 > the knowledge toolchain with repository content admission
-> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)); and the
+> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)); the
 > L5 image lineage ([`deploy/images/`](deploy/images/)) — the digest-locked
-> runner-base, Claude reference, and gates-toolchain definitions, inert.
+> runner-base, Claude reference, Copilot, and gates-toolchain definitions,
+> inert; and the L7 coding adapters
+> ([`agents/adapters/coding/`](agents/adapters/coding/)) — Claude Code and
+> GitHub Copilot CLI translation to the frozen adapter SPI, conformance-proven
+> against stubs, launched by nothing.
 >
 > **There is still no deployed or activated runtime**: no Home Assistant, no
 > running service, no OpenFGA, no Keycloak, no published or activated runner
-> image (the L5 definitions are inert), no launcher or
-> process spawn, no L9 physical enforcement, no credentials, no database
+> image (the image definitions are inert), no launcher or process spawn (the
+> adapters exist; nothing can invoke
+> them), no L9 physical enforcement, no credentials, no database
 > connection, and no durable persistence
 > ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
 > running system.

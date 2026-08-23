@@ -4,7 +4,7 @@ Deployment **assets** — the declarative definitions of how the platform would
 run on the Pi.
 
 > **Status: image definitions are landed (L5, issue #53) and inert; nothing
-> is deployed.** [`images/`](images/) carries the three validated L5 image
+> is deployed.** [`images/`](images/) carries the four validated image
 > definitions and their lineage lock — built and verified only through the
 > governed CI path, referenced by no profile, launched by nothing. Every
 > other directory is a documented placeholder: no Compose file, no proxy

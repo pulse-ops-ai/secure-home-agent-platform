@@ -13,6 +13,7 @@ Runner **image definitions** and their machine-readable lineage record.
 |---|---|
 | [`runner-base/`](runner-base/) | `secure-home-runner-base` — the provider-neutral untrusted workload substrate |
 | [`runner-claude/`](runner-claude/) | `secure-home-runner-claude` — the reference derived image: exact base + one pinned Claude Code runtime |
+| [`runner-copilot/`](runner-copilot/) | `secure-home-runner-copilot` — derived image: exact base + one pinned GitHub Copilot CLI runtime (L7, #55) |
 | [`gates-toolchain/`](gates-toolchain/) | `secure-home-gates-toolchain` — the governed gate toolchain, **outside** the runner lineage |
 | [`image-lock.yaml`](image-lock.yaml) | The lineage and pinning record: lineage classes, definitions, immutable identities (index + per-platform manifest digests), the derived parent chain, the one pinned runtime |
 | [`scripts/`](scripts/) | The governed build tooling (CI-executed; never run locally by a coding agent) |
@@ -21,16 +22,17 @@ Runner **image definitions** and their machine-readable lineage record.
 
 ```text
 secure-home-runner-base              provider-neutral substrate (landed, L5)
-└── secure-home-runner-claude        Claude Code, pinned (landed, L5)
+├── secure-home-runner-claude        Claude Code, pinned (landed, L5)
+└── secure-home-runner-copilot       GitHub Copilot CLI, pinned (landed, L7)
 
 secure-home-gates-toolchain          separate lineage; runs gates, not agents
 ```
 
 Future derived images extend the same base, the same lock, and the same
 checker with **no new taxonomy** — one directory plus one lock entry each,
-when their governed landing authorizes them: `runner-copilot` at L7 (#55);
-Codex, a deterministic custom loop, or household framework runtimes only
-when a landing requires them. **No speculative directory exists before its
+when their governed landing authorizes them — `runner-copilot` landed exactly
+that way at L7 (#55). Codex, a deterministic custom loop, or household
+framework runtimes arrive only when a landing requires them. **No speculative directory exists before its
 landing.**
 
 **One runtime per derived image, pinned. A multi-provider image is

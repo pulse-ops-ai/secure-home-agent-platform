@@ -26,12 +26,16 @@ platform for household agents, controlling physical devices in a home.
 Documentation, governance, workspace scaffolding — **and landed code**: the
 runner domain contracts, `packages/runner-core`, `services/runner-control`'s L4
 orchestration, `packages/knowledge-toolchain` with repository content
-admission, and the L5 image lineage (`deploy/images/` — digest-locked,
-machine-validated, inert).
+admission, the image lineage (`deploy/images/` — digest-locked,
+machine-validated, inert; L5 base/Claude/gates plus the L7 Copilot image),
+and the L7 coding adapters (`agents/adapters/coding/` — frozen-SPI
+translation for Claude Code and GitHub Copilot CLI, conformance-proven,
+launched by nothing).
 
 **No deployed or activated runtime.** No Home Assistant, no running service, no
-OpenFGA, no Keycloak, no published or activated runner image (the L5
-definitions are inert), no launcher or process spawn, no L9 physical
+OpenFGA, no Keycloak, no published or activated runner image (the image
+definitions are inert), no launcher or process spawn (the adapters exist;
+no platform code path invokes them), no L9 physical
 enforcement, no credentials. Landed code is not a running system, and neither
 half of that sentence may be dropped.
 

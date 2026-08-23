@@ -25,6 +25,11 @@ packages:
   - 'packages/*'
   # Agent implementations, only where an agent is itself a pnpm package.
   - 'agents/*'
+  # Coding-class provider adapters (L7 / #55). A deeper glob root, like
+  # 'services/workers/*' above, so membership stays one level below an explicit
+  # root rather than recursive: agents/adapters/coding/<adapter>/package.json
+  # joins by decision, and README-only adapter directories (codex) do not.
+  - 'agents/adapters/coding/*'
 
 # ---------------------------------------------------------------------------
 # Catalog — the canonical declaration point for shared external versions

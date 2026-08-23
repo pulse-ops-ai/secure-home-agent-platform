@@ -167,7 +167,8 @@ def test_the_live_repository_passes_its_own_lineage_gate() -> None:
         ["node", str(SCRIPT)], cwd=REPO_ROOT, capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "3 image(s)" in result.stdout
+    # Four since L7 (#55) registered secure-home-runner-copilot.
+    assert "4 image(s)" in result.stdout
 
 
 def test_the_fixture_control_passes(tmp_path: Path) -> None:
