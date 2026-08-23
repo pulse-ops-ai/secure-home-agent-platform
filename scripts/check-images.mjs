@@ -657,6 +657,17 @@ export function checkImages(root = DEFAULT_ROOT) {
             'checks.yml UV_VERSION': pins.uv,
             'package.json packageManager': pins.pnpm,
           }
+          // The proof vocabulary is CLOSED, and every proof type carries an
+          // executed mechanism — "evidenced" means the same thing here as it
+          // does for the runtime package: declaration + executed consumption,
+          // never declaration alone.
+          //   debian-base  carried by the digest-pinned external base; the
+          //                FROM-pin rule is its proof.
+          //   arg          the exact ARG declaration AND a RUN consuming it —
+          //                a pin nothing executes carries nothing.
+          //   uv-managed   an explicit "value" AND the literal
+          //                `uv python install <value>` in a RUN.
+          const PROOF_TYPES = new Set(['debian-base', 'arg', 'uv-managed'])
           const manifestArgs = new Set()
           for (const tool of tools) {
             if (
@@ -671,7 +682,39 @@ export function checkImages(root = DEFAULT_ROOT) {
               )
               continue
             }
-            if (tool.provedBy !== 'arg') continue
+            if (!PROOF_TYPES.has(tool.provedBy)) {
+              fail(
+                'gates-toolchain',
+                `"${name}": inventory tool "${tool.name}" has unknown provedBy "${tool.provedBy}"; the proof vocabulary is closed (${[...PROOF_TYPES].join(', ')}) and an unproved entry never silently passes`,
+              )
+              continue
+            }
+            if (tool.provedBy === 'debian-base') continue
+            if (tool.provedBy === 'uv-managed') {
+              if (typeof tool.value !== 'string' || tool.value === '') {
+                fail(
+                  'gates-toolchain',
+                  `"${name}": uv-managed tool "${tool.name}" needs an explicit "value" (the interpreter spec uv installs)`,
+                )
+              } else if (
+                !lines.some(
+                  (l) => /^RUN\s/i.test(l.trim()) && l.includes(`uv python install ${tool.value}`),
+                )
+              ) {
+                fail(
+                  'gates-toolchain',
+                  `"${name}": inventory tool "${tool.name}" is uv-managed at ${tool.value}, but no RUN instruction performs \`uv python install ${tool.value}\``,
+                )
+              }
+              continue
+            }
+            if (typeof tool.arg !== 'string' || !/^[A-Z0-9_]+$/.test(tool.arg)) {
+              fail(
+                'gates-toolchain',
+                `"${name}": inventory tool "${tool.name}" needs an "arg" naming an uppercase ARG identifier`,
+              )
+              continue
+            }
             manifestArgs.add(tool.arg)
             const declared = text.match(new RegExp(`^ARG ${tool.arg}=(.+)$`, 'm'))?.[1]
             if (declared === undefined) {
@@ -679,7 +722,19 @@ export function checkImages(root = DEFAULT_ROOT) {
                 'gates-toolchain',
                 `"${name}": inventory tool "${tool.name}" is proved by ARG ${tool.arg}, which the definition does not declare`,
               )
-            } else if (tool.versionSource !== undefined) {
+              continue
+            }
+            if (
+              !lines.some(
+                (l) => /^RUN\s/i.test(l.trim()) && new RegExp(`\\$\\{?${tool.arg}\\}?\\b`).test(l),
+              )
+            ) {
+              fail(
+                'gates-toolchain',
+                `"${name}": ARG ${tool.arg} (tool "${tool.name}") is declared but consumed by no RUN instruction; a pin nothing executes carries nothing`,
+              )
+            }
+            if (tool.versionSource !== undefined) {
               const expected = SOURCES[tool.versionSource]
               if (expected === undefined) {
                 fail(

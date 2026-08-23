@@ -176,6 +176,15 @@ enforcement exists today.
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming the drifted tool, pin, or missing manifest
 
+#### Scenario: Every manifested proof is executed, from a closed vocabulary
+
+- **GIVEN** a manifest tool whose proof type is unknown, or whose declared
+  ARG no RUN instruction consumes, or whose uv-managed interpreter has no
+  `uv python install <value>` in a RUN
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the unproved tool — an unknown proof type never
+  silently passes, and a pin nothing executes carries nothing
+
 ### Requirement: Image identity is an immutable digest with disambiguated kinds
 
 Every external OCI base reference in any Dockerfile SHALL be pinned by

@@ -8,7 +8,9 @@
 # deployment asset locally, this script included. It runs in the governed CI
 # workflow (.github/workflows/images.yml); a human may run it deliberately
 # with IMAGES_BUILD_AUTHORIZED=1. It builds; it does not publish, push,
-# start, or deploy anything, and it launches no container.
+# start, or deploy anything, and no produced image is executed — the
+# digest-pinned BuildKit builder container is the one thing it runs:
+# build infrastructure, never a workload.
 #
 # Reproducibility posture (the exact claim is in the L5 child design):
 #   - provenance/SBOM attestations off (both embed nondeterministic input);

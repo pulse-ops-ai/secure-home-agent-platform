@@ -41,6 +41,7 @@ ARG SOURCE_DATE_EPOCH=0
 ARG NODE_VERSION=1.0.0
 ARG PNPM_VERSION=2.0.0
 ARG UV_VERSION=3.0.0
+RUN install-toolchain node@${{NODE_VERSION}} pnpm@${{PNPM_VERSION}} uv@${{UV_VERSION}} && uv python install 9.9
 LABEL io.secure-home.lineage="gates-toolchain"
 USER nobody
 """
@@ -129,7 +130,8 @@ def _fixture(tmp_path: Path) -> Path:
             '  { "name": "pnpm", "provedBy": "arg", "arg": "PNPM_VERSION",\n'
             '    "versionSource": "package.json packageManager" },\n'
             '  { "name": "uv", "provedBy": "arg", "arg": "UV_VERSION",\n'
-            '    "versionSource": "checks.yml UV_VERSION" }\n'
+            '    "versionSource": "checks.yml UV_VERSION" },\n'
+            '  { "name": "python", "provedBy": "uv-managed", "value": "9.9" }\n'
             "] }\n"
         ),
         "deploy/runtime/README.md": "# runtime taxonomy only\n",
@@ -542,6 +544,54 @@ def test_a_manifested_tool_missing_from_the_definition_is_refused(tmp_path: Path
     result = _check(root)
     assert result.returncode == 1
     assert "which the definition does not declare" in result.stderr
+
+
+def test_a_declared_pin_no_run_consumes_is_refused(tmp_path: Path) -> None:
+    """The review's counterexample: GIT_VERSION-style ARG survives while its
+    `pkg=${ARG}` usage is accidentally removed — the manifest still claims
+    the tool, the ARG still exists, and the property "the tool is carried"
+    is lost. A pin nothing executes carries nothing."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("node@${NODE_VERSION} ", ""))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "consumed by no RUN instruction" in result.stderr
+    assert "NODE_VERSION" in result.stderr
+
+
+def test_an_unknown_proof_type_is_refused(tmp_path: Path) -> None:
+    """provedBy is a closed vocabulary; an unknown proof type must refuse,
+    never silently skip — a skipped proof is an unproved tool reading as
+    proved."""
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/gates-toolchain/toolchain.json"
+    manifest.write_text(
+        manifest.read_text().replace('"provedBy": "uv-managed"', '"provedBy": "magic"')
+    )
+    result = _check(root)
+    assert result.returncode == 1
+    assert 'unknown provedBy "magic"' in result.stderr
+
+
+def test_a_missing_uv_managed_install_is_refused(tmp_path: Path) -> None:
+    """The manifest claims a uv-managed interpreter; the definition must
+    perform the literal `uv python install <value>`."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace(" && uv python install 9.9", ""))
+    result = _check(root)
+    assert result.returncode == 1
+    assert "uv python install 9.9" in result.stderr
+
+
+def test_a_uv_managed_tool_without_a_value_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/gates-toolchain/toolchain.json"
+    manifest.write_text(manifest.read_text().replace(', "value": "9.9"', ""))
+    result = _check(root)
+    assert result.returncode == 1
+    assert 'needs an explicit "value"' in result.stderr
 
 
 def test_an_unmanifested_version_pin_is_refused(tmp_path: Path) -> None:

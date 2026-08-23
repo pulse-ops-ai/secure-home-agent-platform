@@ -278,8 +278,11 @@ workflow (`.github/workflows/images.yml`):
 - **Triggers:** `pull_request` on `deploy/images/**` and the workflow
   itself, plus `workflow_dispatch`. It never runs on unrelated changes.
 - **Builds** all three images for both platforms with buildx + QEMU,
-  exporting **OCI layouts** — no registry, no push, no `docker run`,
-  nothing deployed. The whole machinery is pinned, not just the actions:
+  exporting **OCI layouts** — no registry, no push, no produced L5 image
+  executed, no runner workload launched, nothing deployed. Stated
+  precisely: the CI build infrastructure DOES execute two pinned
+  containers — the binfmt/QEMU helper (privileged, digest-pinned) and the
+  BuildKit builder (digest-pinned) — and nothing else runs. The whole machinery is pinned, not just the actions:
   the actions by commit SHA, the binfmt/QEMU helper (privileged host path)
   by immutable image digest, Buildx by exact version, and the BuildKit
   container that produces the identities by immutable image digest, in

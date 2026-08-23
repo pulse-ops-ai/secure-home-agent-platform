@@ -198,7 +198,8 @@ the draft PR stands for owner review with no undisclosed skip.
   SHA-pinned actions; QEMU + buildx; builds all three images for both
   platforms; verify step compares to the lock, failing on mismatch or
   sentinel with built digests reported as evidence. No push, no publish,
-  no container run.
+  no produced image executed (the pinned binfmt helper and BuildKit
+  container are CI build infrastructure, and they do run).
 
 ---
 
@@ -359,6 +360,31 @@ P1s confirmed closed; three code/proof gaps). All closed on this branch:
    proof that only the changed definition's identity changes.
 5. PR-body wording corrected: digest-pinned binfmt + BuildKit;
    exact-version-pinned Buildx.
+
+---
+
+## Review-round 4 record
+
+Owner re-review of head `2276cfd` (rounds 1–3 confirmed closed; one
+blocking P2 and one wording correction). Both closed on this branch:
+
+1. **P2 — the manifest proved declaration, not carriage.** `provedBy` was
+   an open vocabulary: everything except `arg` was silently skipped, so
+   the real manifest's uv-managed python had no mechanical proof at all,
+   and an arg-proved tool passed with the ARG declared but its
+   `pkg=${ARG}` usage deleted. The vocabulary is now closed
+   (`debian-base` — proved by the digest-pinned FROM; `arg` — declaration
+   AND a consuming RUN; `uv-managed` — explicit value AND the literal
+   `uv python install <value>` in a RUN; unknown → refuse). "Evidenced"
+   now means the same thing across the whole checker: declaration plus
+   executed consumption. IL-ADV-20 / IL-MUT-13; the gates image's own
+   digests did not move (its definition is unchanged — it already
+   consumed every pin).
+2. **Wording** — "no container run" corrected everywhere (design, tasks,
+   build.sh, scripts README, PR body) to: no produced L5 image is
+   executed and no runner workload is launched; the CI build
+   infrastructure does execute two pinned containers (the privileged
+   binfmt/QEMU helper and the BuildKit builder, both digest-pinned).
 
 ---
 

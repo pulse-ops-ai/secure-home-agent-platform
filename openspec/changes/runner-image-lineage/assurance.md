@@ -133,7 +133,8 @@ An undecidable state never maps to success.
 | IL-ADV-17 | IL-INV-04 | hostile fixtures (review round 3) | the registered package present only in an ARG no RUN consumes, or only in a comment with no declaration — both refused; the commented-continuation control (a real RUN consuming the variable across a mid-block comment) passes |
 | IL-ADV-18 | IL-INV-05 | hostile fixtures (review round 3) | a missing toolchain manifest, a manifested tool the definition does not declare, and an unmanifested version pin (`ARG JQ_VERSION=…`) — each refused in its own direction |
 | IL-ADV-19 | IL-INV-12 | hostile fixture (review round 3) | `ENV SAFE_VALUE=1 PLATFORM_API_KEY=…` refused naming the second key — every declared key parsed, not the first |
-| IL-MUT-01…12 | checker guards | hand-applied mutation | see Mutation targets |
+| IL-ADV-20 | IL-INV-05 | hostile fixtures (review round 4) | a declared pin whose RUN consumption was removed (the review's `git=${GIT_VERSION}`-deleted counterexample) refused; `provedBy: "magic"` refused as outside the closed vocabulary; a uv-managed tool with the `uv python install <value>` removed, or with no value, refused |
+| IL-MUT-01…13 | checker guards | hand-applied mutation | see Mutation targets |
 
 ## Property tests
 
@@ -169,6 +170,7 @@ Hand-applied to the checker, verified killed by the named test, restored:
 | IL-MUT-10 | RUN-consumption half of the installation declaration | IL-ADV-17 ARG-only fixture |
 | IL-MUT-11 | manifest→definition inventory direction | IL-ADV-18 undeclared-tool fixture |
 | IL-MUT-12 | every-key ENV parsing (first-key-only regression) | IL-ADV-19 multi-key fixture — the single-key case stays green under the mutant, so the kill is attributable |
+| IL-MUT-13 | gates ARG-consumption guard | IL-ADV-20 unconsumed-pin fixture |
 
 The CI rebuild-and-compare guard cannot be mutated locally without running
 Docker; its refusal behavior is proven by the bootstrap run itself
@@ -216,6 +218,19 @@ checker it proves. Authority posture: inert — nothing activates.
   import direction, full TS/python suites, strict OpenSpec validation.
 - Evidence review at the seam: the CI build/verify runs at the exact head,
   the lock's recorded identities, and the pin-resolution provenance.
+- **Review round 4 (performed):** the owner re-review of `2276cfd`
+  confirmed rounds 1–3 closed and left one blocking P2: `provedBy` was an
+  open vocabulary silently skipping everything but `arg` (the real
+  manifest's `uv-managed` python received no mechanical proof), and an
+  arg-proved tool was "evidenced" by declaration alone. The proof
+  vocabulary is now closed (unknown → refuse), arg-proved tools require
+  declaration AND a consuming RUN, and uv-managed tools carry an explicit
+  value with the literal `uv python install <value>` required in a RUN —
+  the same declaration-plus-executed-consumption discipline as the runtime
+  package. IL-ADV-20 / IL-MUT-13. The "no container run" overclaims were
+  corrected everywhere to the precise statement: no produced image is
+  executed; the pinned binfmt helper and BuildKit builder are the CI build
+  infrastructure that does run.
 - **Review round 3 (performed):** the owner re-review of `6ab0bd5` closed
   both P1s and found the two P2 mechanisms still proving less than the
   specification says, plus one bypass: text-presence is not installation

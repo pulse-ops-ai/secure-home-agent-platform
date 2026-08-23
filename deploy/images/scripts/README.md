@@ -8,7 +8,7 @@ each script refuses outside CI unless a human deliberately sets
 
 | Script | Does |
 |---|---|
-| [`build.sh`](build.sh) | Builds every image registered in [`../image-lock.yaml`](../image-lock.yaml), for every declared platform, as OCI **layouts** (no registry, no push, no container run), with the reproducibility posture fixed: attestations off, `SOURCE_DATE_EPOCH=0`, timestamps rewritten, the derived image's parent resolved from the lock's `parent_digest` via an OCI-layout build context. Emits `digests.json` evidence |
+| [`build.sh`](build.sh) | Builds every image registered in [`../image-lock.yaml`](../image-lock.yaml), for every declared platform, as OCI **layouts** (no registry, no push, no produced image executed — the pinned binfmt helper and BuildKit container are the build infrastructure that runs), with the reproducibility posture fixed: attestations off, `SOURCE_DATE_EPOCH=0`, timestamps rewritten, the derived image's parent resolved from the lock's `parent_digest` via an OCI-layout build context. Emits `digests.json` evidence |
 | [`verify.sh`](verify.sh) | Compares the freshly built digests to the lock. Mismatch → fail naming both digests. Bootstrap sentinel → fail printing the built digests as the exact evidence to record. Match → the rebuild-and-compare reproducibility proof |
 | [`inspect.sh`](inspect.sh) | Human-readable lineage: built index and per-platform manifest digests, the parent chain, and the pinned runtime, against the lock |
 

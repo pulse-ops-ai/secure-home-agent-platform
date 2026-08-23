@@ -27,6 +27,6 @@
       "arg": "UV_VERSION",
       "versionSource": "checks.yml UV_VERSION"
     },
-    { "name": "python (uv-managed CPython 3.13)", "provedBy": "uv-managed" }
+    { "name": "python (uv-managed CPython 3.13)", "provedBy": "uv-managed", "value": "3.13" }
   ]
 }
