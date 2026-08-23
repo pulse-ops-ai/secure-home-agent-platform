@@ -284,6 +284,54 @@ def test_a_consistent_recorded_chain_passes(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_a_runtime_identity_smuggling_a_second_providers_tokens_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The falsification review's counter-fixture: runtime.package free text
+    must not launder a second provider's tokens into the owned set. A runtime
+    identity resolving to more than one provider family is two runtimes."""
+    root = _fixture(tmp_path)
+    lock = root / "deploy/images/image-lock.yaml"
+    lock.write_text(
+        lock.read_text().replace(
+            'package: "@example/agent"', 'package: "@example/agent-codex-copilot"', 1
+        )
+    )
+    dockerfile = root / "deploy/images/runner-example/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + "RUN install-codex copilot-helper\n")
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "resolves to more than one provider" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        (
+            'package: "@example/agent"',
+            "package: not one single package",
+            "single npm package name",
+        ),
+        ("      version: 1.2.3", "      version: 2.x", "exact MAJOR.MINOR.PATCH"),
+        ("integrity: sha512-AAAA", "integrity: md5-abc", "sha512 integrity"),
+        ("name: example-agent", "name: Example-Agent", "lowercase kebab"),
+    ],
+)
+def test_runtime_value_grammars_are_enforced(
+    tmp_path: Path, old: str, new: str, message: str
+) -> None:
+    """The owned-token computation reads these values, so they carry a value
+    grammar, not just a key shape."""
+    root = _fixture(tmp_path)
+    lock = root / "deploy/images/image-lock.yaml"
+    text = lock.read_text()
+    assert old in text, old
+    lock.write_text(text.replace(old, new, 1))
+    result = _check(root)
+    assert result.returncode == 1, (old, result.stdout)
+    assert message in result.stderr, (old, result.stderr)
+
+
 def test_a_version_drifting_from_the_lock_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-example/Dockerfile"
@@ -348,10 +396,66 @@ def test_a_launcher_token_in_runner_control_is_refused(tmp_path: Path) -> None:
     assert "images.launcher" in result.stderr
 
 
-def test_platform_code_copied_into_an_image_is_refused(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "COPY services/runner-control /opt/control",
+        "COPY ./services/runner-control/dist /opt/c",
+        "COPY ././services/runner-control/dist /opt/c",
+        "COPY --chown=runner:runner ./services/runner-control/dist /opt/c",
+        'COPY ["services/runner-control/dist", "/opt/c"]',
+        "COPY ./packages/contracts /opt/c",
+        "COPY ./knowledge /opt/c",
+        "ADD ./services/runner-control/dist /opt/c",
+        "COPY ./profiles /opt/c",
+    ],
+)
+def test_every_spelling_of_a_platform_code_copy_is_refused(
+    tmp_path: Path, instruction: str
+) -> None:
+    """The falsification review ran nine equivalent spellings; eight bypassed
+    the original single-pattern rule. Docker treats them identically, so the
+    checker must too: sources are parsed and normalized, never
+    pattern-matched against one spelling."""
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-base/Dockerfile"
-    dockerfile.write_text(dockerfile.read_text() + "COPY services/runner-control /opt/control\n")
+    dockerfile.write_text(dockerfile.read_text() + instruction + "\n")
+    result = _check(root)
+    assert result.returncode == 1, instruction
+    assert "images.decision-bearing" in result.stderr, instruction
+
+
+@pytest.mark.parametrize(
+    ("instruction", "message"),
+    [
+        ("ADD https://example.com/tool.tgz /opt/t", "remote URL"),
+        ("COPY ../secrets /opt/s", "escapes the build context"),
+        ("COPY /etc/passwd /opt/p", "absolute host path"),
+        (
+            "COPY --from=docker.io/library/busybox:latest /bin/busybox /opt/bb",
+            "neither a declared build stage nor pinned",
+        ),
+    ],
+)
+def test_unpinned_or_escaping_copy_inputs_are_refused(
+    tmp_path: Path, instruction: str, message: str
+) -> None:
+    """Same guard, same class: remote fetches, context escapes, host paths,
+    and unpinned --from images are all inputs the lock cannot explain."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + instruction + "\n")
+    result = _check(root)
+    assert result.returncode == 1, instruction
+    assert message in result.stderr, instruction
+
+
+def test_a_continuation_cannot_hide_a_copy_source(tmp_path: Path) -> None:
+    """Instruction rules read logical lines: a backslash continuation must
+    not hide the argument from the scan."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + "COPY \\\n  ./services/x /opt/c\n")
     result = _check(root)
     assert result.returncode == 1
     assert "images.decision-bearing" in result.stderr

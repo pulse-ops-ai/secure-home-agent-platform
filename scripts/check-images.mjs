@@ -51,21 +51,63 @@ const LINEAGES = ['runner-base', 'runner-derived', 'gates-toolchain']
 
 // Mirrors the platform neutrality proof's vocabulary
 // (packages/contracts/src/conformance/helpers.ts FORBIDDEN_STRUCTURAL_NAMES)
-// as DATA. Providers and isolation runtimes are split because a Dockerfile
-// is inherently a container build definition: `docker` is refused in image
-// NAMES and lock KEYS (identity conflation), not in build-file prose.
-const PROVIDER_TOKENS = [
-  'claude',
-  'copilot',
-  'codex',
-  'anthropic',
-  'openai',
-  'langgraph',
-  'pydantic',
+// as DATA, grouped by provider FAMILY: a derived runtime may own its own
+// family's tokens (product + vendor) and no other family's. The grouping is
+// what makes "exactly one runtime" checkable against the lock's own text —
+// a runtime identity matching two families is two runtimes, refused, so
+// free text in the lock cannot launder a second provider's tokens into the
+// allowed set. Providers and isolation runtimes are split because a
+// Dockerfile is inherently a container build definition: `docker` is
+// refused in image NAMES and lock KEYS (identity conflation), not in
+// build-file prose.
+const PROVIDER_FAMILIES = [
+  ['claude', 'anthropic'],
+  ['copilot'],
+  ['codex', 'openai'],
+  ['langgraph'],
+  ['pydantic'],
 ]
+const PROVIDER_TOKENS = PROVIDER_FAMILIES.flat()
 const ISOLATION_TOKENS = ['kata', 'runc', 'gvisor', 'containerd']
 const NAME_TOKENS = [...ISOLATION_TOKENS, 'docker']
 const CREDENTIAL_NAME = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
+const REPO_DIRS = ['services', 'packages', 'knowledge', 'profiles']
+
+/**
+ * COPY/ADD arguments, parsed the way BuildKit reads them: flags first
+ * (`--from`, `--chown`, `--chmod`, `--link`, `--exclude`, …), then either the
+ * JSON exec form or whitespace-separated paths, destination last. Every
+ * SOURCE spelling must be normalized before the repo-directory rule applies:
+ * `./services/x`, `././services/x`, and `["services/x", …]` name the same
+ * bytes as `services/x` — the falsification review demonstrated eight bypass
+ * spellings against the original single-pattern rule. An instruction the
+ * parser cannot read is refused, never skipped.
+ */
+const parseCopySources = (instruction) => {
+  let rest = instruction.replace(/^(COPY|ADD)\s+/i, '')
+  let fromValue
+  for (;;) {
+    const flag = rest.match(/^--([a-z-]+)(=\S+)?\s+/i)
+    if (flag === null) break
+    if (flag[1].toLowerCase() === 'from') fromValue = (flag[2] ?? '=').slice(1)
+    rest = rest.slice(flag[0].length)
+  }
+  let args
+  if (rest.startsWith('[')) {
+    try {
+      args = JSON.parse(rest)
+    } catch {
+      return { error: 'unparseable JSON exec form' }
+    }
+    if (!Array.isArray(args) || !args.every((a) => typeof a === 'string')) {
+      return { error: 'unparseable JSON exec form' }
+    }
+  } else {
+    args = rest.split(/\s+/).filter((a) => a !== '')
+  }
+  if (args.length < 2) return { error: 'missing source or destination' }
+  return { fromValue, sources: args.slice(0, -1) }
+}
 const LAUNCHER_TOKENS = [
   'dockerode',
   'docker.sock',
@@ -380,6 +422,32 @@ export function checkImages(root = DEFAULT_ROOT) {
       const runtime = entry.get('runtime')
       if (!isMap(runtime) || keysOf(runtime).join(',') !== 'name,package,version,integrity') {
         fail('runtime', `"${name}": runtime must be exactly {name, package, version, integrity}`)
+      } else {
+        // Value grammars, because runtime.name/package feed the owned-token
+        // computation in the neutrality scan: free text here would launder a
+        // second provider's tokens into the allowed set — the exact
+        // counter-fixture the falsification review planted.
+        if (!/^[a-z][a-z0-9-]*$/.test(runtime.get('name'))) {
+          fail('runtime', `"${name}": runtime.name must be a lowercase kebab identifier`)
+        }
+        if (!/^(@[a-z0-9][a-z0-9-._~]*\/)?[a-z0-9][a-z0-9-._~]*$/.test(runtime.get('package'))) {
+          fail('runtime', `"${name}": runtime.package must be a single npm package name`)
+        }
+        if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(runtime.get('version'))) {
+          fail('runtime', `"${name}": runtime.version must be an exact MAJOR.MINOR.PATCH version`)
+        }
+        if (!/^sha512-[A-Za-z0-9+/]+=*$/.test(runtime.get('integrity'))) {
+          fail('runtime', `"${name}": runtime.integrity must be an npm sha512 integrity value`)
+        }
+        const identity = `${runtime.get('name')} ${runtime.get('package')}`.toLowerCase()
+        const families = PROVIDER_FAMILIES.filter((f) => f.some((t) => token(t).test(identity)))
+        if (families.length > 1) {
+          fail(
+            'runtime',
+            `"${name}": runtime identity "${identity}" resolves to more than one provider ` +
+              `(${families.map((f) => f[0]).join(', ')}); a derived image carries exactly one runtime`,
+          )
+        }
       }
     } else {
       const external = entry.get('external_base')
@@ -424,17 +492,31 @@ export function checkImages(root = DEFAULT_ROOT) {
     const path = join(root, entry.get('definition'))
     if (!existsSync(path)) continue
     const text = readFileSync(path, 'utf8')
-    const lines = text.split('\n')
+    // Instruction-level rules read LOGICAL lines: a backslash continuation
+    // must not be able to hide an argument from any scan below.
+    const lines = []
+    let carry = ''
+    for (const raw of text.split('\n')) {
+      const joined = carry + raw
+      if (/\\\s*$/.test(joined) && !/^\s*#/.test(joined)) {
+        carry = joined.replace(/\\\s*$/, ' ')
+        continue
+      }
+      lines.push(joined)
+      carry = ''
+    }
+    if (carry !== '') lines.push(carry)
 
-    const fromRefs = lines
-      .map((l) => l.trim())
-      .filter((l) => /^FROM\s/i.test(l))
-      .map((l) =>
-        l
-          .replace(/^FROM\s+/i, '')
-          .replace(/\s+AS\s+\S+$/i, '')
-          .trim(),
-      )
+    const fromLines = lines.map((l) => l.trim()).filter((l) => /^FROM\s/i.test(l))
+    const stageAliases = new Set(
+      fromLines.map((l) => l.match(/\sAS\s+(\S+)$/i)?.[1]).filter((a) => a !== undefined),
+    )
+    const fromRefs = fromLines.map((l) =>
+      l
+        .replace(/^FROM\s+/i, '')
+        .replace(/\s+AS\s+\S+$/i, '')
+        .trim(),
+    )
     if (fromRefs.length === 0) fail('from', `"${name}": definition has no FROM`)
     for (const ref of fromRefs) {
       const externallyPinned = /^[^\s@]+@sha256:[0-9a-f]{64}$/.test(ref)
@@ -482,11 +564,18 @@ export function checkImages(root = DEFAULT_ROOT) {
     // none. Comments included: a provider name anywhere in the definition is
     // a lineage violation (#53), so the definitions are written without one.
     const runtime = entry.get('runtime')
+    // The owned set is the ONE provider family the runtime identity resolves
+    // to — never a raw substring sweep, which would let lock free text
+    // launder a second provider's tokens into the allowed set. Multi-family
+    // identities were already refused in the schema pass; `find` takes the
+    // single legitimate match.
     const owned =
       lineage === 'runner-derived' && isMap(runtime)
-        ? PROVIDER_TOKENS.filter((t) =>
-            `${runtime.get('name')} ${runtime.get('package')}`.toLowerCase().includes(t),
-          )
+        ? (PROVIDER_FAMILIES.find((f) =>
+            f.some((t) =>
+              token(t).test(`${runtime.get('name')} ${runtime.get('package')}`.toLowerCase()),
+            ),
+          ) ?? [])
         : []
     for (const t of PROVIDER_TOKENS) {
       if (owned.includes(t)) continue
@@ -518,15 +607,46 @@ export function checkImages(root = DEFAULT_ROOT) {
     for (const line of lines) {
       const t = line.trim()
       if (/^(COPY|ADD)\s/i.test(t)) {
-        if (
-          /(^|[\s=])(services|packages|knowledge|profiles)\//.test(t) ||
-          /\s\.\.(\/|\s)/.test(t) ||
-          /^(COPY|ADD)\s+(--\S+\s+)*\//i.test(t)
-        ) {
+        const parsed = parseCopySources(t)
+        if (parsed.error !== undefined) {
           fail(
             'decision-bearing',
-            `"${name}": ${t.split(/\s+/).slice(0, 3).join(' ')} reaches platform code or repository state; images carry no decision-bearing content`,
+            `"${name}": ${t.slice(0, 60)} — ${parsed.error}; an instruction the checker cannot parse cannot be proven inert`,
           )
+        } else {
+          const fromStage = parsed.fromValue !== undefined
+          if (
+            fromStage &&
+            !stageAliases.has(parsed.fromValue) &&
+            !/^\d+$/.test(parsed.fromValue) &&
+            !/@sha256:[0-9a-f]{64}$/.test(parsed.fromValue)
+          ) {
+            // --from can name an arbitrary external image — an unpinned
+            // input through the side door the FROM rule already closed.
+            fail(
+              'from-unpinned',
+              `"${name}": COPY/ADD --from="${parsed.fromValue}" is neither a declared build stage nor pinned by an immutable sha256 digest`,
+            )
+          }
+          for (const rawSource of parsed.sources) {
+            let source = rawSource
+            while (source.startsWith('./')) source = source.slice(2)
+            const problem = /^[a-z][a-z0-9+.-]*:\/\//i.test(source)
+              ? 'fetches a remote URL — an unpinned input'
+              : source.split('/').includes('..')
+                ? 'escapes the build context with ".."'
+                : !fromStage && source.startsWith('/')
+                  ? 'copies an absolute host path'
+                  : !fromStage && REPO_DIRS.includes(source.split('/')[0])
+                    ? 'reaches platform code or repository state'
+                    : undefined
+            if (problem !== undefined) {
+              fail(
+                'decision-bearing',
+                `"${name}": ${t.split(/\s+/).slice(0, 4).join(' ')} ${problem}; images carry no decision-bearing content and no unpinned input`,
+              )
+            }
+          }
         }
       }
       const declared = t.match(/^(?:ENV|ARG)\s+([A-Za-z0-9_]+)=?/)
