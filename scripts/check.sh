@@ -61,8 +61,12 @@ run "secret scan"        bash scripts/scan-secrets.sh
 # and a missing toolchain is a SKIP that gets reported, never a silent pass.
 if command -v node >/dev/null 2>&1; then
   run "knowledge registry" node scripts/check-knowledge.mjs
+  # Image lineage is stdlib-only for the same reason: the lock and its
+  # invariants must be checkable before any workspace toolchain exists.
+  run "image lineage"      node scripts/check-images.mjs
 else
   skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------
