@@ -1,0 +1,73 @@
+# image-lock.yaml — the machine-readable image lineage and pinning record.
+#
+# Validated by scripts/check-images.mjs against a strict canonical grammar
+# (two-space indents, block collections only, fixed key order, full-line
+# comments only). The checker is the one parser; a representation it refuses
+# has no meaning here.
+#
+# Digest vocabulary, exactly:
+#   digest                    the OCI image-index digest covering every
+#                             declared platform — the canonical locked
+#                             identity, and what a future profile pins
+#   manifests[].digest        the per-platform image-manifest digest — the
+#                             artifact a runtime on that platform actually
+#                             consumes, and what run evidence records
+#   external_base.digest      the upstream base's own index digest, matching
+#                             the inline pin in the Dockerfile
+#
+# `pending-first-governed-build` is the explicit bootstrap sentinel: valid
+# syntax, never a completed identity. The governed build path
+# (.github/workflows/images.yml) fails while it is present, reporting the
+# freshly built digests as the evidence to record; digests enter this file
+# from that evidence only.
+version: 1
+images:
+  - name: secure-home-runner-base
+    lineage: runner-base
+    definition: deploy/images/runner-base/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    external_base:
+      reference: docker.io/library/debian:trixie-slim
+      digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
+    digest: pending-first-governed-build
+    manifests:
+      - platform: linux/amd64
+        digest: pending-first-governed-build
+      - platform: linux/arm64
+        digest: pending-first-governed-build
+  - name: secure-home-runner-claude
+    lineage: runner-derived
+    definition: deploy/images/runner-claude/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    parent: secure-home-runner-base
+    parent_digest: pending-first-governed-build
+    runtime:
+      name: claude-code
+      package: "@anthropic-ai/claude-code"
+      version: 2.1.241
+      integrity: sha512-S7DWEmJJAsI5taAUjhKm6soXcFJYIVeTH6Lg9kmp3yntFllCP612hGwZ7thOGh8r7YaRUH9+1jCX5A9QGazsxg==
+    digest: pending-first-governed-build
+    manifests:
+      - platform: linux/amd64
+        digest: pending-first-governed-build
+      - platform: linux/arm64
+        digest: pending-first-governed-build
+  - name: secure-home-gates-toolchain
+    lineage: gates-toolchain
+    definition: deploy/images/gates-toolchain/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    external_base:
+      reference: docker.io/library/debian:trixie-slim
+      digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
+    digest: pending-first-governed-build
+    manifests:
+      - platform: linux/amd64
+        digest: pending-first-governed-build
+      - platform: linux/arm64
+        digest: pending-first-governed-build
