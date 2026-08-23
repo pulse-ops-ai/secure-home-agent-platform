@@ -165,12 +165,42 @@ const registryAt = (root, ref) => {
         (stderr === '' ? ` — ${error.message.split('\n')[0]}` : ` — ${stderr.split('\n')[0]}`),
     }
   }
-  try {
-    const parsed = JSON.parse(raw)
-    return { releases: Array.isArray(parsed.releases) ? parsed.releases : [] }
-  } catch {
-    return { failure: `${REGISTRY} at that revision is not valid JSON` }
+  const envelope = parseRegistryEnvelope(raw)
+  if (envelope.failure !== undefined) {
+    return { failure: `${REGISTRY} at that revision ${envelope.failure}` }
   }
+  return { releases: envelope.releases }
+}
+
+/**
+ * The registry envelope, held to the same contract check-knowledge.mjs
+ * enforces on the current file: `version` exactly 1 and `releases` an array
+ * (other keys, like the file's `_comment`, are tolerated).
+ *
+ * Defaulting a broken envelope to `[]` would convert it into an EMPTY
+ * history: a known-present registry indistinguishable from one that never
+ * existed, every record it held reading as "new", every deletion invisible.
+ * The prior side is re-validated by nothing else, so the envelope refuses
+ * instead of defaulting — on both sides, because the current side must hold
+ * standalone too.
+ */
+const parseRegistryEnvelope = (raw) => {
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { failure: 'is not valid JSON' }
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { failure: 'is not a registry envelope (an object with "version" and "releases")' }
+  }
+  if (parsed.version !== 1) {
+    return { failure: 'does not declare "version": 1' }
+  }
+  if (!Array.isArray(parsed.releases)) {
+    return { failure: 'has no "releases" array' }
+  }
+  return { releases: parsed.releases }
 }
 
 export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefined) {
@@ -204,14 +234,23 @@ export function checkReleaseHistory(root = DEFAULT_ROOT, explicitBase = undefine
     fail(`${REGISTRY} is missing`)
     return { problems, base, added: 0, carried: 0 }
   }
-  let current
+  let rawCurrent
   try {
-    const parsed = JSON.parse(readFileSync(currentPath, 'utf8'))
-    current = Array.isArray(parsed.releases) ? parsed.releases : []
+    rawCurrent = readFileSync(currentPath, 'utf8')
   } catch (error) {
-    fail(`${REGISTRY} is not valid JSON — ${error.message}`)
+    fail(`${REGISTRY} is unreadable — ${error.message}`)
     return { problems, base, added: 0, carried: 0 }
   }
+  const currentEnvelope = parseRegistryEnvelope(rawCurrent)
+  if (currentEnvelope.failure !== undefined) {
+    fail(
+      `${REGISTRY} ${currentEnvelope.failure} — the registry envelope is ` +
+        '{ "version": 1, "releases": [...] }, and a malformed one is refused rather than ' +
+        'read as empty',
+    )
+    return { problems, base, added: 0, carried: 0 }
+  }
+  const current = currentEnvelope.releases
 
   // --- 1./2. the succession rules, applied by their owner --------------------
   // Nothing vanishes, nothing mutates outside `state` (DEEP equality, not an
@@ -308,13 +347,32 @@ const invokedDirectly = (() => {
   }
 })()
 if (invokedDirectly) {
+  // An argv mistake must never demote the baseline to inference. `--base`
+  // with a missing value, or a misspelled option, previously vanished into
+  // "nothing supplied", so the run compared a DIFFERENT revision while
+  // exiting 0 — the exact demotion resolveBase refuses for unresolvable
+  // refs, surviving one layer up. A gate's CLI refuses to guess.
+  const refuseUsage = (message) => {
+    console.error(`✗ release history — ${message}`)
+    console.error('    usage: check-release-history.mjs [--base <ref>] [--root <path>]')
+    process.exit(1)
+  }
+  const options = new Map()
   const args = process.argv.slice(2)
-  const baseIndex = args.indexOf('--base')
-  const explicitBase = baseIndex === -1 ? undefined : args[baseIndex + 1]
-  const rootIndex = args.indexOf('--root')
-  const root = rootIndex === -1 ? DEFAULT_ROOT : args[rootIndex + 1]
+  for (let i = 0; i < args.length; i += 1) {
+    const flag = args[i]
+    if (flag !== '--base' && flag !== '--root') refuseUsage(`unknown option "${flag}"`)
+    const value = args[i + 1]
+    if (value === undefined || value.startsWith('--')) refuseUsage(`${flag} requires a value`)
+    if (options.has(flag)) refuseUsage(`${flag} was supplied twice`)
+    options.set(flag, value)
+    i += 1
+  }
 
-  const { problems, base, added, carried } = checkReleaseHistory(root, explicitBase)
+  const { problems, base, added, carried } = checkReleaseHistory(
+    options.get('--root') ?? DEFAULT_ROOT,
+    options.get('--base'),
+  )
   if (problems.length > 0) {
     console.error(`✗ release history — ${problems.length} problem(s)\n`)
     for (const problem of problems) console.error(`    ${problem}`)

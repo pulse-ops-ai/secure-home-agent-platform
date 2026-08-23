@@ -89,16 +89,14 @@ def _record(
     }
 
 
-def _repo_with_history(
-    tmp_path: Path, before: list[dict[str, Any]], after: list[dict[str, Any]]
-) -> Path:
+def _repo_with_raw_history(tmp_path: Path, before: str, after: str) -> Path:
     """A real repository whose HEAD~1 holds ``before`` and HEAD holds ``after``."""
     repo = tmp_path / "repo"
     (repo / "knowledge").mkdir(parents=True)
     # The real catalog, so section 6 preconditions run against real module state.
     shutil.copy(REPO_ROOT / "knowledge" / "catalog.json", repo / "knowledge" / "catalog.json")
 
-    (repo / "knowledge" / "set-releases.json").write_text(_registry(before))
+    (repo / "knowledge" / "set-releases.json").write_text(before)
     # An explicit branch that is not `main`: resolveBase falls back to a bare
     # `main` ref, and the never-HEAD test below creates `main` itself — a
     # fixture born on `main` (host init.defaultBranch) would collide with both.
@@ -106,12 +104,18 @@ def _repo_with_history(
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "before")
 
-    (repo / "knowledge" / "set-releases.json").write_text(_registry(after))
+    (repo / "knowledge" / "set-releases.json").write_text(after)
     _git(repo, "add", "-A")
     # --allow-empty: a record CARRIED unchanged is a real and important case, and
     # git would otherwise refuse to create the second revision at all.
     _git(repo, "commit", "-q", "--allow-empty", "-m", "after")
     return repo
+
+
+def _repo_with_history(
+    tmp_path: Path, before: list[dict[str, Any]], after: list[dict[str, Any]]
+) -> Path:
+    return _repo_with_raw_history(tmp_path, _registry(before), _registry(after))
 
 
 def _check(repo: Path, base: str = "HEAD~1") -> subprocess.CompletedProcess[str]:
@@ -401,6 +405,90 @@ def test_a_new_release_created_at_released_is_accepted(tmp_path: Path) -> None:
     A real derivable release, so the only thing under test is the state.
     """
     registry = json.loads((REPO_ROOT / "knowledge" / "set-releases.json").read_text())
-    real = next(r for r in registry["releases"] if r["familyId"] == "architecture-default")
+    # The live record's `state` is MUTABLE — Released -> Deprecated is a legal
+    # future move — and this test is about CREATION state, not about whatever
+    # today's registry happens to hold. So the copy pins Released.
+    real = {
+        **next(r for r in registry["releases"] if r["familyId"] == "architecture-default"),
+        "state": "Released",
+    }
     result = _check(_repo_with_history(tmp_path, [], [real]))
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ── the registry envelope is validated, never defaulted ─────────────────────
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        '{"version": 1}',
+        '{"version": 1, "releases": "corrupt"}',
+        '{"version": 2, "releases": []}',
+        "[]",
+    ],
+)
+def test_a_malformed_prior_envelope_fails_rather_than_reading_as_empty(
+    tmp_path: Path, prior: str
+) -> None:
+    """A broken prior envelope must not become an EMPTY history.
+
+    Every record it held would read as "new" and a deletion would be invisible
+    — and the prior side, read via `git show`, is re-validated by nothing else.
+    """
+    repo = _repo_with_raw_history(tmp_path, prior + "\n", _registry([]))
+    result = _check(repo)
+    assert result.returncode == 1, result.stdout
+    assert "could not be established" in result.stderr
+
+
+def test_a_malformed_current_envelope_fails(tmp_path: Path) -> None:
+    """The current side must hold standalone too — nothing guarantees
+    check-knowledge.mjs ran first."""
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    (repo / "knowledge" / "set-releases.json").write_text('{"version": 1, "releases": "corrupt"}\n')
+    result = _check(repo)
+    assert result.returncode == 1, result.stdout
+    assert '"releases"' in result.stderr
+
+
+# ── the CLI refuses to guess ─────────────────────────────────────────────────
+
+
+def test_a_base_flag_without_a_value_is_refused(tmp_path: Path) -> None:
+    """`--base` with a missing value must never demote the run to inference.
+
+    The fallback is proven usable first, so only refusal explains a nonzero
+    exit — the same shape as the exclusivity tests above, one layer up.
+    """
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    assert _check(repo).returncode == 0, "the fallback must be usable"
+
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo), "--base"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_ambient(),
+    )
+    assert result.returncode == 1, result.stdout
+    assert "requires a value" in result.stderr
+
+
+def test_an_unknown_option_is_refused(tmp_path: Path) -> None:
+    """A misspelled option is a mistake, not an instruction to infer."""
+    record = _record()
+    repo = _repo_with_history(tmp_path, [record], [record])
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--rooot", str(repo)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_ambient(),
+    )
+    assert result.returncode == 1, result.stdout
+    assert "unknown option" in result.stderr
