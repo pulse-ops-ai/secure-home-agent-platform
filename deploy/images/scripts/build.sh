@@ -44,9 +44,14 @@ lockq() { # lockq <node-expression over `lock`>
   " "$LOCK_JSON"
 }
 
-# The OCI exporter and multi-platform builds need the container driver.
+# The OCI exporter and multi-platform builds need the container driver, and
+# the BuildKit container that produces the identities is itself part of the
+# digest chain — pinned by immutable digest, never `:latest`. Keep in
+# lockstep with the driver-opts pin in .github/workflows/images.yml.
+BUILDKIT_IMAGE="docker.io/moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8"
 docker buildx inspect secure-home-images >/dev/null 2>&1 \
-  || docker buildx create --name secure-home-images --driver docker-container >/dev/null
+  || docker buildx create --name secure-home-images --driver docker-container \
+    --driver-opt "image=${BUILDKIT_IMAGE}" >/dev/null
 docker buildx use secure-home-images
 
 build_one() {
