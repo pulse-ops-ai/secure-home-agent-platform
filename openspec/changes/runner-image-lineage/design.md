@@ -228,18 +228,29 @@ nothing to drift; an underivable list refuses rather than falling back;
 family grouping and the isolation-runtime split remain checker data
 applied over the derived tokens, with unknown tokens forming singleton
 families automatically); exactly-one-runtime held PRIMARILY by structure —
-the lock registers exactly one runtime per derived image and the
-definition must install exactly that registered package at the registered
-version — with the token scans as secondary hardening: the lock's
+the lock registers exactly one runtime per derived image, and the
+definition must DECLARE it (`ARG RUNTIME_PACKAGE` / `ARG RUNTIME_VERSION`
+at exactly the registered values) and CONSUME it (at least one `RUN`
+instruction references the package variable; a declaration nothing
+executes installs nothing, and a comment or label cannot consume an ARG).
+The claim, stated at its exact strength: the registered identity flows
+into an executed build instruction; whether that instruction semantically
+installs is proven by the governed build's own wiring assertion, never by
+static text. Token scans are secondary hardening: the lock's
 `runtime` fields carry value grammars (a lowercase kebab `name`, a single
 npm package `package`, an exact `version`, an npm sha512 `integrity`) and
 an identity resolving to more than one provider family refuses, so lock
 free text can never launder a second provider's tokens into the allowed
-set; the gates-toolchain pins mirrored MECHANICALLY from the sources that
-run the gate (`checks.yml` NODE_VERSION/UV_VERSION, `package.json`
-packageManager) — a pin moved at the source while the image is stale
-refuses in the always-on governance gate, and those sources join the
-images-workflow triggers; lock/Dockerfile version equality; `COPY`/`ADD`
+set; the gates-toolchain INVENTORY declared in a canonical machine-readable
+manifest (`deploy/images/gates-toolchain/toolchain.json`) that the checker
+enforces against the definition in both directions — every arg-proved tool
+declared, every version pin manifested — with versionSource-named pins
+mirrored MECHANICALLY from the sources that run the gate (`checks.yml`
+NODE_VERSION/UV_VERSION, `package.json` packageManager); a pin moved at
+the source while the image is stale refuses in the always-on governance
+gate, those sources join the images-workflow triggers, and adding a tool
+to the governed environment is a reviewed manifest edit, never shell-text
+inference (which would be fragile by construction); lock/Dockerfile version equality; `COPY`/`ADD`
 sources parsed the way BuildKit reads them (flags, JSON exec form,
 backslash continuations folded to logical lines) and normalized before the
 rules apply — repo-directory reach, `..` context escapes, absolute host

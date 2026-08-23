@@ -327,6 +327,41 @@ one non-blocking precision note). All closed on this branch:
 
 ---
 
+## Review-round 3 record
+
+Owner re-review of head `6ab0bd5` (verdict: REQUEST CHANGES; both round-2
+P1s confirmed closed; three code/proof gaps). All closed on this branch:
+
+1. **P1 — "installs" meant text presence.** The reviewer's ARG-only probe
+   passed, and the fixture control itself installed nothing. The rule is
+   now declaration + consumption: exact `ARG RUNTIME_PACKAGE` /
+   `ARG RUNTIME_VERSION` at the registered values, and at least one `RUN`
+   consuming the package variable — with the claim stated at its exact
+   strength (identity flows into an executed instruction; semantic
+   installation is the governed build's proof). Fixing it exposed a fold
+   defect of mine: the logical-line builder broke instructions at
+   mid-continuation comments, which BuildKit strips — the real Claude
+   definition was falsely refused until the fold matched BuildKit, and the
+   commented-continuation control now pins that. IL-ADV-17 / IL-MUT-10r.
+2. **P2 — the gates inventory was prose.** Canonical
+   `deploy/images/gates-toolchain/toolchain.json`, enforced in both
+   directions (manifested tools must be declared; declared version pins
+   must be manifested — `ARG JQ_VERSION` with no manifest entry refuses),
+   with versionSource-named pins still mirrored from the live gate
+   sources. Adding a tool to the governed environment is a reviewed
+   manifest edit, never shell-text inference. IL-ADV-18 / IL-MUT-11.
+3. **P2 — multi-key ENV bypass.** `ENV SAFE_VALUE=1 PLATFORM_API_KEY=…`
+   evaded the first-key-only match; every declared key is now parsed.
+   IL-ADV-19 / IL-MUT-12.
+4. The Claude definition's ARG restructure changes its build config, so
+   its identities move; the new digests are recorded only from governed CI
+   evidence, and the base and gates identities must not move — an extra
+   proof that only the changed definition's identity changes.
+5. PR-body wording corrected: digest-pinned binfmt + BuildKit;
+   exact-version-pinned Buildx.
+
+---
+
 ## PR-1 Completion Gate
 
 PR-1 may merge only when:

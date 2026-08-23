@@ -110,12 +110,22 @@ in the definition SHALL equal the lock's recorded runtime version.
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming both versions
 
-#### Scenario: The definition installs its registered runtime package
+#### Scenario: The definition declares and consumes its registered runtime
 
-- **GIVEN** a derived definition that does not reference the lock's
-  registered `runtime.package`
+- **GIVEN** the lock's registered runtime
 - **WHEN** the image lineage checker runs
-- **THEN** it fails naming the registered package
+- **THEN** the derived definition declares `ARG RUNTIME_PACKAGE` and
+  `ARG RUNTIME_VERSION` at exactly the registered values, and at least one
+  `RUN` instruction consumes the package variable — the registered identity
+  flows into an executed build instruction, with semantic installation
+  proven by the governed build itself
+
+#### Scenario: A declaration nothing executes is refused
+
+- **GIVEN** a derived definition carrying the registered package only in an
+  `ARG` no `RUN` consumes, or only in a comment with no declaration at all
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the missing declaration or consumption
 
 #### Scenario: A runtime identity resolving to two providers is refused
 
@@ -131,7 +141,10 @@ in the definition SHALL equal the lock's recorded runtime version.
 `secure-home-runner-base`, SHALL contain no provider agent runtime and no
 credential, SHALL carry the toolchain surface the governed repository gates
 actually invoke (derived from the merge-gate and `scripts/check.sh`
-inventory), SHALL be independently pinned, and SHALL be suitable for later
+inventory), SHALL be independently pinned, SHALL declare its toolchain inventory in a
+canonical machine-readable manifest that the checker enforces against the
+definition in both directions (every manifested tool evidenced; every
+version pin manifested), and SHALL be suitable for later
 network-isolated gate execution — resolving its toolchains from image
 contents rather than run-time fetches — without claiming that any network
 enforcement exists today.
@@ -155,6 +168,13 @@ enforcement exists today.
   gates-toolchain definition does not mirror
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming the source's version and the definition's
+
+#### Scenario: Inventory drift is refused in both directions
+
+- **GIVEN** a manifest tool the definition does not declare, or a version
+  pin in the definition the manifest does not name, or a missing manifest
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the drifted tool, pin, or missing manifest
 
 ### Requirement: Image identity is an immutable digest with disambiguated kinds
 

@@ -130,7 +130,10 @@ An undecidable state never maps to success.
 | IL-ADV-14 | IL-INV-10 | hostile fixture (review round 2) | a profile pinning a locked identity by digest — the exact recorded Claude index digest, and a bare-hex spelling — refused with no image name present |
 | IL-ADV-15 | IL-INV-05 | hostile fixture (review round 2) | a gate pin moved in `checks.yml` while the gates definition is stale refused naming both versions; missing pin sources fail closed |
 | IL-ADV-16 | IL-INV-02 / IL-INV-04 | hostile fixture (review round 2) | a derived definition not installing its registered package refused; an underivable neutrality vocabulary fails closed instead of falling back to a second list |
-| IL-MUT-01…10 | checker guards | hand-applied mutation | see Mutation targets |
+| IL-ADV-17 | IL-INV-04 | hostile fixtures (review round 3) | the registered package present only in an ARG no RUN consumes, or only in a comment with no declaration — both refused; the commented-continuation control (a real RUN consuming the variable across a mid-block comment) passes |
+| IL-ADV-18 | IL-INV-05 | hostile fixtures (review round 3) | a missing toolchain manifest, a manifested tool the definition does not declare, and an unmanifested version pin (`ARG JQ_VERSION=…`) — each refused in its own direction |
+| IL-ADV-19 | IL-INV-12 | hostile fixture (review round 3) | `ENV SAFE_VALUE=1 PLATFORM_API_KEY=…` refused naming the second key — every declared key parsed, not the first |
+| IL-MUT-01…12 | checker guards | hand-applied mutation | see Mutation targets |
 
 ## Property tests
 
@@ -163,7 +166,9 @@ Hand-applied to the checker, verified killed by the named test, restored:
 | IL-MUT-07 | runtime provider-family exclusivity | IL-ADV-13 smuggling fixture (fails for the named reason, not a downstream one) |
 | IL-MUT-08 | digest-aware profile inertness scan | IL-ADV-14 exact-Claude-digest fixture |
 | IL-MUT-09 | gates-toolchain pin mirror comparison | IL-ADV-15 moved-pin fixture |
-| IL-MUT-10 | registered-package installation tie | IL-ADV-16 fixture |
+| IL-MUT-10 | RUN-consumption half of the installation declaration | IL-ADV-17 ARG-only fixture |
+| IL-MUT-11 | manifest→definition inventory direction | IL-ADV-18 undeclared-tool fixture |
+| IL-MUT-12 | every-key ENV parsing (first-key-only regression) | IL-ADV-19 multi-key fixture — the single-key case stays green under the mutant, so the kill is attributable |
 
 The CI rebuild-and-compare guard cannot be mutated locally without running
 Docker; its refusal behavior is proven by the bootstrap run itself
@@ -211,6 +216,18 @@ checker it proves. Authority posture: inert — nothing activates.
   import direction, full TS/python suites, strict OpenSpec validation.
 - Evidence review at the seam: the CI build/verify runs at the exact head,
   the lock's recorded identities, and the pin-resolution provenance.
+- **Review round 3 (performed):** the owner re-review of `6ab0bd5` closed
+  both P1s and found the two P2 mechanisms still proving less than the
+  specification says, plus one bypass: text-presence is not installation
+  (fixed: declaration + RUN consumption, with the fold corrected to
+  BuildKit's comment-inside-continuation semantics after the real Claude
+  definition exposed a false refusal); the gates version mirror was
+  mechanical but the inventory was prose (fixed: canonical
+  `toolchain.json` enforced in both directions); multi-key `ENV`
+  instructions were inspected only at the first key (fixed: every key).
+  IL-ADV-17/18/19; IL-MUT-10r/11/12 hand-applied and killed. The PR-body
+  wording nit (Buildx is version-pinned, binfmt/BuildKit digest-pinned) is
+  applied.
 - **Review round 2 (performed):** the owner review of `78e5722` returned
   REQUEST CHANGES with two P1s and two P2s: the inertness scan checked
   names while profiles consume digests (fixed digest-primary, IL-ADV-14 /
