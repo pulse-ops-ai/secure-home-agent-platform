@@ -127,7 +127,10 @@ An undecidable state never maps to success.
 | IL-ADV-11 | IL-INV-09 | governed CI evidence (bootstrap run) | first CI run with sentinels fails and reports built digests |
 | IL-ADV-12 | IL-INV-03 | hostile fixture corpus (review round) | nine equivalent COPY/ADD spellings of a platform-code copy (`./`, `././`, flags, JSON exec form) all refused; remote-URL ADD, `..` escape, absolute path, unpinned `--from`, and a backslash-continuation hiding a source likewise refused |
 | IL-ADV-13 | IL-INV-04 | hostile fixture (review round) | a lock `runtime.package` carrying a second provider's tokens (`@example/agent-codex-copilot`) refused as resolving to more than one provider; value grammars on name/package/version/integrity refused per field |
-| IL-MUT-01…07 | checker guards | hand-applied mutation | see Mutation targets |
+| IL-ADV-14 | IL-INV-10 | hostile fixture (review round 2) | a profile pinning a locked identity by digest — the exact recorded Claude index digest, and a bare-hex spelling — refused with no image name present |
+| IL-ADV-15 | IL-INV-05 | hostile fixture (review round 2) | a gate pin moved in `checks.yml` while the gates definition is stale refused naming both versions; missing pin sources fail closed |
+| IL-ADV-16 | IL-INV-02 / IL-INV-04 | hostile fixture (review round 2) | a derived definition not installing its registered package refused; an underivable neutrality vocabulary fails closed instead of falling back to a second list |
+| IL-MUT-01…10 | checker guards | hand-applied mutation | see Mutation targets |
 
 ## Property tests
 
@@ -158,6 +161,9 @@ Hand-applied to the checker, verified killed by the named test, restored:
 | IL-MUT-05 | base neutrality token scan | IL-ADV-01 fixture |
 | IL-MUT-06 | COPY source normalization (`./` stripping) | IL-ADV-12 `./services` spelling |
 | IL-MUT-07 | runtime provider-family exclusivity | IL-ADV-13 smuggling fixture (fails for the named reason, not a downstream one) |
+| IL-MUT-08 | digest-aware profile inertness scan | IL-ADV-14 exact-Claude-digest fixture |
+| IL-MUT-09 | gates-toolchain pin mirror comparison | IL-ADV-15 moved-pin fixture |
+| IL-MUT-10 | registered-package installation tie | IL-ADV-16 fixture |
 
 The CI rebuild-and-compare guard cannot be mutated locally without running
 Docker; its refusal behavior is proven by the bootstrap run itself
@@ -205,6 +211,19 @@ checker it proves. Authority posture: inert — nothing activates.
   import direction, full TS/python suites, strict OpenSpec validation.
 - Evidence review at the seam: the CI build/verify runs at the exact head,
   the lock's recorded identities, and the pin-resolution provenance.
+- **Review round 2 (performed):** the owner review of `78e5722` returned
+  REQUEST CHANGES with two P1s and two P2s: the inertness scan checked
+  names while profiles consume digests (fixed digest-primary, IL-ADV-14 /
+  IL-MUT-08); the build machinery had mutable privileged defaults
+  (binfmt/Buildx/BuildKit now pinned by digest/version); the gates image's
+  gate-mirror claim was a comment (now mechanical: checker-compared
+  against `checks.yml`/`packageManager`, sources added to the workflow
+  triggers, IL-ADV-15 / IL-MUT-09); and the one-runtime vocabulary was a
+  second hand-maintained list (now derived from the platform proof's own
+  list, with lock registration + installed-package tie as the primary
+  mechanism, IL-ADV-16 / IL-MUT-10). The non-blocking precision note is
+  applied: the lock grammar is described as one logical reading, not
+  canonical bytes.
 - **Review round (performed):** the owner-side falsification review of
   `7445070` confirmed the digest provenance and returned three P2 findings —
   eight bypass spellings of the decision-bearing COPY rule, lock free text

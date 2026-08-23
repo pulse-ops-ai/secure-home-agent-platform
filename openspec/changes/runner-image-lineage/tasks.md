@@ -292,6 +292,41 @@ findings, all fixed on this branch:
 
 ---
 
+## Review-round 2 record
+
+Owner review of head `78e5722` (verdict: REQUEST CHANGES; two P1, two P2,
+one non-blocking precision note). All closed on this branch:
+
+1. **P1 — inertness checked names while profiles consume digests.** The
+   profile contract selects an image through `runtime.image_digest`; a
+   profile pinning the exact recorded Claude index digest passed the
+   checker. The digest scan is now the primary inertness rule (every
+   locked index and per-platform manifest digest, searched by bare hex so
+   prefixed, `@`-pinned, and unprefixed spellings all refuse), with the
+   name scan kept as defense in depth. Red test uses the exact Claude
+   digest; IL-ADV-14 / IL-MUT-08.
+2. **P1 — mutable privileged build machinery.** The SHA-pinned QEMU action
+   defaulted to `tonistiigi/binfmt:latest` in the privileged host path,
+   and Buildx/BuildKit floated. Now pinned: binfmt by immutable digest
+   (qemu-v10.2.3), Buildx `v0.36.1`, and the BuildKit container by
+   immutable digest in both the workflow and `build.sh`.
+3. **P2 — the gates image's gate-mirror claim was a comment.** The checker
+   now derives the governed pins from the sources that run the gate
+   (`checks.yml` NODE_VERSION/UV_VERSION, `package.json` packageManager)
+   and refuses a stale mirror in the always-on governance gate; those
+   sources joined the images-workflow triggers. IL-ADV-15 / IL-MUT-09.
+4. **P2 — a second hand-maintained provider vocabulary.** The neutrality
+   vocabulary is now derived at run time from the platform proof's own
+   `FORBIDDEN_STRUCTURAL_NAMES` (underivable → refuse, never guess), and
+   exactly-one-runtime is held primarily by structure — one lock
+   registration per derived image, whose registered package the definition
+   must install — with token scans as secondary hardening. IL-ADV-16 /
+   IL-MUT-10.
+5. Precision note applied: the lock grammar is documented as one logical
+   reading of a strict closed subset, not byte-level canonicality.
+
+---
+
 ## PR-1 Completion Gate
 
 PR-1 may merge only when:

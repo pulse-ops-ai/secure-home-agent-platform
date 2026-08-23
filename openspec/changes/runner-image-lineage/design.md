@@ -175,7 +175,9 @@ manifest).
 
 ## image-lock.yaml grammar
 
-The lock is authored in a **strict canonical subset of YAML** and parsed
+The lock is authored in a **strict closed subset of YAML** — one logical
+reading, not byte-level canonicality (the lock's bytes are not an identity;
+the digests inside it are) — and parsed
 by the checker's own grammar — the same philosophy as the knowledge
 release manifest: one grammar, no second reading. Admitted: two-space
 indentation, `key: value` scalars, block lists of scalars or maps, `#`
@@ -215,27 +217,39 @@ keys (INV-002). `gates-toolchain` entries carry `external_base` and no
 ## The checker: scripts/check-images.mjs
 
 Node standard library only (the scripts/ dependency rule). One executable
-authority for: grammar + schema + canonical key order; the closed lineage
+authority for: grammar + schema + fixed key order; the closed lineage
 classes; bidirectional registration (every `deploy/images/*/Dockerfile`
 registered, every entry's definition existing); digest forms; the
 parent/base chain equality; external-FROM immutability; base and gates
-neutrality (the token vocabulary mirrored as data from the platform
-proof's vocabulary — claude, copilot, codex, anthropic, openai, langgraph,
-pydantic, docker, containerd, kata, runc, gvisor — grouped into provider
-FAMILIES so a derived runtime owns its own family's tokens and no other's);
-exactly-one-runtime in the derived definition, held from BOTH sides: the
-lock's `runtime` fields carry value grammars (a lowercase kebab `name`, a
-single npm package `package`, an exact `version`, an npm sha512
-`integrity`) and an identity resolving to more than one provider family
-refuses, so lock free text can never launder a second provider's tokens
-into the allowed set; lock/Dockerfile version equality; `COPY`/`ADD`
+neutrality (the token vocabulary DERIVED at run time from the platform
+proof's own list — `packages/contracts` `FORBIDDEN_STRUCTURAL_NAMES` — so
+one vocabulary exists and a token added there is enforced here with
+nothing to drift; an underivable list refuses rather than falling back;
+family grouping and the isolation-runtime split remain checker data
+applied over the derived tokens, with unknown tokens forming singleton
+families automatically); exactly-one-runtime held PRIMARILY by structure —
+the lock registers exactly one runtime per derived image and the
+definition must install exactly that registered package at the registered
+version — with the token scans as secondary hardening: the lock's
+`runtime` fields carry value grammars (a lowercase kebab `name`, a single
+npm package `package`, an exact `version`, an npm sha512 `integrity`) and
+an identity resolving to more than one provider family refuses, so lock
+free text can never launder a second provider's tokens into the allowed
+set; the gates-toolchain pins mirrored MECHANICALLY from the sources that
+run the gate (`checks.yml` NODE_VERSION/UV_VERSION, `package.json`
+packageManager) — a pin moved at the source while the image is stale
+refuses in the always-on governance gate, and those sources join the
+images-workflow triggers; lock/Dockerfile version equality; `COPY`/`ADD`
 sources parsed the way BuildKit reads them (flags, JSON exec form,
 backslash continuations folded to logical lines) and normalized before the
 rules apply — repo-directory reach, `..` context escapes, absolute host
 paths, remote-URL fetches, and unpinned `--from` images all refuse in
 every spelling, not one; no credential-shaped
 `ENV`/`ARG` names; `deploy/runtime/` README-only; no `profiles/**`
-reference to any registered image name; no launcher/socket token in
+reference to any registered image name — and, primarily, to any
+registered locked identity DIGEST, searched by bare hex, because the
+profile contract consumes `runtime.image_digest` and a digest reference
+never needs to spell a name; no launcher/socket token in
 `services/runner-control/src`. Wired as `pnpm run check:images`, a
 `check.sh` row, and a step in the unconditional governance job.
 `tests/test_image_lineage.py` exercises the real checker against fixture
@@ -252,9 +266,14 @@ workflow (`.github/workflows/images.yml`):
 
 - **Triggers:** `pull_request` on `deploy/images/**` and the workflow
   itself, plus `workflow_dispatch`. It never runs on unrelated changes.
-- **Builds** all three images for both platforms with buildx + QEMU
-  (actions SHA-pinned, per the repository's CI rule), exporting **OCI
-  layouts** — no registry, no push, no `docker run`, nothing deployed.
+- **Builds** all three images for both platforms with buildx + QEMU,
+  exporting **OCI layouts** — no registry, no push, no `docker run`,
+  nothing deployed. The whole machinery is pinned, not just the actions:
+  the actions by commit SHA, the binfmt/QEMU helper (privileged host path)
+  by immutable image digest, Buildx by exact version, and the BuildKit
+  container that produces the identities by immutable image digest, in
+  both the workflow and `build.sh`. A SHA-pinned action whose default
+  pulls `:latest` helpers would be an unpinned build path wearing a pin.
 - **Verifies**: recomputed digests must equal the lock. While the lock
   carries the bootstrap sentinel, the job fails and prints the built
   digests as the evidence to record — bootstrap is loud, never complete.
@@ -317,7 +336,7 @@ the digest silently.
   same digest discipline with no distribution.
 - **A general YAML library for the lock.** Rejected: `scripts/` carries a
   no-third-party rule with one deliberate exception, and a full YAML
-  grammar admits representations the canonical form must refuse. A strict
+  grammar admits representations the closed form must refuse. A strict
   subset parser is smaller than the exception it would need.
 - **Distro Node in the Claude image.** Rejected: the runtime engine should
   be the same exact-versioned, checksum-verified artifact in both images

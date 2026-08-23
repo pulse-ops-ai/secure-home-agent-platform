@@ -110,6 +110,13 @@ in the definition SHALL equal the lock's recorded runtime version.
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming both versions
 
+#### Scenario: The definition installs its registered runtime package
+
+- **GIVEN** a derived definition that does not reference the lock's
+  registered `runtime.package`
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the registered package
+
 #### Scenario: A runtime identity resolving to two providers is refused
 
 - **GIVEN** a lock `runtime` whose name or package text carries a second
@@ -141,6 +148,13 @@ enforcement exists today.
 - **GIVEN** a gates-toolchain definition installing any provider agent CLI
 - **WHEN** the image lineage checker runs
 - **THEN** it fails naming the provider token
+
+#### Scenario: A gate pin moved at its source is refused while the image is stale
+
+- **GIVEN** the merge-gate sources declaring a toolchain version the
+  gates-toolchain definition does not mirror
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the source's version and the definition's
 
 ### Requirement: Image identity is an immutable digest with disambiguated kinds
 
@@ -233,7 +247,15 @@ and no image or directory SHALL conflate workload identity with
 isolation-runtime identity. No knowledge content SHALL be packaged into any
 image.
 
-#### Scenario: A profile referencing an image is refused
+#### Scenario: A profile pinning a locked digest is refused
+
+- **GIVEN** a file under `profiles/` containing a registered locked
+  identity digest — the value `runtime.image_digest` actually consumes —
+  with or without its `sha256:` prefix, and without any image name
+- **WHEN** the image lineage checker runs
+- **THEN** it fails naming the file and the locked identity
+
+#### Scenario: A profile referencing an image name is refused
 
 - **GIVEN** a file under `profiles/` naming `secure-home-runner-claude`
 - **WHEN** the image lineage checker runs
