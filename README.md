@@ -7,17 +7,20 @@ problems, answering questions — running under controls strong enough that they
 can be trusted near a door lock, and local enough that the house keeps working
 when the internet does not.
 
-> ## Status: contracts, core, orchestration, and the knowledge toolchain are landed — nothing is deployed
+> ## Status: contracts, core, orchestration, the knowledge toolchain, and the image lineage are landed — nothing is deployed
 >
 > **Landed:** the runner domain contracts; the trusted runner core
 > ([`packages/runner-core`](packages/runner-core/)); L4 orchestration
 > ([`services/runner-control`](services/runner-control/)) — the typed run
 > lifecycle, authority acquisition, the effect boundary, and finalization; and
 > the knowledge toolchain with repository content admission
-> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)).
+> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)); and the
+> L5 image lineage ([`deploy/images/`](deploy/images/)) — the digest-locked
+> runner-base, Claude reference, and gates-toolchain definitions, inert.
 >
 > **There is still no deployed or activated runtime**: no Home Assistant, no
-> running service, no OpenFGA, no Keycloak, no runner image, no launcher or
+> running service, no OpenFGA, no Keycloak, no published or activated runner
+> image (the L5 definitions are inert), no launcher or
 > process spawn, no L9 physical enforcement, no credentials, no database
 > connection, and no durable persistence
 > ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
@@ -538,12 +541,12 @@ Specifically absent, on purpose:
 | Services | `runner-control` carries the landed L4 orchestration behind ports, with **no endpoint served and no process started**; the remaining members are manifests and placeholders. |
 | Authorization | **No household model.** The shared coarse model is explicitly not adopted. |
 | Safety policy | **No declaration format, no evaluator.** |
-| Runner substrate | Orchestration semantics are implemented; **no image, no sandbox, no launcher, and no L9 physical enforcement.** |
-| Execution profiles | **No schema, no profile.** |
-| Schemas | All four are documented placeholders. |
+| Runner substrate | Orchestration semantics are implemented, and the L5 image definitions are landed and inert ([`deploy/images/`](deploy/images/), digest-locked, referenced by no profile); **no published or activated image, no sandbox, no launcher, and no L9 physical enforcement.** |
+| Execution profiles | **Schema landed** ([`schemas/execution-profile/`](schemas/execution-profile/), generated from the Zod contract); **no profile instance exists**, and the image-lineage checker refuses one that references an image. |
+| Schemas | The L2 contract corpus is **generated and identity-ledger-guarded** under [`schemas/`](schemas/) — execution profile, run, run events, evidence, launch assertion, path policy, gate registry, verification packs. |
 | Knowledge bundles | **`platform/**` modules are authored** and `Validated` at `1.0.0` against their own human-reviewed bytes — see `knowledge/catalog.json` for which, and for exact status. Three coding set releases are human-reviewed and recorded in `knowledge/set-releases.json`; `household/**` families remain unreleased. Nothing is packaged and nothing is published — publication is unavailable while no governed Proof B producer exists, and a released set is not runtime-resolvable. |
 | Web application | Deliberately not scaffolded — depends on an open decision. |
-| Deployment | **No Compose file, no Dockerfile, no proxy or tailnet configuration.** |
+| Deployment | **The L5 image Dockerfiles and lineage lock are landed** — built and verified only through the governed CI path, published nowhere; **no Compose file, no proxy or tailnet configuration, no execution runtime selected.** |
 | Credentials | **None, anywhere.** |
 | Runtime dependencies | Only what the landed packages need. No service dependency is installed for a runtime that does not run. |
 

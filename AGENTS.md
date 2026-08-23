@@ -251,12 +251,15 @@ still report what you ran and what you skipped.
 
 Documentation, governance, workspace scaffolding — **and landed code**: the
 runner domain contracts, [`packages/runner-core`](packages/runner-core/),
-[`services/runner-control`](services/runner-control/)'s L4 orchestration, and
-[`packages/knowledge-toolchain`](packages/knowledge-toolchain/).
+[`services/runner-control`](services/runner-control/)'s L4 orchestration,
+[`packages/knowledge-toolchain`](packages/knowledge-toolchain/), and the L5
+image lineage ([`deploy/images/`](deploy/images/) — digest-locked, machine-
+validated, inert).
 
 **There is no deployed or activated runtime.** No Home Assistant, no running
-service, no OpenFGA, no Keycloak, no runner image, no launcher, no L9 physical
-enforcement, no credentials, no database connection.
+service, no OpenFGA, no Keycloak, no published or activated runner image (the
+L5 definitions are inert — referenced by no profile, launched by nothing), no
+launcher, no L9 physical enforcement, no credentials, no database connection.
 
 **ADR-0001 … ADR-0018 are `Accepted`** and **immutable** — the foundational set
 on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, and the runner

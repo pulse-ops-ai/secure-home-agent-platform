@@ -275,11 +275,20 @@ findings, all fixed on this branch:
    fields now carry value grammars, and the token vocabulary is grouped
    into provider families with a more-than-one-family refusal; the
    review's smuggling counter-fixture is IL-ADV-13. IL-MUT-07 killed.
-3. **Two governance documents contradicted the landed artifacts.**
-   `CONTRIBUTING.md` ("no real runner image"), `runner-model.md` § The base
-   image (in-image substrate software), and the `architecture/INDEX.md`
-   status table now state the landed truth, per `docs/AGENTS.md`'s
-   implemented-things-as-implemented rule.
+3. **Standing governance prose contradicted the landed artifacts.** First
+   pass: `CONTRIBUTING.md` ("no real runner image"), `runner-model.md`
+   § The base image (in-image substrate software), and the
+   `architecture/INDEX.md` status table. The re-review found the sweep
+   incomplete — the same sentence survived in `SECURITY.md` (with no
+   charitable reading), `AGENTS.md`, and `README.md` — and a full class
+   grep then surfaced a fourth live instance the review had not listed
+   (`.github/copilot-instructions.md`) plus two more false rows in
+   `README.md`'s status table ("no Dockerfile"; the L2-stale "no schema"
+   rows). All now state the landed inert-vs-activated truth, per
+   `docs/AGENTS.md`'s implemented-things-as-implemented rule. Historical
+   records (the L6 spike findings, ADR-0011's own text, the ADR-0013
+   acceptance record) are deliberately untouched: they record what was
+   true at their events.
 
 ---
 
