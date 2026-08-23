@@ -72,7 +72,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ## 1. Image definitions
 
-- [ ] **1.1 Author `secure-home-runner-base`**
+- [x] **1.1 Author `secure-home-runner-base`**
   <!-- agent-task: 1.1 paths=deploy/images/runner-base/** checks=check:images,scaffold risk=high prerequisites=none -->
 
   **Implements**
@@ -91,7 +91,7 @@ the draft PR stands for owner review with no undisclosed skip.
   **Proof required:** IL-ADV-01, IL-ADV-09, IL-ADV-10, IL-MUT-05 (net in
   group 4); checker pass on the real tree (IL-EX-01).
 
-- [ ] **1.2 Author `secure-home-runner-claude`**
+- [x] **1.2 Author `secure-home-runner-claude`**
   <!-- agent-task: 1.2 paths=deploy/images/runner-claude/** checks=check:images risk=high prerequisites=1.1 -->
 
   **Implements**
@@ -110,7 +110,7 @@ the draft PR stands for owner review with no undisclosed skip.
   **Proof required:** IL-ADV-02, IL-ADV-03, IL-MUT-02; chain proofs in
   group 2.
 
-- [ ] **1.3 Author `secure-home-gates-toolchain`**
+- [x] **1.3 Author `secure-home-gates-toolchain`**
   <!-- agent-task: 1.3 paths=deploy/images/gates-toolchain/** checks=check:images risk=high prerequisites=none -->
 
   **Implements**
@@ -132,7 +132,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ## 2. The lock and its checker
 
-- [ ] **2.1 Author `deploy/images/image-lock.yaml`**
+- [x] **2.1 Author `deploy/images/image-lock.yaml`**
   <!-- agent-task: 2.1 paths=deploy/images/image-lock.yaml checks=check:images risk=high prerequisites=1.1,1.2,1.3 -->
 
   **Implements**
@@ -147,7 +147,7 @@ the draft PR stands for owner review with no undisclosed skip.
   the derived image, `pending-first-governed-build` sentinels for the
   not-yet-built identities.
 
-- [ ] **2.2 Implement `scripts/check-images.mjs` and wire it**
+- [x] **2.2 Implement `scripts/check-images.mjs` and wire it**
   <!-- agent-task: 2.2 paths=scripts/check-images.mjs,scripts/check.sh,scripts/README.md,package.json,.github/workflows/checks.yml checks=check:images,check.sh risk=high prerequisites=2.1 -->
 
   **Implements**
@@ -168,7 +168,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ## 3. Governed build path
 
-- [ ] **3.1 Author `deploy/images/scripts/{build.sh,verify.sh,inspect.sh}`**
+- [x] **3.1 Author `deploy/images/scripts/{build.sh,verify.sh,inspect.sh}`**
   <!-- agent-task: 3.1 paths=deploy/images/scripts/** checks=check:images risk=high prerequisites=2.1 -->
 
   **Implements**
@@ -184,7 +184,7 @@ the draft PR stands for owner review with no undisclosed skip.
   human-readable inspection. Authored only — never executed locally by a
   coding agent; the scripts refuse politely outside CI.
 
-- [ ] **3.2 Author `.github/workflows/images.yml`**
+- [x] **3.2 Author `.github/workflows/images.yml`**
   <!-- agent-task: 3.2 paths=.github/workflows/images.yml checks=none risk=high prerequisites=3.1 -->
 
   **Implements**
@@ -204,7 +204,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ## 4. Verification net for PR-1
 
-- [ ] **4.1 `tests/test_image_lineage.py` — control, hostile corpus, grammar properties**
+- [x] **4.1 `tests/test_image_lineage.py` — control, hostile corpus, grammar properties**
   <!-- agent-task: 4.1 paths=tests/test_image_lineage.py checks=pytest risk=high prerequisites=2.2 -->
 
   **Proves**
@@ -213,7 +213,7 @@ the draft PR stands for owner review with no undisclosed skip.
     every fixture through the real checker, each hostile case paired with
     its passing control.
 
-- [ ] **4.2 Mutation kills**
+- [x] **4.2 Mutation kills**
   <!-- agent-task: 4.2 paths=tests/test_image_lineage.py checks=pytest risk=high prerequisites=4.1 -->
 
   **Proves**
@@ -225,7 +225,7 @@ the draft PR stands for owner review with no undisclosed skip.
 
 ## 5. Docs, digest bootstrap, completion evidence
 
-- [ ] **5.1 Register the runtime boundary and retire stale status prose**
+- [x] **5.1 Register the runtime boundary and retire stale status prose**
   <!-- agent-task: 5.1 paths=deploy/README.md,deploy/images/README.md,deploy/runtime/README.md checks=scaffold risk=medium prerequisites=1.1,1.2,1.3 -->
 
   **Implements**
@@ -241,7 +241,7 @@ the draft PR stands for owner review with no undisclosed skip.
   extension path) with the superseded "profile loading / run lifecycle"
   prose replaced by the #53 reading.
 
-- [ ] **5.2 Record CI-produced digests and re-verify at head**
+- [x] **5.2 Record CI-produced digests and re-verify at head**
   <!-- agent-task: 5.2 paths=deploy/images/image-lock.yaml checks=images.yml risk=high prerequisites=3.2,4.1 -->
 
   **Implements**
@@ -263,18 +263,18 @@ the draft PR stands for owner review with no undisclosed skip.
 
 PR-1 may merge only when:
 
-- [ ] Every task above is complete.
-- [ ] Every current-scope scenario is proven through the real mechanism.
-- [ ] IL-INV-01…12 each have their green proof (or, for IL-INV-09's
+- [x] Every task above is complete.
+- [x] Every current-scope scenario is proven through the real mechanism.
+- [x] IL-INV-01…12 each have their green proof (or, for IL-INV-09's
       recorded-digest half, the explicitly stopped bootstrap boundary).
-- [ ] The hostile corpus passes and the five mutation kills are recorded.
-- [ ] `openspec validate runner-image-lineage --strict` passes.
-- [ ] All deterministic repository gates are green
+- [x] The hostile corpus passes and the five mutation kills are recorded.
+- [x] `openspec validate runner-image-lineage --strict` passes.
+- [x] All deterministic repository gates are green
       (`bash scripts/check.sh`, scaffold, secret scan, full TS + python
       suites), with any environment-only failure disclosed.
-- [ ] Exact-head CI is green on `checks.yml`, and `images.yml` verify is
+- [x] Exact-head CI is green on `checks.yml`, and `images.yml` verify is
       green at the same head (or the stopped boundary is recorded).
-- [ ] No profile references an image; no launcher, runtime selection,
+- [x] No profile references an image; no launcher, runtime selection,
       Kata configuration, deployment, or knowledge wiring exists.
-- [ ] The draft PR stands for owner review with the falsification
+- [x] The draft PR stands for owner review with the falsification
       checkpoint's findings addressed.
