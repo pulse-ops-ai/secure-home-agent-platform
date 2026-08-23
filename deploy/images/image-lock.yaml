@@ -1,9 +1,9 @@
 # image-lock.yaml — the machine-readable image lineage and pinning record.
 #
-# Validated by scripts/check-images.mjs against a strict canonical grammar
+# Validated by scripts/check-images.mjs against a strict closed grammar
 # (two-space indents, block collections only, fixed key order, full-line
-# comments only). The checker is the one parser; a representation it refuses
-# has no meaning here.
+# comments only) with exactly one logical reading. The checker is the one
+# parser; a representation it refuses has no meaning here.
 #
 # Digest vocabulary, exactly:
 #   digest                    the OCI image-index digest covering every

@@ -29,6 +29,7 @@ USER nobody
 
 DERIVED_DOCKERFILE = """FROM secure-home-runner-base
 ARG EXAMPLE_VERSION=1.2.3
+ARG EXAMPLE_PACKAGE=@example/agent
 LABEL io.secure-home.lineage="runner-derived" \\
       io.secure-home.runtime.version="1.2.3"
 USER nobody
@@ -36,8 +37,29 @@ USER nobody
 
 GATES_DOCKERFILE = f"""FROM docker.io/library/debian:trixie-slim@{BASE_DIGEST}
 ARG SOURCE_DATE_EPOCH=0
+ARG NODE_VERSION=1.0.0
+ARG PNPM_VERSION=2.0.0
+ARG UV_VERSION=3.0.0
 LABEL io.secure-home.lineage="gates-toolchain"
 USER nobody
+"""
+
+# The neutrality vocabulary the fixture checker derives — a stub of the
+# platform proof's own list, so tests can also falsify the derivation.
+FIXTURE_HELPERS = """export const FORBIDDEN_STRUCTURAL_NAMES = [
+  'claude',
+  'copilot',
+  'codex',
+  'anthropic',
+  'openai',
+  'langgraph',
+  'pydantic',
+  'docker',
+  'containerd',
+  'kata',
+  'runc',
+  'gvisor',
+]
 """
 
 
@@ -102,6 +124,9 @@ def _fixture(tmp_path: Path) -> Path:
         "deploy/runtime/README.md": "# runtime taxonomy only\n",
         "profiles/README.md": "# profiles placeholder\n",
         "services/runner-control/src/run.ts": "export const run = 1\n",
+        "packages/contracts/src/conformance/helpers.ts": FIXTURE_HELPERS,
+        ".github/workflows/checks.yml": "env:\n  NODE_VERSION: '1.0.0'\n  UV_VERSION: '3.0.0'\n",
+        "package.json": '{ "packageManager": "pnpm@2.0.0" }\n',
     }.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +169,7 @@ def test_a_conforming_fourth_image_needs_no_vocabulary_change(tmp_path: Path) ->
     extra.parent.mkdir(parents=True)
     extra.write_text(
         "FROM secure-home-runner-base\nARG SECOND_VERSION=2.0.0\n"
+        "ARG SECOND_PACKAGE=@example/second\n"
         'LABEL io.secure-home.lineage="runner-derived" \\\n'
         '      io.secure-home.runtime.version="2.0.0"\n'
     )
@@ -561,3 +587,98 @@ def test_a_root_flag_without_a_value_is_refused() -> None:
     )
     assert result.returncode == 1
     assert "requires a value" in result.stderr
+
+
+# ── inertness is digest-aware ────────────────────────────────────────────────
+
+REAL_CLAUDE_INDEX = "sha256:7495ff8c70927c27b93cb6ac0e854134a95246613f6a750c4c540baa14ab026d"
+
+
+def test_a_profile_pinning_a_locked_digest_is_refused(tmp_path: Path) -> None:
+    """The review's bypass: the profile contract consumes runtime.image_digest
+    — a digest, not a name — so a profile can reference the Claude image
+    without ever spelling `secure-home-runner-claude`. The digest scan is the
+    primary inertness rule; this fixture uses the exact recorded Claude index
+    digest."""
+    real_a = "sha256:" + "a" * 64
+    root = _fixture(tmp_path)
+    (root / "deploy/images/image-lock.yaml").write_text(
+        _lock(base_digest=real_a, parent_digest=real_a, derived_digest=REAL_CLAUDE_INDEX)
+    )
+    profile = root / "profiles/coding/example.yaml"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(f"runtime:\n  image_digest: {REAL_CLAUDE_INDEX}\n  adapter: example\n")
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "references locked image identity" in result.stderr
+    assert REAL_CLAUDE_INDEX in result.stderr
+
+
+def test_a_profile_pinning_a_bare_hex_identity_is_refused(tmp_path: Path) -> None:
+    """The scan searches by bare hex, so dropping the `sha256:` prefix is not
+    an escape."""
+    real_a = "sha256:" + "a" * 64
+    root = _fixture(tmp_path)
+    (root / "deploy/images/image-lock.yaml").write_text(
+        _lock(base_digest=real_a, parent_digest=real_a)
+    )
+    profile = root / "profiles/coding/example.yaml"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(f"image: {real_a.removeprefix('sha256:')}\n")
+    result = _check(root)
+    assert result.returncode == 1
+    assert "references locked image identity" in result.stderr
+
+
+# ── the gates image mirrors the governed gate mechanically ───────────────────
+
+
+def test_a_gate_pin_moved_at_the_source_refuses_while_the_image_is_stale(
+    tmp_path: Path,
+) -> None:
+    """checks.yml is the source that RUNS the gate; the image must mirror it.
+    A pin moved there while the Dockerfile stays stale refuses in the
+    always-on governance gate."""
+    root = _fixture(tmp_path)
+    checks = root / ".github/workflows/checks.yml"
+    checks.write_text(checks.read_text().replace("NODE_VERSION: '1.0.0'", "NODE_VERSION: '9.9.9'"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "images.gates-pin" in result.stderr
+    assert "9.9.9" in result.stderr
+    assert "1.0.0" in result.stderr
+
+
+def test_missing_gate_pin_sources_fail_closed(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    (root / "package.json").unlink()
+    result = _check(root)
+    assert result.returncode == 1
+    assert "could not be derived" in result.stderr
+
+
+# ── the lock registration is the one-runtime authority ───────────────────────
+
+
+def test_a_derived_definition_must_install_its_registered_package(tmp_path: Path) -> None:
+    """The primary exactly-one mechanism is structural: one registered runtime
+    per derived image, and the definition installs exactly that package.
+    Token scans are secondary hardening."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-example/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace("ARG EXAMPLE_PACKAGE=@example/agent\n", "")
+    )
+    result = _check(root)
+    assert result.returncode == 1
+    assert "registered runtime package" in result.stderr
+
+
+def test_an_underivable_neutrality_vocabulary_fails_closed(tmp_path: Path) -> None:
+    """The platform proof owns the one vocabulary; if it cannot be derived,
+    the checker refuses rather than falling back to a second list."""
+    root = _fixture(tmp_path)
+    (root / "packages/contracts/src/conformance/helpers.ts").write_text("export const x = 1\n")
+    result = _check(root)
+    assert result.returncode == 1
+    assert "images.vocabulary" in result.stderr

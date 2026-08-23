@@ -8,11 +8,15 @@
  * This file is the ONE parser and the one rule authority for it; a README
  * sentence is not a control, and a second parser would be a second grammar.
  *
- * The lock is a STRICT CANONICAL SUBSET of YAML: two-space indents, block
+ * The lock is a STRICT CLOSED SUBSET of YAML: two-space indents, block
  * collections only, `key: value` scalars (double quotes admitted, no
  * escapes), full-line comments only, fixed key order. Everything else —
- * tabs, flow collections, anchors, aliases, inline comments, duplicate keys
- * — is refused, so the committed bytes have exactly one reading.
+ * tabs, flow collections, anchors, aliases, inline comments, duplicate keys,
+ * single-quoted scalars — is refused. The guarantee is exactly ONE LOGICAL
+ * READING of the admitted bytes — not byte-level canonicality: a scalar may
+ * be bare or double-quoted and trailing whitespace is trimmed, which is
+ * acceptable precisely because the lock's bytes are not themselves an
+ * identity; the digests inside it are.
  *
  * What is enforced here (the L5 invariant net, IL-INV-01…08/10/12):
  *   - closed lineage classes; bidirectional registration of definitions;
@@ -49,27 +53,64 @@ const DIGEST = /^sha256:[0-9a-f]{64}$/
 const PLATFORMS = ['linux/amd64', 'linux/arm64']
 const LINEAGES = ['runner-base', 'runner-derived', 'gates-toolchain']
 
-// Mirrors the platform neutrality proof's vocabulary
-// (packages/contracts/src/conformance/helpers.ts FORBIDDEN_STRUCTURAL_NAMES)
-// as DATA, grouped by provider FAMILY: a derived runtime may own its own
-// family's tokens (product + vendor) and no other family's. The grouping is
-// what makes "exactly one runtime" checkable against the lock's own text —
-// a runtime identity matching two families is two runtimes, refused, so
-// free text in the lock cannot launder a second provider's tokens into the
-// allowed set. Providers and isolation runtimes are split because a
-// Dockerfile is inherently a container build definition: `docker` is
-// refused in image NAMES and lock KEYS (identity conflation), not in
-// build-file prose.
-const PROVIDER_FAMILIES = [
+// The structural-neutrality vocabulary is DERIVED from the platform proof's
+// own list (packages/contracts/src/conformance/helpers.ts
+// FORBIDDEN_STRUCTURAL_NAMES) at run time — the platform owns exactly ONE
+// vocabulary, and a token added there is enforced here with no second
+// hand-maintained copy to drift. If the list cannot be derived, this checker
+// refuses rather than guessing.
+//
+// Two pieces of interpretation remain checker data, applied OVER the derived
+// vocabulary:
+//   - ISOLATION_SET names which tokens are isolation runtimes (refused in
+//     image names and lock keys; `docker` additionally exempted from
+//     build-file prose because a Dockerfile is inherently one);
+//   - FAMILY_GROUPS names which provider tokens are one identity (product +
+//     vendor). Tokens outside every group form singleton families
+//     automatically, so a vocabulary addition needs no change here.
+//
+// Token scans are SECONDARY hardening. The primary exactly-one-runtime
+// mechanism is structural: the lock registers exactly one runtime per
+// derived image, and the definition must install exactly that registered
+// package at the registered version.
+const HELPERS_PATH = 'packages/contracts/src/conformance/helpers.ts'
+const ISOLATION_SET = new Set(['docker', 'containerd', 'kata', 'runc', 'gvisor'])
+const FAMILY_GROUPS = [
   ['claude', 'anthropic'],
-  ['copilot'],
   ['codex', 'openai'],
-  ['langgraph'],
-  ['pydantic'],
 ]
-const PROVIDER_TOKENS = PROVIDER_FAMILIES.flat()
-const ISOLATION_TOKENS = ['kata', 'runc', 'gvisor', 'containerd']
-const NAME_TOKENS = [...ISOLATION_TOKENS, 'docker']
+
+const structuralVocabulary = (root) => {
+  const path = join(root, HELPERS_PATH)
+  if (!existsSync(path)) return undefined
+  const match = readFileSync(path, 'utf8').match(/FORBIDDEN_STRUCTURAL_NAMES\s*=\s*\[([^\]]*)\]/)
+  if (match === null) return undefined
+  const tokens = [...match[1].matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1])
+  return tokens.length > 0 ? tokens : undefined
+}
+
+// The governed gate toolchain pins, derived from the sources that RUN the
+// gate: the merge-gate env (Node, uv) and the repository's packageManager
+// (pnpm). The gates-toolchain image must mirror these exactly — a pin moved
+// at the source while the image stays stale refuses in the always-on
+// governance gate, not in a path-filtered workflow.
+const gatePins = (root) => {
+  const checksPath = join(root, '.github', 'workflows', 'checks.yml')
+  const manifestPath = join(root, 'package.json')
+  if (!existsSync(checksPath) || !existsSync(manifestPath)) return undefined
+  const checks = readFileSync(checksPath, 'utf8')
+  const node = checks.match(/NODE_VERSION:\s*'([^']+)'/)?.[1]
+  const uv = checks.match(/UV_VERSION:\s*'([^']+)'/)?.[1]
+  let pnpm
+  try {
+    pnpm = JSON.parse(readFileSync(manifestPath, 'utf8')).packageManager?.match(/^pnpm@(.+)$/)?.[1]
+  } catch {
+    pnpm = undefined
+  }
+  if (node === undefined || uv === undefined || pnpm === undefined) return undefined
+  return { node, uv, pnpm }
+}
+
 const CREDENTIAL_NAME = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
 const REPO_DIRS = ['services', 'packages', 'knowledge', 'profiles']
 
@@ -118,7 +159,7 @@ const LAUNCHER_TOKENS = [
 
 const token = (t) => new RegExp(`(^|[^a-z0-9])${t}([^a-z0-9]|$)`, 'i')
 
-// --- the canonical-subset parser --------------------------------------------
+// --- the closed-subset parser ------------------------------------------------
 
 export function parseLock(text) {
   const problems = []
@@ -238,6 +279,28 @@ const walkFiles = (dir, out = []) => {
 export function checkImages(root = DEFAULT_ROOT) {
   const problems = []
   const fail = (rule, detail) => problems.push(`images.${rule} — ${detail}`)
+
+  const vocabulary = structuralVocabulary(root)
+  if (vocabulary === undefined) {
+    fail(
+      'vocabulary',
+      `the structural-neutrality vocabulary could not be derived from ${HELPERS_PATH}; ` +
+        'the platform proof owns the one list, and this checker refuses to guess a second one',
+    )
+    return { problems, images: [], pending: 0 }
+  }
+  const isolationTokens = vocabulary.filter((t) => ISOLATION_SET.has(t))
+  const providerTokens = vocabulary.filter((t) => !ISOLATION_SET.has(t))
+  const contentIsolationTokens = isolationTokens.filter((t) => t !== 'docker')
+  const providerFamilies = (() => {
+    const grouped = new Set(FAMILY_GROUPS.flat())
+    const families = FAMILY_GROUPS.map((g) => g.filter((tk) => providerTokens.includes(tk))).filter(
+      (g) => g.length > 0,
+    )
+    for (const tk of providerTokens) if (!grouped.has(tk)) families.push([tk])
+    return families
+  })()
+
   const lockPath = join(root, LOCK_PATH)
   if (!existsSync(lockPath)) {
     fail('lock-missing', `${LOCK_PATH} is missing`)
@@ -270,7 +333,7 @@ export function checkImages(root = DEFAULT_ROOT) {
   const scanKeys = (node, path) => {
     if (isMap(node)) {
       for (const [k, v] of node) {
-        for (const t of [...PROVIDER_TOKENS, ...NAME_TOKENS]) {
+        for (const t of vocabulary) {
           if (token(t).test(k))
             fail(
               'lock-structural-name',
@@ -319,6 +382,9 @@ export function checkImages(root = DEFAULT_ROOT) {
 
   const byName = new Map()
   const registeredDefinitions = new Set()
+  // Every recorded OCI identity (index and per-platform manifests): the
+  // identities a profile actually consumes through runtime.image_digest.
+  const lockedIdentities = new Set()
   let pending = 0
   const digestOk = (value) => value === SENTINEL || DIGEST.test(value)
 
@@ -339,7 +405,7 @@ export function checkImages(root = DEFAULT_ROOT) {
       continue
     }
     byName.set(name, entry)
-    for (const t of NAME_TOKENS) {
+    for (const t of isolationTokens) {
       // An image name that carries an isolation-runtime identity conflates
       // WHAT executes with HOW it is isolated (runner-kata, runner-runc).
       if (name.split('-').includes(t))
@@ -393,6 +459,7 @@ export function checkImages(root = DEFAULT_ROOT) {
     if (typeof digest !== 'string' || !digestOk(digest))
       fail('digest', `"${name}": digest must be sha256:<64 hex> or the bootstrap sentinel`)
     if (digest === SENTINEL) pending += 1
+    else if (typeof digest === 'string' && DIGEST.test(digest)) lockedIdentities.add(digest)
     const manifests = entry.get('manifests')
     if (!Array.isArray(manifests)) {
       fail('manifests', `"${name}": manifests must be a list`)
@@ -415,6 +482,7 @@ export function checkImages(root = DEFAULT_ROOT) {
             `"${name}": manifest digest for ${m.get('platform')} must be sha256:<64 hex> or the bootstrap sentinel`,
           )
         if (m.get('digest') === SENTINEL) pending += 1
+        else if (DIGEST.test(m.get('digest'))) lockedIdentities.add(m.get('digest'))
       }
     }
 
@@ -440,7 +508,7 @@ export function checkImages(root = DEFAULT_ROOT) {
           fail('runtime', `"${name}": runtime.integrity must be an npm sha512 integrity value`)
         }
         const identity = `${runtime.get('name')} ${runtime.get('package')}`.toLowerCase()
-        const families = PROVIDER_FAMILIES.filter((f) => f.some((t) => token(t).test(identity)))
+        const families = providerFamilies.filter((f) => f.some((t) => token(t).test(identity)))
         if (families.length > 1) {
           fail(
             'runtime',
@@ -546,6 +614,34 @@ export function checkImages(root = DEFAULT_ROOT) {
         fail('from', `"${name}": definition must FROM its registered parent "${parent}"`)
       }
     }
+    if (lineage === 'gates-toolchain') {
+      // The image claims to mirror the governed gate toolchain; the claim is
+      // mechanical, not a comment: the Dockerfile pins must equal what the
+      // gate sources declare, and this rule runs in the ALWAYS-ON governance
+      // gate — so moving a pin in checks.yml or package.json while the image
+      // stays stale refuses immediately, everywhere.
+      const pins = gatePins(root)
+      if (pins === undefined) {
+        fail(
+          'gates-pin',
+          `"${name}": the governed gate pins could not be derived from .github/workflows/checks.yml and package.json, so the toolchain mirror cannot be verified`,
+        )
+      } else {
+        for (const [arg, expected, source] of [
+          ['NODE_VERSION', pins.node, 'checks.yml NODE_VERSION'],
+          ['PNPM_VERSION', pins.pnpm, 'package.json packageManager'],
+          ['UV_VERSION', pins.uv, 'checks.yml UV_VERSION'],
+        ]) {
+          const declared = text.match(new RegExp(`^ARG ${arg}=(.+)$`, 'm'))?.[1]
+          if (declared !== expected) {
+            fail(
+              'gates-pin',
+              `"${name}": ARG ${arg}=${declared ?? '(missing)'} does not mirror the governed gate (${source} declares ${expected})`,
+            )
+          }
+        }
+      }
+    }
     // external_base.digest must appear as the inline FROM pin.
     if (lineage !== 'runner-derived') {
       const external = entry.get('external_base')
@@ -571,18 +667,18 @@ export function checkImages(root = DEFAULT_ROOT) {
     // single legitimate match.
     const owned =
       lineage === 'runner-derived' && isMap(runtime)
-        ? (PROVIDER_FAMILIES.find((f) =>
+        ? (providerFamilies.find((f) =>
             f.some((t) =>
               token(t).test(`${runtime.get('name')} ${runtime.get('package')}`.toLowerCase()),
             ),
           ) ?? [])
         : []
-    for (const t of PROVIDER_TOKENS) {
+    for (const t of providerTokens) {
       if (owned.includes(t)) continue
       if (token(t).test(text))
         fail('neutrality', `"${name}": definition carries provider/framework token "${t}"`)
     }
-    for (const t of ISOLATION_TOKENS) {
+    for (const t of contentIsolationTokens) {
       if (token(t).test(text))
         fail('neutrality', `"${name}": definition carries isolation-runtime token "${t}"`)
     }
@@ -598,6 +694,16 @@ export function checkImages(root = DEFAULT_ROOT) {
       }
       if (!text.includes(`io.secure-home.runtime.version="${version}"`)) {
         fail('runtime-pin', `"${name}": runtime version label does not match the lock (${version})`)
+      }
+      // The lock registration is the one-runtime authority; the definition
+      // must be tied to it mechanically, not by brand vocabulary: it installs
+      // exactly the registered package.
+      const registeredPackage = runtime.get('package')
+      if (typeof registeredPackage === 'string' && !text.includes(registeredPackage)) {
+        fail(
+          'runtime-pin',
+          `"${name}": definition does not install its registered runtime package ${registeredPackage}`,
+        )
       }
     }
     if (!text.includes(`io.secure-home.lineage="${lineage}"`)) {
@@ -675,11 +781,25 @@ export function checkImages(root = DEFAULT_ROOT) {
   const profilesDir = join(root, 'profiles')
   for (const file of walkFiles(profilesDir)) {
     const content = readFileSync(file, 'utf8')
+    const rel = file.slice(root.length).replace(/^\//, '')
+    // The identity a profile actually consumes is runtime.image_digest — a
+    // digest, not a name. The digest scan is therefore the primary inertness
+    // rule (searched by bare hex, so `sha256:<hex>`, `@sha256:<hex>`, and an
+    // unprefixed spelling all refuse); the name scan stays as defense in
+    // depth for prose references.
+    for (const identity of lockedIdentities) {
+      if (content.includes(identity.slice('sha256:'.length))) {
+        fail(
+          'profile-reference',
+          `${rel} references locked image identity ${identity}; L5 images are inert and no profile may pin one`,
+        )
+      }
+    }
     for (const name of byName.keys()) {
       if (content.includes(name)) {
         fail(
           'profile-reference',
-          `${file.slice(root.length).replace(/^\//, '')} references "${name}"; L5 images are inert and no profile may point at one`,
+          `${rel} references "${name}"; L5 images are inert and no profile may point at one`,
         )
       }
     }
