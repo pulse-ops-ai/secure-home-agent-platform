@@ -23,10 +23,18 @@ ARG DEBIAN_SNAPSHOT=20260819T205155Z
 ARG SOURCE_DATE_EPOCH=0
 
 RUN set -eux; \
-    printf 'Types: deb\nURIs: https://snapshot.debian.org/archive/debian/%s/\nSuites: trixie trixie-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\nCheck-Valid-Until: no\n' "$DEBIAN_SNAPSHOT" \
-      > /etc/apt/sources.list.d/debian.sources; \
-    printf 'Types: deb\nURIs: https://snapshot.debian.org/archive/debian-security/%s/\nSuites: trixie-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\nCheck-Valid-Until: no\n' "$DEBIAN_SNAPSHOT" \
-      > /etc/apt/sources.list.d/debian-security.sources; \
+    # apt's native per-source Snapshot field (apt >= 2.7.10; Debian 13):
+    # the STOCK sources and keyrings stay authoritative, and every fetch is
+    # served from the frozen snapshot via the CDN — the raw snapshot host
+    # rate-limits and its stale validity windows would otherwise make old
+    # snapshots unfetchable. The grep asserts the pin landed in BOTH stanzas
+    # (debian and debian-security), so a changed stock layout fails loudly
+    # instead of silently building from moving mirrors.
+    sed -i "s|^Components: main$|Components: main\nSnapshot: ${DEBIAN_SNAPSHOT}|" \
+      /etc/apt/sources.list.d/debian.sources; \
+    test "$(grep -c "^Snapshot: ${DEBIAN_SNAPSHOT}\$" /etc/apt/sources.list.d/debian.sources)" = 2; \
+    printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' \
+      > /etc/apt/apt.conf.d/99secure-home-snapshot; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
       ca-certificates \

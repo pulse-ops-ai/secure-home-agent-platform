@@ -16,7 +16,8 @@
 FROM secure-home-runner-base
 
 ARG TARGETARCH
-ARG DEBIAN_SNAPSHOT=20260819T205155Z
+# The apt snapshot pin is inherited from the base image's sources; this
+# stage adds no source of its own.
 ARG SOURCE_DATE_EPOCH=0
 
 # The runtime engine, pinned to the repository's own Node version and
