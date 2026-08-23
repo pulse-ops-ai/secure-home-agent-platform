@@ -88,6 +88,7 @@ if command -v pnpm >/dev/null 2>&1; then
   # Real release records handed to the toolchain, for the same reason: a
   # mechanism nothing calls is a mechanism nothing enforces.
   run "set releases"          pnpm run check:set-releases
+  run "release history"       pnpm run check:release-history
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

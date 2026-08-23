@@ -20,6 +20,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 | [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, gates, and README-only while a module's toolchain gate is closed. **Not** the content validator |
 | [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
+| [`check-set-releases.mjs`](check-set-releases.mjs) | Hands **real release-manifest bytes** to the toolchain: canonical form, digest, review binding, family/version agreement. Deliberately **one revision** — it never re-derives a release from the catalog |
+| [`check-release-history.mjs`](check-release-history.mjs) | The **two-revision** properties, compared against the prior governed revision: no released identity deleted or re-identified, only `Released → Deprecated → Retired`, and a **new** release must satisfy the ADR-0019 §6 member preconditions |
 
 ## What belongs here
 
@@ -54,6 +56,15 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    after `pnpm install --frozen-lockfile` in both CI and `check.sh`, and
    `tests/test_source_imports.py` asserts that ordering and that this is the
    only third-party import any of these scripts takes.
+
+   **A second, first-party exception:** `check-set-releases.mjs` and
+   `check-release-history.mjs` import `@secure-home/knowledge-toolchain` — the
+   package that owns every release semantic rule, deliberately not reimplemented
+   here. The cost is a prerequisite: both need `pnpm install --frozen-lockfile`
+   and `pnpm --filter @secure-home/knowledge-toolchain run build` first, and a
+   bare `node` invocation on a fresh host fails with a module-resolution error
+   rather than a governed refusal. CI and `check.sh` build the toolchain before
+   running either.
 3. **Skips are reported, never silent.** `check.sh` prints every skipped check
    with its reason. A check that quietly disappears is how a broken repository
    looks healthy.
@@ -96,6 +107,13 @@ bash scripts/scan-secrets.sh        # secret-shaped values in tracked text
 node scripts/check-workspace.mjs       # manifest conformance and declared direction
 node scripts/check-source-imports.mjs  # direction as source actually imports it
 node scripts/check-knowledge.mjs       # knowledge registry conformance
+
+# The two release checkers import the built knowledge toolchain — run
+#   pnpm install --frozen-lockfile
+#   pnpm --filter @secure-home/knowledge-toolchain run build
+# first, or they fail with a module-resolution error instead of a verdict.
+node scripts/check-set-releases.mjs    # real release records and manifest bytes
+node scripts/check-release-history.mjs # what changed since the prior revision
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```
