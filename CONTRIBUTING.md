@@ -19,8 +19,11 @@ requires it, the correct output is a new ADR proposal, not a quiet exception.
 
 This repository has landed contracts, the trusted runner core
 ([`packages/runner-core`](packages/runner-core/)), L4 orchestration
-([`services/runner-control`](services/runner-control/)), and the knowledge
-toolchain ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)).
+([`services/runner-control`](services/runner-control/)), the knowledge
+toolchain ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)),
+and the L5 image lineage ([`deploy/images/`](deploy/images/) — digest-locked
+image definitions built and verified only through the governed CI path,
+referenced by no profile, launched by nothing).
 There is intentionally **no deployed or activated runtime**: no launcher, no
 process spawn, no household service running anywhere. Landed code is not a
 running system, and the distinction is the point.
@@ -35,7 +38,10 @@ by ADR-0015 (2026-08-15); every other item is open, including
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,
 - stand up Keycloak, OpenFGA, Traefik, or Tailscale,
-- create production APIs or a real runner image,
+- create production APIs, or publish, activate, or deploy any runner image —
+  the landed [`deploy/images/`](deploy/images/) definitions are inert
+  (digest-locked, referenced by no profile, launched by nothing), and they
+  stay that way until their governed consumers land,
 - add provider credentials of any kind,
 - connect to the VPS database.
 

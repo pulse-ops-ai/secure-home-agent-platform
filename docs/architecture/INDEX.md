@@ -65,8 +65,8 @@ more than either half alone.
 
 | | |
 |---|---|
-| **Landed** | runner domain contracts; the trusted runner core ([`packages/runner-core`](../../packages/runner-core/)); L4 orchestration ([`services/runner-control`](../../services/runner-control/)) — lifecycle, effect boundary, and finalization semantics, behind ports against deterministic reference mechanisms; the knowledge toolchain and repository content admission |
-| **Not implemented, or not activated** | no Home Assistant, no live services, no OpenFGA, no Keycloak, no runner image, no credentials; no launcher or process spawn; no deployed process; no L9 physical enforcement of isolation; no durable persistence ([U11](unresolved-decisions.md#u11)) |
+| **Landed** | runner domain contracts; the trusted runner core ([`packages/runner-core`](../../packages/runner-core/)); L4 orchestration ([`services/runner-control`](../../services/runner-control/)) — lifecycle, effect boundary, and finalization semantics, behind ports against deterministic reference mechanisms; the knowledge toolchain and repository content admission; the L5 image lineage ([`deploy/images/`](../../deploy/images/)) — digest-locked, machine-validated, inert |
+| **Not implemented, or not activated** | no Home Assistant, no live services, no OpenFGA, no Keycloak, no credentials; no published or activated runner image (the L5 definitions are inert — referenced by no profile, launched by nothing); no launcher or process spawn; no deployed process; no L9 physical enforcement of isolation; no durable persistence ([U11](unresolved-decisions.md#u11)) |
 
 Where a document describes something that does not exist, it says so. Where
 something **is** implemented, saying it is not is equally a defect.

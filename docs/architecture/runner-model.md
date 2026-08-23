@@ -19,7 +19,7 @@ is the whole execution model; those two zoom in.
 >
 > | | |
 > |---|---|
-> | **Landed** | **L2** runner domain contracts — execution profiles, runs and events, verification, evidence — authored as Zod in [`packages/contracts`](../../packages/contracts/) and [`packages/events`](../../packages/events/), generated under [`schemas/`](../../schemas/) and guarded by an append-only identity ledger. **L3** the trusted runner core, [`packages/runner-core`](../../packages/runner-core/). **L4** orchestration, [`services/runner-control`](../../services/runner-control/) — the typed run lifecycle, authority acquisition, gate scheduling, finalization, and the port boundary |
+> | **Landed** | **L2** runner domain contracts — execution profiles, runs and events, verification, evidence — authored as Zod in [`packages/contracts`](../../packages/contracts/) and [`packages/events`](../../packages/events/), generated under [`schemas/`](../../schemas/) and guarded by an append-only identity ledger. **L3** the trusted runner core, [`packages/runner-core`](../../packages/runner-core/). **L4** orchestration, [`services/runner-control`](../../services/runner-control/) — the typed run lifecycle, authority acquisition, gate scheduling, finalization, and the port boundary. **L5** image lineage, [`deploy/images/`](../../deploy/images/) — the digest-locked base, Claude reference, and gates-toolchain definitions, **inert**: no profile references them and nothing launches them (#53) |
 > | **Not yet real** | provider execution adapters, where not yet landed; a real launcher or container execution substrate; a deployed `runner-control` process; **L9** physical enforcement of isolation; durable persistence, still open under [U11](unresolved-decisions.md#u11) |
 >
 > Orchestration semantics are implemented **behind ports**, against
@@ -83,12 +83,20 @@ flowchart TB
 
 ## The base image
 
-Contains substrate concerns only:
+An **untrusted workload substrate**, and nothing more: the minimal OS
+surface, process bootstrap (PID 1 signal handling and reaping), the non-root
+workload user, and the filesystem conventions through which the substrate
+supplies event/evidence plumbing at launch.
 
-- profile loading and validation,
-- the run lifecycle: start, cancel, timeout, teardown,
-- the event emitter and evidence capture hooks,
-- the minimal OS surface required for the above.
+The substrate-*system* concerns — profile loading and validation, the run
+lifecycle (start, cancel, timeout, teardown), event emission, and evidence
+capture — are owned by trusted platform code **outside** every image:
+[`services/runner-control`](../../services/runner-control/) (L4, landed)
+decides and records, and the L9 launcher will enforce. ADR-0011's "substrate
+concerns" are these system concerns; where each lives was fixed at L5
+(issue #53): nothing decision-bearing ships inside an image, and the lineage
+checker refuses platform code copied into one
+([`deploy/images/`](../../deploy/images/)).
 
 Contains **nothing** provider- or framework-specific: no coding agent, no
 framework, no provider SDK, no provider credential handling. It does not know
