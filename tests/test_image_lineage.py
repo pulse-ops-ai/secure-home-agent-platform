@@ -41,7 +41,8 @@ ARG SOURCE_DATE_EPOCH=0
 ARG NODE_VERSION=1.0.0
 ARG PNPM_VERSION=2.0.0
 ARG UV_VERSION=3.0.0
-RUN install-toolchain node@${{NODE_VERSION}} pnpm@${{PNPM_VERSION}} uv@${{UV_VERSION}} && uv python install 9.9
+RUN install-toolchain node@${{NODE_VERSION}} \\
+    pnpm@${{PNPM_VERSION}} uv@${{UV_VERSION}} && uv python install 9.9
 LABEL io.secure-home.lineage="gates-toolchain"
 USER nobody
 """
