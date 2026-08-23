@@ -1,0 +1,83 @@
+# The governed image build path (L5 / issue #53).
+#
+# deploy/AGENTS.md prohibits any coding agent from running deployment assets
+# locally — docker build included. This workflow is the governed mechanism
+# that produces and re-verifies REAL image identities instead: it builds
+# every image registered in deploy/images/image-lock.yaml for every declared
+# platform, as OCI layouts, and compares the resulting digests to the lock.
+#
+# It deliberately does NOT: push or publish anything, log in anywhere, run a
+# built image, start a service, or deploy. Build and digest verification
+# only. While the lock carries the bootstrap sentinel the verify step FAILS,
+# printing the built digests as the exact evidence to record — so a pending
+# lock can never read as complete, and a recorded lock is re-proved by an
+# independent rebuild at the exact head.
+#
+# Like the merge gate, every third-party action is pinned to a full commit
+# SHA (Dependabot proposes bumps as reviewable pull requests).
+
+name: images
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/images/**'
+      - '.github/workflows/images.yml'
+      - 'scripts/check-images.mjs'
+      # The gates-toolchain image mirrors the governed gate environment, so
+      # the sources that define that environment re-trigger build + verify.
+      - '.github/workflows/checks.yml'
+      - 'package.json'
+      - 'scripts/check.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancelling a superseded run loses nothing here: verification is stateless
+# against the lock at whatever head runs last, unlike the release-history
+# gate's per-window comparison in checks.yml.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-verify:
+    name: build and verify image identities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The transitive build machinery is pinned like everything else in the
+      # digest chain: a SHA-pinned ACTION whose defaults pull `:latest`
+      # helpers is not a pinned build path. The binfmt/QEMU helper runs in
+      # the privileged host path and the BuildKit container produces the
+      # security-relevant identities — both are pinned by immutable digest
+      # (resolved 2026-08-23), and Buildx itself by exact version.
+      - name: Set up QEMU (linux/arm64 emulation)
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
+          # qemu-v10.2.3
+          image: docker.io/tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          version: v0.36.1
+          # Keep in lockstep with BUILDKIT_IMAGE in deploy/images/scripts/build.sh.
+          driver-opts: image=docker.io/moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+
+      - name: Image lineage (static)
+        run: node scripts/check-images.mjs
+
+      - name: Governed build (OCI layouts, both platforms)
+        run: bash deploy/images/scripts/build.sh
+
+      - name: Verify digests against image-lock.yaml
+        run: bash deploy/images/scripts/verify.sh
+
+      - name: Lineage inspection (evidence)
+        if: always()
+        run: bash deploy/images/scripts/inspect.sh || true

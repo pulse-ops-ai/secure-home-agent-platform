@@ -27,7 +27,8 @@
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck",
     "check:set-releases": "node scripts/check-set-releases.mjs",
-    "check:release-history": "node scripts/check-release-history.mjs"
+    "check:release-history": "node scripts/check-release-history.mjs",
+    "check:images": "node scripts/check-images.mjs"
   },
   "devDependencies": {
     "@secure-home/knowledge-toolchain": "workspace:*",

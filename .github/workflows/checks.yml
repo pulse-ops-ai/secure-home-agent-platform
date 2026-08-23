@@ -94,6 +94,15 @@ jobs:
       - name: Knowledge registry
         run: node scripts/check-knowledge.mjs
 
+      # The image lock and lineage invariants (deploy/images/image-lock.yaml):
+      # closed lineage classes, immutable external pins, the base->derived
+      # digest chain, provider-neutrality of the base and gates definitions,
+      # and inertness (no profile references an image, no launcher token, no
+      # runtime configuration). Structural only — REAL digests are produced
+      # and re-verified by the images workflow, never asserted here.
+      - name: Image lineage
+        run: node scripts/check-images.mjs
+
       # --frozen-lockfile fails on a stale or drifted lockfile rather than
       # rewriting it. CI never mutates a manifest or the lockfile.
       - name: Manifest and lockfile consistency

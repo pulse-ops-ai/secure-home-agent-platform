@@ -3,9 +3,12 @@
 Deployment **assets** — the declarative definitions of how the platform would
 run on the Pi.
 
-> **Status: nothing here, and nothing deployed.** Every directory is a documented
-> placeholder. There is no Compose file, no Dockerfile, no proxy configuration,
-> and no tailnet policy.
+> **Status: image definitions are landed (L5, issue #53) and inert; nothing
+> is deployed.** [`images/`](images/) carries the three validated L5 image
+> definitions and their lineage lock — built and verified only through the
+> governed CI path, referenced by no profile, launched by nothing. Every
+> other directory is a documented placeholder: no Compose file, no proxy
+> configuration, no tailnet policy, and no execution runtime is selected.
 
 > **Writing a deployment asset is not deploying it.** Authoring a file here is in
 > scope once the governing ADR is accepted. **Running it is not**, and is never
@@ -15,7 +18,8 @@ run on the Pi.
 
 | Path | Contains |
 |---|---|
-| [`images/`](images/) | Runner image definitions: the neutral base and its derived images |
+| [`images/`](images/) | Runner image definitions, the gates-toolchain image, and `image-lock.yaml` — the validated lineage/pinning record |
+| [`runtime/`](runtime/) | The boundary for **future** execution-runtime integration — taxonomy only; no runtime is selected (U4 open, L9 not landed) |
 | [`compose/`](compose/) | Docker Compose definitions for the Pi control plane |
 | [`traefik/`](traefik/) | Local ingress and internal routing configuration |
 | [`tailscale/`](tailscale/) | Tailnet connectivity and ACL documentation |

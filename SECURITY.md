@@ -18,14 +18,23 @@ Please include the affected path, the trust boundary you believe is crossed
 and a reproduction or reasoning chain. If the finding involves a physical-safety
 action (lock, garage, alarm, valve, HVAC), say so in the first line.
 
-## Current status: no runtime
+## Current status: landed code, no runtime
 
-At the time of writing this repository contains **documentation, governance,
-and workspace scaffolding only**. There is no deployed service, no runner image,
-no Home Assistant integration, and no credential material. Vulnerability reports
-against this repository are therefore reports about *contracts and structure* —
-for example, a documented flow that would permit an agent to bypass an
-enforcement point.
+At the time of writing this repository contains documentation, governance,
+workspace scaffolding, **and landed but inert platform code**: the runner
+domain contracts, the trusted runner core, L4 `runner-control` orchestration
+(behind ports — no container launch), the knowledge toolchain, and the L5
+runner image definitions ([`deploy/images/`](deploy/images/) — digest-locked
+Dockerfiles and their lineage lock, built and verified only in CI, published
+nowhere, referenced by no profile, launched by nothing).
+
+There is still **no deployed service, no published or activated runner
+image, no Home Assistant integration, and no credential material**.
+Vulnerability reports against this repository are therefore reports about
+*contracts, landed code, and supply-chain inputs* — for example, a
+documented flow that would permit an agent to bypass an enforcement point, a
+defect in landed decision logic that a future activation would inherit, or a
+pinned image input that does not match its recorded identity.
 
 ## What is in scope
 

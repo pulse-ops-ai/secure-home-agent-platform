@@ -5,8 +5,11 @@ node_modules/
 .venv/
 
 # Lockfiles are tool-owned; formatting them would fight the tool.
+# image-lock.yaml is validated against a strict canonical grammar by
+# scripts/check-images.mjs — a second formatter would be a second grammar.
 pnpm-lock.yaml
 uv.lock
+deploy/images/image-lock.yaml
 
 # Python is formatted by ruff, not Prettier. Two formatters over one file is
 # the exact conflict the single-authority rule exists to prevent.

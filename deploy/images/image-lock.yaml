@@ -1,0 +1,73 @@
+# image-lock.yaml — the machine-readable image lineage and pinning record.
+#
+# Validated by scripts/check-images.mjs against a strict closed grammar
+# (two-space indents, block collections only, fixed key order, full-line
+# comments only) with exactly one logical reading. The checker is the one
+# parser; a representation it refuses has no meaning here.
+#
+# Digest vocabulary, exactly:
+#   digest                    the OCI image-index digest covering every
+#                             declared platform — the canonical locked
+#                             identity, and what a future profile pins
+#   manifests[].digest        the per-platform image-manifest digest — the
+#                             artifact a runtime on that platform actually
+#                             consumes, and what run evidence records
+#   external_base.digest      the upstream base's own index digest, matching
+#                             the inline pin in the Dockerfile
+#
+# `pending-first-governed-build` is the explicit bootstrap sentinel: valid
+# syntax, never a completed identity. The governed build path
+# (.github/workflows/images.yml) fails while it is present, reporting the
+# freshly built digests as the evidence to record; digests enter this file
+# from that evidence only.
+version: 1
+images:
+  - name: secure-home-runner-base
+    lineage: runner-base
+    definition: deploy/images/runner-base/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    external_base:
+      reference: docker.io/library/debian:trixie-slim
+      digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
+    digest: sha256:2e6ad988844f91f6a527933fb6b667ba06a9251c7652cc957236983fd4c158d5
+    manifests:
+      - platform: linux/amd64
+        digest: sha256:94634ad6b06433468d58458703e6a93b20c018f6c056c35b49e320c180fb01a3
+      - platform: linux/arm64
+        digest: sha256:c31effad3eb882796fee802988b2a46143b2684be767948b424ceecc0716d74d
+  - name: secure-home-runner-claude
+    lineage: runner-derived
+    definition: deploy/images/runner-claude/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    parent: secure-home-runner-base
+    parent_digest: sha256:2e6ad988844f91f6a527933fb6b667ba06a9251c7652cc957236983fd4c158d5
+    runtime:
+      name: claude-code
+      package: "@anthropic-ai/claude-code"
+      version: 2.1.241
+      integrity: sha512-S7DWEmJJAsI5taAUjhKm6soXcFJYIVeTH6Lg9kmp3yntFllCP612hGwZ7thOGh8r7YaRUH9+1jCX5A9QGazsxg==
+    digest: sha256:ba9f816bcbd3da69f285bd5061ceb8e05a963652e10d81182f07ed39ad5b879e
+    manifests:
+      - platform: linux/amd64
+        digest: sha256:4e38c0ceb905640707cd31e38a89a2cdecbf7bc46b4ed3828d02946b83f2dbc0
+      - platform: linux/arm64
+        digest: sha256:cf551034b09c77750cf9ce01915be21a4485f366b8dae86a130916b71d851495
+  - name: secure-home-gates-toolchain
+    lineage: gates-toolchain
+    definition: deploy/images/gates-toolchain/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    external_base:
+      reference: docker.io/library/debian:trixie-slim
+      digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
+    digest: sha256:49966ee738783401a29f8eb90085cb77b52965a2cddbfae20abae541d7e438ab
+    manifests:
+      - platform: linux/amd64
+        digest: sha256:c6b2379fdbbe25cccf4daa2ff3e2ad5a7c35f92662b721cc324680d5880e4d42
+      - platform: linux/arm64
+        digest: sha256:bb3fc62e0e3c816701541603ee28646995be12c4108619d0b44766c57e5d248f
