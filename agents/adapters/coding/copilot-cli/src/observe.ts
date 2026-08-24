@@ -44,6 +44,11 @@ const asString = (v: unknown): string | undefined => (typeof v === 'string' ? v 
 const describe = (line: string): string =>
   line.length <= 40 ? line : `${line.slice(0, 40)}… (${String(line.length)} bytes)`
 
+/**
+ * The budget is BYTES — `limits.output_bytes` means what it says, so
+ * every charge is a UTF-8 byte length, never a UTF-16 code-unit count
+ * (300 'é' characters are 600 bytes, and must spend 600).
+ */
 class BudgetedCollector {
   readonly calls: AdapterCall[] = []
   readonly claims: UntrustedClaim[] = []
@@ -73,12 +78,14 @@ class BudgetedCollector {
   }
 
   claim(kind: UntrustedClaim['kind'], content: string): void {
-    if (this.#charge(content.length)) this.claims.push({ kind, content })
+    if (this.#charge(Buffer.byteLength(content, 'utf8'))) this.claims.push({ kind, content })
   }
 
   event(name: string, at: string, data: Readonly<Record<string, string>>): void {
-    const size =
-      name.length + Object.entries(data).reduce((n, [k, v]) => n + k.length + v.length, 0)
+    const size = Object.entries(data).reduce(
+      (n, [k, v]) => n + Buffer.byteLength(k, 'utf8') + Buffer.byteLength(v, 'utf8'),
+      Buffer.byteLength(name, 'utf8'),
+    )
     if (this.#charge(size)) this.events.push({ name, at, data })
   }
 

@@ -8,7 +8,7 @@
  * entry is `./bin.js`, exercised only by the framework-conformance suite
  * until a launcher exists (L9).
  */
-export { ISOLATION_ENV, planLaunch, PROVIDER } from './plan.js'
+export { childEnvironment, ISOLATION_ENV, planLaunch, PROVIDER } from './plan.js'
 export type { LaunchPlan, PlanResult } from './plan.js'
 export { observeRun } from './observe.js'
 export type { CapturedRun } from './observe.js'

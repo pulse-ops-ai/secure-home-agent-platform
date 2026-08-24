@@ -8,9 +8,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fc_support import Adapter, golden_invocation, run_adapter
-
-PLANTED = "planted-credential-value-do-not-emit"
+from fc_support import (
+    DECLARED_CREDENTIAL_VALUE,
+    PLANTED_VALUE,
+    Adapter,
+    golden_invocation,
+    run_adapter,
+)
 
 
 def test_unknown_invocation_fields_are_refused(adapter: Adapter, tmp_path: Path) -> None:
@@ -59,8 +63,8 @@ def test_no_credential_value_reaches_argv_or_report(adapter: Adapter, tmp_path: 
     workspace = tmp_path / "ws"
     workspace.mkdir()
     run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
-    assert PLANTED not in run.stdout
-    assert PLANTED not in " ".join(run.recorded_argv)
+    assert PLANTED_VALUE not in run.stdout
+    assert PLANTED_VALUE not in " ".join(run.recorded_argv)
 
 
 def test_workspace_refs_stay_opaque(adapter: Adapter, tmp_path: Path) -> None:
@@ -72,3 +76,33 @@ def test_workspace_refs_stay_opaque(adapter: Adapter, tmp_path: Path) -> None:
     run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
     blob = " ".join(run.recorded_argv)
     assert "session-0001" not in blob
+
+
+def test_provider_environment_is_allowlisted(adapter: Adapter, tmp_path: Path) -> None:
+    """Review finding 1: the provider child must receive the baseline plus
+    the DECLARED variables — never the adapter's ambient environment. The
+    planted undeclared value exists in the adapter's env and must be
+    absent from the child; the declared credential must arrive."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
+    child = run.child_env
+    assert child, "the stub must have recorded its environment"
+
+    assert "PLANTED_SECRET_VALUE" not in child, (
+        "an ambient variable the invocation never declared reached the provider"
+    )
+    assert child.get("PROVIDER_TOKEN_REF") == DECLARED_CREDENTIAL_VALUE
+    if adapter.name == "copilot-cli":
+        assert "COPILOT_HOME" in child, "the declared isolation home must arrive"
+    else:
+        assert "COPILOT_HOME" not in child, (
+            "an undeclared isolation variable leaked into the claude provider"
+        )
+    allowed = {"PATH", "HOME", "TMPDIR", "PROVIDER_TOKEN_REF", "COPILOT_HOME"}
+    # Variables the SHIM's own /bin/sh introduces for its child (PWD, _)
+    # plus the harness variables baked into the shim script — none of them
+    # came through the adapter, which is the boundary under test.
+    shim_added = {k for k in child if k.startswith("STUB_")} | {"_", "PWD"}
+    unexpected = set(child) - allowed - shim_added
+    assert not unexpected, f"undeclared variables reached the provider: {sorted(unexpected)}"

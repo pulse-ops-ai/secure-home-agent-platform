@@ -7,7 +7,7 @@
  * side effects; the process entry is `./bin.js`, exercised only by the
  * framework-conformance suite until a launcher exists (L9).
  */
-export { planLaunch, PROVIDER } from './plan.js'
+export { childEnvironment, planLaunch, PROVIDER } from './plan.js'
 export type { LaunchPlan, PlanResult } from './plan.js'
 export { observeRun } from './observe.js'
 export type { CapturedRun } from './observe.js'

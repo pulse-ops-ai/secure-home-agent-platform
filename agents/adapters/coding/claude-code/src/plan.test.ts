@@ -4,7 +4,7 @@
  * here reads argv, not behavior.
  */
 import { describe, expect, it } from 'vitest'
-import { planLaunch, PROVIDER } from './plan.js'
+import { childEnvironment, planLaunch, PROVIDER } from './plan.js'
 import { validInvocation } from './test-fixtures.js'
 import type { WireInvocation } from './spi.js'
 
@@ -105,5 +105,45 @@ describe('planLaunch', () => {
       version: '2.1.241',
       image: 'secure-home-runner-claude',
     })
+  })
+})
+
+describe('planLaunch — delimiter widening is refused (review finding 3)', () => {
+  it('refuses a granted tool containing the comma delimiter', () => {
+    const result = planLaunch({
+      ...validInvocation(),
+      grant: { ...validInvocation().grant, tools: ['Read,Bash'] },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.refusal).toContain('"Read,Bash"')
+      expect(result.refusal).toContain('widen')
+    }
+  })
+})
+
+describe('childEnvironment — the provider env is allowlisted (review finding 1)', () => {
+  const ambient = {
+    PATH: '/isolated/bin',
+    HOME: '/home/runner',
+    PROVIDER_TOKEN_REF: 'declared-and-provisioned',
+    AMBIENT_UNDECLARED_SECRET: 'must-never-pass',
+    STUB_HARNESS_DETAIL: 'must-never-pass',
+  }
+
+  it('passes exactly the baseline plus the declared variables', () => {
+    const launch = plan()
+    expect(childEnvironment(launch, ambient)).toEqual({
+      PATH: '/isolated/bin',
+      HOME: '/home/runner',
+      PROVIDER_TOKEN_REF: 'declared-and-provisioned',
+    })
+  })
+
+  it('a declared but unprovisioned variable stays absent, not empty', () => {
+    const launch = plan()
+    const child = childEnvironment(launch, { PATH: '/isolated/bin' })
+    expect(child).toEqual({ PATH: '/isolated/bin' })
+    expect('PROVIDER_TOKEN_REF' in child).toBe(false)
   })
 })

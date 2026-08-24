@@ -239,6 +239,24 @@ Harness lessons recorded: (1) piping a probe through `\|\| echo` or
 (2) a mutant is only believed applied when the ARTIFACT under test
 (built dist, not just src) demonstrably contains it.
 
+## Review-round 1 record
+
+Owner review on PR #96 (2026-08-24): three P1 findings + documentation
+drift. All accepted as real; each fixed with the mechanism reaching the
+defect, a regression test, and a spec-delta scenario.
+
+| Finding | Fix | Proof |
+|---|---|---|
+| P1-1: `spawn()` without `env` — the provider inherited the adapter's ENTIRE environment; `required_env` was metadata only, so an undeclared credential variable could reach the provider | pure `childEnvironment(plan, ambient)` in both plans: allowlist = baseline (`PATH`, `HOME`, `TMPDIR`) + `plan.required_env`; both entries spawn with it; a declared-but-unprovisioned variable stays absent (observed, not papered over). Conformance stubs now record the environment they actually received; the harness variables are baked into the PATH shim rather than passed through the adapter — the pass-through hole is closed for the tests' own plumbing too | unit: allowlist/unprovisioned tests per adapter; conformance `test_provider_environment_is_allowlisted` (planted undeclared value absent from the child, declared credential present, copilot isolation home present, claude explicitly without it, no unexpected names beyond shim-shell incidentals `PWD`/`_`) |
+| P1-2: `output_bytes` enforced in UTF-16 code units — 300 'é' chars (600 UTF-8 bytes) fit a 300-byte budget; the raw stdout cap decoded per chunk; copilot materialized whole persisted event files before capping | `BudgetedCollector` charges `Buffer.byteLength` everywhere; both entries capture stdout as Buffer chunks with a byte counter and decode ONCE after the cap; copilot's persisted surface is read via `statSync` + bounded `readSync` — the bound applies before materialization | unit: the reviewer's exact é repro per adapter (600 bytes refused by a 300-byte budget, truncation observable; ASCII control case); conformance oversize assertion strengthened to `encode()` bytes |
+| P1-3: comma parsing widens a Claude grant — `["Read,Bash"]` is one platform grant entry but `--tools Read,Bash` exposes two tools | both plans refuse a granted identity containing `,`: claude because the plan comma-joins and the CLI comma-splits; copilot because the `--available-tools=` value parsing is not proven single-valued by the L6 evidence — fail closed. Faithful translation or refusal, never a silently widened surface | unit: comma-refusal test per adapter naming the identity and "widen"; spec scenario "A grant identity carrying the provider's list delimiter is refused" |
+| Doc drift: `agents/README.md` "no implementation and no adapter"; `deploy/images/README.md` "Three images"; `agents/adapters/README.md` conformance "Future" | all three reconciled to landed status (four images; conformance active with the exact build+run commands) | grep sweep re-run |
+
+Spec delta updated in the same round: environment-allowlist requirement
+text + scenario, byte-measured budget wording + UTF-8 scenario,
+delimiter-refusal scenario; `openspec validate --strict` passes.
+Conformance suite is now 69 tests (67 + the per-adapter allowlist case).
+
 ## PR-1 Completion Gate
 
 - [x] every ladder check green in CI: `checks` run 32675219615 ✓ at

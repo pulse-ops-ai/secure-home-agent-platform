@@ -2,8 +2,8 @@
 
 Runner **image definitions** and their machine-readable lineage record.
 
-> **Status: the L5 definitions are landed and inert** (issue #53). Three
-> images are defined, digest-pinnable, and validated — and nothing
+> **Status: the definitions are landed and inert** (L5 #53, L7 #55). Four
+> images are defined, digest-locked, and validated — and nothing
 > references, launches, or deploys them: no profile pins one, no launcher
 > exists (L9, behind U4), and nothing is published to any registry.
 

@@ -153,6 +153,35 @@ def _isolated_path(tmp_path: Path, *, with_stub_dir: Path | None) -> str:
     return os.pathsep.join(entries)
 
 
+PLANTED_VALUE = "planted-credential-value-do-not-emit"
+DECLARED_CREDENTIAL_VALUE = "declared-credential-reference-material"
+
+
+def _write_shim(
+    adapter: Adapter,
+    bin_dir: Path,
+    scenario: str,
+    argv_file: Path,
+    env_file: Path,
+    *,
+    marker: Path | None = None,
+) -> None:
+    """The provider shim. Stub harness variables are BAKED INTO the shim
+    rather than passed through the adapter: the adapter's child
+    environment is allowlisted (review finding 1), so nothing undeclared
+    can arrive that way — which is exactly the property under test."""
+    exports = [
+        f'STUB_SCENARIO="{scenario}"',
+        f'STUB_ARGV_FILE="{argv_file}"',
+        f'STUB_ENV_FILE="{env_file}"',
+    ]
+    if marker is not None:
+        exports.append(f'STUB_RUNNING_MARKER="{marker}"')
+    shim = bin_dir / adapter.provider_command
+    shim.write_text("#!/bin/sh\n" + " ".join(exports) + f' exec node "{adapter.stub_path}" "$@"\n')
+    shim.chmod(0o755)
+
+
 @dataclass(frozen=True)
 class AdapterRun:
     """One adapter-entry execution, fully captured."""
@@ -161,12 +190,22 @@ class AdapterRun:
     stderr: str
     returncode: int
     argv_file: Path
+    env_file: Path
 
     @property
     def report(self) -> dict[str, Any]:
         document = json.loads(self.stdout)
         assert isinstance(document, dict)
         return document
+
+    @property
+    def child_env(self) -> dict[str, str]:
+        """The environment the provider process actually saw."""
+        if not self.env_file.is_file():
+            return {}
+        loaded = json.loads(self.env_file.read_text())
+        assert isinstance(loaded, dict)
+        return {str(k): str(v) for k, v in loaded.items()}
 
     @property
     def recorded_argv(self) -> list[str]:
@@ -192,24 +231,24 @@ def run_adapter(
     bin_dir = tmp_path / "bin"
     home = tmp_path / "home"
     argv_file = tmp_path / "argv.json"
+    env_file = tmp_path / "child-env.json"
     bin_dir.mkdir(exist_ok=True)
     home.mkdir(exist_ok=True)
 
     if on_path:
-        shim = bin_dir / adapter.provider_command
-        shim.write_text(
-            f'#!/bin/sh\nexec node "{adapter.stub_path}" "$@"\n',
-        )
-        shim.chmod(0o755)
+        _write_shim(adapter, bin_dir, scenario, argv_file, env_file)
 
     env = {
         "PATH": _isolated_path(tmp_path, with_stub_dir=bin_dir if on_path else None),
-        "STUB_SCENARIO": scenario,
-        "STUB_ARGV_FILE": str(argv_file),
+        # The substrate-provisioned surface: the DECLARED credential (its
+        # value is deliberately reference-shaped, not secret-shaped) and
+        # the isolation home the copilot plan declares.
+        "PROVIDER_TOKEN_REF": DECLARED_CREDENTIAL_VALUE,
         "COPILOT_HOME": str(home),
-        # A planted credential VALUE in the adapter's environment: the
-        # cannot-widen tests assert it never reaches argv or the report.
-        "PLANTED_SECRET_VALUE": "planted-credential-value-do-not-emit",
+        # A planted UNDECLARED value in the adapter's environment: the
+        # cannot-widen tests assert it never reaches argv, the report, or
+        # the provider child environment (review finding 1).
+        "PLANTED_SECRET_VALUE": PLANTED_VALUE,
     }
 
     completed = subprocess.run(
@@ -226,6 +265,7 @@ def run_adapter(
         stderr=completed.stderr,
         returncode=completed.returncode,
         argv_file=argv_file,
+        env_file=env_file,
     )
 
 
@@ -245,21 +285,18 @@ def run_adapter_cancelling(
     bin_dir = tmp_path / "bin"
     home = tmp_path / "home"
     argv_file = tmp_path / "argv.json"
+    env_file = tmp_path / "child-env.json"
     marker = tmp_path / "stub-running.marker"
     bin_dir.mkdir(exist_ok=True)
     home.mkdir(exist_ok=True)
 
-    shim = bin_dir / adapter.provider_command
-    shim.write_text(f'#!/bin/sh\nexec node "{adapter.stub_path}" "$@"\n')
-    shim.chmod(0o755)
+    _write_shim(adapter, bin_dir, "hang", argv_file, env_file, marker=marker)
 
     env = {
         "PATH": _isolated_path(tmp_path, with_stub_dir=bin_dir),
-        "STUB_SCENARIO": "hang",
-        "STUB_ARGV_FILE": str(argv_file),
-        "STUB_RUNNING_MARKER": str(marker),
+        "PROVIDER_TOKEN_REF": DECLARED_CREDENTIAL_VALUE,
         "COPILOT_HOME": str(home),
-        "PLANTED_SECRET_VALUE": "planted-credential-value-do-not-emit",
+        "PLANTED_SECRET_VALUE": PLANTED_VALUE,
     }
 
     process = subprocess.Popen(
@@ -299,4 +336,5 @@ def run_adapter_cancelling(
         stderr=process.stderr.read(),
         returncode=returncode,
         argv_file=argv_file,
+        env_file=env_file,
     )

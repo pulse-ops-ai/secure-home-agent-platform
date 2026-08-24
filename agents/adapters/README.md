@@ -92,5 +92,11 @@ a **pinned provider version** and never leak upward.
 
 ## Validation
 
-Future: [`../../tests/framework-conformance/`](../../tests/framework-conformance/)
-asserts every adapter emits an identical contract for the same logical run.
+[`../../tests/framework-conformance/`](../../tests/framework-conformance/)
+asserts every adapter emits an identical contract for the same logical run —
+active since L7 (#55):
+
+```sh
+corepack pnpm --filter @secure-home/adapter-claude-code... --filter @secure-home/adapter-copilot-cli... run build
+uv run pytest tests/framework-conformance
+```

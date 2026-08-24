@@ -41,6 +41,35 @@ export type PlanResult =
   | { readonly ok: false; readonly refusal: string }
 
 /**
+ * What the provider process needs merely to exist: binary resolution,
+ * a home for the CLI's own state, a writable temp dir. Nothing else is
+ * baseline — everything else must be DECLARED by the invocation.
+ */
+const BASELINE_ENV = ['PATH', 'HOME', 'TMPDIR'] as const
+
+/**
+ * The provider child environment, ALLOWLISTED — pure, so the property is
+ * unit-testable. The child receives exactly the baseline plus the
+ * variables the plan declares (`required_env`); an ambient variable the
+ * invocation never named — an undeclared credential, a harness detail —
+ * cannot reach the provider. A declared variable the substrate failed to
+ * provision stays absent: the provider's resulting failure is observed,
+ * never papered over (the adapter translates; it does not enforce
+ * provisioning).
+ */
+export function childEnvironment(
+  plan: LaunchPlan,
+  ambient: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const child: Record<string, string> = {}
+  for (const name of [...BASELINE_ENV, ...plan.required_env]) {
+    const value = ambient[name]
+    if (value !== undefined) child[name] = value
+  }
+  return child
+}
+
+/**
  * Tool lists travel as ONE comma-joined argv token. The CLI accepts the
  * comma form, and a single token cannot be re-split by variadic-flag
  * parsing into swallowing the positional task.
@@ -62,6 +91,23 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
   }
 
   const granted = invocation.grant.tools
+
+  // The CLI parses tool lists by delimiter ("Comma or space-separated"),
+  // and this plan joins the granted set with commas. A grant identity that
+  // CONTAINS the delimiter is therefore inexpressible without widening:
+  // ["Read,Bash"] is one granted tool to the platform and two visible
+  // tools to the provider. Faithful translation or refusal — never a
+  // silently widened surface.
+  const delimited = granted.find((tool) => tool.includes(','))
+  if (delimited !== undefined) {
+    return {
+      ok: false,
+      refusal:
+        `grant.tools entry ${JSON.stringify(delimited)} contains the provider's ` +
+        "list delimiter (','); expressing it would widen the grant to multiple " +
+        'tools, so no faithful translation exists',
+    }
+  }
 
   const argv: string[] = [
     '--print',

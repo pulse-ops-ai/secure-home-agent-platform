@@ -11,6 +11,10 @@ const fs = require('node:fs')
 const scenario = process.env.STUB_SCENARIO ?? 'golden'
 const argvFile = process.env.STUB_ARGV_FILE
 if (argvFile) fs.writeFileSync(argvFile, JSON.stringify(process.argv.slice(2)))
+// The environment the adapter actually handed this provider process —
+// the conformance suite asserts it is the ALLOWLIST, nothing more.
+const envFile = process.env.STUB_ENV_FILE
+if (envFile) fs.writeFileSync(envFile, JSON.stringify(process.env))
 
 const line = (frame) => process.stdout.write(`${JSON.stringify(frame)}\n`)
 

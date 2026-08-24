@@ -132,6 +132,15 @@ field through which an adapter can assert that a run succeeded.
   granted set and denies outside it, and contains no tool the grant does
   not name
 
+#### Scenario: A grant identity carrying the provider's list delimiter is refused
+
+- **GIVEN** a granted tool identity containing the provider CLI's list
+  delimiter (for example `"Read,Bash"` where the CLI comma-splits tool
+  lists)
+- **WHEN** the adapter plans the provider launch
+- **THEN** translation is refused naming the identity — one platform
+  grant entry must never widen into multiple provider-visible tools
+
 #### Scenario: Terminal disagreement is carried, not resolved
 
 - **GIVEN** a provider run whose process exit and self-reported outcome
@@ -160,7 +169,11 @@ The wire invocation SHALL carry credential references as environment
 variable names only, preserving the frozen SPI's value-free shape. No
 launch plan, report, fixture, or test artifact SHALL contain a
 credential-shaped value, and the adapter SHALL never read, print, or
-forward the contents of any credential variable.
+forward the contents of any credential variable. The provider process
+environment SHALL be ALLOWLISTED, never inherited: the child receives
+exactly a minimal execution baseline plus the variables the invocation
+declares, so an ambient variable the invocation never named — an
+undeclared credential above all — cannot reach the provider.
 
 #### Scenario: The reference shape survives translation
 
@@ -168,6 +181,15 @@ forward the contents of any credential variable.
 - **WHEN** the adapter plans the provider launch
 - **THEN** the plan names which variables the substrate must provision
   and contains no value slot for any of them
+
+#### Scenario: The provider environment is allowlisted
+
+- **GIVEN** an adapter process whose own environment carries a variable
+  the invocation never declared
+- **WHEN** the adapter launches the provider
+- **THEN** the provider's environment contains the execution baseline and
+  the declared variables only; the undeclared variable is absent, and a
+  declared-but-unprovisioned variable stays absent rather than empty
 
 #### Scenario: A credential-shaped value is refused by the repository
 
@@ -183,7 +205,9 @@ Malformed lines, truncated documents, prose-prefixed output, oversized
 payloads, and injection-shaped content SHALL degrade to recorded
 observations or an `environmental_fault` report, never to an uncaught
 crash, never to widened behavior. Observation capture SHALL respect the
-invocation's output budget. This is the L7 re-proof of PROP-006: the
+invocation's output budget, measured in BYTES (UTF-8), never in string
+code units, with bounded reads applied before any provider surface is
+materialized. This is the L7 re-proof of PROP-006: the
 consumer of untrusted bytes re-verifies rather than trusts.
 
 #### Scenario: Hostile transcripts never crash the adapter
@@ -203,13 +227,14 @@ consumer of untrusted bytes re-verifies rather than trusts.
 - **THEN** the emitted report is the adapter's own: the embedded document
   appears only as untrusted claim or event data
 
-#### Scenario: The output budget bounds capture
+#### Scenario: The output budget bounds capture, in bytes
 
 - **GIVEN** a stub provider emitting more than the invocation's output
-  budget
+  budget — including multi-byte UTF-8 content whose character count is
+  half its byte count
 - **WHEN** the adapter normalizes the run
-- **THEN** captured claims and events stay within the budget and the
-  truncation is itself observable
+- **THEN** captured claims and events stay within the budget measured in
+  UTF-8 bytes and the truncation is itself observable
 
 ### Requirement: Framework conformance is proven by one shared suite
 

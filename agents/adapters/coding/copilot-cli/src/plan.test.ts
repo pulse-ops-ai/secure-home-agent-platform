@@ -6,7 +6,7 @@
  * surface; SPIKE-05 for the isolation home).
  */
 import { describe, expect, it } from 'vitest'
-import { ISOLATION_ENV, planLaunch, PROVIDER } from './plan.js'
+import { childEnvironment, ISOLATION_ENV, planLaunch, PROVIDER } from './plan.js'
 import { validInvocation } from './test-fixtures.js'
 import type { WireInvocation } from './spi.js'
 
@@ -110,5 +110,42 @@ describe('planLaunch', () => {
       version: '1.0.79',
       image: 'secure-home-runner-copilot',
     })
+  })
+})
+
+describe('planLaunch — delimiter widening is refused (review finding 3)', () => {
+  it('refuses a granted tool containing a comma', () => {
+    const result = planLaunch({
+      ...validInvocation(),
+      grant: { ...validInvocation().grant, tools: ['bash,view'] },
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.refusal).toContain('"bash,view"')
+      expect(result.refusal).toContain('widen')
+    }
+  })
+})
+
+describe('childEnvironment — the provider env is allowlisted (review finding 1)', () => {
+  const ambient = {
+    PATH: '/isolated/bin',
+    COPILOT_GITHUB_TOKEN: 'declared-and-provisioned',
+    COPILOT_HOME: '/run/copilot-home',
+    AMBIENT_UNDECLARED_SECRET: 'must-never-pass',
+  }
+
+  it('passes the baseline, the declared credentials, and the isolation home', () => {
+    const launch = plan()
+    expect(childEnvironment(launch, ambient)).toEqual({
+      PATH: '/isolated/bin',
+      COPILOT_GITHUB_TOKEN: 'declared-and-provisioned',
+      COPILOT_HOME: '/run/copilot-home',
+    })
+  })
+
+  it('an undeclared ambient variable never passes', () => {
+    const child = childEnvironment(plan(), ambient)
+    expect('AMBIENT_UNDECLARED_SECRET' in child).toBe(false)
   })
 })

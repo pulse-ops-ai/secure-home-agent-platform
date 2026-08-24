@@ -15,11 +15,11 @@
  * location and nothing else; a missing surface becomes an observation.
  */
 import { spawn } from 'node:child_process'
-import { readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { closeSync, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { observeRun } from './observe.js'
-import { ISOLATION_ENV, planLaunch } from './plan.js'
+import { childEnvironment, ISOLATION_ENV, planLaunch } from './plan.js'
 import { parseWireInvocation } from './spi.js'
 import type { AdapterReport } from './spi.js'
 
@@ -43,26 +43,49 @@ const readStdin = async (): Promise<string> => {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-/** Every persisted events.jsonl under the provisioned home, concatenated. */
+/** One file, read as at most `limit` BYTES — bounded BEFORE materializing. */
+const readBounded = (path: string, limit: number): Buffer | undefined => {
+  let fd: number | undefined
+  try {
+    const size = statSync(path).size
+    const take = Math.min(size, limit)
+    if (take <= 0) return undefined
+    fd = openSync(path, 'r')
+    const buffer = Buffer.alloc(take)
+    const read = readSync(fd, buffer, 0, take, 0)
+    return buffer.subarray(0, read)
+  } catch {
+    return undefined
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+/**
+ * Every persisted events.jsonl under the provisioned home, concatenated —
+ * capped in BYTES with the bound applied before any file is materialized,
+ * so an adversarially large persisted surface cannot balloon memory. A
+ * truncated trailing document degrades in the defensive parser like any
+ * other malformed input.
+ */
 const readPersistedEvents = (cap: number): string | undefined => {
   const home = process.env[ISOLATION_ENV]
   if (home === undefined || home === '') return undefined
   try {
     const sessionRoot = join(home, 'session-state')
-    const parts: string[] = []
+    const parts: Buffer[] = []
     let total = 0
     for (const entry of readdirSync(sessionRoot)) {
-      try {
-        const bytes = readFileSync(join(sessionRoot, entry, 'events.jsonl'), 'utf8')
-        if (total + bytes.length > cap) break
-        total += bytes.length
-        parts.push(bytes)
-      } catch {
-        // A session directory without an events file is not this entry's
-        // problem to explain; the surfaces that exist are collected.
-      }
+      const remaining = cap - total
+      if (remaining <= 0) break
+      const bytes = readBounded(join(sessionRoot, entry, 'events.jsonl'), remaining)
+      // A session directory without a readable events file is not this
+      // entry's problem to explain; the surfaces that exist are collected.
+      if (bytes === undefined) continue
+      total += bytes.length
+      parts.push(bytes)
     }
-    return parts.length > 0 ? parts.join('\n') : undefined
+    return parts.length > 0 ? Buffer.concat(parts).toString('utf8') : undefined
   } catch {
     return undefined
   }
@@ -88,10 +111,15 @@ export async function main(): Promise<void> {
   const report = await new Promise<AdapterReport>((resolve) => {
     const child = spawn(plan.command, plan.argv, {
       cwd: plan.cwd_ref,
+      // Allowlisted, never inherited: an ambient variable the invocation
+      // did not declare — an undeclared credential above all — must not
+      // reach the provider (ADR-0013 decision 7 as a spawn property).
+      env: childEnvironment(plan, process.env),
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
-    let stdout = ''
+    const stdoutChunks: Buffer[] = []
+    let stdoutBytes = 0
     let signalled: string | null = null
     let settled = false
     let killTimer: ReturnType<typeof setTimeout> | undefined
@@ -114,8 +142,14 @@ export async function main(): Promise<void> {
     process.on('SIGTERM', onCancel)
     process.on('SIGINT', onCancel)
 
+    // Captured as BYTES: the cap is a byte budget, and decoding chunk by
+    // chunk would both miscount multi-byte characters and split them at
+    // chunk edges. Decode once, after the cap.
     child.stdout.on('data', (chunk: Buffer) => {
-      if (stdout.length < rawCap) stdout += chunk.toString('utf8')
+      if (stdoutBytes < rawCap) {
+        stdoutChunks.push(chunk)
+        stdoutBytes += chunk.length
+      }
     })
     child.stderr.resume()
 
@@ -126,7 +160,7 @@ export async function main(): Promise<void> {
     child.on('close', (code, signal) => {
       const observation = observeRun(
         {
-          stdout,
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
           events_jsonl: readPersistedEvents(rawCap),
           exit_code: code,
           signalled: signalled ?? signal,

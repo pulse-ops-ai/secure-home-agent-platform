@@ -206,3 +206,34 @@ describe('observeRun — hostile corpus is total', () => {
     })
   })
 })
+
+const FRAME = (text: string): string => JSON.stringify({ type: 'assistant.message', content: text })
+
+describe('observeRun — the budget is BYTES, not code units (review finding 2)', () => {
+  it("300 'é' characters are 600 bytes and must not fit a 300-byte budget", () => {
+    const text = 'é'.repeat(300)
+    const observation = observeRun(
+      { stdout: FRAME(text), events_jsonl: undefined, exit_code: 0, signalled: null },
+      300,
+    )
+    const capturedBytes = observation.claims.reduce(
+      (n, claim) => n + Buffer.byteLength(claim.content, 'utf8'),
+      0,
+    )
+    expect(capturedBytes).toBeLessThanOrEqual(300)
+    expect(observation.claims).toEqual([])
+    expect(observation.events).toContainEqual({
+      name: 'transcript.truncated',
+      at: '',
+      data: { budget_bytes: '300' },
+    })
+  })
+
+  it('the same character count in ASCII fits the same budget', () => {
+    const observation = observeRun(
+      { stdout: FRAME('e'.repeat(300)), events_jsonl: undefined, exit_code: 0, signalled: null },
+      301,
+    )
+    expect(observation.claims).toHaveLength(1)
+  })
+})

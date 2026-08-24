@@ -76,5 +76,5 @@ def test_oversized_output_is_budgeted_observably(adapter: Adapter, tmp_path: Pat
     assert "transcript.truncated" in names
     budget = golden_invocation(adapter, workspace)["limits"]
     assert isinstance(budget, dict)
-    captured = sum(len(claim["content"]) for claim in report["observation"]["claims"])
+    captured = sum(len(claim["content"].encode()) for claim in report["observation"]["claims"])
     assert captured <= budget["output_bytes"]

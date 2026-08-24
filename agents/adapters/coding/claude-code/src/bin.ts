@@ -19,7 +19,7 @@ import { spawn } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { observeRun } from './observe.js'
-import { planLaunch } from './plan.js'
+import { childEnvironment, planLaunch } from './plan.js'
 import { parseWireInvocation } from './spi.js'
 import type { AdapterReport } from './spi.js'
 
@@ -63,10 +63,15 @@ export async function main(): Promise<void> {
   const report = await new Promise<AdapterReport>((resolve) => {
     const child = spawn(plan.command, plan.argv, {
       cwd: plan.cwd_ref,
+      // Allowlisted, never inherited: an ambient variable the invocation
+      // did not declare — an undeclared credential above all — must not
+      // reach the provider (ADR-0013 decision 7 as a spawn property).
+      env: childEnvironment(plan, process.env),
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
-    let stdout = ''
+    const stdoutChunks: Buffer[] = []
+    let stdoutBytes = 0
     let signalled: string | null = null
     let settled = false
     let killTimer: ReturnType<typeof setTimeout> | undefined
@@ -90,8 +95,14 @@ export async function main(): Promise<void> {
     process.on('SIGTERM', onCancel)
     process.on('SIGINT', onCancel)
 
+    // Captured as BYTES: the cap is a byte budget, and decoding chunk by
+    // chunk would both miscount multi-byte characters and split them at
+    // chunk edges. Decode once, after the cap.
     child.stdout.on('data', (chunk: Buffer) => {
-      if (stdout.length < rawCap) stdout += chunk.toString('utf8')
+      if (stdoutBytes < rawCap) {
+        stdoutChunks.push(chunk)
+        stdoutBytes += chunk.length
+      }
     })
     // Drained so the child never blocks on a full pipe; never parsed, never
     // forwarded — provider stderr is diagnostics, not contract.
@@ -104,7 +115,7 @@ export async function main(): Promise<void> {
     child.on('close', (code, signal) => {
       const observation = observeRun(
         {
-          stdout,
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
           exit_code: code,
           signalled: signalled ?? signal,
         },
