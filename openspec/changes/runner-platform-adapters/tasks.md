@@ -148,8 +148,13 @@ the ladder run and reported, including the known local plain-`uv` rows.
   weakened; new red fixture pins it); image-lineage suite green at 67
   cases
 - [x] `tests/test_image_lineage.py` extended for the fourth entry
-- [ ] governed CI run emits digests; recorded; base/claude/gates digests
-  byte-identical to L5 (differential proof in PR)
+- [x] governed CI run emitted the digests (run 32673784827 at 49c3d2a:
+  RECORD THESE listed exactly the three copilot identities; the verify
+  step reported zero mismatches among the nine recorded identities, so
+  base/claude/gates are byte-identical to the L5 record; both derived
+  builds resolved the base at its recorded parent digest); recorded as
+  index sha256:ec0de5ce…, amd64 sha256:c9daca6c…, arm64 sha256:dd82074a…;
+  convergence run 32675219623 at f59ccfe rebuilt and verified green
 
 ## 7. CI wiring
 
@@ -236,10 +241,14 @@ Harness lessons recorded: (1) piping a probe through `\|\| echo` or
 
 ## PR-1 Completion Gate
 
-- [ ] every ladder check green in CI at the completion head (or its local
-  status disclosed with CI as authority)
-- [ ] `images.yml` green at the completion head with recorded digests;
-  base/claude/gates identities byte-identical to the L5 record
-- [ ] `git diff <base>..HEAD -- services/runner-control/` empty
-- [ ] `git diff <base>..HEAD -- packages/contracts/schemas/` empty
+- [x] every ladder check green in CI: `checks` run 32675219615 ✓ at
+  f59ccfe (governance, classifier incl. the 67-test conformance suite,
+  typescript targets, python target). Locally, the plain-`uv` rows keep
+  their known pre-existing host failure (python pin) — the 3.13-override
+  runs are green and CI is the authority
+- [x] `images.yml` green at f59ccfe (run 32675219623) with recorded
+  digests; base/claude/gates identities byte-identical to the L5 record
+  (zero mismatches in the bootstrap run's verify step)
+- [x] `git diff 59a8ea04..HEAD -- services/runner-control/` — 0 lines
+- [x] `git diff 59a8ea04..HEAD -- packages/contracts/ schemas/` — 0 lines
 - [ ] owner review verdict on the draft PR
