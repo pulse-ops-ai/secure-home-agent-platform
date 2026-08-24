@@ -21,11 +21,7 @@ ADAPTER_OWNED_PREFIXES = ("transcript.", "call.")
 
 def _golden_report(adapter: Adapter, tmp_path: Path) -> dict[str, Any]:
     require_built(adapter)
-    workspace = tmp_path / f"ws-{adapter.name}"
-    workspace.mkdir()
-    run = run_adapter(
-        adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path / adapter.name
-    )
+    run = run_adapter(adapter, json.dumps(golden_invocation(adapter)), tmp_path / adapter.name)
     report = run.report
     assert report["outcome"] == "observed", report
     return report
@@ -71,15 +67,17 @@ def test_same_observation_field_inventory(golden_reports: dict[str, dict[str, An
 def test_same_call_dispositions_for_the_same_logical_run(
     golden_reports: dict[str, dict[str, Any]],
 ) -> None:
-    """The golden run is: one granted call succeeds, one ungranted tool is
-    denied. Every adapter must surface exactly that disposition sequence —
-    the tool NAMES are provider-native data and may differ."""
+    """The golden run is one granted call, faithfully permitted. Every
+    adapter must surface exactly that — the tool NAMES are provider-native
+    data and may differ. (Out-of-grant behavior is provider-dialect-
+    specific — reactive denial vs preventive unavailability — and is
+    proven per dialect in test_cannot_widen.)"""
     dispositions = {
         name: [call["disposition"] for call in report["observation"]["calls"]]
         for name, report in golden_reports.items()
     }
     for name, sequence in dispositions.items():
-        assert sequence == ["permitted", "denied"], f"{name}: {sequence}"
+        assert sequence == ["permitted"], f"{name}: {sequence}"
 
 
 def test_same_claim_kinds(golden_reports: dict[str, dict[str, Any]]) -> None:

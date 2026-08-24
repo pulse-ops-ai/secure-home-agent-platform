@@ -28,8 +28,10 @@ evidenced and the paired image pins. Each mapping rests on a named finding:
 
 | Mapping | L6 basis |
 |---|---|
-| Grant → `--available-tools=<tool>` per granted tool (availability, fail-closed) PLUS `--allow-tool=<tool>` (permission) | SPIKE-02: availability and permission are SEPARATE controls; `--allow-tool` alone is not deny-by-default |
-| `--deny-tool=shell` whenever `shell` is ungranted | SPIKE-02 boundary finding: read-only shell commands auto-approve even unlisted; deny always wins, including under prompt injection |
+| Grant → `--available-tools=<tool>` per granted tool (availability grammar, fail-closed) | SPIKE-02: availability and permission are SEPARATE controls with SEPARATE identity grammars |
+| Granted `bash` → `--allow-tool=shell` — the evidenced namespace mapping (availability `bash` ↔ the `shell` permission-rule family); an availability identity is never copied into the permission grammar, and a granted tool with no evidenced mapping gets no invented rule | SPIKE-02: the proven positive case is `available=bash / allow=shell(printf)`; `--allow-tool` alone is not deny-by-default |
+| `--deny-tool=shell` exactly when `bash` is ungranted — never against a granted tool's own family | SPIKE-02 boundary finding: read-only shell commands auto-approve even unlisted; deny always wins, including under prompt injection |
+| Credential refs → `--secret-env-vars=<NAME>` per declared reference | SPIKE-05: the one evidenced control stripping named variables from shell/MCP subprocess environments and redacting output (marker confirmed absent from the shell tool); custody itself stays with L9 |
 | `--no-ask-user`, `--no-custom-instructions`, `--no-auto-update`, `--disable-builtin-mcps`, `--no-remote`, `--no-remote-export`, `--no-color`, `--stream off` | COMMAND-RESULTS.txt: the spike harness's own hermetic surface; unapproved writes fail closed noninteractively |
 | `--model <route>` explicit, never Auto; route is pass-through data | spike environment: the model was explicitly pinned for every evidence run |
 | Transcript = stdout `--output-format json` frames PLUS persisted `$COPILOT_HOME/session-state/*/events.jsonl` | SPIKE-03: permission events exist only in the persisted surface; multi-surface capture is mandatory |
@@ -45,7 +47,13 @@ per-run credential custody and cache teardown are launcher obligations this
 adapter cannot own.
 
 `input.parameters` is not expressible by this CLI; a non-empty value is
-refused rather than reshaped into the prompt.
+refused rather than reshaped into the prompt. `routing.fallback` is
+platform routing policy (ADR-0007), enforced by the substrate — never
+translated to any provider surface. Workspace references stay opaque
+platform data: the L9 session substrate establishes the sandbox cwd and
+the adapter and provider inherit it. The provider environment is
+allowlisted, never inherited: baseline plus the declared credential names
+and the isolation home only.
 
 Paired derived image: `secure-home-runner-copilot` — the base runner plus
 this one CLI, pinned

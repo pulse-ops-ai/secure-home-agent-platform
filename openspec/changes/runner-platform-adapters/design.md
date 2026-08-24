@@ -136,10 +136,11 @@ posture at every other boundary.
 | `grant.tools` | `--allowedTools <granted...>` — the closed visible set |
 | tools outside the grant | `--disallowedTools` for the known surface outside the grant; the substrate remains the boundary |
 | `routing.model_route` | `--model <route>` — passed through as data; no model name exists in adapter source |
+| `routing.fallback` | NOT translated — ADR-0007 platform routing policy ("refuse", degrade between classes), enforced by the substrate before an invocation exists; never a provider model identifier |
 | transcript capture | `--output-format stream-json --verbose` on stdout |
-| `limits.output_bytes` | capture budget in `observe` (the CLI has no native cap) |
-| `credentials[].env_var` | named as required provisioning; values never touched |
-| `workspace.root_ref` | the working directory handed to the spawn, used opaquely |
+| `limits.output_bytes` | capture budget in `observe`, measured in UTF-8 bytes (the CLI has no native cap) |
+| `credentials[].env_var` | named as required provisioning; child env allowlisted to baseline + declared names; values never touched |
+| `workspace.session_ref` / `root_ref` | opaque platform data (`workspace:<run>`) — never resolved, never a cwd; the L9 session substrate establishes the sandbox working directory and adapter + provider inherit it |
 
 Observation mapping: `system`/init events → normalized lifecycle events;
 assistant text → `UntrustedClaim{kind:'text'}`; structured result payloads →
@@ -157,8 +158,10 @@ normalization-basis table.
 | Invocation field | Provider surface | L6 basis |
 |---|---|---|
 | `input.task` | `copilot -p <task>` non-interactive with `--no-ask-user` | SPIKE-02 (unapproved writes fail closed noninteractively) |
-| `grant.tools` | `--available-tools <granted...>` — availability narrowing | SPIKE-02 (availability removed other tools; unknown names fail closed) |
-| tools outside the grant | explicit `--deny-tool` entries | SPIKE-02 (deny beats allow; read-only shell auto-approves unless denied — availability and permission are two controls) |
+| `grant.tools` | `--available-tools=<tool>` per granted tool — availability narrowing in the availability grammar | SPIKE-02 (availability removed other tools; unknown names fail closed) |
+| granted `bash` → permission | `--allow-tool=shell` — the evidenced namespace mapping (availability `bash` ↔ the `shell` permission-rule family); an availability identity is never copied into the permission grammar, and a granted tool with no evidenced mapping gets no invented rule | SPIKE-02 (proven positive case `available=bash / allow=shell(printf)`; the two controls have different identity grammars) |
+| `bash` outside the grant | `--deny-tool=shell` — only then; a granted tool's own family is never denied | SPIKE-02 (deny beats allow; read-only shell auto-approves unless denied) |
+| `credentials[].env_var` → secrecy | `--secret-env-vars=<NAME>` per declared reference — strips named variables from shell/MCP subprocess environments and redacts output; custody stays with L9 | SPIKE-05 (confirmed: the marker was absent from the shell tool) |
 | `routing.model_route` | `--model <route>` pinned explicitly, never Auto | spike environment (model explicitly pinned for every evidence run) |
 | transcript capture | stdout `--output-format json` framing + the persisted events surface under a per-run `COPILOT_HOME` | SPIKE-03 (permission events only in persisted events; multi-surface capture) |
 | structured output | never trusted as schema-enforced; content is claims | SPIKE-01 (no response-schema enforcement; malformed content with exit 0) |
@@ -222,7 +225,12 @@ deterministic, stubs not providers, written once.
 observation field inventory, same call dispositions for the same logical
 events, same adapter-owned lifecycle event vocabulary. Provider-native
 *data* (event payload values, usage unit names) differs by design —
-ADR-0013 decision 6 keeps native units native.
+ADR-0013 decision 6 keeps native units native — and so does the
+observable FORM of an out-of-grant attempt: claude records a reactive
+permission denial, copilot's availability narrowing prevents the call
+entirely (L6 outside-tool case). The suite asserts the shared property
+(never permitted) in each dialect faithfully rather than fabricating one
+dialect into the other's shape.
 
 ## The Copilot image
 
@@ -281,7 +289,7 @@ must stay green.
 | 5 — events normalized at the boundary | provider-native frames never leave `observe`; normalized names + string data |
 | 6 — usage native, no money | `UsageMeasure` units from provider surfaces; no currency anywhere |
 | 7 — credential references | wire shape has no value slot; scan + conformance assertions |
-| 8 — cancellation substrate-effected | SIGTERM wire rule; forwarded; observed in terminal |
+| 8 — cancellation substrate-effected | SIGTERM wire rule; forwarding + reporting are adapter hygiene; the enforceable termination guarantee is the substrate's at L9 |
 | 9 — structural neutrality | zero schema diff; corpus proofs re-run; adapters live outside the platform structure |
 | 10 — expressible by CLI + deterministic loop | both CLIs mapped; R0 mapping recorded from runner-control's own proof |
 

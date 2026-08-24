@@ -109,8 +109,12 @@ export async function main(): Promise<void> {
   const rawCap = invocation.limits.output_bytes + RAW_SLACK_BYTES
 
   const report = await new Promise<AdapterReport>((resolve) => {
+    // No `cwd` option, deliberately: the workspace refs in the invocation
+    // are OPAQUE platform identities (`workspace:<run>`), never paths —
+    // the L9 session substrate establishes the sandbox working directory
+    // and launches this entry inside it, so the provider INHERITS the
+    // sandbox cwd rather than the adapter resolving anything.
     const child = spawn(plan.command, plan.argv, {
-      cwd: plan.cwd_ref,
       // Allowlisted, never inherited: an ambient variable the invocation
       // did not declare — an undeclared credential above all — must not
       // reach the provider (ADR-0013 decision 7 as a spawn property).
@@ -142,14 +146,17 @@ export async function main(): Promise<void> {
     process.on('SIGTERM', onCancel)
     process.on('SIGINT', onCancel)
 
-    // Captured as BYTES: the cap is a byte budget, and decoding chunk by
-    // chunk would both miscount multi-byte characters and split them at
-    // chunk edges. Decode once, after the cap.
+    // Captured as BYTES and sliced to the EXACT remaining budget — a
+    // final chunk never overshoots the cap. Decoding happens once, after
+    // the cap, so multi-byte characters are neither miscounted nor split
+    // by per-chunk decoding (a boundary-split character degrades in the
+    // defensive parser like any other malformed input).
     child.stdout.on('data', (chunk: Buffer) => {
-      if (stdoutBytes < rawCap) {
-        stdoutChunks.push(chunk)
-        stdoutBytes += chunk.length
-      }
+      const remaining = rawCap - stdoutBytes
+      if (remaining <= 0) return
+      const take = chunk.length <= remaining ? chunk : chunk.subarray(0, remaining)
+      stdoutChunks.push(take)
+      stdoutBytes += take.length
     })
     child.stderr.resume()
 

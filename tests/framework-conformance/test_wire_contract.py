@@ -13,9 +13,7 @@ OBSERVATION_FIELDS = {"calls", "claims", "events", "terminal", "usage"}
 
 
 def test_valid_invocation_yields_exactly_one_report(adapter: Adapter, tmp_path: Path) -> None:
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
+    run = run_adapter(adapter, json.dumps(golden_invocation(adapter)), tmp_path)
 
     assert run.returncode == 0, f"stderr: {run.stderr}"
     documents = [line for line in run.stdout.splitlines() if line.strip()]
@@ -28,9 +26,7 @@ def test_valid_invocation_yields_exactly_one_report(adapter: Adapter, tmp_path: 
 
 
 def test_report_vocabulary_is_closed(adapter: Adapter, tmp_path: Path) -> None:
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
+    run = run_adapter(adapter, json.dumps(golden_invocation(adapter)), tmp_path)
     assert run.report["outcome"] in {"observed", "environmental_fault", "stale_fence"}
     # No field exists through which an adapter can assert success: the
     # observation carries observations, and nothing else is present.
@@ -43,7 +39,7 @@ def test_malformed_invocation_refuses_through_the_contract(
     for hostile in (
         "not json {",
         json.dumps({"unexpected": True}),
-        json.dumps({**golden_invocation(adapter, tmp_path), "image": "sneaky:latest"}),
+        json.dumps({**golden_invocation(adapter), "image": "sneaky:latest"}),
     ):
         run = run_adapter(adapter, hostile, tmp_path)
         assert run.returncode == 0, "a refusal is a report, not a crash"
@@ -54,8 +50,6 @@ def test_malformed_invocation_refuses_through_the_contract(
 
 
 def test_stderr_is_never_part_of_the_contract(adapter: Adapter, tmp_path: Path) -> None:
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    run = run_adapter(adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path)
+    run = run_adapter(adapter, json.dumps(golden_invocation(adapter)), tmp_path)
     # Whatever diagnostics exist, the report parses from stdout alone.
     assert json.loads(run.stdout)["outcome"] == "observed"

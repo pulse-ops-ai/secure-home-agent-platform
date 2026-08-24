@@ -257,6 +257,34 @@ text + scenario, byte-measured budget wording + UTF-8 scenario,
 delimiter-refusal scenario; `openspec validate --strict` passes.
 Conformance suite is now 69 tests (67 + the per-adapter allowlist case).
 
+## Review-round 2 record
+
+Owner REQUEST CHANGES at head `70804be` (2026-08-24): four P1
+contract/translation defects, one P2 (whose core was already fixed at
+`5bba914` in round 1 — this round closes its named residue), one
+additional probe (already fixed at `5bba914`), plus a wording
+correction. All accepted as real. Fixes, each with the mechanism, a
+regression test, and a spec-delta scenario:
+
+| Finding | Fix | Proof |
+|---|---|---|
+| P1: Copilot conflated the two L6 tool namespaces — the same grant string went into `--available-tools=` AND `--allow-tool=`, and `--deny-tool=shell` was emitted while `bash` was granted, denying the very family that governs it | `PERMISSION_FAMILIES` mapping (`bash` → `shell`), exactly as far as the evidence reaches: availability stays in the availability grammar; a granted `bash` emits `--allow-tool=shell` (the family-level rule the deny-precedence case evidenced); a granted tool with no evidenced mapping gets NO invented rule; `--deny-tool=shell` only when `bash` is ungranted. The stub now REFUSES the conflated dialect (exit 2 on `--allow-tool=bash`, or deny-of-granted-family) so the suite can never again prove the adapter against argv the evidence rules out | unit: seven namespace tests incl. the L6 positive shape; conformance: namespace-aware argv narrowing (permission values ∈ mapped families, never ∈ availability identities) |
+| P1: credential refs never reached the one evidenced secrecy control | every declared credential ref is emitted as `--secret-env-vars=<NAME>` (SPIKE-05: strips named variables from shell/MCP subprocess envs, redacts output); custody stays L9 | unit: per-credential emission; conformance: `--secret-env-vars=PROVIDER_TOKEN_REF` asserted in the golden argv (and asserted ABSENT for claude, whose evidence has no such flag) |
+| P1: platform `fallback` policy translated into `--fallback-model`, hidden by a non-canonical golden (`routing_class: "coding"`, empty fallback — not even a valid RoutingClass) | the mapping is REMOVED: fallback is ADR-0007 platform routing policy, enforced by the substrate before an invocation exists; neither adapter translates it. Golden and unit fixtures are now profile-realistic: `R3` + `fallback: "refuse"` (verified against the contracts vocabulary: RoutingClass enum + `fallback: min(1)`) | unit: "refuse"/"R1" never in argv, `--fallback-model` never emitted; conformance: `test_platform_fallback_never_becomes_a_provider_surface` |
+| P1: opaque `workspace.root_ref` used as the spawn cwd — a real `workspace:<run>` reference would have failed every wired launch, hidden by the golden substituting a real path | `cwd_ref` is REMOVED from the LaunchPlan; the entries spawn with no `cwd` option — the L9 session substrate establishes the sandbox working directory, launches the adapter inside it, and the provider INHERITS it. The conformance harness now stands in for that substrate (spawns the adapter in a sandbox dir) and the golden carries the REAL opaque form `workspace:run-conformance-0001` — the run succeeding at all is the regression proof (the old code would have ENOENT'd on it) | unit: workspace refs appear nowhere in the plan; conformance: `test_workspace_refs_stay_opaque` (observed outcome + refs in no argv) |
+| P2 residue (core fixed in round 1): stdout chunks appended whole past the cap; no giant-persisted-file probe | the final chunk is sliced to the EXACT remaining byte budget; a ~3MB provider-controlled `events.jsonl` probe proves the bounded-before-materializing read end to end | conformance: `test_giant_persisted_events_file_is_bounded_before_materializing` |
+| Additional probe (fixed in round 1 at `5bba914`): claude delimiter widening | round-1 refusal stands; this round adds the reviewer's exact hostile fixture THROUGH the contract | conformance: `test_delimiter_widening_refuses_through_the_contract` — `["Read,Bash"]` → `environmental_fault`, and no provider process was launched (argv file absent) |
+| Wording: SIGTERM forwarding is not the cancellation guarantee | reworded everywhere (spec scenario now "forwarded and observed"; design, conformance README, ADR trace): forwarding + reporting are adapter hygiene; the enforceable termination guarantee is the substrate's at L9 (ADR-0013 decision 8) | prose sweep; no behavior change |
+
+Golden redefinition, disclosed: the out-of-grant leg of the golden run
+was previously forced into one shape (`[permitted, denied]`) that
+contradicted copilot's evidenced PREVENTIVE dialect (L6 outside-tool:
+unavailable → no events at all). The golden is now permitted-only, and
+`test_out_of_grant_use_is_never_permitted` asserts the shared property
+in each dialect faithfully: claude records a reactive permission denial;
+copilot records no call at all plus the model's own UNAVAILABLE words.
+Conformance suite: 77 tests. Adapter units: 66 + 71.
+
 ## PR-1 Completion Gate
 
 - [x] every ladder check green in CI: `checks` run 32675219615 ✓ at
@@ -267,6 +295,8 @@ Conformance suite is now 69 tests (67 + the per-adapter allowlist case).
 - [x] `images.yml` green at f59ccfe (run 32675219623) with recorded
   digests; base/claude/gates identities byte-identical to the L5 record
   (zero mismatches in the bootstrap run's verify step)
+- [ ] both workflows green at the review-round-2 head (recorded here when
+  the runs complete)
 - [x] `git diff 59a8ea04..HEAD -- services/runner-control/` — 0 lines
 - [x] `git diff 59a8ea04..HEAD -- packages/contracts/ schemas/` — 0 lines
 - [ ] owner review verdict on the draft PR

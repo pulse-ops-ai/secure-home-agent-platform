@@ -33,7 +33,7 @@ any difference.
 Pinned provider: `@anthropic-ai/claude-code@2.1.241` — exactly the version
 the paired image locks. The flag surface (`--print`,
 `--output-format stream-json`, `--verbose`, `--tools`, `--allowedTools`,
-`--model`, `--fallback-model`, `--setting-sources`) was verified against
+`--model`, `--setting-sources`) was verified against
 the pinned binary's own `--help`; transcript frame shapes follow the CLI's
 documented stream-json framing, and `observe` treats every frame
 defensively — unrecognized or malformed input degrades to recorded
@@ -52,7 +52,20 @@ Translation decisions worth knowing:
   authority.
 - **`input.parameters` is not expressible** by this CLI; a non-empty value
   is refused (`environmental_fault`) rather than folded into the prompt —
-  reshaping the workload would be deciding.
+  reshaping the workload would be deciding. A granted tool identity
+  containing the CLI's list delimiter (`,`) is refused the same way: one
+  grant entry must never widen into multiple provider tools.
+- **Platform routing policy stays platform-owned.** `routing.fallback`
+  (ADR-0007: "refuse", degrade between classes) is enforced by the
+  substrate before an invocation exists and reaches no provider flag —
+  mapping it to `--fallback-model` would turn a policy word into a model
+  identifier. Only `routing.model_route` is expressed.
+- **Workspace references stay opaque.** `workspace.session_ref`/`root_ref`
+  are platform identities (`workspace:<run>`), not paths: the L9 session
+  substrate establishes the sandbox working directory, the adapter and
+  provider inherit it, and no reference reaches argv or a spawn option.
+- **The provider environment is allowlisted**, never inherited: baseline
+  (`PATH`, `HOME`, `TMPDIR`) plus the declared credential names only.
 - **Money is never mapped.** The CLI reports `total_cost_usd`; usage is
   recorded in native units only (tokens, turns — decision 6).
 - **Terminal facts may disagree** (exit code, provider-reported outcome,

@@ -15,11 +15,7 @@ from fc_support import Adapter, golden_invocation, run_adapter_cancelling
 
 
 def _cancelled_report(adapter: Adapter, tmp_path: Path) -> dict[str, Any]:
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    run = run_adapter_cancelling(
-        adapter, json.dumps(golden_invocation(adapter, workspace)), tmp_path
-    )
+    run = run_adapter_cancelling(adapter, json.dumps(golden_invocation(adapter)), tmp_path)
     assert run.returncode == 0, f"cancellation must still produce a report: {run.stderr}"
     report = run.report
     assert report["outcome"] == "observed"

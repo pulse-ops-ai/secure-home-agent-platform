@@ -26,8 +26,8 @@ shape.
 | The same logical run through **any** adapter produces the identical contract — grammar, observation field inventory, call dispositions, adapter-owned event vocabulary, claim kinds | `test_identical_contract.py` |
 | One wire contract: one stdin invocation, one stdout report and nothing else, exit 0 whenever a report was emitted, refusals THROUGH the contract | `test_wire_contract.py` |
 | Each adapter's SPI mirror field-agrees with the frozen SPI, derived from source at run time; an underivable frozen source REFUSES | `test_spi_tether.py` |
-| An adapter **cannot widen** its invocation: unknown keys refused, argv narrowed to the grant, out-of-grant use surfaces as denial, no credential value anywhere, workspace refs stay opaque | `test_cannot_widen.py` |
-| **Cancellation is effective**, not advisory: SIGTERM reaches the provider and the report still lands, recording the signal; the L6 exit-124/`exitCode: 0` disagreement survives unreconciled | `test_cancellation.py` |
+| An adapter **cannot widen** its invocation: unknown keys refused, argv narrowed to the grant through evidenced namespace mappings, an out-of-grant attempt never permitted (each provider dialect asserted faithfully), platform fallback never a provider surface, credentials into the evidenced secrecy control, no credential value anywhere, the provider env allowlisted, workspace refs opaque and never a cwd | `test_cannot_widen.py` |
+| Cancellation is **forwarded and observed**: SIGTERM reaches the provider and the report still lands, recording the signal; the L6 exit-124/`exitCode: 0` disagreement survives unreconciled. (Forwarding is adapter hygiene — the enforceable termination guarantee is the substrate's, L9) | `test_cancellation.py` |
 | Failure is reported through the contract, not by crashing: missing CLI, hostile transcripts, forged report content, oversized output | `test_failure_paths.py` |
 | Adapters are **unlaunchable and inert**: nothing outside `agents/adapters/` references them, zero runtime dependencies, side-effect-free import, pinned versions agree with the image lock, and the suite itself is ONE suite | `test_unlaunchability.py` |
 

@@ -84,8 +84,11 @@ adapter report on stdout and nothing else ever on stdout; diagnostics on
 stderr only; exit 0 whenever a report was emitted, regardless of the
 report's outcome; and cancellation delivered as SIGTERM, forwarded to the
 provider process, with the entry still emitting a well-formed report that
-records the signal in its terminal observations. The wire contract SHALL
-be byte-format identical across the two adapters.
+records the signal in its terminal observations. Forwarding is adapter
+hygiene, not the termination guarantee — cancellation is
+substrate-effected (ADR-0013 decision 8) and the enforceable kill belongs
+to L9. The wire contract SHALL be byte-format identical across the two
+adapters.
 
 #### Scenario: A valid invocation produces exactly one report
 
@@ -103,21 +106,29 @@ be byte-format identical across the two adapters.
   and exits 0 — the failure travels through the contract, not through a
   crash
 
-#### Scenario: Cancellation is effective and observed
+#### Scenario: Cancellation is forwarded and observed
 
 - **GIVEN** a running adapter entry whose stub provider ignores nothing
 - **WHEN** SIGTERM is delivered to the adapter entry
-- **THEN** the stub provider process receives termination, and the
-  emitted report's terminal observations record the signal
+- **THEN** the stub provider process receives the forwarded termination,
+  and the emitted report's terminal observations record the signal — the
+  enforceable termination guarantee remains the substrate's (L9)
 
 ### Requirement: The adapter translates and reports; it never decides
 
 Each adapter SHALL translate the platform-built invocation into its
 provider CLI's native surface and normalize what the provider did back
 into observations. The capability grant SHALL narrow the provider-visible
-tool surface (available/allowed sets plus explicit denials); the routing
-fields SHALL pass through as data with no model identifier constant in
-adapter source; usage SHALL be reported in the provider's native units
+tool surface (available/allowed sets plus explicit denials), translating
+between provider control namespaces through evidenced mappings only —
+never by copying one identity grammar into another. The model route
+SHALL pass through as data with no model identifier constant in adapter
+source; `routing.fallback` is PLATFORM routing policy (ADR-0007),
+enforced by the substrate before an invocation exists, and SHALL NOT be
+translated to any provider surface. Workspace references SHALL remain
+opaque data — never resolved, never a working directory: the session
+substrate establishes the sandbox cwd and the adapter and provider
+inherit it. Usage SHALL be reported in the provider's native units
 with no monetary field; provider events SHALL be normalized at the
 boundary so no provider-native shape leaks upward; model output SHALL be
 carried as untrusted claims; and the report vocabulary SHALL be closed to
@@ -140,6 +151,34 @@ field through which an adapter can assert that a run succeeded.
 - **WHEN** the adapter plans the provider launch
 - **THEN** translation is refused naming the identity — one platform
   grant entry must never widen into multiple provider-visible tools
+
+#### Scenario: Provider control namespaces are translated, never conflated
+
+- **GIVEN** a provider whose availability identities and permission-rule
+  identifiers are different grammars (the L6-evidenced
+  `--available-tools=bash` / `--allow-tool=shell(…)` split)
+- **WHEN** the adapter plans the provider launch
+- **THEN** permission rules are emitted only through the evidenced
+  mapping (`bash` → the `shell` family), an availability identity never
+  appears in the permission grammar, a granted tool's own family is
+  never denied, and a granted tool with no evidenced mapping receives no
+  invented rule
+
+#### Scenario: Platform fallback policy never becomes a provider surface
+
+- **GIVEN** a canonical invocation declaring `fallback: "refuse"`
+- **WHEN** the adapter plans the provider launch
+- **THEN** no provider flag or value carries the fallback policy — a
+  policy word is not a model identifier
+
+#### Scenario: Workspace references are never resolved
+
+- **GIVEN** the invocation carrying the platform's real opaque form
+  (`workspace:<run>`), which is not a filesystem path
+- **WHEN** the adapter runs inside the substrate-established sandbox
+- **THEN** the run succeeds with the provider inheriting the sandbox
+  working directory, and the references appear in no argv and no plan
+  field
 
 #### Scenario: Terminal disagreement is carried, not resolved
 
@@ -173,7 +212,12 @@ forward the contents of any credential variable. The provider process
 environment SHALL be ALLOWLISTED, never inherited: the child receives
 exactly a minimal execution baseline plus the variables the invocation
 declares, so an ambient variable the invocation never named — an
-undeclared credential above all — cannot reach the provider.
+undeclared credential above all — cannot reach the provider. Where the
+pinned provider evidences a native secret-stripping control, every
+declared credential reference SHALL be carried into it (the L6-evidenced
+`--secret-env-vars=<NAME>` strips named variables from shell/MCP
+subprocess environments); credential custody itself remains the
+substrate's (L9).
 
 #### Scenario: The reference shape survives translation
 
@@ -190,6 +234,14 @@ undeclared credential above all — cannot reach the provider.
 - **THEN** the provider's environment contains the execution baseline and
   the declared variables only; the undeclared variable is absent, and a
   declared-but-unprovisioned variable stays absent rather than empty
+
+#### Scenario: Declared credentials reach the provider's evidenced secrecy control
+
+- **GIVEN** an invocation declaring credential references and a pinned
+  provider with an evidenced secret-stripping flag
+- **WHEN** the adapter plans the provider launch
+- **THEN** every declared reference is named to that control, and no
+  such flag is invented for a provider whose evidence has none
 
 #### Scenario: A credential-shaped value is refused by the repository
 
@@ -250,11 +302,21 @@ variants of a shared assertion SHALL NOT exist.
 
 #### Scenario: The same logical run yields the identical contract
 
-- **GIVEN** one golden logical run expressed neutrally and both adapters
+- **GIVEN** one golden logical run expressed profile-realistically
+  (canonical routing class and declared fallback) and both adapters
 - **WHEN** the suite drives each adapter's entry with its provider stub
 - **THEN** the two reports agree on grammar, observation field inventory,
   call dispositions, and adapter-owned event vocabulary, differing only
   in provider-native data values
+
+#### Scenario: An out-of-grant attempt is never permitted, in each dialect faithfully
+
+- **GIVEN** a run in which the model attempts a tool outside the grant
+- **WHEN** each adapter normalizes its provider's evidenced behavior
+- **THEN** no permitted call for the attempt exists in either report —
+  as an explicit denial where the provider records one reactively, or as
+  the complete absence of the call where availability narrowing prevents
+  it, with neither dialect fabricated into the other's shape
 
 #### Scenario: The suite is one suite
 

@@ -80,14 +80,22 @@ def require_built(adapter: Adapter) -> None:
         )
 
 
-def golden_invocation(adapter: Adapter, workspace: Path) -> dict[str, Any]:
-    """The one golden logical run, expressed neutrally per adapter.
+def golden_invocation(adapter: Adapter, workspace: Path | None = None) -> dict[str, Any]:
+    """The one golden logical run, expressed profile-realistically.
 
-    Same task, same limits, same grant SHAPE; only the provider-native
-    tool identity differs (claude names built-in tools, copilot names
-    availability identities) — which is exactly the neutrality claim:
-    the contract out must be identical anyway.
+    Canonical routing (`R3` — coding inference under ADR-0007 — with the
+    canonical declared fallback `refuse`), an OPAQUE workspace reference
+    exactly as runner-control constructs one (`workspace:<run>` — never a
+    filesystem path; the sandbox cwd is the harness's, standing in for
+    the L9 session substrate), same task, same limits, same grant SHAPE;
+    only the provider-native tool identity differs (claude names built-in
+    tools, copilot names availability identities) — which is exactly the
+    neutrality claim: the contract out must be identical anyway.
+
+    The `workspace` parameter is accepted for call-site compatibility and
+    deliberately unused: the reference below must stay opaque.
     """
+    del workspace
     tool = "Read" if adapter.name == "claude-code" else "bash"
     return {
         "run_id": "run-conformance-0001",
@@ -109,7 +117,7 @@ def golden_invocation(adapter: Adapter, workspace: Path) -> dict[str, Any]:
             "network": {"default": "deny", "granted_destinations": []},
             "credentials": [{"env_var": "PROVIDER_TOKEN_REF"}],
         },
-        "routing": {"routing_class": "coding", "model_route": "route-a", "fallback": ""},
+        "routing": {"routing_class": "R3", "model_route": "route-a", "fallback": "refuse"},
         "limits": {
             "wall_clock_seconds": 600,
             "cpu_cores": 2,
@@ -118,7 +126,7 @@ def golden_invocation(adapter: Adapter, workspace: Path) -> dict[str, Any]:
             "output_bytes": 65_536,
         },
         "credentials": [{"env_var": "PROVIDER_TOKEN_REF"}],
-        "workspace": {"session_ref": "session-0001", "root_ref": str(workspace)},
+        "workspace": {"session_ref": "session-0001", "root_ref": "workspace:run-conformance-0001"},
     }
 
 
@@ -251,13 +259,18 @@ def run_adapter(
         "PLANTED_SECRET_VALUE": PLANTED_VALUE,
     }
 
+    # The harness stands in for the L9 session substrate: it establishes
+    # the sandbox working directory and launches the adapter INSIDE it.
+    # The adapter must inherit — never resolve — a cwd (review finding 4).
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir(exist_ok=True)
     completed = subprocess.run(
         ["node", str(adapter.bin_path)],
         input=invocation_bytes,
         capture_output=True,
         text=True,
         env=env,
-        cwd=REPO_ROOT,
+        cwd=sandbox,
         timeout=timeout,
     )
     return AdapterRun(
@@ -299,6 +312,8 @@ def run_adapter_cancelling(
         "PLANTED_SECRET_VALUE": PLANTED_VALUE,
     }
 
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir(exist_ok=True)
     process = subprocess.Popen(
         ["node", str(adapter.bin_path)],
         stdin=subprocess.PIPE,
@@ -306,7 +321,7 @@ def run_adapter_cancelling(
         stderr=subprocess.PIPE,
         text=True,
         env=env,
-        cwd=REPO_ROOT,
+        cwd=sandbox,
     )
     assert process.stdin is not None
     process.stdin.write(invocation_bytes)

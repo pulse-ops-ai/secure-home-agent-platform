@@ -47,7 +47,19 @@ if (scenario === 'golden') {
     type: 'user',
     message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: '# Title' }] },
   })
-  line({ ...RESULT_BASE, result: 'Done.', permission_denials: [{ tool_name: 'Bash' }] })
+  line({ ...RESULT_BASE, result: 'Done.' })
+  process.exit(0)
+}
+
+if (scenario === 'denial') {
+  // The out-of-grant attempt, in this provider's REACTIVE dialect: the
+  // model asked for Bash, the CLI recorded a permission denial. The
+  // suite asserts the attempt is never permitted.
+  line({
+    type: 'assistant',
+    message: { content: [{ type: 'text', text: 'Trying the shell now.' }] },
+  })
+  line({ ...RESULT_BASE, result: 'Denied.', permission_denials: [{ tool_name: 'Bash' }] })
   process.exit(0)
 }
 

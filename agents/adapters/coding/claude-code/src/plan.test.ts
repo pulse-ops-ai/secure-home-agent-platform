@@ -44,17 +44,28 @@ describe('planLaunch', () => {
     }
   })
 
-  it('passes the model route and fallback through as data', () => {
+  it('passes the model route through as data', () => {
     const launch = plan((invocation) => ({
       ...invocation,
-      routing: { routing_class: 'coding', model_route: 'route-b', fallback: 'route-c' },
+      routing: { routing_class: 'R3', model_route: 'route-b', fallback: 'refuse' },
     }))
     expect(launch.argv[launch.argv.indexOf('--model') + 1]).toBe('route-b')
-    expect(launch.argv[launch.argv.indexOf('--fallback-model') + 1]).toBe('route-c')
   })
 
-  it('omits the fallback flag when routing declares none', () => {
-    expect(plan().argv).not.toContain('--fallback-model')
+  it('never translates platform fallback policy into a provider flag (review finding)', () => {
+    // ADR-0007: fallback is platform routing behavior ("refuse", degrade
+    // between classes), enforced by the substrate before an invocation
+    // exists. Mapping it to --fallback-model would turn a policy word
+    // into a model identifier.
+    const launch = plan()
+    expect(launch.argv).not.toContain('--fallback-model')
+    expect(launch.argv).not.toContain('refuse')
+    const degraded = plan((invocation) => ({
+      ...invocation,
+      routing: { routing_class: 'R2', model_route: 'route-b', fallback: 'R1' },
+    }))
+    expect(degraded.argv).not.toContain('--fallback-model')
+    expect(degraded.argv).not.toContain('R1')
   })
 
   it('runs hermetically: no ambient settings source is loaded', () => {
@@ -82,8 +93,15 @@ describe('planLaunch', () => {
     expect(JSON.stringify(launch)).not.toContain('value')
   })
 
-  it('treats the workspace root as an opaque reference', () => {
-    expect(plan().cwd_ref).toBe('/workspace')
+  it('workspace references are DATA — they appear nowhere in the plan (review finding)', () => {
+    // The frozen SPI: opaque references; the adapter resolves nothing.
+    // The L9 session substrate establishes the sandbox cwd; the plan has
+    // no field a path could occupy and no ref leaks into argv.
+    const launch = plan()
+    const serialized = JSON.stringify(launch)
+    expect(serialized).not.toContain('workspace:run-0001')
+    expect(serialized).not.toContain('session-0001')
+    expect('cwd_ref' in launch).toBe(false)
   })
 
   it('refuses parameters it cannot express instead of reshaping the workload', () => {

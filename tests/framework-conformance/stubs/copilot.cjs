@@ -48,6 +48,18 @@ const RESULT_BASE = {
   },
 }
 
+// The stub REFUSES the namespace-conflated dialect the L6 evidence rules
+// out (review finding 1): an availability identity copied into the
+// permission grammar, or the shell family denied while bash is granted.
+const argv = process.argv.slice(2)
+const unfaithful =
+  argv.includes('--allow-tool=bash') ||
+  (argv.includes('--available-tools=bash') && argv.includes('--deny-tool=shell'))
+if (unfaithful) {
+  process.stderr.write('stub refuses L6-unfaithful argv: availability/permission conflation\n')
+  process.exit(2)
+}
+
 if (scenario === 'golden') {
   line({
     type: 'assistant.message',
@@ -57,15 +69,17 @@ if (scenario === 'golden') {
   line({ type: 'tool.execution_start', toolCallId: 'c1' })
   line({ type: 'tool.execution_complete', toolCallId: 'c1', success: true })
   line(RESULT_BASE)
-  persistEvents([
-    { type: 'permission.requested', toolCallId: 'c2' },
-    {
-      type: 'permission.completed',
-      tool: 'write',
-      result: { kind: 'denied-no-approval-rule-and-could-not-request-from-user' },
-    },
-    { type: 'session.shutdown', reason: 'routine' },
-  ])
+  persistEvents([{ type: 'session.shutdown', reason: 'routine' }])
+  process.exit(0)
+}
+
+if (scenario === 'denial') {
+  // The out-of-grant attempt, in this provider's PREVENTIVE dialect
+  // (L6 outside-tool case): the tool is absent from the model-visible
+  // set, so NO tool events exist — only the model's own words.
+  line({ type: 'assistant.message', content: 'The shell tool is UNAVAILABLE.' })
+  line(RESULT_BASE)
+  persistEvents([{ type: 'session.shutdown', reason: 'routine' }])
   process.exit(0)
 }
 

@@ -11,7 +11,17 @@
  * Flag surface verified against the pinned CLI, `claude --version` =
  * 2.1.241: `--print`, `--output-format stream-json`, `--verbose`,
  * `--tools` ("" disables all tools; comma-separated names otherwise),
- * `--allowedTools`, `--model`, `--fallback-model`, `--setting-sources`.
+ * `--allowedTools`, `--model`, `--setting-sources`.
+ *
+ * Deliberately NOT translated: `routing.fallback` is PLATFORM routing
+ * policy (ADR-0007 — degrade or refuse between routing classes), not a
+ * provider model identifier; mapping it onto `--fallback-model` would
+ * turn a policy word like "refuse" into a model name. Fallback is
+ * enforced by the substrate before an invocation exists. Likewise
+ * `workspace.session_ref`/`root_ref` are opaque platform references
+ * (the frozen SPI: "The adapter resolves nothing itself") — they are
+ * data, never a working directory; the L9 session substrate establishes
+ * the sandbox cwd and the adapter and provider inherit it.
  */
 import type { WireInvocation } from './spi.js'
 
@@ -32,8 +42,6 @@ export interface LaunchPlan {
    * the plan has no field a credential value could occupy.
    */
   readonly required_env: readonly string[]
-  /** The opaque workspace root reference; the adapter resolves nothing. */
-  readonly cwd_ref: string
 }
 
 export type PlanResult =
@@ -134,10 +142,6 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
     argv.push('--allowedTools', toolList(granted))
   }
 
-  if (invocation.routing.fallback !== '') {
-    argv.push('--fallback-model', invocation.routing.fallback)
-  }
-
   argv.push(invocation.input.task)
 
   return {
@@ -146,7 +150,6 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
       command: PROVIDER.command,
       argv,
       required_env: invocation.credentials.map((c) => c.env_var),
-      cwd_ref: invocation.workspace.root_ref,
     },
   }
 }

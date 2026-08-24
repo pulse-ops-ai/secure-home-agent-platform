@@ -5,14 +5,35 @@
  *
  * The two-control model is SPIKE-02's central finding: tool AVAILABILITY
  * (`--available-tools`, closed set, fail-closed) and PERMISSION
- * (`--allow-tool`/`--deny-tool`, deny wins) are separate. A grant is
- * therefore expressed as availability narrowed to the granted set PLUS
- * explicit allow rules for it — and, because read-only shell commands
- * auto-approve even when unlisted (SPIKE-02 boundary finding), an
- * explicit `--deny-tool=shell` whenever the grant does not include
- * `shell`. The hermetic flag set is the spike harness's own
+ * (`--allow-tool`/`--deny-tool`, deny wins) are SEPARATE controls with
+ * SEPARATE identity grammars — availability uses built-in tool names
+ * (`bash`, `view`), permission uses command-rule identifiers
+ * (`shell`, `shell(printf)`, `shell(stem:*)`). The proven positive case
+ * is `--available-tools=bash` + `--allow-tool='shell(printf)'`: one
+ * grant string must never be copied into both namespaces. This plan
+ * therefore translates between them through the evidenced mapping
+ * (`bash` ↔ the `shell` permission family) and emits an allow rule ONLY
+ * where the mapping is evidenced; a granted non-shell tool runs under
+ * the provider's own permission defaults (read-only auto-approves,
+ * writes fail closed and surface as denials — SPIKE-02). The read-only
+ * auto-approve hole is closed with `--deny-tool=shell` exactly when
+ * `bash` is NOT granted — never against a granted tool's own family.
+ *
+ * Credential references are additionally carried into the ONE
+ * L6-evidenced secrecy control: `--secret-env-vars=<NAME>` strips the
+ * named variables from shell/MCP subprocess environments and redacts
+ * them from output (SPIKE-05). Custody remains the substrate's (L9).
+ *
+ * The hermetic flag set is the spike harness's own
  * (COMMAND-RESULTS.txt): no custom instructions, no auto-update, no
  * built-in MCPs, no remote surfaces, no interactive approval.
+ *
+ * Deliberately NOT translated: `routing.fallback` is PLATFORM routing
+ * policy (ADR-0007), enforced by the substrate before an invocation
+ * exists — never a provider identifier. `workspace.*` references are
+ * opaque platform data (the frozen SPI: "The adapter resolves nothing
+ * itself") — never a working directory; the L9 session substrate
+ * establishes the sandbox cwd and the adapter and provider inherit it.
  */
 import type { WireInvocation } from './spi.js'
 
@@ -41,8 +62,6 @@ export interface LaunchPlan {
    * Names only — the plan has no field a value could occupy.
    */
   readonly required_env: readonly string[]
-  /** The opaque workspace root reference; the adapter resolves nothing. */
-  readonly cwd_ref: string
 }
 
 export type PlanResult =
@@ -78,6 +97,17 @@ export function childEnvironment(
     if (value !== undefined) child[name] = value
   }
   return child
+}
+
+/**
+ * Availability identity → permission-rule family, exactly as far as the
+ * L6 evidence reaches: `bash` is governed by the `shell` rule grammar
+ * (`shell`, `shell(cmd)`, `shell(stem:*)`). No other pairing was
+ * evidenced, and an unevidenced pairing is not invented — a granted tool
+ * absent from this map simply gets no allow rule.
+ */
+const PERMISSION_FAMILIES: Readonly<Record<string, string>> = {
+  bash: 'shell',
 }
 
 export function planLaunch(invocation: WireInvocation): PlanResult {
@@ -142,16 +172,33 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
   for (const tool of granted) {
     argv.push(`--available-tools=${tool}`)
   }
-  // Permission second: pre-approve exactly the granted set so the
-  // non-interactive run cannot stall on tools the platform already granted.
+  // Permission second, through the NAMESPACE MAPPING — never by copying
+  // an availability name into the permission grammar. An unqualified
+  // `bash` grant carries the whole shell family (the substrate, not the
+  // provider, is the capability boundary — ADR-0013 decision 2), and
+  // `--allow-tool=shell` is the evidenced family-level rule (the L6
+  // deny-precedence case used exactly `allow=shell`). Granted tools with
+  // no evidenced permission identifier get NO allow rule and run under
+  // the provider's own defaults.
   for (const tool of granted) {
-    argv.push(`--allow-tool=${tool}`)
+    const permissionFamily = PERMISSION_FAMILIES[tool]
+    if (permissionFamily !== undefined) {
+      argv.push(`--allow-tool=${permissionFamily}`)
+    }
   }
-  // The documented auto-approve hole, closed explicitly: read-only shell
-  // executes without an allow rule, so an ungranted shell is denied by
-  // rule, not just by absence (SPIKE-02 boundary finding; deny wins).
-  if (!granted.includes('shell')) {
+  // The documented auto-approve hole, closed explicitly — but only when
+  // the family is UNGRANTED: read-only shell executes without an allow
+  // rule (SPIKE-02 boundary finding), so shell is denied by rule when
+  // `bash` is outside the grant. Denying the family of a granted tool
+  // would contradict the grant (deny wins — SPIKE-02).
+  if (!granted.includes('bash')) {
     argv.push('--deny-tool=shell')
+  }
+  // The one evidenced secrecy control (SPIKE-05): every declared
+  // credential reference is stripped from shell/MCP subprocess
+  // environments and redacted from output. Names only, never values.
+  for (const credential of invocation.credentials) {
+    argv.push(`--secret-env-vars=${credential.env_var}`)
   }
 
   return {
@@ -160,7 +207,6 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
       command: PROVIDER.command,
       argv,
       required_env: [...invocation.credentials.map((c) => c.env_var), ISOLATION_ENV],
-      cwd_ref: invocation.workspace.root_ref,
     },
   }
 }

@@ -1,9 +1,10 @@
 /**
  * Translation narrows and passes through; it never widens and never
  * decides (PA-INV-06, PA-MUT-03). Every flag family asserted here traces
- * to the L6 spike (SPIKE-02 for the two-control model and the read-only
- * auto-approve boundary finding; COMMAND-RESULTS.txt for the hermetic
- * surface; SPIKE-05 for the isolation home).
+ * to the L6 spike — above all SPIKE-02's two-namespace model:
+ * availability identities (`bash`) and permission-rule identifiers
+ * (`shell`, `shell(printf)`) are DIFFERENT grammars, translated through
+ * the evidenced mapping and never conflated (review finding 1).
  */
 import { describe, expect, it } from 'vitest'
 import { childEnvironment, ISOLATION_ENV, planLaunch, PROVIDER } from './plan.js'
@@ -18,25 +19,44 @@ const plan = (mutate?: (invocation: WireInvocation) => WireInvocation) => {
   return result.plan
 }
 
-describe('planLaunch', () => {
-  it('expresses the grant as availability PLUS allow rules (SPIKE-02)', () => {
+describe('planLaunch — the L6 two-namespace grant translation', () => {
+  it('reproduces the L6 positive shape: available=bash, allow in the SHELL family', () => {
+    // The proven case is `--available-tools=bash` + `--allow-tool=shell(…)`
+    // — availability names the built-in tool, permission names the shell
+    // rule family. An unqualified platform grant of `bash` carries the
+    // family-level rule (the substrate is the boundary, decision 2).
     const launch = plan()
     expect(launch.argv).toContain('--available-tools=bash')
-    expect(launch.argv).toContain('--allow-tool=bash')
+    expect(launch.argv).toContain('--allow-tool=shell')
   })
 
-  it('closes the read-only auto-approve hole when shell is ungranted', () => {
+  it('never copies an availability identity into the permission namespace', () => {
     const launch = plan()
+    expect(launch.argv).not.toContain('--allow-tool=bash')
+  })
+
+  it('never denies the permission family of a granted tool (deny wins — SPIKE-02)', () => {
+    const launch = plan()
+    expect(launch.argv).not.toContain('--deny-tool=shell')
+  })
+
+  it('closes the read-only auto-approve hole exactly when bash is ungranted', () => {
+    const launch = plan((invocation) => ({
+      ...invocation,
+      grant: { ...invocation.grant, tools: ['view'] },
+    }))
+    expect(launch.argv).toContain('--available-tools=view')
     expect(launch.argv).toContain('--deny-tool=shell')
   })
 
-  it('emits no shell denial when shell itself is granted', () => {
+  it('a granted tool with no evidenced permission mapping gets NO allow rule', () => {
+    // Inventing `--allow-tool=view` would put an availability name into
+    // the permission grammar with no evidence it means anything there.
     const launch = plan((invocation) => ({
       ...invocation,
-      grant: { ...invocation.grant, tools: ['shell'] },
+      grant: { ...invocation.grant, tools: ['view'] },
     }))
-    expect(launch.argv).toContain('--available-tools=shell')
-    expect(launch.argv).not.toContain('--deny-tool=shell')
+    expect(launch.argv.filter((a) => a.startsWith('--allow-tool='))).toEqual([])
   })
 
   it('an empty grant narrows availability to nothing and denies shell', () => {
@@ -49,17 +69,49 @@ describe('planLaunch', () => {
     expect(launch.argv).toContain('--deny-tool=shell')
   })
 
-  it('names no tool outside the grant anywhere in argv', () => {
+  it('names no availability identity outside the grant', () => {
     const launch = plan()
-    const grantFlags = launch.argv.filter(
-      (a) => a.startsWith('--available-tools=') || a.startsWith('--allow-tool='),
-    )
-    expect(grantFlags).toEqual(['--available-tools=bash', '--allow-tool=bash'])
+    expect(launch.argv.filter((a) => a.startsWith('--available-tools='))).toEqual([
+      '--available-tools=bash',
+    ])
+  })
+})
+
+describe('planLaunch — credentials reach the evidenced secrecy control (review finding 2)', () => {
+  it('emits --secret-env-vars for every declared credential reference', () => {
+    // SPIKE-05: the ONE evidenced mechanism stripping named variables
+    // from shell/MCP subprocess environments and redacting output.
+    const launch = plan()
+    expect(launch.argv).toContain('--secret-env-vars=COPILOT_GITHUB_TOKEN')
   })
 
+  it('emits one flag per credential, names only', () => {
+    const launch = plan((invocation) => ({
+      ...invocation,
+      credentials: [{ env_var: 'COPILOT_GITHUB_TOKEN' }, { env_var: 'SECOND_TOKEN_REF' }],
+    }))
+    expect(launch.argv.filter((a) => a.startsWith('--secret-env-vars='))).toEqual([
+      '--secret-env-vars=COPILOT_GITHUB_TOKEN',
+      '--secret-env-vars=SECOND_TOKEN_REF',
+    ])
+    expect(JSON.stringify(launch)).not.toContain('value')
+  })
+})
+
+describe('planLaunch — pass-through and hermetic surface', () => {
   it('pins the model explicitly, never Auto, as pass-through data', () => {
     const launch = plan()
     expect(launch.argv[launch.argv.indexOf('--model') + 1]).toBe('route-a')
+  })
+
+  it('never translates platform fallback policy into a provider surface (review finding)', () => {
+    const launch = plan()
+    expect(launch.argv).not.toContain('refuse')
+    const degraded = plan((invocation) => ({
+      ...invocation,
+      routing: { routing_class: 'R2', model_route: 'route-b', fallback: 'R1' },
+    }))
+    expect(degraded.argv).not.toContain('R1')
   })
 
   it('runs the spike-evidenced hermetic surface non-interactively', () => {
@@ -87,11 +139,14 @@ describe('planLaunch', () => {
   it('surfaces credential NAMES plus the per-run isolation home (SPIKE-05)', () => {
     const launch = plan()
     expect(launch.required_env).toEqual(['COPILOT_GITHUB_TOKEN', ISOLATION_ENV])
-    expect(JSON.stringify(launch)).not.toContain('value')
   })
 
-  it('treats the workspace root as an opaque reference', () => {
-    expect(plan().cwd_ref).toBe('/workspace')
+  it('workspace references are DATA — they appear nowhere in the plan (review finding)', () => {
+    const launch = plan()
+    const serialized = JSON.stringify(launch)
+    expect(serialized).not.toContain('workspace:run-0001')
+    expect(serialized).not.toContain('session-0001')
+    expect('cwd_ref' in launch).toBe(false)
   })
 
   it('refuses parameters it cannot express instead of reshaping the workload', () => {

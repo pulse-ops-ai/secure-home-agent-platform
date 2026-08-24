@@ -17,7 +17,7 @@ export const validInvocation = (): WireInvocation => ({
     network: { default: 'deny', granted_destinations: [] },
     credentials: [{ env_var: 'PROVIDER_TOKEN_REF' }],
   },
-  routing: { routing_class: 'coding', model_route: 'route-a', fallback: '' },
+  routing: { routing_class: 'R3', model_route: 'route-a', fallback: 'refuse' },
   limits: {
     wall_clock_seconds: 600,
     cpu_cores: 2,
@@ -26,7 +26,7 @@ export const validInvocation = (): WireInvocation => ({
     output_bytes: 65_536,
   },
   credentials: [{ env_var: 'PROVIDER_TOKEN_REF' }],
-  workspace: { session_ref: 'session-0001', root_ref: '/workspace' },
+  workspace: { session_ref: 'session-0001', root_ref: 'workspace:run-0001' },
 })
 
 /**
