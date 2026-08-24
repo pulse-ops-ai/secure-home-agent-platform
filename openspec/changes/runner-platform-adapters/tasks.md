@@ -295,8 +295,10 @@ Conformance suite: 77 tests. Adapter units: 66 + 71.
 - [x] `images.yml` green at f59ccfe (run 32675219623) with recorded
   digests; base/claude/gates identities byte-identical to the L5 record
   (zero mismatches in the bootstrap run's verify step)
-- [ ] both workflows green at the review-round-2 head (recorded here when
-  the runs complete)
+- [x] both workflows green at the review-round-2 head `dc2e2ba`:
+  `checks` run 32712505707 ✓, `images` run 32712505876 ✓ (the fifth
+  consecutive image build reproducing the recorded digests). A final
+  docs-only commit (this record) follows; CI re-runs on it as always
 - [x] `git diff 59a8ea04..HEAD -- services/runner-control/` — 0 lines
 - [x] `git diff 59a8ea04..HEAD -- packages/contracts/ schemas/` — 0 lines
 - [ ] owner review verdict on the draft PR
