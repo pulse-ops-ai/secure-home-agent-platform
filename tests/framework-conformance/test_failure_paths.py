@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fc_support import Adapter, golden_invocation, run_adapter
 
 
@@ -82,13 +83,23 @@ def test_giant_persisted_events_file_is_bounded_before_materializing(
     assert captured <= budget["output_bytes"]
 
 
-def test_delimiter_widening_refuses_through_the_contract(adapter: Adapter, tmp_path: Path) -> None:
-    """The reviewer's hostile fixture: one authorized grant string with an
-    embedded delimiter must never become independent tool authority."""
+@pytest.mark.parametrize(
+    "hostile_tool",
+    ["Read,Bash", "Read Bash", "Read\tBash", "Read\nBash"],
+    ids=["comma", "space", "tab", "newline"],
+)
+def test_delimiter_widening_refuses_through_the_contract(
+    adapter: Adapter, tmp_path: Path, hostile_tool: str
+) -> None:
+    """One authorized grant string carrying ANY identity delimiter the
+    provider recognizes must never become independent tool authority. The
+    pinned Claude CLI splits tool lists on commas AND whitespace, so both
+    forms are proven here — through the wire boundary, with the provider
+    never launched."""
     invocation = golden_invocation(adapter)
     grant = invocation["grant"]
     assert isinstance(grant, dict)
-    grant["tools"] = ["Read,Bash"]
+    grant["tools"] = [hostile_tool]
     run = run_adapter(adapter, json.dumps(invocation), tmp_path)
     assert run.returncode == 0
     report = run.report
@@ -96,3 +107,31 @@ def test_delimiter_widening_refuses_through_the_contract(adapter: Adapter, tmp_p
     detail = report["detail"]
     assert isinstance(detail, str) and "widen" in detail
     assert run.recorded_argv == [], "no provider process may have been launched"
+
+
+def test_empty_grant_states_the_closed_set_rather_than_omitting_it(
+    adapter: Adapter, tmp_path: Path
+) -> None:
+    """A zero-tool grant must STATE the empty availability set. Omitting
+    the control would leave the provider's normal tool visibility in
+    place — a zero-tool grant silently becoming an every-tool run. Each
+    provider's evidenced spelling for "no tools" is asserted, and the
+    copilot stub refuses omission outright."""
+    invocation = golden_invocation(adapter)
+    grant = invocation["grant"]
+    assert isinstance(grant, dict)
+    grant["tools"] = []
+    run = run_adapter(adapter, json.dumps(invocation), tmp_path)
+    assert run.returncode == 0
+    assert run.report["outcome"] == "observed", run.report
+    argv = run.recorded_argv
+    assert argv, "the provider must have been launched with a stated empty set"
+    if adapter.name == "copilot-cli":
+        # `--available-tools[=tools...]`: the bare flag is the evidenced
+        # empty set (the L6 `no-tool` case ran exactly that shape).
+        assert "--available-tools" in argv, argv
+        assert not any(a.startswith("--available-tools=") for a in argv), argv
+    else:
+        # `--tools ""` is the CLI's documented "disable all tools".
+        at = argv.index("--tools")
+        assert argv[at + 1] == "", argv

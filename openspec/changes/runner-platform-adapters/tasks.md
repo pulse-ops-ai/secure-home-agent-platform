@@ -285,6 +285,36 @@ in each dialect faithfully: claude records a reactive permission denial;
 copilot records no call at all plus the model's own UNAVAILABLE words.
 Conformance suite: 77 tests. Adapter units: 66 + 71.
 
+## Review-round 3 record
+
+Owner REQUEST CHANGES at head `c22989c` (2026-08-24), after confirming
+the round-2 fixes present and correct: two P1 capability-widening
+defects still live, one P2 spec inconsistency, one administrative note.
+All accepted; each fixed with the mechanism, a regression test proven
+load-bearing by a mutation probe, and a spec-delta scenario.
+
+| Finding | Fix | Proof |
+|---|---|---|
+| P1: Copilot's ZERO-tool grant emitted no `--available-tools` control at all — omission leaves the provider's normal tool visibility in place, so an empty grant could become an every-tool run. The round-2 unit test had encoded the omission as correct | the empty set is now STATED in the evidenced spelling: the BARE flags `--available-tools --allow-tool`, exactly the L6 `no-tool` invocation. Spelling confirmed twice over: COMMAND-RESULTS.txt's `no-tool` row, and the pinned binary's own help declaring the value optional (`--available-tools[=tools...]`) — so no syntax was invented and a bare flag cannot swallow the next argument. The stub now REFUSES argv that omits the control entirely | unit: empty grant states both bare flags and emits no `=`-form; a bare flag is followed by the next flag, not a swallowed value. conformance: `test_empty_grant_states_the_closed_set_rather_than_omitting_it` (per-dialect: bare flag for copilot, `--tools ""` for claude). Mutation PA-ADV-18 (omission restored, dist verified): conformance FAILED, killed |
+| P1: Claude accepted a WHITESPACE-delimited grant entry — its own comment quoted "Comma or space-separated" while the check tested only `,`, so `["Read Bash"]` became two provider tools | replaced the ad-hoc comma check with the named predicate the review asked for: `TOOL_IDENTITY_DELIMITERS = /[\s,]/` + `expressibleAsOneToolIdentity(tool)` — "is this grant entry expressible as exactly ONE provider tool identity?" Applied in BOTH adapters (copilot fails closed too: its value parsing is not proven single-valued for either delimiter) | unit: comma/space/tab/newline refusals per adapter. conformance: the delimiter test is parameterized over all four forms and asserts through the wire boundary that the provider was NEVER launched. Mutation PA-ADV-19 (predicate narrowed to comma-only, dist verified): the three whitespace cases FAILED, killed |
+| P2: the spec delta still said "out-of-grant tools appear only as denials" in the cannot-be-widened scenario, contradicting the accepted denial-or-absence semantics | reconciled to the provider-neutral invariant: "an out-of-grant operation is never reported as permitted (its observable dialect may be an explicit denial or the complete absence of the call)" | `openspec validate --strict` passes; both scenarios now state the same invariant |
+| Administrative: the PR is `draft=false`, not "stays in draft" as reported | the repository timeline shows `ready_for_review by mikegtech at 2026-08-24T09:11:23Z` — the owner made that change, so my statement was stale rather than the PR state being wrong. Left as the owner set it; reported rather than silently reverted | `gh pr view 96 --json isDraft` + timeline event |
+
+Requirement text also strengthened in the same round: an empty grant
+SHALL state the closed empty set in the provider's evidenced spelling
+(never omit the control), and a grant entry that is not expressible as
+exactly ONE provider tool identity SHALL be refused.
+
+Process note, disclosed: the first attempt at these two probes used
+`git checkout --` to revert mutants while the FIXES THEMSELVES were still
+uncommitted — which discarded the fixes, not just the mutants, and
+produced cross-adapter failures that looked like a coupling defect. The
+fixes were re-applied, committed FIRST, and both probes re-run against a
+committed baseline with the built `dist/` verified to contain each
+mutant before its verdict was believed.
+
+Suite counts after this round: conformance 85, adapter units 70 + 75.
+
 ## PR-1 Completion Gate
 
 - [x] every ladder check green in CI: `checks` run 32675219615 ✓ at
@@ -299,6 +329,8 @@ Conformance suite: 77 tests. Adapter units: 66 + 71.
   `checks` run 32712505707 ✓, `images` run 32712505876 ✓ (the fifth
   consecutive image build reproducing the recorded digests). A final
   docs-only commit (this record) follows; CI re-runs on it as always
+- [ ] both workflows green at the review-round-3 head (recorded here when
+  the runs complete)
 - [x] `git diff 59a8ea04..HEAD -- services/runner-control/` — 0 lines
 - [x] `git diff 59a8ea04..HEAD -- packages/contracts/ schemas/` — 0 lines
 - [ ] owner review verdict on the draft PR

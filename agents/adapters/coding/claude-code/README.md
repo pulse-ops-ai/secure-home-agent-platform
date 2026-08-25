@@ -42,7 +42,9 @@ observations, never to a crash or changed behavior.
 Translation decisions worth knowing:
 
 - **Availability closes the grant.** `--tools <granted>` narrows what the
-  model can even see (`--tools ""` disables all tools for an empty grant);
+  model can even see, and an EMPTY grant STATES the empty set rather than
+  omitting the control (`--tools ""` is the CLI's documented "disable all
+  tools" — omitting it would leave default visibility in place);
   `--allowedTools <granted>` pre-approves exactly that set so a
   non-interactive run cannot stall. No tool universe is hardcoded here —
   denial-by-absence is structural. The substrate remains the security
@@ -52,9 +54,12 @@ Translation decisions worth knowing:
   authority.
 - **`input.parameters` is not expressible** by this CLI; a non-empty value
   is refused (`environmental_fault`) rather than folded into the prompt —
-  reshaping the workload would be deciding. A granted tool identity
-  containing the CLI's list delimiter (`,`) is refused the same way: one
-  grant entry must never widen into multiple provider tools.
+  reshaping the workload would be deciding. A granted tool identity that
+  is not expressible as ONE provider tool identity is refused the same
+  way — the CLI splits tool lists on commas AND whitespace ("Comma or
+  space-separated", per its own help), so `"Read,Bash"` and `"Read Bash"`
+  are both refused: one grant entry must never widen into multiple
+  provider tools.
 - **Platform routing policy stays platform-owned.** `routing.fallback`
   (ADR-0007: "refuse", degrade between classes) is enforced by the
   substrate before an invocation exists and reaches no provider flag —

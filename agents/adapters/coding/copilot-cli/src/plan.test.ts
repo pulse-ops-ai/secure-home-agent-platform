@@ -59,13 +59,31 @@ describe('planLaunch — the L6 two-namespace grant translation', () => {
     expect(launch.argv.filter((a) => a.startsWith('--allow-tool='))).toEqual([])
   })
 
-  it('an empty grant narrows availability to nothing and denies shell', () => {
+  it('an empty grant STATES the empty availability set, never omits it', () => {
+    // Omitting the control would leave the provider's normal tool
+    // visibility in place — a zero-tool grant silently becoming an
+    // every-tool run. The bare-flag spelling is the L6 `no-tool` shape,
+    // and the pinned CLI declares the value optional.
     const launch = plan((invocation) => ({
       ...invocation,
       grant: { ...invocation.grant, tools: [] },
     }))
+    expect(launch.argv).toContain('--available-tools')
+    expect(launch.argv).toContain('--allow-tool')
     expect(launch.argv.some((a) => a.startsWith('--available-tools='))).toBe(false)
     expect(launch.argv.some((a) => a.startsWith('--allow-tool='))).toBe(false)
+    expect(launch.argv).toContain('--deny-tool=shell')
+  })
+
+  it('a bare availability flag cannot swallow the argument after it', () => {
+    // `--available-tools[=tools...]`: values attach with `=`, so the bare
+    // form terminates on its own — the following token stays its own flag.
+    const launch = plan((invocation) => ({
+      ...invocation,
+      grant: { ...invocation.grant, tools: [] },
+    }))
+    const at = launch.argv.indexOf('--available-tools')
+    expect(launch.argv[at + 1]).toBe('--allow-tool')
     expect(launch.argv).toContain('--deny-tool=shell')
   })
 
@@ -168,15 +186,20 @@ describe('planLaunch — pass-through and hermetic surface', () => {
   })
 })
 
-describe('planLaunch — delimiter widening is refused (review finding 3)', () => {
-  it('refuses a granted tool containing a comma', () => {
+describe('planLaunch — a grant entry must be ONE provider tool identity', () => {
+  it.each([
+    ['comma', 'bash,view'],
+    ['space', 'bash view'],
+    ['tab', 'bash\tview'],
+    ['newline', 'bash\nview'],
+  ])('refuses a granted tool separated by %s', (_name, tool) => {
     const result = planLaunch({
       ...validInvocation(),
-      grant: { ...validInvocation().grant, tools: ['bash,view'] },
+      grant: { ...validInvocation().grant, tools: [tool] },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.refusal).toContain('"bash,view"')
+      expect(result.refusal).toContain(JSON.stringify(tool))
       expect(result.refusal).toContain('widen')
     }
   })

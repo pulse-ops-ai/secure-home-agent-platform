@@ -100,6 +100,25 @@ export function childEnvironment(
 }
 
 /**
+ * Every character that could separate tool identities in a provider tool
+ * list. The pinned CLI's own help shows comma-separated values
+ * (`--secret-env-vars=MY_KEY,OTHER_KEY`), and whitespace splitting inside
+ * a value is not proven ABSENT by the L6 evidence — which only ever
+ * passed bare single names. Fail closed on both.
+ */
+const TOOL_IDENTITY_DELIMITERS = /[\s,]/
+
+/**
+ * THE PREDICATE: is this grant entry expressible as exactly ONE provider
+ * tool identity? The platform's `CapabilityGrant` admits any non-empty
+ * string, so a single authorized entry could contain a delimiter the
+ * provider splits on — one platform authority silently becoming several
+ * provider capabilities. Anything not expressible as one identity is
+ * refused rather than passed.
+ */
+const expressibleAsOneToolIdentity = (tool: string): boolean => !TOOL_IDENTITY_DELIMITERS.test(tool)
+
+/**
  * Availability identity → permission-rule family, exactly as far as the
  * L6 evidence reaches: `bash` is governed by the `shell` rule grammar
  * (`shell`, `shell(cmd)`, `shell(stem:*)`). No other pairing was
@@ -125,21 +144,15 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
 
   const granted = invocation.grant.tools
 
-  // One --available-tools=<tool> per granted tool keeps our own emission
-  // single-valued, but the CLI's list parsing of the value is not proven
-  // single-valued (the L6 evidence only ever passed bare names). A grant
-  // identity containing a comma could therefore widen to multiple tools
-  // inside the provider — fail closed instead of trusting an unevidenced
-  // parser property.
-  const delimited = granted.find((tool) => tool.includes(','))
-  if (delimited !== undefined) {
+  const inexpressible = granted.find((tool) => !expressibleAsOneToolIdentity(tool))
+  if (inexpressible !== undefined) {
     return {
       ok: false,
       refusal:
-        `grant.tools entry ${JSON.stringify(delimited)} contains a list ` +
-        "delimiter (','); the provider's value parsing is not proven " +
-        'single-valued, so translating it could widen the grant — no ' +
-        'faithful translation exists',
+        `grant.tools entry ${JSON.stringify(inexpressible)} is not expressible as ` +
+        "one provider tool identity — the provider's value parsing is not proven " +
+        'single-valued for commas or whitespace, so translating it could widen ' +
+        'the grant into multiple provider tools; no faithful translation exists',
     }
   }
 
@@ -169,6 +182,18 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
   // Availability first: the model cannot see outside the grant. The
   // `--flag=value` spelling is the one the spike evidenced; one value per
   // occurrence, so no list parsing can swallow a neighbour.
+  //
+  // An EMPTY grant STATES the empty set — it never omits the control.
+  // Omitting `--available-tools` leaves the provider's normal tool
+  // visibility in place, so a zero-tool grant would silently become an
+  // every-tool run. The evidenced spelling for the empty set is the BARE
+  // flag: the L6 `no-tool` case ran `--available-tools --allow-tool` with
+  // no values, and the pinned CLI's own help declares the value optional
+  // (`--available-tools[=tools...]`), so a bare flag cannot swallow the
+  // argument that follows it.
+  if (granted.length === 0) {
+    argv.push('--available-tools', '--allow-tool')
+  }
   for (const tool of granted) {
     argv.push(`--available-tools=${tool}`)
   }

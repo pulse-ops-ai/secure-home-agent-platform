@@ -121,7 +121,12 @@ provider CLI's native surface and normalize what the provider did back
 into observations. The capability grant SHALL narrow the provider-visible
 tool surface (available/allowed sets plus explicit denials), translating
 between provider control namespaces through evidenced mappings only —
-never by copying one identity grammar into another. The model route
+never by copying one identity grammar into another. An EMPTY grant SHALL
+state the closed empty set in the provider's evidenced spelling, never
+omit the control — omission leaves the provider's default tool
+visibility in place. A grant entry that is not expressible as exactly
+ONE provider tool identity (it carries a character the provider
+recognizes as separating identities) SHALL be refused. The model route
 SHALL pass through as data with no model identifier constant in adapter
 source; `routing.fallback` is PLATFORM routing policy (ADR-0007),
 enforced by the substrate before an invocation exists, and SHALL NOT be
@@ -143,14 +148,24 @@ field through which an adapter can assert that a run succeeded.
   granted set and denies outside it, and contains no tool the grant does
   not name
 
-#### Scenario: A grant identity carrying the provider's list delimiter is refused
+#### Scenario: A grant entry that is not one provider tool identity is refused
 
-- **GIVEN** a granted tool identity containing the provider CLI's list
-  delimiter (for example `"Read,Bash"` where the CLI comma-splits tool
-  lists)
+- **GIVEN** a granted tool identity containing ANY character the provider
+  recognizes as separating identities (`"Read,Bash"` or `"Read Bash"` —
+  the pinned CLI splits tool lists on commas AND whitespace)
 - **WHEN** the adapter plans the provider launch
-- **THEN** translation is refused naming the identity — one platform
-  grant entry must never widen into multiple provider-visible tools
+- **THEN** translation is refused naming the identity, and no provider
+  process is launched — one platform grant entry must never widen into
+  multiple provider-visible tools
+
+#### Scenario: An empty grant states the closed set
+
+- **GIVEN** an invocation granting zero tools
+- **WHEN** the adapter plans the provider launch
+- **THEN** the plan states the empty availability set in the provider's
+  evidenced spelling and the provider is launched with it — the control
+  is never omitted, because omission would leave default tool visibility
+  in place
 
 #### Scenario: Provider control namespaces are translated, never conflated
 
@@ -330,8 +345,10 @@ variants of a shared assertion SHALL NOT exist.
 - **GIVEN** invocations carrying unknown fields, out-of-grant tools, or
   substrate-only concerns (image names, mount paths, argv)
 - **WHEN** each adapter processes them
-- **THEN** unknown fields are refused, out-of-grant tools appear only as
-  denials, and no substrate concern reaches a launch plan
+- **THEN** unknown fields are refused, an out-of-grant operation is never
+  reported as permitted (its observable dialect may be an explicit denial
+  or the complete absence of the call), and no substrate concern reaches
+  a launch plan
 
 ### Requirement: Adapters are unlaunchable and inert at L7
 

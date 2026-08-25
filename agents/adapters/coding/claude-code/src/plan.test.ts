@@ -126,17 +126,29 @@ describe('planLaunch', () => {
   })
 })
 
-describe('planLaunch — delimiter widening is refused (review finding 3)', () => {
-  it('refuses a granted tool containing the comma delimiter', () => {
+describe('planLaunch — a grant entry must be ONE provider tool identity', () => {
+  // The CLI's own help: tool lists are "Comma or space-separated". Both
+  // delimiters split one platform authority into several provider tools.
+  it.each([
+    ['comma', 'Read,Bash'],
+    ['space', 'Read Bash'],
+    ['tab', 'Read\tBash'],
+    ['newline', 'Read\nBash'],
+  ])('refuses a granted tool separated by %s', (_name, tool) => {
     const result = planLaunch({
       ...validInvocation(),
-      grant: { ...validInvocation().grant, tools: ['Read,Bash'] },
+      grant: { ...validInvocation().grant, tools: [tool] },
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.refusal).toContain('"Read,Bash"')
+      expect(result.refusal).toContain(JSON.stringify(tool))
       expect(result.refusal).toContain('widen')
     }
+  })
+
+  it('the granted set still reaches the provider when every entry is one identity', () => {
+    const launch = plan()
+    expect(launch.argv[launch.argv.indexOf('--tools') + 1]).toBe('Read,Grep')
   })
 })
 

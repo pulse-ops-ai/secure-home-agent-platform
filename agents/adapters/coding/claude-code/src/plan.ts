@@ -84,6 +84,25 @@ export function childEnvironment(
  */
 const toolList = (tools: readonly string[]): string => tools.join(',')
 
+/**
+ * Every character the pinned CLI recognizes as SEPARATING tool
+ * identities. Its own help is the source: `--allowedTools` takes a
+ * "Comma or space-separated list of tool names", and `--tools` the same
+ * comma form. Both delimiters therefore split a value the platform
+ * intended as one identity.
+ */
+const TOOL_IDENTITY_DELIMITERS = /[\s,]/
+
+/**
+ * THE PREDICATE: is this grant entry expressible as exactly ONE provider
+ * tool identity? The platform's `CapabilityGrant` admits any non-empty
+ * string, so a single authorized entry can contain a delimiter the
+ * provider splits on — one platform authority silently becoming several
+ * provider capabilities. Anything not expressible as one identity is
+ * refused rather than passed (a widened surface is never the fallback).
+ */
+const expressibleAsOneToolIdentity = (tool: string): boolean => !TOOL_IDENTITY_DELIMITERS.test(tool)
+
 export function planLaunch(invocation: WireInvocation): PlanResult {
   // Faithful translation or refusal — never reshaping (decision 10). The
   // pinned CLI has no surface for platform-defined key/value parameters;
@@ -100,20 +119,15 @@ export function planLaunch(invocation: WireInvocation): PlanResult {
 
   const granted = invocation.grant.tools
 
-  // The CLI parses tool lists by delimiter ("Comma or space-separated"),
-  // and this plan joins the granted set with commas. A grant identity that
-  // CONTAINS the delimiter is therefore inexpressible without widening:
-  // ["Read,Bash"] is one granted tool to the platform and two visible
-  // tools to the provider. Faithful translation or refusal — never a
-  // silently widened surface.
-  const delimited = granted.find((tool) => tool.includes(','))
-  if (delimited !== undefined) {
+  const inexpressible = granted.find((tool) => !expressibleAsOneToolIdentity(tool))
+  if (inexpressible !== undefined) {
     return {
       ok: false,
       refusal:
-        `grant.tools entry ${JSON.stringify(delimited)} contains the provider's ` +
-        "list delimiter (','); expressing it would widen the grant to multiple " +
-        'tools, so no faithful translation exists',
+        `grant.tools entry ${JSON.stringify(inexpressible)} is not expressible as ` +
+        'one provider tool identity — the CLI splits tool lists on commas AND ' +
+        'whitespace, so passing it would widen one grant entry into multiple ' +
+        'provider tools; no faithful translation exists',
     }
   }
 

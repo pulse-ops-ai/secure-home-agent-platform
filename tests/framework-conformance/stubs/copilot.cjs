@@ -52,11 +52,18 @@ const RESULT_BASE = {
 // out (review finding 1): an availability identity copied into the
 // permission grammar, or the shell family denied while bash is granted.
 const argv = process.argv.slice(2)
-const unfaithful =
+const conflated =
   argv.includes('--allow-tool=bash') ||
   (argv.includes('--available-tools=bash') && argv.includes('--deny-tool=shell'))
-if (unfaithful) {
+if (conflated) {
   process.stderr.write('stub refuses L6-unfaithful argv: availability/permission conflation\n')
+  process.exit(2)
+}
+// The availability control must always be STATED — for an empty grant as
+// the bare flag, never by omission. Omitting it leaves normal tool
+// visibility in place, so the stub refuses argv that never narrows.
+if (!argv.some((arg) => arg === '--available-tools' || arg.startsWith('--available-tools='))) {
+  process.stderr.write('stub refuses argv: the availability control is omitted entirely\n')
   process.exit(2)
 }
 

@@ -29,6 +29,7 @@ evidenced and the paired image pins. Each mapping rests on a named finding:
 | Mapping | L6 basis |
 |---|---|
 | Grant → `--available-tools=<tool>` per granted tool (availability grammar, fail-closed) | SPIKE-02: availability and permission are SEPARATE controls with SEPARATE identity grammars |
+| EMPTY grant → the bare `--available-tools` / `--allow-tool` flags, stating the closed empty set rather than omitting the control (omission would leave default tool visibility in place) | COMMAND-RESULTS.txt `no-tool` case ran exactly `--available-tools --allow-tool`; the pinned CLI's help declares the value optional (`--available-tools[=tools...]`), so a bare flag cannot swallow the next argument |
 | Granted `bash` → `--allow-tool=shell` — the evidenced namespace mapping (availability `bash` ↔ the `shell` permission-rule family); an availability identity is never copied into the permission grammar, and a granted tool with no evidenced mapping gets no invented rule | SPIKE-02: the proven positive case is `available=bash / allow=shell(printf)`; `--allow-tool` alone is not deny-by-default |
 | `--deny-tool=shell` exactly when `bash` is ungranted — never against a granted tool's own family | SPIKE-02 boundary finding: read-only shell commands auto-approve even unlisted; deny always wins, including under prompt injection |
 | Credential refs → `--secret-env-vars=<NAME>` per declared reference | SPIKE-05: the one evidenced control stripping named variables from shell/MCP subprocess environments and redacting output (marker confirmed absent from the shell tool); custody itself stays with L9 |
@@ -47,7 +48,10 @@ per-run credential custody and cache teardown are launcher obligations this
 adapter cannot own.
 
 `input.parameters` is not expressible by this CLI; a non-empty value is
-refused rather than reshaped into the prompt. `routing.fallback` is
+refused rather than reshaped into the prompt, as is any grant entry that
+is not expressible as ONE provider tool identity (commas and whitespace
+alike — the provider's value parsing is not proven single-valued for
+either, so it fails closed). `routing.fallback` is
 platform routing policy (ADR-0007), enforced by the substrate — never
 translated to any provider surface. Workspace references stay opaque
 platform data: the L9 session substrate establishes the sandbox cwd and
