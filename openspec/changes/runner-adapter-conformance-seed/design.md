@@ -117,10 +117,15 @@ exists.
 | `gate_results` | gate execution | no |
 
 So the neutrality proof has a small, exactly-bounded surface: two
-adapter-derived channels against nine authority-derived ones. The nine
-are proven *invariant* (they must be byte-identical across adapters); the
-two are proven *neutral* (same platform semantics from different provider
-dialects).
+adapter-derived channels (`operations`, and the outcome via terminal
+classification) against everything else, which comes from captured
+authority. "Adapter-influenceable" above means *by the report* — none of
+the authority-derived fields can be moved by anything an adapter says.
+Three of them (`adapter`, `image_digest`/`runtime`, profile identity +
+digest) nonetheless differ **between the two runs**, because the profile
+itself carries the provider binding; they are proven by *binding* to
+their own captured profile rather than by cross-run equality. See "The
+same-run comparison model".
 
 ## Finding: the composition is falsified today
 
@@ -158,20 +163,37 @@ Consequences, both real:
 comment, runner-core assigns it meaning, and L7 filled it with provider
 frames. Three landed layers, no shared contract.
 
-**This change does not fix it.** Three candidate resolutions exist, in
-three different ownerships:
+**Ownership is not open — ADR-0013 already assigns it.** An earlier draft
+of this design offered a three-way choice; that was wrong, and the
+correction matters because it decides what must land first.
 
-| Candidate | Owner | Cost |
-|---|---|---|
-| Adapters normalize `transcript_terminal` to a platform vocabulary | L7 adapters (`agents/adapters/**`) | small; but invents a vocabulary no contract states |
-| runner-core stops comparing against the literal `'success'` | L3 trusted core (`packages/runner-core/**`) | touches the trusted core; and `'success'` in the core is itself a vocabulary question |
-| The SPI documents the field's vocabulary | L4 frozen surface (`services/runner-control/src/ports/values.ts`) | requires authority the L4 freeze deliberately withheld from L7-era changes |
+- **ADR-0013 decision 3** (lines 92–95): "The provider's exit code, its
+  self-reported outcome, and its transcript's terminal event are all
+  **observations**. **The adapter normalizes them**; the lifecycle
+  decides."
+- **ADR-0013 decision 5** (line 122): "Provider event shapes are
+  normalized at the adapter boundary and **never leak upward**."
 
-Per the standing instruction that #56 grants no authority to redesign the
-frozen L4/L7 SPI, the choice is escalated, not taken. The plan is
-authored so that **either** the harness lands first and records the
-finding as a red, named divergence, **or** the owner authorizes a fix
-first and the harness lands green — `tasks.md` sequences both.
+The adapters therefore own normalization, and the current code leaks
+provider frame names upward at
+`agents/adapters/coding/claude-code/src/observe.ts:163` and
+`agents/adapters/coding/copilot-cli/src/observe.ts:195`. This is an
+adapter defect against an accepted ADR, not a contested boundary.
+
+What remains genuinely undecided is **the vocabulary**: which value means
+"the transcript terminated successfully", and where that vocabulary is
+stated so three layers can share it. `transcript_terminal` is typed
+`string` in the frozen SPI with no comment, and runner-core's rule
+(`terminal.ts:86`) makes the literal `'success'` load-bearing without any
+contract saying so. Candidate homes for the vocabulary — the SPI's own
+doc comment, a contracts primitive, or a spec requirement — are a
+narrower question than ownership, and it is the only part of this finding
+that needs an owner decision.
+
+**This change still does not implement the fix**: `agents/adapters/**` is
+outside #56's declared scope. The fix is sequenced as a required
+predecessor (see "Landing order" below), because a conformance gate that
+cannot pass is not a gate.
 
 ## Harness architecture
 
@@ -267,19 +289,44 @@ because the proof's value depends on the composition being the real one.
 
 The decision is the reviewer's; `tasks.md` blocks on it.
 
-## The same-run comparison model
+## The same-run comparison model: one logical run, two provider bindings
 
-One logical run, held identical across adapters by construction:
+An earlier draft said "same profile", which is **not expressible**. The
+execution profile carries the provider binding itself:
 
-| Held identical | Allowed to differ |
-|---|---|
-| `run_id`, requester, profile ref, gates, workspace root, pinned base, artifact paths | the stub provider's transcript dialect |
-| the captured profile bytes (same authority source) | provider tool identities inside the grant translation |
-| grant, routing, limits, credential references | native usage units and amounts |
-| the platform-built `AdapterInvocationRequest` fields | provider event payload data |
+```ts
+// packages/contracts/src/execution-profile/execution-profile.ts:22-25
+runtime: z.strictObject({ image_digest: Digest, adapter: AdapterId }),
+```
 
-Two runs, one per adapter, then a field-by-field comparison under an
-explicit classification.
+and the runner derives the invoked adapter from the captured profile —
+`services/runner-control/src/orchestration/phases/requested.ts:96`:
+`const adapter = resolved.value.runtime.adapter`. Two adapters therefore
+require **two profile documents**; ADR-0011 (one provider per derived
+image) makes `runtime.image_digest` differ too, and the L7 fixture
+already diverges on both the adapter identity and `grant.tools`
+(`Read` vs `bash`) at `tests/framework-conformance/fc_support.py:99`.
+
+The model is therefore **one logical run, two provider bindings**:
+
+| Held identical by construction | Provider-bound: differs, and must be correctly bound | Provider-native: differs, unbound |
+|---|---|---|
+| `run_id`, requester/principal, input, gates, workspace root, pinned base, artifact paths | profile `identity` + digest | stub transcript dialect |
+| fence generation | `runtime.adapter` → evidence `adapter` | provider tool identities in `capability.tools` / `operation.name` |
+| `execution` routing class, route, fallback | `runtime.image_digest` → evidence `image_digest` / `runtime` | native usage units and amounts |
+| `limits`; grant SHAPE (mounts, network policy, credential refs, tool count/semantics) | | provider event payload data |
+
+The middle column is the part the earlier draft got wrong twice: those
+values are *allowed* to differ, but they are **not** unconstrained. Each
+must equal the corresponding field of the profile actually captured for
+that run. That per-run binding is a stronger and more honest property
+than the cross-run byte-equality the first draft asserted, and it is what
+`runner-evidence/spec.md:21` ("provider and adapter identity as opaque
+data") actually requires.
+
+Two profile documents are authored as fixtures differing **only** in the
+middle column, so any other difference between them is itself a fixture
+defect the harness can detect.
 
 ### Classification rules
 
@@ -292,16 +339,23 @@ explicit classification.
   permitted/denied partition of evidence `operations`;
 - lifecycle classification (`established` vs conflict kind) and the
   terminal outcome;
-- `run_id`, fence `generation`, profile identity + digest, principal,
-  `image_digest`, `provider` route;
-- evidence field grammar (the key inventory of the assembled bundle);
+- `run_id`, fence `generation`, principal, routing class and `provider`
+  route, limits;
+- evidence field grammar (the key inventory of the assembled bundle) —
+  the *keys*, including `adapter` and `image_digest`, are neutral even
+  where their *values* are not;
 - the presence or absence of a permitted operation for a logically
   out-of-grant request.
 
-**MAY be provider-native** — difference is expected and must not fail:
+**MAY be provider-native** — difference is expected and must not fail,
+but a *bound* value must still match its own captured profile:
 
-- provider tool names inside `operation.name` (claude `Read` vs copilot
-  `bash`) — the *disposition* is neutral, the *name* is data;
+- the evidence `adapter` field and the recorded `image_digest` / runtime
+  identity, and the profile identity + digest — **bound** (each must
+  equal its own profile's field);
+- provider tool names inside `capability.tools` and `operation.name`
+  (claude `Read` vs copilot `bash`) — the *disposition* is neutral, the
+  *name* is data;
 - native usage units/amounts (ADR-0013 decision 6) — not consumed by the
   platform today in any case;
 - provider event payload data;
@@ -320,6 +374,68 @@ the platform position. It never rewrites, coerces, or "canonicalizes" the
 two values into one. That prohibition is itself a mutation target, since
 a well-meaning normalization is the most likely way this proof would be
 silently destroyed.
+
+## Landing order
+
+The conformance gate cannot pass while the adapters leak provider frame
+names into `transcript_terminal`, and a gate that cannot pass is not a
+gate. So this landing is sequenced behind the adapter fix rather than
+around it:
+
+1. **Predecessor — adapter normalization** (`agents/adapters/**`, plus
+   wherever the vocabulary is stated). Owned by the adapters per ADR-0013
+   decisions 3 and 5. Outside #56's declared scope, so it lands either as
+   its own authorized change or as an explicitly authorized scope
+   extension of this one. The owner decides which; this plan does not
+   assume either.
+2. **This landing** — the execution-port harness, landing **green**.
+
+The alternative — landing the harness red against a known finding — is
+rejected. #56's completion intent is "suite green across both adapters";
+a named divergence is the correct *failure behavior* of the gate, not a
+successful conformance result. If the owner instead wants the
+falsification captured before the fix exists, that is a different piece
+of work with a different name (a falsification-only, explicitly
+non-gating change), and `tasks.md` says so rather than blurring the two.
+
+## The Python ↔ Node handoff contract
+
+The harness spans two runtimes: the landed suite is pytest, the substrate
+and adapters are Node. The boundary is specified here so implementation
+does not invent it.
+
+```text
+pytest (fc_support)                      node driver (tests/framework-conformance/)
+  │                                        │
+  ├─ 1. build prerequisite ────────────────┤  both adapter dists AND runner-control dist
+  │     fail loudly with the build command if absent (never skip)
+  │                                        │
+  ├─ 2. run adapter process ───────────────┤  existing fc_support.run_adapter → AdapterReport JSON
+  │                                        │
+  ├─ 3. write handoff document ────────────▶  {profile, request, report} as one JSON file
+  │                                        │
+  │                                        ├─ 4. compose Ports; new Runner(...).run(request)
+  │                                        │     adapter port = DeterministicAdapterInvocation(report)
+  │                                        │
+  ◀─ 5. read result document ──────────────┤  {events, evidence, conclusion} as one JSON doc on stdout
+  │
+  └─ 6. classify + compare across adapters
+```
+
+| Concern | Contract |
+|---|---|
+| Process boundary | one `node <driver>` subprocess per adapter run; no daemon, no shared state between runs |
+| Input | a single JSON document on **stdin** (the same shape both runs receive, differing only in the provider-bound fields) |
+| Output | a single JSON document on **stdout**, and nothing else on stdout — the same stdout-purity rule the L7 wire contract already enforces |
+| Diagnostics | stderr only; never parsed |
+| Exit protocol | `0` = a result document was produced (including a run that concluded in a failure class — that is data, not a driver error); non-zero = the driver itself faulted before producing one |
+| Failure attribution | a non-zero driver exit is an **operational** failure of the harness, never a conformance finding; the two are reported distinctly |
+| Build prerequisite | the driver refuses (non-zero, with the exact build command) if any required `dist/` is missing — the landed L7 posture: fail, never skip |
+| Determinism | `SteppingClock`, in-memory journal/lease, fixed `run_id`, fixed fixture bytes; no wall-clock, no randomness in the compared surface |
+| Isolation | the adapter subprocess keeps L7's isolated PATH; the driver adds no network access and no credential |
+
+`tasks.md` T1.3 lands this contract with the driver, before any assertion
+depends on it.
 
 ## Failure classification boundaries
 
@@ -353,9 +469,10 @@ substrate's output, never a widening of it.
 - **Neutrality of `claims`, `events`, `usage`, `transcript`** at the
   recording boundary — deferred until a consumer exists (L9/L10). Named
   here so the gap is recorded rather than assumed closed.
-- **The `transcript_terminal` vocabulary decision** — escalated to the
-  owner; a separate authorized change in one of the three ownerships
-  above.
+- **The `transcript_terminal` vocabulary and where it is stated** —
+  escalated to the owner (T0.1). The *normalization* itself is not
+  deferred: it is a required predecessor owned by the adapters
+  (ADR-0013 §3/§5).
 - **Effective cancellation and enforcement** — L9 (#57), behind U4 (#9).
 - **The third (deterministic-loop) adapter** that turns this seed into
   framework conformance — L10 (#58).

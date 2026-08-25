@@ -37,7 +37,9 @@ launches nothing, and changes no accepted contract.
 | XP-INV-04 | The emitted `event_type` sequence is drawn from the closed platform vocabulary and is identical across adapters | compatibility |
 | XP-INV-05 | Call dispositions and the permitted/denied evidence partition agree across adapters for the same logical operation | behavior |
 | XP-INV-06 | Lifecycle classification and terminal outcome agree across adapters, AND equal the outcome the contract requires for the case | behavior |
-| XP-INV-07 | `run_id`, fence generation, profile identity + digest, principal, and image digest are byte-identical across adapters and unreachable from anything an adapter reports | trust |
+| XP-INV-07a | Run-scoped authority — `run_id`, fence generation, principal, routing class and route, limits — is identical across adapters and unreachable from anything an adapter reports | trust |
+| XP-INV-07b | Provider-bound identity — evidence `adapter`, image digest, profile identity + digest — differs between runs and each value equals the corresponding field of the profile actually captured for that run | trust |
+| XP-INV-07c | The two profile fixtures differ ONLY in the provider-bound fields; any other difference is a fixture defect the harness detects | review/governance |
 | XP-INV-08 | No provider-native token occupies a platform-structural position or a platform classification detail | trust (ADR-0003:88-92) |
 | XP-INV-09 | A MUST-agree divergence fails and is NAMED (field, both values, classification, position); no normalization step may precede comparison | trust |
 | XP-INV-10 | Agreement alone never passes a case whose required platform outcome is wrong for both adapters | behavior |
@@ -56,7 +58,8 @@ launches nothing, and changes no accepted contract.
 | The port under test | frozen SPI, `services/runner-control/src/ports/values.ts` (L4) | read as source text by the L7 tether | **no — this change must not edit it** | none | `test_spi_tether` (landed) |
 | Adapter reports compared | the L7 adapters' built `dist/bin.js`, driven against committed stubs | at suite run time | no — produced fresh each run | plan/observe | this suite |
 | Platform events + evidence | the real `Runner` composition | at suite run time | no | `running.ts` → classify/recordCalls → sinks | this suite |
-| The `INDETERMINATE` finding | reproduced offline from built artifacts at `5403a85` | recorded in `design.md` | no | none | owner decision (escalated) |
+| The `INDETERMINATE` finding | reproduced offline from built artifacts at `5403a85` | recorded in `design.md` | no | none | fixed by the adapters (ADR-0013 §3/§5) as a required predecessor; only the vocabulary's home is an owner decision |
+| Provider binding of each run | the captured execution profile (`runtime.adapter`, `runtime.image_digest`) | at profile capture, per run | no — the report cannot move it | `requested.ts:96` derives the adapter from the profile | XP-EX-04b |
 
 ## Producer → Transform → Final Consumer
 
@@ -70,8 +73,9 @@ cannot be influenced by the first.
 | adapter `observation.calls[].tool` | `recordCalls` | `operation.name` | `call.attempted` event data + evidence `operations.*[].operation.name` | name MAY differ (provider-native); its *position* must be a data field, never structure (XP-INV-08) |
 | adapter `observation.calls[].disposition` | `recordCalls` | `call_id` partition | `call.disposition` event + evidence `operations.{permitted,denied}` | MUST agree (XP-INV-05) |
 | adapter identity (platform-supplied) | passthrough | `inputs.adapter` | evidence `adapter` field | opaque value only (`runner-evidence/spec.md:21`) |
-| captured profile | authority capture | `authority.profile` | evidence profile identity, digest, `image_digest`, `provider` route | MUST be byte-identical and adapter-independent (XP-INV-07) |
-| lease claim | `RunMachine` walk | `scope.fence.generation` | evidence/run identity | MUST be adapter-independent (XP-INV-07) |
+| captured profile (`runtime.adapter`, `runtime.image_digest`, identity) | authority capture | `authority.profile`, `authority.adapter` | evidence `adapter`, `image_digest`, profile identity + digest | MAY differ between runs; each MUST bind to its own captured profile (XP-INV-07b) |
+| captured profile (`execution`, `limits`, `principal`) | authority capture | `authority.profile` | evidence route, limits, principal | MUST be identical across adapters (XP-INV-07a) |
+| lease claim | `RunMachine` walk | `scope.fence.generation` | evidence/run identity | MUST be identical and adapter-independent (XP-INV-07a) |
 | `observation.{claims,events,usage,transcript}` | **none today** | — | — | no obligation provable at this boundary; recorded as deferred (L9/L10) rather than asserted |
 
 The proof does **not** stop at `AdapterReport`: every row above is
@@ -121,7 +125,9 @@ Comparison outcome:
 | `operation.name` | MAY-differ | differ | pass | — |
 | usage unit/amount | MAY-differ | differ | pass | — |
 | terminal classification | MUST-agree | equal but contract-wrong | **fail** (XP-INV-10) | change-attributable |
-| profile digest / run_id / generation | MUST-agree | differ | **fail, named** | change-attributable |
+| `run_id` / generation / principal / route / limits | MUST-agree | differ | **fail, named** | change-attributable |
+| evidence `adapter` / image digest / profile digest | provider-bound | differ **and** each binds to its own profile | pass | — |
+| evidence `adapter` / image digest / profile digest | provider-bound | value does not match its captured profile | **fail, named** | change-attributable |
 | any compared field | unclassified | — | **fail** | review defect |
 | adapter build missing | — | — | **fail** with build command | operational |
 | stub or driver faults | — | — | fail, reported as operational | operational |
@@ -141,9 +147,11 @@ Out-of-grant dialect:
   invite someone to normalize the names, destroying XP-INV-08's evidence.
   Resolved by classifying per field, not per event.
 - **"Divergences are named" × "suite green"** (#56's completion intent) —
-  in direct tension while the live finding stands. Resolved by sequencing
-  in `tasks.md`: the harness may land red-and-named, or after an
-  authorized fix; it may never land green by weakening a classification.
+  not in tension once read correctly: naming a divergence is the gate's
+  required *failure behavior*, and "green" is the required *result*.
+  Resolved by sequencing in `tasks.md`: the adapter-normalization
+  predecessor lands first and this gate lands green. It may never land
+  green by weakening a classification, and it may not merge red.
 - **"One suite" × "per-dialect assertions"** — dialect-specific
   expectations must stay inside one parameterized test, not a per-adapter
   copy (XP-INV-13, guarded by the landed `test_the_suite_is_one_suite`).
@@ -159,7 +167,9 @@ Out-of-grant dialect:
 | XP-EX-01 | XP-INV-02, XP-INV-04 | deterministic example | one golden logical run per adapter through the real `Runner`; event-type sequences compared |
 | XP-EX-02 | XP-INV-05 | deterministic example | dispositions + evidence partition compared for the same logical operation |
 | XP-EX-03 | XP-INV-06 | deterministic example | classification and outcome compared *and* checked against the contract-required outcome |
-| XP-EX-04 | XP-INV-07 | deterministic example | authority-derived identities byte-compared across adapters |
+| XP-EX-04a | XP-INV-07a | deterministic example | run-scoped identities byte-compared across adapters |
+| XP-EX-04b | XP-INV-07b | deterministic example | each provider-bound identity compared against its own captured profile |
+| XP-EX-04c | XP-INV-07c | deterministic example | the two profile fixtures differ only in the provider-bound fields |
 | XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in structural positions and classification details |
 | XP-EX-06 | XP-INV-01, XP-INV-11 | structural | harness composes only value-returning ports; no spawn inside any port; PATH isolation reused from L7 |
 | XP-EX-07 | XP-INV-12, XP-INV-14 | mechanical | landed L7 inertness tests still pass; `git diff` over the frozen SPI is empty |
@@ -192,7 +202,9 @@ No obligation claims proof of behavior the harness does not exercise:
 | ID | Case | Required outcome |
 |---|---|---|
 | XP-ADV-01 | Claude reports an operation permitted; Copilot reports the same logically-granted operation not permitted | fail, naming operation + both dispositions + positions |
-| XP-ADV-02 | One adapter's run carries a different `run_id` / fence generation / profile digest | fail, naming the identity field |
+| XP-ADV-02 | One adapter's run carries a different `run_id` / fence generation / principal / route | fail, naming the identity field |
+| XP-ADV-02b | Evidence `adapter` or image digest does not match that run's captured profile | fail, naming the field and both values |
+| XP-ADV-02c | The two profile fixtures differ in a field outside the provider-bound set | fail as a fixture defect |
 | XP-ADV-03 | A provider-specific token is placed into a platform-structural position or the classification detail | fail, naming token and position |
 | XP-ADV-04 | Equivalent terminal observations classified differently between adapters | fail |
 | XP-ADV-05 | One adapter drops a denied/absent operation and the platform records it permitted | fail |
@@ -202,7 +214,9 @@ No obligation claims proof of behavior the harness does not exercise:
 | XP-ADV-09 | A "common normalization" rewrites contradictory provider facts to equal values before comparison | fail (guard) |
 | XP-ADV-10 | Per-adapter copies of a shared assertion appear | fail (one-suite property) |
 | XP-ADV-11 | Both adapters agree on a *wrong* platform outcome (the live `transcript_contradicts_exit` case) | fail — agreement is not sufficiency |
-| XP-ADV-12 | An adapter's `dist/` is absent | fail loudly with the build command; never skip |
+| XP-ADV-12 | An adapter's or runner-control's `dist/` is absent | fail loudly with the build command; never skip |
+| XP-ADV-13 | The node driver writes a diagnostic to stdout alongside the result document | fail — stdout carries exactly one document |
+| XP-ADV-14 | The driver exits non-zero after faulting | reported as an operational harness failure, never as a conformance finding |
 
 ## Mutation Targets
 
@@ -234,15 +248,23 @@ No obligation claims proof of behavior the harness does not exercise:
 
 ## Landing Plan
 
-One PR, ordered so the proof cannot be tuned into agreement:
+**A required predecessor, then one PR.**
 
-1. **T0 — escalation** (no code): the `transcript_terminal` finding and
-   the scope request are put to the owner. Both block T2+.
-2. **T1** — harness skeleton and the node driver; no assertions yet.
-3. **T2** — the two runs execute end to end (requires the scope
-   decision).
-4. **T3–T5** — classification, comparison, and the scans, each landing
-   with its own adversarial cases.
+The adapter normalization fix (ADR-0013 §3/§5) must land **before** this
+gate, because the gate cannot pass while it is outstanding. It is not
+part of this change's declared scope; it lands either as its own
+authorized change or as an explicitly authorized extension of this one.
+This plan does not assume either, and does not implement it.
+
+Then, one PR, ordered so the proof cannot be tuned into agreement:
+
+1. **T0 — decisions** (no code): the vocabulary decision, the scope
+   request, and the predecessor authorization. All block T1+.
+2. **T1** — harness skeleton, the node driver, and the Python↔Node
+   handoff contract; no assertions yet.
+3. **T2** — the two runs execute end to end.
+4. **T3–T5** — classification, comparison, binding, and the scans, each
+   landing with its own adversarial cases.
 5. **T6** — structural guards (one-suite, no-bypass, no-normalization)
    and the mutation round.
 6. **T7** — docs/README reconciliation and the full ladder.
@@ -275,17 +297,24 @@ not a runtime.
 phase, and no measurement gate. Rollback is reverting the PR; nothing
 downstream depends on it.
 
-The one non-trivial rollout question is **what "green" means at merge**,
-which the T0 decision settles: either the suite lands red-and-named
-against a known, escalated finding, or it lands after the authorized fix.
-It may not land green by weakening a classification.
+The one non-trivial rollout question — whether a conformance gate may
+merge red against a known finding — is answered **no**. #56 requires
+"suite green across both adapters"; a named divergence is the gate's
+correct failure behavior, not a successful conformance result. The
+adapter fix therefore lands first, and this suite lands green. It may
+never land green by weakening a classification, and if the owner wants
+the falsification captured before the fix exists, that is a separate,
+explicitly non-gating piece of work.
 
 ## Assurance Completeness
 
 **Unresolved state-model questions**
 
-- The `transcript_terminal` vocabulary (three candidate ownerships) —
-  escalated, blocking the green/red disposition of the landing.
+- The `transcript_terminal` **vocabulary** — which value means "the
+  transcript terminated successfully", and where that vocabulary is
+  stated (SPI doc comment, a contracts primitive, or a spec requirement)
+  so three layers share one definition. *Ownership* of normalization is
+  NOT open: ADR-0013 §3/§5 assign it to the adapter.
 - Whether the platform intends `provider_event_name` to be populated at
   all, given `observation.events` currently has no consumer.
 
@@ -304,9 +333,9 @@ It may not land green by weakening a classification.
 
 1. The two-symbol re-export is the accepted way to compose the real
    `Runner` from `tests/` (vs. re-implementing two ports in the test).
-2. A landing whose suite legitimately fails on a named, escalated finding
-   satisfies #56's "divergences are named findings" intent, even though
-   its "suite green" phrasing reads otherwise.
+2. The adapter normalization fix is authorized as a predecessor (its own
+   change, or an explicit scope extension of this one) so this gate can
+   land green — rather than this suite merging red.
 3. Reaching runner-control's *public* surface from `tests/` is the
    intended direction for a cross-cutting platform proof — consistent
    with `tests/README.md` ("tests that span more than one component") and

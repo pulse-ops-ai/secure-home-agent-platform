@@ -70,27 +70,35 @@ This change therefore has a real, non-duplicative subject.
    undeclared deep import, a local re-implementation, or a two-symbol
    re-export.
 
-3. **A discovered contract gap has no owner.** `transcript_terminal` is
-   typed `string` in the frozen SPI with **no documented vocabulary
-   anywhere** in `docs/` or `openspec/`; runner-core assigns it meaning
-   (at `exit_code === 0`, any value other than the literal `'success'`
-   is a conflict); both L7 adapters populate it with a provider *frame
-   name*. Three layers, no shared contract. Choosing the fix is not
-   within this change's authority (see Non-goals).
+3. **The adapters leak provider vocabulary upward, against an accepted
+   ADR.** ADR-0013 decision 3 (lines 92–95) says the adapter normalizes
+   exit, self-reported outcome, and transcript-terminal observations;
+   decision 5 (line 122) says provider shapes "never leak upward". Both
+   L7 adapters instead populate `transcript_terminal` with a provider
+   *frame name* (`observe.ts:163`, `observe.ts:195`). Ownership of the
+   fix is therefore settled — it belongs to the adapters. What is *not*
+   settled is the **vocabulary**: `transcript_terminal` is typed `string`
+   in the frozen SPI with no documented meaning anywhere in `docs/` or
+   `openspec/`, while runner-core makes the literal `'success'`
+   load-bearing at `terminal.ts:86`.
 
-4. **#56's completion intent is unreachable as literally written.**
-   "Suite green across both adapters" cannot hold at `5403a85` while
-   finding 3 stands: an honest execution-port proof fails today. #56 also
-   says divergences must be "named findings, never averaged away" —
-   which is the instruction this change follows.
+4. **The gate cannot pass until that fix lands.** #56 requires "suite
+   green across both adapters", and a conformance gate that cannot pass
+   is not a gate. The adapter normalization is therefore sequenced as a
+   **required predecessor** of this landing — not as an open question,
+   and not as a reason to merge a red suite. #56's other clause,
+   "divergences are named findings, never averaged away", describes the
+   gate's correct *failure behavior*, which this change builds and
+   guards.
 
 ## Proposed Capability
 
 A **seed** proof at the execution-port boundary, added to the
 `platform-adapters` capability:
 
-- A conformance harness that carries each adapter's **real**
-  `AdapterReport` through the **real** runner-control interpretation path
+- A conformance harness, landing **after** the adapter-normalization
+  predecessor, that carries each adapter's **real** `AdapterReport`
+  through the **real** runner-control interpretation path
   (`Runner` → `running` phase → `classifyTerminalObservations` +
   `recordCalls` → event sink + evidence assembly), and compares the
   platform-observable results across adapters.
@@ -101,9 +109,14 @@ A **seed** proof at the execution-port boundary, added to the
   differ (provider-native tool names, native usage units, provider event
   data, reactive-denial vs preventive-absence dialects).
 - Divergence handling that **names** contradictions instead of
-  normalizing them, including the already-discovered
-  `transcript_contradicts_exit` finding, whose resolution is recorded as
-  a blocking question for the owner rather than silently patched.
+  normalizing them, with the discovered `transcript_contradicts_exit`
+  case kept as a committed regression case so the predecessor cannot
+  silently regress.
+- An explicit **one logical run, two provider bindings** comparison
+  model: because `runtime.adapter` and `runtime.image_digest` are profile
+  fields and the runner derives the adapter from the captured profile,
+  two adapters mean two profiles — so provider-bound identities are
+  proven by *binding to their own profile*, not by cross-run equality.
 
 ## Scope
 
@@ -128,9 +141,10 @@ A **seed** proof at the execution-port boundary, added to the
 - **Any change to `AdapterInvocationPort` or the frozen SPI.** A
   contract defect was found; this change reports it and does not
   redesign the seam. #56 grants no such authority.
-- **Fixing the `transcript_terminal` gap.** Three candidate resolutions
-  exist across three layers (adapters, runner-core, the frozen SPI);
-  choosing one is a separate authorized change.
+- **Implementing the `transcript_terminal` normalization.** It belongs to
+  `agents/adapters/**` (ADR-0013 §3/§5), which is outside this change's
+  declared scope; it lands as its own authorized change or as an
+  explicitly authorized extension, before this gate.
 - **Contacting a real provider**, adding a credential, or running
   anything non-deterministic or online.
 - **U4/#9**, runner-control placement, ADR status changes.

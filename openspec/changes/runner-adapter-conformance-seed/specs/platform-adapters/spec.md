@@ -8,11 +8,21 @@ The conformance suite SHALL exercise each coding adapter as the
 implementation behind the runner's `AdapterInvocationPort` seam, driving
 the platform's own interpretation path, and SHALL compare what the
 platform observably produces — run events and evidence — rather than the
-adapter report alone. The comparison SHALL be driven by one logical
-invocation whose platform-built inputs (profile identity, capability
-grant, routing, limits, credential references, workspace references, run
-and fence identity) are identical across adapters; only the
-provider-native dialect of the stub provider may differ.
+adapter report alone.
+
+The comparison SHALL use the **one logical run, two provider bindings**
+model. Because `runtime.adapter` and `runtime.image_digest` are fields of
+the execution profile, and the runner derives the invoked adapter from
+the captured profile, two adapters necessarily mean two profile
+documents. The suite SHALL therefore hold identical everything the
+logical run does not bind to a provider — run identity, requester and
+principal, input, gates, workspace root, pinned base, artifact paths,
+fence generation, routing class and route, limits, and the *shape* of the
+capability grant (mounts, network policy, credential references, and the
+number and semantics of granted tools) — and SHALL classify the
+provider-bound values (`runtime.adapter`, `runtime.image_digest`, the
+profile identity and digest, and the provider-native tool identities
+inside `capability.tools`) as designated opaque values that may differ.
 
 #### Scenario: The same logical run yields the same platform-observable contract
 
@@ -43,15 +53,25 @@ provider-native dialect of the stub provider may differ.
 
 The suite SHALL carry an explicit, mechanically-applied classification of
 every compared fact as either adapter-neutral (MUST agree) or
-provider-native (MAY differ). Adapter-neutral SHALL include at minimum:
-the platform event-type vocabulary and its ordering, call disposition
+provider-native (MAY differ).
+
+Adapter-neutral SHALL include at minimum: the platform event-type
+vocabulary and its ordering, event shape per type, call disposition
 semantics, lifecycle classification and terminal outcome, run identity,
-fence generation, captured profile identity and digest, the evidence
-field grammar, and the grant-to-evidence binding. Provider-native SHALL
-include at minimum: provider tool names, native usage units and amounts,
-provider event payload data, and the observable dialect by which an
-out-of-grant operation fails to be permitted. A fact SHALL NOT be
-compared under a classification it was not assigned.
+fence generation, principal, routing class and route, limits, the
+evidence field grammar (the key inventory of the assembled bundle), and
+the grant-to-evidence binding.
+
+Provider-native SHALL include at minimum: the evidence `adapter` field,
+the evidence `image_digest`/runtime identity, the profile identity and
+digest, provider tool names wherever they appear (`capability.tools`,
+`operation.name`), native usage units and amounts, provider event payload
+data, and the observable dialect by which an out-of-grant operation fails
+to be permitted.
+
+A fact SHALL NOT be compared under a classification it was not assigned,
+and a provider-native value SHALL NOT be exempt from its binding
+obligation merely because it is allowed to differ.
 
 #### Scenario: Provider-native difference alone does not fail the proof
 
@@ -107,25 +127,36 @@ opaque data.
 - **WHEN** the suite scans the platform's emitted events and evidence
 - **THEN** it fails naming the token and the position
 
-### Requirement: Run, fence, and profile authority remain adapter-independent
+### Requirement: Authority is adapter-independent, and provider identity is bound to the captured profile
 
-The run identity, the fence generation, the captured profile identity and
-digest, the principal, and the image digest recorded in evidence SHALL be
-derived from captured authority and SHALL be byte-identical across
-adapters for the same logical run. An adapter SHALL NOT be able to
-influence them through anything it reports.
+Every identity the platform records SHALL derive from captured authority,
+never from anything an adapter reports. Identities the logical run does
+not bind to a provider — run identity, fence generation, principal,
+routing class and route, and limits — SHALL be identical across adapters.
+Identities the run does bind to a provider — the evidence `adapter`
+field, the image digest, and the profile identity and digest — MAY differ
+and SHALL each equal the corresponding field of the profile actually
+captured for that run.
 
-#### Scenario: Authority-derived evidence is identical across adapters
+#### Scenario: Run-scoped authority is identical across adapters
 
 - **GIVEN** the same logical run through both adapters
 - **WHEN** the assembled evidence is compared
-- **THEN** run identity, fence generation, profile identity and digest,
-  principal, and image digest agree exactly
+- **THEN** run identity, fence generation, principal, routing class and
+  route, and limits agree exactly
+
+#### Scenario: Provider-bound identity matches its own captured profile
+
+- **GIVEN** each run's captured execution profile
+- **WHEN** the assembled evidence is compared against it
+- **THEN** the evidence `adapter` equals that profile's `runtime.adapter`
+  and the recorded image digest equals its `runtime.image_digest` — the
+  values differ between runs and each is correctly bound
 
 #### Scenario: An adapter cannot rebind authority through its report
 
-- **GIVEN** a report carrying values that resemble run, fence, or profile
-  identity
+- **GIVEN** a report carrying values that resemble run, fence, profile,
+  or adapter identity
 - **WHEN** the platform assembles evidence
 - **THEN** the recorded identities remain those of the captured
   authority, unchanged by the report

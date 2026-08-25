@@ -59,10 +59,12 @@ must be resolved by the owner before any task starts:
    symbols re-exported from `services/runner-control/src/index.ts` or two
    in-test port re-implementations. The first exceeds #56's declared
    scope of `tests/framework-conformance/**`.
-3. **A contract finding is escalated** (T0.1): the composition is
-   currently falsified, and the fix belongs to one of three ownerships,
-   none of them this change's. Its resolution determines whether this
-   suite can land green at all.
+3. **A required predecessor is unauthorized** (T0.1): the composition is
+   currently falsified because the adapters leak provider frame names
+   into `transcript_terminal`. ADR-0013 §3/§5 assign normalization to the
+   adapters, so the fix lands in `agents/adapters/**` — outside this
+   change's declared scope — and must land BEFORE this gate, which
+   cannot pass until it does.
 
 Assurance completeness is necessary but not sufficient; none of the
 above is created by these artifacts.
@@ -76,16 +78,28 @@ verification net ships with each component (see `assurance.md`).
 
 ## T0 — Decisions that block implementation (no code)
 
-- [ ] **T0.1** Escalate the `transcript_terminal` finding and obtain a
-      disposition.
-      *Proves:* assurance "unresolved state-model questions".
-      *Evidence:* `design.md` "Finding"; reproduced offline at `5403a85`.
-      *Decision required:* which ownership fixes it — adapters
-      (`agents/adapters/**`), runner-core
-      (`packages/runner-core/src/outcome/terminal.ts:86`), or the frozen
-      SPI (`services/runner-control/src/ports/values.ts`) — and whether
-      this suite lands red-and-named or after the fix.
-      *Constraint:* this change must not implement any of the three.
+- [ ] **T0.1** Authorize the required predecessor: adapter normalization
+      of `transcript_terminal`.
+      *Ownership is already assigned, not open.* ADR-0013 decision 3
+      (lines 92–95): "The provider's exit code, its self-reported
+      outcome, and its transcript's terminal event are all
+      **observations**. The adapter normalizes them; the lifecycle
+      decides." Decision 5 (line 122): provider shapes "never leak
+      upward". The leaks are at
+      `agents/adapters/coding/claude-code/src/observe.ts:163` and
+      `agents/adapters/coding/copilot-cli/src/observe.ts:195`.
+      *Decisions actually required:*
+      (a) the **vocabulary** — which value means "the transcript
+      terminated successfully", and where it is stated (SPI doc comment,
+      a contracts primitive, or a spec requirement) so runner-core's
+      literal `'success'` at
+      `packages/runner-core/src/outcome/terminal.ts:86` stops being an
+      undocumented coupling;
+      (b) **where the fix lands** — its own authorized change, or an
+      explicitly authorized scope extension of this one.
+      *Constraint:* this change does not implement it under either
+      answer without that authorization.
+      *Blocks:* T1 onward — the gate cannot pass until the fix exists.
 - [ ] **T0.2** Obtain the scope decision.
       *Options:* (a) re-export `InMemoryExecutionSession` and
       `InMemoryWorkspaceLifecycle` from
@@ -94,10 +108,15 @@ verification net ships with each component (see `assurance.md`).
       inside `tests/framework-conformance/` — in scope, duplicates
       substrate behavior in a test.
       *Recommendation:* (a), per `design.md` "Scope assessment".
-- [ ] **T0.3** Confirm the completion-intent reading: a suite that fails
-      on a named, escalated divergence satisfies "divergences are named
-      findings, never averaged away", even though #56 also says "suite
-      green".
+- [ ] **T0.3** Confirm the completion definition: this gate lands
+      **green**, after the T0.1 predecessor.
+      *Rationale:* #56 requires "suite green across both adapters". A
+      named divergence is the gate's correct FAILURE behavior, not a
+      successful conformance result, so a red merge is not an acceptable
+      reading of the completion intent.
+      *Alternative, if the owner wants the falsification captured before
+      the fix exists:* that is a different, explicitly **non-gating**
+      falsification-only change with its own name — not this one.
       *Blocks:* the definition of done for T7.
 
 ## T1 — Harness skeleton (no assertions)
@@ -117,17 +136,41 @@ verification net ships with each component (see `assurance.md`).
       *Proves:* XP-INV-01, XP-INV-11 (nothing spawns inside a port).
       *Verification:* structural — no `spawn` inside any port
       implementation the harness constructs.
+- [ ] **T1.3** Implement the Python ↔ Node handoff contract exactly as
+      `design.md` specifies it, before any assertion depends on it:
+      one `node <driver>` subprocess per run; one JSON document on
+      stdin (`{profile, request, report}`); exactly one JSON document on
+      stdout (`{events, evidence, conclusion}`) and nothing else there;
+      diagnostics on stderr only; exit `0` iff a result document was
+      produced (a failure-class conclusion is data, not a driver error);
+      non-zero = harness **operational** failure, never a conformance
+      finding; missing `dist/` for either adapter or runner-control fails
+      loudly with the exact build command and never skips.
+      *Implements:* spec "offline, launches nothing"; the determinism and
+      isolation rows of the handoff table.
+      *Cases:* XP-ADV-12 (absent dist), XP-ADV-13 (stdout purity),
+      XP-ADV-14 (driver fault attributed as operational).
 
 ## T2 — Both runs execute end to end
 
-- [ ] **T2.1** Drive the same logical run through both adapters, holding
-      the platform-built request identical by construction.
+- [ ] **T2.1** Author the two profile fixtures under the **one logical
+      run, two provider bindings** model: identical in everything except
+      `runtime.adapter`, `runtime.image_digest`, profile identity/digest,
+      and the provider-native tool identities in `capability.tools`.
+      *Implements:* spec "same logical run … two provider bindings".
+      *Proves:* XP-INV-07c. *Evidence:* XP-EX-04c.
+      *Verification:* a fixture-diff assertion — any difference outside
+      the provider-bound set fails as a fixture defect (XP-ADV-02c).
+- [ ] **T2.2** Drive the logical run through both adapters, holding the
+      run-scoped inputs identical by construction.
       *Blocked by:* T0.2.
-      *Proves:* the same-run comparison model in `design.md`.
-      *Verification:* two documents produced from one request fixture.
-- [ ] **T2.2** Record, as committed evidence, the platform outcome each
-      adapter currently produces — including the live
-      `transcript_contradicts_exit` result if T0.1 has not landed a fix.
+      *Proves:* the comparison model in `design.md`.
+      *Verification:* two result documents produced from one run fixture
+      plus the two profiles.
+- [ ] **T2.3** Record, as committed evidence, the platform outcome each
+      adapter produces, and keep the pre-fix
+      `transcript_contradicts_exit` observation as a regression case so
+      the predecessor cannot silently regress.
       *Proves:* XP-ADV-11 is a real case, not a hypothetical.
 
 ## T3 — Neutral comparison: events
@@ -160,10 +203,15 @@ verification net ships with each component (see `assurance.md`).
 
 ## T5 — Authority binding and structural-position scans
 
-- [ ] **T5.1** Byte-compare the authority-derived identities (`run_id`,
-      fence generation, profile identity + digest, principal,
-      `image_digest`, provider route) across adapters.
-      *Proves:* XP-INV-07. *Evidence:* XP-EX-04. *Kills:* XP-MUT-08.
+- [ ] **T5.1** Byte-compare the run-scoped identities (`run_id`, fence
+      generation, principal, routing class and route, limits) across
+      adapters.
+      *Proves:* XP-INV-07a. *Evidence:* XP-EX-04a. *Kills:* XP-MUT-08.
+- [ ] **T5.1b** Assert each provider-bound identity (evidence `adapter`,
+      image digest, profile identity + digest) equals the corresponding
+      field of the profile actually captured for that run — differing
+      between runs, correctly bound within each.
+      *Proves:* XP-INV-07b. *Evidence:* XP-EX-04b. *Case:* XP-ADV-02b.
 - [ ] **T5.2** Assert authority independence under report mutation.
       *Evidence:* property "authority independence". *Case:* XP-ADV-02.
 - [ ] **T5.3** Scan emitted events and assembled evidence for provider
@@ -228,8 +276,9 @@ construction.
 - Neutrality of `claims`, `events`, `usage`, `transcript` at the
   recording boundary — **no consumer exists today**; due when one does
   (L9 / #57, L10 / #58).
-- `transcript_terminal` vocabulary — escalated at T0.1; separate
-  authorized change.
+- `transcript_terminal` **vocabulary and its home** — decided at T0.1.
+  The normalization itself is a required predecessor owned by the
+  adapters (ADR-0013 §3/§5), not deferred work.
 - Effective cancellation, isolation, and enforcement — L9 (#57), behind
   U4 (#9).
 - The deterministic-loop adapter that converts this seed into framework
