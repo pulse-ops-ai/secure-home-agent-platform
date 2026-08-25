@@ -840,6 +840,18 @@ export function checkImages(root = DEFAULT_ROOT) {
           )
         }
       }
+      // The VERSION must flow into an executed instruction for the same
+      // reason as the package: a literal version beside a decorative ARG
+      // would let the declared pin and the installed bytes drift apart
+      // (found live by mutation PA-MUT-10 at L7 — the package-only rule
+      // passed a definition whose every ${RUNTIME_VERSION} use had been
+      // replaced by a literal).
+      if (!lines.some((l) => /^RUN\s/i.test(l.trim()) && /\$\{?RUNTIME_VERSION\}?\b/.test(l))) {
+        fail(
+          'runtime-pin',
+          `"${name}": no RUN instruction consumes \${RUNTIME_VERSION}; the registered version must flow into the executed install, not sit beside it as a literal`,
+        )
+      }
     }
     if (!text.includes(`io.secure-home.lineage="${lineage}"`)) {
       fail('lineage-label', `"${name}": definition must carry io.secure-home.lineage="${lineage}"`)

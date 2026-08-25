@@ -1,0 +1,38 @@
+{
+  "name": "@secure-home/adapter-copilot-cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GitHub Copilot CLI adapter: pure translation between the frozen adapter SPI and the pinned @github/copilot CLI, every mapping traced to the L6 spike evidence. Translates and reports; never decides.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./bin": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
+  "scripts": {
+    "lint": "pnpm run deps && eslint src",
+    "typecheck": "pnpm run deps && tsc --noEmit",
+    "test": "pnpm run deps && vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json",
+    "deps": "pnpm --filter @secure-home/contracts run build"
+  },
+  "devDependencies": {
+    "@secure-home/contracts": "workspace:*",
+    "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/testing": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

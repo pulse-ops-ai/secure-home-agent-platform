@@ -217,6 +217,16 @@ jobs:
       - name: Build the knowledge toolchain
         run: pnpm --filter @secure-home/knowledge-toolchain run build
 
+      # The framework-conformance suite drives the adapters' BUILT process
+      # entries as subprocesses, and fails — deliberately, not skips — when
+      # dist/ is absent, for the same reason as above: a gate verified
+      # conditionally is not verified. The `...` filter suffix builds the
+      # adapters' workspace dependencies (contracts) first — a targeted
+      # `run build` does not, and the adapters' own build scripts are bare
+      # `tsc` by repository convention.
+      - name: Build the platform adapters
+        run: pnpm --filter @secure-home/adapter-claude-code... --filter @secure-home/adapter-copilot-cli... run build
+
       # The WHOLE suite, not a hand-listed subset. These tests guard the
       # unconditional gates — target selection, the workspace layer map, the
       # secret scanner, source import direction — so running a curated list

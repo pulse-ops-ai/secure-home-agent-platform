@@ -186,7 +186,14 @@ CANONICAL_DEPLOYABLES = (
 def _pnpm_members() -> list[Path]:
     """Workspace members, discovered the way pnpm-workspace.yaml does."""
     members: list[Path] = []
-    for glob in ("services", "services/workers", "apps", "packages", "agents"):
+    for glob in (
+        "services",
+        "services/workers",
+        "apps",
+        "packages",
+        "agents",
+        "agents/adapters/coding",
+    ):
         root = REPO_ROOT / glob
         if not root.is_dir():
             continue

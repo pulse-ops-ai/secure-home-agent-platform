@@ -14,13 +14,13 @@ boundary, and what identities a durable effect carries — are described in
 [`distributed-effect-lifecycle.md`](distributed-effect-lifecycle.md). This page
 is the whole execution model; those two zoom in.
 
-> **Status: contracts, core, and orchestration are landed; nothing executes
-> yet.**
+> **Status: contracts, core, orchestration, images, and adapters are landed;
+> nothing executes yet.**
 >
 > | | |
 > |---|---|
-> | **Landed** | **L2** runner domain contracts — execution profiles, runs and events, verification, evidence — authored as Zod in [`packages/contracts`](../../packages/contracts/) and [`packages/events`](../../packages/events/), generated under [`schemas/`](../../schemas/) and guarded by an append-only identity ledger. **L3** the trusted runner core, [`packages/runner-core`](../../packages/runner-core/). **L4** orchestration, [`services/runner-control`](../../services/runner-control/) — the typed run lifecycle, authority acquisition, gate scheduling, finalization, and the port boundary. **L5** image lineage, [`deploy/images/`](../../deploy/images/) — the digest-locked base, Claude reference, and gates-toolchain definitions, **inert**: no profile references them and nothing launches them (#53) |
-> | **Not yet real** | provider execution adapters, where not yet landed; a real launcher or container execution substrate; a deployed `runner-control` process; **L9** physical enforcement of isolation; durable persistence, still open under [U11](unresolved-decisions.md#u11) |
+> | **Landed** | **L2** runner domain contracts — execution profiles, runs and events, verification, evidence — authored as Zod in [`packages/contracts`](../../packages/contracts/) and [`packages/events`](../../packages/events/), generated under [`schemas/`](../../schemas/) and guarded by an append-only identity ledger. **L3** the trusted runner core, [`packages/runner-core`](../../packages/runner-core/). **L4** orchestration, [`services/runner-control`](../../services/runner-control/) — the typed run lifecycle, authority acquisition, gate scheduling, finalization, and the port boundary. **L5** image lineage, [`deploy/images/`](../../deploy/images/) — the digest-locked base, Claude reference, Copilot, and gates-toolchain definitions, **inert**: no profile references them and nothing launches them (#53, #55). **L7** coding adapters, [`agents/adapters/coding/`](../../agents/adapters/coding/) — Claude Code and GitHub Copilot CLI translation to the frozen adapter SPI, proven by the shared [`tests/framework-conformance/`](../../tests/framework-conformance/) suite against stub CLIs, **unlaunchable**: no platform code path invokes an adapter (#55) |
+> | **Not yet real** | a real launcher or container execution substrate; a deployed `runner-control` process; **L9** physical enforcement of isolation; durable persistence, still open under [U11](unresolved-decisions.md#u11) |
 >
 > Orchestration semantics are implemented **behind ports**, against
 > deterministic reference mechanisms. What is absent is the substrate that would

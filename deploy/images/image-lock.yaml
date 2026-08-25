@@ -56,6 +56,25 @@ images:
         digest: sha256:4e38c0ceb905640707cd31e38a89a2cdecbf7bc46b4ed3828d02946b83f2dbc0
       - platform: linux/arm64
         digest: sha256:cf551034b09c77750cf9ce01915be21a4485f366b8dae86a130916b71d851495
+  - name: secure-home-runner-copilot
+    lineage: runner-derived
+    definition: deploy/images/runner-copilot/Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    parent: secure-home-runner-base
+    parent_digest: sha256:2e6ad988844f91f6a527933fb6b667ba06a9251c7652cc957236983fd4c158d5
+    runtime:
+      name: copilot
+      package: "@github/copilot"
+      version: 1.0.79
+      integrity: sha512-uHBm2BYbKJgyfiKp1WokX7QUNHGvzEX0zaGeb3qM3CybP06rsJrX3JgQe95qwwma6vQz0ah9gV68ERW2JqaKRA==
+    digest: sha256:ec0de5ce4603015b77f1f8c78f5f790836735b3d5ec2831373f2b1ee1d5cbf5c
+    manifests:
+      - platform: linux/amd64
+        digest: sha256:c9daca6ce10b295e23318bad11ee4f52d30b0e8fa23a4b31b1f62170f95ef723
+      - platform: linux/arm64
+        digest: sha256:dd82074a476844b24c5706ba3c01beae97c3345e5f6efac320cfb3f00949eaa1
   - name: secure-home-gates-toolchain
     lineage: gates-toolchain
     definition: deploy/images/gates-toolchain/Dockerfile

@@ -9,8 +9,12 @@ the adapters that let it run on different runtimes.
 > matters: conflating them is how a coding-agent convenience becomes a household
 > security hole.
 
-> **Status: no implementation and no adapter.** Every directory here is a
-> documented placeholder.
+> **Status: the two coding adapters are implemented and unlaunchable**
+> (L7, #55): [`adapters/coding/claude-code/`](adapters/coding/claude-code/)
+> and [`adapters/coding/copilot-cli/`](adapters/coding/copilot-cli/), proven
+> by [`tests/framework-conformance/`](../tests/framework-conformance/); no
+> platform code path invokes them (the launcher is L9). Every other
+> directory here is a documented placeholder.
 
 ## Layout
 

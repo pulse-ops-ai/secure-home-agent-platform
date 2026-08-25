@@ -23,10 +23,14 @@ action (lock, garage, alarm, valve, HVAC), say so in the first line.
 At the time of writing this repository contains documentation, governance,
 workspace scaffolding, **and landed but inert platform code**: the runner
 domain contracts, the trusted runner core, L4 `runner-control` orchestration
-(behind ports — no container launch), the knowledge toolchain, and the L5
-runner image definitions ([`deploy/images/`](deploy/images/) — digest-locked
+(behind ports — no container launch), the knowledge toolchain, the runner
+image definitions ([`deploy/images/`](deploy/images/) — digest-locked
 Dockerfiles and their lineage lock, built and verified only in CI, published
-nowhere, referenced by no profile, launched by nothing).
+nowhere, referenced by no profile, launched by nothing), and the L7 coding
+adapters ([`agents/adapters/coding/`](agents/adapters/coding/) — pure
+translation to the frozen adapter SPI, zero runtime dependencies, exercised
+only by the conformance suite against stub CLIs, invoked by no platform
+code path).
 
 There is still **no deployed service, no published or activated runner
 image, no Home Assistant integration, and no credential material**.

@@ -277,7 +277,7 @@ grep -q '^packages:'         pnpm-workspace.yaml && pass 'pnpm-workspace.yaml de
   || fail 'pnpm-workspace.yaml has no packages: list'
 
 ts_member_problems=""
-for manifest in services/*/package.json services/workers/*/package.json apps/*/package.json packages/*/package.json; do
+for manifest in services/*/package.json services/workers/*/package.json apps/*/package.json packages/*/package.json agents/*/package.json agents/adapters/coding/*/package.json; do
   [ -f "$manifest" ] || continue
   grep -q '"private": true' "$manifest" || ts_member_problems="$ts_member_problems $manifest:not-private"
   grep -q '"name"'          "$manifest" || ts_member_problems="$ts_member_problems $manifest:no-name"

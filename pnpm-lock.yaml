@@ -72,6 +72,60 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  agents/adapters/coding/claude-code:
+    devDependencies:
+      '@secure-home/contracts':
+        specifier: workspace:*
+        version: link:../../../../packages/contracts
+      '@secure-home/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../packages/eslint-config
+      '@secure-home/testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
+      '@secure-home/tsconfig':
+        specifier: workspace:*
+        version: link:../../../../packages/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
+      eslint:
+        specifier: 'catalog:'
+        version: 10.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
+
+  agents/adapters/coding/copilot-cli:
+    devDependencies:
+      '@secure-home/contracts':
+        specifier: workspace:*
+        version: link:../../../../packages/contracts
+      '@secure-home/eslint-config':
+        specifier: workspace:*
+        version: link:../../../../packages/eslint-config
+      '@secure-home/testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
+      '@secure-home/tsconfig':
+        specifier: workspace:*
+        version: link:../../../../packages/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.10.1
+      eslint:
+        specifier: 'catalog:'
+        version: 10.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
+
   apps/web:
     devDependencies:
       '@secure-home/eslint-config':

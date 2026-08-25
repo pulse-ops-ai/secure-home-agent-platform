@@ -82,6 +82,16 @@ export const LAYERS = {
   'packages/logging': 4,
   'packages/observability': 4,
 
+  // 3 — coding-class provider adapters (L7 / #55): pure translation between
+  // the frozen adapter SPI and one pinned provider CLI. Placed at 3 for the
+  // same reason as runner-core (its design D1): the framework-dependency
+  // guard in check-workspace.mjs applies to ownLayer <= CONTRACT_LAYER_MAX,
+  // so this placement buys mechanical framework-neutrality enforcement for
+  // the adapter tier. Adapters declare ZERO runtime dependencies; their only
+  // internal edge is type-only, on `contracts` (layer 1, inward).
+  'agents/adapters/coding/claude-code': 3,
+  'agents/adapters/coding/copilot-cli': 3,
+
   // 5 — composes infrastructure into a worker runtime.
   'packages/worker-base': 5,
 
@@ -122,7 +132,14 @@ export const DEP_FIELDS = [
 ]
 
 /** The pnpm-workspace.yaml globs, expanded. Members are one level deep. */
-export const MEMBER_GLOBS = ['services', 'services/workers', 'apps', 'packages', 'agents']
+export const MEMBER_GLOBS = [
+  'services',
+  'services/workers',
+  'apps',
+  'packages',
+  'agents',
+  'agents/adapters/coding',
+]
 
 /** The taxonomy root a member path sits under. */
 export function topOf(rel) {

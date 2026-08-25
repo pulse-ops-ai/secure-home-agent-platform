@@ -3,8 +3,12 @@
 **Runtime adapters** — thin, replaceable shims between the neutral runner
 substrate and a concrete runtime.
 
-> **Status: no adapter is implemented.** Every directory here is a documented
-> placeholder.
+> **Status: the two coding adapters are implemented and unlaunchable.**
+> `coding/claude-code/` and `coding/copilot-cli/` are workspace packages
+> (L7, #55) conforming to the frozen adapter SPI, proven by the shared
+> [`tests/framework-conformance/`](../../tests/framework-conformance/)
+> suite against stub CLIs. Nothing in the platform invokes them — the
+> launcher is L9 (#57). Every other directory is a documented placeholder.
 
 ## What an adapter is
 
@@ -88,5 +92,11 @@ a **pinned provider version** and never leak upward.
 
 ## Validation
 
-Future: [`../../tests/framework-conformance/`](../../tests/framework-conformance/)
-asserts every adapter emits an identical contract for the same logical run.
+[`../../tests/framework-conformance/`](../../tests/framework-conformance/)
+asserts every adapter emits an identical contract for the same logical run —
+active since L7 (#55):
+
+```sh
+corepack pnpm --filter @secure-home/adapter-claude-code... --filter @secure-home/adapter-copilot-cli... run build
+uv run pytest tests/framework-conformance
+```
