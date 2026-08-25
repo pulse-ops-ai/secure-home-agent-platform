@@ -329,8 +329,9 @@ Suite counts after this round: conformance 85, adapter units 70 + 75.
   `checks` run 32712505707 ✓, `images` run 32712505876 ✓ (the fifth
   consecutive image build reproducing the recorded digests). A final
   docs-only commit (this record) follows; CI re-runs on it as always
-- [ ] both workflows green at the review-round-3 head (recorded here when
-  the runs complete)
+- [x] both workflows green at the review-round-3 head `8718259`:
+  `checks` run 32794446009 ✓, `images` run 32794446019 ✓ (the sixth
+  consecutive image build reproducing the recorded digests)
 - [x] `git diff 59a8ea04..HEAD -- services/runner-control/` — 0 lines
 - [x] `git diff 59a8ea04..HEAD -- packages/contracts/ schemas/` — 0 lines
 - [ ] owner review verdict on the draft PR
