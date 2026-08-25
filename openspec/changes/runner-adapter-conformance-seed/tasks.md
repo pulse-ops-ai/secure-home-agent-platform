@@ -50,7 +50,7 @@ under a "current 2026-08-18" date stamp that predates both merges.
 
 **NOT_AUTHORIZED.**
 
-Authorization is withheld deliberately, on three grounds, each of which
+Authorization is withheld deliberately, on four grounds, each of which
 must be resolved by the owner before any task starts:
 
 1. **The owner has not authorized apply.** The standing instruction for
@@ -59,7 +59,12 @@ must be resolved by the owner before any task starts:
    symbols re-exported from `services/runner-control/src/index.ts` or two
    in-test port re-implementations. The first exceeds #56's declared
    scope of `tests/framework-conformance/**`.
-3. **A required predecessor is unauthorized** (T0.1): the composition is
+3. **The external authority's wording is unreconciled** (T0.4): #56 says
+   "same profile", which cannot express two adapters. OpenSpec artifacts
+   rank BELOW the external task contract, so this change may not resolve
+   that by reinterpretation — the issue must be amended or an explicit
+   owner acceptance recorded.
+4. **A required predecessor is unauthorized** (T0.1): the composition is
    currently falsified because the adapters leak provider frame names
    into `transcript_terminal`. ADR-0013 §3/§5 assign normalization to the
    adapters, so the fix lands in `agents/adapters/**` — outside this
@@ -100,14 +105,57 @@ verification net ships with each component (see `assurance.md`).
       *Constraint:* this change does not implement it under either
       answer without that authorization.
       *Blocks:* T1 onward — the gate cannot pass until the fix exists.
-- [ ] **T0.2** Obtain the scope decision.
-      *Options:* (a) re-export `InMemoryExecutionSession` and
-      `InMemoryWorkspaceLifecycle` from
-      `services/runner-control/src/index.ts` — two symbols, no behavior,
-      exceeds #56's declared scope; (b) re-implement both in-memory ports
-      inside `tests/framework-conformance/` — in scope, duplicates
-      substrate behavior in a test.
-      *Recommendation:* (a), per `design.md` "Scope assessment".
+- [ ] **T0.2** Obtain the scope decision for composing a real `Runner`
+      from outside the package.
+      *Verified at runtime against the built `dist/`:* three of thirteen
+      ports are unreachable — `finalization` (`TransactionalFinalization`
+      is exported but **not constructible**: `CommitParticipants`,
+      `CommitVisibility`, and the only `CommitVisibility` implementation
+      `CommitLedger` are all absent from the public surface;
+      `CommitVisibility` appears zero times in `index.d.ts`), plus
+      `session` and `workspace`.
+      *And a silent-correctness hazard:* `CommitParticipants.visibility`
+      is "the visibility authority the three participants SHARE"
+      (`adapters/finalization.ts:57-64`), while `RecordingEventSink` and
+      `RecordingEvidenceSink` each default to a PRIVATE `CommitLedger`
+      (`adapters/deterministic.ts:127`, `:381`). Composed without one
+      shared ledger, finalization publishes where the sinks cannot see —
+      the staged terminal event and evidence never become visible, the
+      run still completes, and the comparison quietly has nothing
+      terminal to compare.
+      *Options:*
+      (b) **a public composition factory** returning a correctly-wired
+      in-memory port set (the shape `testing-fixtures.ts:203`
+      `sharedPorts()` already has), via `src/index.ts` or a declared
+      `./testing` subpath export — **recommended**: it makes correct
+      wiring the contract rather than a consumer obligation;
+      (a) piecemeal exports — `InMemoryExecutionSession`,
+      `InMemoryWorkspaceLifecycle`, `CommitLedger`, plus the
+      `CommitVisibility` and `CommitParticipants` types — five additions,
+      and the shared-ledger hazard remains the consumer's to get right;
+      (c) re-implement the ports **and** a `CommitLedger` inside
+      `tests/` — literally in scope, but the harness would define its own
+      visibility semantics and prove nothing about the platform's.
+      *Note:* the earlier "two symbols" framing was wrong — it missed the
+      finalization participants entirely.
+- [ ] **T0.4** Reconcile the external authority's "same profile" wording
+      **before** implementation.
+      *Why this is blocking:* `openspec/AGENTS.md` puts the external
+      authorizing task contract ABOVE OpenSpec artifacts, so this change
+      cannot reinterpret #56 by documenting a different model. #56 says
+      "same profile, same run"; `design.md` establishes that a single
+      profile cannot express two adapters, because `runtime.adapter` and
+      `runtime.image_digest` are profile fields
+      (`execution-profile.ts:22-25`) and the runner derives the adapter
+      from the captured profile (`requested.ts:96`).
+      *Resolution required — one of:*
+      (a) the owner amends #56 to say "same logical run, two provider
+      bindings" (or equivalent); or
+      (b) the owner records an explicit scope/acceptance decision
+      accepting the two-profile model under the existing wording.
+      *Constraint:* I do not amend #56 or any GitHub issue; this is the
+      owner's act. Until it is recorded, the two-profile model has no
+      external authority and T2.1 must not start.
 - [ ] **T0.3** Confirm the completion definition: this gate lands
       **green**, after the T0.1 predecessor.
       *Rationale:* #56 requires "suite green across both adapters". A
@@ -124,7 +172,11 @@ verification net ships with each component (see `assurance.md`).
 - [ ] **T1.1** Add the node driver under
       `tests/framework-conformance/` that composes `Ports`, constructs
       `new Runner(...)`, and runs one request, emitting
-      `{events, evidence, conclusion}` as JSON.
+      `{events, evidence, conclusion}` as JSON. The journal, event sink,
+      and evidence sink MUST share one `CommitVisibility` with
+      finalization (per T0.2's outcome); a composition that leaves them
+      on private ledgers is a defect, not a configuration choice.
+      *Proves:* XP-INV-15.
       *Implements:* spec "same logical run … at the execution port".
       *Proves:* XP-INV-02.
       *Paths:* `tests/framework-conformance/` (+ T0.2's outcome).
@@ -158,6 +210,7 @@ verification net ships with each component (see `assurance.md`).
       `runtime.adapter`, `runtime.image_digest`, profile identity/digest,
       and the provider-native tool identities in `capability.tools`.
       *Implements:* spec "same logical run … two provider bindings".
+      *Blocked by:* T0.4 — the model needs external authority first.
       *Proves:* XP-INV-07c. *Evidence:* XP-EX-04c.
       *Verification:* a fixture-diff assertion — any difference outside
       the provider-bound set fails as a fixture defect (XP-ADV-02c).

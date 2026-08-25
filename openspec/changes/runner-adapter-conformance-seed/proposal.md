@@ -67,8 +67,14 @@ This change therefore has a real, non-duplicative subject.
    (`InMemoryWorkspaceLifecycle`) are not** — they exist in
    `src/adapters/index.ts` but are absent from `src/index.ts`. A test
    outside the package cannot compose a `Runner` today without either an
-   undeclared deep import, a local re-implementation, or a two-symbol
-   re-export.
+   undeclared deep import, a local re-implementation, or a small public
+   addition. `TransactionalFinalization` compounds this: it is exported
+   but **not constructible**, because `CommitParticipants`,
+   `CommitVisibility`, and the only ledger implementation `CommitLedger`
+   are all absent from the public surface — and the three sinks each
+   default to a PRIVATE ledger, so a consumer who composes them unaided
+   gets a harness whose terminal event and evidence are silently
+   invisible.
 
 3. **The adapters leak provider vocabulary upward, against an accepted
    ADR.** ADR-0013 decision 3 (lines 92–95) says the adapter normalizes
@@ -126,11 +132,12 @@ A **seed** proof at the execution-port boundary, added to the
   comparison rules, the adversarial and mutation cases, and the
   divergence report.
 - **One requested expansion, flagged for approval, not pre-approved:**
-  two symbols re-exported from `services/runner-control/src/index.ts`
-  (`InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`). No new
-  behavior, no new interface, no change to `AdapterInvocationPort`. The
-  zero-expansion alternative and its cost are in `design.md`; the
-  decision is the reviewer's.
+  a small public addition to `services/runner-control` so a real
+  `Runner` can be composed from outside the package — recommended as a
+  composition factory returning a correctly-wired in-memory port set,
+  with piecemeal exports as the alternative. No new behavior, no new
+  interface, no change to `AdapterInvocationPort`. Options and costs are
+  in `design.md`; the decision is the reviewer's.
 
 ### Out of scope
 

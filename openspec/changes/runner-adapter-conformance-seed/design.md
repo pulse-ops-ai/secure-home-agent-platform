@@ -245,7 +245,7 @@ Why this shape:
 | **(E) Re-derive the transform inside the test** (call `classifyTerminalObservations` and hand-build the operations) | Proves the test's copy of the rules, not the platform's. It is exactly mutation case 9 — a test-side normalization — and would have to be maintained against `running.ts` forever. |
 | **(A) A conformance fixture that implements `AdapterInvocationPort` by spawning the adapter process inside `invoke()`** | Viable and tempting, but strictly larger: it puts process management inside a port implementation, which is the shape L9 owns. Producing the report first and carrying it through a value-returning double keeps L8 on the near side of the launcher. |
 | **(D) Conclude L8 is pure promotion of existing evidence** | Refuted by the falsification above: the composition is not merely unproven, it is currently wrong. Promotion would ratify a broken composition. |
-| Deep-import `services/runner-control/dist/testing-fixtures.js` | It exists in `dist/` and would supply `testPorts()`/`runRequest()` outright, but it is not a declared package export (`exports` exposes only `"."`). Binding a governed proof to an undeclared internal module is a worse dependency than the two-symbol re-export below. |
+| Deep-import `services/runner-control/dist/testing-fixtures.js` | It exists in `dist/` and would supply `testPorts()`/`runRequest()` outright, but it is not a declared package export (`exports` exposes only `"."`). Binding a governed proof to an undeclared internal module is a worse dependency than a declared factory or export (see "Scope assessment"). |
 
 ## Scope assessment — the one honest tension
 
@@ -253,39 +253,57 @@ Why this shape:
 thirteen implementations. Checked one by one against the public export
 surface (`src/index.ts`):
 
-| Port | Public implementation available? |
+| Port | Publicly constructible? |
 |---|---|
 | `authority` | ✅ `FilesystemAuthoritySource` |
-| `journal` | ✅ `InMemoryRunJournal` |
+| `journal` | ⚠️ `InMemoryRunJournal` — exported, but defaults to a **private** `CommitLedger` |
 | `lease` | ✅ `InMemoryRunLease` |
-| `finalization` | ✅ `TransactionalFinalization` |
+| **`finalization`** | ❌ `TransactionalFinalization` is exported but **not constructible**: its `CommitParticipants` argument, the `CommitVisibility` type, and the only implementation `CommitLedger` are all absent from the public surface |
 | **`session`** | ❌ `InMemoryExecutionSession` exists in `src/adapters/index.ts`, **absent from `src/index.ts`** |
-| **`workspace`** | ❌ `InMemoryWorkspaceLifecycle` exists in `src/adapters/index.ts`, **absent from `src/index.ts`** |
+| **`workspace`** | ❌ `InMemoryWorkspaceLifecycle` — same |
 | `observer` | ✅ `FilesystemWorkspaceObserver` |
 | `artifacts` | ✅ `FilesystemArtifactObserver` |
 | `execution` | ✅ `DeterministicExecution` |
 | `adapter` | ✅ `DeterministicAdapterInvocation` |
-| `events` | ✅ `RecordingEventSink` |
-| `evidence` | ✅ `RecordingEvidenceSink` |
+| `events` | ⚠️ `RecordingEventSink` — exported, defaults to a **private** `CommitLedger` |
+| `evidence` | ⚠️ `RecordingEvidenceSink` — same |
 | `clock` | ✅ `SteppingClock` |
 
-Eleven of thirteen are already public. **Two are not**, and without them
-a `Runner` cannot be composed from outside the package.
+Verified at runtime against the built `dist/index.js`: `CommitLedger` and
+`isVisible` are **MISSING**, and `CommitVisibility` appears **zero** times
+in the public `index.d.ts`.
 
-**Requested expansion (approval required, not assumed):** add
-`InMemoryExecutionSession` and `InMemoryWorkspaceLifecycle` to the
-existing `export { … } from './adapters/index.js'` list in
-`services/runner-control/src/index.ts`. Two symbols, already implemented,
-already built into `dist/`, already siblings of eleven exported peers. No
-new behavior, no new interface, no `AdapterInvocationPort` change.
+Two problems, not one:
 
-Zero-expansion alternative, recorded for the reviewer to weigh:
-re-implement both in-memory ports inside `tests/framework-conformance/`.
-It keeps the change literally inside #56's declared scope, at the cost of
-a second implementation of substrate behavior living in a test, free to
-drift from the real one — which would quietly weaken the very proof the
-landing exists to make. **Recommendation: the two-symbol re-export**,
-because the proof's value depends on the composition being the real one.
+1. **Three ports are unreachable** — finalization (unconstructible),
+   session, workspace.
+2. **A silent-correctness hazard.** `CommitParticipants.visibility` is
+   documented as "the visibility authority the three participants
+   **SHARE**" (`adapters/finalization.ts:57-64`), but
+   `RecordingEventSink` and `RecordingEvidenceSink` each default to
+   `new CommitLedger()` (`adapters/deterministic.ts:127`, `:381`). A
+   consumer that composes them without threading one shared ledger gets
+   a harness where finalization publishes on one ledger while the sinks
+   read another — the staged terminal event and evidence never become
+   visible. That failure is quiet: the run completes, and the comparison
+   silently has nothing terminal to compare.
+
+The substrate already contains the correct wiring —
+`testing-fixtures.ts:203` `sharedPorts()` constructs one `CommitLedger`
+and threads it through journal, events, and evidence — but
+`testing-fixtures` is not a declared package export.
+
+**Requested expansion — three options, for the reviewer to choose:**
+
+| Option | Shape | Cost |
+|---|---|---|
+| **(b) a public composition factory** *(recommended)* | expose a curated factory that returns a correctly-wired in-memory port set (the `sharedPorts()` shape), via `src/index.ts` or a declared `./testing` subpath export | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol |
+| (a) piecemeal symbol exports | add `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`, `CommitLedger`, plus the `CommitVisibility` and `CommitParticipants` types | five additions rather than two, and it leaves the shared-ledger hazard as something every consumer must get right unaided |
+| (c) re-implement in the test | build both in-memory ports **and** a `CommitLedger` inside `tests/` | stays literally inside #56's scope, but the harness would then define its own visibility semantics — a proof about the test's substrate, not the platform's. Rejected on merit |
+
+The earlier draft's "two symbols" framing was wrong; it missed the
+finalization participants entirely. Option (b) is recommended because the
+hazard above is exactly the kind of thing a factory should own.
 
 The decision is the reviewer's; `tasks.md` blocks on it.
 
@@ -452,8 +470,9 @@ depends on it.
 
 No contract, schema, event, evidence, profile, or ADR change. No change
 to `AdapterInvocationPort`. The adapters and images are untouched. The
-only production-code change under consideration is the two-symbol
-re-export above, which adds no behavior.
+only production-code change under consideration is the composition
+factory (or the equivalent exports) requested in "Scope assessment",
+which adds no behavior and no new interface.
 
 ## Security implications
 

@@ -47,6 +47,8 @@ launches nothing, and changes no accepted contract.
 | XP-INV-12 | L7's landed inertness invariant still holds — no workspace member outside `agents/adapters/` declares or imports an adapter package | compatibility |
 | XP-INV-13 | The suite remains ONE suite: shared assertions are parameterized over the adapter registry, never copied per adapter | review/governance |
 | XP-INV-14 | `AdapterInvocationPort` and the frozen SPI are unchanged by this landing | compatibility |
+| XP-INV-15 | The journal, event sink, and evidence sink share ONE `CommitVisibility` with finalization; the harness never composes them on private ledgers, and never defines its own visibility semantics | trust |
+| XP-INV-16 | The comparison model has recorded external authority (an amended #56 or a recorded owner acceptance) before it is implemented | review/governance |
 
 ## Authority Chain
 
@@ -173,6 +175,8 @@ Out-of-grant dialect:
 | XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in structural positions and classification details |
 | XP-EX-06 | XP-INV-01, XP-INV-11 | structural | harness composes only value-returning ports; no spawn inside any port; PATH isolation reused from L7 |
 | XP-EX-07 | XP-INV-12, XP-INV-14 | mechanical | landed L7 inertness tests still pass; `git diff` over the frozen SPI is empty |
+| XP-EX-08 | XP-INV-15 | deterministic example | after commit, the staged terminal event and evidence are VISIBLE through the sinks — the assertion that fails when the ledgers are not shared |
+| XP-EX-09 | XP-INV-16 | manual evidence | the recorded owner decision (amended #56, or a written acceptance) is cited in `tasks.md` before T2.1 begins |
 | XP-PROP-01 | XP-INV-03 | property | for every compared field, a classification exists; unclassified ⇒ failure |
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-ADV-01…10 | see Hostile Corpus | hostile fixture | below |
@@ -217,6 +221,7 @@ No obligation claims proof of behavior the harness does not exercise:
 | XP-ADV-12 | An adapter's or runner-control's `dist/` is absent | fail loudly with the build command; never skip |
 | XP-ADV-13 | The node driver writes a diagnostic to stdout alongside the result document | fail — stdout carries exactly one document |
 | XP-ADV-14 | The driver exits non-zero after faulting | reported as an operational harness failure, never as a conformance finding |
+| XP-ADV-15 | Sinks composed on separate visibility ledgers | fail: the terminal event/evidence are not visible after commit (guards XP-INV-15) |
 
 ## Mutation Targets
 
@@ -231,6 +236,7 @@ No obligation claims proof of behavior the harness does not exercise:
 | XP-MUT-07 | Contract-required-outcome assertion removed, leaving only cross-adapter equality | XP-ADV-11 |
 | XP-MUT-08 | Authority identities read from the report rather than the run | XP-EX-04 / property "authority independence" |
 | XP-MUT-09 | Adapter registry reduced to one adapter (making every comparison vacuous) | a guard asserting ≥2 adapters participate in each comparison |
+| XP-MUT-10 | Harness composes the sinks on private `CommitLedger`s instead of the shared one | a terminal-visibility assertion: the staged terminal event and evidence must be visible after commit — the failure is otherwise silent (run completes, nothing terminal to compare) |
 
 ## Traceability Plan
 
@@ -243,6 +249,8 @@ No obligation claims proof of behavior the harness does not exercise:
 | Divergence named, never averaged | this | T4, T6 | XP-PROP-02, XP-ADV-09, XP-MUT-03 |
 | No provider vocabulary in structural positions | this | T5 | XP-EX-05, XP-ADV-03 |
 | Authority remains adapter-independent | this | T5 | XP-EX-04, XP-ADV-02 |
+| Shared commit visibility across journal/events/evidence | this | T1.1, T0.2 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
+| External authority for the two-binding model | **blocking** | T0.4 | XP-EX-09 |
 | Neutrality of `claims`/`events`/`usage`/`transcript` | **deferred** | — | no consumer exists; due at L9/L10 when one does |
 | `transcript_terminal` vocabulary resolution | **deferred/escalated** | T0 (blocking question) | owner decision, separate authorized change |
 
@@ -259,7 +267,8 @@ This plan does not assume either, and does not implement it.
 Then, one PR, ordered so the proof cannot be tuned into agreement:
 
 1. **T0 — decisions** (no code): the vocabulary decision, the scope
-   request, and the predecessor authorization. All block T1+.
+   request (now including the finalization participants), the predecessor
+   authorization, and the #56 authority reconciliation. All block T1+.
 2. **T1** — harness skeleton, the node driver, and the Python↔Node
    handoff contract; no assertions yet.
 3. **T2** — the two runs execute end to end.
@@ -285,8 +294,9 @@ not a runtime.
 - **Contract-conformance obligations** — the landed L7 suite, the
   runner-control conformance suite, and the workspace/import gates must
   all remain green; the frozen SPI diff must be empty.
-- **Scope review** — the two-symbol re-export decision is an explicit
-  reviewer gate, not an implementation detail.
+- **Scope review** — the composition-factory / export decision (T0.2)
+  and the #56 authority reconciliation (T0.4) are explicit reviewer
+  gates, not implementation details.
 - No repeated full review at construction checkpoints; one review at the
   complete seam, plus the T0 decision up front.
 
@@ -329,10 +339,20 @@ explicitly non-gating piece of work.
 - The third, deterministic-loop adapter that converts this seed into
   framework conformance (L10 / #58).
 
+**Blocking authority question**
+
+- #56's "same profile" wording versus the two-provider-binding model the
+  contracts make necessary. `openspec/AGENTS.md` ranks the external task
+  contract above OpenSpec artifacts, so this cannot be settled inside
+  this change: the issue must be amended, or an explicit owner acceptance
+  recorded (T0.4). Documenting the reinterpretation is insufficient.
+
 **Design assumptions requiring human confirmation**
 
-1. The two-symbol re-export is the accepted way to compose the real
-   `Runner` from `tests/` (vs. re-implementing two ports in the test).
+1. A public composition factory (or the equivalent piecemeal exports) is
+   the accepted way to compose the real `Runner` from `tests/`, including
+   the shared `CommitVisibility` that finalization requires — rather than
+   re-implementing the ports and the ledger in the test.
 2. The adapter normalization fix is authorized as a predecessor (its own
    change, or an explicit scope extension of this one) so this gate can
    land green — rather than this suite merging red.
