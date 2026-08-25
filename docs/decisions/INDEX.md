@@ -164,6 +164,25 @@ implementation-neutral. These decide how it is built.
 > editing or superseding either. See
 > [the ADR-0012 acceptance record](#adr-0012-acceptance-record).
 
+## Under review
+
+An ADR here is **`Proposed`**. It decides nothing yet: it does not close an
+unresolved decision, does not authorize implementation, and does not constrain a
+change that lands before it is accepted. Acceptance is a separate human-reviewed
+action in its own change.
+
+| ADR | Title | Status | Would govern | Would decide |
+|---|---|---|---|---|
+| [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
+
+> **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
+> **still open**, and L9 (#57) remains gated. It selects a deployment topology
+> inside the space [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md)
+> and [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)
+> already define — it changes no accepted ADR and no contract. It surfaces one
+> contract question (whether execution-host placement should be a declared
+> profile property) and deliberately does **not** answer it.
+
 ### ADR-0013 acceptance record
 
 | | |
@@ -545,6 +564,7 @@ separated the reviewed bytes from the accepted bytes.
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
 | runner orchestration crossing an asynchronous port | **ADR-0017** + ADR-0013 |
+| where a runner workload physically executes, or a deployment topology | ADR-0002, ADR-0007, ADR-0009 + **ADR-0020** (`Proposed` — decides nothing yet) |
 | finalization, run identity, or replay of a durable fact | **ADR-0018** + **ADR-0017** |
 
 ## Deliberately not decided

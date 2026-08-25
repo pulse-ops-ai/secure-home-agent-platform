@@ -153,6 +153,13 @@ the Pi is a genuine risk to the control path.
 **Not blocking the scaffold**, but it must be settled before the substrate is
 built.
 
+> **A Proposed ADR now exists.**
+> [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md)
+> proposes placement by workload class — household orchestration and execution on
+> the Pi, coding execution on a host that is neither the Pi nor the
+> authoritative-database host. **U4 remains OPEN.** A `Proposed` ADR resolves
+> nothing, and L9 (#57) stays gated until it is accepted.
+
 ---
 
 ## U5
