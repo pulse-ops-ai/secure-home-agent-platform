@@ -362,28 +362,25 @@ explicitly non-gating piece of work.
 - The third, deterministic-loop adapter that converts this seed into
   framework conformance (L10 / #58).
 
-**Blocking authority question**
+**Authority question — CLOSED**
 
-- #56's "same profile" wording versus the two-provider-binding model the
-  contracts make necessary. `openspec/AGENTS.md` ranks the external task
-  contract above OpenSpec artifacts, so this cannot be settled inside
-  this change: the issue must be amended, or an explicit owner acceptance
-  recorded (T0.4). Documenting the reinterpretation is insufficient —
-  and, after review, the **spec delta no longer mandates the model
-  either**: it states the durable property, defers the concrete binding
-  model to the recorded authority, and forbids implementing the proposed
-  model before that record exists. A lower-precedence artifact asserting
-  `SHALL` over an unauthorized model was itself the defect.
+- #56's "same profile" wording was amended on 2026-08-26 to "same logical
+  run semantics under **provider-bound profiles**" (T0.4), with the
+  rationale recorded on the issue. The spec delta now states the model on
+  that external authority rather than by reinterpretation, which is what
+  `openspec/AGENTS.md`'s precedence rule requires. XP-INV-16 is satisfied
+  by that record (XP-EX-09).
 
 **Design assumptions requiring human confirmation**
 
-1. A public composition factory (or the equivalent piecemeal exports) is
-   the accepted way to compose the real `Runner` from `tests/`, including
-   the shared `CommitVisibility` that finalization requires — rather than
-   re-implementing the ports and the ledger in the test.
-2. The adapter normalization fix is authorized as a predecessor (its own
-   change, or an explicit scope extension of this one) so this gate can
-   land green — rather than this suite merging red.
+1. **Confirmed at T0.2** (owner, 2026-08-26): the public composition
+   factory — not the piecemeal exports — is the accepted way to compose
+   the real `Runner` from `tests/`, including the shared
+   `CommitVisibility` that finalization requires.
+2. **Confirmed at T0.1/T0.3** (owner, 2026-08-26): the adapter
+   normalization lands as its own predecessor change, and this gate then
+   lands green — never red. The predecessor has not landed yet, which is
+   the sole remaining reason L8 implementation is NOT_AUTHORIZED.
 3. Reaching runner-control's *public* surface from `tests/` is the
    intended direction for a cross-cutting platform proof — consistent
    with `tests/README.md` ("tests that span more than one component") and

@@ -24,15 +24,15 @@ class and route, limits, and the *shape* of the capability grant (mounts,
 network policy, credential references, and the number and semantics of
 granted tools) — SHALL be held identical across adapters.
 
-The concrete **provider-binding model** SHALL be the one recorded by this
-landing's external authority. The plan's proposed model — one logical
-run under two provider-bound profiles, necessitated because
-`runtime.adapter` and `runtime.image_digest` are execution-profile fields
-and the runner derives the invoked adapter from the captured profile —
-SHALL NOT be implemented before that authority is recorded. Under any
-authorized model, values the profile binds to a provider MAY differ
-between runs and SHALL each equal the corresponding field of the profile
-actually captured for that run.
+The **provider-binding model** is authorized by the landing's external
+contract: #56 was amended (2026-08-26) to require "same logical run
+semantics under **provider-bound profiles**". The comparison SHALL
+therefore use one logical run under two provider-bound profiles —
+necessitated because `runtime.adapter` and `runtime.image_digest` are
+execution-profile fields and the runner derives the invoked adapter from
+the captured profile, so one profile cannot pin two adapters. Values the
+profile binds to a provider MAY differ between runs and SHALL each equal
+the corresponding field of the profile actually captured for that run.
 
 #### Scenario: The same logical run yields the same platform-observable contract
 
@@ -42,13 +42,13 @@ actually captured for that run.
 - **THEN** every field classified as adapter-neutral agrees exactly, and
   the run reaches the same lifecycle classification and outcome
 
-#### Scenario: The binding model is not implemented before its authority is recorded
+#### Scenario: The binding model rests on external authority, not on this artifact
 
-- **GIVEN** a provider-binding model that the landing's external
-  authority has not recorded
-- **WHEN** implementation is attempted
-- **THEN** it does not proceed — an OpenSpec artifact ranks below its
-  external task contract and cannot authorize the model itself
+- **GIVEN** the provider-binding model this delta states
+- **WHEN** its authority is traced
+- **THEN** it resolves to the amended #56, not to this artifact — an
+  OpenSpec delta ranks below its external task contract and cannot
+  authorize a model itself
 
 #### Scenario: The proof runs offline and launches nothing
 

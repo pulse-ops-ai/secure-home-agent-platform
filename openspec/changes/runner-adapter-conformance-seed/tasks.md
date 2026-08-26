@@ -50,30 +50,20 @@ under a "current 2026-08-18" date stamp that predates both merges.
 
 **NOT_AUTHORIZED.**
 
-Authorization is withheld deliberately, on four grounds, each of which
-must be resolved by the owner before any task starts:
+The four T0 decisions are now **RESOLVED** (owner, 2026-08-26; recorded
+verbatim in T0.1–T0.4 below). Authorization is nonetheless withheld, on
+one remaining ground:
 
-1. **The owner has not authorized apply.** The standing instruction for
-   this change is planning only, pending review of these artifacts.
-2. **A scope decision is open** (T0.2): a real `Runner` cannot be
-   composed from outside the package today. Two ports are unreachable
-   (`session`, `workspace`), and finalization has no publicly provided
-   correct wiring — `CommitParticipants` and the only `CommitVisibility`
-   implementation, `CommitLedger`, are unexported, while the three sinks
-   each default to a PRIVATE ledger. The recommended remedy is a public
-   composition factory; every option exceeds or strains #56's declared
-   scope of `tests/framework-conformance/**`.
-3. **The external authority's wording is unreconciled** (T0.4): #56 says
-   "same profile", which cannot express two adapters. OpenSpec artifacts
-   rank BELOW the external task contract, so this change may not resolve
-   that by reinterpretation — the issue must be amended or an explicit
-   owner acceptance recorded.
-4. **A required predecessor is unauthorized** (T0.1): the composition is
-   currently falsified because the adapters leak provider frame names
-   into `transcript_terminal`. ADR-0013 §3/§5 assign normalization to the
-   adapters, so the fix lands in `agents/adapters/**` — outside this
-   change's declared scope — and must land BEFORE this gate, which
-   cannot pass until it does.
+- **The required predecessor has not landed.** T0.1 is *decided* — the
+  terminal-normalization fix is a separate predecessor change — but it
+  does not yet exist. The conformance gate cannot pass until it does
+  (`design.md`, "Finding"), and T0.3 forbids merging a known-red gate.
+  L8 implementation therefore may not begin.
+
+Sequence recorded with the decisions: (1) record T0.1–T0.4 and merge this
+reconciliation; (2) author the terminal-normalization predecessor
+OpenSpec change; (3) review, authorize, implement, and merge the
+predecessor; (4) flip L8 implementation authorization; (5) implement #56.
 
 Assurance completeness is necessary but not sufficient; none of the
 above is created by these artifacts.
@@ -87,118 +77,49 @@ verification net ships with each component (see `assurance.md`).
 
 ## T0 — Decisions that block implementation (no code)
 
-- [ ] **T0.1** Authorize the required predecessor: adapter normalization
-      of `transcript_terminal`.
-      *Ownership is already assigned, not open.* ADR-0013 decision 3
-      (lines 92–95): "The provider's exit code, its self-reported
-      outcome, and its transcript's terminal event are all
-      **observations**. The adapter normalizes them; the lifecycle
-      decides." Decision 5 (line 122): provider shapes "never leak
-      upward". The leaks are at
+- [x] **T0.1 — RESOLVED** (owner, 2026-08-26). Terminal normalization is
+      a **separate predecessor change**. The platform semantic vocabulary
+      for `transcript_terminal` must be defined, and both adapters must
+      normalize their provider terminal frames into it. Adapter changes
+      are **not** smuggled into #56.
+      *Ownership was never open:* ADR-0013 decision 3 (lines 92–95) —
+      "The adapter normalizes them; the lifecycle decides" — and decision
+      5 (line 122), provider shapes "never leak upward". The leaks are at
       `agents/adapters/coding/claude-code/src/observe.ts:163` and
-      `agents/adapters/coding/copilot-cli/src/observe.ts:195`.
-      *Decisions actually required:*
-      (a) the **vocabulary** — which value means "the transcript
-      terminated successfully", and where it is stated (SPI doc comment,
-      a contracts primitive, or a spec requirement) so runner-core's
-      literal `'success'` at
-      `packages/runner-core/src/outcome/terminal.ts:86` stops being an
-      undocumented coupling;
-      (b) **where the fix lands** — its own authorized change, or an
-      explicitly authorized scope extension of this one.
-      *Constraint:* this change does not implement it under either
-      answer without that authorization.
-      *Blocks:* T1 onward — the gate cannot pass until the fix exists.
-- [ ] **T0.2** Obtain the scope decision for composing a real `Runner`
-      from outside the package.
-      *Verified against the built declarations:* **two** of thirteen
-      ports are unreachable (`session`, `workspace`), and a third,
-      `finalization`, has no publicly provided **correct wiring**.
-      `TransactionalFinalization` and the `CommitVisibility` type are
-      BOTH public (`index.d.ts:14`; `index.d.ts:21` →
-      `ports/index.d.ts:151` → `ports/finalization.d.ts:227`), but
-      `CommitParticipants` (`adapters/finalization.d.ts:46`) and the only
-      `CommitVisibility` implementation, `CommitLedger`, are not — so a
-      consumer would have to hand-roll the ledger and define the
-      platform's visibility semantics inside the test. The missing named
-      pieces are exactly four: `CommitLedger`, `CommitParticipants`,
-      `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`.
-      *And a silent-correctness hazard:* `CommitParticipants.visibility`
-      is "the visibility authority the three participants SHARE"
-      (`adapters/finalization.ts:57-64`), while `RecordingEventSink` and
-      `RecordingEvidenceSink` each default to a PRIVATE `CommitLedger`
-      (`adapters/deterministic.ts:127`, `:381`). Composed without one
-      shared ledger, finalization publishes where the sinks cannot see —
-      the staged terminal event and evidence never become visible, the
-      run still completes, and the comparison quietly has nothing
-      terminal to compare.
-      *Options:*
-      (b) **a public composition factory** returning a **complete
-      thirteen-field `Ports`** — `testPorts`-shaped
-      (`testing-fixtures.ts:218`), NOT `sharedPorts`-shaped
-      (`:203` returns only four shared-visibility components) — via
-      the existing `src/index.ts` barrel — **no `package.json` change**,
-      because the factory rides the already-declared `"."` export;
-      **recommended**, because it makes correct wiring the contract
-      rather than a consumer obligation. Its required contract (complete
-      `Ports`, one shared `CommitVisibility` across
-      journal/events/evidence/finalization, readback of the sinks and the
-      ledger, `adapter`/`authority` overrides, determinism, launches
-      nothing, and NOT `testing-fixtures` wholesale) is specified in
-      `design.md` "Scope assessment";
-      (a) piecemeal exports — the four missing named pieces
-      (`CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`,
-      `InMemoryWorkspaceLifecycle`) — four additions, and the
-      shared-ledger hazard remains the consumer's to get right;
-      *Ruled out, and recorded so it is not silently reopened:* a
-      `./testing` subpath export. It would additionally require
-      `services/runner-control/package.json` (today declaring only
-      `"."`) and a new source entry, i.e. a larger scope request than
-      declared. The barrel already carries ten sibling doubles, every
-      service in this workspace exports only `"."`, and no gate asserts
-      export maps. Selecting the subpath at T0.2 re-opens the scope
-      request and must be re-declared.
-      (c) re-implement the ports **and** a `CommitLedger` inside
-      `tests/` — literally in scope, but the harness would define its own
-      visibility semantics and prove nothing about the platform's.
-      *Affected path under (b):* exactly one source file,
-      `services/runner-control/src/index.ts`. No manifest change; the
-      completion gate asserts `package.json` is untouched.
-      *Note:* the earlier "two symbols" framing was wrong — it missed the
-      finalization participants entirely.
-- [ ] **T0.4** Reconcile the external authority's "same profile" wording
-      **before** implementation.
-      *Why this is blocking:* `openspec/AGENTS.md` puts the external
-      authorizing task contract ABOVE OpenSpec artifacts, so this change
-      cannot reinterpret #56 by documenting a different model. #56 says
-      "same profile, same run"; `design.md` establishes that a single
-      profile cannot express two adapters, because `runtime.adapter` and
-      `runtime.image_digest` are profile fields
-      (`execution-profile.ts:22-25`) and the runner derives the adapter
-      from the captured profile (`requested.ts:96`).
-      *Also unblocks the normative delta:* the spec now defers the
-      binding model to this decision rather than mandating it, so
-      recording the decision is what lets the delta state the model.
-      *Resolution required — one of:*
-      (a) the owner amends #56 to say "same logical run, two provider
-      bindings" (or equivalent); or
-      (b) the owner records an explicit scope/acceptance decision
-      accepting the two-profile model under the existing wording.
-      *Constraint:* I do not amend #56 or any GitHub issue; this is the
-      owner's act. Until it is recorded, the two-profile model has no
-      external authority and T2.1 must not start.
-      *Proves:* XP-INV-16. *Evidence:* XP-EX-09 — the recorded decision
-      is cited here before T2.1 begins.
-- [ ] **T0.3** Confirm the completion definition: this gate lands
-      **green**, after the T0.1 predecessor.
-      *Rationale:* #56 requires "suite green across both adapters". A
-      named divergence is the gate's correct FAILURE behavior, not a
-      successful conformance result, so a red merge is not an acceptable
-      reading of the completion intent.
-      *Alternative, if the owner wants the falsification captured before
-      the fix exists:* that is a different, explicitly **non-gating**
-      falsification-only change with its own name — not this one.
-      *Blocks:* the definition of done for T7.
+      `agents/adapters/coding/copilot-cli/src/observe.ts:195`; the
+      classifier's expectation is
+      `packages/runner-core/src/outcome/terminal.ts:86`.
+      *Still blocks L8:* decided ≠ landed. The predecessor change does
+      not exist yet.
+- [x] **T0.2 — RESOLVED** (owner, 2026-08-26). The narrow
+      runner-control scope expansion is **approved**: **one curated
+      composition factory exported from the existing top-level barrel**
+      (`services/runner-control/src/index.ts`). Explicitly **no
+      `./testing` subpath and no `package.json` change**. Preferred over
+      exposing the four low-level ledger/session internals, because the
+      existing internal fixture (`testing-fixtures.ts:203` `sharedPorts()`
+      / `:218` `testPorts()`) demonstrates that shared `CommitVisibility`
+      wiring is load-bearing and must not become a consumer obligation.
+      *Contract:* the factory returns a complete thirteen-field `Ports`
+      (`testPorts`-shaped, not `sharedPorts`-shaped) — see `design.md`
+      "Scope assessment" for the full required contract.
+      *Guarded:* XP-INV-18 / XP-EX-11 and the completion gate assert
+      `services/runner-control/package.json` is untouched.
+- [x] **T0.3 — RESOLVED** (owner, 2026-08-26). **L8 lands green.**
+      Injected divergences must make the conformance suite fail — that is
+      the gate working — but a known-red gate is not merged. The
+      falsification-only alternative is not taken.
+- [x] **T0.4 — RESOLVED** (owner, 2026-08-26). **#56 was amended** to
+      authorize the model: its *Ships* line now reads "same logical run
+      semantics under provider-bound profiles" in place of "same profile,
+      same run"; nothing else in the issue changed. Amendment made
+      2026-08-26T12:56:23Z with the rationale recorded as an issue
+      comment.
+      *Why it was required:* `openspec/AGENTS.md` ranks the external task
+      contract above OpenSpec artifacts, so the delta could not adopt the
+      model by reinterpretation. It now has external authority, and the
+      normative delta states the model directly.
+      *Proves:* XP-INV-16. *Evidence:* XP-EX-09 — this record.
 
 ## T1 — Harness skeleton (no assertions)
 

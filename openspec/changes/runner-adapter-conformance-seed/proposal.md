@@ -123,15 +123,15 @@ A **seed** proof at the execution-port boundary, added to the
   normalizing them, with the discovered `transcript_contradicts_exit`
   case kept as a committed regression case so the predecessor cannot
   silently regress.
-- A **proposed** comparison model — one logical run, two provider
+- An **authorized** comparison model — one logical run, two provider
   bindings — because `runtime.adapter` and `runtime.image_digest` are
   profile fields and the runner derives the adapter from the captured
   profile, so two adapters mean two profiles, and provider-bound
   identities are proven by *binding to their own profile* rather than by
-  cross-run equality. It is proposed, not adopted: #56 says "same
-  profile", OpenSpec artifacts rank below their external task contract,
-  and the spec delta therefore defers the concrete model to the recorded
-  authority (T0.4) instead of mandating it.
+  cross-run equality. #56 was amended (2026-08-26, T0.4) to require
+  "same logical run semantics under provider-bound profiles", so the
+  delta states the model on external authority rather than adopting it
+  by reinterpretation.
 
 ## Scope
 
@@ -140,16 +140,16 @@ A **seed** proof at the execution-port boundary, added to the
 - `tests/framework-conformance/**` — the harness, the neutrality
   comparison rules, the adversarial and mutation cases, and the
   divergence report.
-- **One requested expansion, flagged for approval, not pre-approved:**
+- **One expansion, approved at T0.2 (owner, 2026-08-26):**
   a small public addition to `services/runner-control/src/index.ts` so a
   real `Runner` can be composed from outside the package — recommended as
   a composition factory returning a correctly-wired, complete `Ports`,
   with the four piecemeal exports as the alternative. **One source file
   and no manifest change**: the addition rides the already-declared `"."`
-  export, and a `./testing` subpath entry point is explicitly ruled out
-  in `design.md` as a larger, separately-declarable request. No new
-  behavior, no new interface, no change to `AdapterInvocationPort`. The
-  decision is the reviewer's.
+  export, and a `./testing` subpath entry point is explicitly ruled out.
+  The approved shape is the **composition factory**, not the four
+  low-level exports. No new behavior, no new interface, no change to
+  `AdapterInvocationPort`.
 
 ### Out of scope
 

@@ -361,7 +361,9 @@ and its contract must be stated rather than inferred:
 | Scope | a curated, supported surface — **not** exporting `testing-fixtures` wholesale, whose other members (failing doubles, hanging adapters) are the service's own test scaffolding |
 | Entry point | the existing top-level barrel, `src/index.ts`. **No `package.json` change**: the factory rides the already-declared `"."` export, so the affected path is one source file |
 
-**Requested expansion — three options, for the reviewer to choose:**
+**Expansion — APPROVED at T0.2 (owner, 2026-08-26): option (b), the
+composition factory from the existing top-level barrel.** The options as
+weighed:
 
 | Option | Shape | Cost |
 |---|---|---|
