@@ -96,6 +96,32 @@ The suite SHALL NOT contain any normalization step that rewrites
 contradictory provider facts into equal values before comparison, and
 SHALL NOT relax a classification to make a failing comparison pass.
 
+#### Scenario: Operations are aligned by ordinal, never by provider name
+
+- **GIVEN** a case declaring corresponding operation sequences, whose
+  recorded operations carry platform-assigned positional identities
+- **WHEN** the dispositions are compared
+- **THEN** the i-th operation of one run is compared with the i-th of the
+  other and their dispositions must agree, while their provider-native
+  names are free to differ
+
+#### Scenario: A length mismatch in an aligned case is a divergence
+
+- **GIVEN** a case declaring corresponding operation sequences whose
+  recorded operation counts differ
+- **WHEN** the comparison runs
+- **THEN** it fails naming the mismatch, and does NOT fall back to
+  comparing only a shared property
+
+#### Scenario: A declared dialect divergence is compared by shared property
+
+- **GIVEN** a case declaring a dialect divergence — one provider records
+  a denied operation where the other records none
+- **WHEN** the comparison runs
+- **THEN** the sequences are not zipped positionally; the shared property
+  is asserted instead — no permitted operation exists for the
+  out-of-grant request
+
 #### Scenario: Contradictory permission outcomes fail loudly
 
 - **GIVEN** one adapter reporting an operation permitted and the other
@@ -149,9 +175,11 @@ captured for that run.
 
 - **GIVEN** each run's captured execution profile
 - **WHEN** the assembled evidence is compared against it
-- **THEN** the evidence `adapter` equals that profile's `runtime.adapter`
-  and the recorded image digest equals its `runtime.image_digest` — the
-  values differ between runs and each is correctly bound
+- **THEN** the evidence `adapter` equals that profile's `runtime.adapter`,
+  the recorded image digest equals its `runtime.image_digest`, and the
+  recorded profile identity and digest equal that captured profile's own
+  identity and digest — the values differ between runs and each is
+  correctly bound
 
 #### Scenario: An adapter cannot rebind authority through its report
 

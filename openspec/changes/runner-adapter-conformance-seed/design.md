@@ -258,7 +258,7 @@ surface (`src/index.ts`):
 | `authority` | ✅ `FilesystemAuthoritySource` |
 | `journal` | ⚠️ `InMemoryRunJournal` — exported, but defaults to a **private** `CommitLedger` |
 | `lease` | ✅ `InMemoryRunLease` |
-| **`finalization`** | ❌ `TransactionalFinalization` is exported but **not constructible**: its `CommitParticipants` argument, the `CommitVisibility` type, and the only implementation `CommitLedger` are all absent from the public surface |
+| **`finalization`** | ⚠️ `TransactionalFinalization` **is** exported, and so is the `CommitVisibility` type — but `CommitParticipants` and the only `CommitVisibility` implementation, `CommitLedger`, are not. **Correct finalization wiring and the shared ledger are not publicly provided.** |
 | **`session`** | ❌ `InMemoryExecutionSession` exists in `src/adapters/index.ts`, **absent from `src/index.ts`** |
 | **`workspace`** | ❌ `InMemoryWorkspaceLifecycle` — same |
 | `observer` | ✅ `FilesystemWorkspaceObserver` |
@@ -269,14 +269,32 @@ surface (`src/index.ts`):
 | `evidence` | ⚠️ `RecordingEvidenceSink` — same |
 | `clock` | ✅ `SteppingClock` |
 
-Verified at runtime against the built `dist/index.js`: `CommitLedger` and
-`isVisible` are **MISSING**, and `CommitVisibility` appears **zero** times
-in the public `index.d.ts`.
+Verified against the built declarations, and corrected after review — an
+earlier draft claimed `CommitVisibility` was unexported on the strength of
+a `grep` over `index.d.ts`, which is the wrong probe: `export *` does not
+inline names. The accurate chain is:
+
+| Symbol | Public? | Evidence |
+|---|---|---|
+| `TransactionalFinalization` | ✅ | named re-export, `index.d.ts:14` |
+| `CommitVisibility` (type) | ✅ | `index.d.ts:21` → `ports/index.d.ts:151` → `ports/finalization.d.ts:227` |
+| `CommitParticipants` (type) | ❌ | declared at `adapters/finalization.d.ts:46`; absent from the named re-export list at `index.d.ts:14` |
+| `CommitLedger` (the only `CommitVisibility` impl) | ❌ | `run-state/visibility.ts:35`, never re-exported |
+| `InMemoryExecutionSession` | ❌ | in `src/adapters/index.ts`, absent from `src/index.ts` |
+| `InMemoryWorkspaceLifecycle` | ❌ | same |
+
+So the missing named pieces are exactly four: `CommitLedger`,
+`CommitParticipants`, `InMemoryExecutionSession`,
+`InMemoryWorkspaceLifecycle`.
 
 Two problems, not one:
 
-1. **Three ports are unreachable** — finalization (unconstructible),
-   session, workspace.
+1. **Two ports are unreachable** (`session`, `workspace`), and a third —
+   `finalization` — has no publicly provided *correct wiring*: a consumer
+   can name `CommitVisibility` and could structurally satisfy
+   `CommitParticipants` without naming it, but would have to hand-roll
+   the ledger, i.e. define the platform's visibility semantics inside the
+   test. That is precisely what this proof must not do.
 2. **A silent-correctness hazard.** `CommitParticipants.visibility` is
    documented as "the visibility authority the three participants
    **SHARE**" (`adapters/finalization.ts:57-64`), but
@@ -288,22 +306,42 @@ Two problems, not one:
    visible. That failure is quiet: the run completes, and the comparison
    silently has nothing terminal to compare.
 
-The substrate already contains the correct wiring —
+The substrate already contains the correct wiring, in two layers:
 `testing-fixtures.ts:203` `sharedPorts()` constructs one `CommitLedger`
-and threads it through journal, events, and evidence — but
-`testing-fixtures` is not a declared package export.
+and threads it through journal, events, and evidence — **four components,
+not a complete `Ports`** — and `testing-fixtures.ts:218` `testPorts()`
+composes the full thirteen around it, including
+`InMemoryWorkspaceLifecycle`, `InMemoryExecutionSession`, and the
+finalization participants. Neither is a declared package export.
+
+**The requested factory is `testPorts`-shaped, not `sharedPorts`-shaped**,
+and its contract must be stated rather than inferred:
+
+| Requirement | Detail |
+|---|---|
+| Returns | a **complete `Ports`** — all thirteen fields — ready for `new Runner(ports)`; not a partial set the caller finishes |
+| Shared visibility | ONE `CommitVisibility` instance threaded through `journal`, `events`, `evidence`, **and** the finalization participants; the caller cannot get this wrong because the caller never wires it |
+| Readback | exposes the shared visibility and the two recording sinks, so the harness can read the emitted events and written evidence after the run |
+| Overrides | accepts at least `adapter` and `authority` overrides, so the harness injects `DeterministicAdapterInvocation(report)` and a profile source that yields the two fixture profiles; an override must not silently break the shared wiring |
+| Determinism | stepping clock, in-memory journal and lease; no wall-clock or randomness in the compared surface |
+| Launches nothing | every returned port is value-returning or in-memory; none spawns a process |
+| Scope | a curated, supported surface — **not** exporting `testing-fixtures` wholesale, whose other members (failing doubles, hanging adapters) are the service's own test scaffolding |
 
 **Requested expansion — three options, for the reviewer to choose:**
 
 | Option | Shape | Cost |
 |---|---|---|
 | **(b) a public composition factory** *(recommended)* | expose a curated factory that returns a correctly-wired in-memory port set (the `sharedPorts()` shape), via `src/index.ts` or a declared `./testing` subpath export | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol |
-| (a) piecemeal symbol exports | add `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`, `CommitLedger`, plus the `CommitVisibility` and `CommitParticipants` types | five additions rather than two, and it leaves the shared-ledger hazard as something every consumer must get right unaided |
+| (a) piecemeal symbol exports | add the four missing named pieces: `CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle` | four additions, and it leaves the shared-ledger hazard as something every consumer must get right unaided |
 | (c) re-implement in the test | build both in-memory ports **and** a `CommitLedger` inside `tests/` | stays literally inside #56's scope, but the harness would then define its own visibility semantics — a proof about the test's substrate, not the platform's. Rejected on merit |
 
-The earlier draft's "two symbols" framing was wrong; it missed the
-finalization participants entirely. Option (b) is recommended because the
-hazard above is exactly the kind of thing a factory should own.
+Two earlier framings were wrong and are corrected here: "two symbols"
+missed the finalization pieces entirely, and "finalization is
+unconstructible" overstated it — the class and the `CommitVisibility`
+type are both public. The accurate defect is narrower and still
+blocking: **correct finalization wiring and the shared ledger are not
+publicly provided.** Option (b) is recommended because that wiring is
+exactly the kind of thing a factory should own.
 
 The decision is the reviewer's; `tasks.md` blocks on it.
 
@@ -345,6 +383,53 @@ data") actually requires.
 Two profile documents are authored as fixtures differing **only** in the
 middle column, so any other difference between them is itself a fixture
 defect the harness can detect.
+
+### Aligning "the same logical operation"
+
+The comparison rules above speak of "the same logical operation", which
+the earlier drafts never defined. `recordCalls`
+(`orchestration/calls.ts:38-40`) settles it:
+
+```ts
+for (const [index, call] of calls.entries()) {
+  const call_id = `call-${String(index + 1).padStart(4, '0')}`
+```
+
+Identity is **positional**: the i-th entry of `observation.calls` becomes
+`call-000i`, in both events and evidence. Tool names never enter the
+identity, which is what makes cross-adapter comparison possible at all
+when the names legitimately differ (`Read` vs `bash`).
+
+Three consequences the harness must honour:
+
+1. **Alignment is by ordinal, not by name.** The comparison pairs
+   `call-0001` with `call-0001`, and asserts the *disposition* matches
+   while the *name* is free to differ.
+2. **Positional alignment is only meaningful when the sequences
+   correspond.** The golden fixtures must therefore drive each stub to
+   produce the **same number of logical operations in the same order**;
+   that is a property of the fixtures, and the harness asserts it before
+   comparing dispositions rather than assuming it.
+3. **A dialect that legitimately produces a different count breaks
+   positional alignment, and must not be compared positionally.** The
+   out-of-grant case is exactly this: claude records a denied call,
+   copilot records none at all (L6 outside-tool). Those sequences cannot
+   be zipped. The shared property — *no permitted operation exists for
+   the out-of-grant request* — is asserted over the whole sequence
+   instead, and the dialect difference is classified MAY-differ.
+
+So the call comparison has two modes, and the harness picks by
+declaration, never by inference:
+
+| Mode | When | Asserted |
+|---|---|---|
+| aligned | the case declares corresponding sequences | equal length, and for each ordinal: dispositions equal, `call_id` equal, names free |
+| unaligned (dialect) | the case declares a dialect divergence (e.g. out-of-grant) | the shared property only — no permitted operation for the logical request |
+
+**A length mismatch in an *aligned* case is a divergence, not an
+alignment problem**: the harness fails and names it rather than silently
+falling back to the unaligned mode. That fallback would be the
+"normalization that manufactures equality" this change exists to prevent.
 
 ### Classification rules
 

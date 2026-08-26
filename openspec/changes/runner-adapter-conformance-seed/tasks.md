@@ -55,9 +55,13 @@ must be resolved by the owner before any task starts:
 
 1. **The owner has not authorized apply.** The standing instruction for
    this change is planning only, pending review of these artifacts.
-2. **A scope decision is open** (T0.2): the landing needs either two
-   symbols re-exported from `services/runner-control/src/index.ts` or two
-   in-test port re-implementations. The first exceeds #56's declared
+2. **A scope decision is open** (T0.2): a real `Runner` cannot be
+   composed from outside the package today. Two ports are unreachable
+   (`session`, `workspace`), and finalization has no publicly provided
+   correct wiring — `CommitParticipants` and the only `CommitVisibility`
+   implementation, `CommitLedger`, are unexported, while the three sinks
+   each default to a PRIVATE ledger. The recommended remedy is a public
+   composition factory; every option exceeds or strains #56's declared
    scope of `tests/framework-conformance/**`.
 3. **The external authority's wording is unreconciled** (T0.4): #56 says
    "same profile", which cannot express two adapters. OpenSpec artifacts
@@ -156,6 +160,8 @@ verification net ships with each component (see `assurance.md`).
       *Constraint:* I do not amend #56 or any GitHub issue; this is the
       owner's act. Until it is recorded, the two-profile model has no
       external authority and T2.1 must not start.
+      *Proves:* XP-INV-16. *Evidence:* XP-EX-09 — the recorded decision
+      is cited here before T2.1 begins.
 - [ ] **T0.3** Confirm the completion definition: this gate lands
       **green**, after the T0.1 predecessor.
       *Rationale:* #56 requires "suite green across both adapters". A
@@ -176,7 +182,7 @@ verification net ships with each component (see `assurance.md`).
       and evidence sink MUST share one `CommitVisibility` with
       finalization (per T0.2's outcome); a composition that leaves them
       on private ledgers is a defect, not a configuration choice.
-      *Proves:* XP-INV-15.
+      *Proves:* XP-INV-15. *Evidence:* XP-EX-08.
       *Implements:* spec "same logical run … at the execution port".
       *Proves:* XP-INV-02.
       *Paths:* `tests/framework-conformance/` (+ T0.2's outcome).
@@ -208,7 +214,10 @@ verification net ships with each component (see `assurance.md`).
 - [ ] **T2.1** Author the two profile fixtures under the **one logical
       run, two provider bindings** model: identical in everything except
       `runtime.adapter`, `runtime.image_digest`, profile identity/digest,
-      and the provider-native tool identities in `capability.tools`.
+      and the provider-native tool identities in `capability.tools`. The
+      golden case must drive both stubs to the **same number of logical
+      operations in the same order**, so ordinal alignment (T4.2) is
+      meaningful; declare any dialect divergence explicitly.
       *Implements:* spec "same logical run … two provider bindings".
       *Blocked by:* T0.4 — the model needs external authority first.
       *Proves:* XP-INV-07c. *Evidence:* XP-EX-04c.
@@ -244,8 +253,14 @@ verification net ships with each component (see `assurance.md`).
       classification with totality checking.
       *Proves:* XP-INV-03. *Evidence:* XP-PROP-01. *Kills:* XP-MUT-01.
 - [ ] **T4.2** Compare dispositions and the permitted/denied evidence
-      partition for the same logical operation.
-      *Proves:* XP-INV-05. *Evidence:* XP-EX-02.
+      partition for the same logical operation, aligning **by
+      platform-assigned ordinal** (`recordCalls` assigns `call-000i` by
+      array position at `orchestration/calls.ts:38-40`) and never by
+      provider tool name. Declare each case as aligned or as a dialect
+      divergence; an aligned case with mismatched counts FAILS rather
+      than falling back to shared-property comparison.
+      *Proves:* XP-INV-05, XP-INV-17. *Evidence:* XP-EX-02, XP-EX-10.
+      *Cases:* XP-ADV-16. *Kills:* XP-MUT-11, XP-MUT-12.
 - [ ] **T4.3** Compare lifecycle classification and terminal outcome
       across adapters **and** against the contract-required outcome.
       *Proves:* XP-INV-06, XP-INV-10. *Kills:* XP-MUT-07.
@@ -286,7 +301,15 @@ verification net ships with each component (see `assurance.md`).
       *Proves:* XP-INV-13. *Case:* XP-ADV-10.
 - [ ] **T6.5** Guard: no normalization precedes comparison.
       *Case:* XP-ADV-09.
-- [ ] **T6.6** Execute XP-MUT-01…09; record each with the killing output
+- [ ] **T6.7** Execute the visibility-wiring proofs explicitly: XP-EX-08
+      (after commit, the staged terminal event and evidence are VISIBLE
+      through the sinks) and XP-ADV-15 (sinks composed on separate
+      ledgers must FAIL). These are scheduled here because the failure
+      they guard is silent — the run completes and the comparison simply
+      finds nothing terminal. Apply XP-MUT-10 here too (compose the sinks
+      on private ledgers) and confirm it is killed.
+      *Proves:* XP-INV-15. *Kills:* XP-MUT-10.
+- [ ] **T6.6** Execute XP-MUT-01…12; record each with the killing output
       and verify the tree is restored after each. Mutants must be applied
       against a **committed** baseline and the built artifact verified to
       contain the mutation before any verdict is believed.
