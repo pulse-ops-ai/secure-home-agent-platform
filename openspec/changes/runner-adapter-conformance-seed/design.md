@@ -391,9 +391,11 @@ new source entry to back it. Restricted to the barrel on the evidence:
 - no repository gate asserts export maps, so the drift a second entry
   point invites would not be caught mechanically.
 
-If the owner prefers the subpath at T0.2, that is a **larger** scope
-request — `package.json` plus a new entry module plus their verification
-— and must be re-declared rather than absorbed silently.
+**T0.2 ruled the subpath out.** It is recorded here as rejected rationale,
+not as a live option: it would require `package.json` plus a new entry
+module plus their verification, which is a larger scope request than the
+one approved. Reviving it would be a new scope request, separately
+declared.
 
 Two earlier framings were wrong and are corrected here: "two symbols"
 missed the finalization pieces entirely, and "finalization is
@@ -403,7 +405,10 @@ blocking: **correct finalization wiring and the shared ledger are not
 publicly provided.** Option (b) is recommended because that wiring is
 exactly the kind of thing a factory should own.
 
-The decision is the reviewer's; `tasks.md` blocks on it.
+**Decided at T0.2 (owner, 2026-08-26): option (b), the curated
+composition factory on the existing top-level barrel.** Options (a) and
+(c) are rejected and retained above only as the rationale for that
+choice.
 
 ## The same-run comparison model: one logical run, two provider bindings
 
@@ -614,9 +619,8 @@ depends on it.
 
 No contract, schema, event, evidence, profile, or ADR change. No change
 to `AdapterInvocationPort`. The adapters and images are untouched. The
-only production-code change under consideration is the composition
-factory (or the equivalent exports) requested in "Scope assessment",
-which adds no behavior and no new interface.
+only approved production-code expansion is the curated composition
+factory recorded by T0.2, which adds no behavior and no new interface.
 
 ## Security implications
 

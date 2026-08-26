@@ -143,14 +143,13 @@ A **seed** proof at the execution-port boundary, added to the
   comparison rules, the adversarial and mutation cases, and the
   divergence report.
 - **One expansion, approved at T0.2 (owner, 2026-08-26):**
-  a small public addition to `services/runner-control/src/index.ts` so a
-  real `Runner` can be composed from outside the package — recommended as
-  a composition factory returning a correctly-wired, complete `Ports`,
-  with the four piecemeal exports as the alternative. **One source file
-  and no manifest change**: the addition rides the already-declared `"."`
-  export, and a `./testing` subpath entry point is explicitly ruled out.
-  The approved shape is the **composition factory**, not the four
-  low-level exports. No new behavior, no new interface, no change to
+  one curated **composition factory** on
+  `services/runner-control/src/index.ts`, returning a correctly-wired,
+  complete `Ports`, so a real `Runner` can be composed from outside the
+  package. **Ruled out at T0.2:** piecemeal exports, a `./testing`
+  subpath, and any `package.json` change — the addition rides the
+  already-declared `"."` export, so it is **one source file and no
+  manifest change**. No new behavior, no new interface, no change to
   `AdapterInvocationPort`.
 
 ### Out of scope
