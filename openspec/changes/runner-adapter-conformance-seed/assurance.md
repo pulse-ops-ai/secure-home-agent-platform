@@ -188,7 +188,7 @@ Out-of-grant dialect:
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-EX-10 | XP-INV-17 | deterministic example | aligned cases compare by ordinal with names free; a length mismatch in an aligned case fails |
 | XP-ADV-01…16 | see Hostile Corpus | hostile fixture | below |
-| XP-MUT-01…10 | see Mutation Targets | mutation | below |
+| XP-MUT-01…12 | see Mutation Targets | mutation | below |
 
 No obligation claims proof of behavior the harness does not exercise:
 `claims`, `events`, `usage`, and `transcript` neutrality are explicitly
@@ -314,10 +314,11 @@ not a runtime.
 
 ## Rollout and Rollback
 
-`not_applicable` for runtime rollout: this landing adds a test suite and
-(pending approval) two re-exports. There is no activation, no shadow
-phase, and no measurement gate. Rollback is reverting the PR; nothing
-downstream depends on it.
+`not_applicable` for runtime rollout: this landing adds a test suite and,
+pending the T0.2 decision, one public composition factory (or the
+equivalent four piecemeal exports) on `services/runner-control`. There is
+no activation, no shadow phase, and no measurement gate. Rollback is
+reverting the PR; nothing downstream depends on it.
 
 The one non-trivial rollout question — whether a conformance gate may
 merge red against a known finding — is answered **no**. #56 requires

@@ -331,7 +331,7 @@ and its contract must be stated rather than inferred:
 
 | Option | Shape | Cost |
 |---|---|---|
-| **(b) a public composition factory** *(recommended)* | expose a curated factory that returns a correctly-wired in-memory port set (the `sharedPorts()` shape), via `src/index.ts` or a declared `./testing` subpath export | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol |
+| **(b) a public composition factory** *(recommended)* | expose a curated factory returning a **complete thirteen-field `Ports`** — the `testPorts` shape (`testing-fixtures.ts:218`), NOT the `sharedPorts` shape (`:203`, four components only) — via `src/index.ts` or a declared `./testing` subpath export, satisfying the contract table above | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol |
 | (a) piecemeal symbol exports | add the four missing named pieces: `CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle` | four additions, and it leaves the shared-ledger hazard as something every consumer must get right unaided |
 | (c) re-implement in the test | build both in-memory ports **and** a `CommitLedger` inside `tests/` | stays literally inside #56's scope, but the harness would then define its own visibility semantics — a proof about the test's substrate, not the platform's. Rejected on merit |
 

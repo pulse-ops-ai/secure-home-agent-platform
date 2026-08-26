@@ -111,13 +111,18 @@ verification net ships with each component (see `assurance.md`).
       *Blocks:* T1 onward — the gate cannot pass until the fix exists.
 - [ ] **T0.2** Obtain the scope decision for composing a real `Runner`
       from outside the package.
-      *Verified at runtime against the built `dist/`:* three of thirteen
-      ports are unreachable — `finalization` (`TransactionalFinalization`
-      is exported but **not constructible**: `CommitParticipants`,
-      `CommitVisibility`, and the only `CommitVisibility` implementation
-      `CommitLedger` are all absent from the public surface;
-      `CommitVisibility` appears zero times in `index.d.ts`), plus
-      `session` and `workspace`.
+      *Verified against the built declarations:* **two** of thirteen
+      ports are unreachable (`session`, `workspace`), and a third,
+      `finalization`, has no publicly provided **correct wiring**.
+      `TransactionalFinalization` and the `CommitVisibility` type are
+      BOTH public (`index.d.ts:14`; `index.d.ts:21` →
+      `ports/index.d.ts:151` → `ports/finalization.d.ts:227`), but
+      `CommitParticipants` (`adapters/finalization.d.ts:46`) and the only
+      `CommitVisibility` implementation, `CommitLedger`, are not — so a
+      consumer would have to hand-roll the ledger and define the
+      platform's visibility semantics inside the test. The missing named
+      pieces are exactly four: `CommitLedger`, `CommitParticipants`,
+      `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`.
       *And a silent-correctness hazard:* `CommitParticipants.visibility`
       is "the visibility authority the three participants SHARE"
       (`adapters/finalization.ts:57-64`), while `RecordingEventSink` and
@@ -128,15 +133,22 @@ verification net ships with each component (see `assurance.md`).
       run still completes, and the comparison quietly has nothing
       terminal to compare.
       *Options:*
-      (b) **a public composition factory** returning a correctly-wired
-      in-memory port set (the shape `testing-fixtures.ts:203`
-      `sharedPorts()` already has), via `src/index.ts` or a declared
-      `./testing` subpath export — **recommended**: it makes correct
-      wiring the contract rather than a consumer obligation;
-      (a) piecemeal exports — `InMemoryExecutionSession`,
-      `InMemoryWorkspaceLifecycle`, `CommitLedger`, plus the
-      `CommitVisibility` and `CommitParticipants` types — five additions,
-      and the shared-ledger hazard remains the consumer's to get right;
+      (b) **a public composition factory** returning a **complete
+      thirteen-field `Ports`** — `testPorts`-shaped
+      (`testing-fixtures.ts:218`), NOT `sharedPorts`-shaped
+      (`:203` returns only four shared-visibility components) — via
+      `src/index.ts` or a declared `./testing` subpath export;
+      **recommended**, because it makes correct wiring the contract
+      rather than a consumer obligation. Its required contract (complete
+      `Ports`, one shared `CommitVisibility` across
+      journal/events/evidence/finalization, readback of the sinks and the
+      ledger, `adapter`/`authority` overrides, determinism, launches
+      nothing, and NOT `testing-fixtures` wholesale) is specified in
+      `design.md` "Scope assessment";
+      (a) piecemeal exports — the four missing named pieces
+      (`CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`,
+      `InMemoryWorkspaceLifecycle`) — four additions, and the
+      shared-ledger hazard remains the consumer's to get right;
       (c) re-implement the ports **and** a `CommitLedger` inside
       `tests/` — literally in scope, but the harness would define its own
       visibility semantics and prove nothing about the platform's.

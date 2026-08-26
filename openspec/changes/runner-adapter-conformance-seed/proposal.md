@@ -61,20 +61,22 @@ This change therefore has a real, non-duplicative subject.
    the port is backed by two different provider dialects.
 
 2. **The proof cannot be assembled from the current public surface.**
-   `Ports` requires thirteen port implementations. Eleven are publicly
-   exported by `@secure-home/runner-control`; **`session`
-   (`InMemoryExecutionSession`) and `workspace`
-   (`InMemoryWorkspaceLifecycle`) are not** — they exist in
-   `src/adapters/index.ts` but are absent from `src/index.ts`. A test
-   outside the package cannot compose a `Runner` today without either an
-   undeclared deep import, a local re-implementation, or a small public
-   addition. `TransactionalFinalization` compounds this: it is exported
-   but **not constructible**, because `CommitParticipants`,
-   `CommitVisibility`, and the only ledger implementation `CommitLedger`
-   are all absent from the public surface — and the three sinks each
-   default to a PRIVATE ledger, so a consumer who composes them unaided
-   gets a harness whose terminal event and evidence are silently
-   invisible.
+   `Ports` requires thirteen port implementations. **Two are
+   unreachable**: `session` (`InMemoryExecutionSession`) and `workspace`
+   (`InMemoryWorkspaceLifecycle`) exist in `src/adapters/index.ts` but
+   are absent from `src/index.ts`. A third, `finalization`, has no
+   publicly provided **correct wiring**: `TransactionalFinalization` and
+   the `CommitVisibility` type are both public, but `CommitParticipants`
+   and the only `CommitVisibility` implementation, `CommitLedger`, are
+   not — so a consumer would have to hand-roll the ledger, i.e. define
+   the platform's visibility semantics inside the test. The four missing
+   named pieces are exactly `CommitLedger`, `CommitParticipants`,
+   `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle`.
+
+   Compounding it, the three sinks each default to a PRIVATE ledger, so
+   a consumer who composes them unaided gets a harness whose terminal
+   event and evidence are silently invisible — the run completes and the
+   comparison simply finds nothing terminal.
 
 3. **The adapters leak provider vocabulary upward, against an accepted
    ADR.** ADR-0013 decision 3 (lines 92–95) says the adapter normalizes
@@ -165,7 +167,7 @@ A **seed** proof at the execution-port boundary, added to the
 | Area | Change |
 |---|---|
 | `tests/framework-conformance/` | new execution-port harness + comparison rules + divergence report |
-| `services/runner-control/src/index.ts` | **requested only**: two re-exports (approval required) |
+| `services/runner-control/src/index.ts` | **requested only** (approval required): one public composition factory, or the four piecemeal exports — see T0.2 |
 | `openspec/changes/runner-adapter-conformance-seed/` | this change's artifacts |
 
 ## Governance
