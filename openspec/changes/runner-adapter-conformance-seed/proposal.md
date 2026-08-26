@@ -4,8 +4,10 @@
 
 L7 (#55) merged as PR #96; main is `5403a85`. The runner program index
 (#19) names **L8 / #56** next: the coding-adapter conformance *seed* —
-"same profile, same run → same events and evidence across the Claude and
-Copilot adapters **at the execution-port level**."
+"same logical run semantics under provider-bound profiles → same events
+and evidence across the Claude and Copilot adapters **at the
+execution-port level**" (#56 as amended 2026-08-26 under T0.4; it
+previously read "same profile, same run").
 
 L7 landed a substantial shared suite at `tests/framework-conformance/`
 (85 tests). That suite proves the adapters agree at the **process
@@ -123,15 +125,15 @@ A **seed** proof at the execution-port boundary, added to the
   normalizing them, with the discovered `transcript_contradicts_exit`
   case kept as a committed regression case so the predecessor cannot
   silently regress.
-- A **proposed** comparison model — one logical run, two provider
+- An **authorized** comparison model — one logical run, two provider
   bindings — because `runtime.adapter` and `runtime.image_digest` are
   profile fields and the runner derives the adapter from the captured
   profile, so two adapters mean two profiles, and provider-bound
   identities are proven by *binding to their own profile* rather than by
-  cross-run equality. It is proposed, not adopted: #56 says "same
-  profile", OpenSpec artifacts rank below their external task contract,
-  and the spec delta therefore defers the concrete model to the recorded
-  authority (T0.4) instead of mandating it.
+  cross-run equality. #56 was amended (2026-08-26, T0.4) to require
+  "same logical run semantics under provider-bound profiles", so the
+  delta states the model on external authority rather than adopting it
+  by reinterpretation.
 
 ## Scope
 
@@ -140,16 +142,15 @@ A **seed** proof at the execution-port boundary, added to the
 - `tests/framework-conformance/**` — the harness, the neutrality
   comparison rules, the adversarial and mutation cases, and the
   divergence report.
-- **One requested expansion, flagged for approval, not pre-approved:**
-  a small public addition to `services/runner-control/src/index.ts` so a
-  real `Runner` can be composed from outside the package — recommended as
-  a composition factory returning a correctly-wired, complete `Ports`,
-  with the four piecemeal exports as the alternative. **One source file
-  and no manifest change**: the addition rides the already-declared `"."`
-  export, and a `./testing` subpath entry point is explicitly ruled out
-  in `design.md` as a larger, separately-declarable request. No new
-  behavior, no new interface, no change to `AdapterInvocationPort`. The
-  decision is the reviewer's.
+- **One expansion, approved at T0.2 (owner, 2026-08-26):**
+  one curated **composition factory** on
+  `services/runner-control/src/index.ts`, returning a correctly-wired,
+  complete `Ports`, so a real `Runner` can be composed from outside the
+  package. **Ruled out at T0.2:** piecemeal exports, a `./testing`
+  subpath, and any `package.json` change — the addition rides the
+  already-declared `"."` export, so it is **one source file and no
+  manifest change**. No new behavior, no new interface, no change to
+  `AdapterInvocationPort`.
 
 ### Out of scope
 
@@ -162,8 +163,8 @@ A **seed** proof at the execution-port boundary, added to the
   redesign the seam. #56 grants no such authority.
 - **Implementing the `transcript_terminal` normalization.** It belongs to
   `agents/adapters/**` (ADR-0013 §3/§5), which is outside this change's
-  declared scope; it lands as its own authorized change or as an
-  explicitly authorized extension, before this gate.
+  declared scope. Per T0.1 it lands as a **separate predecessor change**
+  — never as an extension of this one — before this gate.
 - **Contacting a real provider**, adding a credential, or running
   anything non-deterministic or online.
 - **U4/#9**, runner-control placement, ADR status changes.
@@ -177,7 +178,7 @@ A **seed** proof at the execution-port boundary, added to the
 | Area | Change |
 |---|---|
 | `tests/framework-conformance/` | new execution-port harness + comparison rules + divergence report |
-| `services/runner-control/src/index.ts` | **requested only** (approval required): one public composition factory, or the four piecemeal exports — see T0.2. Exactly one source file: the factory rides the already-declared `"."` export, so **no `package.json` change** is entailed, and the completion gate asserts the manifest is untouched |
+| `services/runner-control/src/index.ts` | **approved T0.2 scope expansion**: one curated composition factory. No piecemeal exports, no `./testing` subpath, no `package.json` change — the factory rides the already-declared `"."` export, and the completion gate asserts the manifest is untouched |
 | `openspec/changes/runner-adapter-conformance-seed/` | this change's artifacts |
 
 ## Governance

@@ -361,7 +361,9 @@ and its contract must be stated rather than inferred:
 | Scope | a curated, supported surface — **not** exporting `testing-fixtures` wholesale, whose other members (failing doubles, hanging adapters) are the service's own test scaffolding |
 | Entry point | the existing top-level barrel, `src/index.ts`. **No `package.json` change**: the factory rides the already-declared `"."` export, so the affected path is one source file |
 
-**Requested expansion — three options, for the reviewer to choose:**
+**Expansion — APPROVED at T0.2 (owner, 2026-08-26): option (b), the
+composition factory from the existing top-level barrel.** The options as
+weighed:
 
 | Option | Shape | Cost |
 |---|---|---|
@@ -389,9 +391,11 @@ new source entry to back it. Restricted to the barrel on the evidence:
 - no repository gate asserts export maps, so the drift a second entry
   point invites would not be caught mechanically.
 
-If the owner prefers the subpath at T0.2, that is a **larger** scope
-request — `package.json` plus a new entry module plus their verification
-— and must be re-declared rather than absorbed silently.
+**T0.2 ruled the subpath out.** It is recorded here as rejected rationale,
+not as a live option: it would require `package.json` plus a new entry
+module plus their verification, which is a larger scope request than the
+one approved. Reviving it would be a new scope request, separately
+declared.
 
 Two earlier framings were wrong and are corrected here: "two symbols"
 missed the finalization pieces entirely, and "finalization is
@@ -401,7 +405,10 @@ blocking: **correct finalization wiring and the shared ledger are not
 publicly provided.** Option (b) is recommended because that wiring is
 exactly the kind of thing a factory should own.
 
-The decision is the reviewer's; `tasks.md` blocks on it.
+**Decided at T0.2 (owner, 2026-08-26): option (b), the curated
+composition factory on the existing top-level barrel.** Options (a) and
+(c) are rejected and retained above only as the rationale for that
+choice.
 
 ## The same-run comparison model: one logical run, two provider bindings
 
@@ -545,10 +552,9 @@ around it:
 
 1. **Predecessor — adapter normalization** (`agents/adapters/**`, plus
    wherever the vocabulary is stated). Owned by the adapters per ADR-0013
-   decisions 3 and 5. Outside #56's declared scope, so it lands either as
-   its own authorized change or as an explicitly authorized scope
-   extension of this one. The owner decides which; this plan does not
-   assume either.
+   decisions 3 and 5. Outside #56's declared scope, and **T0.1 selected
+   the separate predecessor change**: it does not land as an extension of
+   this one, so #56 is never widened to carry adapter changes.
 2. **This landing** — the execution-port harness, landing **green**.
 
 The alternative — landing the harness red against a known finding — is
@@ -613,9 +619,8 @@ depends on it.
 
 No contract, schema, event, evidence, profile, or ADR change. No change
 to `AdapterInvocationPort`. The adapters and images are untouched. The
-only production-code change under consideration is the composition
-factory (or the equivalent exports) requested in "Scope assessment",
-which adds no behavior and no new interface.
+only approved production-code expansion is the curated composition
+factory recorded by T0.2, which adds no behavior and no new interface.
 
 ## Security implications
 
@@ -632,9 +637,10 @@ substrate's output, never a widening of it.
   recording boundary — deferred until a consumer exists (L9/L10). Named
   here so the gap is recorded rather than assumed closed.
 - **The `transcript_terminal` vocabulary and where it is stated** —
-  escalated to the owner (T0.1). The *normalization* itself is not
-  deferred: it is a required predecessor owned by the adapters
-  (ADR-0013 §3/§5).
+  decided at T0.1 and carried by the **separate predecessor change**,
+  together with the normalization itself, which the adapters own
+  (ADR-0013 §3/§5). Neither is deferred work: the predecessor is the one
+  landing this change waits on.
 - **Effective cancellation and enforcement** — L9 (#57), behind U4 (#9).
 - **The third (deterministic-loop) adapter** that turns this seed into
   framework conformance — L10 (#58).

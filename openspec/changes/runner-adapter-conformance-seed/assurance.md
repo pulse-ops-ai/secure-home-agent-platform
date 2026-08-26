@@ -181,7 +181,7 @@ Out-of-grant dialect:
 | XP-EX-04a | XP-INV-07a | deterministic example | run-scoped identities byte-compared across adapters |
 | XP-EX-04b | XP-INV-07b | deterministic example | each provider-bound identity compared against its own captured profile |
 | XP-EX-04c | XP-INV-07c | deterministic example | the two profile fixtures differ only in the provider-bound fields |
-| XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in structural positions and classification details |
+| XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in **structural positions only** — event types, dispositions, lifecycle states, terminal outcomes, evidence field names. Diagnostic detail strings are data and are NOT scanned (ADR-0003:88-92 permits a provider name as an opaque value) |
 | XP-EX-06 | XP-INV-01, XP-INV-11 | structural | harness composes only value-returning ports; no spawn inside any port; PATH isolation reused from L7 |
 | XP-EX-07 | XP-INV-12, XP-INV-14 | mechanical | landed L7 inertness tests still pass; `git diff` over the frozen SPI is empty |
 | XP-EX-08 | XP-INV-15 | deterministic example | after commit, the staged terminal event and evidence are VISIBLE through the sinks — the assertion that fails when the ledgers are not shared |
@@ -192,7 +192,7 @@ Out-of-grant dialect:
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-EX-10 | XP-INV-17 | deterministic example | aligned cases compare by ordinal with names free; a length mismatch in an aligned case fails |
 | XP-ADV-01…16 | see Hostile Corpus | hostile fixture | below |
-| XP-MUT-01…12 | see Mutation Targets | mutation | below |
+| XP-MUT-01…13 | see Mutation Targets | mutation | below |
 
 No obligation claims proof of behavior the harness does not exercise:
 `claims`, `events`, `usage`, and `transcript` neutrality are explicitly
@@ -259,20 +259,20 @@ No obligation claims proof of behavior the harness does not exercise:
 
 | Requirement (specs/platform-adapters) | Landing | Task group | Proving evidence |
 |---|---|---|---|
-| Same logical run proven adapter-neutral at the execution port | this | T3, T4 | XP-EX-01…04 |
+| Same logical run proven adapter-neutral at the execution port | this | T3, T4 | XP-EX-01, XP-EX-02, XP-EX-03, XP-EX-04a/b/c |
 | Offline, launches nothing | this | T3 | XP-EX-06 |
 | Bypass not admissible | this | T6 | XP-ADV-08 |
 | Neutral vs native separated explicitly | this | T4 | XP-PROP-01, XP-ADV-06/07 |
 | Divergence named, never averaged | this | T4, T6 | XP-PROP-02, XP-ADV-09, XP-MUT-03 |
-| No provider vocabulary in structural positions | this | T5 | XP-EX-05, XP-ADV-03 |
+| No provider vocabulary in structural positions | this | T5 | XP-EX-05, XP-ADV-03, XP-ADV-03b (detail-only ⇒ pass), XP-MUT-13 |
 | Authority remains adapter-independent | this | T5 | XP-EX-04, XP-ADV-02 |
 | Shared commit visibility across journal/events/evidence | this | T1.1, T0.2, T6.7 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
 | Operation alignment by ordinal | this | T4.2 | XP-EX-10, XP-ADV-16, XP-MUT-11, XP-MUT-12 |
-| External authority for the binding model | **blocking** | T0.4 | XP-EX-09 |
+| External authority for the binding model | **satisfied** (T0.4 — #56 amended) | recorded in `tasks.md` | XP-EX-09 |
 | Seam claimed = seam exercised | this | T1.2, T6.1 | XP-EX-12 |
-| Requested expansion stays one source file, no manifest | this | T0.2, completion gate | XP-EX-11 |
+| Approved expansion stays one source file, no manifest | this | T0.2 (approved), completion gate | XP-EX-11 |
 | Neutrality of `claims`/`events`/`usage`/`transcript` | **deferred** | — | no consumer exists; due at L9/L10 when one does |
-| `transcript_terminal` vocabulary resolution | **deferred/escalated** | T0 (blocking question) | owner decision, separate authorized change |
+| `transcript_terminal` vocabulary + normalization | **predecessor** (T0.1 decided; not yet landed) | the separate predecessor change | that change's own proof; this landing's XP-ADV-11 regression case |
 
 ## Landing Plan
 
@@ -280,15 +280,16 @@ No obligation claims proof of behavior the harness does not exercise:
 
 The adapter normalization fix (ADR-0013 §3/§5) must land **before** this
 gate, because the gate cannot pass while it is outstanding. It is not
-part of this change's declared scope; it lands either as its own
-authorized change or as an explicitly authorized extension of this one.
-This plan does not assume either, and does not implement it.
+part of this change's declared scope, and **T0.1 selected the separate
+predecessor change** — it never lands as an extension of this one, so #56
+is not widened to carry adapter changes. This plan does not implement it.
 
 Then, one PR, ordered so the proof cannot be tuned into agreement:
 
-1. **T0 — decisions** (no code): the vocabulary decision, the scope
-   request (now including the finalization participants), the predecessor
-   authorization, and the #56 authority reconciliation. All block T1+.
+1. **T0 — RESOLVED** (owner, 2026-08-26): separate predecessor,
+   composition factory, green-only landing, amended #56. No T0 decision
+   blocks anything now; **the one live blocker is that the predecessor
+   has not landed**, which holds T1+ through `NOT_AUTHORIZED`.
 2. **T1** — harness skeleton, the node driver, and the Python↔Node
    handoff contract; no assertions yet.
 3. **T2** — the two runs execute end to end.
@@ -314,19 +315,19 @@ not a runtime.
 - **Contract-conformance obligations** — the landed L7 suite, the
   runner-control conformance suite, and the workspace/import gates must
   all remain green; the frozen SPI diff must be empty.
-- **Scope review** — the composition-factory decision (T0.2) and the #56
-  authority reconciliation (T0.4) are explicit reviewer gates, not
-  implementation details. Under T0.2's recommended option the affected
-  path is exactly one source file and no manifest; selecting a subpath
-  entry point instead re-opens the scope request.
+- **Scope review** — T0.2 and T0.4 are **resolved**, so review confirms
+  conformity to them rather than re-deciding: the expansion is the single
+  approved factory on one source file with no manifest change (a
+  `package.json` diff would mean the ruled-out subpath route was taken),
+  and the binding model matches the amended #56.
 - No repeated full review at construction checkpoints; one review at the
   complete seam, plus the T0 decision up front.
 
 ## Rollout and Rollback
 
-`not_applicable` for runtime rollout: this landing adds a test suite and,
-pending the T0.2 decision, one public composition factory (or the
-equivalent four piecemeal exports) on `services/runner-control`. There is
+`not_applicable` for runtime rollout: this landing adds a test suite and
+the one composition factory approved at T0.2 on
+`services/runner-control`. There is
 no activation, no shadow phase, and no measurement gate. Rollback is
 reverting the PR; nothing downstream depends on it.
 
@@ -362,28 +363,25 @@ explicitly non-gating piece of work.
 - The third, deterministic-loop adapter that converts this seed into
   framework conformance (L10 / #58).
 
-**Blocking authority question**
+**Authority question — CLOSED**
 
-- #56's "same profile" wording versus the two-provider-binding model the
-  contracts make necessary. `openspec/AGENTS.md` ranks the external task
-  contract above OpenSpec artifacts, so this cannot be settled inside
-  this change: the issue must be amended, or an explicit owner acceptance
-  recorded (T0.4). Documenting the reinterpretation is insufficient —
-  and, after review, the **spec delta no longer mandates the model
-  either**: it states the durable property, defers the concrete binding
-  model to the recorded authority, and forbids implementing the proposed
-  model before that record exists. A lower-precedence artifact asserting
-  `SHALL` over an unauthorized model was itself the defect.
+- #56's "same profile" wording was amended on 2026-08-26 to "same logical
+  run semantics under **provider-bound profiles**" (T0.4), with the
+  rationale recorded on the issue. The spec delta now states the model on
+  that external authority rather than by reinterpretation, which is what
+  `openspec/AGENTS.md`'s precedence rule requires. XP-INV-16 is satisfied
+  by that record (XP-EX-09).
 
 **Design assumptions requiring human confirmation**
 
-1. A public composition factory (or the equivalent piecemeal exports) is
-   the accepted way to compose the real `Runner` from `tests/`, including
-   the shared `CommitVisibility` that finalization requires — rather than
-   re-implementing the ports and the ledger in the test.
-2. The adapter normalization fix is authorized as a predecessor (its own
-   change, or an explicit scope extension of this one) so this gate can
-   land green — rather than this suite merging red.
+1. **Confirmed at T0.2** (owner, 2026-08-26): the public composition
+   factory — not the piecemeal exports — is the accepted way to compose
+   the real `Runner` from `tests/`, including the shared
+   `CommitVisibility` that finalization requires.
+2. **Confirmed at T0.1/T0.3** (owner, 2026-08-26): the adapter
+   normalization lands as its own predecessor change, and this gate then
+   lands green — never red. The predecessor has not landed yet, which is
+   the sole remaining reason L8 implementation is NOT_AUTHORIZED.
 3. Reaching runner-control's *public* surface from `tests/` is the
    intended direction for a cross-cutting platform proof — consistent
    with `tests/README.md` ("tests that span more than one component") and
