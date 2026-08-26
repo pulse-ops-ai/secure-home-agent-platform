@@ -39,6 +39,7 @@ launches nothing, and changes no accepted contract.
 |---|---|---|
 | XP-INV-01 | The proof observes only what the platform produced after `invoke()` returned; no assertion reads adapter internals or re-derives the transform | review/governance |
 | XP-INV-02 | Both runs are driven through the real `Runner` and the real interpretation path — no test-side re-implementation of `classifyTerminalObservations` or `recordCalls` | behavior |
+| XP-INV-02b | The proof claims only the port CONSUMER path: the adapters run to completion before `invoke()`, and the port implementation is a value-returning double in both runs. No artifact claims an adapter is an `AdapterInvocationPort` implementation | review/governance |
 | XP-INV-03 | Every compared fact carries an explicit MUST-agree or MAY-differ classification; an unclassified compared fact fails | review/governance |
 | XP-INV-04 | The emitted `event_type` sequence is drawn from the closed platform vocabulary and is identical across adapters | compatibility |
 | XP-INV-05 | Call dispositions and the permitted/denied evidence partition agree across adapters for the same logical operation | behavior |
@@ -46,7 +47,7 @@ launches nothing, and changes no accepted contract.
 | XP-INV-07a | Run-scoped authority — `run_id`, fence generation, principal, routing class and route, limits — is identical across adapters and unreachable from anything an adapter reports | trust |
 | XP-INV-07b | Provider-bound identity — evidence `adapter`, image digest, profile identity + digest — differs between runs and each value equals the corresponding field of the profile actually captured for that run | trust |
 | XP-INV-07c | The two profile fixtures differ ONLY in the provider-bound fields; any other difference is a fixture defect the harness detects | review/governance |
-| XP-INV-08 | No provider-native token occupies a platform-structural position or a platform classification detail | trust (ADR-0003:88-92) |
+| XP-INV-08 | No provider-native token occupies a platform-**structural** position (event type, disposition, lifecycle state, terminal outcome, evidence field name). Diagnostic detail strings are DATA and are explicitly out of this invariant — ADR-0003:88-92 permits a provider name "only as an opaque value" | trust (ADR-0003:88-92) |
 | XP-INV-09 | A MUST-agree divergence fails and is NAMED (field, both values, classification, position); no normalization step may precede comparison | trust |
 | XP-INV-10 | Agreement alone never passes a case whose required platform outcome is wrong for both adapters | behavior |
 | XP-INV-11 | The harness launches nothing: no container, no real provider, no port implementation capable of starting a process; it runs offline and deterministically | trust |
@@ -186,6 +187,7 @@ Out-of-grant dialect:
 | XP-EX-08 | XP-INV-15 | deterministic example | after commit, the staged terminal event and evidence are VISIBLE through the sinks — the assertion that fails when the ledgers are not shared |
 | XP-EX-09 | XP-INV-16 | manual evidence | the recorded owner decision (amended #56, or a written acceptance) is cited in `tasks.md` before T2.1 begins |
 | XP-EX-11 | XP-INV-18 | mechanical | `git diff` over `services/runner-control/package.json` is empty at the completion head |
+| XP-EX-12 | XP-INV-02b | review/structural | the requirement, the diagram, the proof names, and the harness all describe the same seam — the port consumer path, not adapters-as-port-implementations |
 | XP-PROP-01 | XP-INV-03 | property | for every compared field, a classification exists; unclassified ⇒ failure |
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-EX-10 | XP-INV-17 | deterministic example | aligned cases compare by ordinal with names free; a length mismatch in an aligned case fails |
@@ -219,7 +221,8 @@ No obligation claims proof of behavior the harness does not exercise:
 | XP-ADV-02 | One adapter's run carries a different `run_id` / fence generation / principal / route | fail, naming the identity field |
 | XP-ADV-02b | Evidence `adapter` or image digest does not match that run's captured profile | fail, naming the field and both values |
 | XP-ADV-02c | The two profile fixtures differ in a field outside the provider-bound set | fail as a fixture defect |
-| XP-ADV-03 | A provider-specific token is placed into a platform-structural position or the classification detail | fail, naming token and position |
+| XP-ADV-03 | A provider-specific token is placed into a platform-structural position (event type, disposition, lifecycle state, terminal outcome, evidence field name) | fail, naming token and position |
+| XP-ADV-03b | A provider-specific token appears in a diagnostic detail string only | **pass** — the detail is data (ADR-0003 permits a provider name as an opaque value); the scan must not over-reach |
 | XP-ADV-04 | Equivalent terminal observations classified differently between adapters | fail |
 | XP-ADV-05 | One adapter drops a denied/absent operation and the platform records it permitted | fail |
 | XP-ADV-06 | Provider-native usage units differ, nothing else | **pass** (native stays native) |
@@ -250,6 +253,7 @@ No obligation claims proof of behavior the harness does not exercise:
 | XP-MUT-10 | Harness composes the sinks on private `CommitLedger`s instead of the shared one | a terminal-visibility assertion: the staged terminal event and evidence must be visible after commit — the failure is otherwise silent (run completes, nothing terminal to compare) |
 | XP-MUT-11 | Aligned comparison silently falls back to shared-property comparison when counts differ | XP-ADV-16 |
 | XP-MUT-12 | Operations aligned by provider tool name instead of ordinal | XP-EX-10 — alignment must survive `Read` vs `bash` |
+| XP-MUT-13 | The structural-position scan is widened to diagnostic detail strings | XP-ADV-03b — a legitimate provider token in a detail must not fail |
 
 ## Traceability Plan
 
@@ -264,7 +268,8 @@ No obligation claims proof of behavior the harness does not exercise:
 | Authority remains adapter-independent | this | T5 | XP-EX-04, XP-ADV-02 |
 | Shared commit visibility across journal/events/evidence | this | T1.1, T0.2, T6.7 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
 | Operation alignment by ordinal | this | T4.2 | XP-EX-10, XP-ADV-16, XP-MUT-11, XP-MUT-12 |
-| External authority for the two-binding model | **blocking** | T0.4 | XP-EX-09 |
+| External authority for the binding model | **blocking** | T0.4 | XP-EX-09 |
+| Seam claimed = seam exercised | this | T1.2, T6.1 | XP-EX-12 |
 | Requested expansion stays one source file, no manifest | this | T0.2, completion gate | XP-EX-11 |
 | Neutrality of `claims`/`events`/`usage`/`transcript` | **deferred** | — | no consumer exists; due at L9/L10 when one does |
 | `transcript_terminal` vocabulary resolution | **deferred/escalated** | T0 (blocking question) | owner decision, separate authorized change |
@@ -363,7 +368,12 @@ explicitly non-gating piece of work.
   contracts make necessary. `openspec/AGENTS.md` ranks the external task
   contract above OpenSpec artifacts, so this cannot be settled inside
   this change: the issue must be amended, or an explicit owner acceptance
-  recorded (T0.4). Documenting the reinterpretation is insufficient.
+  recorded (T0.4). Documenting the reinterpretation is insufficient —
+  and, after review, the **spec delta no longer mandates the model
+  either**: it states the durable property, defers the concrete binding
+  model to the recorded authority, and forbids implementing the proposed
+  model before that record exists. A lower-precedence artifact asserting
+  `SHALL` over an unauthorized model was itself the defect.
 
 **Design assumptions requiring human confirmation**
 

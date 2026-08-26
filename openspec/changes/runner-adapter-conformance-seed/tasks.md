@@ -176,6 +176,9 @@ verification net ships with each component (see `assurance.md`).
       `runtime.image_digest` are profile fields
       (`execution-profile.ts:22-25`) and the runner derives the adapter
       from the captured profile (`requested.ts:96`).
+      *Also unblocks the normative delta:* the spec now defers the
+      binding model to this decision rather than mandating it, so
+      recording the decision is what lets the delta state the model.
       *Resolution required — one of:*
       (a) the owner amends #56 to say "same logical run, two provider
       bindings" (or equivalent); or
@@ -215,9 +218,11 @@ verification net ships with each component (see `assurance.md`).
 - [ ] **T1.2** Reuse the landed L7 mechanism (`fc_support.run_adapter`)
       to obtain each adapter's real `AdapterReport`; feed it to
       `DeterministicAdapterInvocation`.
-      *Proves:* XP-INV-01, XP-INV-11 (nothing spawns inside a port).
+      *Proves:* XP-INV-01, XP-INV-02b, XP-INV-11 (nothing spawns inside a
+      port).
       *Verification:* structural — no `spawn` inside any port
-      implementation the harness constructs.
+      implementation the harness constructs; the adapters run to
+      completion first and the port double only carries their reports.
 - [ ] **T1.3** Implement the Python ↔ Node handoff contract exactly as
       `design.md` specifies it, before any assertion depends on it:
       one `node <driver>` subprocess per run; one JSON document on
@@ -307,14 +312,21 @@ verification net ships with each component (see `assurance.md`).
 - [ ] **T5.2** Assert authority independence under report mutation.
       *Evidence:* property "authority independence". *Case:* XP-ADV-02.
 - [ ] **T5.3** Scan emitted events and assembled evidence for provider
-      tokens in structural positions and in classification details.
-      *Proves:* XP-INV-08. *Evidence:* XP-EX-05. *Case:* XP-ADV-03.
+      tokens in **structural positions only** — event types, dispositions,
+      lifecycle states, terminal outcomes, evidence field names. The scan
+      MUST NOT flag a diagnostic detail string: ADR-0003:88-92 permits a
+      provider name "only as an opaque value", and a detail is data.
+      *Proves:* XP-INV-08. *Evidence:* XP-EX-05.
+      *Cases:* XP-ADV-03 (structural ⇒ fail), XP-ADV-03b (detail-only ⇒
+      pass). *Kills:* XP-MUT-13.
 
 ## T6 — Structural guards and the mutation round
 
 - [ ] **T6.1** Guard: no assertion may re-derive a platform transform in
-      the test.
-      *Kills:* XP-MUT-05.
+      the test; and no artifact or test name may claim an adapter is an
+      `AdapterInvocationPort` implementation — the proof covers the port
+      CONSUMER path, with the adapters running before `invoke()`.
+      *Proves:* XP-INV-02b. *Evidence:* XP-EX-12. *Kills:* XP-MUT-05.
 - [ ] **T6.2** Guard: the port double must be value-returning; no port
       the harness constructs may spawn.
       *Kills:* XP-MUT-06. *Proves:* XP-INV-11.

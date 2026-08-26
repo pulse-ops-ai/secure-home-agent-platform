@@ -24,16 +24,24 @@ offline.
                                    │
   ─────────────────────────────────┼─────────────────────────────────
                                    │
-                    L8 — EXECUTION-PORT BOUNDARY (this change)
+                    L8 — EXECUTION-PORT CONSUMER PATH (this change)
 
-     profile / captured authority ─┐
-                                   ▼
+     Claude adapter process        Copilot adapter process
+       (real, vs its stub)           (real, vs its stub)
+              │                              │
+              ▼                              ▼
+        real AdapterReport            real AdapterReport
+              └──────────────┬───────────────┘
+                             ▼
+        DeterministicAdapterInvocation(report)   ← value-returning double;
+                             │                     launches nothing. The
+     profile / captured authority ─┐                adapters ran BEFORE
+                             │     │                the port, not behind it.
+                             ▼     ▼
                     AdapterInvocationRequest        (platform-built)
                                    │
-                    AdapterInvocationPort.invoke()
-                          ╱                ╲
-                    Claude report      Copilot report
-                          ╲                ╱
+                    AdapterInvocationPort.invoke()  ← the CONSUMER PATH
+                                   │                  under proof
                                    ▼
               runner-control interpretation (running.ts)
                  ├── classifyTerminalObservations()   [runner-core]
@@ -52,6 +60,19 @@ offline.
 ```
 
 L7 compares the top box's output. L8 compares the bottom box's output.
+
+**What this does and does not prove.** It proves that two *real,
+different* provider reports, carried through the *real* port consumer
+path and the *real* interpretation, yield adapter-neutral platform events
+and evidence. It does **not** prove that either adapter is an
+`AdapterInvocationPort` implementation — neither is, here: the port
+implementation is the same value-returning double in both runs, and the
+adapters execute before it. An earlier draft's requirement said
+"exercise each coding adapter as the implementation behind the … seam",
+which the mechanism never did; the spec now states the narrower claim the
+harness actually earns. Making an adapter a live port implementation
+means spawning a provider from inside `invoke()`, which is L9's shape —
+see the rejected alternatives below.
 Nothing in the landed suite reaches below the line: verified at `5403a85`
 that no file under `tests/framework-conformance/` imports
 `@secure-home/runner-control`, constructs a `Runner`, or reads an event
@@ -153,10 +174,22 @@ Consequences, both real:
 
 1. **Every successful coding run classifies `INDETERMINATE`** at the
    execution port — a failure class — for both adapters.
-2. **Provider vocabulary reaches a platform-visible position**: the
-   classification detail differs by dialect (`terminated result` vs
-   `terminated session.result`), which is the surface ADR-0003 lines
-   88–92 and `runner-adoption/spec.md:35-43` govern.
+2. **The classification detail differs by dialect** (`terminated result`
+   vs `terminated session.result`).
+
+   An earlier draft called this a structural-neutrality violation. That
+   over-reached: ADR-0003 lines 88–92 forbid a provider name in a
+   **structural position** of a *contract* — field name, enum member,
+   constant — and expressly permit it "only as an *opaque value*". A
+   diagnostic detail string is a value, not a structural position, and
+   `runner-execution/spec.md:61-68` likewise carries provider naming "in
+   optional opaque data fields". So the detail differing by dialect is
+   **not** itself the defect, and the L8 delta no longer prohibits it.
+
+   The defect is narrower and entirely sufficient: `transcript_terminal`
+   has no shared semantic vocabulary, so both adapters drive the *wrong
+   lifecycle classification*. Fixing that is the predecessor's job; it
+   does not require inventing a broader rule about diagnostic data.
 
 `transcript_terminal` has **no documented vocabulary** anywhere in
 `docs/` or `openspec/` — the frozen SPI types it `string` with no

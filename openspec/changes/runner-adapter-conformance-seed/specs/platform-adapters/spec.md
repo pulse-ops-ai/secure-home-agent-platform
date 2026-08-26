@@ -2,35 +2,53 @@
 
 ## ADDED Requirements
 
-### Requirement: The same logical run is proven adapter-neutral at the execution port
+### Requirement: Real adapter reports are proven adapter-neutral through the execution-port consumer path
 
-The conformance suite SHALL exercise each coding adapter as the
-implementation behind the runner's `AdapterInvocationPort` seam, driving
-the platform's own interpretation path, and SHALL compare what the
-platform observably produces — run events and evidence — rather than the
-adapter report alone.
+The conformance suite SHALL obtain each coding adapter's **real**
+`AdapterReport`, carry it through the runner's real
+`AdapterInvocationPort` **consumer path** — the port call site, the
+trusted terminal classification, and the call-recording transform — and
+SHALL compare what the platform observably produces from it: run events
+and evidence, rather than the adapter report alone.
 
-The comparison SHALL use the **one logical run, two provider bindings**
-model. Because `runtime.adapter` and `runtime.image_digest` are fields of
-the execution profile, and the runner derives the invoked adapter from
-the captured profile, two adapters necessarily mean two profile
-documents. The suite SHALL therefore hold identical everything the
-logical run does not bind to a provider — run identity, requester and
-principal, input, gates, workspace root, pinned base, artifact paths,
-fence generation, routing class and route, limits, and the *shape* of the
-capability grant (mounts, network policy, credential references, and the
-number and semantics of granted tools) — and SHALL classify the
-provider-bound values (`runtime.adapter`, `runtime.image_digest`, the
-profile identity and digest, and the provider-native tool identities
-inside `capability.tools`) as designated opaque values that may differ.
+The suite SHALL NOT claim that an adapter is itself the implementation
+behind `AdapterInvocationPort`. It is not: the adapter process runs to
+completion first, and a value-returning port double carries its report
+into the run. Constructing a port implementation that launches a
+provider from inside `invoke()` is L9's, and is out of scope here.
+
+The invocation inputs that the logical run does **not** bind to a
+provider — run identity, requester and principal, input, gates,
+workspace root, pinned base, artifact paths, fence generation, routing
+class and route, limits, and the *shape* of the capability grant (mounts,
+network policy, credential references, and the number and semantics of
+granted tools) — SHALL be held identical across adapters.
+
+The concrete **provider-binding model** SHALL be the one recorded by this
+landing's external authority. The plan's proposed model — one logical
+run under two provider-bound profiles, necessitated because
+`runtime.adapter` and `runtime.image_digest` are execution-profile fields
+and the runner derives the invoked adapter from the captured profile —
+SHALL NOT be implemented before that authority is recorded. Under any
+authorized model, values the profile binds to a provider MAY differ
+between runs and SHALL each equal the corresponding field of the profile
+actually captured for that run.
 
 #### Scenario: The same logical run yields the same platform-observable contract
 
 - **GIVEN** one logical invocation and both adapters' real reports
-  carried through the real interpretation path
+  carried through the real port consumer path and interpretation
 - **WHEN** the platform's events and evidence are compared
 - **THEN** every field classified as adapter-neutral agrees exactly, and
   the run reaches the same lifecycle classification and outcome
+
+#### Scenario: The binding model is not implemented before its authority is recorded
+
+- **GIVEN** a provider-binding model that the landing's external
+  authority has not recorded
+- **WHEN** implementation is attempted
+- **THEN** it does not proceed — an OpenSpec artifact ranks below its
+  external task contract and cannot authorize the model itself
 
 #### Scenario: The proof runs offline and launches nothing
 
@@ -66,8 +84,9 @@ Provider-native SHALL include at minimum: the evidence `adapter` field,
 the evidence `image_digest`/runtime identity, the profile identity and
 digest, provider tool names wherever they appear (`capability.tools`,
 `operation.name`), native usage units and amounts, provider event payload
-data, and the observable dialect by which an out-of-grant operation fails
-to be permitted.
+data, the operator-facing diagnostic detail of a platform classification
+where it quotes a provider observation, and the observable dialect by
+which an out-of-grant operation fails to be permitted.
 
 A fact SHALL NOT be compared under a classification it was not assigned,
 and a provider-native value SHALL NOT be exempt from its binding
@@ -139,19 +158,31 @@ SHALL NOT relax a classification to make a failing comparison pass.
 
 ### Requirement: Platform-structural positions carry no provider vocabulary
 
-No provider-native token SHALL occupy a platform-structural position in
-what the platform emits: event types, disposition values, lifecycle
-states, terminal outcomes, evidence field names, and the operator-facing
-detail of a platform classification are platform-owned. Provider
-vocabulary is admissible only in positions the contract designates as
-opaque data.
+No provider-native token SHALL occupy a platform-**structural** position
+in what the platform emits: event types, disposition values, lifecycle
+states, terminal outcomes, and evidence field names are platform-owned.
+This is ADR-0003's rule (lines 88–92) and no wider: a provider name "may
+appear only as an *opaque value*", so provider-native tokens remain
+admissible in positions the contract designates as data — including an
+operator-facing diagnostic detail string. A diagnostic string SHALL NOT
+be treated as a structural position.
 
-#### Scenario: A provider frame name reaching a platform position is refused
+#### Scenario: A provider frame name reaching a structural position is refused
 
 - **GIVEN** a run whose provider dialect places a provider-specific token
-  into a platform-structural position or a platform classification detail
+  into a platform-structural position — an event type, disposition,
+  lifecycle state, terminal outcome, or evidence field name
 - **WHEN** the suite scans the platform's emitted events and evidence
 - **THEN** it fails naming the token and the position
+
+#### Scenario: Provider vocabulary in a diagnostic detail string is not a structural violation
+
+- **GIVEN** a platform classification whose detail string quotes the
+  provider's own observation
+- **WHEN** the structural-position scan runs
+- **THEN** it does not fail on that string — the detail is data; what
+  must agree across adapters is the classification kind and the terminal
+  outcome, which a separate requirement covers
 
 ### Requirement: Authority is adapter-independent, and provider identity is bound to the captured profile
 

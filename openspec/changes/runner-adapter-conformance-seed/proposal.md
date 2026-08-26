@@ -106,10 +106,13 @@ A **seed** proof at the execution-port boundary, added to the
 
 - A conformance harness, landing **after** the adapter-normalization
   predecessor, that carries each adapter's **real** `AdapterReport`
-  through the **real** runner-control interpretation path
-  (`Runner` → `running` phase → `classifyTerminalObservations` +
-  `recordCalls` → event sink + evidence assembly), and compares the
-  platform-observable results across adapters.
+  through the **real** `AdapterInvocationPort` consumer path and
+  interpretation (`Runner` → `running` phase →
+  `classifyTerminalObservations` + `recordCalls` → event sink + evidence
+  assembly), and compares the platform-observable results across
+  adapters. The adapters run to completion *before* the port; the port
+  implementation is a value-returning double in both runs, and no
+  artifact claims otherwise.
 - An explicit, mechanically-checked split between what MUST be
   adapter-neutral (platform event grammar and vocabulary, disposition
   semantics, lifecycle classification, outcome, run/fence/profile
@@ -120,11 +123,15 @@ A **seed** proof at the execution-port boundary, added to the
   normalizing them, with the discovered `transcript_contradicts_exit`
   case kept as a committed regression case so the predecessor cannot
   silently regress.
-- An explicit **one logical run, two provider bindings** comparison
-  model: because `runtime.adapter` and `runtime.image_digest` are profile
-  fields and the runner derives the adapter from the captured profile,
-  two adapters mean two profiles — so provider-bound identities are
-  proven by *binding to their own profile*, not by cross-run equality.
+- A **proposed** comparison model — one logical run, two provider
+  bindings — because `runtime.adapter` and `runtime.image_digest` are
+  profile fields and the runner derives the adapter from the captured
+  profile, so two adapters mean two profiles, and provider-bound
+  identities are proven by *binding to their own profile* rather than by
+  cross-run equality. It is proposed, not adopted: #56 says "same
+  profile", OpenSpec artifacts rank below their external task contract,
+  and the spec delta therefore defers the concrete model to the recorded
+  authority (T0.4) instead of mandating it.
 
 ## Scope
 
