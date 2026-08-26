@@ -181,7 +181,7 @@ Out-of-grant dialect:
 | XP-EX-04a | XP-INV-07a | deterministic example | run-scoped identities byte-compared across adapters |
 | XP-EX-04b | XP-INV-07b | deterministic example | each provider-bound identity compared against its own captured profile |
 | XP-EX-04c | XP-INV-07c | deterministic example | the two profile fixtures differ only in the provider-bound fields |
-| XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in structural positions and classification details |
+| XP-EX-05 | XP-INV-08 | scan | emitted events + evidence scanned for provider tokens in **structural positions only** — event types, dispositions, lifecycle states, terminal outcomes, evidence field names. Diagnostic detail strings are data and are NOT scanned (ADR-0003:88-92 permits a provider name as an opaque value) |
 | XP-EX-06 | XP-INV-01, XP-INV-11 | structural | harness composes only value-returning ports; no spawn inside any port; PATH isolation reused from L7 |
 | XP-EX-07 | XP-INV-12, XP-INV-14 | mechanical | landed L7 inertness tests still pass; `git diff` over the frozen SPI is empty |
 | XP-EX-08 | XP-INV-15 | deterministic example | after commit, the staged terminal event and evidence are VISIBLE through the sinks — the assertion that fails when the ledgers are not shared |
@@ -192,7 +192,7 @@ Out-of-grant dialect:
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-EX-10 | XP-INV-17 | deterministic example | aligned cases compare by ordinal with names free; a length mismatch in an aligned case fails |
 | XP-ADV-01…16 | see Hostile Corpus | hostile fixture | below |
-| XP-MUT-01…12 | see Mutation Targets | mutation | below |
+| XP-MUT-01…13 | see Mutation Targets | mutation | below |
 
 No obligation claims proof of behavior the harness does not exercise:
 `claims`, `events`, `usage`, and `transcript` neutrality are explicitly
@@ -259,12 +259,12 @@ No obligation claims proof of behavior the harness does not exercise:
 
 | Requirement (specs/platform-adapters) | Landing | Task group | Proving evidence |
 |---|---|---|---|
-| Same logical run proven adapter-neutral at the execution port | this | T3, T4 | XP-EX-01…04 |
+| Same logical run proven adapter-neutral at the execution port | this | T3, T4 | XP-EX-01, XP-EX-02, XP-EX-03, XP-EX-04a/b/c |
 | Offline, launches nothing | this | T3 | XP-EX-06 |
 | Bypass not admissible | this | T6 | XP-ADV-08 |
 | Neutral vs native separated explicitly | this | T4 | XP-PROP-01, XP-ADV-06/07 |
 | Divergence named, never averaged | this | T4, T6 | XP-PROP-02, XP-ADV-09, XP-MUT-03 |
-| No provider vocabulary in structural positions | this | T5 | XP-EX-05, XP-ADV-03 |
+| No provider vocabulary in structural positions | this | T5 | XP-EX-05, XP-ADV-03, XP-ADV-03b (detail-only ⇒ pass), XP-MUT-13 |
 | Authority remains adapter-independent | this | T5 | XP-EX-04, XP-ADV-02 |
 | Shared commit visibility across journal/events/evidence | this | T1.1, T0.2, T6.7 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
 | Operation alignment by ordinal | this | T4.2 | XP-EX-10, XP-ADV-16, XP-MUT-11, XP-MUT-12 |

@@ -15,17 +15,23 @@ with evidence in the PR — a box is never checked in advance.
 ### External authority
 
 - **GitHub issue #56** — "Runner L8: Coding-adapter conformance seed",
-  the external authority anchor for this landing. Verbatim:
-  - *Ships:* "the conformance harness — same profile, same run → same
-    events and evidence across the Claude and Copilot adapters at the
-    execution-port level. Explicitly a **seed**, not framework
-    conformance (that completes at L10 with a deterministic-loop
-    adapter)."
+  the external authority anchor for this landing. **Current text, as
+  amended 2026-08-26 under T0.4:**
+  - *Ships:* "the conformance harness — **same logical run semantics
+    under provider-bound profiles** → same events and evidence across the
+    Claude and Copilot adapters at the execution-port level. Explicitly a
+    **seed**, not framework conformance (that completes at L10 with a
+    deterministic-loop adapter)."
   - *Expected scope:* `tests/framework-conformance/**`.
   - *Completion intent:* "suite green across both adapters; divergences
     are named findings, never averaged away. Prerequisites: L7."
-  - State at planning time: **OPEN**, no labels, no milestone, no
-    assignee. Parent: #19.
+  - State: **OPEN**, no labels, no milestone, no assignee. Parent: #19.
+  - **Pre-amendment wording, recorded as history — not the governing
+    text:** the *Ships* line previously read "same profile, same run →
+    same events and evidence…". It was amended because `runtime.adapter`
+    and `runtime.image_digest` are execution-profile fields, so one
+    profile cannot pin two adapters/images; the amendment and its
+    rationale are recorded on the issue itself.
 - **Supporting mandate:** ADR-0003 lines 187–190 require
   framework-conformance tests "asserting that every adapter emits the
   same event and evidence contract for the same logical run".
@@ -169,13 +175,13 @@ verification net ships with each component (see `assurance.md`).
       operations in the same order**, so ordinal alignment (T4.2) is
       meaningful; declare any dialect divergence explicitly.
       *Implements:* spec "same logical run … two provider bindings".
-      *Blocked by:* T0.4 — the model needs external authority first.
+      *Satisfied by:* T0.4 — the model now has external authority (amended #56).
       *Proves:* XP-INV-07c. *Evidence:* XP-EX-04c.
       *Verification:* a fixture-diff assertion — any difference outside
       the provider-bound set fails as a fixture defect (XP-ADV-02c).
 - [ ] **T2.2** Drive the logical run through both adapters, holding the
       run-scoped inputs identical by construction.
-      *Blocked by:* T0.2.
+      *Satisfied by:* T0.2 — the composition factory is approved.
       *Proves:* the comparison model in `design.md`.
       *Verification:* two result documents produced from one run fixture
       plus the two profiles.
@@ -266,7 +272,7 @@ verification net ships with each component (see `assurance.md`).
       finds nothing terminal. Apply XP-MUT-10 here too (compose the sinks
       on private ledgers) and confirm it is killed.
       *Proves:* XP-INV-15. *Kills:* XP-MUT-10.
-- [ ] **T6.6** Execute XP-MUT-01…12; record each with the killing output
+- [ ] **T6.6** Execute XP-MUT-01…13; record each with the killing output
       and verify the tree is restored after each. Mutants must be applied
       against a **committed** baseline and the built artifact verified to
       contain the mutation before any verdict is believed.

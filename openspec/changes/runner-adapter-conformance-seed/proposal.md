@@ -4,8 +4,10 @@
 
 L7 (#55) merged as PR #96; main is `5403a85`. The runner program index
 (#19) names **L8 / #56** next: the coding-adapter conformance *seed* —
-"same profile, same run → same events and evidence across the Claude and
-Copilot adapters **at the execution-port level**."
+"same logical run semantics under provider-bound profiles → same events
+and evidence across the Claude and Copilot adapters **at the
+execution-port level**" (#56 as amended 2026-08-26 under T0.4; it
+previously read "same profile, same run").
 
 L7 landed a substantial shared suite at `tests/framework-conformance/`
 (85 tests). That suite proves the adapters agree at the **process
