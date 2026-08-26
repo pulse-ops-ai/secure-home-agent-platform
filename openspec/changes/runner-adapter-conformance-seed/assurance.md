@@ -56,6 +56,7 @@ launches nothing, and changes no accepted contract.
 | XP-INV-15 | The journal, event sink, and evidence sink share ONE `CommitVisibility` with finalization; the harness never composes them on private ledgers, and never defines its own visibility semantics | trust |
 | XP-INV-16 | The comparison model has recorded external authority (an amended #56 or a recorded owner acceptance) before it is implemented | review/governance |
 | XP-INV-17 | Operations are aligned by platform-assigned ordinal, never by provider name; an aligned case with mismatched counts is a divergence, never a silent fallback to shared-property comparison | behavior |
+| XP-INV-18 | The requested expansion touches exactly one source file (`services/runner-control/src/index.ts`) and NO package manifest; a `package.json` diff would mean a larger, undeclared scope (a subpath entry point) was taken | review/governance |
 
 ## Authority Chain
 
@@ -184,6 +185,7 @@ Out-of-grant dialect:
 | XP-EX-07 | XP-INV-12, XP-INV-14 | mechanical | landed L7 inertness tests still pass; `git diff` over the frozen SPI is empty |
 | XP-EX-08 | XP-INV-15 | deterministic example | after commit, the staged terminal event and evidence are VISIBLE through the sinks — the assertion that fails when the ledgers are not shared |
 | XP-EX-09 | XP-INV-16 | manual evidence | the recorded owner decision (amended #56, or a written acceptance) is cited in `tasks.md` before T2.1 begins |
+| XP-EX-11 | XP-INV-18 | mechanical | `git diff` over `services/runner-control/package.json` is empty at the completion head |
 | XP-PROP-01 | XP-INV-03 | property | for every compared field, a classification exists; unclassified ⇒ failure |
 | XP-PROP-02 | XP-INV-09 | property | for any injected MUST-agree difference, the failure message names field + both values |
 | XP-EX-10 | XP-INV-17 | deterministic example | aligned cases compare by ordinal with names free; a length mismatch in an aligned case fails |
@@ -263,6 +265,7 @@ No obligation claims proof of behavior the harness does not exercise:
 | Shared commit visibility across journal/events/evidence | this | T1.1, T0.2, T6.7 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
 | Operation alignment by ordinal | this | T4.2 | XP-EX-10, XP-ADV-16, XP-MUT-11, XP-MUT-12 |
 | External authority for the two-binding model | **blocking** | T0.4 | XP-EX-09 |
+| Requested expansion stays one source file, no manifest | this | T0.2, completion gate | XP-EX-11 |
 | Neutrality of `claims`/`events`/`usage`/`transcript` | **deferred** | — | no consumer exists; due at L9/L10 when one does |
 | `transcript_terminal` vocabulary resolution | **deferred/escalated** | T0 (blocking question) | owner decision, separate authorized change |
 
@@ -306,9 +309,11 @@ not a runtime.
 - **Contract-conformance obligations** — the landed L7 suite, the
   runner-control conformance suite, and the workspace/import gates must
   all remain green; the frozen SPI diff must be empty.
-- **Scope review** — the composition-factory / export decision (T0.2)
-  and the #56 authority reconciliation (T0.4) are explicit reviewer
-  gates, not implementation details.
+- **Scope review** — the composition-factory decision (T0.2) and the #56
+  authority reconciliation (T0.4) are explicit reviewer gates, not
+  implementation details. Under T0.2's recommended option the affected
+  path is exactly one source file and no manifest; selecting a subpath
+  entry point instead re-opens the scope request.
 - No repeated full review at construction checkpoints; one review at the
   complete seam, plus the T0 decision up front.
 

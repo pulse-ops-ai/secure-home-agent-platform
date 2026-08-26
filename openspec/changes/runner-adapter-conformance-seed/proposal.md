@@ -134,12 +134,15 @@ A **seed** proof at the execution-port boundary, added to the
   comparison rules, the adversarial and mutation cases, and the
   divergence report.
 - **One requested expansion, flagged for approval, not pre-approved:**
-  a small public addition to `services/runner-control` so a real
-  `Runner` can be composed from outside the package — recommended as a
-  composition factory returning a correctly-wired in-memory port set,
-  with piecemeal exports as the alternative. No new behavior, no new
-  interface, no change to `AdapterInvocationPort`. Options and costs are
-  in `design.md`; the decision is the reviewer's.
+  a small public addition to `services/runner-control/src/index.ts` so a
+  real `Runner` can be composed from outside the package — recommended as
+  a composition factory returning a correctly-wired, complete `Ports`,
+  with the four piecemeal exports as the alternative. **One source file
+  and no manifest change**: the addition rides the already-declared `"."`
+  export, and a `./testing` subpath entry point is explicitly ruled out
+  in `design.md` as a larger, separately-declarable request. No new
+  behavior, no new interface, no change to `AdapterInvocationPort`. The
+  decision is the reviewer's.
 
 ### Out of scope
 
@@ -167,7 +170,7 @@ A **seed** proof at the execution-port boundary, added to the
 | Area | Change |
 |---|---|
 | `tests/framework-conformance/` | new execution-port harness + comparison rules + divergence report |
-| `services/runner-control/src/index.ts` | **requested only** (approval required): one public composition factory, or the four piecemeal exports — see T0.2 |
+| `services/runner-control/src/index.ts` | **requested only** (approval required): one public composition factory, or the four piecemeal exports — see T0.2. Exactly one source file: the factory rides the already-declared `"."` export, so **no `package.json` change** is entailed, and the completion gate asserts the manifest is untouched |
 | `openspec/changes/runner-adapter-conformance-seed/` | this change's artifacts |
 
 ## Governance

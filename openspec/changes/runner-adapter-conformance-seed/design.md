@@ -326,14 +326,39 @@ and its contract must be stated rather than inferred:
 | Determinism | stepping clock, in-memory journal and lease; no wall-clock or randomness in the compared surface |
 | Launches nothing | every returned port is value-returning or in-memory; none spawns a process |
 | Scope | a curated, supported surface — **not** exporting `testing-fixtures` wholesale, whose other members (failing doubles, hanging adapters) are the service's own test scaffolding |
+| Entry point | the existing top-level barrel, `src/index.ts`. **No `package.json` change**: the factory rides the already-declared `"."` export, so the affected path is one source file |
 
 **Requested expansion — three options, for the reviewer to choose:**
 
 | Option | Shape | Cost |
 |---|---|---|
-| **(b) a public composition factory** *(recommended)* | expose a curated factory returning a **complete thirteen-field `Ports`** — the `testPorts` shape (`testing-fixtures.ts:218`), NOT the `sharedPorts` shape (`:203`, four components only) — via `src/index.ts` or a declared `./testing` subpath export, satisfying the contract table above | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol |
+| **(b) a public composition factory** *(recommended)* | expose a curated factory returning a **complete thirteen-field `Ports`** — the `testPorts` shape (`testing-fixtures.ts:218`), NOT the `sharedPorts` shape (`:203`, four components only) — from the existing `src/index.ts` barrel, satisfying the contract table above | makes **correct wiring the contract** instead of a consumer obligation; smallest public surface; one symbol; **no manifest change** |
 | (a) piecemeal symbol exports | add the four missing named pieces: `CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`, `InMemoryWorkspaceLifecycle` | four additions, and it leaves the shared-ledger hazard as something every consumer must get right unaided |
 | (c) re-implement in the test | build both in-memory ports **and** a `CommitLedger` inside `tests/` | stays literally inside #56's scope, but the harness would then define its own visibility semantics — a proof about the test's substrate, not the platform's. Rejected on merit |
+
+**Why the top-level barrel and not a `./testing` subpath export.** An
+earlier draft left both routes open, which under-declared the affected
+scope: a subpath would additionally require `package.json` (which today
+declares only `"."` — `services/runner-control/package.json:10`) and a
+new source entry to back it. Restricted to the barrel on the evidence:
+
+- the barrel **already exports ten in-memory / recording / deterministic
+  doubles** (`DeterministicAdapterInvocation`, `RecordingEventSink`,
+  `RecordingEvidenceSink`, `SteppingClock`, `InMemoryRunJournal`,
+  `InMemoryRunLease`, the three `Filesystem*` observers,
+  `DeterministicExecution`), so one factory beside them is consistent
+  rather than novel;
+- **every service in this workspace exports only `"."`.** Subpath exports
+  exist solely on build-tooling and test-only packages
+  (`eslint-config`, `tsconfig`, `testing`'s `./vitest`) and on the
+  adapters' `./bin` process entry. A `./testing` subpath on a deployable
+  would be unprecedented here;
+- no repository gate asserts export maps, so the drift a second entry
+  point invites would not be caught mechanically.
+
+If the owner prefers the subpath at T0.2, that is a **larger** scope
+request — `package.json` plus a new entry module plus their verification
+— and must be re-declared rather than absorbed silently.
 
 Two earlier framings were wrong and are corrected here: "two symbols"
 missed the finalization pieces entirely, and "finalization is

@@ -137,7 +137,8 @@ verification net ships with each component (see `assurance.md`).
       thirteen-field `Ports`** — `testPorts`-shaped
       (`testing-fixtures.ts:218`), NOT `sharedPorts`-shaped
       (`:203` returns only four shared-visibility components) — via
-      `src/index.ts` or a declared `./testing` subpath export;
+      the existing `src/index.ts` barrel — **no `package.json` change**,
+      because the factory rides the already-declared `"."` export;
       **recommended**, because it makes correct wiring the contract
       rather than a consumer obligation. Its required contract (complete
       `Ports`, one shared `CommitVisibility` across
@@ -149,9 +150,20 @@ verification net ships with each component (see `assurance.md`).
       (`CommitLedger`, `CommitParticipants`, `InMemoryExecutionSession`,
       `InMemoryWorkspaceLifecycle`) — four additions, and the
       shared-ledger hazard remains the consumer's to get right;
+      *Ruled out, and recorded so it is not silently reopened:* a
+      `./testing` subpath export. It would additionally require
+      `services/runner-control/package.json` (today declaring only
+      `"."`) and a new source entry, i.e. a larger scope request than
+      declared. The barrel already carries ten sibling doubles, every
+      service in this workspace exports only `"."`, and no gate asserts
+      export maps. Selecting the subpath at T0.2 re-opens the scope
+      request and must be re-declared.
       (c) re-implement the ports **and** a `CommitLedger` inside
       `tests/` — literally in scope, but the harness would define its own
       visibility semantics and prove nothing about the platform's.
+      *Affected path under (b):* exactly one source file,
+      `services/runner-control/src/index.ts`. No manifest change; the
+      completion gate asserts `package.json` is untouched.
       *Note:* the earlier "two symbols" framing was wrong — it missed the
       finalization participants entirely.
 - [ ] **T0.4** Reconcile the external authority's "same profile" wording
@@ -377,6 +389,9 @@ construction.
 - [ ] every ladder check green in CI at the completion head, or its local
       status disclosed with CI as authority
 - [ ] `git diff <base>..HEAD -- services/runner-control/src/ports/` empty
+- [ ] `git diff <base>..HEAD -- services/runner-control/package.json` empty
+      — the factory rides the existing `"."` export; a manifest change
+      would mean the subpath route was taken without re-declaring scope
 - [ ] the landed L7 suite still green, unmodified except where T7.1
       documents the boundary split
 - [ ] the divergence report present and readable
