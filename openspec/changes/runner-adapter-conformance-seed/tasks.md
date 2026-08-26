@@ -315,9 +315,10 @@ construction.
 - Neutrality of `claims`, `events`, `usage`, `transcript` at the
   recording boundary — **no consumer exists today**; due when one does
   (L9 / #57, L10 / #58).
-- `transcript_terminal` **vocabulary and its home** — decided at T0.1.
-  The normalization itself is a required predecessor owned by the
-  adapters (ADR-0013 §3/§5), not deferred work.
+- `transcript_terminal` **vocabulary and normalization** — **not deferred
+  work**: T0.1 selected a separate predecessor change, owned by the
+  adapters (ADR-0013 §3/§5), which defines the vocabulary and normalizes
+  into it. It is the one landing this change waits on.
 - Effective cancellation, isolation, and enforcement — L9 (#57), behind
   U4 (#9).
 - The deterministic-loop adapter that converts this seed into framework

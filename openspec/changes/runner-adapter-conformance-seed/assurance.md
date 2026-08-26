@@ -268,11 +268,11 @@ No obligation claims proof of behavior the harness does not exercise:
 | Authority remains adapter-independent | this | T5 | XP-EX-04, XP-ADV-02 |
 | Shared commit visibility across journal/events/evidence | this | T1.1, T0.2, T6.7 | XP-EX-08, XP-MUT-10, XP-ADV-15 |
 | Operation alignment by ordinal | this | T4.2 | XP-EX-10, XP-ADV-16, XP-MUT-11, XP-MUT-12 |
-| External authority for the binding model | **blocking** | T0.4 | XP-EX-09 |
+| External authority for the binding model | **satisfied** (T0.4 — #56 amended) | recorded in `tasks.md` | XP-EX-09 |
 | Seam claimed = seam exercised | this | T1.2, T6.1 | XP-EX-12 |
-| Requested expansion stays one source file, no manifest | this | T0.2, completion gate | XP-EX-11 |
+| Approved expansion stays one source file, no manifest | this | T0.2 (approved), completion gate | XP-EX-11 |
 | Neutrality of `claims`/`events`/`usage`/`transcript` | **deferred** | — | no consumer exists; due at L9/L10 when one does |
-| `transcript_terminal` vocabulary resolution | **deferred/escalated** | T0 (blocking question) | owner decision, separate authorized change |
+| `transcript_terminal` vocabulary + normalization | **predecessor** (T0.1 decided; not yet landed) | the separate predecessor change | that change's own proof; this landing's XP-ADV-11 regression case |
 
 ## Landing Plan
 
@@ -280,15 +280,16 @@ No obligation claims proof of behavior the harness does not exercise:
 
 The adapter normalization fix (ADR-0013 §3/§5) must land **before** this
 gate, because the gate cannot pass while it is outstanding. It is not
-part of this change's declared scope; it lands either as its own
-authorized change or as an explicitly authorized extension of this one.
-This plan does not assume either, and does not implement it.
+part of this change's declared scope, and **T0.1 selected the separate
+predecessor change** — it never lands as an extension of this one, so #56
+is not widened to carry adapter changes. This plan does not implement it.
 
 Then, one PR, ordered so the proof cannot be tuned into agreement:
 
-1. **T0 — decisions** (no code): the vocabulary decision, the scope
-   request (now including the finalization participants), the predecessor
-   authorization, and the #56 authority reconciliation. All block T1+.
+1. **T0 — RESOLVED** (owner, 2026-08-26): separate predecessor,
+   composition factory, green-only landing, amended #56. No T0 decision
+   blocks anything now; **the one live blocker is that the predecessor
+   has not landed**, which holds T1+ through `NOT_AUTHORIZED`.
 2. **T1** — harness skeleton, the node driver, and the Python↔Node
    handoff contract; no assertions yet.
 3. **T2** — the two runs execute end to end.
@@ -314,19 +315,19 @@ not a runtime.
 - **Contract-conformance obligations** — the landed L7 suite, the
   runner-control conformance suite, and the workspace/import gates must
   all remain green; the frozen SPI diff must be empty.
-- **Scope review** — the composition-factory decision (T0.2) and the #56
-  authority reconciliation (T0.4) are explicit reviewer gates, not
-  implementation details. Under T0.2's recommended option the affected
-  path is exactly one source file and no manifest; selecting a subpath
-  entry point instead re-opens the scope request.
+- **Scope review** — T0.2 and T0.4 are **resolved**, so review confirms
+  conformity to them rather than re-deciding: the expansion is the single
+  approved factory on one source file with no manifest change (a
+  `package.json` diff would mean the ruled-out subpath route was taken),
+  and the binding model matches the amended #56.
 - No repeated full review at construction checkpoints; one review at the
   complete seam, plus the T0 decision up front.
 
 ## Rollout and Rollback
 
-`not_applicable` for runtime rollout: this landing adds a test suite and,
-pending the T0.2 decision, one public composition factory (or the
-equivalent four piecemeal exports) on `services/runner-control`. There is
+`not_applicable` for runtime rollout: this landing adds a test suite and
+the one composition factory approved at T0.2 on
+`services/runner-control`. There is
 no activation, no shadow phase, and no measurement gate. Rollback is
 reverting the PR; nothing downstream depends on it.
 

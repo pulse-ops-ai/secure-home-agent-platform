@@ -164,8 +164,8 @@ A **seed** proof at the execution-port boundary, added to the
   redesign the seam. #56 grants no such authority.
 - **Implementing the `transcript_terminal` normalization.** It belongs to
   `agents/adapters/**` (ADR-0013 §3/§5), which is outside this change's
-  declared scope; it lands as its own authorized change or as an
-  explicitly authorized extension, before this gate.
+  declared scope. Per T0.1 it lands as a **separate predecessor change**
+  — never as an extension of this one — before this gate.
 - **Contacting a real provider**, adding a credential, or running
   anything non-deterministic or online.
 - **U4/#9**, runner-control placement, ADR status changes.
@@ -179,7 +179,7 @@ A **seed** proof at the execution-port boundary, added to the
 | Area | Change |
 |---|---|
 | `tests/framework-conformance/` | new execution-port harness + comparison rules + divergence report |
-| `services/runner-control/src/index.ts` | **requested only** (approval required): one public composition factory, or the four piecemeal exports — see T0.2. Exactly one source file: the factory rides the already-declared `"."` export, so **no `package.json` change** is entailed, and the completion gate asserts the manifest is untouched |
+| `services/runner-control/src/index.ts` | **approved T0.2 scope expansion**: one curated composition factory. No piecemeal exports, no `./testing` subpath, no `package.json` change — the factory rides the already-declared `"."` export, and the completion gate asserts the manifest is untouched |
 | `openspec/changes/runner-adapter-conformance-seed/` | this change's artifacts |
 
 ## Governance
