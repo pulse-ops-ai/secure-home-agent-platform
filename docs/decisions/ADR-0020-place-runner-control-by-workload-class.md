@@ -115,10 +115,14 @@ execution substrate.**
 This is not a preference. It is forced:
 
 - R0 means "Pi, no model" and R1 means "Pi, small model"
-  ([`local-remote-routing.md`](../architecture/local-remote-routing.md)). A
-  household run's inference is *already* placed on the Pi by ADR-0007. Placing
-  its orchestration elsewhere would put a WAN hop in front of a class whose
-  defining property is that it needs no WAN.
+  ([`local-remote-routing.md`](../architecture/local-remote-routing.md)).
+  **R0 and R1 household inference is already Pi-local, and no
+  household-critical operation may depend on R2 or R3** — which is what
+  ADR-0007 actually guarantees. The household column in §1 permits R2
+  occasionally, and R2 is Exxact-hosted rather than Pi-local, so the blanket
+  claim that household inference is "already on the Pi" would be false for
+  that case. Placing household orchestration elsewhere would put a WAN hop in
+  front of the classes whose defining property is that they need no WAN.
 - [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) and
   [`degraded-mode.md`](../architecture/degraded-mode.md) classify household
   operations that must `CONTINUE` during WAN loss. A remote orchestrator makes
@@ -148,8 +152,12 @@ Why that host and not the VPS, initially:
 - **Coding-run availability is explicitly not critical.** The workstation "may be
   off" and that is acceptable; a coding run that cannot start is a deferred
   developer task, not a household failure.
-- **Data stays in the tailnet.** Repository contents and provider credentials do
-  not reach a rented host to get this working.
+- **No repository or credential material reaches a rented host.** The workspace
+  and the provider credential stay on a machine the owner already controls.
+  This is *not* a claim that all data stays local: coding runs are typically
+  R3, and R3 model traffic leaves the tailnet for a third-party provider
+  exactly as the execution profile authorizes
+  ([ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)).
 
 Why not the Pi, even though it is simpler: §6 and §7 below.
 
@@ -297,9 +305,15 @@ authority, and no database connection.
 
 ### 9. Network implications
 
-- The coding host reaches: the model provider (R3, profile-declared), source
-  control, and the household API **only as an ordinary client across B3** if a
-  profile grants it. It gets nothing by being on the tailnet.
+- **Coding-class profiles do not grant household-service egress.** What a coding
+  run reaches is the model provider (R3, profile-declared) and source control.
+  The host may nonetheless have tailnet reachability to B3; that reachability
+  grants **no platform authority** and remains subject to B3's authentication,
+  authorization, and deterministic safety policy. Placement removes authority,
+  not network presence — see *What a coding-host compromise actually reaches*.
+  The profile half of this is mechanically checked by **F1**; an earlier draft
+  of this bullet said the household API was reachable "if a profile grants it",
+  which contradicted F1 and is corrected here.
 - The Pi's household deployment needs no new reachability.
 - **Tailnet membership is not authority.** A coding host that can route to the Pi
   still presents a token, is authorized, and passes safety policy exactly as a
@@ -688,8 +702,11 @@ about *household* runs, and coding-contention evidence belongs to the coding hos
 
 - The household and coding failure domains stop intersecting **for resource,
   kernel, thermal, and host-authority failures**. They remain connected by the
-  network, deliberately: a coding run that must reach the household API does so
-  across B3, like any other client.
+  network, deliberately: the coding host keeps tailnet reachability to B3, and
+  anything that crosses into the household plane from it crosses B3 like any
+  other client — authentication, authorization, deterministic safety policy.
+  A coding *run* is not authorized to make that crossing at all: coding-class
+  profiles grant no household-service egress (§9, enforced by F1).
 - Root-equivalent container authority moves off the household control plane.
 - E1/E2 residue — readable credential copies and escaped cache — lands on a host
   holding no Home Assistant credential, no device authority, and no database
@@ -848,7 +865,7 @@ This ADR may be accepted when a reviewer agrees that:
 | **F2** | A stated rule for version skew between the two `runner-control` deployments, including which contract versions must match and what happens when they do not | L9 (#57) |
 | **F3** | Decide whether execution-host placement becomes a declared, reviewable profile property. **Do not implement a schema change under this ADR.** | new ADR or a tracked unresolved decision |
 | **F4** | #57's Pi-contention evidence re-scoped per O8: household runs on the Pi, coding contention on the coding host | L9 (#57) |
-| **F5** | Update [`runner-model.md`](../architecture/runner-model.md) "Runs on" row and [`system-context.md`](../architecture/system-context.md) topology **after acceptance**, not before | the accepting change |
+| **F5** | The accepting change — and only the accepting change — updates all five in one commit: [`INDEX.md`](INDEX.md) status row; [`unresolved-decisions.md`](../architecture/unresolved-decisions.md) marking **U4 resolved by ADR-0020**; [`runner-model.md`](../architecture/runner-model.md) "Runs on" row; [`system-context.md`](../architecture/system-context.md) topology; and [`trust-boundaries.md`](../architecture/trust-boundaries.md), which today binds the sandbox to the Pi — B4 is drawn "untrusted, **inside the house**" (line 43), described as untrusted "even though it runs on the Pi" (line 66), and the contention note assumes a run shares "the same Pi" (line 92). **After acceptance B4 has two physical realizations, one per runner class**, and those statements must say so. **After acceptance, not before.** | the accepting change |
 | **F6** | Evidence transport from the coding host to durable storage, resolved together with [U11](../architecture/unresolved-decisions.md#u11) | U11's ADR |
 
 ---
