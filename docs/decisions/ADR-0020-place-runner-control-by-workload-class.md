@@ -338,11 +338,16 @@ workload never shares a kernel with the household control path.**
 | Shared edge down | unaffected (Path B) | unaffected if the coding host is reachable on the tailnet |
 | VPS down | degraded: no durable writes ([U11](../architecture/unresolved-decisions.md#u11)) | same |
 | Coding host down or off | **no effect** | no coding runs — accepted |
-| Pi down | household operation is lost — inherent and already accepted | coding runs continue; they have no Pi dependency |
+| Pi down | household operation is lost — inherent and already accepted | the coding execution host remains available; whether new runs can be **dispatched**, or an in-flight run's **evidence completed**, without the Pi depends on the dispatch path and the eventual [U11](../architecture/unresolved-decisions.md#u11) evidence-transport design (F6) — this ADR decides neither |
 | Tailnet unavailable | household local path unaffected (LAN) | coding host unreachable for dispatch |
 
-The last two rows are the point of the split: **the failure domains no longer
-intersect in either direction.**
+The point of the split, stated no more strongly than the analysis supports:
+**host-local resource, kernel, thermal, and container-runtime failures are
+separated by workload class.** Shared network and persistence dependencies
+remain and are analysed separately — the VPS row above degrades both classes,
+and *What a coding-host compromise actually reaches* keeps enough network reach
+to attack household **availability**. This is the same distinction Consequences
+draws: placement separates host-local failure, not network presence.
 
 ---
 
@@ -865,7 +870,7 @@ This ADR may be accepted when a reviewer agrees that:
 | **F2** | A stated rule for version skew between the two `runner-control` deployments, including which contract versions must match and what happens when they do not | L9 (#57) |
 | **F3** | Decide whether execution-host placement becomes a declared, reviewable profile property. **Do not implement a schema change under this ADR.** | new ADR or a tracked unresolved decision |
 | **F4** | #57's Pi-contention evidence re-scoped per O8: household runs on the Pi, coding contention on the coding host | L9 (#57) |
-| **F5** | The accepting change — and only the accepting change — updates all five in one commit: [`INDEX.md`](INDEX.md) status row; [`unresolved-decisions.md`](../architecture/unresolved-decisions.md) marking **U4 resolved by ADR-0020**; [`runner-model.md`](../architecture/runner-model.md) "Runs on" row; [`system-context.md`](../architecture/system-context.md) topology; and [`trust-boundaries.md`](../architecture/trust-boundaries.md), which today binds the sandbox to the Pi — B4 is drawn "untrusted, **inside the house**" (line 43), described as untrusted "even though it runs on the Pi" (line 66), and the contention note assumes a run shares "the same Pi" (line 92). **After acceptance B4 has two physical realizations, one per runner class**, and those statements must say so. **After acceptance, not before.** | the accepting change |
+| **F5** | The accepting change — and only the accepting change — reconciles all five **in the same accepting change** (the governance property is atomic reviewed acceptance, not a commit count): **(1)** [`INDEX.md`](INDEX.md) fully — move ADR-0020 out of *Under review*, add it to *Implementation decisions* as `Accepted`, add an **`### ADR-0020 acceptance record`** carrying accepted date, decider, review PR, and the U4 resolution, replace the "ADR-0020 is `Proposed`" note, update the *Still blocked* U4/L9 text, the "Which ADRs apply" row that reads "`Proposed` — decides nothing yet", and any open/resolved counts; **(2)** [`unresolved-decisions.md`](../architecture/unresolved-decisions.md) — mark U4 resolved **in place**, in that file's own convention (`> **RESOLVED <date> by <ADR>**` under the `## U4` heading, as U6 and U7 show) **and** in the summary table row; **(3)** [`runner-model.md`](../architecture/runner-model.md) "Runs on" row; **(4)** [`system-context.md`](../architecture/system-context.md) topology; **(5)** [`trust-boundaries.md`](../architecture/trust-boundaries.md), which today binds the sandbox to the Pi — B4 drawn "untrusted, **inside the house**" (line 43), described as untrusted "even though it runs on the Pi" (line 66), and the contention note assuming a run shares "the same Pi" (line 92); **after acceptance B4 has two physical realizations, one per runner class**, and those statements must say so. **After acceptance, not before.** | the accepting change |
 | **F6** | Evidence transport from the coding host to durable storage, resolved together with [U11](../architecture/unresolved-decisions.md#u11) | U11's ADR |
 
 ---
