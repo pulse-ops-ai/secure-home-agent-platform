@@ -42,12 +42,19 @@ same for all nine.
 | 8 | **Policy / authorization decision points** | OpenFGA and deterministic safety policy — already placed by [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md)/[ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md) and untouched here |
 | 9 | **Durable remote data** | the authoritative database at boundary B7 |
 
-**They do not have to colocate, and two of them must not.** Concern 2 and
-concern 9 sharing a host would put the untrusted sandbox (B4) on the
-authoritative data boundary (B7) —
-[`trust-boundaries.md`](../architecture/trust-boundaries.md) treats those as
-distinct boundaries precisely so that a compromise of one is not a compromise of
-the other.
+**They do not have to colocate, and two of them should not.** Concern 2 and
+concern 9 sharing a host does **not** merge boundaries B4 and B7 — the canonical
+model is explicit that co-location conveys nothing, and it already places B3 and
+B4 on the same Pi on purpose
+([`trust-boundaries.md`](../architecture/trust-boundaries.md)). A trust boundary
+is a logical control, not a machine.
+
+What co-location does is **couple blast radii**. The two boundaries remain
+distinct and are still enforced; but a host compromise — or the root-equivalent
+container-runtime authority a launcher must hold — reaches everything on that
+host at once, whichever boundaries happen to live there. That is the argument
+this ADR uses. It is narrower than "the boundaries merge", and it is the one that
+survives contact with the canonical model.
 
 ### What is landed, and what is not
 
@@ -69,7 +76,7 @@ not background; each one eliminates a placement option or forces an obligation.
 
 | # | Finding | Consequence for placement |
 |---|---|---|
-| **E1** | The tested OS-store credential **remained reusable after provider process termination** | Host login/credential-store state is **not** a per-run boundary. Per-run credential isolation requires a boundary that is destroyed with the run — a container filesystem and user, not a host account. |
+| **E1** | The tested OS-store credential **remained reusable after provider process termination** | Host login/credential-store state is **not** a per-run containment boundary. Containing a credential to one run requires a boundary destroyed with the run — a container filesystem and user, not a host account. Note the limit of what this establishes: it is about **where a copy can still be read**, not about whether the credential is still *valid* at the provider. |
 | **E2** | `COPILOT_HOME` **did not contain all provider state**; cache was written to `~/.cache/copilot` outside it | Redirecting one provider home directory is neither teardown nor isolation. Cache growth is unbounded **on the host filesystem**, which makes storage pressure a placement question. |
 | **E3** | Same-user process environment is observable on the host | Per-run credential injection by environment variable is safe only across a process/user/container boundary — never "same host, same user, different env". |
 | **E4** | Provider permission controls are incomplete; read-only shell behaviour was demonstrably not a capability boundary | L9 cannot delegate filesystem/network/process enforcement to provider CLI flags. Enforcement must be substrate-owned, therefore host-owned. |
@@ -130,9 +137,12 @@ coding execution substrate live on it, together.
 Why that host and not the VPS, initially:
 
 - **The VPS holds boundary B7**, the authoritative durable data. Running the
-  untrusted sandbox (B4) on it merges the two boundaries
-  [`trust-boundaries.md`](../architecture/trust-boundaries.md) separates. A
-  second, dedicated VPS instance would avoid that — at the cost of new rented
+  coding substrate there would not *merge* B4 and B7 — co-location grants
+  nothing, and B7 would still require its service credential and envelope. It
+  would **couple their blast radii**: the launcher's root-equivalent
+  container-runtime authority, and any host compromise reached through it, would
+  land on the machine holding the authoritative household record. A second,
+  dedicated VPS instance avoids that coupling — at the cost of new rented
   infrastructure, a new remote credential custody surface, and a new host to
   patch. It is an allowed target variant (§3), not the cheapest first step.
 - **Coding-run availability is explicitly not critical.** The workstation "may be
@@ -155,7 +165,9 @@ fixed:
 
   1. it is **not** the Pi;
   2. it is **not** the host holding the authoritative database (B7);
-  3. it holds **no** Home Assistant credential and no household device reach;
+  3. it holds **no** Home Assistant credential, **no** device authority, and
+     **no** database connection — it may still be network-reachable, and B3 is
+     what bounds that;
   4. household operation has **no dependency** on its availability.
 
 Moving a coding run from the workstation to a VPS instance is therefore a
@@ -211,7 +223,7 @@ Not two codebases, not a coordinator/worker protocol, not a new service.
 | Host | the Pi | the coding-execution host |
 | Runs profiles from | [`profiles/household/`](../../profiles/household/) | [`profiles/coding/`](../../profiles/coding/) |
 | Execution substrate | local | local |
-| Provider credentials | none | per-run only, destroyed with the run |
+| Provider credentials | none | injected per run; local copies destroyed with the run |
 | Home Assistant credential | **none** | **none** |
 | Database connection | none — evidence leaves via the household path | none |
 
@@ -251,18 +263,37 @@ evidence — is expressed in terms of those promises and of the domain contracts
 |---|---|---|---|---|---|---|
 | **Home Assistant read** | action-gateway only | Pi | service lifetime | rotating at HA | the gateway process | unchanged — never in a runner |
 | **Future HA actuation** | action-gateway only ([U10](../architecture/unresolved-decisions.md#u10), open) | Pi | — | — | the gateway process | **this ADR preserves the boundary and decides nothing about the strategy** |
-| **Claude / Copilot / Codex provider** | the coding run, per run | coding host, inside the container | one run | destroying the container; provider-side revocation | that run's process tree only | **nothing readable may remain — this is an L9 obligation, and E1/E2 prove the default behaviour violates it** |
+| **Claude / Copilot / Codex provider** | the coding run, per run | coding host, inside the container | **validity: [U2](../architecture/unresolved-decisions.md#u2), open** — not decided here | **at the provider / issuer**. Container teardown does **not** revoke it | that run's process tree only, if containment holds | **no readable copy on the host** — an L9 containment obligation (O4/O5), which is *not* the same as the credential being invalid. E1/E2 prove the default behaviour violates containment |
 | **VPS database** | services that write durable data | Pi services | service lifetime | rotating at the VPS | those processes | unchanged — no runner has a DB connection (B7) |
 | **Internal service identity** | each service | its own host | per [U2](../architecture/unresolved-decisions.md#u2) (open) | — | — | workload-identity mechanism still undecided |
 
-The load-bearing row is the provider credential. E1 showed a host credential
-store surviving process death; E2 showed provider state escaping a redirected
-home. **Therefore the per-run credential boundary is the container, and teardown
-of that container is what revokes the credential.** No host-level login, no
-shared cache directory, no `--home`-style redirection is accepted as the
+The load-bearing row is the provider credential, and it needs two properties
+kept apart. Conflating them is the mistake this section exists to prevent.
+
+| Property | Who decides it | What it means |
+|---|---|---|
+| **Issuance, scope, expiry, revocation** | **[U2](../architecture/unresolved-decisions.md#u2), still open** | the credential is minted for one run, scoped to it, and **ceases to be valid** when the run ends |
+| **Injection, containment, destruction** | **L9, the substrate** | the credential reaches the run, nothing outside it can read it, and no readable copy — file, cache, keyring entry, environment — survives on the host |
+
+**Container teardown delivers the second property only.** It can prove *"the
+terminated run can no longer read this credential from this host."* It cannot
+prove *"this credential is invalid everywhere."* A credential that leaked before
+teardown, or that the provider still honours, is unaffected by destroying the
+container that held it.
+
+[ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) is explicit on this and is
+not overridden here: it **does not make credentials ephemeral**, the per-run
+environment-token path is **untested**, U2 decides the semantics, and L9 must
+prove containment. This ADR decides *where* containment is enforced. It decides
+nothing about ephemerality.
+
+E1 showed a host credential store surviving process death; E2 showed provider
+state escaping a redirected home. So no host-level login, no shared cache
+directory, and no `--home`-style redirection is accepted as a containment
 boundary. Placing coding execution on a host that is *not* the Pi means that when
-this obligation is imperfectly met — and E1/E2 say the default is imperfect — the
-residue lands on a host with no household reach.
+containment is imperfectly met — and E1/E2 say the default is imperfect — the
+readable residue lands on a host with no Home Assistant credential, no device
+authority, and no database connection.
 
 ### 9. Network implications
 
@@ -362,7 +393,7 @@ root-equivalent daemon is the reason.
 | WAN dependence | a VPS coding host makes coding runs WAN-dependent. Acceptable **only** because coding is not household-critical |
 | Latency | irrelevant for coding runs; would be disqualifying for R0/R1 household runs |
 | Availability | better than a workstation that may be off; worse than the Pi for anything local |
-| Compromised-host blast radius | source code, provider credentials, and whatever the tailnet lets it reach. **Bounded by B3**: it re-enters the household as an ordinary client and gets no household authority from its network position |
+| Compromised-host blast radius | source code, provider credentials, and whatever the tailnet lets it reach — availability attacks included. **Authority is bounded by B3**: it re-enters as an ordinary client and gains nothing from network position. Reachability itself is not removed by placement |
 | Access back into the tailnet | the real risk. Mitigated by Tailscale ACLs (reachability) **and** by the B3 rule that reachability is never authority. ACLs are defence in depth, never the boundary |
 | Temptation to grant household reach | the failure mode to guard. §4 forbids it |
 | Durable logging/evidence | attractive — but see below |
@@ -375,9 +406,18 @@ house.
 
 **The evidence-colocation temptation is rejected.** It is tempting to put coding
 execution on the VPS that already holds the durable database, because evidence
-would then be written locally. That merges B4 (untrusted sandbox) with B7
-(authoritative durable data) on one host. A compromised coding container would
-then sit on the machine holding the authoritative record of the household. This
+would then be written locally.
+
+State the reason precisely, because the obvious phrasing is wrong. It does **not**
+merge B4 with B7: co-location conveys no authority, and a sandbox on that host
+would still need B7's service credential and envelope to reach the database — the
+canonical model already co-locates B3 and B4 on the Pi for exactly this reason.
+
+The real objection is **blast-radius coupling**. A coding host must hold
+root-equivalent container-runtime authority to launch anything. Putting that
+authority on the machine that holds the authoritative household record means one
+host compromise reaches both the coding substrate and the durable data, in one
+step, without crossing B7's logical control at all — it goes underneath it. That
 is why §2 requires the coding host not to be the database host, and why the
 initial choice is the workstation rather than the existing VPS.
 
@@ -528,9 +568,12 @@ flowchart TB
     class ING,ACT,HA,RCH safe
 ```
 
-Root-equivalent container authority now exists **only on a host with no household
-reach and no authoritative data**. The coding sandbox's only route into the house
-is B3, as an authenticated, authorized client — the same crossing a browser makes.
+Root-equivalent container authority now exists **only on a host holding no
+household credential, no device authority, and no authoritative data**. The
+coding sandbox's only route into the house is B3, as an authenticated,
+authorized, safety-policy-checked client — the same crossing a browser makes.
+Network reach is not removed by this diagram and is not claimed to be: the
+boundary that holds is B3, not the machine boundary.
 
 ---
 
@@ -570,17 +613,45 @@ as follow-up obligation F3 and as a candidate new unresolved decision in
 
 | Question | Answer |
 |---|---|
-| Why can a coding-agent compromise not become a household compromise? | It runs on a different kernel, on a host with no Home Assistant credential and no device reach. Its only route into the house is B3 as an authenticated client, where it is authorized and safety-policy-checked exactly like a browser. Network reachability over the tailnet gives it nothing. |
+| Why can a coding-agent compromise not become **device** authority? | It runs on a different kernel, on a host holding no Home Assistant credential and no database connection. Its only route toward the house is B3, as an ordinary client that must authenticate, be authorized, and pass safety policy — the same crossing a browser makes. Tailnet reachability grants it no authority. **This is a bound on authority, not on consequence** — the honest chain is stated immediately below. |
 | Why can a coding workload not starve local household services? | It does not share CPU, RAM, PIDs, filesystem, thermal envelope, or page cache with them. Bounding it is still required — but it is no longer the household's only protection. |
-| Why can coding provider credentials not leak into another provider run? | Because the per-run credential boundary is the container, destroyed with the run. **This is an obligation, not a landed mechanism** — E1 and E2 prove the default provider behaviour violates it, which is why it appears in the L9 obligations below. |
+| Why can coding provider credentials not leak into another provider run? | Because containment is per-container and destroyed with the run — **an obligation, not a landed mechanism**, and E1/E2 prove the default violates it. This bounds *reading a copy from this host*. Whether the credential remains **valid** after the run is U2's question, still open; container teardown is not revocation. |
 | Why can a provider cache not become a cross-run authority channel? | Same answer, same caveat: teardown must destroy it. E2 is the direct evidence that a redirected home directory does not. |
 | Why does WAN loss not disable household-critical behaviour? | Household orchestration, execution, and R0/R1 inference are all Pi-local. Nothing household-critical crosses the WAN. |
 | Why can remote coding execution not gain Home Assistant access by being on the tailnet? | Tailnet authenticates a *device*, never a platform principal. B6 is crossed only by the action-gateway, after authorization and safety policy, with a bound approval. |
-| Who has container-runtime authority? | The `runner-control` deployment on each host, for that host only. On the Pi that authority is limited to household images; on the coding host it is root-equivalent **on a host with no household reach**. |
+| Who has container-runtime authority? | The `runner-control` deployment on each host, for that host only. On the Pi that authority is limited to household images; on the coding host it is root-equivalent **on a host that holds no household credential and no device authority** — it retains network reach, and that reach is bounded by B3, never by placement. |
 | Is a Docker socket exposed to `runner-control`? | **Not decided here, and deliberately.** L9 chooses the mechanism. This ADR imposes the constraint it must satisfy: a compromise of `runner-control` must not be root-equivalent on the household host. That constraint is much harder to meet on the Pi, which is part of why coding execution is not there. |
-| What if `runner-control` itself is compromised? | Household deployment: it can launch household images and emit false run facts; it still cannot actuate a device, because it holds no HA credential and every action crosses B6 through the gateway. Coding deployment: full control of the coding host and its provider credentials; no household consequence. |
+| What if `runner-control` itself is compromised? | **Household deployment:** it can launch household images and emit false run facts; it still cannot actuate a device, because it holds no HA credential and every action crosses B6 through the gateway. **Coding deployment:** full control of the coding host and its provider credentials. It is **not** "no household consequence" — see the chain below. |
 | Blast radius of a compromised Pi? | Total loss of household control, and the action-gateway's HA credential. This is inherent to a local-first posture, is already accepted in [`local-remote-routing.md`](../architecture/local-remote-routing.md), and this decision **reduces** it by removing coding workloads from that host. |
-| Blast radius of a compromised VPS/coding host? | Source code, provider credentials, and tailnet reachability. It gains no household authority and no database access. If the coding host were the database host, this row would also read "the authoritative household record" — which is why §2 forbids that. |
+| Blast radius of a compromised VPS/coding host? | Source code, provider credentials, and tailnet reachability — including the ability to attack household **availability** by flooding what it can route to, and to attempt B3 crossings. It gains no HA credential, no direct device authority, and no database connection. If the coding host were also the database host, one host compromise would additionally reach the authoritative household record — which is why §2 forbids that. |
+
+### What a coding-host compromise actually reaches
+
+The claim "no household consequence" was in an earlier draft of this ADR and is
+wrong. This decision removes household **authority** from the coding host; it
+does not remove the coding host from the network, and it cannot remove
+consequences that do not require authority. The accurate chain:
+
+```text
+coding deployment compromised
+  -> coding-host compromise: source, provider credentials, container authority
+  -> tailnet/network reach REMAINS POSSIBLE
+     (reachability is not authority — but it is still reachability,
+      and it is enough to attack AVAILABILITY)
+  -> any household API crossing STILL requires B3:
+     authentication, authorization, and deterministic safety policy
+  -> a scoped B3 agent identity may eventually exist on that host
+     (U2 is open; when it is decided, a compromised host may hold
+      whatever credential U2 grants a run — scoped and expiring,
+      never a household or device credential)
+  -> NO Home Assistant credential
+  -> NO direct device authority
+  -> NO database connection
+  -> NO privileged bypass of B3
+```
+
+What the topology can safely promise is the last four lines. It cannot promise
+silence.
 
 **Nothing in this table asserts that an L9 mechanism exists.** Every row that
 depends on enforcement is listed below as an obligation.
@@ -597,8 +668,8 @@ claims".
 |---|---|---|
 | **O1** | CPU, memory, PID, wall-clock, and output ceilings | **both** hosts, independently, by the local `runner-control` |
 | **O2** | Per-run network default-deny with profile-declared egress only; verification gates stay network-none regardless | **both** hosts |
-| **O3** | Effective teardown: process tree dead → container gone → mounts gone → credential inaccessible → terminal evidence recorded | **both** hosts, locally. Never across a network. |
-| **O4** | Per-run provider credential boundary that leaves nothing reusable after termination — explicitly refuting E1 | **coding host** |
+| **O3** | Effective teardown: process tree dead → container gone → mounts gone → credential **inaccessible from this host** → terminal evidence recorded | **both** hosts, locally. Never across a network. |
+| **O4** | Per-run credential **containment**: no readable copy of the credential — file, cache, keyring entry, environment — survives on the host after termination, refuting E1. **Scoped deliberately.** L9 proves the terminated run can no longer read it *here*; it does **not** prove the credential is invalid elsewhere. Issuance, scope, expiry, and revocation are [U2](../architecture/unresolved-decisions.md#u2) and remain open | **coding host** (containment) · **U2** (validity) |
 | **O5** | Provider cache destroyed with the run, including state written outside any redirected home — explicitly refuting E2 | **coding host** |
 | **O6** | Terminal state determined by the substrate's own observation, never by the provider's self-report — explicitly refuting E5 | **both** hosts |
 | **O7** | Container-runtime authority held such that a `runner-control` compromise is not root-equivalent on the household host | **Pi**, strictly; coding host, best effort |
@@ -615,12 +686,15 @@ about *household* runs, and coding-contention evidence belongs to the coding hos
 
 **Good.**
 
-- The household failure domain and the coding failure domain stop intersecting in
-  both directions.
+- The household and coding failure domains stop intersecting **for resource,
+  kernel, thermal, and host-authority failures**. They remain connected by the
+  network, deliberately: a coding run that must reach the household API does so
+  across B3, like any other client.
 - Root-equivalent container authority moves off the household control plane.
-- E1/E2 residue — reusable credentials and escaped cache — lands on a host with no
-  household reach, so the L9 obligations are defence in depth rather than the only
-  barrier.
+- E1/E2 residue — readable credential copies and escaped cache — lands on a host
+  holding no Home Assistant credential, no device authority, and no database
+  connection, so the L9 containment obligations are defence in depth rather than
+  the only barrier.
 - The coding host can be patched, restarted, and rebuilt without touching the
   house.
 - L9 becomes implementable: every obligation has a host that can physically meet
@@ -664,12 +738,23 @@ effective-teardown requirement.
 The decision moves the untrusted, adversarial-by-design workload off the host that
 holds the household credential boundary and the local enforcement point. It does
 not make that workload safe — L9 does that — but it means an incomplete L9 fails
-onto a host whose compromise does not reach devices or the authoritative record.
+onto a host whose compromise yields no device authority and no authoritative
+record.
 
-It introduces one new exposure: a second host holding provider credentials, and a
-tailnet member that a future change might be tempted to grant household reach.
-§4 forbids that; F1 requires it to be mechanically checkable rather than a
-documented intention.
+**It does not make a coding-host compromise consequence-free.** Network reach
+remains, availability attacks remain possible, and once
+[U2](../architecture/unresolved-decisions.md#u2) is decided such a host may hold
+a scoped, expiring run identity for B3. What placement removes is *authority*,
+not *presence*.
+
+It introduces two new exposures. A second host holds provider credentials. And a
+tailnet member exists that a future change might be tempted to grant household
+authority — §4 forbids that, and F1 requires the prohibition to be mechanically
+checkable rather than a documented intention.
+
+It removes no exposure that does not depend on authority. A compromised coding
+host still has network reach and can still attack availability; that is bounded
+by B3 and by ordinary network controls, never by where the workload was placed.
 
 ---
 
