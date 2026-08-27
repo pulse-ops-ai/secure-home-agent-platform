@@ -46,7 +46,7 @@ here so that nobody silently answers them by writing code.
 | [U1](#u1) | Local OpenFGA replica vs. signed grants vs. bounded cache | any offline household authorization | **critical** |
 | [U2](#u2) | Workload-identity mechanism for runner credentials | any agent that calls a governed API | high |
 | [U3](#u3) | Which service issues the L6 internal identity envelope | all L7 verification | high |
-| [U4](#u4) | `runner-control` placement — Pi vs. VPS | ~~runner substrate implementation~~ — L9 still waits on L8 and on its own task contract | **RESOLVED** — [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md), 2026-08-26 |
+| [U4](#u4) | `runner-control` placement — Pi vs. VPS | ~~runner substrate implementation~~ — L9 (#57) still waits on L8 | **RESOLVED** — [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md), 2026-08-26 |
 | [U5](#u5) | Automation persistence and scheduler | automation service | medium |
 | [U6](#u6) | The framework-adapter SPI | ~~every adapter~~ | **RESOLVED** — [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), 2026-08-12 |
 | [U7](#u7) | OKF validator and toolchain | ~~any real knowledge bundle~~ — still blocked, by the toolchain gate | **RESOLVED** — [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md), 2026-08-15 |
@@ -161,7 +161,8 @@ becomes a high-value target.
 > **This resolved a decision, not a deployment.** L9 (#57) is still
 > unimplemented — no launcher, no network default-deny, no resource ceilings.
 > Acceptance satisfied **GATE-U4 only**; L9's prerequisites are `L8 + GATE-U4`,
-> L8 (#56) has not landed, and L9 needs its own task contract besides. Evidence
+> and **L8 (#56) is the outstanding one** — L9's own external authority anchor
+> is #57. Evidence
 > transport from the coding host stays with [U11](#u11), and the
 > workload-identity mechanism stays with [U2](#u2); the ADR resolves neither.
 

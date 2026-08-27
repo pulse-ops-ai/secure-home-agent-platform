@@ -73,10 +73,11 @@ contract or issue authorizes the specific work
 - **GATE-U4, and nothing else** — since **ADR-0020** closed
   [U4](../architecture/unresolved-decisions.md#u4) on 2026-08-26, the launcher
   landing is no longer waiting on a *decision*. It is not therefore next: L9's
-  prerequisites are **`L8 + GATE-U4`**, L8 (#56) has not landed and is not
-  authorized to implement, and L9 needs its own task contract on top of that.
-  No launcher, network default-deny, resource ceiling, or isolation mechanism
-  exists or is authorized by that acceptance.
+  prerequisites are **`L8 + GATE-U4`**, and **L8 (#56) is the outstanding
+  one** — it has not landed and is not authorized to implement. L9's own
+  external authority anchor is **#57**. No launcher, network default-deny,
+  resource ceiling, or isolation mechanism exists or is authorized by that
+  acceptance.
 
 **Still blocked** — acceptance changed nothing here, because these depend on
 questions the ADRs deliberately left open:
@@ -86,7 +87,7 @@ questions the ADRs deliberately left open:
 | Any offline/bounded local authority mechanism | [U1](../architecture/unresolved-decisions.md#u1) — **BOUNDED still behaves as FAIL CLOSED** |
 | Issuing run credentials to a sandbox | [U2](../architecture/unresolved-decisions.md#u2) |
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
-| Deploying `runner-control` to a host | ~~[U4](../architecture/unresolved-decisions.md#u4)~~ — **decided** by [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) (2026-08-26), which closed the decision and nothing else. Still blocked on **L8 (#56), which has not landed**, and then on L9's own task contract: L9 (#57) implements the launcher, network default-deny, and resource ceilings, and none of that exists |
+| Deploying `runner-control` to a host | ~~[U4](../architecture/unresolved-decisions.md#u4)~~ — **decided** by [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) (2026-08-26), which closed the decision and nothing else. Still blocked on **L8 (#56), which has not landed** — L9's own authority anchor is #57, which implements the launcher, network default-deny, and resource ceilings, and none of that exists |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
 | Authoring `household/**` knowledge, or releasing any set | `blockedByRollout` — both remain rollout-blocked (ADR-0016 §7a). Runbooks are allowlisted per module, never by directory; `knowledge/catalog.json` is authoritative for current eligibility |
 | **Publishing** any knowledge bundle | no governed **Proof B** producer exists ([ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §5a). Discharging readiness did not unblock publication |
@@ -154,8 +155,7 @@ implementation-neutral. These decide how it is built.
 > **ADR-0020 is `Accepted`** (2026-08-26) and **immutable**. It
 > **resolves [U4](../architecture/unresolved-decisions.md#u4)** — the first
 > placement decision this repository has made — and satisfies **GATE-U4 only**.
-> L9 (#57) stays blocked on L8 (#56) and on its own task contract, and none of
-> it is implemented. See
+> L9 (#57) stays blocked on **L8 (#56)**, and none of it is implemented. See
 > [the ADR-0020 acceptance record](#adr-0020-acceptance-record).
 >
 > **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
@@ -214,8 +214,9 @@ deployments.
 **What acceptance does not do.** It implements nothing. **L9 (#57) remains
 unimplemented** — no launcher, no network default-deny, no resource ceilings,
 no isolation mechanism. Acceptance satisfied L9's GATE-U4 and no other
-prerequisite: `L9 ← L8 + GATE-U4`, L8 (#56) has not landed, and L9 needs its
-own task contract besides.
+prerequisite: `L9 ← L8 + GATE-U4`, so **L8 (#56) is what remains
+outstanding**. L9's external authority anchor is **#57**; the gate it was
+waiting on was the ADR, not the issue.
 
 **On the host, precisely.** ADR-0020 §2 **does select the initial coding host**
 — the workstation-class tailnet machine — and §3 states the target as a role

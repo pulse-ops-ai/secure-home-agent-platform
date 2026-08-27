@@ -11,7 +11,7 @@ only by a later governed landing.
 > [ADR-0020](../../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md)
 > resolved [U4](../../docs/architecture/unresolved-decisions.md#u4) on
 > 2026-08-26 — and that was one of two prerequisites: `L9 ← L8 + GATE-U4`.
-> L8 (#56) has not landed, and L9 has no authorizing task contract.
+> **L8 (#56) is the outstanding one** and has not landed.
 
 ## The taxonomy this directory exists to keep straight
 
@@ -36,8 +36,8 @@ Concrete runtime integration authored by its own governed landing:
 runtime configuration, hardening posture, and the documentation of how the
 chosen runtime satisfies the launch contract. That landing is L9 (or an
 explicitly authorized prerequisite). Its placement prerequisite is met — the
-placement ADR is accepted — and that is one of two: L9 is also sequenced after
-L8 (#56), which has not landed, and it has no authorizing task contract. Note
+placement ADR is accepted — and that is one of two: L9 (#57) is also sequenced
+after L8 (#56), which has not landed. Note
 that placement and runtime are *different* decisions — ADR-0020 chose neither a
 runtime nor an isolation mechanism, and explicitly implements none.
 
