@@ -31,12 +31,12 @@ images:
     external_base:
       reference: docker.io/library/debian:trixie-slim
       digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
-    digest: sha256:7465a89e82a5acb501fa4b09dac1ed8bb29005e74fbf1fb315d8854489b4a17e
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:26f9f727845bed5f4dab7459011fc1fbf601bee403d00f10c62ed217ecfc1d18
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:56d0974d34ba1e721af943b4f0d9fd9cef948baed2cd0b6628cb7e547d97cb26
+        digest: pending-first-governed-build
   - name: secure-home-runner-claude
     lineage: runner-derived
     definition: deploy/images/runner-claude/Dockerfile
@@ -44,7 +44,7 @@ images:
       - linux/amd64
       - linux/arm64
     parent: secure-home-runner-base
-    parent_digest: sha256:7465a89e82a5acb501fa4b09dac1ed8bb29005e74fbf1fb315d8854489b4a17e
+    parent_digest: pending-first-governed-build
     runtime:
       name: claude-code
       package: "@anthropic-ai/claude-code"
@@ -63,7 +63,7 @@ images:
       - linux/amd64
       - linux/arm64
     parent: secure-home-runner-base
-    parent_digest: sha256:7465a89e82a5acb501fa4b09dac1ed8bb29005e74fbf1fb315d8854489b4a17e
+    parent_digest: pending-first-governed-build
     runtime:
       name: copilot
       package: "@github/copilot"
@@ -84,9 +84,9 @@ images:
     external_base:
       reference: docker.io/library/debian:trixie-slim
       digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
-    digest: sha256:49966ee738783401a29f8eb90085cb77b52965a2cddbfae20abae541d7e438ab
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:c6b2379fdbbe25cccf4daa2ff3e2ad5a7c35f92662b721cc324680d5880e4d42
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:bb3fc62e0e3c816701541603ee28646995be12c4108619d0b44766c57e5d248f
+        digest: pending-first-governed-build

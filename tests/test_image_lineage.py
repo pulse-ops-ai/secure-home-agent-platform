@@ -9,6 +9,7 @@ refusal text.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -24,39 +25,50 @@ SENTINEL = "pending-first-governed-build"
 BASE_DOCKERFILE = f"""FROM docker.io/library/debian:trixie-slim@{BASE_DIGEST}
 ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
-COPY packages.lock.json packages.amd64.sha256 /tmp/pkg/
-RUN cd /tmp/pkg && apt-get download $(cut -d' ' -f3 "packages.${{TARGETARCH}}.sha256") \
-    && sha256sum -c "packages.${{TARGETARCH}}.sha256" \
-    && dpkg --install *.deb
+COPY packages.amd64.manifest /tmp/pkg/
+RUN cd /tmp/pkg \\
+    && apt-get download $(awk '{{print $3 "=" $4}}' "packages.${{TARGETARCH}}.manifest") \\
+    && sha256sum -c /tmp/pkg/.sums \\
+    && dpkg --install $(awk '{{print $5}}' "packages.${{TARGETARCH}}.manifest")
 LABEL io.secure-home.lineage="runner-base"
 USER nobody
 """
 
-# The pinned package closure the base fixture verifies against. One artifact
-# is enough: the rules under test are about the PINNING, not the contents.
-FIXTURE_PACKAGE_SHA = "a" * 64
-FIXTURE_PACKAGE_FILE = "example-lib_1.0-1_amd64.deb"
-BASE_PACKAGES_LOCK = (
-    "{\n"
-    '  "version": 1,\n'
-    '  "architectures": {\n'
-    '    "amd64": [\n'
-    "      {\n"
-    '        "package": "example-lib",\n'
-    '        "version": "1.0-1",\n'
-    '        "architecture": "amd64",\n'
-    '        "component": "main",\n'
-    f'        "filename": "{FIXTURE_PACKAGE_FILE}",\n'
-    '        "url": "https://example.invalid/pool/main/e/example-lib/'
-    f'{FIXTURE_PACKAGE_FILE}",\n'
-    f'        "sha256": "{FIXTURE_PACKAGE_SHA}",\n'
-    '        "size": 1024\n'
-    "      }\n"
-    "    ]\n"
-    "  }\n"
-    "}\n"
-)
-BASE_PACKAGES_SUMS = f"{FIXTURE_PACKAGE_SHA}  {FIXTURE_PACKAGE_FILE}\n"
+# The pinned closure the fixtures verify against. One artifact is enough: the
+# rules under test are about the PINNING, not the contents.
+FIXTURE_SHA = "a" * 64
+FIXTURE_SIZE = 1024
+FIXTURE_PKG = "example-lib"
+FIXTURE_VERSION = "1.0-1"
+FIXTURE_FILE = f"{FIXTURE_PKG}_{FIXTURE_VERSION}_amd64.deb"
+FIXTURE_URL = f"https://example.invalid/pool/main/e/{FIXTURE_PKG}/{FIXTURE_FILE}"
+
+
+def _closure(**overrides: object) -> str:
+    """The shared Debian closure authority, with one artifact."""
+    artifact = {
+        "package": FIXTURE_PKG,
+        "version": FIXTURE_VERSION,
+        "architecture": "amd64",
+        "component": "main",
+        "filename": FIXTURE_FILE,
+        "url": FIXTURE_URL,
+        "sha256": FIXTURE_SHA,
+        "size": FIXTURE_SIZE,
+    }
+    artifact.update(overrides)
+    return json.dumps({"version": 1, "artifacts": [artifact]}, indent=2) + "\n"
+
+
+def _projection(
+    sha: str = FIXTURE_SHA,
+    size: int = FIXTURE_SIZE,
+    pkg: str = FIXTURE_PKG,
+    version: str = FIXTURE_VERSION,
+    filename: str = FIXTURE_FILE,
+) -> str:
+    return f"{sha}  {size}  {pkg}  {version}  {filename}\n"
+
 
 DERIVED_DOCKERFILE = """FROM secure-home-runner-base
 ARG RUNTIME_PACKAGE=@example/agent
@@ -68,12 +80,22 @@ USER nobody
 """
 
 GATES_DOCKERFILE = f"""FROM docker.io/library/debian:trixie-slim@{BASE_DIGEST}
+ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
 ARG NODE_VERSION=1.0.0
 ARG PNPM_VERSION=2.0.0
 ARG UV_VERSION=3.0.0
-RUN install-toolchain node@${{NODE_VERSION}} \\
-    pnpm@${{PNPM_VERSION}} uv@${{UV_VERSION}} && uv python install 9.9
+ARG PNPM_SHA256={"c" * 64}
+ARG PYTHON_VERSION=9.9.9
+ARG PYTHON_SHA256_AMD64={"d" * 64}
+ARG PYTHON_SHA256_ARM64={"e" * 64}
+COPY packages.amd64.manifest /tmp/pkg/
+RUN cd /tmp/pkg \\
+    && apt-get download $(awk '{{print $3 "=" $4}}' "packages.${{TARGETARCH}}.manifest") \\
+    && sha256sum -c /tmp/pkg/.sums \\
+    && install-toolchain node@${{NODE_VERSION}} pnpm@${{PNPM_VERSION}} \\
+       uv@${{UV_VERSION}} python@${{PYTHON_VERSION}} \\
+       ${{PNPM_SHA256}} ${{PYTHON_SHA256_AMD64}} ${{PYTHON_SHA256_ARM64}}
 LABEL io.secure-home.lineage="gates-toolchain"
 USER nobody
 """
@@ -152,11 +174,12 @@ def _fixture(tmp_path: Path) -> Path:
     root = tmp_path / "root"
     for rel, content in {
         "deploy/images/runner-base/Dockerfile": BASE_DOCKERFILE,
-        "deploy/images/runner-base/packages.lock.json": BASE_PACKAGES_LOCK,
-        "deploy/images/runner-base/packages.amd64.sha256": BASE_PACKAGES_SUMS,
+        "deploy/images/debian-closure.lock.json": _closure(),
+        "deploy/images/runner-base/packages.amd64.manifest": _projection(),
         "deploy/images/runner-example/Dockerfile": DERIVED_DOCKERFILE,
         "deploy/images/gates-toolchain/Dockerfile": GATES_DOCKERFILE,
         "deploy/images/image-lock.yaml": _lock(),
+        "deploy/images/gates-toolchain/packages.amd64.manifest": _projection(),
         "deploy/images/gates-toolchain/toolchain.json": (
             '{ "tools": [\n'
             '  { "name": "node", "provedBy": "arg", "arg": "NODE_VERSION",\n'
@@ -165,7 +188,9 @@ def _fixture(tmp_path: Path) -> Path:
             '    "versionSource": "package.json packageManager" },\n'
             '  { "name": "uv", "provedBy": "arg", "arg": "UV_VERSION",\n'
             '    "versionSource": "checks.yml UV_VERSION" },\n'
-            '  { "name": "python", "provedBy": "uv-managed", "value": "9.9" }\n'
+            '  { "name": "python", "provedBy": "arg", "arg": "PYTHON_VERSION" },\n'
+            '  { "name": "example-lib", "provedBy": "package-manifest",\n'
+            '    "package": "example-lib" }\n'
             "] }\n"
         ),
         "deploy/runtime/README.md": "# runtime taxonomy only\n",
@@ -258,7 +283,7 @@ def test_a_conforming_fourth_image_needs_no_vocabulary_change(tmp_path: Path) ->
 # plants one way of losing that pin again.
 
 
-def test_an_apt_install_in_the_base_definition_is_refused(tmp_path: Path) -> None:
+def test_an_apt_install_is_refused(tmp_path: Path) -> None:
     """`install` resolves dependencies at build time; what it resolves to
     depends on the day. `download` fetches exactly what it is told."""
     root = _fixture(tmp_path)
@@ -270,7 +295,7 @@ def test_an_apt_install_in_the_base_definition_is_refused(tmp_path: Path) -> Non
     assert "resolves dependencies at build time" in result.stderr
 
 
-def test_a_base_definition_that_verifies_nothing_is_refused(tmp_path: Path) -> None:
+def test_a_definition_that_verifies_nothing_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-base/Dockerfile"
     dockerfile.write_text(dockerfile.read_text().replace("sha256sum -c", "true -c"))
@@ -279,78 +304,148 @@ def test_a_base_definition_that_verifies_nothing_is_refused(tmp_path: Path) -> N
     assert "an unverified download is an unpinned input" in result.stderr
 
 
-def test_a_missing_package_manifest_is_refused(tmp_path: Path) -> None:
+def test_a_missing_closure_authority_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
-    (root / "deploy/images/runner-base/packages.lock.json").unlink()
+    (root / "deploy/images/debian-closure.lock.json").unlink()
     result = _check(root)
     assert result.returncode == 1, result.stdout
-    assert "the package closure is a manifest, not prose" in result.stderr
-
-
-def test_a_projection_that_has_drifted_from_the_manifest_is_refused(
-    tmp_path: Path,
-) -> None:
-    """The build verifies against the .sha256 file, review reads the manifest.
-    If they can disagree, the reviewed set is not the verified set."""
-    root = _fixture(tmp_path)
-    sums = root / "deploy/images/runner-base/packages.amd64.sha256"
-    sums.write_text(sums.read_text().replace("a" * 64, "b" * 64))
-    result = _check(root)
-    assert result.returncode == 1, result.stdout
-    assert "have drifted" in result.stderr
+    assert "a reviewed manifest, not prose" in result.stderr
 
 
 def test_a_missing_projection_for_a_declared_platform_is_refused(
     tmp_path: Path,
 ) -> None:
     root = _fixture(tmp_path)
-    (root / "deploy/images/runner-base/packages.amd64.sha256").unlink()
+    (root / "deploy/images/runner-base/packages.amd64.manifest").unlink()
     result = _check(root)
     assert result.returncode == 1, result.stdout
     assert "the build consumes it by name" in result.stderr
 
 
+def test_a_projection_that_has_drifted_from_the_authority_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The build verifies against the projection, review reads the authority.
+    If they can disagree, the reviewed set is not the verified set."""
+    root = _fixture(tmp_path)
+    proj = root / "deploy/images/runner-base/packages.amd64.manifest"
+    proj.write_text(_projection(sha="b" * 64))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "have drifted" in result.stderr
+
+
+def test_a_projection_size_that_disagrees_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    proj = root / "deploy/images/runner-base/packages.amd64.manifest"
+    proj.write_text(_projection(size=99))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "have drifted" in result.stderr
+
+
+def test_a_projection_naming_an_unreviewed_artifact_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The build must consume exactly the reviewed set."""
+    root = _fixture(tmp_path)
+    proj = root / "deploy/images/runner-base/packages.amd64.manifest"
+    proj.write_text(_projection(pkg="smuggled", filename="smuggled_1.0-1_amd64.deb"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "no review covers" in result.stderr
+
+
 def test_a_version_standing_in_for_a_digest_is_refused(tmp_path: Path) -> None:
     """The exact shape of the original defect: a pin that is only a version."""
     root = _fixture(tmp_path)
-    manifest = root / "deploy/images/runner-base/packages.lock.json"
-    manifest.write_text(manifest.read_text().replace('"' + "a" * 64 + '"', '"1.0-1"'))
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(sha256=FIXTURE_VERSION))
     result = _check(root)
     assert result.returncode == 1, result.stdout
     assert "a version is not a pin" in result.stderr
 
 
+def test_a_zero_byte_size_is_refused(tmp_path: Path) -> None:
+    """Size is checked against the fetched artifact at build time; zero could
+    never be verified against anything."""
+    root = _fixture(tmp_path)
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(size=0))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "no positive byte size" in result.stderr
+
+
 def test_a_non_https_artifact_url_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
-    manifest = root / "deploy/images/runner-base/packages.lock.json"
-    manifest.write_text(manifest.read_text().replace("https://", "http://"))
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(url=FIXTURE_URL.replace("https://", "http://")))
     result = _check(root)
     assert result.returncode == 1, result.stdout
     assert "no https URL" in result.stderr
 
 
+def test_a_url_that_does_not_name_the_artifact_is_refused(tmp_path: Path) -> None:
+    """The reviewed row and the fetched bytes must describe one file."""
+    root = _fixture(tmp_path)
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(url="https://example.invalid/pool/other.deb"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "is not the declared filename" in result.stderr
+
+
+def test_an_unknown_architecture_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(architecture="s390x"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "declares architecture" in result.stderr
+
+
 def test_a_filename_that_contradicts_its_declared_version_is_refused(
     tmp_path: Path,
 ) -> None:
-    """The build derives its fetch specs from the filename. If the filename
-    and the declared fields disagree, it fetches what review never saw."""
     root = _fixture(tmp_path)
-    manifest = root / "deploy/images/runner-base/packages.lock.json"
-    manifest.write_text(manifest.read_text().replace('"version": "1.0-1"', '"version": "9.9-9"'))
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(filename=f"{FIXTURE_PKG}_9.9-9_amd64.deb"))
     result = _check(root)
     assert result.returncode == 1, result.stdout
-    assert "does not encode" in result.stderr
+    assert "filename encodes version" in result.stderr
 
 
-def test_a_platform_with_no_declared_artifacts_is_refused(tmp_path: Path) -> None:
-    """A platform the lock builds for, with nothing pinned for it, would fall
-    back to whatever the archive offers on the day."""
+def test_an_epoch_stripped_pool_filename_is_accepted(tmp_path: Path) -> None:
+    """Debian's pool drops the epoch a version string carries. That spelling
+    is correct and must not be refused — the fixture would otherwise pass for
+    the wrong reason."""
     root = _fixture(tmp_path)
-    manifest = root / "deploy/images/runner-base/packages.lock.json"
-    manifest.write_text(manifest.read_text().replace('"amd64"', '"arm64"', 1))
+    closure = root / "deploy/images/debian-closure.lock.json"
+    closure.write_text(_closure(version="1:1.0-1"))
+    for image in ("runner-base", "gates-toolchain"):
+        proj = root / f"deploy/images/{image}/packages.amd64.manifest"
+        proj.write_text(_projection(version="1:1.0-1"))
+    result = _check(root)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_one_package_at_two_versions_in_the_authority_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Two images installing different bytes under one reviewed authority."""
+    root = _fixture(tmp_path)
+    closure = root / "deploy/images/debian-closure.lock.json"
+    doc = json.loads(closure.read_text())
+    second = dict(doc["artifacts"][0])
+    second["version"] = "2.0-1"
+    second["filename"] = f"{FIXTURE_PKG}_2.0-1_amd64.deb"
+    second["url"] = f"https://example.invalid/pool/main/e/{FIXTURE_PKG}/{second['filename']}"
+    doc["artifacts"].append(second)
+    closure.write_text(json.dumps(doc, indent=2) + "\n")
     result = _check(root)
     assert result.returncode == 1, result.stdout
-    assert "declares no artifacts" in result.stderr
+    assert "the authority admits one" in result.stderr
 
 
 # ── neutrality ───────────────────────────────────────────────────────────────
@@ -706,31 +801,68 @@ def test_an_unknown_proof_type_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     manifest = root / "deploy/images/gates-toolchain/toolchain.json"
     manifest.write_text(
-        manifest.read_text().replace('"provedBy": "uv-managed"', '"provedBy": "magic"')
+        manifest.read_text().replace('"provedBy": "package-manifest"', '"provedBy": "magic"')
     )
     result = _check(root)
     assert result.returncode == 1
     assert 'unknown provedBy "magic"' in result.stderr
 
 
-def test_a_missing_uv_managed_install_is_refused(tmp_path: Path) -> None:
-    """The manifest claims a uv-managed interpreter; the definition must
-    perform the literal `uv python install <value>`."""
+def test_a_uv_python_install_is_refused(tmp_path: Path) -> None:
+    """`uv python install` resolves an interpreter at build time. The
+    mechanism it used to prove is gone; reintroducing it must refuse."""
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
-    dockerfile.write_text(dockerfile.read_text().replace(" && uv python install 9.9", ""))
+    dockerfile.write_text(dockerfile.read_text() + "RUN uv python install 3.13\n")
     result = _check(root)
-    assert result.returncode == 1
-    assert "uv python install 9.9" in result.stderr
+    assert result.returncode == 1, result.stdout
+    assert "resolves an interpreter at build time" in result.stderr
 
 
-def test_a_uv_managed_tool_without_a_value_is_refused(tmp_path: Path) -> None:
+def test_a_corepack_install_is_refused(tmp_path: Path) -> None:
+    """corepack named pnpm by version and fetched whatever was served."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text() + "RUN corepack install -g pnpm@2.0.0\n")
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "named only by version" in result.stderr
+
+
+def test_a_range_python_pin_is_refused(tmp_path: Path) -> None:
+    """ "3.13" is a range. An artifact identity is an exact build."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace("PYTHON_VERSION=9.9.9", "PYTHON_VERSION=9.9")
+    )
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "is a range, not an artifact" in result.stderr
+
+
+def test_an_undeclared_artifact_pin_is_refused(tmp_path: Path) -> None:
+    """Every non-Debian artifact input carries its own digest ARG."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("ARG PNPM_SHA256=" + "c" * 64 + "\n", ""))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "ARG PNPM_SHA256 is not declared" in result.stderr
+
+
+def test_a_package_manifest_tool_the_manifest_does_not_pin_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The inventory may not claim a package the projection never installs."""
     root = _fixture(tmp_path)
     manifest = root / "deploy/images/gates-toolchain/toolchain.json"
-    manifest.write_text(manifest.read_text().replace(', "value": "9.9"', ""))
+    manifest.write_text(
+        manifest.read_text().replace('"package": "example-lib"', '"package": "ghost"')
+    )
     result = _check(root)
-    assert result.returncode == 1
-    assert 'needs an explicit "value"' in result.stderr
+    assert result.returncode == 1, result.stdout
+    assert "does not pin" in result.stderr
 
 
 def test_an_unmanifested_version_pin_is_refused(tmp_path: Path) -> None:

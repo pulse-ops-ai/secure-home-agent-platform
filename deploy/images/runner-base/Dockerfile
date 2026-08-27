@@ -11,10 +11,11 @@
 # anywhere in this file is a lineage violation (ADR-0011).
 #
 # REPRODUCIBILITY. Every input is pinned as an ARTIFACT, not as a request:
-# the external base by immutable digest, and every package by SHA-256 in the
-# governed manifest beside this file. Nothing here resolves a dependency at
-# build time, so nothing in the closure can move while the definition stands
-# still.
+# the external base by immutable digest, and every package by SHA-256 and byte
+# size in this image's projection of the shared closure authority
+# (deploy/images/debian-closure.lock.json). Nothing here resolves a dependency
+# at build time, so nothing in the closure can move while the definition
+# stands still.
 #
 # An earlier revision pinned only the two NAMED packages by version and let
 # `apt-get install` resolve the rest. That closure was never pinned: the
@@ -40,30 +41,46 @@ ARG TARGETARCH
 # Fixed so layer metadata cannot carry build wall-clock into the identity.
 ARG SOURCE_DATE_EPOCH=0
 
-# packages.lock.json is the reviewed authority — package, version, component,
-# filename, URL, SHA-256, and size for every artifact, per architecture. The
-# two .sha256 files are its machine-consumable projection, and
-# scripts/check-images.mjs refuses any drift between the three.
-COPY packages.lock.json packages.amd64.sha256 packages.arm64.sha256 /tmp/pkg/
+# packages.<arch>.manifest is this image's projection of the shared authority
+# at deploy/images/debian-closure.lock.json — one line per artifact, columns
+# <sha256> <size> <package> <version> <filename>. The build consumes exactly
+# that set; scripts/check-images.mjs refuses any drift between the two.
+COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 
 RUN set -eux; \
     cd /tmp/pkg; \
-    manifest="packages.${TARGETARCH}.sha256"; \
-    # ONE source drives both the fetch list and the verification, so the two
-    # cannot disagree: the specs are derived from the manifest's own
-    # filenames (<package>_<version>_<arch>.deb).
-    debs="$(awk '{print $2}' "${manifest}")"; \
-    specs="$(printf '%s\n' ${debs} | sed -E 's/^([^_]+)_([^_]+)_.*\.deb$/\1=\2/')"; \
+    manifest="packages.${TARGETARCH}.manifest"; \
     apt-get update; \
-    # `download`, never `install`. apt fetches EXACTLY the versions named and
-    # resolves nothing, so the closure cannot silently grow; a version that
-    # has left the archive fails here rather than being substituted.
-    apt-get download -o APT::Sandbox::User=root ${specs}; \
-    # The artifacts are checked against the manifest BEFORE anything is
-    # unpacked. This is the pin: a version string identifies a request, a
-    # SHA-256 identifies bytes.
-    sha256sum -c "${manifest}"; \
-    dpkg --install ${debs}; \
+    # `download`, never `install`. apt fetches EXACTLY the package=version
+    # pairs named and resolves nothing, so the closure cannot silently grow;
+    # a version that has left the archive fails here rather than being
+    # substituted. The pairs are read as columns, never parsed out of a
+    # filename — the pool drops the epoch that apt's own filename keeps.
+    apt-get download -o APT::Sandbox::User=root $(awk '{print $3 "=" $4}' "${manifest}"); \
+    # Content-addressed acceptance. Every artifact apt produced must BE one
+    # of the reviewed ones, matched by hash and renamed to its reviewed name.
+    # Anything else — an extra dependency, a substituted build — fails here
+    # rather than being installed.
+    for f in *.deb; do \
+      h="$(sha256sum "$f" | cut -d' ' -f1)"; \
+      want="$(awk -v h="$h" '$1 == h { print $5 }' "${manifest}")"; \
+      [ -n "${want}" ] || { echo "unreviewed artifact: $f ($h)" >&2; exit 1; }; \
+      [ "$f" = "${want}" ] || mv "$f" "${want}"; \
+    done; \
+    # Every reviewed artifact is present, and nothing beyond them.
+    [ "$(ls -1 *.deb | wc -l)" = "$(wc -l < "${manifest}")" ] || \
+      { echo "artifact count does not match the manifest" >&2; exit 1; }; \
+    # Byte size, checked independently of the hash: a zero-length or truncated
+    # artifact can never pass, whatever else agrees.
+    while read -r sha size pkg ver name; do \
+      actual="$(stat -c %s "${name}")"; \
+      [ "${actual}" = "${size}" ] || \
+        { echo "size mismatch ${name}: ${actual} != ${size}" >&2; exit 1; }; \
+    done < "${manifest}"; \
+    # The hash check in its canonical form, before anything is unpacked.
+    awk '{print $1 "  " $5}' "${manifest}" > /tmp/pkg/.sums; \
+    sha256sum -c /tmp/pkg/.sums; \
+    dpkg --install $(awk '{print $5}' "${manifest}"); \
     apt-get clean; \
     # The .deb files never enter a layer: fetched, verified, installed, and
     # removed inside this one instruction.

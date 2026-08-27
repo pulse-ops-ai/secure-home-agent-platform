@@ -2,12 +2,12 @@
   "$comment": "The canonical governed gate-toolchain inventory. scripts/check-images.mjs enforces this manifest against the Dockerfile in both directions (every arg-proved tool declared; every version ARG manifested) and mirrors versionSource-named pins against the sources that run the gate (.github/workflows/checks.yml, package.json). Adding a tool to the governed gate environment is a reviewed edit HERE, never an inferred one.",
   "tools": [
     { "name": "bash and coreutils", "provedBy": "debian-base" },
-    { "name": "ca-certificates", "provedBy": "arg", "arg": "CA_CERTIFICATES_VERSION" },
-    { "name": "git", "provedBy": "arg", "arg": "GIT_VERSION" },
+    { "name": "ca-certificates", "provedBy": "package-manifest", "package": "ca-certificates" },
+    { "name": "git", "provedBy": "package-manifest", "package": "git" },
     {
       "name": "curl (build-time fetch only; purged from the image)",
-      "provedBy": "arg",
-      "arg": "CURL_VERSION"
+      "provedBy": "package-manifest",
+      "package": "curl"
     },
     {
       "name": "node",
@@ -16,7 +16,7 @@
       "versionSource": "checks.yml NODE_VERSION"
     },
     {
-      "name": "pnpm (corepack-cached at build time)",
+      "name": "pnpm (SHA-256-pinned tarball, installed offline)",
       "provedBy": "arg",
       "arg": "PNPM_VERSION",
       "versionSource": "package.json packageManager"
@@ -27,6 +27,10 @@
       "arg": "UV_VERSION",
       "versionSource": "checks.yml UV_VERSION"
     },
-    { "name": "python (uv-managed CPython 3.13)", "provedBy": "uv-managed", "value": "3.13" }
+    {
+      "name": "python (SHA-256-pinned CPython build; uv is pointed at it via UV_PYTHON)",
+      "provedBy": "arg",
+      "arg": "PYTHON_VERSION"
+    }
   ]
 }

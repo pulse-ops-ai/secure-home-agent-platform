@@ -20,12 +20,10 @@ FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad
 ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
 
-# Exact archive versions, resolved from the trixie archive on 2026-08-23 —
-# same pin-or-fail-loudly posture as runner-base (the snapshot service
-# refuses the governed builder's address space; see the child design).
-ARG CA_CERTIFICATES_VERSION=20250419
-ARG GIT_VERSION=1:2.47.3-0+deb13u1
-ARG CURL_VERSION=8.14.1-2+deb13u4
+# ca-certificates, git and curl are no longer named by version here: their
+# exact artifacts, and their whole dependency closure, are pinned by SHA-256
+# in packages.<arch>.manifest. A version ARG beside that would be a second,
+# weaker spelling of the same pin.
 
 # The gate toolchain pins, matching the merge gate exactly
 # (.github/workflows/checks.yml: NODE_VERSION / UV_VERSION; package.json:
@@ -38,23 +36,66 @@ ARG PNPM_VERSION=11.18.0
 ARG UV_VERSION=0.12.1
 ARG UV_SHA256_AMD64=90b2f223fb69d19db49e117da601f64978593417988530aa733d456141b4bcbb
 ARG UV_SHA256_ARM64=769d373e146692c639b5fbaae33b331c297a32e03d30448772051902df52bbf4
+# pnpm's npm tarball, pinned by content rather than fetched by version.
+ARG PNPM_SHA256=29c35ca8d2a287988fdee3e0f36e07d9b93783f567b579b7fd5b798a4563dd81
+# The CPython artifact itself. "3.13" is a range; this is a build.
+ARG PYTHON_VERSION=3.13.15
+ARG PYTHON_RELEASE=20260825
+ARG PYTHON_SHA256_AMD64=8af9a8214c71b2dd698005e39fab87aad02a994330508857da4e6d1ba7e6ddb6
+ARG PYTHON_SHA256_ARM64=e5d0df1a6070a8614d808496e5ea28c727480e40ffcce1a94697a067f1690aa8
 
-ENV COREPACK_HOME=/opt/corepack \
-    UV_PYTHON_INSTALL_DIR=/opt/uv/python
+ENV UV_PYTHON=/opt/python/bin/python3
+
+# packages.<arch>.manifest is this image's projection of the shared authority
+# at deploy/images/debian-closure.lock.json — one line per artifact, columns
+# <sha256> <size> <package> <version> <filename>. The build consumes exactly
+# that set; scripts/check-images.mjs refuses any drift between the two.
+COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 
 RUN set -eux; \
+    cd /tmp/pkg; \
+    manifest="packages.${TARGETARCH}.manifest"; \
     apt-get update; \
+    # `download`, never `install`. apt fetches EXACTLY the package=version
+    # pairs named and resolves nothing, so the closure cannot silently grow;
+    # a version that has left the archive fails here rather than being
+    # substituted. The pairs are read as columns, never parsed out of a
+    # filename — the pool drops the epoch that apt's own filename keeps.
+    apt-get download -o APT::Sandbox::User=root $(awk '{print $3 "=" $4}' "${manifest}"); \
+    # Content-addressed acceptance. Every artifact apt produced must BE one
+    # of the reviewed ones, matched by hash and renamed to its reviewed name.
+    # Anything else — an extra dependency, a substituted build — fails here
+    # rather than being installed.
+    for f in *.deb; do \
+      h="$(sha256sum "$f" | cut -d' ' -f1)"; \
+      want="$(awk -v h="$h" '$1 == h { print $5 }' "${manifest}")"; \
+      [ -n "${want}" ] || { echo "unreviewed artifact: $f ($h)" >&2; exit 1; }; \
+      [ "$f" = "${want}" ] || mv "$f" "${want}"; \
+    done; \
+    # Every reviewed artifact is present, and nothing beyond them.
+    [ "$(ls -1 *.deb | wc -l)" = "$(wc -l < "${manifest}")" ] || \
+      { echo "artifact count does not match the manifest" >&2; exit 1; }; \
+    # Byte size, checked independently of the hash: a zero-length or truncated
+    # artifact can never pass, whatever else agrees.
+    while read -r sha size pkg ver name; do \
+      actual="$(stat -c %s "${name}")"; \
+      [ "${actual}" = "${size}" ] || \
+        { echo "size mismatch ${name}: ${actual} != ${size}" >&2; exit 1; }; \
+    done < "${manifest}"; \
+    # The hash check in its canonical form, before anything is unpacked.
+    awk '{print $1 "  " $5}' "${manifest}" > /tmp/pkg/.sums; \
+    sha256sum -c /tmp/pkg/.sums; \
+    dpkg --install $(awk '{print $5}' "${manifest}"); \
     # git and ca-certificates: the shell gates (validate-scaffold,
     # scan-secrets, check.sh) need git + coreutils; TLS trust is needed at
     # BUILD time here and by nothing at gate run time. curl is build-only.
-    apt-get install -y --no-install-recommends \
-      "ca-certificates=${CA_CERTIFICATES_VERSION}" \
-      "git=${GIT_VERSION}" \
-      "curl=${CURL_VERSION}"; \
+    # All three arrive as reviewed artifacts, with their whole closure.
+    cd /; \
+    rm -rf /tmp/pkg; \
     \
     case "$TARGETARCH" in \
-      amd64) node_arch=x64;   node_sha="$NODE_SHA256_AMD64"; uv_triple=x86_64-unknown-linux-gnu;  uv_sha="$UV_SHA256_AMD64" ;; \
-      arm64) node_arch=arm64; node_sha="$NODE_SHA256_ARM64"; uv_triple=aarch64-unknown-linux-gnu; uv_sha="$UV_SHA256_ARM64" ;; \
+      amd64) node_arch=x64;   node_sha="$NODE_SHA256_AMD64"; uv_triple=x86_64-unknown-linux-gnu;  uv_sha="$UV_SHA256_AMD64";  py_triple=x86_64-unknown-linux-gnu;  python_sha="$PYTHON_SHA256_AMD64" ;; \
+      arm64) node_arch=arm64; node_sha="$NODE_SHA256_ARM64"; uv_triple=aarch64-unknown-linux-gnu; uv_sha="$UV_SHA256_ARM64"; py_triple=aarch64-unknown-linux-gnu; python_sha="$PYTHON_SHA256_ARM64" ;; \
       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     \
@@ -64,10 +105,15 @@ RUN set -eux; \
     rm /tmp/node.tgz; \
     node --version; \
     \
-    # pnpm at the repository's exact packageManager pin, cached into the
-    # image via corepack at BUILD time so first use never fetches.
-    corepack enable; \
-    corepack install -g "pnpm@${PNPM_VERSION}"; \
+    # pnpm at the repository's exact packageManager pin. `corepack install`
+    # named it by VERSION and fetched whatever the registry served; the
+    # tarball is now pinned by SHA-256 like every other artifact here and
+    # installed offline, so the pin is on bytes rather than on a name.
+    curl -fsSLo /tmp/pnpm.tgz \
+      "https://registry.npmjs.org/pnpm/-/pnpm-${PNPM_VERSION}.tgz"; \
+    echo "${PNPM_SHA256}  /tmp/pnpm.tgz" | sha256sum -c -; \
+    npm install -g --offline --no-fund --no-audit /tmp/pnpm.tgz; \
+    rm /tmp/pnpm.tgz; \
     pnpm --version; \
     \
     curl -fsSLo /tmp/uv.tgz "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uv_triple}.tar.gz"; \
@@ -78,11 +124,22 @@ RUN set -eux; \
     rm -rf "/tmp/uv-${uv_triple}" /tmp/uv.tgz; \
     uv --version; \
     \
-    # The managed CPython the repository's uv workspace requires (>=3.13).
-    # The exact patch is the deterministic resolution of "3.13" by the pinned
-    # uv release, surfaced here in the build log as evidence.
-    uv python install 3.13; \
-    uv python find 3.13; \
+    # The CPython the repository's uv workspace requires (>=3.13).
+    # `uv python install 3.13` asked for a RANGE and took whatever the newest
+    # 3.13.x happened to be; the interpreter is now a pinned artifact fetched
+    # and verified exactly like node and uv, and uv is pointed at it through
+    # UV_PYTHON so it never downloads one.
+    curl -fsSLo /tmp/python.tgz \
+      "https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_RELEASE}/cpython-${PYTHON_VERSION}+${PYTHON_RELEASE}-${py_triple}-install_only_stripped.tar.gz"; \
+    echo "${python_sha}  /tmp/python.tgz" | sha256sum -c -; \
+    mkdir -p /opt; \
+    tar -xzf /tmp/python.tgz -C /opt; \
+    rm /tmp/python.tgz; \
+    # The interpreter must be the exact patch that was reviewed, not merely
+    # something that satisfies >=3.13.
+    test "$(/opt/python/bin/python3 -c 'import platform; print(platform.python_version())')" \
+      = "${PYTHON_VERSION}"; \
+    uv python find "${PYTHON_VERSION}"; \
     \
     apt-get purge -y curl; \
     apt-get autoremove -y; \
