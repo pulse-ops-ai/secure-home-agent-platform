@@ -282,8 +282,9 @@ authorizes the specific work.
 authoring; that waits on the ADR-0010 toolchain — and
 [U4](docs/architecture/unresolved-decisions.md#u4), by ADR-0020 on 2026-08-26,
 which decided runner-control PLACEMENT and **did not** authorize any
-deployment, launcher, or isolation mechanism; that waits on L9's own task
-contract.
+deployment, launcher, or isolation mechanism. That is L9 (#57), whose
+prerequisites are `L8 + GATE-U4`: acceptance satisfied GATE-U4, L8 (#56) has
+not landed, and L9 needs its own task contract besides.
 Work depending on any other item is still blocked, `BOUNDED` still behaves as
 `FAIL CLOSED`, **no persistence toolkit is selected**
 ([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is

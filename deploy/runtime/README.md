@@ -7,11 +7,11 @@ only by a later governed landing.
 > **Status: no runtime is selected, configured, or installed.** This
 > README is this directory's entire permitted content, and
 > `scripts/check-images.mjs` refuses anything else appearing here until a
-> governed landing (L9 / #57) authorizes it. L9's placement gate is
-> satisfied — [ADR-0020](../../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md)
+> governed landing (L9 / #57) authorizes it. Its GATE-U4 is satisfied —
+> [ADR-0020](../../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md)
 > resolved [U4](../../docs/architecture/unresolved-decisions.md#u4) on
-> 2026-08-26 — and L9 still needs its own authorizing task contract, which
-> does not exist.
+> 2026-08-26 — and that was one of two prerequisites: `L9 ← L8 + GATE-U4`.
+> L8 (#56) has not landed, and L9 has no authorizing task contract.
 
 ## The taxonomy this directory exists to keep straight
 
@@ -35,11 +35,11 @@ identity appears in run evidence as **data**.
 Concrete runtime integration authored by its own governed landing:
 runtime configuration, hardening posture, and the documentation of how the
 chosen runtime satisfies the launch contract. That landing is L9 (or an
-explicitly authorized prerequisite). Its placement prerequisite is met: the
-placement ADR is accepted. What it still lacks is an authorizing task
-contract. Note that placement and runtime are *different* decisions — ADR-0020
-chose neither a runtime nor an isolation mechanism, and explicitly implements
-none.
+explicitly authorized prerequisite). Its placement prerequisite is met — the
+placement ADR is accepted — and that is one of two: L9 is also sequenced after
+L8 (#56), which has not landed, and it has no authorizing task contract. Note
+that placement and runtime are *different* decisions — ADR-0020 chose neither a
+runtime nor an isolation mechanism, and explicitly implements none.
 
 ## What does not belong here
 

@@ -38,11 +38,13 @@ when the internet does not.
 > so implementation may proceed against them under an authorizing task contract.
 > Acceptance is never authorization to deploy.
 >
-> Of the eleven tracked open questions,
-> [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013 and
-> [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015; the rest remain
-> open. Acceptance is **not** authorization to deploy, and `BOUNDED` still
-> behaves as `FAIL CLOSED`.
+> Of the eleven tracked open questions, three are closed:
+> [U6](docs/architecture/unresolved-decisions.md#u6) by ADR-0013,
+> [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015, and
+> [U4](docs/architecture/unresolved-decisions.md#u4) — `runner-control`
+> placement — by ADR-0020 on 2026-08-26. The rest remain open. Acceptance is
+> **not** authorization to deploy, and `BOUNDED` still behaves as
+> `FAIL CLOSED`.
 >
 > [What acceptance does and does not unblock →](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock) ·
 > [What has not been implemented →](#what-has-not-been-implemented)
@@ -563,9 +565,11 @@ Eleven open questions are tracked in
 [`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
 closed by a **new** ADR, never by an implementation.
 [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013
-(2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015
-(2026-08-15) — each by *answering* the question, which is the only mechanism
-that file admits. Every other item is open, and
+(2026-08-12), [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015
+(2026-08-15), and [U4](docs/architecture/unresolved-decisions.md#u4) by
+ADR-0020 (2026-08-26) — each by *answering* the question, which is the only
+mechanism that file admits. U4's answer decided **where** the runner substrate
+runs and stood nothing up. Every other item is open, and
 [U11](docs/architecture/unresolved-decisions.md#u11) (persistence toolkit) was
 *added* by ADR-0012 rather than answered by it.
 

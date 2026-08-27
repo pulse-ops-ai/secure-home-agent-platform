@@ -25,10 +25,21 @@ networks. Everything will be able to reach everything at the network level.
 [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md)
 moves the *coding* runner class onto its own host, and changes none of this.
 A separate host is a different network position, and network position was never
-the authority — so the coding sandbox retains tailnet reachability to the Pi and
-still crosses B3 as a client, exactly as before. **Placement removed authority,
-not reachability.** Treating the split as though it had removed the need for a
-crossing is the same defect under a new name.
+the authority.
+
+**Two subjects, and they must not be merged.** The coding **sandbox** reaches
+only what its execution profile grants, and a coding-class profile grants **no
+household-service egress at all** — ADR-0020 §9, checked mechanically by its
+obligation F1. The coding **host** is a different subject: it may sit on the
+tailnet and be able to route to the Pi. That reachability carries no platform
+authority, and anything arriving from it crosses B3 as a client would —
+authenticated, authorized, safety-policy checked.
+
+**Placement removed authority, not reachability**, and it removed neither the
+boundary nor the crossing. Saying "the sandbox can reach the house" overstates
+the profile; saying "the host can't reach the Pi" understates the network.
+Treating the split as though it had removed the need for a crossing is the
+original defect under a new name.
 
 Reachability is not permission. Every hop between these containers still
 requires the evidence listed below. A service that accepts a request because it

@@ -60,7 +60,8 @@ path.
 - Write persistence code of any kind. No toolkit is selected
   ([U11](../docs/architecture/unresolved-decisions.md#u11)); most remaining
   service work is still blocked on U2, U3, U5, U9, or U10. (U4 closed on
-  2026-08-26 — that decided placement, and authorized no deployment.)
+  2026-08-26 — that decided placement and authorized no deployment; the
+  launcher is L9, still behind L8 and its own task contract.)
 - Add a dependency **the task contract does not name**. The workspace is
   dependency-free *today* by default, not by prohibition: ADR-0012 commits to
   NestJS, Fastify, Zod, and Winston, so an authorizing contract may add them.

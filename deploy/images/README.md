@@ -5,8 +5,8 @@ Runner **image definitions** and their machine-readable lineage record.
 > **Status: the definitions are landed and inert** (L5 #53, L7 #55). Four
 > images are defined, digest-locked, and validated — and nothing
 > references, launches, or deploys them: no profile pins one, no launcher
-> exists (L9 / #57, which still needs its own task contract — its placement
-> gate is satisfied by ADR-0020), and nothing is published to any registry.
+> exists (L9 / #57 — ADR-0020 satisfied its GATE-U4, and it still waits on L8
+> and its own task contract), and nothing is published to any registry.
 
 ## Layout
 

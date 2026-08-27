@@ -43,7 +43,8 @@ of what a prompt asks for.
   **acceptance is not authorization to deploy** — and that now includes
   [ADR-0020](../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md),
   which decided host placement on 2026-08-26 and deployed nothing. Writing the
-  Compose file that realizes it is L9's work, under L9's task contract. Home
+  Compose file that realizes it is L9's work — and L9 is sequenced after L8
+  (#56), which has not landed, under a task contract that does not exist. Home
   Assistant credentials ([U10](../docs/architecture/unresolved-decisions.md#u10))
   remain open.
 - Install Home Assistant or write its configuration.

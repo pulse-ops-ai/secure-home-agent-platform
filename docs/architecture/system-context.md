@@ -39,7 +39,7 @@ flowchart TB
 
         subgraph COD["Coding-execution host · never the Pi, never the DB host<br/><i>initially the Exxact workstation · ADR-0020</i>"]
             RCC["runner-control · coding deployment<br/>same package, second deployment"]
-            SBXC["Coding runner sandbox<br/><i>untrusted · no household egress granted</i>"]
+            SBXC["Coding runner sandbox<br/><i>untrusted · profile-granted egress only</i>"]
         end
 
         subgraph VPS["VPS"]
@@ -83,8 +83,10 @@ flowchart TB
     SBXH -.->|"R3 inference · only if profile permits"| CLOUDLLM
 
     RCC --> SBXC
-    SBXC -->|"R3 inference · source control"| CLOUDLLM
-    SBXC -.->|"no household egress granted (F1); tailnet reach is not authority"| IN
+    SBXC -->|"R3 inference · source control — all a coding profile grants"| CLOUDLLM
+    SBXC -.->|"no household-service egress in any coding profile (F1)"| IN
+    COD -.->|"host-level tailnet reach · no authority · a crossing, not a shortcut"| IN
+    linkStyle 22 stroke:#b23,stroke-dasharray:5 4
 
     API -.->|telemetry · audit · runs| TS
     API -.->|"energy semantics + signals"| GW

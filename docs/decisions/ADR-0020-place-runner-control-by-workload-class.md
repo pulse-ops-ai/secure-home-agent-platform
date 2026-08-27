@@ -5,7 +5,7 @@
 - **Deciders:** @mikegtech (repository owner). Acceptance was a separate human act, taken in its own reviewed change; see [the ADR-0020 acceptance record](INDEX.md#adr-0020-acceptance-record).
 - **Immutable.** Reverse or amend this decision only by a new ADR that supersedes it — never by editing this file.
 - **Decides:** [U4](../architecture/unresolved-decisions.md#u4) — `runner-control` placement (issue #9). **U4 is RESOLVED by this ADR as of 2026-08-26.**
-- **Gates:** L9 (#57). The ADR gate on L9 is now **satisfied**: acceptance removes the *decision* blocker, and nothing more. **No launcher, network default-deny, resource ceiling, or isolation mechanism is implemented by this acceptance**, and none may begin without its own authorizing task contract.
+- **Gates:** L9 (#57). GATE-U4 is now **satisfied** — and that is the only thing acceptance satisfied. L9's prerequisites are `L8 + GATE-U4`: **L8 (#56) has not landed**, and its own implementation is not authorized, so L9 remains blocked on L8 as well as on its own task contract. **No launcher, network default-deny, resource ceiling, or isolation mechanism is implemented by this acceptance.**
 - **Depends on:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md) for the two ingress paths and the availability contract; [ADR-0004](ADR-0004-treat-agents-as-clients.md) for the sandbox's trust status; [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) for routing classes; [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) for degraded posture; [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) for image lineage; [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) for the adapter SPI and the L6 evidence it records; [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) for the asynchronous port contract this decision migrates across
 - **Changes no accepted ADR.** It selects a deployment topology inside the space ADR-0002 and ADR-0007 already define.
 - **Changes no contract.** No schema, no profile field, no port signature. §13 names the contract question this decision *surfaces* and deliberately does not answer.
@@ -797,8 +797,9 @@ framing that coding-agent runs are not household-critical.
 
 - **[U4](../architecture/unresolved-decisions.md#u4) is no longer among these.**
   It was, while this ADR was `Proposed` — a `Proposed` ADR resolves nothing —
-  and acceptance on 2026-08-26 closed it. What that closed is the *decision*;
-  L9 (#57) is still unimplemented and still needs its own task contract.
+  and acceptance on 2026-08-26 closed it. What that closed is the *decision* —
+  L9's GATE-U4 and no other prerequisite. `L9 ← L8 + GATE-U4`: L8 (#56) has
+  not landed, L9 has no task contract, and nothing of L9 is implemented.
 - [U10](../architecture/unresolved-decisions.md#u10) — the Home Assistant
   credential strategy. Untouched; this ADR only preserves the boundary that
   `runner-control` never obtains one.
