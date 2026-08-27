@@ -22,10 +22,41 @@ BASE_DIGEST = "sha256:" + "0" * 64
 SENTINEL = "pending-first-governed-build"
 
 BASE_DOCKERFILE = f"""FROM docker.io/library/debian:trixie-slim@{BASE_DIGEST}
+ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
+COPY packages.lock.json packages.amd64.sha256 /tmp/pkg/
+RUN cd /tmp/pkg && apt-get download $(cut -d' ' -f3 "packages.${{TARGETARCH}}.sha256") \
+    && sha256sum -c "packages.${{TARGETARCH}}.sha256" \
+    && dpkg --install *.deb
 LABEL io.secure-home.lineage="runner-base"
 USER nobody
 """
+
+# The pinned package closure the base fixture verifies against. One artifact
+# is enough: the rules under test are about the PINNING, not the contents.
+FIXTURE_PACKAGE_SHA = "a" * 64
+FIXTURE_PACKAGE_FILE = "example-lib_1.0-1_amd64.deb"
+BASE_PACKAGES_LOCK = (
+    "{\n"
+    '  "version": 1,\n'
+    '  "architectures": {\n'
+    '    "amd64": [\n'
+    "      {\n"
+    '        "package": "example-lib",\n'
+    '        "version": "1.0-1",\n'
+    '        "architecture": "amd64",\n'
+    '        "component": "main",\n'
+    f'        "filename": "{FIXTURE_PACKAGE_FILE}",\n'
+    '        "url": "https://example.invalid/pool/main/e/example-lib/'
+    f'{FIXTURE_PACKAGE_FILE}",\n'
+    f'        "sha256": "{FIXTURE_PACKAGE_SHA}",\n'
+    '        "size": 1024\n'
+    "      }\n"
+    "    ]\n"
+    "  }\n"
+    "}\n"
+)
+BASE_PACKAGES_SUMS = f"{FIXTURE_PACKAGE_SHA}  {FIXTURE_PACKAGE_FILE}\n"
 
 DERIVED_DOCKERFILE = """FROM secure-home-runner-base
 ARG RUNTIME_PACKAGE=@example/agent
@@ -121,6 +152,8 @@ def _fixture(tmp_path: Path) -> Path:
     root = tmp_path / "root"
     for rel, content in {
         "deploy/images/runner-base/Dockerfile": BASE_DOCKERFILE,
+        "deploy/images/runner-base/packages.lock.json": BASE_PACKAGES_LOCK,
+        "deploy/images/runner-base/packages.amd64.sha256": BASE_PACKAGES_SUMS,
         "deploy/images/runner-example/Dockerfile": DERIVED_DOCKERFILE,
         "deploy/images/gates-toolchain/Dockerfile": GATES_DOCKERFILE,
         "deploy/images/image-lock.yaml": _lock(),
@@ -214,6 +247,110 @@ def test_a_conforming_fourth_image_needs_no_vocabulary_change(tmp_path: Path) ->
     result = _check(root)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "4 image(s)" in result.stdout
+
+
+# ── the pinned package closure ───────────────────────────────────────────────
+#
+# A version string names what was ASKED of the archive; a SHA-256 names the
+# bytes that came back. The live defect (#102) was that only the top-level
+# names were pinned, so the archive moved openssl 3.5.6 -> 3.5.7 beneath an
+# unchanged Dockerfile and the image identity moved with it. Each case below
+# plants one way of losing that pin again.
+
+
+def test_an_apt_install_in_the_base_definition_is_refused(tmp_path: Path) -> None:
+    """`install` resolves dependencies at build time; what it resolves to
+    depends on the day. `download` fetches exactly what it is told."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("apt-get download", "apt-get install -y"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "images.packages" in result.stderr
+    assert "resolves dependencies at build time" in result.stderr
+
+
+def test_a_base_definition_that_verifies_nothing_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("sha256sum -c", "true -c"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "an unverified download is an unpinned input" in result.stderr
+
+
+def test_a_missing_package_manifest_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    (root / "deploy/images/runner-base/packages.lock.json").unlink()
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "the package closure is a manifest, not prose" in result.stderr
+
+
+def test_a_projection_that_has_drifted_from_the_manifest_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The build verifies against the .sha256 file, review reads the manifest.
+    If they can disagree, the reviewed set is not the verified set."""
+    root = _fixture(tmp_path)
+    sums = root / "deploy/images/runner-base/packages.amd64.sha256"
+    sums.write_text(sums.read_text().replace("a" * 64, "b" * 64))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "have drifted" in result.stderr
+
+
+def test_a_missing_projection_for_a_declared_platform_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = _fixture(tmp_path)
+    (root / "deploy/images/runner-base/packages.amd64.sha256").unlink()
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "the build consumes it by name" in result.stderr
+
+
+def test_a_version_standing_in_for_a_digest_is_refused(tmp_path: Path) -> None:
+    """The exact shape of the original defect: a pin that is only a version."""
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/runner-base/packages.lock.json"
+    manifest.write_text(manifest.read_text().replace('"' + "a" * 64 + '"', '"1.0-1"'))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "a version is not a pin" in result.stderr
+
+
+def test_a_non_https_artifact_url_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/runner-base/packages.lock.json"
+    manifest.write_text(manifest.read_text().replace("https://", "http://"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "no https URL" in result.stderr
+
+
+def test_a_filename_that_contradicts_its_declared_version_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The build derives its fetch specs from the filename. If the filename
+    and the declared fields disagree, it fetches what review never saw."""
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/runner-base/packages.lock.json"
+    manifest.write_text(manifest.read_text().replace('"version": "1.0-1"', '"version": "9.9-9"'))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "does not encode" in result.stderr
+
+
+def test_a_platform_with_no_declared_artifacts_is_refused(tmp_path: Path) -> None:
+    """A platform the lock builds for, with nothing pinned for it, would fall
+    back to whatever the archive offers on the day."""
+    root = _fixture(tmp_path)
+    manifest = root / "deploy/images/runner-base/packages.lock.json"
+    manifest.write_text(manifest.read_text().replace('"amd64"', '"arm64"', 1))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "declares no artifacts" in result.stderr
 
 
 # ── neutrality ───────────────────────────────────────────────────────────────
