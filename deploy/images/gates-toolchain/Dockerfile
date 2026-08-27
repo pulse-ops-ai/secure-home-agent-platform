@@ -139,7 +139,11 @@ RUN set -eux; \
     # something that satisfies >=3.13.
     test "$(/opt/python/bin/python3 -c 'import platform; print(platform.python_version())')" \
       = "${PYTHON_VERSION}"; \
-    uv python find "${PYTHON_VERSION}"; \
+    # uv must RESOLVE the pinned interpreter rather than fetch one of its
+    # own. `uv python find <version>` deliberately is not used: it searches
+    # managed installations and PATH and ignores UV_PYTHON, so it would fail
+    # on a correctly pinned image and pass on one that had downloaded its own.
+    test "$(uv python find "${UV_PYTHON}")" = "${UV_PYTHON}"; \
     \
     apt-get purge -y curl; \
     apt-get autoremove -y; \
