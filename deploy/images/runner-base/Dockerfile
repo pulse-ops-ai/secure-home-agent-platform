@@ -78,6 +78,11 @@ RUN set -eux; \
         { echo "size mismatch ${name}: ${actual} != ${size}" >&2; exit 1; }; \
     done < "${manifest}"; \
     # The hash check in its canonical form, before anything is unpacked.
+    # The checksum list is PROJECTED FROM THE SELECTED MANIFEST into a file
+    # with a canonical name, and that exact file is what is verified — so the
+    # verification cannot be satisfied by an unrelated checksum command that
+    # happens to sit in the same instruction (node, uv, pnpm, CPython, the
+    # runtime tarballs). scripts/check-images.mjs proves this binding.
     awk '{print $1 "  " $5}' "${manifest}" > /tmp/pkg/.sums; \
     sha256sum -c /tmp/pkg/.sums; \
     dpkg --install $(awk '{print $5}' "${manifest}"); \

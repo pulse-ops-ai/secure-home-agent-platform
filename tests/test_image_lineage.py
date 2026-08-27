@@ -22,14 +22,41 @@ SCRIPT = REPO_ROOT / "scripts" / "check-images.mjs"
 BASE_DIGEST = "sha256:" + "0" * 64
 SENTINEL = "pending-first-governed-build"
 
+# The canonical Debian install chain, shared by the fixture definitions. The
+# checker proves it end to end -- selected manifest, download specs, count,
+# byte size, checksum projection OF THAT MANIFEST, verification OF THAT
+# PROJECTION, then dpkg of that same set -- so the fixtures carry it in full,
+# or the positive control would pass for the wrong reason.
+DEBIAN_DOWNLOAD = 'apt-get download $(awk \'{print $3 "=" $4}\' "${manifest}")'
+DEBIAN_COUNT = '[ "$(ls -1 *.deb | wc -l)" = "$(wc -l < "${manifest}")" ]'
+# A path INSIDE the image build, not a host temp file: S108 does not apply.
+DEBIAN_SUMS = "/tmp/pkg/.sums"  # noqa: S108
+DEBIAN_PROJECT = 'awk \'{print $1 "  " $5}\' "${manifest}" > ' + DEBIAN_SUMS + "; \\\n"
+DEBIAN_VERIFY = "    sha256sum -c " + DEBIAN_SUMS + "; \\\n"
+DEBIAN_INSTALL = "    dpkg --install $(awk '{print $5}' \"${manifest}\")"
+DEBIAN_PROJECT_AND_VERIFY = "    " + DEBIAN_PROJECT + DEBIAN_VERIFY
+# An unrelated but entirely valid checksum command, standing where the Debian
+# one used to be: the precise shape of the bypass the gate must refuse.
+DEBIAN_BYPASS = '    echo "%s  /tmp/other.tgz" | sha256sum -c -; \\\n' % ("e" * 64)
+
+DEBIAN_CHAIN = (
+    "RUN set -eux; \\\n"
+    "    cd /tmp/pkg; \\\n"
+    '    manifest="packages.${TARGETARCH}.manifest"; \\\n'
+    "    apt-get update; \\\n"
+    "    " + DEBIAN_DOWNLOAD + "; \\\n"
+    "    " + DEBIAN_COUNT + "; \\\n"
+    "    while read -r sha size pkg ver name; do \\\n"
+    '      stat -c %s "${name}"; \\\n'
+    '    done < "${manifest}"; \\\n' + DEBIAN_PROJECT_AND_VERIFY + DEBIAN_INSTALL
+)
+
+
 BASE_DOCKERFILE = f"""FROM docker.io/library/debian:trixie-slim@{BASE_DIGEST}
 ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
 COPY packages.amd64.manifest /tmp/pkg/
-RUN cd /tmp/pkg \\
-    && apt-get download $(awk '{{print $3 "=" $4}}' "packages.${{TARGETARCH}}.manifest") \\
-    && sha256sum -c /tmp/pkg/.sums \\
-    && dpkg --install $(awk '{{print $5}}' "packages.${{TARGETARCH}}.manifest")
+{DEBIAN_CHAIN}
 LABEL io.secure-home.lineage="runner-base"
 USER nobody
 """
@@ -90,12 +117,12 @@ ARG PYTHON_VERSION=9.9.9
 ARG PYTHON_SHA256_AMD64={"d" * 64}
 ARG PYTHON_SHA256_ARM64={"e" * 64}
 COPY packages.amd64.manifest /tmp/pkg/
-RUN cd /tmp/pkg \\
-    && apt-get download $(awk '{{print $3 "=" $4}}' "packages.${{TARGETARCH}}.manifest") \\
-    && sha256sum -c /tmp/pkg/.sums \\
-    && install-toolchain node@${{NODE_VERSION}} pnpm@${{PNPM_VERSION}} \\
-       uv@${{UV_VERSION}} python@${{PYTHON_VERSION}} \\
-       ${{PNPM_SHA256}} ${{PYTHON_SHA256_AMD64}} ${{PYTHON_SHA256_ARM64}}
+{DEBIAN_CHAIN}
+RUN set -eux; \\
+    echo "{"f" * 64}  /tmp/node.tgz" | sha256sum -c -; \\
+    install-toolchain node@${{NODE_VERSION}} pnpm@${{PNPM_VERSION}} \\
+      uv@${{UV_VERSION}} python@${{PYTHON_VERSION}} \\
+      ${{PNPM_SHA256}} ${{PYTHON_SHA256_AMD64}} ${{PYTHON_SHA256_ARM64}}
 LABEL io.secure-home.lineage="gates-toolchain"
 USER nobody
 """
@@ -301,7 +328,111 @@ def test_a_definition_that_verifies_nothing_is_refused(tmp_path: Path) -> None:
     dockerfile.write_text(dockerfile.read_text().replace("sha256sum -c", "true -c"))
     result = _check(root)
     assert result.returncode == 1, result.stdout
-    assert "an unverified download is an unpinned input" in result.stderr
+    assert "the package-manifest proof is broken" in result.stderr
+
+
+def test_an_unrelated_checksum_cannot_stand_in_for_the_debian_one(
+    tmp_path: Path,
+) -> None:
+    """THE BYPASS THIS GATE EXISTS FOR.
+
+    These definitions legitimately checksum node, uv, pnpm, CPython and the
+    runtime tarballs. A rule that merely required *some* `sha256sum -c` before
+    `dpkg --install` would stay green while the Debian artifacts went in
+    unverified. Here the Debian projection and verification are deleted, an
+    unrelated but perfectly valid `sha256sum -c` is left in their place, and
+    `dpkg --install` still runs -- exactly the regression shape.
+    """
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/gates-toolchain/Dockerfile"
+    text = dockerfile.read_text()
+    planted = text.replace(DEBIAN_PROJECT_AND_VERIFY, DEBIAN_BYPASS)
+    assert planted != text, "the bypass did not apply; the fixture chain changed"
+    dockerfile.write_text(planted)
+
+    # The bypass leaves valid checksum commands in place, and still installs.
+    assert "sha256sum -c" in planted
+    assert "dpkg --install" in planted
+
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "verifies some other artifact" in result.stderr
+
+
+def test_a_checksum_over_a_list_not_projected_from_the_manifest_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A projection built from anything but the selected manifest is not a
+    proof about the selected artifacts."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace(
+            '"${manifest}" > /tmp/pkg/.sums',
+            '"/tmp/somewhere-else" > /tmp/pkg/.sums',
+        )
+    )
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "projection"' in result.stderr
+
+
+def test_verification_after_installation_is_refused(tmp_path: Path) -> None:
+    """Verifying what you already installed proves nothing about it."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    text = dockerfile.read_text()
+    assert DEBIAN_VERIFY in text and DEBIAN_INSTALL in text
+    # Move the verification to AFTER the install, keeping both present.
+    trailing = DEBIAN_VERIFY.rstrip().rstrip("\\").rstrip()
+    reordered = text.replace(DEBIAN_VERIFY, "").replace(
+        DEBIAN_INSTALL, DEBIAN_INSTALL + "; \\\n" + trailing
+    )
+    assert "sha256sum -c" in reordered and "dpkg --install" in reordered
+    dockerfile.write_text(reordered)
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert "must be verified before they are installed" in result.stderr
+
+
+def test_a_download_not_driven_by_the_manifest_is_refused(tmp_path: Path) -> None:
+    """If the specs are not read from the selected manifest, the fetched set
+    and the verified set are two different things."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(
+        dockerfile.read_text().replace(DEBIAN_DOWNLOAD, "apt-get download example-lib")
+    )
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "specs"' in result.stderr
+
+
+def test_an_install_not_driven_by_the_manifest_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace(DEBIAN_INSTALL, "dpkg --install *.deb"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "install"' in result.stderr
+
+
+def test_a_missing_count_check_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace(DEBIAN_COUNT, "true"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "count"' in result.stderr
+
+
+def test_a_missing_size_check_is_refused(tmp_path: Path) -> None:
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    dockerfile.write_text(dockerfile.read_text().replace("stat -c %s", "true"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "size"' in result.stderr
 
 
 def test_a_missing_closure_authority_is_refused(tmp_path: Path) -> None:

@@ -78,6 +78,11 @@ const HELPERS_PATH = 'packages/contracts/src/conformance/helpers.ts'
 // installs. Each image's packages.<arch>.manifest is a projection of it; a
 // projection naming anything this file does not is refused.
 const CLOSURE_PATH = 'deploy/images/debian-closure.lock.json'
+// The canonical checksum artifact each image PROJECTS FROM its selected
+// manifest and then verifies. Naming it is what lets the gate below bind
+// the verification to the Debian artifacts rather than to any checksum
+// command that happens to share the instruction.
+const SELECTED_SUMS = '/tmp/pkg/.sums'
 const ISOLATION_SET = new Set(['docker', 'containerd', 'kata', 'runc', 'gvisor'])
 const FAMILY_GROUPS = [
   ['claude', 'anthropic'],
@@ -959,11 +964,94 @@ export function checkImages(root = DEFAULT_ROOT) {
           `"${name}": an apt install resolves dependencies at build time; the closure must be fetched by pinned artifact and verified against ${dir}/packages.<arch>.manifest`,
         )
       }
-      if (installsPackages && !/\bsha256sum\s+-c\b/.test(runText)) {
-        fail(
-          'packages',
-          `"${name}": no RUN instruction verifies artifacts with "sha256sum -c"; an unverified download is an unpinned input`,
-        )
+      // The checksum proof must be BOUND to the artifacts being installed.
+      //
+      // Requiring merely that some `sha256sum -c` appears is not enough: these
+      // definitions legitimately checksum node, uv, pnpm, CPython and the
+      // runtime tarballs, so a regression could delete the Debian verification
+      // and still satisfy a bare presence check while installing unverified
+      // .deb files. The chain below is proved end to end, in order, inside the
+      // ONE instruction that downloads them:
+      //
+      //   selected manifest -> download specs -> count -> byte size
+      //     -> checksum projection OF THAT MANIFEST -> sha256sum -c OF THAT
+      //     -> dpkg --install of that same set
+      if (installsPackages) {
+        const flat = lines
+          .filter((l) => /^RUN\s/i.test(l.trim()))
+          .map((l) => l.replace(/\s+/g, ' '))
+        const instruction = flat.find((l) => /apt-get download/.test(l))
+        if (instruction === undefined) {
+          fail(
+            'packages',
+            `"${name}": no RUN instruction downloads the selected artifacts with "apt-get download"; an apt that resolves is the defect this replaces`,
+          )
+        } else {
+          const sums = SELECTED_SUMS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          // Each link names the selected manifest, so none of them can be
+          // satisfied by an unrelated artifact's verification.
+          const STEPS = [
+            {
+              key: 'specs',
+              re: /apt-get download[^;]*\$\(awk '\{print \$3 "=" \$4\}' "\$\{manifest\}"\)/,
+              why: 'the download specs must be read from the selected manifest, so only reviewed artifacts are fetched',
+            },
+            {
+              key: 'count',
+              re: /wc -l < "\$\{manifest\}"/,
+              why: 'the artifact count must be checked against the selected manifest',
+            },
+            {
+              key: 'size',
+              re: /stat -c %s[\s\S]*done < "\$\{manifest\}"/,
+              why: 'byte size must be checked for the selected set',
+            },
+            {
+              key: 'projection',
+              // The instruction is whitespace-normalised before matching, so
+              // the awk program's own separator is matched loosely.
+              re: new RegExp(`awk '\\{print \\$1 "\\s*" \\$5\\}' "\\$\\{manifest\\}" > ${sums}`),
+              why: `the checksum list must be projected FROM the selected manifest into ${SELECTED_SUMS}`,
+            },
+            {
+              key: 'verify',
+              re: new RegExp(`sha256sum -c ${sums}`),
+              why: `the verification must name ${SELECTED_SUMS}; any other "sha256sum -c" verifies some other artifact`,
+            },
+            {
+              key: 'install',
+              re: /dpkg --install \$\(awk '\{print \$5\}' "\$\{manifest\}"\)/,
+              why: 'dpkg must install exactly the selected set, read from the same manifest',
+            },
+          ]
+          const at = {}
+          for (const step of STEPS) {
+            const m = step.re.exec(instruction)
+            if (m === null) {
+              fail(
+                'packages',
+                `"${name}": the package-manifest proof is broken at "${step.key}" — ${step.why}`,
+              )
+            } else {
+              at[step.key] = m.index
+            }
+          }
+          // Order matters as much as presence: verifying after installing
+          // proves nothing about what was installed.
+          const ORDER = [
+            ['specs', 'projection'],
+            ['projection', 'verify'],
+            ['verify', 'install'],
+          ]
+          for (const [before, after] of ORDER) {
+            if (at[before] !== undefined && at[after] !== undefined && at[before] >= at[after]) {
+              fail(
+                'packages',
+                `"${name}": the package-manifest proof runs "${after}" before "${before}"; the selected artifacts must be verified before they are installed`,
+              )
+            }
+          }
+        }
       }
 
       if (installsPackages) {
