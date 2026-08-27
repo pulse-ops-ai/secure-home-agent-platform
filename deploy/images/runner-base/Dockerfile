@@ -10,31 +10,65 @@
 # runtime, no SDK, no credential handling: a provider or framework name
 # anywhere in this file is a lineage violation (ADR-0011).
 #
-# Every input is pinned: the external base by immutable digest, and every
-# named package to an exact archive version — so rebuilding this definition
-# through the governed build path yields the same identity while the pinned
-# archive inputs remain published, and any archive movement fails the build
-# or the digest comparison LOUDLY, never silently. (The snapshot service
-# refuses the governed builder's address space, so a frozen snapshot is not
-# an available mechanism; the narrowed claim is recorded in the child
-# design.)
+# REPRODUCIBILITY. Every input is pinned as an ARTIFACT, not as a request:
+# the external base by immutable digest, and every package by SHA-256 in the
+# governed manifest beside this file. Nothing here resolves a dependency at
+# build time, so nothing in the closure can move while the definition stands
+# still.
+#
+# An earlier revision pinned only the two NAMED packages by version and let
+# `apt-get install` resolve the rest. That closure was never pinned: the
+# archive moved openssl 3.5.6 -> 3.5.7 under an unchanged Dockerfile, the
+# image digest moved with it, and every derived image's parent pin broke. The
+# identity gate caught it, which is what it is for. Pinning the named
+# packages alone is insufficient and must not be reintroduced.
+#
+# The snapshot service refuses the governed builder's address space, so a
+# frozen archive snapshot is not an available mechanism; the manifest is the
+# fallback, and the narrowed claim is recorded in the child design.
+#
+# COST, ACCEPTED DELIBERATELY. Debian removes superseded .deb files from the
+# pool, so a pinned artifact eventually stops being fetchable and the build
+# FAILS LOUDLY. Taking a security update therefore becomes a reviewed
+# manifest bump that moves every digest built from it — which is the point.
+# Silent pickup is the failure mode being removed, not a feature being kept.
 
 FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
-# Exact archive versions, resolved from the trixie archive on 2026-08-23.
-# Moving a pin is a reviewed change that moves every digest built from it;
-# a vanished pin fails `apt-get install` rather than drifting.
-ARG CA_CERTIFICATES_VERSION=20250419
-ARG TINI_VERSION=0.19.0-3+b7
+# Supplied by the builder per platform; selects this build's manifest.
+ARG TARGETARCH
 # Fixed so layer metadata cannot carry build wall-clock into the identity.
 ARG SOURCE_DATE_EPOCH=0
 
+# packages.lock.json is the reviewed authority — package, version, component,
+# filename, URL, SHA-256, and size for every artifact, per architecture. The
+# two .sha256 files are its machine-consumable projection, and
+# scripts/check-images.mjs refuses any drift between the three.
+COPY packages.lock.json packages.amd64.sha256 packages.arm64.sha256 /tmp/pkg/
+
 RUN set -eux; \
+    cd /tmp/pkg; \
+    manifest="packages.${TARGETARCH}.sha256"; \
+    # ONE source drives both the fetch list and the verification, so the two
+    # cannot disagree: the specs are derived from the manifest's own
+    # filenames (<package>_<version>_<arch>.deb).
+    debs="$(awk '{print $2}' "${manifest}")"; \
+    specs="$(printf '%s\n' ${debs} | sed -E 's/^([^_]+)_([^_]+)_.*\.deb$/\1=\2/')"; \
     apt-get update; \
-    apt-get install -y --no-install-recommends \
-      "ca-certificates=${CA_CERTIFICATES_VERSION}" \
-      "tini=${TINI_VERSION}"; \
+    # `download`, never `install`. apt fetches EXACTLY the versions named and
+    # resolves nothing, so the closure cannot silently grow; a version that
+    # has left the archive fails here rather than being substituted.
+    apt-get download -o APT::Sandbox::User=root ${specs}; \
+    # The artifacts are checked against the manifest BEFORE anything is
+    # unpacked. This is the pin: a version string identifies a request, a
+    # SHA-256 identifies bytes.
+    sha256sum -c "${manifest}"; \
+    dpkg --install ${debs}; \
     apt-get clean; \
+    # The .deb files never enter a layer: fetched, verified, installed, and
+    # removed inside this one instruction.
+    cd /; \
+    rm -rf /tmp/pkg; \
     # Nondeterministic file CONTENT is removed, not just retimed: apt/dpkg
     # logs and the ldconfig aux-cache embed wall-clock and host facts.
     rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \

@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "resolved_on": "2026-08-27",
+  "base": "docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258",
+  "architectures": {
+    "amd64": [
+      {
+        "package": "ca-certificates",
+        "version": "20250419",
+        "architecture": "all",
+        "component": "main",
+        "filename": "ca-certificates_20250419_all.deb",
+        "url": "https://deb.debian.org/debian/pool/main/c/ca-certificates/ca-certificates_20250419_all.deb",
+        "sha256": "ef590f89563aa4b46c8260d49d1cea0fc1b181d19e8df3782694706adf05c184",
+        "size": 161704
+      },
+      {
+        "package": "libssl3t64",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "amd64",
+        "component": "security",
+        "filename": "libssl3t64_3.5.7-1~deb13u2_amd64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3t64_3.5.7-1~deb13u2_amd64.deb",
+        "sha256": "916f7f40b34a06e6ebfaefcdab331bff458328411da672598f126a760472467d",
+        "size": 2453872
+      },
+      {
+        "package": "openssl-provider-legacy",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "amd64",
+        "component": "security",
+        "filename": "openssl-provider-legacy_3.5.7-1~deb13u2_amd64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl-provider-legacy_3.5.7-1~deb13u2_amd64.deb",
+        "sha256": "f155c8191ae6d41da73d792f4182680aeafeb85c3dd223934ee9fdd115c4f1fa",
+        "size": 316132
+      },
+      {
+        "package": "openssl",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "amd64",
+        "component": "security",
+        "filename": "openssl_3.5.7-1~deb13u2_amd64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.5.7-1~deb13u2_amd64.deb",
+        "sha256": "4ff006f431d8c2e69fa736885a3b6e779f2448535f69dbde821d9f0ff87ad8ea",
+        "size": 1507300
+      },
+      {
+        "package": "tini",
+        "version": "0.19.0-3+b7",
+        "architecture": "amd64",
+        "component": "main",
+        "filename": "tini_0.19.0-3+b7_amd64.deb",
+        "url": "https://deb.debian.org/debian/pool/main/t/tini/tini_0.19.0-3+b7_amd64.deb",
+        "sha256": "191c0d4de3c34413b98ad425d3a2e7d74dbde3a1702a5e941cdbcf39e2596831",
+        "size": 280340
+      }
+    ],
+    "arm64": [
+      {
+        "package": "ca-certificates",
+        "version": "20250419",
+        "architecture": "all",
+        "component": "main",
+        "filename": "ca-certificates_20250419_all.deb",
+        "url": "https://deb.debian.org/debian/pool/main/c/ca-certificates/ca-certificates_20250419_all.deb",
+        "sha256": "ef590f89563aa4b46c8260d49d1cea0fc1b181d19e8df3782694706adf05c184",
+        "size": 161704
+      },
+      {
+        "package": "libssl3t64",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "arm64",
+        "component": "security",
+        "filename": "libssl3t64_3.5.7-1~deb13u2_arm64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/libssl3t64_3.5.7-1~deb13u2_arm64.deb",
+        "sha256": "ec131326aa9fa9ec934eca386bc7991f328fe383eaefd3e43bd8901a9199c5ae",
+        "size": 2766020
+      },
+      {
+        "package": "openssl-provider-legacy",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "arm64",
+        "component": "security",
+        "filename": "openssl-provider-legacy_3.5.7-1~deb13u2_arm64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl-provider-legacy_3.5.7-1~deb13u2_arm64.deb",
+        "sha256": "7628954796eb651fc499ad98d4e51435691c2ccce0b5fbae6b198cbece742db4",
+        "size": 313492
+      },
+      {
+        "package": "openssl",
+        "version": "3.5.7-1~deb13u2",
+        "architecture": "arm64",
+        "component": "security",
+        "filename": "openssl_3.5.7-1~deb13u2_arm64.deb",
+        "url": "https://deb.debian.org/debian-security/pool/updates/main/o/openssl/openssl_3.5.7-1~deb13u2_arm64.deb",
+        "sha256": "ff38f9e4fdbfef72d9cb31088e5e42f58c83c2fb1d1bbb4e4b4c9adc53c17100",
+        "size": 1472236
+      },
+      {
+        "package": "tini",
+        "version": "0.19.0-3+b7",
+        "architecture": "arm64",
+        "component": "main",
+        "filename": "tini_0.19.0-3+b7_arm64.deb",
+        "url": "https://deb.debian.org/debian/pool/main/t/tini/tini_0.19.0-3+b7_arm64.deb",
+        "sha256": "eb6e98cb0cafb47c162fb4349472be8937ae909c8a23796ceca5408ac6f637c9",
+        "size": 234208
+      }
+    ]
+  }
+}

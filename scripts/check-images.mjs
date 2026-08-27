@@ -760,6 +760,129 @@ export function checkImages(root = DEFAULT_ROOT) {
         }
       }
     }
+    if (lineage === 'runner-base') {
+      // The package closure is an ARTIFACT set, not a version request. A
+      // version string names what you asked the archive for; a SHA-256 names
+      // the bytes you got. Pinning only the top-level names let the archive
+      // move openssl 3.5.6 -> 3.5.7 beneath an unchanged Dockerfile, which
+      // moved this image's digest and broke every derived parent pin. These
+      // rules exist so that cannot be reintroduced quietly.
+      const manifestRel = entry.get('definition').replace(/Dockerfile$/, 'packages.lock.json')
+      const manifestPath = join(root, manifestRel)
+      let manifest
+      if (!existsSync(manifestPath)) {
+        fail(
+          'packages',
+          `"${name}": ${manifestRel} is missing — the package closure is a manifest, not prose`,
+        )
+      } else {
+        try {
+          manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+        } catch {
+          fail('packages', `"${name}": ${manifestRel} is not parseable JSON`)
+        }
+      }
+      // Dependency RESOLUTION is the defect. `apt-get download` fetches
+      // exactly what it is told; `apt-get install` decides for itself what
+      // else to bring, and what it decides depends on the day.
+      const runText = lines
+        .filter((l) => /^RUN\s/i.test(l.trim()))
+        .join('\n')
+        .toLowerCase()
+      if (/\bapt(-get)?\s+(-[^\s]+\s+)*install\b/.test(runText)) {
+        fail(
+          'packages',
+          `"${name}": an apt install resolves dependencies at build time; the closure must be fetched by pinned artifact and verified against ${manifestRel}`,
+        )
+      }
+      if (!/\bsha256sum\s+-c\b/.test(runText)) {
+        fail(
+          'packages',
+          `"${name}": no RUN instruction verifies artifacts with "sha256sum -c"; an unverified download is an unpinned input`,
+        )
+      }
+      const platforms = entry.get('platforms') ?? []
+      const arches = platforms.map((pl) => String(pl).split('/')[1]).filter((a) => a !== undefined)
+      if (manifest !== undefined) {
+        const declared = manifest.architectures
+        if (declared === null || typeof declared !== 'object') {
+          fail('packages', `"${name}": ${manifestRel} must carry an "architectures" map`)
+        } else {
+          for (const arch of arches) {
+            const artifacts = declared[arch]
+            if (!Array.isArray(artifacts) || artifacts.length === 0) {
+              fail(
+                'packages',
+                `"${name}": ${manifestRel} declares no artifacts for "${arch}", which platforms requires`,
+              )
+              continue
+            }
+            for (const a of artifacts) {
+              if (a === null || typeof a !== 'object') {
+                fail('packages', `"${name}": ${manifestRel} ${arch}: every artifact must be a map`)
+                continue
+              }
+              if (!/^[0-9a-f]{64}$/.test(String(a.sha256))) {
+                fail(
+                  'packages',
+                  `"${name}": ${manifestRel} ${arch}: "${a.package}" carries no sha256:<64 hex> — a version is not a pin`,
+                )
+              }
+              if (!/^https:\/\//.test(String(a.url))) {
+                fail(
+                  'packages',
+                  `"${name}": ${manifestRel} ${arch}: "${a.package}" carries no https URL to fetch the pinned artifact from`,
+                )
+              }
+              if (String(a.version ?? '').trim() === '') {
+                fail(
+                  'packages',
+                  `"${name}": ${manifestRel} ${arch}: "${a.package}" carries no version`,
+                )
+              }
+            }
+            // The .sha256 file the build actually consumes must BE the
+            // manifest's projection. Two files that can disagree are one
+            // file too many.
+            const sumRel = entry.get('definition').replace(/Dockerfile$/, `packages.${arch}.sha256`)
+            const sumPath = join(root, sumRel)
+            if (!existsSync(sumPath)) {
+              fail('packages', `"${name}": ${sumRel} is missing — the build consumes it by name`)
+              continue
+            }
+            const expected = artifacts
+              .map((a) => `${a.sha256}  ${a.filename}`)
+              .sort()
+              .join('\n')
+            const actual = readFileSync(sumPath, 'utf8').trim().split('\n').sort().join('\n')
+            if (expected !== actual) {
+              fail(
+                'packages',
+                `"${name}": ${sumRel} is not ${manifestRel}'s projection for ${arch}; the verified set and the reviewed set have drifted`,
+              )
+            }
+            // A .deb filename encodes <package>_<version>_<arch>; the build
+            // derives its fetch specs from exactly that. If the encoding and
+            // the declared fields disagree, the build fetches one thing and
+            // the review approved another.
+            for (const a of artifacts) {
+              const m = /^([^_]+)_([^_]+)_/.exec(String(a.filename))
+              if (m === null) {
+                fail(
+                  'packages',
+                  `"${name}": ${manifestRel} ${arch}: filename "${a.filename}" is not <package>_<version>_<arch>.deb`,
+                )
+              } else if (m[1] !== a.package || m[2] !== a.version) {
+                fail(
+                  'packages',
+                  `"${name}": ${manifestRel} ${arch}: filename "${a.filename}" does not encode ${a.package}=${a.version}`,
+                )
+              }
+            }
+          }
+        }
+      }
+    }
     // external_base.digest must appear as the inline FROM pin.
     if (lineage !== 'runner-derived') {
       const external = entry.get('external_base')
