@@ -59,7 +59,8 @@ path.
   are accepted, but acceptance alone authorizes nothing.
 - Write persistence code of any kind. No toolkit is selected
   ([U11](../docs/architecture/unresolved-decisions.md#u11)); most remaining
-  service work is still blocked on U2–U5, U9, or U10.
+  service work is still blocked on U2, U3, U5, U9, or U10. (U4 closed on
+  2026-08-26 — that decided placement, and authorized no deployment.)
 - Add a dependency **the task contract does not name**. The workspace is
   dependency-free *today* by default, not by prohibition: ADR-0012 commits to
   NestJS, Fastify, Zod, and Winston, so an authorizing contract may add them.
@@ -68,8 +69,7 @@ path.
   authorizes.
 - Write a stub that appears to work.
 - Decide [U3](../docs/architecture/unresolved-decisions.md#u3) (which service
-  mints the envelope), [U4](../docs/architecture/unresolved-decisions.md#u4)
-  (runner-control placement),
+  mints the envelope),
   [U5](../docs/architecture/unresolved-decisions.md#u5) (automation
   persistence), [U9](../docs/architecture/unresolved-decisions.md#u9) (decision
   caching), or [U10](../docs/architecture/unresolved-decisions.md#u10) (Home

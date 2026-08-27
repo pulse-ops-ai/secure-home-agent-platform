@@ -39,9 +39,12 @@ no platform code path invokes them), no L9 physical
 enforcement, no credentials. Landed code is not a running system, and neither
 half of that sentence may be dropped.
 
-ADR-0001 … ADR-0018 are `Accepted` and **immutable** (foundational set
+ADR-0001 … ADR-0020 are `Accepted` and **immutable** (foundational set
 2026-08-05; the implementation stack 2026-08-06; the runner effect-boundary and
-identity decisions 2026-08-17). Of the tracked set U1–U11, **two** are closed:
+identity decisions 2026-08-17; knowledge-set versioning 2026-08-21;
+runner-control placement 2026-08-26). Of the tracked set U1–U11, **three** are
+closed: [U4](../docs/architecture/unresolved-decisions.md#u4) by ADR-0020
+(2026-08-26),
 [U6](../docs/architecture/unresolved-decisions.md#u6) by ADR-0013 (2026-08-12)
 and [U7](../docs/architecture/unresolved-decisions.md#u7) by ADR-0015
 (2026-08-15). Acceptance is **not** authorization to deploy.

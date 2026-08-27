@@ -187,7 +187,7 @@ the authored Zod contract in [`packages/contracts`](../../packages/contracts/)
 | Network | source control and a model provider, per profile | household API; model access per routing class |
 | Household device access | **none, ever** | only via the action-mediation service, after authorization and safety policy |
 | Typical routing class | R3 (cloud) | R0/R1, occasionally R2 |
-| Runs on | the Pi or a workstation | the Pi |
+| Runs on | a host that is neither the Pi nor the authoritative-database host ([ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md), 2026-08-26) | the Pi |
 | Profiles | [`profiles/coding/`](../../profiles/coding/) | [`profiles/household/`](../../profiles/household/) |
 
 A coding runner has **no path to household devices**. This is enforced by the
@@ -297,8 +297,6 @@ exactly one visibility transition; "seal the bundle last" is not the model. See
 
 ## Open
 
-- Whether `runner-control` runs on the Pi, on the VPS, or both
-  ([U4](unresolved-decisions.md#u4)).
 - The workload-identity mechanism for run credentials
   ([U2](unresolved-decisions.md#u2)).
 - Durable persistence for the run's facts ([U11](unresolved-decisions.md#u11)),
@@ -313,5 +311,15 @@ semantics at the port boundary were decided by
 and run/finalization identity by
 [ADR-0018](../decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md),
 both on 2026-08-17. Neither closed an unresolved-decision item.
+
+Where the substrate *runs* was decided by
+[ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md) on
+2026-08-26, closing [U4](unresolved-decisions.md#u4): placement is per
+**workload class**, not per repository. Household orchestration and household
+execution stay on the Pi; coding orchestration and coding execution move off
+it, onto a host that is neither the Pi nor the authoritative-database host.
+One package, two deployments. That decided a topology and stood nothing up —
+the runner substrate itself is still unimplemented, and the "Runs on" row above
+states where a coding runner *will* run, not where one runs today.
 
 All tracked in [`unresolved-decisions.md`](unresolved-decisions.md).

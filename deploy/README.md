@@ -19,7 +19,7 @@ run on the Pi.
 | Path | Contains |
 |---|---|
 | [`images/`](images/) | Runner image definitions, the gates-toolchain image, and `image-lock.yaml` — the validated lineage/pinning record |
-| [`runtime/`](runtime/) | The boundary for **future** execution-runtime integration — taxonomy only; no runtime is selected (U4 open, L9 not landed) |
+| [`runtime/`](runtime/) | The boundary for **future** execution-runtime integration — taxonomy only; no runtime is selected and L9 has not landed (placement itself is decided — ADR-0020) |
 | [`compose/`](compose/) | Docker Compose definitions for the Pi control plane |
 | [`traefik/`](traefik/) | Local ingress and internal routing configuration |
 | [`tailscale/`](tailscale/) | Tailnet connectivity and ACL documentation |

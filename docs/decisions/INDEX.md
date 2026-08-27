@@ -9,14 +9,17 @@ answer to "why is it like this?" eighteen months from now.
 > accepted file.
 >
 > **Neither foundational acceptance resolved anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
+> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Three
 > items have closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
-> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12, and
+> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12;
 > **[U7](../architecture/unresolved-decisions.md#u7)**, by
 > [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) on
-> 2026-08-15 — two of the tracked set **U1–U11**. Every other item still
-> blocks the work that depends on it, and U7's closure decided the knowledge
-> format without opening knowledge authoring. See
+> 2026-08-15; and **[U4](../architecture/unresolved-decisions.md#u4)**, by
+> [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) on 2026-08-26 —
+> three of the tracked set **U1–U11**. Every other item still
+> blocks the work that depends on it; U7's closure decided the knowledge
+> format without opening knowledge authoring, and U4's decided placement
+> without deploying anything. See
 > [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
 This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
@@ -66,7 +69,12 @@ contract or issue authorizes the specific work
 - the deterministic safety-policy declaration format and evaluator;
 - the knowledge-bundle validator and the four OKF interfaces;
 - the base runner image and the derived per-provider images;
-- conformance and policy-scenario test suites.
+- conformance and policy-scenario test suites;
+- **L9's placement gate only** — since **ADR-0020** closed
+  [U4](../architecture/unresolved-decisions.md#u4) on 2026-08-26, the launcher
+  landing is no longer waiting on a *decision*. It is still waiting on its own
+  task contract, and no launcher, network default-deny, resource ceiling, or
+  isolation mechanism exists or is authorized by that acceptance.
 
 **Still blocked** — acceptance changed nothing here, because these depend on
 questions the ADRs deliberately left open:
@@ -76,7 +84,7 @@ questions the ADRs deliberately left open:
 | Any offline/bounded local authority mechanism | [U1](../architecture/unresolved-decisions.md#u1) — **BOUNDED still behaves as FAIL CLOSED** |
 | Issuing run credentials to a sandbox | [U2](../architecture/unresolved-decisions.md#u2) |
 | Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
-| Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
+| Deploying `runner-control` to a host | ~~[U4](../architecture/unresolved-decisions.md#u4)~~ — **decided** by [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) (2026-08-26). Still blocked on its own authorizing task contract: L9 (#57) implements the launcher, network default-deny, and resource ceilings, and none of that exists |
 | Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
 | Authoring `household/**` knowledge, or releasing any set | `blockedByRollout` — both remain rollout-blocked (ADR-0016 §7a). Runbooks are allowlisted per module, never by directory; `knowledge/catalog.json` is authoritative for current eligibility |
 | **Publishing** any knowledge bundle | no governed **Proof B** producer exists ([ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §5a). Discharging readiness did not unblock publication |
@@ -139,7 +147,14 @@ implementation-neutral. These decide how it is built.
 | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 | [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
+| [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | Accepted | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) |
 
+> **ADR-0020 is `Accepted`** (2026-08-26) and **immutable**. It
+> **resolves [U4](../architecture/unresolved-decisions.md#u4)** — the first
+> placement decision this repository has made — and satisfies the ADR gate on
+> L9 (#57) **without implementing any of it**. See
+> [the ADR-0020 acceptance record](#adr-0020-acceptance-record).
+>
 > **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
 > [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
 > ADR-0016 §7/§7a on the set side only** — the release transition and the
@@ -171,17 +186,60 @@ unresolved decision, does not authorize implementation, and does not constrain a
 change that lands before it is accepted. Acceptance is a separate human-reviewed
 action in its own change.
 
-| ADR | Title | Status | Would govern | Would decide |
-|---|---|---|---|---|
-| [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
+**Nothing is currently under review.**
 
-> **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
-> **still open**, and L9 (#57) remains gated. It selects a deployment topology
-> inside the space [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md)
-> and [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)
-> already define — it changes no accepted ADR and no contract. It surfaces one
-> contract question (whether execution-host placement should be a declared
-> profile property) and deliberately does **not** answer it.
+### ADR-0020 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-26 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Accepted at** | [`47bb2e8`](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/47bb2e8) — the exact reviewed content, after two acceptance-review rounds |
+| **Review** | PR #97 (proposal), PR #100 (acceptance-review corrections), and the acceptance change itself |
+| **Depends on** | [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md) (ingress paths, availability contract), [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) (routing classes), [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) (degraded posture), [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md), [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md), [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) — all already accepted |
+| **Scope** | ADR-0020 in full: placement decided per workload class; initial and target placement; what may never move; control plane versus execution substrate; one package, two deployments; the migration boundary; credential, network, blast-radius, and degraded-mode implications; the candidate matrix; and the L9 obligations O1–O9 it creates |
+| **Unresolved decisions resolved** | **[U4](../architecture/unresolved-decisions.md#u4)** — `runner-control` placement (issue #9) |
+| **Changes no accepted ADR** | it selects a topology inside the space ADR-0002 and ADR-0007 already define |
+| **Changes no contract** | no schema, no profile field, no port signature |
+
+**What was accepted.** Placement is decided **per workload class**, not per
+repository: household orchestration and household execution stay on the Pi;
+coding orchestration and coding execution move off it, onto a host that is
+neither the Pi nor the authoritative-database host. One package, two
+deployments.
+
+**What acceptance does not do.** It implements nothing. **L9 (#57) remains
+unimplemented** — no launcher, no network default-deny, no resource ceilings,
+no isolation mechanism — and each requires its own authorizing task contract.
+The ADR names an initial host — the workstation-class tailnet machine — and
+naming it is not standing it up: no deployment asset was written, no host was
+provisioned, and no credential exists.
+
+**Obligation status at acceptance.** **F5 is discharged by this change** — it
+is the obligation that *defines* the accepting change, so it can be discharged
+by nothing else. **F1, F2, F3, F4, and F6 are open.** F1 (the mechanical check
+that no coding-class profile grants household reach), F2 (version skew between
+the two deployments), and F4 (re-scoped contention evidence) belong to L9 (#57).
+F3 — whether execution-host placement becomes a declared, reviewable profile
+property — is undecided and needs its own ADR or tracked item; acceptance did
+not answer it and forbids answering it by a schema change under ADR-0020. F6,
+evidence transport from the coding host, is held with
+[U11](../architecture/unresolved-decisions.md#u11).
+
+**Two properties worth restating, because review corrected them.** Placement
+removes *authority*, not network presence: a compromised coding host keeps
+tailnet reachability and can still attack availability, and every household
+crossing still passes B3's authentication, authorization, and deterministic
+safety policy. And the failure-domain separation is host-local — resource,
+kernel, thermal, and container-runtime — while shared network and persistence
+dependencies deliberately remain.
+
+**What this unblocks.** The decision blocker on L9 only. It does not authorize
+deployment, does not select a host, and does not resolve
+[U2](../architecture/unresolved-decisions.md#u2) (workload identity) or
+[U11](../architecture/unresolved-decisions.md#u11) (persistence), both of which
+the ADR explicitly leaves open. Whether execution-host placement becomes a
+declared profile property is recorded as obligation F3 and remains undecided.
 
 ### ADR-0013 acceptance record
 
@@ -221,9 +279,11 @@ closed allowlist, and that the CLI reported success while being killed.
 
 **Still not authorized by this acceptance.** No adapter is implemented, no
 provider credential is provisioned, no image is built, and
-[U2](../architecture/unresolved-decisions.md#u2) (workload identity),
-[U4](../architecture/unresolved-decisions.md#u4) (placement), and
+[U2](../architecture/unresolved-decisions.md#u2) (workload identity) and
 [U11](../architecture/unresolved-decisions.md#u11) (persistence) remain open.
+[U4](../architecture/unresolved-decisions.md#u4) (placement) was open when
+ADR-0013 was accepted and has since closed — by ADR-0020 on 2026-08-26, not by
+anything here.
 The ADR's own § Validation and follow-up obligations lists what L7, L8, and L9
 must each prove.
 
@@ -276,12 +336,13 @@ to deploy, and it does not make any unresolved decision decided.
 - **No OpenFGA runtime is deployed** — [U8](../architecture/unresolved-decisions.md#u8).
 - **No runner workload identity is selected** — [U2](../architecture/unresolved-decisions.md#u2).
 - **`BOUNDED` still behaves as `FAIL CLOSED`** — [U1](../architecture/unresolved-decisions.md#u1).
-- U3, U4, U5, and U9 likewise remain open and still block the work that depends
-  on them. **U6 and U7 have since closed** — U6 by ADR-0013 on 2026-08-12, U7 by
-  ADR-0015 on 2026-08-15. Neither closure came from ADR-0012's acceptance, which
-  is the point this list was making; both came from a later ADR that answered
-  the question. U7's closure decided the knowledge format and did **not** open
-  knowledge authoring.
+- U3, U5, and U9 likewise remain open and still block the work that depends on
+  them. **U6, U7, and U4 have since closed** — U6 by ADR-0013 on 2026-08-12, U7
+  by ADR-0015 on 2026-08-15, U4 by ADR-0020 on 2026-08-26. No closure came from
+  ADR-0012's acceptance, which is the point this list was making; each came from
+  a later ADR that answered the question. U7's closure decided the knowledge
+  format and did **not** open knowledge authoring; U4's decided placement and did
+  **not** deploy anything.
 
 ### ADR-0014 acceptance record
 
@@ -564,7 +625,7 @@ separated the reviewed bytes from the accepted bytes.
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
 | runner orchestration crossing an asynchronous port | **ADR-0017** + ADR-0013 |
-| where a runner workload physically executes, or a deployment topology | ADR-0002, ADR-0007, ADR-0009 + **ADR-0020** (`Proposed` — decides nothing yet) |
+| where a runner workload physically executes, or a deployment topology | ADR-0002, ADR-0007, ADR-0009 + **ADR-0020** (`Accepted` 2026-08-26 — household control on the Pi, coding execution off it) |
 | finalization, run identity, or replay of a durable fact | **ADR-0018** + **ADR-0017** |
 
 ## Deliberately not decided

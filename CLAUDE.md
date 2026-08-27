@@ -67,7 +67,7 @@ After changing files, run what your change touched:
   globbing `docs/`.
 - **READMEs are authoritative for their directory.** Read the directory README
   before adding a file to it — it says what does not belong there too.
-- **Do not read every ADR.** Eleven ADRs is a lot of context. The index table
+- **Do not read every ADR.** Twenty ADRs is a lot of context. The index table
   tells you which apply.
 - Prefer targeted search over broad reads. This repository is mostly prose;
   reading it all is expensive and unnecessary.
@@ -96,7 +96,7 @@ After changing files, run what your change touched:
 - **Do not change any ADR's status — ever — without an explicit
   human-acceptance task.** Accepting an ADR is a human decision, made in its own
   reviewed change.
-- **Do not edit an accepted ADR.** ADR-0001 … ADR-0018 are `Accepted` and
+- **Do not edit an accepted ADR.** ADR-0001 … ADR-0020 are `Accepted` and
   **immutable**. Amend or reverse one only by writing a new ADR that supersedes
   it.
 - **Do not resolve anything in**

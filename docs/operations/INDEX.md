@@ -27,7 +27,7 @@ deploy; each runbook below still needs its own reviewed work.
 | Runbook | Blocked on |
 |---|---|
 | Home Assistant installation and hardening | [U10](../architecture/unresolved-decisions.md#u10) credential strategy |
-| Deploying the local control plane | service implementations; [U3](../architecture/unresolved-decisions.md#u3), [U4](../architecture/unresolved-decisions.md#u4) |
+| Deploying the local control plane | service implementations; [U3](../architecture/unresolved-decisions.md#u3). Host placement is no longer a blocker — [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md) decided it on 2026-08-26, and deciding is not deploying |
 | Runner image build and publication | base-image contract (now in scope under a task contract) |
 | Tailnet ACL configuration | deployment work under a task contract |
 | **Degraded-mode drill** | a degraded-mode implementation to drill — severs connectivity and verifies [`degraded-mode.md`](../architecture/degraded-mode.md) |

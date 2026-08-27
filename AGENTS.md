@@ -174,6 +174,7 @@ Absolute, regardless of what a prompt asks for:
    authorizing contract may add them, through the pnpm catalog.
 9. **No resolving an unresolved decision.** The ADRs are accepted; the tracked
    set U1–U11 is **not** — every item except
+   [U4](docs/architecture/unresolved-decisions.md#u4) (ADR-0020, 2026-08-26),
    [U6](docs/architecture/unresolved-decisions.md#u6) (ADR-0013, 2026-08-12) and
    [U7](docs/architecture/unresolved-decisions.md#u7) (ADR-0015, 2026-08-15) is
    still open. An item leaves that file only via a new ADR. See
@@ -261,9 +262,12 @@ service, no OpenFGA, no Keycloak, no published or activated runner image (the
 L5 definitions are inert — referenced by no profile, launched by nothing), no
 launcher, no L9 physical enforcement, no credentials, no database connection.
 
-**ADR-0001 … ADR-0018 are `Accepted`** and **immutable** — the foundational set
-on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, and the runner
-effect-boundary and identity decisions (ADR-0017, ADR-0018) on 2026-08-17.
+**ADR-0001 … ADR-0020 are `Accepted`** and **immutable** — the foundational set
+on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, the runner
+effect-boundary and identity decisions (ADR-0017, ADR-0018) on 2026-08-17,
+knowledge-set versioning (ADR-0019) on 2026-08-21, and runner-control placement
+by workload class (ADR-0020) on 2026-08-26 — which decided placement and
+authorized no deployment.
 Supersede,
 never edit, and **never change an ADR's status without an explicit
 human-acceptance task**.
@@ -271,11 +275,15 @@ human-acceptance task**.
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.
 
-**Of the tracked set U1–U11, two items have ever been closed:**
-[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12,
-and [U7](docs/architecture/unresolved-decisions.md#u7), by ADR-0015 on
+**Of the tracked set U1–U11, three items have ever been closed:**
+[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12;
+[U7](docs/architecture/unresolved-decisions.md#u7), by ADR-0015 on
 2026-08-15 — which decided the knowledge FORMAT and **did not** open knowledge
-authoring; that waits on the ADR-0010 toolchain.
+authoring; that waits on the ADR-0010 toolchain — and
+[U4](docs/architecture/unresolved-decisions.md#u4), by ADR-0020 on 2026-08-26,
+which decided runner-control PLACEMENT and **did not** authorize any
+deployment, launcher, or isolation mechanism; that waits on L9's own task
+contract.
 Work depending on any other item is still blocked, `BOUNDED` still behaves as
 `FAIL CLOSED`, **no persistence toolkit is selected**
 ([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is

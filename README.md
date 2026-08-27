@@ -31,10 +31,12 @@ when the internet does not.
 > ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
 > running system.
 >
-> **ADR-0001 … ADR-0018** are **`Accepted`** and immutable — the foundational set
-> on 2026-08-05, the implementation stack on 2026-08-06, and the runner
-> effect-boundary and identity decisions on 2026-08-17 — so implementation may
-> proceed against them under an authorizing task contract.
+> **ADR-0001 … ADR-0020** are **`Accepted`** and immutable — the foundational set
+> on 2026-08-05, the implementation stack on 2026-08-06, the runner
+> effect-boundary and identity decisions on 2026-08-17, knowledge-set versioning
+> on 2026-08-21, and runner-control placement by workload class on 2026-08-26 —
+> so implementation may proceed against them under an authorizing task contract.
+> Acceptance is never authorization to deploy.
 >
 > Of the eleven tracked open questions,
 > [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013 and
@@ -413,7 +415,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0018  (all Accepted, immutable)
+│   ├── decisions/         ADR-0001 … ADR-0020  (all Accepted, immutable)
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              deployable backend processes — TypeScript
 │   ├── control-plane/     household API · authorization · safety policy ·
