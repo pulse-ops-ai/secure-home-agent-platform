@@ -50,6 +50,7 @@ COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 RUN set -eux; \
     cd /tmp/pkg; \
     manifest="packages.${TARGETARCH}.manifest"; \
+    manual_before="$(apt-mark showmanual)"; \
     apt-get update; \
     # `download`, never `install`. apt fetches EXACTLY the package=version
     # pairs named and resolves nothing, so the closure cannot silently grow;
@@ -86,6 +87,13 @@ RUN set -eux; \
     awk '{print $1 "  " $5}' "${manifest}" > /tmp/pkg/.sums; \
     sha256sum -c /tmp/pkg/.sums; \
     dpkg --install $(awk '{print $5}' "${manifest}"); \
+    # dpkg does not maintain APT's auto/manual dependency marks. Reconstruct
+    # the state apt-get install would have established without resolving
+    # anything: the selected closure is auto, pre-existing manual packages
+    # are restored, and the substrate's requested packages stay manual.
+    apt-mark auto $(awk '{print $3}' "${manifest}"); \
+    if [ -n "${manual_before}" ]; then apt-mark manual ${manual_before}; fi; \
+    apt-mark manual ca-certificates tini; \
     apt-get clean; \
     # The .deb files never enter a layer: fetched, verified, installed, and
     # removed inside this one instruction.

@@ -998,13 +998,18 @@ export function checkImages(root = DEFAULT_ROOT) {
             },
             {
               key: 'count',
-              re: /wc -l < "\$\{manifest\}"/,
-              why: 'the artifact count must be checked against the selected manifest',
+              // The manifest count is not proof by itself. The fetched .deb
+              // count must be the left operand of the equality test.
+              re: /\[\s*"\$\(ls -1 \*\.deb \| wc -l\)"\s*=\s*"\$\(wc -l < "\$\{manifest\}"\)"\s*\]/,
+              why: 'the fetched artifact count must be compared with the selected manifest count',
             },
             {
               key: 'size',
-              re: /stat -c %s[\s\S]*done < "\$\{manifest\}"/,
-              why: 'byte size must be checked for the selected set',
+              // The stat must feed the actual-vs-declared equality inside the
+              // manifest-driven loop. A loop that only reads sizes is not a
+              // byte-size proof.
+              re: /while read -r sha size pkg ver name; do actual="\$\(stat -c %s "\$\{name\}"\)";\s*\[\s*"\$\{actual\}"\s*=\s*"\$\{size\}"\s*\][\s\S]*done < "\$\{manifest\}"/,
+              why: 'the fetched byte size must be compared with the manifest declaration for every selected artifact',
             },
             {
               key: 'projection',

@@ -31,12 +31,12 @@ images:
     external_base:
       reference: docker.io/library/debian:trixie-slim
       digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
-    digest: sha256:12e1c4630f8265b2b2fbe3ddd5a73be79dd3b8375ef89266a267cd5ac0073476
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:e41f1a15dcf68ad4f21037c831ade8b50411b5ac321ef8c520f02fc8a8262acf
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:214408ecbb71aadcc09428ce6ff50266d5cd12578cc8366f66b37aacaf21a36d
+        digest: pending-first-governed-build
   - name: secure-home-runner-claude
     lineage: runner-derived
     definition: deploy/images/runner-claude/Dockerfile
@@ -44,18 +44,18 @@ images:
       - linux/amd64
       - linux/arm64
     parent: secure-home-runner-base
-    parent_digest: sha256:12e1c4630f8265b2b2fbe3ddd5a73be79dd3b8375ef89266a267cd5ac0073476
+    parent_digest: pending-first-governed-build
     runtime:
       name: claude-code
       package: "@anthropic-ai/claude-code"
       version: 2.1.241
       integrity: sha512-S7DWEmJJAsI5taAUjhKm6soXcFJYIVeTH6Lg9kmp3yntFllCP612hGwZ7thOGh8r7YaRUH9+1jCX5A9QGazsxg==
-    digest: sha256:06db5ab1454e9aae230327699a281743b9c25906ed445beacb77c09327c2a0cc
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:cc105a753c549dd0cdb04ec7e5982cbfe39ab276ef7575aa3d5ad9381439751f
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:182c87a866fd909cd761075cee7de171e2d7587f9ad1289edad367da4422589b
+        digest: pending-first-governed-build
   - name: secure-home-runner-copilot
     lineage: runner-derived
     definition: deploy/images/runner-copilot/Dockerfile
@@ -63,18 +63,18 @@ images:
       - linux/amd64
       - linux/arm64
     parent: secure-home-runner-base
-    parent_digest: sha256:12e1c4630f8265b2b2fbe3ddd5a73be79dd3b8375ef89266a267cd5ac0073476
+    parent_digest: pending-first-governed-build
     runtime:
       name: copilot
       package: "@github/copilot"
       version: 1.0.79
       integrity: sha512-uHBm2BYbKJgyfiKp1WokX7QUNHGvzEX0zaGeb3qM3CybP06rsJrX3JgQe95qwwma6vQz0ah9gV68ERW2JqaKRA==
-    digest: sha256:acf8355617d1f597e14a37def80f5fe7335fdbfd95f8dd99e7d44d50948bd0ba
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:da38d494e785758c936fa0de5f3b0ccccf7a94ec97ffbae9f97186b5d2ffa349
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:14b750e092d8fc02e082a745beb9ac4104174268deafc5e1bda6c75823e17456
+        digest: pending-first-governed-build
   - name: secure-home-gates-toolchain
     lineage: gates-toolchain
     definition: deploy/images/gates-toolchain/Dockerfile
@@ -84,9 +84,9 @@ images:
     external_base:
       reference: docker.io/library/debian:trixie-slim
       digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
-    digest: sha256:a9d31fab16075917c2d8989b97e537d790afd6b5ea55d07cf1711a75dfd3d418
+    digest: pending-first-governed-build
     manifests:
       - platform: linux/amd64
-        digest: sha256:4a4c90de4def6e7d96cb6ec52703d31f7c4c2169570606f37fd2b7014108bab2
+        digest: pending-first-governed-build
       - platform: linux/arm64
-        digest: sha256:90b4d4fab20ba5f0f8249818834bef83a0395fc7ce7d349702bf4e7729a57a31
+        digest: pending-first-governed-build

@@ -35,6 +35,15 @@ DEBIAN_PROJECT = 'awk \'{print $1 "  " $5}\' "${manifest}" > ' + DEBIAN_SUMS + "
 DEBIAN_VERIFY = "    sha256sum -c " + DEBIAN_SUMS + "; \\\n"
 DEBIAN_INSTALL = "    dpkg --install $(awk '{print $5}' \"${manifest}\")"
 DEBIAN_PROJECT_AND_VERIFY = "    " + DEBIAN_PROJECT + DEBIAN_VERIFY
+# The size assertion must compare the stat result with the manifest field; a
+# manifest-driven stat loop that only reads bytes is not a proof.
+DEBIAN_SIZE = (
+    "while read -r sha size pkg ver name; do \\\n"
+    '      actual="$(stat -c %s "${name}")"; \\\n'
+    '      [ "${actual}" = "${size}" ] || \\\n'
+    '        { echo "size mismatch ${name}: ${actual} != ${size}" >&2; exit 1; }; \\\n'
+    '    done < "${manifest}"; \\\n'
+)
 # An unrelated but entirely valid checksum command, standing where the Debian
 # one used to be: the precise shape of the bypass the gate must refuse.
 DEBIAN_BYPASS = '    echo "%s  /tmp/other.tgz" | sha256sum -c -; \\\n' % ("e" * 64)
@@ -46,9 +55,7 @@ DEBIAN_CHAIN = (
     "    apt-get update; \\\n"
     "    " + DEBIAN_DOWNLOAD + "; \\\n"
     "    " + DEBIAN_COUNT + "; \\\n"
-    "    while read -r sha size pkg ver name; do \\\n"
-    '      stat -c %s "${name}"; \\\n'
-    '    done < "${manifest}"; \\\n' + DEBIAN_PROJECT_AND_VERIFY + DEBIAN_INSTALL
+    "    " + DEBIAN_SIZE + DEBIAN_PROJECT_AND_VERIFY + DEBIAN_INSTALL
 )
 
 
@@ -426,10 +433,45 @@ def test_a_missing_count_check_is_refused(tmp_path: Path) -> None:
     assert 'broken at "count"' in result.stderr
 
 
+def test_a_manifest_count_without_the_equality_check_is_refused(tmp_path: Path) -> None:
+    """Reading the manifest count without comparing it proves nothing about
+    whether apt fetched exactly the reviewed set."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    text = dockerfile.read_text()
+    hostile = text.replace(
+        DEBIAN_COUNT,
+        'manifest_count="$(wc -l < "${manifest}")"; :',
+    )
+    assert 'wc -l < "${manifest}"' in hostile
+    assert DEBIAN_COUNT not in hostile
+    dockerfile.write_text(hostile)
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "count"' in result.stderr
+
+
 def test_a_missing_size_check_is_refused(tmp_path: Path) -> None:
     root = _fixture(tmp_path)
     dockerfile = root / "deploy/images/runner-base/Dockerfile"
     dockerfile.write_text(dockerfile.read_text().replace("stat -c %s", "true"))
+    result = _check(root)
+    assert result.returncode == 1, result.stdout
+    assert 'broken at "size"' in result.stderr
+
+
+def test_a_manifest_driven_stat_without_the_equality_check_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A loop can still stat every manifest row while silently discarding
+    the result; the checker must refuse that no-op proof."""
+    root = _fixture(tmp_path)
+    dockerfile = root / "deploy/images/runner-base/Dockerfile"
+    text = dockerfile.read_text()
+    hostile = text.replace('[ "${actual}" = "${size}" ]', ":")
+    assert 'stat -c %s "${name}"' in hostile
+    assert '[ "${actual}" = "${size}" ]' not in hostile
+    dockerfile.write_text(hostile)
     result = _check(root)
     assert result.returncode == 1, result.stdout
     assert 'broken at "size"' in result.stderr
