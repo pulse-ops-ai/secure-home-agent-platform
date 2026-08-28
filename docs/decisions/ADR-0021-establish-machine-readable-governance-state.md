@@ -35,11 +35,12 @@ state is deliberately still:
 
 Those facts are easy to state once and difficult to keep identical across every
 consumer. A future ADR-0020 acceptance would currently require editing a large
-set of prose surfaces in one transition. The complete open draft PR #101 is
-concrete evidence: its current diff touches 22 files and is 1,688 patch lines
-across status, resolution, gate, placement, and authorization wording. That is
-not evidence that the decision is too broad; it is evidence that its mutable
-consequences have no shared substrate.
+set of prose surfaces in one transition. At the inspected PR #101 head
+`559d78cc32cc40f8eaa7aba15a961554f3033b43`, its diff touches 22 files across
+status, resolution, gate, placement, and authorization wording. Pinning the
+observed head makes that observation reproducible; no patch-line count is
+treated as a governance fact. That is not evidence that the decision is too
+broad; it is evidence that its mutable consequences have no shared substrate.
 
 `openspec/config.yaml` is a second concrete failure mode. It contains an older
 ADR range and U-item/toolchain claims in its free-form context. It is planning
@@ -76,9 +77,10 @@ proof visible rather than treating it as success.
 
 The defect is not fixed by adding one more index paragraph. If
 `governance/state.json` is added while the current hand-authored status copies
-remain authoritative, it becomes a **fifty-first surface**, not a single
-authority. Removing mutable duplication is therefore part of this decision,
-not optional cleanup after it.
+remain authoritative, it becomes another coequal surface — effectively a
+**“fifty-first surface”** in the current fan-out, a qualitative warning rather
+than a counted invariant. Removing mutable duplication is therefore part of
+this decision, not optional cleanup after it.
 
 ---
 
@@ -250,10 +252,27 @@ Each landing or gate node may contain:
 - optional reviewed ordering intent when the prerequisite DAG alone does not
   define order.
 
-The model derives which prerequisites are satisfied, which remain unsatisfied,
-whether the node is prerequisite-ready, and the explanation for a blocked node.
-It must not store both `requires: ["L8", "GATE-U4"]` and an independently
-editable `blockedOn: ["L8"]`.
+If a landing has a delivery lifecycle, version one uses the closed vocabulary
+`Planned`, `InProgress`, `Complete`, or `Withdrawn`. The only legal transitions
+are `Planned -> InProgress`, `Planned -> Complete` when the same reviewed
+change supplies completion evidence, `Planned -> Withdrawn`,
+`InProgress -> Complete`, and `InProgress -> Withdrawn`. `Complete` and
+`Withdrawn` are terminal. There is no implicit transition from a reference,
+issue, or prerequisite declaration to `Complete`.
+
+`Complete` requires at least one typed delivery-evidence record bound to the
+exact landing and an immutable reviewed identity. `Withdrawn` requires typed
+withdrawal evidence. `Planned` and `InProgress` do not satisfy a prerequisite.
+The model therefore derives a landing prerequisite as satisfied only when its
+delivery lifecycle is `Complete` and its evidence validates. It derives which
+prerequisites remain unsatisfied, whether the node is prerequisite-ready, and
+the explanation for a blocked node. It must not store both
+`requires: ["L8", "GATE-U4"]` and an independently editable
+`blockedOn: ["L8"]`.
+
+Delivery completion is not implementation authorization. A landing can be
+complete as a delivery record while a separate external authorization is still
+required before work may start.
 
 An issue or task reference is a fact about authority location, not proof that
 the landing is authorized or complete.
@@ -271,12 +290,19 @@ The registry distinguishes three different questions:
 2. Is there external authorization for this exact scope?
 3. Has the work been delivered and evidenced?
 
-Version one selects the fail-closed external-verification contract. It records
-typed references and evidence sources, but it does not infer implementation
-authorization from them. A query about authorization returns
-`AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION` unless the separately defined
-external verification input is present and valid. There is no convenience
-`authorized: true` field.
+Version one is permanently non-authorizing. It records typed references and
+evidence sources, but it never accepts a locally consumable authorization grant
+and never returns `AUTHORIZED`. Its only two query outcomes are
+`PREREQUISITES_NOT_READY` when a required prerequisite is unsatisfied and
+`AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION` when prerequisites are ready
+but external authorization is still required. There is no convenience
+`authorized: true` field and no separately defined verification input hidden
+behind this ADR.
+
+Adding a locally consumable authorization-evidence contract requires a new ADR
+that defines its producer, trust root, exact-scope binding, content identity,
+expiry, revocation, and history rules. Until then, the governance model can
+only report the need for external verification.
 
 In particular, issue #57 is recorded as L9's external authority anchor. Its
 existence, its being named as an anchor, ADR acceptance, or satisfied
@@ -392,11 +418,115 @@ legal only when a new accepted ADR supplies a valid `supersedes` relationship
 without mutating the old file. No status transition may be smuggled through an
 index edit.
 
+A rejected ADR must retain `Status: Rejected` and its rejected-byte digest;
+that header is its final checked mirror. A superseded ADR is the deliberate
+exception described below: its immutable historical header remains
+`Status: Accepted` while the registry records its current superseded
+relationship.
+
+The ADR lifecycle is closed, not merely a closed vocabulary:
+
+- `Proposed -> Accepted` requires a human acceptance attestation, the final
+  accepted-byte SHA-256, and the atomic registry/header transition described
+  below.
+- `Proposed -> Rejected` requires a human rejection attestation bound to the
+  final rejected bytes by SHA-256. A rejected ADR is immutable and `Rejected`
+  is terminal.
+- `Accepted -> Superseded` is legal only when a new accepted ADR records a
+  valid `supersedes` relationship to it. The old ADR remains immutable and its
+  historical header remains `Accepted`.
+- No other transition is legal: in particular, `Rejected -> Proposed`,
+  `Rejected -> Accepted`, `Accepted -> Proposed`, `Accepted -> Rejected`, and
+  `Proposed -> Superseded` are refused. `Superseded` is terminal for the old
+  record.
+
+Rejection evidence uses the same typed, non-secret human-attestation shape as
+acceptance evidence, with an outcome of `rejected`, the exact final ADR-byte
+digest, actor, time, authority reference, and transition digest. It does not
+grant implementation authority.
+
+### 7a. Relationship provenance, bootstrap proof, and evidence identity
+
+The registry is the sole authored machine-readable source for the primitive
+cross-cutting fields in §3 after migration, but it never overrides an
+immutable ADR's normative content. The authority and mirror rule is
+field-specific:
+
+The registry is not a fallback when a mirror disagrees: any disagreement
+invalidates the repository, and the registry cannot override an immutable ADR
+or make a relationship true by assertion alone.
+
+| Fact | Authored source after bootstrap | Required mirror or proof |
+| --- | --- | --- |
+| ADR identity, canonical path, title, and proposal date | `governance/state.json` | The file path and structurally parseable ADR header must match the registry record. |
+| Current ADR lifecycle | `governance/state.json` | The ADR `Status:` line is a checked mirror under §7; accepted and rejected bytes are pinned by digest. |
+| `resolves` and `supersedes` relationships | `governance/state.json` | The structurally parseable ADR relationship header and generated projections must be equivalent; the ADR body remains the normative rationale. |
+| Acceptance or rejection evidence and content identity | `governance/state.json` | Typed human attestation and exact ADR-byte SHA-256; any reviewed identity is separately classified below. |
+| Decision rationale and normative requirements | The ADR body | The registry may index and derive from them, but cannot replace, amend, or contradict them. |
+
+At genesis, each relationship is additionally required to carry a reviewed
+bootstrap attestation. The seed ceremony must compare the canonical registry
+tuples — including lifecycle, identity, proposal date, `resolves`, and
+`supersedes` — against every structurally parseable ADR header, decision-index
+record, and unresolved-decision resolution banner in the selected source
+snapshot. It must compare relationship identity, not merely accepted counts or
+matching current summaries. A registry relation such as `ADR-0019 resolves
+U4` is invalid when the source ADR does not declare that relationship, even if
+all derived counts and banners happen to agree. A disagreement, parse failure,
+or omitted source is an explicit bootstrap failure requiring human review; it
+is never silently treated as an empty or equivalent source.
+
+The seed parser may normalize the repository's existing relationship labels
+(`Closes`, `Decides`, and any explicitly governed equivalent) into the registry
+field `resolves`, but it may not infer a relationship from unstructured prose.
+An absent, ambiguous, or conflicting label is a reconciliation failure unless
+the bootstrap attestation records the source and its human disposition.
+
+The seed attestation binds the canonical seed digest, a separate canonical
+relationship-equivalence digest, the source snapshot identity, actor, time,
+and a typed authority reference. Its preimage excludes the attestation itself.
+The attestation therefore proves that the seed was reconciled to the selected
+pre-registry sources without making the first registry revision its own proof.
+The implementation must include a conformance case that injects a wrong
+relationship into an otherwise byte-correct seed and refuses it without
+relying on a prior registry revision.
+
+Acceptance and bootstrap evidence use this explicit non-self-referential
+protocol. A transition preimage contains the schema version, prior-state
+digest (or `null` for genesis), target primitive digest, subject ADR, lifecycle
+transition, exact ADR content digest, and relationship digest. The
+`transitionDigest` is the SHA-256 of canonical serialization of that preimage.
+The target primitive digest and relationship digest are computed over the
+target primitive records and relationships with the attestation envelope
+excluded. The typed human attestation records the `transitionDigest`, exact
+content digest, outcome, actor, RFC 3339 time, and authority reference. The
+attestation is an external human act recorded as evidence; it is not generated
+from, or included in, the preimage, so no commit or registry row needs to
+contain its own identity.
+
+The implementation must distinguish these identities rather than collapse
+them into “reviewed identity”:
+
+- a `local-git-commit` is locally verifiable only when its object exists in the
+  checked-out repository;
+- an `external-git-commit` is an opaque provenance reference and is not offline
+  proof that the object is available; and
+- a `content-sha256` is the exact byte identity of the reviewed ADR or other
+  evidence artifact.
+
+The human attestation is the acceptance authority; a commit reference is
+supporting provenance, not the causal binding. A commit containing the
+attestation may be recorded after the fact, but changing that commit cannot
+change the already-bound transition digest. The same protocol applies to the
+genesis attestation, with `prior-state-digest: null` and the source/equivalence
+digests above.
+
 ### 8. Current-revision validation
 
 `check-governance-state.mjs` will be a dependency-light, offline checker. It
 fails closed on all of the following:
 
+- missing `state.json` or any required registered projection;
 - malformed or noncanonical `state.json`;
 - duplicate JSON keys;
 - unknown fields;
@@ -406,8 +536,12 @@ fails closed on all of the following:
 - references to missing entities;
 - prerequisite cycles;
 - an accepted ADR whose content digest does not match the referenced file;
+- a registry relationship that disagrees with the ADR's checked relationship
+  mirror or its reviewed bootstrap attestation;
 - an ADR header that disagrees with the allowed mirror rule;
 - multiple current resolvers for one question;
+- a landing lifecycle or completion record that violates its closed transition
+  and evidence rules;
 - generated projection drift; and
 - a projection target or generated marker not registered by the renderer.
 
@@ -440,6 +574,8 @@ The history checker refuses at least:
 
 - deletion or renumbering of an existing ADR, U-item, gate, or landing;
 - `Accepted -> Proposed` or `Accepted -> Rejected` regression;
+- any other illegal ADR lifecycle transition, including a rejection that lacks
+  its final-byte attestation;
 - mutation of accepted evidence;
 - mutation of accepted ADR bytes;
 - mutation of an accepted ADR's `resolves` relationship;
@@ -447,8 +583,12 @@ The history checker refuses at least:
 - illegal supersession;
 - prerequisite re-identification or dangling references;
 - illegal landing lifecycle regression;
-- completion without required evidence; and
-- authorization evidence mutation or disappearance.
+- completion or withdrawal without required evidence;
+- mutation or disappearance of delivery evidence after a landing reaches a
+  terminal lifecycle; and
+- introduction, mutation, or disappearance of any authorization-evidence
+  record. Version one has no such record and rejects it as an unknown field;
+  a future ADR that adds one must define a legal withdrawal/succession rule.
 
 The allowed acceptance transition is narrow: the proposed ADR header, registry
 record, reviewed identity, acceptance evidence, and accepted-byte digest must
@@ -482,17 +622,26 @@ to the registry or query contract:
 - service documentation; and
 - `openspec/config.yaml`.
 
-The migration must refuse reintroduction of manually maintained ADR ranges,
-resolved counts, U-item status lists, and runner blocker summaries outside
-registered generated projections. `openspec/config.yaml` is an explicit
-regression case: it must be generated or replaced by a pointer and cannot
-remain an independent mutable governance-state store. It is not edited by this
-proposal.
+For the closed set of registered consumer files, the implementation must refuse
+reintroduction of manually maintained ADR ranges, resolved counts, U-item
+status lists, and runner blocker summaries outside registered generated
+projections. `openspec/config.yaml` is an explicit regression case: it must be
+generated or replaced by a pointer and cannot remain an independent mutable
+governance-state store. It is not edited by this proposal.
 
-Natural-language scanning may remain defense in depth for suspicious prose,
-but no regex scan may claim to prove that arbitrary prose contains no
-contradiction. The mechanical proof is the closed registry, derivation model,
-projection renderer, and current/history checks.
+This enforcement has three deliberately separate tiers:
+
+1. Mechanical enforcement covers registered generated regions, their markers
+   and targets, and the closed set of prohibited mutable fields in registered
+   consumers. The renderer and current-state checker reject drift or an
+   unregistered projection.
+2. A known-pattern scan remains defense in depth and can flag suspicious
+   natural-language copies for review.
+3. Human review owns free prose that is not registered as generated state. No
+   regex scan may claim to prove that arbitrary prose contains no contradiction.
+
+The mechanical proof is the closed registry, derivation model, projection
+renderer, and current/history checks; the scan is not an authority.
 
 ### 11. Query contract
 
@@ -513,20 +662,37 @@ distinguish all of these facts rather than collapse them into one status:
 - issue #57 is the external authority anchor; and
 - no implementation authorization is inferred.
 
-The JSON result must expose the derivation chain and a machine-readable
-authorization outcome. With no separately verified external authorization it
-must return `AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION`, even when all
-prerequisites are ready. Querying is explanation, not authorization.
+The JSON result must expose the derivation chain and one of the two
+machine-readable outcomes defined in §3E. It returns
+`PREREQUISITES_NOT_READY` while any prerequisite is unsatisfied. Once all
+prerequisites are ready, it returns
+`AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION`; it never returns
+`AUTHORIZED`. Querying is explanation, not authorization, and adding a
+locally consumable authorization result is outside version one.
 
 ### 12. Bootstrap and migration sequence
 
 The following sequence is part of the decision:
 
 1. This ADR is proposed and changes no operative governance state.
-2. A separate human-reviewed change accepts ADR-0021.
+2. Acceptance of ADR-0021 is the final governance transition performed under
+   the existing manual reconciliation mechanism. Its acceptance PR is a
+   separate human-reviewed change and must reconcile every live current-state
+   consumer one final time, including agent instructions, ADR indexes,
+   unresolved-decision summaries, architecture documents, READMEs, service
+   documentation, OpenSpec context, and any registered external prose mirrors.
+   The accepted set at that point is non-contiguous: ADR-0001 through
+   ADR-0019 and ADR-0021 are `Accepted`, while ADR-0020 remains `Proposed`.
+   The acceptance PR must state that set explicitly and must not replace it with
+   a continuous accepted range. No contradictory intermediate repository state
+   may be merged. This final manual fan-out is the unavoidable bootstrap cost;
+   this ADR selects no bounded bootstrap exception. Any future exception would
+   require its own exact scope, fail-closed behavior, and mandatory expiry.
 3. A separately authorized implementation issue and OpenSpec change implement
-   the substrate.
-4. The initial registry is seeded from `main` before PR #101:
+   the substrate only after ADR-0021 is accepted.
+4. The initial registry is seeded from the `main` snapshot before PR #101's
+   acceptance transition, after the reconciliation in step 2:
+   - ADR-0001 through ADR-0019 and ADR-0021 are `Accepted`;
    - ADR-0020 is `Proposed`;
    - U4 is derived open;
    - GATE-U4 is derived unsatisfied;
@@ -534,6 +700,9 @@ The following sequence is part of the decision:
    - L9 requires `L8 + GATE-U4`;
    - issue #57 is L9's authority anchor; and
    - no L8 or L9 implementation authorization is inferred.
+   The seed is valid only with the field-by-field relationship-equivalence and
+   non-self-referential bootstrap attestation required by §7a; matching counts
+   or summaries alone are not proof.
 5. Existing prose consumers are migrated to generated projections or stable
    references.
 6. The stale `openspec/config.yaml` content becomes an explicit regression
@@ -636,9 +805,10 @@ cross-cutting mutable state.
 
 ### 5. Add the registry but retain all existing prose copies
 
-Rejected. That creates the exact failure in a new form — a fifty-first surface
-with two authorities. The migration to generated regions and stable references
-is part of the decision.
+Rejected. That creates the exact failure in a new form — another coequal
+surface, described qualitatively as a “fifty-first surface” in the current
+fan-out, with two authorities. The migration to generated regions and stable
+references is part of the decision.
 
 ### 6. Root-level primitive registry with generated projections and references
 
@@ -710,7 +880,8 @@ authorized issue and OpenSpec change. That implementation must:
    evidence shapes, and derived predicates;
 3. prove duplicate-key rejection, unknown-field rejection, path/anchor
    validation, accepted-byte identity, resolver uniqueness, prerequisite-cycle
-   refusal, and fail-closed authorization queries;
+   refusal, closed ADR and landing transitions, relationship equivalence, and
+   the two fail-closed authorization outcomes;
 4. implement the current-revision checker and the two-revision history checker
    as separate entry points over the shared model;
 5. make the explicit CI base exclusive and fail on an invalid base;
@@ -718,11 +889,25 @@ authorized issue and OpenSpec change. That implementation must:
    rendering;
 7. migrate status copies, including `openspec/config.yaml`, to generated
    regions or stable pointers;
-8. add hostile controls for every derived rule and ensure removing a comparison
-   or replacing it with a no-op fails the checker;
-9. seed the registry from the pre-#101 `main` state described in §12 and prove
-   that seeding changes no operative governance state; and
-10. rebase and narrow PR #101 only after the substrate is accepted and landed.
+8. update `validate-scaffold.sh` so the root `governance/` domain, its required
+   files, and its generated `STATE.md` are structurally covered. The v1 layout
+   has no nested `governance/AGENTS.md`; the root contract and
+   `governance/README.md` govern it unless a later decision changes that
+   boundary;
+9. run governance validation in the unconditional governance CI job, never
+   only behind affected-target classification. Generated state must also pass
+   formatting, secret scanning, and `git diff --check`; renderer targets that
+   are indexes must coexist with their existing structural checks;
+10. keep the renderer's write mode separate from CI `--check` mode and update
+    the scripts documentation to explain that distinction, because the current
+    scripts contract describes repository scripts as read-only;
+11. add hostile controls for every derived rule and ensure removing a
+    comparison or replacing it with a no-op fails the checker;
+12. seed the registry from the pre-#101 `main` state described in §12 with the
+    field-by-field, relationship-equivalence, and non-self-referential
+    attestation required by §7a, and prove that seeding changes no operative
+    governance state; and
+13. rebase and narrow PR #101 only after the substrate is accepted and landed.
 
 The future implementation's conformance suite is
 `tests/test_governance_state.py`. It must cover both a valid current state and

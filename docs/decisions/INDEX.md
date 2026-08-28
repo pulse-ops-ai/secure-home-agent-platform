@@ -559,7 +559,7 @@ separated the reviewed bytes from the accepted bytes.
 | prohibited-content enforcement, or a knowledge content review | ADR-0010, ADR-0015, **ADR-0016** |
 | versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
-| the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, and **ADR-0021** (`Proposed` — architecture only) |
+| the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, **ADR-0019**, and **ADR-0021** (`Proposed` — architecture only) |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
