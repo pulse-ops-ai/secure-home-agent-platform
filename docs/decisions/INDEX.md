@@ -174,6 +174,7 @@ action in its own change.
 | ADR | Title | Status | Would govern | Would decide |
 |---|---|---|---|---|
 | [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
+| [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | **Proposed** | future root-level `governance/` domain and its validation, history, projection, and query tooling | no unresolved decision — governance-state authority contract only |
 
 > **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
 > **still open**, and L9 (#57) remains gated. It selects a deployment topology
@@ -558,6 +559,7 @@ separated the reviewed bytes from the accepted bytes.
 | prohibited-content enforcement, or a knowledge content review | ADR-0010, ADR-0015, **ADR-0016** |
 | versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
+| the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, and **ADR-0021** (`Proposed` — architecture only) |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
