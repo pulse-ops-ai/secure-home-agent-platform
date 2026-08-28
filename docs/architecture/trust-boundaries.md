@@ -35,6 +35,13 @@ tailnet and be able to route to the Pi. That reachability carries no platform
 authority, and anything arriving from it crosses B3 as a client would —
 authenticated, authorized, safety-policy checked.
 
+The household sandbox may re-enter through B3 as a normal client; that is the
+household runner's `B4 → B3` crossing. The coding sandbox has no
+household-service egress. Coding-host reachability — or compromise of that
+host — is a separate threat at the B3 crossing: host reachability is not
+household authority and is never a shortcut around authentication,
+authorization, or safety policy.
+
 **Placement removed authority, not reachability**, and it removed neither the
 boundary nor the crossing. Saying "the sandbox can reach the house" overstates
 the profile; saying "the host can't reach the Pi" understates the network.
