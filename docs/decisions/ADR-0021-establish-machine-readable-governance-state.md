@@ -246,9 +246,10 @@ Each landing or gate node may contain:
 
 - stable landing or gate identifier;
 - kind;
-- typed external authority reference;
+- typed external authority anchor;
 - prerequisite identifiers;
-- primitive delivery evidence or delivery lifecycle when applicable; and
+- primitive delivery evidence or delivery lifecycle when applicable;
+- completion-policy identity when a landing has a delivery lifecycle;
 - optional reviewed ordering intent when the prerequisite DAG alone does not
   define order.
 
@@ -260,19 +261,82 @@ change supplies completion evidence, `Planned -> Withdrawn`,
 `Withdrawn` are terminal. There is no implicit transition from a reference,
 issue, or prerequisite declaration to `Complete`.
 
-`Complete` requires at least one typed delivery-evidence record bound to the
-exact landing and an immutable reviewed identity. `Withdrawn` requires typed
-withdrawal evidence. `Planned` and `InProgress` do not satisfy a prerequisite.
-The model therefore derives a landing prerequisite as satisfied only when its
-delivery lifecycle is `Complete` and its evidence validates. It derives which
-prerequisites remain unsatisfied, whether the node is prerequisite-ready, and
-the explanation for a blocked node. It must not store both
+`Complete` requires the independent completion protocol in the next subsection;
+a record that merely names the landing and an existing commit is not evidence.
+`Withdrawn` requires the corresponding typed withdrawal protocol. `Planned`
+and `InProgress` do not satisfy a prerequisite. The model therefore derives a
+landing prerequisite as satisfied only when its delivery lifecycle is
+`Complete` and every required completion identity and attestation validates. It
+derives which prerequisites remain unsatisfied, whether the node is
+prerequisite-ready, and the explanation for a blocked node. It must not store both
 `requires: ["L8", "GATE-U4"]` and an independently editable
 `blockedOn: ["L8"]`.
 
 Delivery completion is not implementation authorization. A landing can be
 complete as a delivery record while a separate external authorization is still
 required before work may start.
+
+#### D.1 Identity-bearing rule inputs and completion proof
+
+The following primitive values are identity-bearing rule inputs, not ordinary
+mutable annotations:
+
+- a gate predicate definition and its source references;
+- a landing or gate kind;
+- a landing's prerequisite identifier set;
+- a landing's typed external authority anchor;
+- a landing's completion-policy identity; and
+- reviewed ordering intent when it changes the meaning of readiness.
+
+Their canonical values form the semantic identity of the gate or landing. The
+implementation may compute an identity digest rather than store a convenience
+digest, but it must not treat these values as freely editable fields.
+
+The genesis attestation binds every one of these values. After genesis, version
+one permits no in-place mutation of an existing gate or landing identity. A
+changed rule must be introduced as a new stable gate or landing identity, with
+an explicit typed supersession/replacement relationship when it replaces an
+older identity. The old identity remains immutable. Version one defines no
+human-attested in-place rule-change transition; adding one requires a new ADR.
+The history checker refuses every other mutation, including changing a gate's
+predicate, removing `L8` from L9's prerequisites, or repointing L9 away from
+issue #57.
+
+Completion is also an identity-bound transition, not a self-asserting record.
+The v1 completion-policy identity `reviewed-delivery-v1` denotes the
+conjunction below; it has no alternate shortcut. A landing is `Complete` only
+when the prior lifecycle permits the transition, the completion attestation is
+valid, every required identity is locally verifiable, and the delivered scope
+matches the governing authority and archived OpenSpec record.
+
+For that policy, the completion-transition preimage binds:
+
+- the landing identifier;
+- the prior and target delivery lifecycles;
+- the governing authority-anchor identity;
+- the exact delivered commit or artifact identity;
+- the required archived OpenSpec identity; and
+- the completion-policy identity.
+
+Here, an archived OpenSpec identity is the canonical archived-change path,
+exact content SHA-256, and reviewed identity for that change. The delivered
+commit/artifact identity uses the tagged identity classes in §7a and must be
+bound to the landing's declared scope; an unscoped commit hash is insufficient.
+
+`completionDigest` is the SHA-256 of the canonical serialization of that
+preimage. A human completion attestation binds the digest, outcome, exact
+delivered identity, actor, RFC 3339 time, and authority reference. The
+attestation is excluded from its own preimage, using the same non-self-
+referential protocol as ADR acceptance. The withdrawal protocol uses the same
+shape with target lifecycle `Withdrawn` and withdrawal evidence.
+
+The checker must verify every locally checkable identity: the reviewed commit
+object and scoped delivered bytes, the archived OpenSpec path and content
+digest, the authority-anchor shape, and the completion-policy identity. An
+opaque or unavailable required identity is not a valid completion proof; the
+checker fails closed, leaves the landing unsatisfied, and reports
+`COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`. An arbitrary existing commit or
+syntactically valid issue reference cannot by itself make a landing `Complete`.
 
 An issue or task reference is a fact about authority location, not proof that
 the landing is authorized or complete.
@@ -292,10 +356,12 @@ The registry distinguishes three different questions:
 
 Version one is permanently non-authorizing. It records typed references and
 evidence sources, but it never accepts a locally consumable authorization grant
-and never returns `AUTHORIZED`. Its only two query outcomes are
-`PREREQUISITES_NOT_READY` when a required prerequisite is unsatisfied and
+and never returns `AUTHORIZED`. For a prospective start, its authorization
+assessment has only two outcomes: `PREREQUISITES_NOT_READY` when a required
+prerequisite is unsatisfied and
 `AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION` when prerequisites are ready
-but external authorization is still required. There is no convenience
+but external authorization is still required. These are authorization-
+assessment values, not the complete query result. There is no convenience
 `authorized: true` field and no separately defined verification input hidden
 behind this ADR.
 
@@ -464,17 +530,19 @@ or make a relationship true by assertion alone.
 | Acceptance or rejection evidence and content identity | `governance/state.json` | Typed human attestation and exact ADR-byte SHA-256; any reviewed identity is separately classified below. |
 | Decision rationale and normative requirements | The ADR body | The registry may index and derive from them, but cannot replace, amend, or contradict them. |
 
-At genesis, each relationship is additionally required to carry a reviewed
-bootstrap attestation. The seed ceremony must compare the canonical registry
-tuples — including lifecycle, identity, proposal date, `resolves`, and
-`supersedes` — against every structurally parseable ADR header, decision-index
-record, and unresolved-decision resolution banner in the selected source
-snapshot. It must compare relationship identity, not merely accepted counts or
-matching current summaries. A registry relation such as `ADR-0019 resolves
-U4` is invalid when the source ADR does not declare that relationship, even if
-all derived counts and banners happen to agree. A disagreement, parse failure,
-or omitted source is an explicit bootstrap failure requiring human review; it
-is never silently treated as an empty or equivalent source.
+At genesis, each relationship and identity-bearing rule input is additionally
+required to carry a reviewed bootstrap attestation. The seed ceremony must
+compare the canonical registry tuples — including lifecycle, identity,
+proposal date, `resolves`, `supersedes`, gate predicate definitions, node kinds,
+prerequisite sets, authority anchors, and completion policies — against every
+structurally parseable ADR header, decision-index record, and
+unresolved-decision resolution banner in the selected source snapshot. It must
+compare relationship and rule identity, not merely accepted counts or matching
+current summaries. A registry relation such as `ADR-0019 resolves U4` is
+invalid when the source ADR does not declare that relationship, even if all
+derived counts and banners happen to agree. A disagreement, parse failure, or
+omitted source is an explicit bootstrap failure requiring human review; it is
+never silently treated as an empty or equivalent source.
 
 The seed parser may normalize the repository's existing relationship labels
 (`Closes`, `Decides`, and any explicitly governed equivalent) into the registry
@@ -585,7 +653,12 @@ The history checker refuses at least:
 - illegal landing lifecycle regression;
 - completion or withdrawal without required evidence;
 - mutation or disappearance of delivery evidence after a landing reaches a
-  terminal lifecycle; and
+  terminal lifecycle;
+- in-place mutation of an identity-bearing gate or landing rule input,
+  including a gate predicate, node kind, prerequisite set, authority anchor,
+  completion policy, or readiness-changing ordering intent;
+- a replacement gate or landing identity without its explicit typed
+  supersession/replacement relation and human-attested transition; and
 - introduction, mutation, or disappearance of any authorization-evidence
   record. Version one has no such record and rejects it as an unknown field;
   a future ADR that adds one must define a legal withdrawal/succession rule.
@@ -596,6 +669,11 @@ arrive together. A new ADR may supersede an accepted ADR only under the
 registered relationship rules, while the old accepted bytes remain identical.
 History validation delegates these semantic rules to the model so that the
 Git adapter does not become a second rule authority.
+
+The conformance suite must independently mutate the GATE-U4 predicate, remove
+`L8` from L9's prerequisite set, and repoint L9's authority anchor away from
+issue #57. Each mutation must fail history validation even when the resulting
+derived answer is otherwise internally consistent.
 
 ### 10. Generated projections and reference consumers
 
@@ -653,22 +731,48 @@ node scripts/query-governance-state.mjs explain runner/L9
 node scripts/query-governance-state.mjs explain runner/L9 --json
 ```
 
-After a future legal ADR-0020 acceptance, the result for `runner/L9` must
-distinguish all of these facts rather than collapse them into one status:
+The query object must expose separate axes rather than collapse delivery,
+readiness, and authorization into one status:
 
-- GATE-U4 satisfied;
-- L8 unsatisfied;
-- L9 not prerequisite-ready;
-- issue #57 is the external authority anchor; and
-- no implementation authorization is inferred.
+```json
+{
+  "deliveryState": "Planned",
+  "prerequisiteReadiness": {
+    "state": "NotReady",
+    "unsatisfied": ["L8"]
+  },
+  "authorizationAssessment": "PREREQUISITES_NOT_READY",
+  "externalAuthorityAnchor": {
+    "type": "github-issue",
+    "repository": "pulse-ops-ai/secure-home-agent-platform",
+    "number": 57
+  }
+}
+```
 
-The JSON result must expose the derivation chain and one of the two
-machine-readable outcomes defined in §3E. It returns
-`PREREQUISITES_NOT_READY` while any prerequisite is unsatisfied. Once all
-prerequisites are ready, it returns
-`AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION`; it never returns
-`AUTHORIZED`. Querying is explanation, not authorization, and adding a
-locally consumable authorization result is outside version one.
+`deliveryState` is the primitive landing lifecycle. `prerequisiteReadiness`
+and its `unsatisfied` identifiers are derived from the prerequisite graph and
+validated delivery states; its state vocabulary is `Ready` or `NotReady`.
+`authorizationAssessment` is specifically the
+assessment for a prospective start and has only the two values defined in §3E:
+it is `PREREQUISITES_NOT_READY` while any prerequisite is unsatisfied and
+`AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION` once prerequisites are ready.
+It never returns `AUTHORIZED`.
+
+After a future legal ADR-0020 acceptance, the result for `runner/L9` must show
+GATE-U4 satisfied, L8 unsatisfied, L9 not prerequisite-ready, issue #57 as the
+external authority anchor, and no inferred implementation authorization. Once
+L8 is complete and all prerequisites are ready, the same query must show
+`prerequisiteReadiness.state: "Ready"` and
+`authorizationAssessment: "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION"`.
+
+For a landing whose `deliveryState` is `Complete`, the query must report the
+completed delivery and must not describe it as waiting for authorization before
+work may start. A non-applicable prospective-start assessment may be `null`; a
+request to explain the historical authorization for that completed delivery
+may instead report `AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION` with a
+historical scope. Neither form asserts that the delivery was authorized, and
+neither returns `AUTHORIZED`. Querying is explanation, not authorization.
 
 ### 12. Bootstrap and migration sequence
 
@@ -902,7 +1006,10 @@ authorized issue and OpenSpec change. That implementation must:
     the scripts documentation to explain that distinction, because the current
     scripts contract describes repository scripts as read-only;
 11. add hostile controls for every derived rule and ensure removing a
-    comparison or replacing it with a no-op fails the checker;
+    comparison or replacing it with a no-op fails the checker. This includes
+    independently mutating the GATE-U4 predicate, removing L8 from L9's
+    prerequisites, repointing L9's authority anchor, and replacing a
+    completion attestation with an arbitrary existing commit reference;
 12. seed the registry from the pre-#101 `main` state described in §12 with the
     field-by-field, relationship-equivalence, and non-self-referential
     attestation required by §7a, and prove that seeding changes no operative
@@ -911,8 +1018,9 @@ authorized issue and OpenSpec change. That implementation must:
 
 The future implementation's conformance suite is
 `tests/test_governance_state.py`. It must cover both a valid current state and
-invalid mutations of the current and prior revisions. A green test run is not
-evidence that an external authorization exists.
+invalid mutations of the current and prior revisions, including the hostile
+identity and completion cases above. A green test run is not evidence that an
+external authorization exists.
 
 ---
 
