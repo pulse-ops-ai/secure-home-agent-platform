@@ -12,11 +12,85 @@ Runner **image definitions** and their machine-readable lineage record.
 | Path | Contains |
 |---|---|
 | [`runner-base/`](runner-base/) | `secure-home-runner-base` — the provider-neutral untrusted workload substrate |
+| [`debian-closure.lock.json`](debian-closure.lock.json) | The one reviewed authority for every Debian artifact any image installs — package, version, architecture, filename, URL, SHA-256, size. Each image's `packages.<arch>.manifest` is a projection of it |
 | [`runner-claude/`](runner-claude/) | `secure-home-runner-claude` — the reference derived image: exact base + one pinned Claude Code runtime |
 | [`runner-copilot/`](runner-copilot/) | `secure-home-runner-copilot` — derived image: exact base + one pinned GitHub Copilot CLI runtime (L7, #55) |
 | [`gates-toolchain/`](gates-toolchain/) | `secure-home-gates-toolchain` — the governed gate toolchain, **outside** the runner lineage |
 | [`image-lock.yaml`](image-lock.yaml) | The lineage and pinning record: lineage classes, definitions, immutable identities (index + per-platform manifest digests), the derived parent chain, the one pinned runtime |
 | [`scripts/`](scripts/) | The governed build tooling (CI-executed; never run locally by a coding agent) |
+
+## Package closures are pinned by artifact, not by version
+
+Every governed image installs Debian packages, and **every one of those
+artifacts is pinned by SHA-256 and byte size**. There is one reviewed
+authority — [`debian-closure.lock.json`](debian-closure.lock.json) — carrying
+each artifact's package, version, architecture, component, filename, URL,
+SHA-256, and size. Each image carries a **projection** of it,
+`packages.<arch>.manifest`, and that projection is the file the build actually
+reads.
+
+| Image | Artifacts per architecture |
+|---|---|
+| `secure-home-runner-base` | 5 |
+| `secure-home-runner-claude` | 35 |
+| `secure-home-runner-copilot` | 35 |
+| `secure-home-gates-toolchain` | 39 |
+
+The build does the same thing in all four:
+
+```
+apt-get download   →  exactly the package=version pairs named; resolves nothing
+content check      →  every artifact fetched must BE a reviewed one, by hash
+count + size check →  all of them, none beyond them, each the declared length
+sha256sum -c       →  before anything is unpacked
+dpkg --install     →  the verified bytes
+```
+
+There is **no `apt-get install`** anywhere, so no dependency resolution happens
+at build time. The `.deb` files never enter a layer — fetched, verified,
+installed, and removed inside one instruction.
+
+**Why, concretely.** An earlier revision pinned only the packages each image
+*named* — `ca-certificates`, `tini`, `git`, `curl` — and let `apt-get install`
+resolve the rest. `ca-certificates` depends on `openssl`, which drags
+`libssl3t64` and `openssl-provider-legacy` up from `trixie-security`; `git` and
+`curl` pull a closure of their own. When the archive moved those three from
+`3.5.6-1~deb13u2` to `3.5.7-1~deb13u2`, image digests moved with them under
+Dockerfiles that had not changed, and derived images' pinned `parent_digest`
+broke. **The identity gate caught it** — that is what it is for — but the gate
+should not have been the first line of defence.
+
+**A version is a request; a SHA-256 is the bytes.** `scripts/check-images.mjs`
+now refuses an `apt` install in any governed definition, a definition that
+never runs `sha256sum -c`, a projection that has drifted from the authority, a
+projection naming an artifact the authority does not cover, a "sha256" that is
+not 64 hex, a non-positive size, a non-`https` URL, a URL whose basename is not
+the declared filename, a filename that does not encode its declared package and
+version, and one package declared at two versions.
+
+### The gates toolchain's two non-Debian inputs
+
+`gates-toolchain` had two more inputs named by version and fetched over the
+network. Both are now artifacts, pinned exactly as `node` and `uv` already
+were:
+
+- **pnpm** — `corepack install -g pnpm@<version>` fetched whatever the registry
+  served. The tarball is now pinned by SHA-256 and installed offline.
+- **CPython** — `uv python install 3.13` asked for a *range* and took the
+  newest 3.13.x of the day. The interpreter is now a pinned
+  python-build-standalone artifact, verified by SHA-256, with `UV_PYTHON`
+  pointing uv at it so it never downloads one. `PYTHON_VERSION` must be an
+  exact `MAJOR.MINOR.PATCH`; the checker refuses a range.
+
+### The accepted cost
+
+Debian removes superseded `.deb` files from the pool, so a pinned artifact
+eventually stops being fetchable and the build fails loudly. Taking a security
+update is therefore a **reviewed manifest bump** that moves every digest built
+from it, recorded in `image-lock.yaml` in the same change. Silent pickup is the
+failure mode being removed, not a feature being kept. `snapshot.debian.org`
+refuses the governed builder's address space, so a frozen archive snapshot is
+not available; the manifest is the fallback.
 
 ## Lineage
 

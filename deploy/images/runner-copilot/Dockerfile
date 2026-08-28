@@ -25,8 +25,6 @@ ARG SOURCE_DATE_EPOCH=0
 
 # Exact archive versions, resolved from the trixie archive on 2026-08-23 —
 # same pin-or-fail-loudly posture as runner-base.
-ARG GIT_VERSION=1:2.47.3-0+deb13u1
-ARG CURL_VERSION=8.14.1-2+deb13u4
 
 # The runtime engine, pinned to the repository's own Node version and
 # verified against the published release checksums (nodejs.org SHASUMS256,
@@ -61,15 +59,66 @@ ARG COPILOT_SHA512_B64_ARM64=qqaNkvi92Wg+4OZk/kTWC2nUG72G0vV6eRAo5+PnKaPmjdX1GsI
 ARG DETECT_LIBC_VERSION=2.1.2
 ARG DETECT_LIBC_SHA512_B64=Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==
 
+# packages.<arch>.manifest is this image's projection of the shared authority
+# at deploy/images/debian-closure.lock.json — one line per artifact, columns
+# <sha256> <size> <package> <version> <filename>. The build consumes exactly
+# that set; scripts/check-images.mjs refuses any drift between the two.
+COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+
 USER root
 
 RUN set -eux; \
+    cd /tmp/pkg; \
+    manifest="packages.${TARGETARCH}.manifest"; \
+    manual_before="$(apt-mark showmanual)"; \
     apt-get update; \
+    # `download`, never `install`. apt fetches EXACTLY the package=version
+    # pairs named and resolves nothing, so the closure cannot silently grow;
+    # a version that has left the archive fails here rather than being
+    # substituted. The pairs are read as columns, never parsed out of a
+    # filename — the pool drops the epoch that apt's own filename keeps.
+    apt-get download -o APT::Sandbox::User=root $(awk '{print $3 "=" $4}' "${manifest}"); \
+    # Content-addressed acceptance. Every artifact apt produced must BE one
+    # of the reviewed ones, matched by hash and renamed to its reviewed name.
+    # Anything else — an extra dependency, a substituted build — fails here
+    # rather than being installed.
+    for f in *.deb; do \
+      h="$(sha256sum "$f" | cut -d' ' -f1)"; \
+      want="$(awk -v h="$h" '$1 == h { print $5 }' "${manifest}")"; \
+      [ -n "${want}" ] || { echo "unreviewed artifact: $f ($h)" >&2; exit 1; }; \
+      [ "$f" = "${want}" ] || mv "$f" "${want}"; \
+    done; \
+    # Every reviewed artifact is present, and nothing beyond them.
+    [ "$(ls -1 *.deb | wc -l)" = "$(wc -l < "${manifest}")" ] || \
+      { echo "artifact count does not match the manifest" >&2; exit 1; }; \
+    # Byte size, checked independently of the hash: a zero-length or truncated
+    # artifact can never pass, whatever else agrees.
+    while read -r sha size pkg ver name; do \
+      actual="$(stat -c %s "${name}")"; \
+      [ "${actual}" = "${size}" ] || \
+        { echo "size mismatch ${name}: ${actual} != ${size}" >&2; exit 1; }; \
+    done < "${manifest}"; \
+    # The hash check in its canonical form, before anything is unpacked.
+    # The checksum list is PROJECTED FROM THE SELECTED MANIFEST into a file
+    # with a canonical name, and that exact file is what is verified — so the
+    # verification cannot be satisfied by an unrelated checksum command that
+    # happens to sit in the same instruction (node, uv, pnpm, CPython, the
+    # runtime tarballs). scripts/check-images.mjs proves this binding.
+    awk '{print $1 "  " $5}' "${manifest}" > /tmp/pkg/.sums; \
+    sha256sum -c /tmp/pkg/.sums; \
+    dpkg --install $(awk '{print $5}' "${manifest}"); \
+    # dpkg does not maintain APT's auto/manual dependency marks. Reconstruct
+    # the state apt-get install would have established without resolving
+    # anything: the selected closure is auto, pre-existing manual packages
+    # are restored, and the runtime-required packages stay manual.
+    apt-mark auto $(awk '{print $3}' "${manifest}"); \
+    if [ -n "${manual_before}" ]; then apt-mark manual ${manual_before}; fi; \
+    apt-mark manual ca-certificates git tini; \
     # git: repository operation is this runtime's function. curl: build-time
-    # fetch only, purged below so the runtime surface stays minimal.
-    apt-get install -y --no-install-recommends \
-      "git=${GIT_VERSION}" \
-      "curl=${CURL_VERSION}"; \
+    # fetch only, purged below so the runtime surface stays minimal. Both
+    # arrive as reviewed artifacts, with their whole closure.
+    cd /; \
+    rm -rf /tmp/pkg; \
     \
     case "$TARGETARCH" in \
       amd64) node_arch=x64;   node_sha="$NODE_SHA256_AMD64";  cli_pkg=linux-x64;   cli_sha_b64="$COPILOT_SHA512_B64_AMD64" ;; \
@@ -106,6 +155,10 @@ RUN set -eux; \
     \
     apt-get purge -y curl; \
     apt-get autoremove -y; \
+    # Regression guard: curl's private library must not survive merely because
+    # dpkg installed the reviewed closure without APT auto marks. git uses the
+    # separately named libcurl3t64-gnutls package.
+    test "$(dpkg-query -W -f='${Status}' libcurl4t64 2>/dev/null || true)" != 'install ok installed'; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/* /var/log/apt /var/log/dpkg.log \
       /var/log/alternatives.log /var/cache/ldconfig/aux-cache \
