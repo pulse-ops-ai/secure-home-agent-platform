@@ -272,9 +272,10 @@ prerequisite-ready, and the explanation for a blocked node. It must not store bo
 `requires: ["L8", "GATE-U4"]` and an independently editable
 `blockedOn: ["L8"]`.
 
-Delivery completion is not implementation authorization. A landing can be
-complete as a delivery record while a separate external authorization is still
-required before work may start.
+Delivery completion does not prove the historical authorization under which the
+work occurred. For `Complete` or `Withdrawn` landings, prospective-start
+authorization assessment is non-applicable; a historical-authorization query
+may still require external verification.
 
 #### D.1 Identity-bearing rule inputs and completion proof
 
@@ -303,40 +304,71 @@ predicate, removing `L8` from L9's prerequisites, or repointing L9 away from
 issue #57.
 
 Completion is also an identity-bound transition, not a self-asserting record.
-The v1 completion-policy identity `reviewed-delivery-v1` denotes the
-conjunction below; it has no alternate shortcut. A landing is `Complete` only
-when the prior lifecycle permits the transition, the completion attestation is
-valid, every required identity is locally verifiable, and the delivered scope
-matches the governing authority and archived OpenSpec record.
+The v1 completion-policy vocabulary is closed:
 
-For that policy, the completion-transition preimage binds:
+- `reviewed-delivery-v1` is for a governed implementation landing. It requires
+  the child archived OpenSpec identity, delivered scope, exact commit or
+  artifact identity, authority anchor, and human completion attestation.
+- `reviewed-spike-evidence-v1` is for an empirical spike landing. It requires
+  the authority issue, merged evidence PR and commit, canonical evidence root,
+  evidence-manifest digest, findings identity, and human completion
+  attestation. It explicitly requires no OpenSpec archive because the spike
+  itself was not governed by an OpenSpec change.
 
-- the landing identifier;
-- the prior and target delivery lifecycles;
-- the governing authority-anchor identity;
-- the exact delivered commit or artifact identity;
-- the required archived OpenSpec identity; and
-- the completion-policy identity.
+There is no generic `legacy-bootstrap-v1` escape hatch. Both policy identities
+are immutable rule inputs under this subsection. Adding another policy, or
+allowing an in-place policy change, requires a new ADR that fixes its eligible
+landing identities, evidence requirements, and transition/expiry rules.
 
-Here, an archived OpenSpec identity is the canonical archived-change path,
-exact content SHA-256, and reviewed identity for that change. The delivered
-commit/artifact identity uses the tagged identity classes in §7a and must be
-bound to the landing's declared scope; an unscoped commit hash is insufficient.
+Every completion-transition preimage binds the landing identifier, prior and
+target delivery lifecycles, governing authority-anchor identity, exact delivered
+commit or artifact identity, and completion-policy identity. The policy-specific
+requirements are also part of that preimage:
 
-`completionDigest` is the SHA-256 of the canonical serialization of that
-preimage. A human completion attestation binds the digest, outcome, exact
-delivered identity, actor, RFC 3339 time, and authority reference. The
-attestation is excluded from its own preimage, using the same non-self-
-referential protocol as ADR acceptance. The withdrawal protocol uses the same
-shape with target lifecycle `Withdrawn` and withdrawal evidence.
+- `reviewed-delivery-v1` binds the canonical archived OpenSpec path, exact
+  content SHA-256, and reviewed identity;
+- `reviewed-spike-evidence-v1` binds the canonical evidence root, exact
+  evidence-manifest SHA-256, findings path and content identity, merged evidence
+  PR, merged commit, and the explicit no-OpenSpec applicability fact.
+
+The delivered commit/artifact identity uses the tagged identity classes in §7a
+and must be bound to the landing's declared scope; an unscoped commit hash is
+insufficient. `completionDigest` is the SHA-256 of the canonical serialization
+of this complete policy-specific preimage. A human completion attestation binds
+the digest, outcome, exact delivered identity, actor, RFC 3339 time, and
+authority reference. The attestation is excluded from its own preimage, using
+the same non-self-referential protocol as ADR acceptance. The withdrawal
+protocol uses the same shape with target lifecycle `Withdrawn` and withdrawal
+evidence.
 
 The checker must verify every locally checkable identity: the reviewed commit
-object and scoped delivered bytes, the archived OpenSpec path and content
-digest, the authority-anchor shape, and the completion-policy identity. An
-opaque or unavailable required identity is not a valid completion proof; the
-checker fails closed, leaves the landing unsatisfied, and reports
-`COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`. An arbitrary existing commit or
-syntactically valid issue reference cannot by itself make a landing `Complete`.
+object and scoped delivered bytes, the applicable OpenSpec or evidence path and
+content digest, the authority-anchor shape, the merged PR/commit identity, and
+the completion-policy identity. An opaque or unavailable required identity is
+not a valid completion proof; the checker fails closed, leaves the landing
+unsatisfied, and reports `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`. An
+arbitrary existing commit or syntactically valid issue reference cannot by
+itself make a landing `Complete`.
+
+The genesis conformance fixture must prove that the actual completed L6 spike
+is representable as `reviewed-spike-evidence-v1`:
+
+```text
+landing: L6
+authority anchor: GitHub issue #54
+delivery: GitHub PR #73, merged commit e0e8b786201d3e92bbe05f286ae55b9e002c4109
+evidence root: docs/spikes/l6-copilot-cli/
+manifest: docs/spikes/l6-copilot-cli/MANIFEST.sha256
+manifest SHA-256: db7fdc1746dad6a481be295f32125353a07f3edb6e1b13add689648f23fec984
+findings: docs/spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md
+findings SHA-256: f9bb9082da596b264f569c47ebd33eee117cc10663f2ee5c0c7522371abde592
+OpenSpec: not applicable; no retrospective archive may be manufactured
+```
+
+The negative fixture must show that an arbitrary issue plus arbitrary merged PR
+fails the spike policy without the bound evidence root, manifest, findings, and
+attestation. It must also refuse a retrospectively created OpenSpec archive as
+a substitute for the explicit no-OpenSpec fact.
 
 An issue or task reference is a fact about authority location, not proof that
 the landing is authorized or complete.
@@ -610,6 +642,8 @@ fails closed on all of the following:
 - multiple current resolvers for one question;
 - a landing lifecycle or completion record that violates its closed transition
   and evidence rules;
+- an unknown completion-policy identity or evidence that does not satisfy its
+  selected policy;
 - generated projection drift; and
 - a projection target or generated marker not registered by the renderer.
 
