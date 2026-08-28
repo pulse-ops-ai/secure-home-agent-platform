@@ -1,10 +1,11 @@
 # ADR-0020: Place runner-control by workload class — household control on the Pi, coding execution off it
 
-- **Status:** Proposed
-- **Date:** 2026-08-24
-- **Deciders:** @mikegtech (repository owner) — acceptance is a separate human act
-- **Decides:** [U4](../architecture/unresolved-decisions.md#u4) — `runner-control` placement (issue #9). **U4 is not resolved while this ADR is `Proposed`.**
-- **Gates:** L9 (#57). No launcher, network default-deny, or resource-ceiling implementation may begin until this ADR is `Accepted`.
+- **Status:** Accepted
+- **Date:** 2026-08-24 — **Accepted 2026-08-26**
+- **Deciders:** @mikegtech (repository owner). Acceptance was a separate human act, taken in its own reviewed change; see [the ADR-0020 acceptance record](INDEX.md#adr-0020-acceptance-record).
+- **Immutable.** Reverse or amend this decision only by a new ADR that supersedes it — never by editing this file.
+- **Decides:** [U4](../architecture/unresolved-decisions.md#u4) — `runner-control` placement (issue #9). **U4 is RESOLVED by this ADR as of 2026-08-26.**
+- **Gates:** L9, whose external authority anchor is **#57**. GATE-U4 is now **satisfied** — and that is the only thing acceptance satisfied. L9's prerequisites are `L8 + GATE-U4`, so **L8 (#56) is the outstanding one**: it has not landed and its own implementation is not authorized. **No launcher, network default-deny, resource ceiling, or isolation mechanism is implemented by this acceptance.**
 - **Depends on:** [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md) for the two ingress paths and the availability contract; [ADR-0004](ADR-0004-treat-agents-as-clients.md) for the sandbox's trust status; [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) for routing classes; [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) for degraded posture; [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) for image lineage; [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) for the adapter SPI and the L6 evidence it records; [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) for the asynchronous port contract this decision migrates across
 - **Changes no accepted ADR.** It selects a deployment topology inside the space ADR-0002 and ADR-0007 already define.
 - **Changes no contract.** No schema, no profile field, no port signature. §13 names the contract question this decision *surfaces* and deliberately does not answer.
@@ -794,8 +795,12 @@ framing that coding-agent runs are not household-critical.
 
 ## What remains unresolved
 
-- [U4](../architecture/unresolved-decisions.md#u4) itself, **until this ADR is
-  accepted.** A Proposed ADR resolves nothing.
+- **[U4](../architecture/unresolved-decisions.md#u4) is no longer among these.**
+  It was, while this ADR was `Proposed` — a `Proposed` ADR resolves nothing —
+  and acceptance on 2026-08-26 closed it. What that closed is the *decision* —
+  L9's GATE-U4 and no other prerequisite. `L9 ← L8 + GATE-U4`, so L8 (#56) is
+  what remains outstanding; L9's own authority anchor is #57, and nothing of
+  L9 is implemented.
 - [U10](../architecture/unresolved-decisions.md#u10) — the Home Assistant
   credential strategy. Untouched; this ADR only preserves the boundary that
   `runner-control` never obtains one.
@@ -810,7 +815,9 @@ framing that coding-agent runs are not household-critical.
 placement should become an explicitly declared, reviewable property rather than an
 operational consequence of which deployment receives a request. This ADR does not
 create a tracked item for it, because expanding the tracked set is a governance act
-for the repository owner. If accepted, it is recommended as a new entry.
+for the repository owner. It is recommended as a new entry, and is carried as
+obligation **F3** below in the meantime — undecided, and not to be answered by a
+schema change made under this ADR.
 
 ---
 

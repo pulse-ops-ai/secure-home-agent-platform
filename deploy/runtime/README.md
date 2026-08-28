@@ -7,8 +7,11 @@ only by a later governed landing.
 > **Status: no runtime is selected, configured, or installed.** This
 > README is this directory's entire permitted content, and
 > `scripts/check-images.mjs` refuses anything else appearing here until a
-> governed landing (L9 / #57, behind the U4 placement ADR #9) authorizes
-> it.
+> governed landing (L9 / #57) authorizes it. Its GATE-U4 is satisfied —
+> [ADR-0020](../../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md)
+> resolved [U4](../../docs/architecture/unresolved-decisions.md#u4) on
+> 2026-08-26 — and that was one of two prerequisites: `L9 ← L8 + GATE-U4`.
+> **L8 (#56) is the outstanding one** and has not landed.
 
 ## The taxonomy this directory exists to keep straight
 
@@ -32,18 +35,22 @@ identity appears in run evidence as **data**.
 Concrete runtime integration authored by its own governed landing:
 runtime configuration, hardening posture, and the documentation of how the
 chosen runtime satisfies the launch contract. That landing is L9 (or an
-explicitly authorized prerequisite), and it requires the accepted U4
-placement ADR first.
+explicitly authorized prerequisite). Its placement prerequisite is met — the
+placement ADR is accepted — and that is one of two: L9 (#57) is also sequenced
+after L8 (#56), which has not landed. Note
+that placement and runtime are *different* decisions — ADR-0020 chose neither a
+runtime nor an isolation mechanism, and explicitly implements none.
 
 ## What does not belong here
 
 - **Anything today.** No Kata, runc, containerd, gVisor, or QEMU
   configuration; no daemon config; no `--runtime` flags; no benchmarks.
-- Runtime *selection* — that is a decision (U4 → L9), not a directory.
+- Runtime *selection* — that is a decision, made by L9 and not by this
+  directory. ADR-0020 did not make it.
 - Image definitions — [`../images/`](../images/).
 
 ## Governed by
 
 [`../README.md`](../README.md) → [`../AGENTS.md`](../AGENTS.md) ·
 `openspec/specs/runner-adoption/spec.md` (runtime neutrality) ·
-issue #53 (L5), then #9 (U4) and #57 (L9)
+issue #53 (L5) · #9 (U4) — closed by ADR-0020, 2026-08-26 · #57 (L9), open

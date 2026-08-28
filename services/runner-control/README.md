@@ -6,8 +6,15 @@ The runner substrate.
 > typed run lifecycle, authority acquisition, gate scheduling, evidence
 > finalization, and the port boundary — all behind ports, with **no container
 > launch, no process spawn, and no executed bootstrap**. The concrete launcher
-> is a later landing gated on [U4](../../docs/architecture/unresolved-decisions.md#u4);
-> adapters are L7, after [ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md).
+> is a later landing, L9 (#57), sequenced `L8 + GATE-U4`. **#57 is L9's
+> external authority anchor. GATE-U4 is satisfied**:
+> [ADR-0020](../../docs/decisions/ADR-0020-place-runner-control-by-workload-class.md)
+> resolved [U4](../../docs/architecture/unresolved-decisions.md#u4) on 2026-08-26
+> — **one package, two deployments**, household on the Pi and coding off it —
+> and implemented none of it. **L8 (#56) has not landed, so L9 remains
+> NOT_AUTHORIZED.**
+> Adapters are L7, after
+> [ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md).
 
 ## What is here
 

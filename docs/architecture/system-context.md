@@ -32,9 +32,14 @@ flowchart TB
             POL["policy-engine · L7<br/>deterministic safety policy"]
             ACT["action-gateway · L7<br/>sole Home Assistant credential holder"]
             AUTO["automation-service · L7<br/>persisted automations"]
-            RC["runner-control<br/>runner substrate"]
-            SBX["Agent runner sandbox<br/><i>untrusted · re-enters as a client</i>"]
+            RCH["runner-control · household deployment<br/>runner substrate"]
+            SBXH["Household runner sandbox<br/><i>untrusted · re-enters as a client</i>"]
             HA["Home Assistant Container<br/>device/state substrate"]
+        end
+
+        subgraph COD["Coding-execution host · never the Pi, never the DB host<br/><i>initially the Exxact workstation · ADR-0020</i>"]
+            RCC["runner-control · coding deployment<br/>same package, second deployment"]
+            SBXC["Coding runner sandbox<br/><i>untrusted · no household-service egress</i>"]
         end
 
         subgraph VPS["VPS"]
@@ -71,11 +76,15 @@ flowchart TB
     BROWSER -.->|authenticate| KC
     BFF -.->|verify tokens| KC
 
-    AUTO --> RC
-    RC --> SBX
-    SBX -->|"re-enters as a client"| IN
-    SBX -.->|"R2 inference"| EXX
-    SBX -.->|"R3 inference · only if profile permits"| CLOUDLLM
+    AUTO --> RCH
+    RCH --> SBXH
+    SBXH -->|"re-enters as a client"| IN
+    SBXH -.->|"R2 inference"| EXX
+    SBXH -.->|"R3 inference · only if profile permits"| CLOUDLLM
+
+    RCC --> SBXC
+    SBXC -->|"R3 inference · source control — all a coding profile grants"| CLOUDLLM
+    COD -.->|"host-level tailnet reach · no authority · a crossing, not a shortcut"| IN
 
     API -.->|telemetry · audit · runs| TS
     API -.->|"energy semantics + signals"| GW
@@ -83,8 +92,8 @@ flowchart TB
     classDef untrusted fill:#ffe9e9,stroke:#b23,stroke-width:2px
     classDef local fill:#e8f4ff,stroke:#26c,stroke-width:1px
     classDef external fill:#f2f2f2,stroke:#888,stroke-dasharray:4 3
-    class SBX untrusted
-    class IN,BFF,API,POL,ACT,AUTO,RC,HA local
+    class SBXH,SBXC untrusted
+    class IN,BFF,API,POL,ACT,AUTO,RCH,RCC,HA local
     class SEDGE,KC,CLOUDLLM,GW,EXX external
 ```
 
@@ -110,13 +119,14 @@ flowchart TB
 
 | Component | Location | Role |
 |---|---|---|
-| **Raspberry Pi 5** (8 GB, 256 GB NVMe, Debian 13 ARM64, Docker Compose) | in the house | Household control plane. Owns L6 and L7. |
+| **Raspberry Pi 5** (8 GB, 256 GB NVMe, Debian 13 ARM64, Docker Compose) | in the house | Household control plane. Owns L6 and L7, and the **household** `runner-control` deployment and its execution substrate. Permanently — this is the part that does not move. |
 | **Home Assistant Container** | on the Pi (**not yet installed**) | Device and state substrate. **Not** an authorization boundary and **not** a policy engine. |
 | **Shared platform edge** (`platform-edge`) | remote | Shared L1–L5 for the **remote path only**. Its L4 is audit-only today. |
 | **Keycloak** | external, operated elsewhere | L3 identity for users, services, and agents. Consumed, not run here. |
 | **OpenFGA** | topology unresolved | Policy decision point for relationship questions. **Never a request proxy.** |
 | **PostgreSQL / TimescaleDB** | VPS | The only authoritative datastore. **No authoritative database is local to the Pi.** |
-| **Exxact GPU workstation** | on the tailnet | Optional heavy private inference (R2). **May be powered off.** |
+| **Coding-execution host** | on the tailnet, never the Pi and never the database host | The **coding** `runner-control` deployment and its execution substrate, co-located ([ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md)). Same package as the household deployment; different placement. Holds no Home Assistant credential, no device authority, and no database connection. **May be unavailable** — coding runs are not household-critical. |
+| **Exxact GPU workstation** | on the tailnet | Optional heavy private inference (R2). **May be powered off.** Initially it is *also* the coding-execution host; the two roles are separate and may later be separate machines. |
 | **Cloud model provider** | public internet | Optional (R3). Only when a profile explicitly permits it. |
 | **Tailscale tailnet** | spans Pi, VPS, workstation, operators | Private connectivity. **Never identity, never authorization.** |
 | **Gridwise** | existing product | Upstream energy intelligence. This repository consumes it and does not reimplement it. |
@@ -135,6 +145,7 @@ What household operation **must not** depend on:
 - the WAN,
 - the shared platform edge,
 - the Exxact workstation,
+- the coding-execution host,
 - any cloud model provider,
 - durable writes to the VPS completing.
 
@@ -165,7 +176,8 @@ does not reimplement any of it.
 
 ## What this repository owns
 
-**Owns:** L6 and L7 for both paths, the runner substrate, execution profiles,
+**Owns:** L6 and L7 for both paths, the runner substrate — one package,
+**two deployments** placed by workload class — execution profiles,
 household authorization modelling, deterministic safety policy, action
 mediation, automations, audit and verification, knowledge bundles, deployment
 assets.
