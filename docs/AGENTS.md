@@ -14,8 +14,9 @@ Scoped rules for documentation. Inherits everything from
 
 - **`decisions/` records why; `architecture/` records what follows.** If they
   disagree, the ADR wins and the architecture document is the defect to fix.
-- **Do not edit an accepted ADR.** ADR-0001 … ADR-0018 are `Accepted` and
-  immutable. Supersede with a new ADR; do not "clarify" one in place.
+- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 are
+  `Accepted` and immutable. ADR-0020 remains `Proposed`. Supersede an accepted
+  ADR with a new ADR; do not "clarify" one in place.
 - **Do not change any ADR's status without an explicit human-acceptance task.** A
   new ADR starts `Proposed` and is accepted by a human in its own reviewed
   change. Changing a status line is not a documentation fix.

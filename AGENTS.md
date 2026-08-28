@@ -261,12 +261,17 @@ service, no OpenFGA, no Keycloak, no published or activated runner image (the
 L5 definitions are inert — referenced by no profile, launched by nothing), no
 launcher, no L9 physical enforcement, no credentials, no database connection.
 
-**ADR-0001 … ADR-0018 are `Accepted`** and **immutable** — the foundational set
-on 2026-08-05, the implementation stack (ADR-0012) on 2026-08-06, and the runner
-effect-boundary and identity decisions (ADR-0017, ADR-0018) on 2026-08-17.
-Supersede,
-never edit, and **never change an ADR's status without an explicit
-human-acceptance task**.
+**ADR-0001 through ADR-0019, and ADR-0021, are `Accepted`** and **immutable** —
+the foundational set on 2026-08-05, the implementation stack (ADR-0012) on
+2026-08-06, the runner effect-boundary and identity decisions (ADR-0017,
+ADR-0018) on 2026-08-17, ADR-0019 on 2026-08-21, and ADR-0021 on 2026-08-28.
+**ADR-0020 remains `Proposed`; the accepted set is intentionally
+non-contiguous.** Supersede, never edit, and **never change an ADR's status
+without an explicit human-acceptance task**.
+
+ADR-0021 is accepted as the governance-state authority contract, but its future
+`governance/` registry, validators, renderer, query interface, and generated
+projection do not yet exist and require a separately authorized implementation.
 
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.

@@ -8,6 +8,10 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
+> **Current accepted set:** ADR-0001 through ADR-0019 and ADR-0021 are
+> `Accepted` and immutable. ADR-0020 remains `Proposed`; this non-contiguous
+> accepted set is intentional and must not be rendered as one continuous range.
+>
 > **Neither foundational acceptance resolved anything in
 > [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
 > items have closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
@@ -139,6 +143,7 @@ implementation-neutral. These decide how it is built.
 | [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 | [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
+| [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | Accepted | future root-level `governance/` domain and its validation, history, projection, and query tooling |
 
 > **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
 > [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
@@ -174,7 +179,6 @@ action in its own change.
 | ADR | Title | Status | Would govern | Would decide |
 |---|---|---|---|---|
 | [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
-| [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | **Proposed** | future root-level `governance/` domain and its validation, history, projection, and query tooling | no unresolved decision — governance-state authority contract only |
 
 > **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
 > **still open**, and L9 (#57) remains gated. It selects a deployment topology
@@ -309,10 +313,11 @@ and a change that discovers a durable truth **must determine** whether to
 promote it — the determination is the obligation, and a recorded negative answer
 satisfies it.
 
-**What was NOT accepted.** Nothing about the knowledge *format*, which is
-[ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) and remains
-`Proposed`. No knowledge module may be authored: that is gated on the ADR-0010
-toolchain, not on this decision.
+**What was NOT accepted at the time.** Nothing about the knowledge *format*,
+which was [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+and was still `Proposed` on this acceptance date. ADR-0015 was accepted later
+the same day. No knowledge module may be authored: that is gated on the
+ADR-0010 toolchain, not on this decision.
 
 ### ADR-0015 acceptance record
 
@@ -323,6 +328,14 @@ toolchain, not on this decision.
 | **Scope** | ADR-0015 in full: OKF v0.2 as source representation only, pinned; the admission/consumption split; the repository profile; the catalog-as-authority reconciliation; the refusal of execution-bearing content; raw-byte digest identity with a normative manifest format; the trust/authority prohibition; and the implementation obligation |
 | **Dependency** | [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md), accepted 2026-08-15 — satisfied before this acceptance, as ADR-0015 §3a required |
 | **Unresolved decisions resolved** | **[U7](../architecture/unresolved-decisions.md#u7)** — the second item ever to leave `unresolved-decisions.md` |
+
+**State at the 2026-08-15 acceptance.** The following was true at the time;
+later readiness changes do not alter this historical acceptance record.
+
+| | |
+|---|---|
+| `blockedByToolchain` | **`true` on all 23 entries** |
+| Authoring | **BLOCKED in practice** |
 
 **What was accepted.** OKF v0.2 is the source representation and nothing else,
 pinned rather than floating · admission **rejects** while consumption
@@ -341,7 +354,7 @@ confers exactly what `unverified` does, which is nothing.
 | | |
 |---|---|
 | **Toolchain implementation obligation** | **UNSATISFIED.** compile / validate / package / query do not exist, and neither does the §12 conformance suite |
-| **Knowledge authoring** | **BLOCKED.** Recorded structurally as `blockedByToolchain: true` on every registered module and set, asserted by `scripts/check-knowledge.mjs` — not merely required as a field |
+| **Knowledge authoring** | **BLOCKED at this acceptance.** It was recorded structurally as `blockedByToolchain: true` on every registered module and set, asserted by `scripts/check-knowledge.mjs` — not merely required as a field |
 | **Runtime or deployment authority** | **NONE GRANTED.** `knowledge/` remains non-runtime-authoritative |
 
 **What it does unblock.** The implementation of that obligation — the next
@@ -349,10 +362,12 @@ landing — is now eligible to begin against a decided architecture.
 
 **Why U7 closing is not permission.** U7 asked whether the format architecture
 was decided. It was the wrong variable to carry authoring readiness, and the two
-were separated deliberately in the same commit that closed it: `blockedByU7`
-became `blockedByToolchain` across every registry entry and consumer, and the
-validator now asserts it is `true`. Opening authoring is an explicit reviewed
-transition, not a side effect of an item closing.
+were separated deliberately in the same transition that closed it:
+`blockedByU7` became `blockedByToolchain` across every registry entry and
+consumer. At that time the validator asserted `true`; the later toolchain
+readiness discharge changed that value without changing U7's resolution.
+Opening authoring is an explicit reviewed transition, not a side effect of an
+item closing.
 
 ### ADR-0016 acceptance record
 
@@ -374,7 +389,7 @@ by policy, and is deliberately **not** OKF `verified`. Proof A (toolchain) and
 Proof B (governed human review, bound to the exact attestation) are independent
 and neither substitutes for the other.
 
-**State initialised by this acceptance.**
+**State recorded at the 2026-08-16 acceptance.**
 
 | | |
 |---|---|
@@ -387,7 +402,7 @@ and neither substitutes for the other.
 | | |
 |---|---|
 | **Toolchain obligation** | **UNSATISFIED.** compile / validate / package / query and the §9 conformance suite do not exist |
-| **Authoring** | **BLOCKED in practice**, because `blockedByToolchain` is `true` everywhere. Both gates must be `false` |
+| **Authoring** | **BLOCKED at this acceptance**, because `blockedByToolchain` was `true` everywhere. Both gates must be `false` |
 | **Publication** | **additionally BLOCKED**, because no governed machine-consumable Proof B evidence mechanism exists |
 | **Runtime or deployment authority** | **NONE GRANTED** |
 
@@ -541,6 +556,32 @@ job was attempted and refused by GitHub (`This workflow run cannot be retried`),
 and no commit was manufactured to force a fresh dispatch — that would have
 separated the reviewed bytes from the accepted bytes.
 
+### ADR-0021 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-08-28 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | ADR-0021 in full: the root-level governance-state authority; primitive versus derived state; immutable-record and field-specific mirror rules; bootstrap provenance; non-self-referential acceptance and completion attestations; closed lifecycle and landing rules; fail-closed validation and history checks; deterministic projections; query separation of delivery, readiness, and authorization; and the migration/non-goals contract |
+| **Accepted ADR content SHA-256** | `0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a` |
+| **Acceptance authority** | This human-reviewed acceptance pull request; the attestation binds the exact ADR bytes and does not use the containing commit as its causal identity |
+| **Transition evidence** | This is the final pre-registry manual transition described in §12. The accepted-byte SHA and human review bind this transition; the registry transition/genesis digest protocol is a later implementation obligation and is not claimed here |
+| **Unresolved decisions resolved** | **NONE.** ADR-0021 does not resolve U4 or any other item; ADR-0020 remains `Proposed`, GATE-U4 remains unsatisfied, and no implementation authority is inferred |
+
+**What this acceptance does.** ADR-0021 is now an accepted governance
+contract. The repository's manual current-state consumers are reconciled to the
+non-contiguous accepted set: ADR-0001 through ADR-0019 and ADR-0021 are
+`Accepted`, while ADR-0020 remains `Proposed`. The future `governance/` registry,
+validators, renderer, query interface, and generated projection are not created
+by this change.
+
+**What this acceptance does NOT do.** It does not accept ADR-0020, resolve U4,
+satisfy GATE-U4, authorize or implement L8 or L9, authorize implementation of
+the ADR-0021 substrate, modify PR #101, create or update GitHub issues, or
+deploy anything. L9 remains not prerequisite-ready because L8 is outstanding;
+issue #57 remains its external authority anchor, and no authorization is
+inferred from that reference or from acceptance of this ADR.
+
 ## Which ADRs apply to what I am changing?
 
 | If you are touching… | Read at least |
@@ -559,7 +600,7 @@ separated the reviewed bytes from the accepted bytes.
 | prohibited-content enforcement, or a knowledge content review | ADR-0010, ADR-0015, **ADR-0016** |
 | versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
-| the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, **ADR-0019**, and **ADR-0021** (`Proposed` — architecture only) |
+| the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, **ADR-0019**, and **ADR-0021** (`Accepted` — contract; substrate not yet implemented) |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |

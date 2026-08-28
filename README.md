@@ -31,12 +31,19 @@ when the internet does not.
 > ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
 > running system.
 >
-> **ADR-0001 … ADR-0018** are **`Accepted`** and immutable — the foundational set
-> on 2026-08-05, the implementation stack on 2026-08-06, and the runner
-> effect-boundary and identity decisions on 2026-08-17 — so implementation may
-> proceed against them under an authorizing task contract.
+> **ADR-0001 through ADR-0019 and ADR-0021** are **`Accepted`** and immutable —
+> the foundational set on 2026-08-05, the implementation stack on 2026-08-06,
+> the runner effect-boundary and identity decisions on 2026-08-17, ADR-0019 on
+> 2026-08-21, and ADR-0021 on 2026-08-28. **ADR-0020 remains `Proposed`; the
+> accepted set is intentionally non-contiguous.** Implementation may proceed
+> against accepted ADRs only under an authorizing task contract.
+
+> ADR-0021 is accepted as the governance-state authority contract, but its
+> future `governance/` registry, validators, renderer, query interface, and
+> generated projection do not yet exist and are not authorized by this
+> acceptance.
 >
-> Of the eleven tracked open questions,
+> Of the eleven tracked questions,
 > [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013 and
 > [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015; the rest remain
 > open. Acceptance is **not** authorization to deploy, and `BOUNDED` still
@@ -413,7 +420,8 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0018  (all Accepted, immutable)
+│   ├── decisions/         ADR-0001 … ADR-0019, ADR-0021 (Accepted, immutable);
+│   │                       ADR-0020 remains Proposed
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              deployable backend processes — TypeScript
 │   ├── control-plane/     household API · authorization · safety policy ·
@@ -515,9 +523,11 @@ outright rather than leaving that as an unstated assumption.
 
 ## Decisions accepted
 
-All **`Accepted`** and now **immutable** — the foundational eleven on
-2026-08-05, the implementation stack on 2026-08-06. Reverse or amend only by a
-superseding ADR. Acceptance records and the unblocked/still-blocked breakdown:
+All listed decisions are **`Accepted`** and now **immutable** — the foundational
+eleven on 2026-08-05, the implementation stack on 2026-08-06, the later runner
+and knowledge decisions, and ADR-0021 on 2026-08-28. ADR-0020 remains
+`Proposed`. Reverse or amend an accepted decision only by a superseding ADR.
+Acceptance records and the unblocked/still-blocked breakdown:
 [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 
 | | |
@@ -534,6 +544,14 @@ superseding ADR. Acceptance records and the unblocked/still-blocked breakdown:
 | [ADR-0010](docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md) | OKF for portable knowledge only |
 | [ADR-0011](docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md) | Provider-neutral base, provider-specific coding-agent images |
 | [ADR-0012](docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | TypeScript, NestJS, and pnpm as the implementation stack |
+| [ADR-0013](docs/decisions/ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI |
+| [ADR-0014](docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge |
+| [ADR-0015](docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only |
+| [ADR-0016](docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content |
+| [ADR-0017](docs/decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects at runner boundaries |
+| [ADR-0018](docs/decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate attempt, durable-fact, and finalization identity |
+| [ADR-0019](docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions |
+| [ADR-0021](docs/decisions/ADR-0021-establish-machine-readable-governance-state.md) | Establish machine-readable governance-state authority |
 
 ## What has not been implemented
 
@@ -554,16 +572,17 @@ Specifically absent, on purpose:
 | Deployment | **The L5 image Dockerfiles and lineage lock are landed** — built and verified only through the governed CI path, published nowhere; **no Compose file, no proxy or tailnet configuration, no execution runtime selected.** |
 | Credentials | **None, anywhere.** |
 | Runtime dependencies | Only what the landed packages need. No service dependency is installed for a runtime that does not run. |
+| Governance state | ADR-0021 is accepted as a contract; the future root-level `governance/` registry, validators, renderer, query interface, and generated projection do not yet exist. A separate authorized implementation is required. |
 
 ### Deliberately undecided
 
-Eleven open questions are tracked in
+Eleven tracked questions are listed in
 [`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
 closed by a **new** ADR, never by an implementation.
 [U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013
 (2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015
 (2026-08-15) — each by *answering* the question, which is the only mechanism
-that file admits. Every other item is open, and
+that file admits. The other nine items are open, and
 [U11](docs/architecture/unresolved-decisions.md#u11) (persistence toolkit) was
 *added* by ADR-0012 rather than answered by it.
 

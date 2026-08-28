@@ -33,9 +33,10 @@ If any precondition fails, **stop and report which one**. Do not proceed with a
 narrowed version, do not infer the intent, and do not implement against a
 `Proposed` ADR.
 
-> ADR-0001 … ADR-0018 are **`Accepted`**, so precondition 3 is satisfiable —
-> including the implementation stack (ADR-0012, 2026-08-06), which governs
-> workspace, service, package, and contract work. Preconditions 1, 2, and 4 are
+> ADR-0001 through ADR-0019 and ADR-0021 are **`Accepted`**, so precondition 3
+> is satisfiable — including the implementation stack (ADR-0012, 2026-08-06),
+> which governs workspace, service, package, and contract work. ADR-0020 remains
+> `Proposed`. Preconditions 1, 2, and 4 are
 > still not automatic:
 >
 > - there is still **no issue or task contract**, so this agent has no authorized

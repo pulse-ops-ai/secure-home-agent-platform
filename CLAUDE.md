@@ -96,9 +96,9 @@ After changing files, run what your change touched:
 - **Do not change any ADR's status — ever — without an explicit
   human-acceptance task.** Accepting an ADR is a human decision, made in its own
   reviewed change.
-- **Do not edit an accepted ADR.** ADR-0001 … ADR-0018 are `Accepted` and
-  **immutable**. Amend or reverse one only by writing a new ADR that supersedes
-  it.
+- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 are
+  `Accepted` and **immutable**. ADR-0020 remains `Proposed`. Amend or reverse
+  an accepted ADR only by writing a new ADR that supersedes it.
 - **Do not resolve anything in**
   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
 
