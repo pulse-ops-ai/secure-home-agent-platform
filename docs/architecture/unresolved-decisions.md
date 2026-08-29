@@ -3,18 +3,28 @@
 Questions this repository has **deliberately not answered**. They are recorded
 here so that nobody silently answers them by writing code.
 
-> **Three acceptances have happened. Exactly one closed anything in this file.**
+> **Ten acceptance transitions have happened. Exactly two closed anything in
+> this file.**
 >
 > | Accepted | What | Effect here |
 > |---|---|---|
 > | 2026-08-05 | the eleven foundational ADRs | none — every item then open stayed open |
 > | 2026-08-06 | ADR-0012, the implementation stack | none — and it **added** [U11](#u11) |
 > | 2026-08-12 | ADR-0013, the runner adapter SPI | **closed [U6](#u6)** — the first item ever to leave |
+> | 2026-08-15 | ADR-0014, the canonical-home model | none |
+> | 2026-08-15 | ADR-0015, the OKF source representation | **closed [U7](#u7)** |
+> | 2026-08-16 | ADR-0016, prohibited-content admission assurance | none |
+> | 2026-08-17 | ADR-0017, asynchronous runner-boundary effects | none |
+> | 2026-08-17 | ADR-0018, attempt/fact/finalization identity | none |
+> | 2026-08-21 | ADR-0019, immutable knowledge-set releases | none |
+> | 2026-08-28 | ADR-0021, machine-readable governance state | none — U4 remains open |
 >
-> The first two acceptances left every item open deliberately, and were granted
-> on that basis — not in spite of it. An accepted ADR does **not** authorize
-> resolving an item here by implementation; ADR-0013 closed U6 by *answering
-> it*, which is the only mechanism this file admits.
+> The foundational and ADR-0012 acceptances left every item then open
+> deliberately, and were granted on that basis — not in spite of it. ADR-0014,
+> ADR-0016, ADR-0017, ADR-0018, ADR-0019, and ADR-0021 also closed nothing.
+> An accepted ADR does **not** authorize resolving an item here by
+> implementation; ADR-0013 and ADR-0015 closed U6 and U7 by *answering* them,
+> which is the only mechanism this file admits.
 >
 > The practical consequence: work that depends on an item below is still blocked,
 > **`BOUNDED` still behaves as `FAIL CLOSED`** ([U1](#u1)), and **no persistence

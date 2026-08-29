@@ -1,13 +1,17 @@
 # ADR-0021: Establish a machine-readable authority for mutable cross-cutting governance state
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-28
-- **Deciders:** @mikegtech (repository owner) — acceptance is a separate human act
+- **Accepted:** 2026-08-28
+- **Deciders:** @mikegtech (repository owner)
 - **Decides:** the authority boundary, shape, and validation contract for a future root-level governance-state registry
 - **Closes:** no unresolved decision. In particular, [U4](../architecture/unresolved-decisions.md#u4) remains unresolved while [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) is `Proposed`
 - **Depends on:** [ADR-0001](ADR-0001-adopt-security-first-architecture.md) for the repository governance contract; [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) for the future implementation stack; [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) for one canonical home and subordinate projections; [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) for the immutable-record and one-authority precedents
 - **Preserves:** accepted ADR bodies and all existing domain authorities. The registry proposed here is not a replacement for an ADR, a knowledge registry, an image lock, a profile, a runtime evidence record, or an external task contract.
-- **Changes no current state:** this proposal does not accept ADR-0020, resolve U4, satisfy GATE-U4, authorize implementation, or create any registry, script, test, or generated file.
+- **Changes no unresolved or operative runtime state:** acceptance records this
+  governance contract and reconciles its manual status mirrors; it does not
+  accept ADR-0020, resolve U4, satisfy GATE-U4, authorize implementation, or
+  create any registry, script, test, or generated file.
 
 ---
 
