@@ -26,6 +26,12 @@ nothing, and no task in this change is executed.
 > to the shared model; and activation has an executable independent-merge
 > control (`MAN-G02`).
 >
+> **Revised after review 5059134998** — post-genesis runner-node introduction
+> is closed to unlinked identities; pre-change replacement currentness and
+> first-appearance legality are assigned to the two-revision model; PR-3 adds
+> an activation-base freshness fence; and the staging/freeze tasks validate a
+> closed seam without broad subtree authority.
+>
 > **Revised after review 5058507190** — the human genesis ceremony, the
 > two new digests in the central table, the gate record's missing fields, and an
 > inventory table whose every row is one of the five closed dispositions.
@@ -77,7 +83,8 @@ nothing, and no task in this change is executed.
 canonicalization, schema closure, semantic-identity and transition-digest
 computation, lifecycle legality, replacement-graph validation, current-identity
 derivation, transitive replacement-closure validation, predicate evaluation,
-readiness derivation, and explanation. The four entry points are thin: they
+readiness derivation, explanation, and the pairwise history rules that prove
+base currentness and legal post-genesis first appearance. The four entry points are thin: they
 select inputs, call the model, and format output. A validator, renderer, query
 command, or test that re-implements a predicate or replacement rule is a second
 rule authority and a defect.
@@ -235,6 +242,25 @@ projections, fixtures, hostile mutations, and the later ADR-0020 transition.
 Decision identifiers (`ADR-0020`) and question identifiers (`U4`) are already
 globally unique within their own collections and are not namespaced.
 
+**D2.2a — The post-genesis runner node set is closed.** Genesis establishes the
+complete v1 set of runner node concepts. After genesis, a gate or landing ID
+may first appear only as a new identity replacing an existing node: it must
+carry the paired `replaces` / `replacement` fields, preserve `kind`, and carry
+a valid replacement digest and attestation. An ordinary first appearance with
+no replacement relationship is refused, even if the target snapshot is
+otherwise valid. A genuinely new conceptual runner node requires a later
+schema-version decision or ADR and is not supported by v1.
+
+The shared model validates the target-state manifestations — replacement shape,
+digest and attestation validity, kind and policy compatibility, acyclicity,
+fork freedom, and final currentness defined as **no node directly naming the
+identity in `replaces`**; target-state dependent closure, current references,
+and historical-reference preservation. The pairwise model/history
+path proves that a first appearance is post-genesis, that its target was
+current in the base, and that the identity, relationship, digest, and
+attestation arrived together. Neither fact is inferred from a target snapshot
+alone.
+
 ### D2.3 Severity is in v1, authored, and deliberately rule-free
 
 Severity **is** included as an authored primitive on the question record, and is
@@ -318,6 +344,7 @@ defined preimage:
 | `semanticIdentityDigest` | the complete labelled semantic identity of a gate or landing: `{schemaVersion, id, kind, predicate\|null, sources\|null, requires\|null, authorityAnchor\|null, completionPolicy\|null, reviewedOrderingIntent\|null}`; non-applicable fields are explicit `null`; delivery, replacement, attestations, and derived values are excluded |
 | `replacementDigest` | `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}` |
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
+| `activationFreshnessDigest` | `{schemaVersion, candidateFreezeIdentity, activationBaseCommit, primitiveSourceTuples, relationshipTuples, localEvidenceIdentities, consumerInventory}` — the canonical comparison inputs for the pre-seam freshness result |
 | `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
 | `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
 | `withdrawalDigest` | `{schemaVersion, landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
@@ -421,7 +448,7 @@ No row yields `AUTHORIZED`.
 | Base supplied | Readable | Is a commit | Carries a registry | Outcome |
 | --- | --- | --- | --- | --- |
 | yes | yes | yes | yes | compare |
-| yes | yes | yes | **no**, **and** base commit, source snapshot and `activationIdentity` all match the genesis evidence binding | **genesis exception** — see D8.2 |
+| yes | yes | yes | **no**, **and** `activationBaseCommit`, source snapshot, equivalent freshness result and `activationIdentity` all match the genesis evidence binding | **genesis exception** — see D8.2 |
 | yes | yes | no | — | fail; no fallback |
 | yes | no | — | — | fail; no fallback |
 | no | — | — | — | fail; no inference |
@@ -639,27 +666,28 @@ authorized to write ADRs. So it is specified.
 | Question | Answer |
 | --- | --- |
 | **Direction** | the **new** node carries `replaces: "<oldId>"`, mirroring how a new ADR carries `supersedes`. The old record is never edited. |
-| **Target** | `replaces` SHALL name a current identity in the pre-change current graph. Replacing a non-current historical identity is refused. |
+| **Target-state model** | `replaces` SHALL name an existing identity, and the target graph SHALL not contain a direct successor for that target already. Whether the target was current before the change is a pairwise history rule, not a target-state inference. |
 | **Cardinality** | exactly one old identity per replacement, and an identity may be replaced **at most once**. Chains (`A ← B ← C`) are legal; forks are not. |
 | **Cycles** | the replacement graph SHALL be acyclic; a cycle is refused, like a prerequisite cycle. |
 | **Current identity** | **derived, never authored**: a node is current iff no node directly names its ID in `replaces`. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
 | **Kind compatibility** | a replacement SHALL preserve `kind`. A gate may not replace a landing. |
-| **Dependent references** | **not** auto-migrated. For a replaced current identity `x`, the replacement closure is `x` plus the complete transitive closure of every current dependent that requires `x`, computed over the pre-change current graph. A legal replacement batch carries exactly one new same-kind identity and replacement envelope for every member of that closure. Every affected dependent is replaced, not edited; each new dependent maps every replaced prerequisite to that prerequisite's new identity. |
+| **Dependent references** | **not** auto-migrated. In the target state, the replacement closure SHALL be complete: every affected current dependent represented by the target graph carries its own same-kind replacement identity and maps every replaced prerequisite to the corresponding new identity. The pairwise history model compares this target closure with the base closure to prove that no pre-change current dependent was omitted. |
 | **Current versus historical references** | after the batch, current nodes may reference only current prerequisite identities. Non-current historical nodes retain their original prerequisite references, including references to non-current identities, and are not revalidated against the current graph. The old records remain immutable and queryable. |
 | **Atomicity** | the complete transitive replacement closure and every dependent repoint SHALL arrive in one registry revision. If any current dependent is omitted, partially repointed, or left naming a replaced identity, the shared model refuses the revision. |
 | **Query and projection** | the replaced identity remains queryable and reports `replacedBy`; readiness is computed over current identities only; a replaced node satisfies no prerequisite. Historical records retain historical relationships and are not used to satisfy current prerequisites. |
 | **Transition digest** | `replacementDigest` is over `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}`. Each semantic-identity digest is the complete labelled old or new identity, so changed and unchanged rule inputs, including gate source references, authority anchors and prerequisite sets, are bound without omission or direction ambiguity. |
 | **Replacement delivery state** | a replacement landing begins `Planned` with the policy selected for its kind, `completion: null`, and `withdrawal: null`; it never inherits the old landing's lifecycle, policy evidence, or terminal evidence. A replacement gate carries no delivery object or lifecycle. Any later completion or withdrawal follows its own typed protocol. |
 | **Attestation** | the same envelope shape — digest, actor, RFC 3339 time, outcome `replaced`, typed authority reference — excluded from its own preimage, under the manual provenance gate (D6.7). Node replacement is included in the general `MAN-G01` provenance table. |
-| **History** | the old record and all historical prerequisite references are immutable thereafter; the `replaces` relationship may not be removed or repointed; the complete replacement batch, each new identity, and each attestation SHALL arrive in the same revision. |
+| **History** | the old record and all historical prerequisite references are immutable thereafter; the `replaces` relationship may not be removed or repointed; a target-only gate or landing identity is legal only when it is a post-genesis replacement whose target was current in the base; the complete replacement batch, each new identity, relationship, digest, and attestation SHALL arrive in the same revision. |
 | **Genesis** | no replacements exist at genesis. |
 
 An in-place change to an identity-bearing rule input remains refused — ADR-0021
 permits **no** in-place mutation, and replacement is the only sanctioned path.
 
-**Legal two-level cascade.** Suppose the pre-change current graph contains
-`runner/L9` requiring `runner/L8`, and `runner/L10` requiring `runner/L9`. A
-replacement of `runner/L8` is legal only as one batch containing
+**Legal two-level cascade (history fixture).** Suppose the base current graph
+contains `runner/L9` requiring `runner/L8`, and `runner/L10` requiring
+`runner/L9`. A replacement of `runner/L8` is legal only as one target batch
+containing
 `runner/L8-v2` replacing `runner/L8`, `runner/L9-v2` replacing `runner/L9` and
 requiring `runner/L8-v2`, and `runner/L10-v2` replacing `runner/L10` and
 requiring `runner/L9-v2` (plus any other unchanged prerequisites). Each new
@@ -669,10 +697,12 @@ retains its historical reference to `runner/L8`; it is not edited. All
 replacement landings begin `Planned`, so no completion state is silently
 inherited.
 
-The shared model computes this reverse prerequisite closure and validates the
-mapping. The history checker compares the base and target states to prove that
-the old records, historical references, and replacement relationships were not
-edited or reassociated; it does not implement closure rules itself.
+The shared model computes the target-state reverse prerequisite closure and
+validates the mapping. The pairwise model/history path proves that every
+target-only identity is a sanctioned replacement of a base-current identity,
+that the complete closure arrived together, and that old records, historical
+references, and replacement relationships were not edited or reassociated; the
+history entry point does not implement these rules itself.
 
 ### D5a.2 The withdrawal protocol, defined
 
@@ -981,16 +1011,53 @@ reactivation.** The base is supplied explicitly by CI and is exclusive: invalid,
 missing, unreadable, or not a commit ⇒ fail, with no fallback to `merge-base`,
 `HEAD~1`, or any inferred revision.
 
+**D8.2a — Activation-base freshness fence.** PR-3 does not promote the PR-2
+candidate merely because its planned source snapshot and candidate bytes are
+unchanged. PR-3 first bases its branch on the exact current `main` revision and
+records that revision as `activationBaseCommit`. Before 8.2 promotes anything,
+and again immediately before 8.5a stages the seam, the genesis extraction is
+rerun against that exact commit.
+
+The comparison inputs are the frozen PR-2 candidate and manifests plus the
+extraction from `activationBaseCommit`:
+
+```text
+primitive source tuples       (including ADR lifecycles and relationships)
+relationship tuples
+locally verifiable evidence   (delivery and evidence identities)
+complete consumer inventory
+```
+
+Each collection is canonically serialized and compared byte for byte and field
+by field. The check does not reduce freshness to commit identity: a source file
+may change while a stale candidate remains byte-identical. An equivalent result
+produces `activationFreshnessDigest` over
+`{schemaVersion, candidateFreezeIdentity, activationBaseCommit,
+primitiveSourceTuples, relationshipTuples, localEvidenceIdentities,
+consumerInventory}`. The result object records `candidateFreezeIdentity`,
+`activationBaseCommit`, that digest, and `outcome: "equivalent"`. The genesis
+attestation binds the complete result, including `activationBaseCommit` and the
+freshness digest.
+
+An invalid or changed base, missing or ambiguous extraction, any tuple or
+inventory difference, a skipped extraction, or a commit-identity-only check
+refuses promotion. The candidate is refreshed and reviewed; it is never
+silently patched in PR-3. If the actual PR-3 base changes after the recorded
+`activationBaseCommit`, the gate fails and the ceremony restarts from the
+current base.
+
 **The activation revision is identified by binding, not by absence.** "The base
 carries no registry" is *not* sufficient on its own — every commit before
 activation lacks a registry, so any of them could masquerade as the exceptional
 base. The genesis evidence binds the **exact source-snapshot identity, the exact
-base commit, and the activation change identity**, and the checker admits the
-exception only when the supplied base matches that binding:
+`activationBaseCommit`, the equivalent freshness result and digest, and the
+activation change identity**, and the checker admits the exception only when the
+supplied base matches that binding:
 
 ```text
-Genesis exception applies  ⇔  base commit == the commit bound by the genesis
-                              evidence, AND that base carries no registry,
+Genesis exception applies  ⇔  supplied base == genesis.attestations.genesis.activationBaseCommit,
+                              AND that base carries no registry,
+                              AND the bound activation freshness outcome is "equivalent",
                               AND the activation identity matches.
 
 Any other registry-less base ⇒ FAIL. The registry was deleted, or the wrong
@@ -1017,7 +1084,8 @@ rule forbids. D7.6 is written to match.
 collection canonicalization; schema closure; semantic-identity and replacement
 digest computation; lifecycle legality; replacement graph, current-identity and
 transitive-closure validation; predicate evaluation; readiness derivation;
-explanation construction.
+explanation construction; and pairwise history comparison, including base
+currentness and post-genesis first-appearance legality.
 
 **Independently implemented:** the conformance suite's *expectations*, where a
 proof requires independent re-derivation.
@@ -1079,7 +1147,7 @@ checker compares it byte-for-byte against the value the genesis evidence binds.
 | Landing | Attestations |
 | --- | --- |
 | **PR-2** | computes and **freezes** the candidate state, source manifest, consumer inventory, evidence identities, historical-completion preimages and every digest; proves the whole mechanism using **test** attestations over fixtures. It does **not** claim the real activation has been attested. |
-| **PR-3** | the draft activation PR is opened first, yielding a stable PR number; that `{repository, number}` is bound as `activationIdentity`; the external index's conditional text is written with the same number; the owner records `MAN-G02`, then the **two real attestations**; the complete gate re-runs on the post-attestation head; the landing merges atomically. |
+| **PR-3** | the branch is based on exact current `main` and records `activationBaseCommit`; the freshness extraction is run before candidate promotion and immediately before the seam is staged; the draft activation PR is opened first, yielding a stable PR number; that `{repository, number}` is bound as `activationIdentity`; the external index's conditional text is written with the same number; the owner records `MAN-G02`, then the **two real attestations** including the equivalent freshness result; the complete gate re-runs on the post-attestation head; the landing merges atomically. |
 
 This keeps PR-2 honest — it proves the machinery, not the ceremony — and leaves
 PR-3's "no new authoring" claim true of the *registry content*, which is
@@ -1152,6 +1220,7 @@ governance/state.json                 (canonical path, first appearance)
 governance/README.md
 governance/STATE.md                   (generated)
 genesis attestation + source manifest
+activation-base freshness result bound to genesis attestation
 generated decision-index regions      + deletion of the copies they replace
 generated unresolved-decision regions + deletion of the copies they replace
 stable pointers in every enumerated pointer consumer

@@ -160,6 +160,50 @@ than resolve it.
 
 ---
 
+### Requirement: The post-genesis runner node identity set is closed
+
+Genesis establishes the complete v1 set of runner node concepts: the gate and
+landing identities that make up the representable program. After genesis, that
+conceptual identity set is closed. A gate or landing identity first appearing
+in a later registry revision is legal only as a replacement identity carrying a
+valid, paired `replaces` / `replacement` transition for an existing node. A
+new identity without that relationship is refused even when its target-state
+fields are otherwise valid; v1 has no unlinked node-introduction path.
+
+The replacement identity SHALL preserve the replaced node's kind and carry a
+valid replacement digest and attestation. The two-revision history model SHALL
+prove that the replaced identity was current in the base revision and that the
+new identity, relationship, digest, and attestation arrived together. A
+genuinely new conceptual runner node is outside v1 and requires a later
+schema-version decision or ADR; it SHALL NOT be introduced by silently adding
+an ordinary gate or landing record.
+
+The current-revision model SHALL validate only target-state manifestations of
+this rule: paired replacement shape, digest and attestation validity, kind and
+policy compatibility, replacement-graph acyclicity and fork freedom, final
+currentness, complete target-state dependent closure, current references to
+current prerequisites, and preservation of historical references on
+non-current records. It SHALL NOT claim to prove that a target was current
+before the revision or that a first appearance is a post-genesis replacement;
+those are two-revision facts.
+
+#### Scenario: An unlinked post-genesis node introduction is refused
+
+- **GIVEN** a base and target registry where a gate or landing identity first
+  appears after genesis without a paired `replaces` / `replacement` transition
+- **WHEN** history validation runs
+- **THEN** it fails — a new runner identity alone is not a sanctioned rule or
+  conceptual-node introduction
+
+#### Scenario: A genuinely new conceptual runner node is refused in v1
+
+- **GIVEN** a post-genesis target that adds a runner concept rather than
+  replacing an existing current gate or landing
+- **WHEN** history validation runs
+- **THEN** it fails and requires a later schema-version decision or ADR
+
+---
+
 ### Requirement: The decision lifecycle is a closed vocabulary with a closed transition matrix
 
 Each decision record SHALL carry a lifecycle from the closed vocabulary
@@ -319,16 +363,15 @@ The replacement relationship SHALL be closed:
 - the replacement graph SHALL be acyclic;
 - **currency SHALL be derived**, never authored: a node is current iff no node
   directly names its ID in `replaces`;
-- a replacement target SHALL be current in the pre-change current graph;
+- a target-state replacement SHALL not name an identity that is already directly
+  replaced in the target graph;
 - a replacement SHALL preserve `kind`;
-- dependent prerequisite references SHALL NOT be auto-migrated. For a replaced
-  current identity, the replacement closure is that identity plus the complete
-  transitive closure of its current dependents through `requires`. A legal
-  replacement SHALL replace every member of that closure in one registry
-  revision, with each affected dependent carrying its own `replaces` relationship
-  and mapping every replaced prerequisite to the corresponding new identity. A
-  current node naming a replaced identity, or an omitted transitive dependent,
-  SHALL be refused;
+- dependent prerequisite references SHALL NOT be auto-migrated. In the target
+  state, the replacement closure SHALL be complete: every affected current
+  dependent represented by the target graph SHALL carry its own replacement
+  identity and map every replaced prerequisite to the corresponding new
+  identity. A current target node naming a replaced identity, or an incomplete
+  target-state closure, SHALL be refused;
 - non-current historical nodes SHALL retain their original prerequisite
   references, including references to non-current identities. The current-graph
   rule applies only to current identities; historical records remain immutable
@@ -382,18 +425,18 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **WHEN** history validation runs
 - **THEN** it fails, independently of whether the gate's derived result changed
 
-#### Scenario: A legal transitive replacement introduces a new identity closure
+#### Scenario: A legal target-state replacement has a complete identity closure
 
-- **GIVEN** a current graph in which `runner/L9` requires `runner/L8` and
-  `runner/L10` requires `runner/L9`, and one revision carrying
+- **GIVEN** a target registry containing historical records for
+  `runner/L8`, `runner/L9`, and `runner/L10`, plus
   `runner/L8-v2` replacing `runner/L8`, `runner/L9-v2` replacing `runner/L9`
   and requiring `runner/L8-v2`, and `runner/L10-v2` replacing `runner/L10` and
   requiring `runner/L9-v2`, with each replacement digest and attestation valid
-- **WHEN** the checkers run
-- **THEN** they pass; every old record and its historical prerequisite reference
+- **WHEN** the current-revision model evaluates the target state
+- **THEN** it passes; every old record and its historical prerequisite reference
   is unchanged; the three new identities are derived current; the old ones are
   derived non-current; and every replacement landing begins `Planned` rather
-  with its kind-selected completion policy and rather than inheriting completion
+  with its kind-selected completion policy rather than inheriting completion
 
 #### Scenario: A replacement chain has exactly one current identity
 
@@ -405,13 +448,6 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
   remain immutable, historical, and queryable with their original direct
   replacement relationships, and no currentness rule follows a successor chain
   indirectly
-
-#### Scenario: A replacement without its relationship or attestation is refused
-
-- **GIVEN** a new identity carrying a changed rule with no `replaces`
-  relationship, or with the relationship but no attested transition
-- **WHEN** the checkers run
-- **THEN** they fail — a new identity alone is not a sanctioned rule change
 
 #### Scenario: An incomplete current replacement closure is refused
 
@@ -724,8 +760,11 @@ mutation of an accepted decision's `resolves`; disappearance of a resolved
   identity-bearing rule input; removal, repointing, or reassociation of an
   existing replacement relationship, replacement digest, or replacement
   attestation; a replacement identity whose typed relationship and attestation
-  did not arrive in the same revision; and the introduction, mutation, or
-  disappearance of any authorization-evidence record.
+  did not arrive in the same revision; a replacement target that was not current
+  in the base revision; any gate or landing identity first appearing after
+  genesis without a valid paired replacement transition; any post-genesis
+  conceptual-node introduction; and the introduction, mutation, or disappearance
+  of any authorization-evidence record.
 
 Semantic rules SHALL be delegated to the shared model so the Git adapter does
 not become a second rule authority.
@@ -750,11 +789,40 @@ not become a second rule authority.
 - **WHEN** history validation runs
 - **THEN** it fails, whatever the resulting derived state
 
+#### Scenario: Replacement currentness is proved against the base revision
+
+- **GIVEN** a target revision whose new replacement names an identity that was
+  already non-current in the explicitly supplied base revision
+- **WHEN** history validation runs
+- **THEN** it fails; target-state currentness cannot substitute for base-state
+  currentness
+
+#### Scenario: A post-genesis first appearance requires replacement evidence
+
+- **GIVEN** a target revision in which a gate or landing ID first appears after
+  genesis with no valid paired `replaces` / `replacement` fields, or with a
+  missing, mismatched, or un-attested replacement transition
+- **WHEN** history validation runs
+- **THEN** it fails; an ordinary new identity cannot evade the replacement
+  protocol
+
+#### Scenario: A legal replacement proves its first appearance atomically
+
+- **GIVEN** a base where the replacement target is current and a target carrying
+  the complete transitive replacement closure, with each new identity's
+  relationship, old/new semantic-identity digest, and attestation added in that
+  same revision
+- **WHEN** history validation runs
+- **THEN** it passes; no old record or historical prerequisite reference is
+  edited, and the post-genesis node identities are sanctioned replacements
+
 The genesis exception SHALL be identified by **binding, not by absence**. The
-genesis evidence SHALL bind the exact source-snapshot identity, the exact base
-commit, and the activation change identity, and the exception SHALL apply only
-when the supplied base matches that binding. Absence of a registry in the base
-SHALL NOT by itself qualify a revision as the activation revision.
+genesis evidence SHALL bind the exact source-snapshot identity, the exact
+`activationBaseCommit`, the equivalent activation-freshness result and digest,
+and the activation change identity. The exception SHALL apply only when the
+supplied base matches that binding and the freshness result is equivalent.
+Absence of a registry in the base SHALL NOT by itself qualify a revision as the
+activation revision.
 
 Version one SHALL define **no generic reactivation**. After a reverted
 activation the repository returns to manual authority and remains there; a
@@ -763,9 +831,10 @@ substrate SHALL require a new decision defining a reactivation protocol.
 
 #### Scenario: The bound activation revision is the one genesis exception
 
-- **GIVEN** the activation revision whose explicit base matches the commit,
-  snapshot, and activation identity bound by the genesis evidence, and which
-  carries no registry
+- **GIVEN** the activation revision whose explicit base matches the
+  `activationBaseCommit`, source snapshot, equivalent freshness result, and
+  activation identity bound by the genesis evidence, and which carries no
+  registry
 - **WHEN** history validation runs
 - **THEN** history comparison is not applicable, the genesis and completion
   attestations are the proof, and validation passes only when both validate
@@ -791,6 +860,93 @@ substrate SHALL require a new decision defining a reactivation protocol.
 - **GIVEN** a revision introducing any record asserting local authorization
 - **WHEN** validation runs
 - **THEN** it fails: version one defines no such record and refuses it
+
+---
+
+### Requirement: Activation proves candidate freshness against its exact base
+
+PR-3 SHALL be based on the exact current `main` revision selected for
+activation. Before candidate promotion, it SHALL record that revision as
+`activationBaseCommit` and rerun every locally verifiable genesis extraction
+against that commit. The historical source snapshot from which PR-2 derived the
+candidate and `activationBaseCommit` are separate identities; their equivalence
+SHALL be proved rather than assumed.
+
+The freshness comparison SHALL recompute and compare, byte for byte and field by
+field, all of the following against the frozen PR-2 candidate and its
+manifests:
+
+- primitive source tuples, including decision lifecycles and relationships;
+- relationship tuples;
+- relevant locally verifiable delivery and evidence identities; and
+- the complete consumer inventory.
+
+A commit-identity comparison alone is insufficient. A source artifact may
+change while a stale candidate remains byte-identical, and that SHALL be a
+freshness failure. The pre-seam gate SHALL produce an `equivalent` result only
+when every comparison is equal, together with an
+`activationFreshnessDigest` over the canonical comparison inputs. The genesis
+attestation SHALL bind `activationBaseCommit`, the candidate-freeze identity,
+that freshness digest, and the equivalent result. The same gate SHALL be
+rechecked immediately before the activation-seam commit; a changed base,
+candidate, source, evidence identity, or consumer inventory restarts the
+ceremony rather than being patched in the seam.
+
+If the base is invalid, a required extraction is unavailable or ambiguous, any
+comparison differs, or the check is skipped or reduced to commit identity, the
+candidate SHALL NOT be promoted and no activation attestation SHALL be
+recorded.
+
+#### Scenario: An equivalent activation base permits promotion
+
+- **GIVEN** PR-3 is based on a recorded `activationBaseCommit` and every
+  primitive, relationship, local-evidence, and consumer-inventory tuple equals
+  the frozen PR-2 candidate byte for byte
+- **WHEN** the pre-seam freshness gate runs
+- **THEN** it produces `equivalent` and an `activationFreshnessDigest` that can
+  be bound by `attestations.genesis`
+
+#### Scenario: A changed lifecycle or relationship makes the candidate stale
+
+- **GIVEN** an ADR lifecycle or relationship changes after the candidate was
+  frozen, while the candidate itself remains unchanged
+- **WHEN** the freshness gate runs against `activationBaseCommit`
+- **THEN** it fails and refuses promotion
+
+#### Scenario: A newly introduced ADR makes the candidate stale
+
+- **GIVEN** a new ADR appears in the activation base after candidate freeze
+- **WHEN** the freshness gate runs
+- **THEN** it fails rather than silently omitting the decision from genesis
+
+#### Scenario: Changed consumer inventory makes the candidate stale
+
+- **GIVEN** the complete governance-consumer inventory differs between the
+  frozen candidate and `activationBaseCommit`
+- **WHEN** the freshness gate runs
+- **THEN** it fails and requires the candidate to be refreshed and reviewed
+
+#### Scenario: Changed delivery evidence makes the candidate stale
+
+- **GIVEN** a locally verifiable delivery or evidence identity differs between
+  the frozen candidate and the activation base
+- **WHEN** the freshness gate runs
+- **THEN** it fails; the stale candidate is not promoted
+
+#### Scenario: A source-artifact change is not hidden by a stale candidate
+
+- **GIVEN** a source artifact changes while the candidate files remain
+  byte-identical
+- **WHEN** freshness validation runs
+- **THEN** it fails on the extracted source tuple difference; candidate bytes
+  alone are not evidence of source equivalence
+
+#### Scenario: Skipping extraction or comparing only commit identities is refused
+
+- **GIVEN** an activation that records only commit identities, skips one of the
+  required extraction classes, or omits the freshness gate
+- **WHEN** activation validation runs
+- **THEN** it fails and refuses candidate promotion and attestation
 
 ---
 
@@ -858,6 +1014,8 @@ also exists. The activation change SHALL therefore contain, indivisibly:
 
 - the canonical `governance/state.json` and its genesis attestation and source
   manifest;
+- the equivalent activation-base freshness result bound to the genesis
+  attestation;
 - the generated `governance/STATE.md` and every registered generated region;
 - **the deletion of every hand-authored copy those regions replace**;
 - the stable pointers replacing every remaining enumerated consumer copy;
@@ -1223,26 +1381,29 @@ The ceremony SHALL be ordered:
    over fixtures. It SHALL NOT claim that the real activation has been attested;
 2. the activation landing's pull request is opened first, allocating the stable
    identity bound as `activationIdentity`;
-3. **the entire activation seam is built** — registry and manifests promoted,
+3. the activation landing is based on exact current `main`, records that
+   revision as `activationBaseCommit`, and passes the activation-base freshness
+   gate before any candidate promotion;
+4. **the entire activation seam is built** — registry and manifests promoted,
    projections generated and the copies they replace deleted, pointer consumers
    converted, and every gate wired;
-4. the complete seam is **frozen**;
-5. the repository owner establishes and records `MAN-G02` in activation review
+5. the freshness gate is rerun immediately before the seam is staged, and its
+   result is equivalent; the complete seam is then **frozen**;
+6. the repository owner establishes and records `MAN-G02` in activation review
    evidence, and re-checks it at the merge gate;
-6. the repository owner reviews those exact frozen artifacts together with the
+7. the repository owner reviews those exact frozen artifacts together with the
    allocated identity, and records `attestations.genesis` and
-   `attestations.genesisCompletion`;
-7. the real checker, the hostile suite, formatting, and hosted CI re-run on the
+   `attestations.genesisCompletion`, including the equivalent freshness result;
+8. the real checker, the hostile suite, formatting, and hosted CI re-run on the
    **post-attestation head**;
-8. the landing does not complete until that exact head has passed review.
+9. the landing does not complete until that exact head has passed review.
 
 The attestation SHALL be the **last** content change of the landing. Attesting
-before the seam is complete would bind artifacts that later steps then modify,
-so the reviewed head would not be final. Any change to a bound artifact after
-step 5 SHALL restart the ceremony from step 4.
-
-Any change to a frozen artifact after step 3 SHALL invalidate the attestation
-bound to it, and the ceremony SHALL restart from step 1.
+before the seam is complete or before the freshness result is final would bind
+artifacts that later steps then modify, so the reviewed head would not be final.
+Any change to a bound artifact after the seam is frozen SHALL invalidate the
+freshness result and any attestation bound to it; the ceremony SHALL restart
+from the freshness gate and seam freeze.
 
 #### Scenario: Authorship is a review gate, and the checker does not claim it
 
