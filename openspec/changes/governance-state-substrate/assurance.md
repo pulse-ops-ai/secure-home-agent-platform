@@ -4,7 +4,11 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
-> **Revised again after review 5058112067** — the history-base table now carries
+> **Revised again after review 5058244198** — `runner/L1` leaves the graph, the
+> new controls gain traceability owners, and the identifiers in the hostile
+> corpus are namespaced.
+>
+> **Revised after review 5058112067** — the history-base table now carries
 > the `carries registry` dimension and the genesis exception, and the
 > completeness section no longer states the superseded severity policy.
 >
@@ -157,7 +161,17 @@ accordingly.
   usable anywhere in the tree.
 - **INV-G37** The external index handoff is conditional and bound by the
   activation evidence; no interval exists in which neither it nor the registry
-  is authoritative.
+  is authoritative, and it promises no reactivation the history rule refuses.
+- **INV-G38** No node is seeded with a prerequisite that no registry state can
+  satisfy; a program event v1 cannot represent is preserved as source and
+  historical context rather than as an active node.
+- **INV-G39** A genesis historical completion binds the observed lifecycle and
+  no invented prior transition, at the schema-declared location
+  `attestations.genesisCompletion`.
+- **INV-G40** The genesis exception applies only to the base bound by the
+  genesis evidence; v1 defines no reactivation, so no later change can re-run it.
+- **INV-G41** Every displayed inventory count is generated from the
+  machine-readable inventory; no count is maintained beside the enumeration.
 
 ---
 
@@ -259,6 +273,7 @@ No row yields `AUTHORIZED`. An undecidable state is never mapped to success.
 | Accepted set shape | non-contiguous | non-contiguous | contiguous only if truly so |
 | **U4** | **open** | **open (unchanged)** | resolved (derived) |
 | **GATE-U4** | **unsatisfied** | **unsatisfied (unchanged)** | satisfied (derived) |
+| `runner/L2`, `runner/L6` | complete, roots of the graph | unchanged | unchanged |
 | `runner/L8` | outstanding | outstanding (unchanged) | **outstanding** |
 | `runner/L9` requires | `["runner/GATE-U4","runner/L8"]` | unchanged | unchanged |
 | `runner/L9` anchor | issue #57 | unchanged | unchanged |
@@ -331,6 +346,10 @@ it.
 | INV-G35 | `ADV-G54` live unarchived change claiming the exemption | hostile |
 | INV-G36 | `ADV-G55` candidate copy usable after activation | hostile |
 | INV-G37 | `ADV-G49` unbound conditional handoff | hostile |
+| INV-G38 | `ADV-G56` completed node behind an unsatisfiable prerequisite | hostile |
+| INV-G39 | `ADV-G57` prior-lifecycle bound into a genesis completion | hostile |
+| INV-G40 | `ADV-G58` unbound registry-less base; `ADV-G59` replacement activation | hostile |
+| INV-G41 | `EX-G21` counts regenerate to the enumeration | independent re-derivation |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -430,6 +449,17 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   exemption.
 - **ADV-G55** A candidate state copy left usable as authored current state after
   activation.
+- **ADV-G56** A landing seeded `Complete` whose declared prerequisite can never
+  be satisfied by any registry state — an impossible historical graph, refused
+  rather than special-cased.
+- **ADV-G57** A genesis historical completion whose preimage binds a prior
+  lifecycle the repository does not evidence.
+- **ADV-G58** An older registry-less commit supplied as the explicit base,
+  unmatched by the genesis evidence binding, attempting to claim the exception.
+- **ADV-G59** A replacement activation after a revert, attempting a second
+  genesis.
+- **ADV-G60** A prose inventory count disagreeing with the machine-readable
+  inventory it summarizes.
 
 ### Provable only by the two-revision history checker (PR-2)
 
@@ -440,9 +470,9 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G08** `Accepted -> Proposed` / `Accepted -> Rejected` regression.
 - **ADV-G04h** Accepted bytes **and** the recorded digest replaced together.
 - **ADV-G40** Accepted acceptance-evidence mutated.
-- **ADV-G11** GATE-U4 predicate mutated in place.
-- **ADV-G13** `L8` removed from `L9`'s prerequisite set.
-- **ADV-G14** `L9`'s authority anchor repointed away from issue #57.
+- **ADV-G11** `runner/GATE-U4` predicate mutated in place.
+- **ADV-G13** `runner/L8` removed from `runner/L9`'s prerequisite set.
+- **ADV-G14** `runner/L9`'s authority anchor repointed away from issue #57.
 - **ADV-G15** Node kind or completion-policy identity mutated in place.
 - **ADV-G16** Replacement identity without its typed supersession relation and
   human-attested transition.
@@ -460,8 +490,8 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   satisfaction.
 - **ADV-G42** Authored primitive with no source-manifest row.
 - **ADV-G43** Externally-attested row reported as locally verified.
-- **ADV-G44** Partial program seed — any node of `L1`…`L10`, `GATE-U6`,
-  `GATE-U4` missing.
+- **ADV-G44** Partial program seed — any node of `runner/L2`…`runner/L10`,
+  `runner/GATE-U6`, `runner/GATE-U4` missing.
 - **ADV-G45** Delivery lifecycle taken from issue state rather than repository
   evidence.
 
@@ -505,6 +535,13 @@ no-op that still returns success is the failure mode being hunted.
 | Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
 | Genesis source manifest | PR-2 | 6 | ADV-G20, G31, G42, G43; MUT-G10 |
 | Consumer inventory | PR-2 | 6 | ADV-G46, G47; EX-G20 |
+| Namespaced identifiers | PR-1 | 1 | ADV-G50 |
+| Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
+| Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57; EX-G23 |
+| Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
+| Live-change exemption rule | PR-2 | 6 | ADV-G54 |
+| Bound activation / no reactivation | PR-2 | 4 | ADV-G58, ADV-G59 |
+| Candidate copy removal | PR-3 | 8 | ADV-G55 |
 | Atomic activation | **PR-3** | 8 | ADV-G48; the PR-3 completion gate |
 | Projection migration | PR-3 | 8 | ADV-G24; EX-G14 |
 | External program index | PR-3 | 8 | ADV-G49 |

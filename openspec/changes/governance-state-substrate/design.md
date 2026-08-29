@@ -4,7 +4,13 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-> **Revised again after review 5058112067** — canonical namespaced identifiers,
+> **Revised again after review 5058244198** — `runner/L1` leaves the active
+> readiness graph, the genesis completion envelope gets a computable preimage
+> and a schema location, v1 declares no generic reactivation, and the consumer
+> inventory's counts become one derived number instead of two contradictory
+> ones.
+>
+> **Revised after review 5058112067** — canonical namespaced identifiers,
 > L1's real identity, a genesis completion envelope for historical `Complete`
 > landings, a conditional external-index handoff, and a corrected consumer
 > inventory whose numbers are generated rather than copied.
@@ -109,7 +115,10 @@ ownership and semantics. The shape:
     }
   ],
   "externalReferences": [],
-  "attestations": { "genesis": {} }
+  "attestations": {
+    "genesis": {},
+    "genesisCompletion": {}
+  }
 }
 ```
 
@@ -126,7 +135,7 @@ accepted counts and ranges; `isCurrent`, `isImmutable`, `resolvesU4`;
 | Delivery lifecycle | `Planned`, `InProgress`, `Complete`, `Withdrawn` |
 | Completion policy | `reviewed-delivery-v1`, `reviewed-spike-evidence-v1` |
 | **Gate predicate** | **`exactly-one-current-accepted-resolver`** — the only v1 predicate |
-| **Node kind** | **`program-materialization`, `implementation-landing`, `spike-landing`, `gate`** |
+| **Node kind** | **`implementation-landing`, `spike-landing`, `gate`** |
 | Identity class | `local-git-commit`, `external-git-commit`, `content-sha256` |
 | Anchor type | `github-issue`, `github-pull-request`, `task-contract` |
 | Question severity | `critical`, `high`, `medium` |
@@ -145,7 +154,7 @@ predicates are identity-bearing rule inputs (ADR-0021 §3 D.1).
 Every program node identifier is **namespaced**, byte-for-byte, everywhere:
 
 ```text
-runner/L1 … runner/L10        runner/GATE-U6        runner/GATE-U4
+runner/L2 … runner/L10        runner/GATE-U6        runner/GATE-U4
 ```
 
 The namespace is not decoration. A second governed program may one day
@@ -364,16 +373,15 @@ interpretation of pre-registry evidence; node-to-policy assignment; source
 conflict dispositions; and acceptance of externally hosted anchors.
 
 **D6.3 — Complete v1 program enumeration.** Version one seeds the whole runner
-program, not a selection.
+program that the registry can actually represent.
 
 | Node | Kind | Prerequisites | Anchor | Delivery | Policy |
 | --- | --- | --- | --- | --- | --- |
-| `runner/L1` | program-materialization | — | the ratified constitution (source, below) | **none in v1** | — |
-| `runner/L2` | implementation-landing | `runner/L1` | issue #51 | Complete | `reviewed-delivery-v1` |
+| `runner/L2` | implementation-landing | — (root) | issue #51 | Complete | `reviewed-delivery-v1` |
 | `runner/L3` | implementation-landing | `runner/L2` | issue #52 | Complete | `reviewed-delivery-v1` |
 | `runner/L4` | implementation-landing | `runner/L3` | issue #27 | Complete | `reviewed-delivery-v1` |
 | `runner/L5` | implementation-landing | `runner/L4` | issue #53 | Complete | `reviewed-delivery-v1` |
-| `runner/L6` | spike-landing | `runner/L1` | issue #54 | Complete | `reviewed-spike-evidence-v1` |
+| `runner/L6` | spike-landing | — (root) | issue #54 | Complete | `reviewed-spike-evidence-v1` |
 | `runner/GATE-U6` | gate | — | ADR-0013 / issue #11 | — | — |
 | `runner/L7` | implementation-landing | `runner/L5`, `runner/GATE-U6`, `runner/L6` | issue #55 | Complete | `reviewed-delivery-v1` |
 | `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** | — |
@@ -381,42 +389,48 @@ program, not a selection.
 | `runner/L9` | implementation-landing | `runner/L8`, `runner/GATE-U4` | **issue #57** | **Planned** | — |
 | `runner/L10` | implementation-landing | `runner/L8`, `runner/L9` | issue #58 | Planned | — |
 
-The DAG matches the ratified constitution:
-`L2←L1 · L3←L2 · L4←L3 · L5←L4 · L6←L1 · L7←L5+GATE-U6(+L6) · L8←L7 ·
-L9←L8+GATE-U4 · L10←L8+L9`.
+**Not every node carries a delivery lifecycle.** Gates carry a predicate and no
+delivery lifecycle at all. Only `implementation-landing` and `spike-landing`
+nodes carry one, and only those seeded `Complete` carry a completion policy and
+an envelope member. ADR-0021 §3D's "when applicable" is doing real work here,
+and the normative requirement is worded to match rather than asserting that
+every node has all three.
 
-**D6.3a — `runner/L1` is the post-ratification landing, not the ratification.**
-The ratified constitution defines L1 as *"Post-ratification actions (human; not
-parent tasks)"*: mint one issue per landing L2–L10, revise #19 and #27, and
-update the documentation pointers. That is a landing whose completion occurred
-as human acts in externally hosted systems.
+**D6.3a — `runner/L1` is deliberately not a node.** The ratified constitution
+defines L1 as *"Post-ratification actions (human; not parent tasks)"*: mint one
+issue per landing, revise #19 and #27, update documentation pointers. Those are
+human acts in externally hosted systems that neither v1 completion policy
+covers, and ADR-0021 forbids inventing a third.
 
-The constitution itself — PR #48, the archived change
-`openspec/changes/archive/2026-08-09-runner-baseline-adoption/`, and
-`openspec/specs/runner-adoption/spec.md` — is the program's **normative
-source**, modelled as a source/evidence artifact in the manifest, **not** as a
-node. Collapsing the two would let the source stand in as the landing's own
-completion evidence.
+A previous revision kept `runner/L1` as a node with no delivery lifecycle. That
+was not a valid active graph: `runner/L2` and `runner/L6` declared it as a
+prerequisite, it could never satisfy one, and both were nevertheless seeded
+`Complete` — a completed node sitting behind a permanently unsatisfiable direct
+prerequisite. Proving that no *currently Planned* chain depended on it did not
+remove the contradiction; a full-program query or invariant check would have had
+to tolerate an impossible historical graph or special-case it.
 
-Consequently `runner/L1` has **no v1 delivery lifecycle**: neither
-`reviewed-delivery-v1` (it has no child archived OpenSpec identity — its actions
-are a section of the parent change) nor `reviewed-spike-evidence-v1` (it is not
-a spike) covers human post-ratification acts, and ADR-0021 forbids inventing a
-third policy without a new ADR. ADR-0021 §3D permits a node to carry a delivery
-lifecycle only "when applicable", so this is representable rather than a gap
-papered over.
+**So L1 leaves the active graph.** `runner/L2` and `runner/L6` are seeded as
+**roots** of the current mutable readiness graph, and their genesis completion
+digests bind their historical delivery evidence directly. L1 is preserved where
+it belongs:
 
-**What that costs, stated plainly.** A landing with no delivery lifecycle can
-never satisfy a prerequisite. `runner/L2` and `runner/L6` declare `runner/L1` as
-a prerequisite, and both are already `Complete`, so no *live* readiness answer
-depends on it — every `Planned` node's chain runs through `runner/L7`/`L8`/`L9`.
-A conformance test asserts exactly that, so the fact cannot silently change. If
-a future `Planned` node ever depends on `runner/L1`, a new ADR adding a
-completion policy is required; the checker will report it rather than guess.
+- in the **genesis source manifest**, as the post-ratification
+  program-materialization event with its evidence; and
+- in **generated historical context**, alongside the original ratified DAG
+  `L2←L1 · L3←L2 · L4←L3 · L5←L4 · L6←L1 · L7←L5+GATE-U6(+L6) · L8←L7 ·
+  L9←L8+GATE-U4 · L10←L8+L9`, so the constitution's shape is not lost.
+
+The registry holds **current mutable governance state**. It is not an
+event-sourced reconstruction of a one-time human bootstrap it cannot represent
+under its own closed policies. If a future landing must depend on L1 as an
+active prerequisite, that requires a new ADR defining a completion policy for
+human program-materialization acts — "present but permanently unsatisfiable" is
+not an identity worth freezing into v1.
 
 Each `Complete` row is a **seeding obligation**, not a completion proof: it
-requires its own policy-specific evidence under D4 **and** its completion
-attestation under D6.6.
+requires its own policy-specific evidence under D4 **and** its envelope member
+under D6.6.
 
 **D6.4 — A real source disagreement, and its disposition.** Issue #19 states
 `L5 — next runner landing` and `L7 — waits on L5`, and issues #53 and #55 are
@@ -434,34 +448,61 @@ must resolve, and it is recorded as such:
   disposition, and the bootstrap attestation names it. It is not silently
   reconciled.
 
-**D6.6 — Historical completions need attestations, and genesis is one human act.**
-`reviewed-delivery-v1` and `reviewed-spike-evidence-v1` each require a human
-completion attestation. Repository evidence alone does not satisfy them, and a
-source-manifest row is not an attestation. Without this, a correct checker must
-refuse every `Complete` row — and no downstream readiness could be derived.
+**D6.6 — Historical completions need attestations, with a preimage genesis can
+actually compute.** `reviewed-delivery-v1` and `reviewed-spike-evidence-v1` each
+require a human completion attestation. Repository evidence alone does not
+satisfy them, a source-manifest row is not an attestation, and the general
+genesis attestation is not a per-landing completion transition. Without this, a
+correct checker must refuse every `Complete` row and no readiness can be
+derived.
 
-Six landings need one at genesis: `runner/L2`, `L3`, `L4`, `L5`, `L6`, `L7`.
+Six landings need one: `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`,
+`runner/L6`, `runner/L7`.
 
-**Option A is selected: a single genesis completion envelope.** It binds a
-canonically ordered, closed set of per-landing completion digests — one per
-completed landing, each computed over that landing's full policy-specific
-preimage (landing identity, prior and target lifecycle, authority anchor,
-archived OpenSpec or evidence identity, delivered scope, exact commit or
-artifact identity, completion policy). Adding, removing, or altering any
-landing changes the envelope digest. The envelope is excluded from its own
-preimage, like every other attestation.
+**The ordinary completion digest cannot be used, and this matters.** It binds
+*prior and target* lifecycle. At genesis the repository proves the **observed**
+state is `Complete`; it does not generally prove whether the historical
+transition was `Planned -> Complete` or `InProgress -> Complete`. Supplying a
+prior lifecycle would be inventing an unobserved fact — exactly what the
+temporal-honesty rule forbids.
 
-Option B — one attestation per landing — was rejected because it would imply
-six separate human acts at six separate times. Genesis is one review, in one
-sitting.
+**Selected: a distinct `genesisHistoricalCompletionDigest`.** Its preimage binds
+the **observed** lifecycle and no invented transition:
 
-**The wording is temporally honest.** The envelope records that *the owner
-reviewed historical delivery evidence at genesis and attested that it satisfies
-the selected completion policy*. It does **not** assert that an attestation
-existed when the original delivery occurred, and it must not be phrased as
-though it did.
+```text
+{ schemaVersion,
+  landingId,                      // runner/L2 …
+  observedLifecycle: "Complete",  // observed, not a transition
+  sourceSnapshotIdentity,
+  authorityAnchor,
+  completionPolicy,
+  scopedDeliveredIdentity,
+  policyEvidenceIdentities }      // archived OpenSpec / evidence root, manifest,
+                                  // findings, merged PR and commit
+```
 
-**D6.5 — Attestation construction.** Bind `seedDigest`,
+The alternative — keep the ordinary digest and add a human-disposition row
+fixing each prior lifecycle — was rejected: it manufactures six unobserved
+facts to satisfy a field shape, when genesis is attesting to evidence at one
+snapshot rather than replaying a transition it did not witness.
+
+**Location in the closed schema:** `attestations.genesisCompletion`. It is a
+sibling of `attestations.genesis`, not nested inside it, because the two attest
+different things — `genesis` binds the seed and its relationship equivalence;
+`genesisCompletion` binds the canonically ordered, closed set of
+`genesisHistoricalCompletionDigest` values. A closed, unknown-field-rejecting
+schema cannot be satisfied by "genesis carries an envelope"; the field is named
+here so the checker can require it. Each is excluded from its own preimage.
+
+Adding, removing, or altering any member changes the envelope digest. The
+wording is temporally honest: the owner reviewed historical delivery evidence
+**at genesis** and attested that it satisfies the selected policy. It does not
+claim an attestation existed when the original delivery occurred.
+
+Option B — one attestation per landing — was rejected because it would imply six
+separate human acts at six separate times; genesis is one review.
+
+**D6.5 — Attestation construction.****D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
 and a typed authority reference, with `priorStateDigest: null`, the attestation
 excluded from its own preimage. The separate equivalence digest is what makes a
@@ -481,26 +522,34 @@ landing, and the reason for any retained current-state-looking prose.
 Dispositions: `generated-region`, `stable-pointer`, `historical-record`,
 `retained-semantic-prose`, `not-a-governance-consumer`.
 
-**D7.2 — Measured inventory at `eb6e248`.** The counts below are **generated
-from the enumeration**, not asserted beside it; the implementation regenerates
-them and the checker compares.
+**D7.2 — Measured inventory at `eb6e248`.** Three contracts that the previous
+version blurred, stated separately:
 
-Scope is **every tracked file**, not only Markdown: `openspec/config.yaml` is a
-YAML consumer that ADR-0021 §10 names explicitly, and a Markdown-only scan
-would have missed it.
+| Contract | Definition |
+| --- | --- |
+| **Scan universe** | every tracked file — `git ls-files`, not only Markdown |
+| **Inventory rows** | every **discovered governance surface**, plus exact classified exclusions. Not one row per tracked file: that would be thousands of rows asserting nothing |
+| **Unknown claim** | a governance-state claim in a file with no row **fails** |
+
+`governance/consumers.json` is the **single source for every displayed count**.
+The table below is generated from it; no count is maintained beside the list.
 
 | Disposition | Count | Members |
 | --- | --- | --- |
 | **generated-region** | 2 | `docs/decisions/INDEX.md` (lifecycle regions), `docs/architecture/unresolved-decisions.md` (summary table, resolution banners) |
-| **stable-pointer** | 37 measured + `openspec/config.yaml` by ADR mandate | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, and the architecture documents carrying only `u-state` links (`api-contract-model.md`, `degraded-mode.md`, `distributed-effect-lifecycle.md`, `effect-boundary-model.md`, `knowledge-promotion-model.md`, `knowledge-selection-model.md`, `runner-model.md`) |
-| **retained-semantic-prose** | 1 | `docs/architecture/agent-triage-and-escalation.md` — an explanatory phrase, not a current-state claim; reason recorded in its row |
-| **live OpenSpec changes** | **26** | active, unarchived artifacts under `openspec/changes/<id>/` — **not historical**; see D7.2a |
+| **stable-pointer** | **38** | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, **`openspec/config.yaml`**, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, `docs/architecture/api-contract-model.md`, `docs/architecture/degraded-mode.md`, `docs/architecture/distributed-effect-lifecycle.md`, `docs/architecture/effect-boundary-model.md`, `docs/architecture/knowledge-promotion-model.md`, `docs/architecture/knowledge-selection-model.md`, `docs/architecture/runner-model.md` |
+| **retained-semantic-prose** | 1 | `docs/architecture/agent-triage-and-escalation.md` — explanatory, not a current-state claim; reason in its row |
+| **live OpenSpec changes** | 26 | active, unarchived artifacts under `openspec/changes/<id>/` — **not historical**; see D7.2a |
 | **historical-record** | 27 | accepted decision bodies, `openspec/changes/archive/**`, `docs/spikes/**`, `openspec/specs/**` |
-| **not-a-governance-consumer** | 5 | `openspec/schemas/**` templates and `schema.yaml`, `scripts/validate-scaffold.sh`, `tests/test_knowledge_catalog.py` — tooling and template text, not state copies |
+| **not-a-governance-consumer** | 5 | `openspec/schemas/**`, `scripts/validate-scaffold.sh`, `tests/test_knowledge_catalog.py` — tooling and template text |
 
-`live-consumer` totals **40**: 2 generated-region + 1 retained-prose + 37
-stable-pointer. The previous version said 38 pointers and listed 39 paths; both
-were wrong, which is precisely why the numbers are now derived.
+**Live consumers total 41** = 2 generated-region + 1 retained-prose + 38
+stable-pointer.
+
+`openspec/config.yaml` is **listed in the enumeration above**, not added to it by
+a footnote. The previous version wrote "37 measured + `openspec/config.yaml` by
+ADR mandate" and then totalled 40 — two mutually exclusive claims, which is
+exactly the drift this substrate exists to stop. It is one of the 38.
 
 **D7.2a — The historical exemption is a rule, not a glob.** Exempting
 `openspec/changes/**` would have swallowed **26 files in active, unarchived
@@ -561,9 +610,16 @@ main, this issue remains the manual program-state authority.
 When both conditions are true, governance/state.json is authoritative and this
 issue becomes a human-facing mirror and authority-anchor index.
 
-If that activation is reverted and the canonical registry disappears, the
-manual authority resumes until a replacement activation succeeds.
+If that activation is reverted and the canonical registry disappears, manual
+authority resumes and remains in force. Restoring the registry then requires a
+new governance decision, not a repeat of this activation.
 ```
+
+The final sentence is deliberate. An earlier draft said manual authority resumed
+*"until a replacement activation succeeds"*, which promised a recovery path
+D8.2 forbids: version one has no generic reactivation, and the genesis exception
+is bound to one activation identity. Two artifacts cannot describe different
+rules for the same event.
 
 The activation evidence binds the index's stable identity, the exact conditional
 body bytes or their SHA-256, the activation PR identity, and the expected
@@ -601,26 +657,38 @@ are indexes keep their existing structural checks, and `validate-scaffold.sh`
 gains structural coverage of the `governance/` domain. The v1 layout has **no**
 nested `governance/AGENTS.md`.
 
-**D8.2 — Explicit base, and the single genesis exception.** The base is supplied
-explicitly by CI and is exclusive: invalid, missing, unreadable, or not a commit
-⇒ fail, with no fallback to `merge-base`, `HEAD~1`, or any inferred revision.
+**D8.2 — Explicit base, one bound genesis exception, and no generic
+reactivation.** The base is supplied explicitly by CI and is exclusive: invalid,
+missing, unreadable, or not a commit ⇒ fail, with no fallback to `merge-base`,
+`HEAD~1`, or any inferred revision.
 
-There is exactly one exception, and it is narrow:
+**The activation revision is identified by binding, not by absence.** "The base
+carries no registry" is *not* sufficient on its own — every commit before
+activation lacks a registry, so any of them could masquerade as the exceptional
+base. The genesis evidence binds the **exact source-snapshot identity, the exact
+base commit, and the activation change identity**, and the checker admits the
+exception only when the supplied base matches that binding:
 
 ```text
-Activation revision  — the base commit carries no registry.
-                       No prior revision exists to compare against, so the
-                       GENESIS ATTESTATION is the proof, and history
-                       comparison is not applicable.
+Genesis exception applies  ⇔  base commit == the commit bound by the genesis
+                              evidence, AND that base carries no registry,
+                              AND the activation identity matches.
 
-Every later revision — an explicit, valid, registry-bearing base is
-                       REQUIRED. Absence of a registry in the base is a
-                       failure, not a second genesis.
+Any other registry-less base ⇒ FAIL. The registry was deleted, or the wrong
+                              revision was supplied.
 ```
 
-The exception is keyed to "the base carries no registry", which is true exactly
-once. A later revision whose base lacks a registry means the registry was
-deleted — a refusal, not a re-genesis.
+**Version one defines no generic reactivation.** If an activation is reverted,
+the repository returns to manual authority and stays there: a replacement
+activation is **not** a second genesis and cannot re-run the exception, because
+the exception is bound to one activation identity. Restoring the substrate after
+a revert requires a new ADR defining a reactivation protocol — one that binds
+the prior activation, the revert, the last registry-bearing revision, the
+replacement activation, and whether genesis evidence is retained or renewed.
+
+This is a deliberate v1 narrowing, and it forces a correction elsewhere: the
+external index's conditional text must not promise a recovery path the history
+rule forbids. D7.6 is written to match.
 
 ---
 

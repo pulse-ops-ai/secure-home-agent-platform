@@ -16,7 +16,12 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
-> **Revised again after review 5058112067** — canonical namespaced identifiers,
+> **Revised again after review 5058244198** — `runner/L1` leaves the seeded
+> graph, task 6.1 splits locally-verified from human-attested sources, the
+> completion envelope binds an observed lifecycle, and the PR-2 verification net
+> owns every newly added control.
+>
+> **Revised after review 5058112067** — canonical namespaced identifiers,
 > `runner/L1` corrected to the post-ratification landing, a genesis completion
 > envelope for the historical `Complete` landings, a conditional external-index
 > handoff, and exact pre/post-activation artifact paths so PR-2 no longer
@@ -92,7 +97,7 @@ that component.
 `design.md` D2.1–D2.3 close the vocabularies that would otherwise be
 invented while coding: the v1 gate-predicate vocabulary is the single name
 `exactly-one-current-accepted-resolver`; the v1 node kinds are
-`program-materialization`, `implementation-landing`, `spike-landing`, `gate`;
+`implementation-landing`, `spike-landing`, `gate`;
 program-node identifiers are namespaced (`runner/L9`, `runner/GATE-U4`) with
 bare shorthand refused as a dangling reference; and question severity **is** in
 v1 as authored, rule-free, non-identity-bearing data. Extending either vocabulary is a reviewed schema-version change, because
@@ -255,9 +260,9 @@ atomic seam is present, and review has completed on one frozen head.
   - `ADV-G08` `Accepted -> Proposed` / `Accepted -> Rejected` regression
   - `ADV-G04h` accepted bytes **and** recorded digest replaced together
   - `ADV-G40` accepted acceptance-evidence mutated
-  - `ADV-G11` GATE-U4 predicate mutated in place
-  - `ADV-G13` `L8` removed from `L9`'s prerequisites
-  - `ADV-G14` `L9` repointed away from issue #57
+  - `ADV-G11` `runner/GATE-U4` predicate mutated in place
+  - `ADV-G13` `runner/L8` removed from `runner/L9`'s prerequisites
+  - `ADV-G14` `runner/L9` repointed away from issue #57
   - `ADV-G15` node kind or completion policy mutated in place
   - `ADV-G16` replacement identity without supersession + attestation
   - `ADV-G18` authorization-evidence record introduced
@@ -265,6 +270,9 @@ atomic seam is present, and review has completed on one frozen head.
   - `ADV-G34` record deleted or renumbered · `ADV-G35` resolver disappeared
   - `ADV-G41` a post-activation base carrying no registry — refused, never a
     second genesis
+  - `ADV-G58` an unbound registry-less base claiming the exception
+  - `ADV-G59` a replacement activation after a revert — v1 defines no
+    reactivation protocol
   - `MUT-G04` explicit-base exclusivity → silent fallback
   - `MUT-G08` rule-input immutability → in-place edit permitted
 
@@ -301,10 +309,18 @@ atomic seam is present, and review has completed on one frozen head.
   **Change**
   Per-primitive rows: identity, exact path or typed external reference, source
   revision or content digest, extraction rule,
-  `locally-verified | externally-attested`, human disposition. Facts no listed
-  source contains — gate predicates, node kinds, prerequisite sets, authority
-  anchors, completion policies — are classified `externally-attested`, never
-  claimed as locally verified.
+  `locally-verified | externally-attested`, human disposition.
+
+  **The split is not "all rule inputs are externally attested".** Once this
+  planning contract is merged, the values it states directly are
+  content-addressable repository bytes, bound by **exact file blob identity at
+  the PR #107 merge commit** — no archival step is required first, and an
+  eventual archived copy is a later equivalence check:
+
+  | Classification | Covers |
+  |---|---|
+  | **locally-verified** | the gate-predicate and node-kind vocabularies; the canonical identifier form; canonicalization and collection rules; completion-policy semantics and the envelope protocol; the whole-program enumeration; the activation contract |
+  | **externally-attested** | historical interpretation of pre-registry evidence; node-to-policy assignment; source-conflict dispositions; acceptance of externally hosted anchors |
 
   **Proof required** — `ADV-G42` primitive with no manifest row; `ADV-G43`
   externally-attested row reported as locally verified
@@ -318,18 +334,22 @@ atomic seam is present, and review has completed on one frozen head.
   **Change**
   Author **primitives only**: ADR lifecycles including **ADR-0020 `Proposed`**,
   `ADR-0020.resolves = ["U4"]`, the `runner/GATE-U4` predicate, and every node of
-  the complete program `runner/L1`…`runner/L10`, `runner/GATE-U6`,
-  `runner/GATE-U4` with kind, prerequisites, authority anchor, delivery lifecycle
-  and completion policy — including
-  `runner/L9.requires = ["runner/GATE-U4","runner/L8"]` and `runner/L9`'s anchor
-  issue #57.
+  the representable program — `runner/L2`…`runner/L10`, `runner/GATE-U6`,
+  `runner/GATE-U4` — each with its kind, prerequisite set and authority anchor,
+  including `runner/L9.requires = ["runner/GATE-U4","runner/L8"]` and
+  `runner/L9`'s anchor issue #57.
 
-  **`runner/L1` is the post-ratification landing**, not the ratification: the
-  constitution (PR #48, the archived `2026-08-09-runner-baseline-adoption`
-  change, `openspec/specs/runner-adoption/spec.md`) is seeded as a
-  **source/evidence artifact**, never as the node. `runner/L1` carries **no v1
-  delivery lifecycle**, because neither completion policy covers human
-  post-ratification acts and ADR-0021 forbids inventing a third.
+  Delivery lifecycle, completion policy and evidence apply **only where the kind
+  carries them**: gates have none, and only landings seeded `Complete` carry a
+  policy and an envelope member.
+
+  **`runner/L1` is deliberately not a node.** The constitution defines L1 as
+  post-ratification human acts in externally hosted systems, which neither v1
+  completion policy covers. Keeping it as a lifecycle-less node would leave
+  `runner/L2` and `runner/L6` — both `Complete` — behind a permanently
+  unsatisfiable prerequisite: an impossible graph. L1 is preserved in the source
+  manifest and generated historical context with the original ratified DAG, and
+  **`runner/L2` and `runner/L6` are seeded as roots**.
 
   **Author no conclusion.** U4 open, GATE-U4 unsatisfied and L9 `NotReady` are
   **derived** and asserted by tests and the query.
@@ -348,8 +368,9 @@ atomic seam is present, and review has completed on one frozen head.
     satisfaction
   - `ADV-G44` partial program seed
   - `ADV-G50` bare shorthand identifier refused
-  - `EX-G22` no `Planned` node's readiness depends on `runner/L1`, asserted so
-    the fact cannot silently change
+  - `ADV-G56` a completed node behind an unsatisfiable prerequisite is refused
+  - `EX-G22` the seeded graph contains no node whose prerequisite no registry
+    state can satisfy
   - `ADV-G45` delivery lifecycle taken from issue state rather than repository
     evidence
 
@@ -385,7 +406,8 @@ atomic seam is present, and review has completed on one frozen head.
   **Proof required** — `ADV-G46` surface absent from the inventory; `ADV-G47`
   `retained-semantic-prose` row with no reason; `ADV-G54` live unarchived change
   claiming the historical exemption; `EX-G20` historical records neither
-  rewritten nor reported; `EX-G21` counts regenerate to the enumeration
+  rewritten nor reported; `ADV-G60` a prose count disagreeing with the inventory; `EX-G21` counts
+  regenerate to the enumeration
 
 - [ ] **6.5 Genesis completion envelope**
   <!-- agent-task: 6.5 paths=scripts/governance/genesis/**,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.3 -->
@@ -394,10 +416,19 @@ atomic seam is present, and review has completed on one frozen head.
   `INV-G34`; `D6.6`
 
   **Change**
-  One envelope binding a canonically ordered, closed set of per-landing
-  completion digests for the six landings seeded `Complete` — `runner/L2`,
-  `L3`, `L4`, `L5`, `L6`, `L7` — each computed over that landing's full
-  policy-specific preimage. Excluded from its own preimage.
+  One envelope at the schema-declared location `attestations.genesisCompletion`,
+  binding a canonically ordered, closed set of
+  `genesisHistoricalCompletionDigest` values for the six landings seeded
+  `Complete` — `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`,
+  `runner/L7`.
+
+  Each preimage binds the **observed** lifecycle `Complete`, the source-snapshot
+  identity, authority anchor, completion policy, scoped delivered identity, and
+  policy-specific evidence identities — and **no prior lifecycle**. The
+  repository proves the observed state at genesis; it does not evidence whether
+  the transition was `Planned -> Complete` or `InProgress -> Complete`, and
+  supplying one would assert an unobserved fact. The envelope is excluded from
+  its own preimage.
 
   Temporally honest wording: the owner reviewed historical delivery evidence
   **at genesis** and attested that it satisfies the selected policy. It does not
@@ -407,20 +438,25 @@ atomic seam is present, and review has completed on one frozen head.
   - `ADV-G51` `Complete` landing with no envelope member
   - `ADV-G52` source-manifest row offered as an attestation
   - `ADV-G53` altering any member changes the envelope digest
-  - `EX-G23` a landing no policy covers carries no delivery lifecycle and
-    satisfies no prerequisite
+  - `ADV-G57` a prior lifecycle bound into a genesis completion preimage
+  - `EX-G23` the envelope's members are exactly the landings seeded `Complete`
 
 ## 7. Verification net for PR-2
 
 - [ ] **7.1 Two-revision hostile corpus**
   <!-- agent-task: 7.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=4.2 -->
   **Proves** — `ADV-G04h`, `G08`, `G11`, `G13`–`G16`, `G18`, `G21`, `G29`,
-  `G34`, `G35`, `G40`, `G41`
+  `G34`, `G35`, `G40`, `G41`, **`G58`**, **`G59`**
 
 - [ ] **7.2 Genesis, projection, and query corpus**
   <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,5.2 -->
-  **Proves** — `ADV-G17`, `G20`, `G22`, `G31`, `G32`, `G36`, `G42`–`G47`;
-  `EX-G16`, `G17`, `G18`, `G19`, `G20`; `PROP-G04`, `G05`
+  **Proves** — `ADV-G17`, `G20`, `G22`, `G31`, `G32`, `G36`, `G42`–`G47`,
+  **`G50`**, **`G51`–`G53`**, **`G54`**, **`G56`**, **`G57`**, **`G60`**;
+  `EX-G16`, `G17`, `G18`, `G19`, `G20`, **`G21`**, **`G22`**, **`G23`**;
+  `PROP-G04`, `G05`
+
+  Every control added by this revision is owned here, so a landing completion
+  gate cannot pass while a newly added proof was never executed.
 
 - [ ] **7.3 Mutation coverage for PR-2**
   <!-- agent-task: 7.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=7.1 -->
@@ -467,9 +503,15 @@ registry appears, and it appears already protected.
   When both conditions are true, governance/state.json is authoritative and
   this issue becomes a human-facing mirror and authority-anchor index.
 
-  If that activation is reverted and the canonical registry disappears, the
-  manual authority resumes until a replacement activation succeeds.
+  If that activation is reverted and the canonical registry disappears, manual
+  authority resumes and remains in force. Restoring the registry then requires
+  a new governance decision, not a repeat of this activation.
   ```
+
+  The last sentence matters: version one defines **no reactivation protocol**,
+  and the genesis exception is bound to one activation identity. Promising that
+  a replacement activation would restore the registry would describe a recovery
+  path the history rule refuses.
 
   **Evidence bound by the activation change:** the index's stable identity, the
   exact conditional body bytes or their SHA-256, the activation change identity,
@@ -513,7 +555,8 @@ registry appears, and it appears already protected.
   enforcement, and `governance/` structural coverage — all in the unconditional
   governance job, with an explicit base and the single D8.2 genesis exception.
   **Proof required** — `ADV-G24` prohibited claim reintroduced; `ADV-G48` a
-  revision in which the canonical registry coexists with a surviving copy
+  revision in which the canonical registry coexists with a surviving copy;
+  `ADV-G55` a candidate copy left usable after activation
 
 ## PR-3 Completion Gate
 

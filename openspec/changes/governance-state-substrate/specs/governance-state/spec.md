@@ -293,21 +293,21 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 
 #### Scenario: A prerequisite set cannot be edited in place
 
-- **GIVEN** a revision removing `L8` from `L9`'s prerequisite set
+- **GIVEN** a revision removing `runner/L8` from `runner/L9`'s prerequisite set
 - **WHEN** history validation runs
 - **THEN** it fails, even though the resulting derived answer is internally
   consistent
 
 #### Scenario: An authority anchor cannot be repointed in place
 
-- **GIVEN** a revision repointing `L9`'s external authority anchor away from
+- **GIVEN** a revision repointing `runner/L9`'s external authority anchor away from
   GitHub issue #57
 - **WHEN** history validation runs
 - **THEN** it fails naming the identity-bearing rule input
 
 #### Scenario: A gate predicate cannot be mutated in place
 
-- **GIVEN** a revision changing the `GATE-U4` predicate definition
+- **GIVEN** a revision changing the `runner/GATE-U4` predicate definition
 - **WHEN** history validation runs
 - **THEN** it fails, independently of whether the gate's derived result changed
 
@@ -566,21 +566,41 @@ not become a second rule authority.
 - **WHEN** history validation runs
 - **THEN** it fails, whatever the resulting derived state
 
-#### Scenario: The activation revision is the one genesis exception
+The genesis exception SHALL be identified by **binding, not by absence**. The
+genesis evidence SHALL bind the exact source-snapshot identity, the exact base
+commit, and the activation change identity, and the exception SHALL apply only
+when the supplied base matches that binding. Absence of a registry in the base
+SHALL NOT by itself qualify a revision as the activation revision.
 
-- **GIVEN** the activation revision, whose explicit base commit carries no
-  registry because none existed before it
+Version one SHALL define **no generic reactivation**. After a reverted
+activation the repository returns to manual authority and remains there; a
+replacement activation SHALL NOT re-run the genesis exception. Restoring the
+substrate SHALL require a new decision defining a reactivation protocol.
+
+#### Scenario: The bound activation revision is the one genesis exception
+
+- **GIVEN** the activation revision whose explicit base matches the commit,
+  snapshot, and activation identity bound by the genesis evidence, and which
+  carries no registry
 - **WHEN** history validation runs
-- **THEN** history comparison is not applicable, the genesis attestation is the
-  proof, and validation passes only when that attestation validates
+- **THEN** history comparison is not applicable, the genesis and completion
+  attestations are the proof, and validation passes only when both validate
 
-#### Scenario: A later revision may not claim a second genesis
+#### Scenario: An unbound registry-less base cannot masquerade as activation
 
-- **GIVEN** any revision after activation whose explicit base carries no
-  registry
+- **GIVEN** an older registry-less commit supplied as the explicit base, which
+  does not match the binding in the genesis evidence
 - **WHEN** history validation runs
-- **THEN** it fails — a missing registry in the base means the registry was
-  deleted, which is a refusal and never a second genesis
+- **THEN** it fails — otherwise any pre-activation commit could claim the
+  exception
+
+#### Scenario: A replacement activation is not a second genesis
+
+- **GIVEN** a reverted activation and a later change attempting to re-establish
+  the registry
+- **WHEN** history validation runs
+- **THEN** it fails — version one defines no reactivation protocol, and the
+  exception is bound to one activation identity
 
 #### Scenario: An authorization-evidence record is refused as an unknown field
 
@@ -710,8 +730,20 @@ its target disposition, its generated-region identifier where applicable, its
 migration landing, and — for `retained-semantic-prose` — the reason
 current-state-looking prose is retained.
 
-The inventory's scope SHALL be **every tracked file**, not only Markdown: a
-governance-state consumer may be YAML or another format.
+The inventory SHALL distinguish three contracts rather than asserting all of
+them at once:
+
+1. **Scan universe** — every tracked file, not only Markdown: a governance-state
+   consumer may be YAML or another format.
+2. **Inventory rows** — every **discovered governance surface**, plus exact
+   classified exclusions. The inventory SHALL NOT be required to carry one row
+   per tracked file.
+3. **Unknown claim** — a governance-state claim in a file carrying no row SHALL
+   fail.
+
+The machine-readable inventory SHALL be the **single source for every displayed
+count**, and any prose table SHALL be generated from it rather than maintained
+beside it.
 
 Accepted decision bodies, spike evidence, and OpenSpec change records SHALL be
 classified `historical-record` and SHALL NOT be rewritten — but the OpenSpec
@@ -723,6 +755,13 @@ changes SHALL be classified on their own merits.
 A governance-state surface absent from the inventory SHALL be a migration
 failure. Prohibited-copy enforcement SHALL operate over the enumerated
 `generated-region` and `stable-pointer` rows.
+
+#### Scenario: Displayed counts are generated, never maintained beside the list
+
+- **GIVEN** a prose inventory table whose stated count disagrees with the
+  machine-readable inventory it summarizes
+- **WHEN** the checker runs
+- **THEN** it fails — one derived number, never two independently written ones
 
 #### Scenario: An unclassified surface fails the migration
 
@@ -774,7 +813,9 @@ written **before** activation rather than performed at the merge boundary.
 The conditional text SHALL state that the index remains the manual authority
 until the named activation change is merged and the canonical registry exists;
 that the registry is authoritative once both hold; and that manual authority
-**resumes** if the activation is reverted and the registry disappears.
+**resumes and remains in force** if the activation is reverted and the registry
+disappears. The text SHALL NOT promise that a replacement activation restores
+the registry, because version one defines no reactivation protocol.
 
 The activation evidence SHALL bind the index's stable identity, the exact
 conditional body bytes or their SHA-256, the activation change identity, and the
@@ -798,8 +839,9 @@ merge is abandoned, and inverts the race on revert.
 - **GIVEN** a reverted activation in which the canonical registry no longer
   exists
 - **WHEN** the conditional text is read
-- **THEN** manual authority resumes by its own terms, leaving no interval in
-  which neither the registry nor the index is authoritative
+- **THEN** manual authority resumes by its own terms and remains in force,
+  leaving no interval in which neither the registry nor the index is
+  authoritative, and promising no reactivation the history rule would refuse
 
 #### Scenario: The external index becomes an anchor, not evidence
 
@@ -876,7 +918,7 @@ author:
   **ADR-0020 with lifecycle `Proposed`** — a non-contiguous accepted set that
   SHALL NOT be expressed as a continuous range;
 - `ADR-0020.resolves = ["U4"]`;
-- the `GATE-U4` predicate
+- the `runner/GATE-U4` predicate
   `exactly-one-current-accepted-resolver` over `U4`;
 - every program node of §"The version-one program is seeded whole" with its
   kind, prerequisite set, authority anchor, delivery lifecycle, and completion
@@ -887,7 +929,7 @@ author:
 The registry SHALL NOT author, and the model SHALL instead **derive**:
 
 - U4's state — derived **open**, because its only resolver is `Proposed`;
-- GATE-U4's satisfaction — derived **unsatisfied**;
+- `runner/GATE-U4`'s satisfaction — derived **unsatisfied**;
 - `runner/L9`'s prerequisite readiness — derived `NotReady`, with unsatisfied
   `["runner/GATE-U4", "runner/L8"]` and its explanation.
 
@@ -900,7 +942,8 @@ satisfy, authorize, or make ready anything.
 - **GIVEN** the seeded registry, which authors no resolution, satisfaction, or
   readiness value
 - **WHEN** the model derives governance state
-- **THEN** U4 is open, GATE-U4 is unsatisfied, and L9 is `NotReady` — each
+- **THEN** U4 is open, `runner/GATE-U4` is unsatisfied, and `runner/L9` is
+  `NotReady` — each
   produced by derivation and asserted by tests and the query, never read from a
   stored field
 
@@ -941,11 +984,24 @@ listed source contains — gate predicates, node kinds, prerequisite sets,
 authority anchors, and completion policies — SHALL NOT be claimed as equivalent
 to sources that do not carry them.
 
-The seeded program SHALL be the **complete** version-one runner program —
-`L1`, `L2`, `L3`, `L4`, `L5`, `L6`, `GATE-U6`, `L7`, `L8`, `GATE-U4`, `L9`,
-`L10` — each with kind, prerequisites, authority anchor, delivery lifecycle,
-completion policy, and completion-evidence source. A partial program SHALL NOT
-be seeded.
+The seeded program SHALL be the **complete** version-one runner program that the
+registry can represent — `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`,
+`runner/L6`, `runner/GATE-U6`, `runner/L7`, `runner/L8`, `runner/GATE-U4`,
+`runner/L9`, `runner/L10` — each with its kind, prerequisite set, and authority
+anchor. A partial program SHALL NOT be seeded.
+
+Delivery lifecycle, completion policy, and completion evidence apply **only
+where the node kind carries them**: a `gate` has a predicate and no delivery
+lifecycle, and only a landing seeded `Complete` carries a completion policy,
+completion evidence, and an envelope member. A requirement that every node
+carries all three SHALL NOT be asserted.
+
+A program event that no v1 completion policy can represent — such as a
+post-ratification set of human acts in externally hosted systems — SHALL NOT be
+seeded as an active node carrying a permanently unsatisfiable prerequisite. It
+SHALL be preserved in the genesis source manifest and generated historical
+context instead, and the landings that historically followed it SHALL be seeded
+as roots of the current readiness graph.
 
 Delivery lifecycle SHALL be established from **repository evidence** — merged
 pull requests, commits, archived child OpenSpec changes, and spike evidence
@@ -974,6 +1030,23 @@ never silently reconciled.
 - **WHEN** the checker runs
 - **THEN** it fails naming the missing node
 
+#### Scenario: An unrepresentable program event is not an active node
+
+- **GIVEN** a program event whose completion no v1 policy can represent
+- **WHEN** the program is seeded
+- **THEN** it does not appear in the active readiness graph, it is recorded in
+  the source manifest and historical context, and the landings that followed it
+  are seeded as roots — no node is left carrying a permanently unsatisfiable
+  prerequisite
+
+#### Scenario: A completed node behind an unsatisfiable prerequisite is refused
+
+- **GIVEN** a landing seeded `Complete` whose declared prerequisite can never be
+  satisfied by any registry state
+- **WHEN** the checker validates the graph
+- **THEN** it fails — an impossible historical graph is not tolerated and is not
+  special-cased
+
 #### Scenario: An externally attested rule input is classified as such
 
 - **GIVEN** a gate predicate, node kind, or completion policy that no local
@@ -991,11 +1064,27 @@ completion policy requires a human completion attestation. A source-manifest row
 SHALL NOT be treated as a completion attestation, and the general genesis
 attestation SHALL NOT stand in for a per-landing completion transition.
 
-Genesis SHALL therefore carry a **completion envelope** binding a canonically
-ordered, closed set of per-landing completion digests — one for each landing
-seeded `Complete` — each computed over that landing's full policy-specific
-preimage. Adding, removing, or altering any member SHALL change the envelope
-digest. The envelope SHALL be excluded from its own preimage.
+Genesis SHALL therefore carry a **completion envelope** at the schema-declared
+location `attestations.genesisCompletion`, a sibling of the general genesis
+attestation rather than a field nested inside it. A closed,
+unknown-field-rejecting schema SHALL name this location; "genesis carries an
+envelope" is not a schema.
+
+The envelope SHALL bind a canonically ordered, closed set of per-landing
+**`genesisHistoricalCompletionDigest`** values — one for each landing seeded
+`Complete`. That digest's preimage SHALL bind the **observed** lifecycle
+`Complete`, the source-snapshot identity, the authority anchor, the completion
+policy, the scoped delivered identity, and the policy-specific evidence
+identities.
+
+It SHALL NOT bind a prior lifecycle. At genesis the repository proves the
+observed state; it does not generally prove whether the historical transition
+was `Planned -> Complete` or `InProgress -> Complete`, and supplying one would
+assert an unobserved fact. The ordinary completion digest, which binds prior and
+target lifecycle, SHALL NOT be used for a genesis historical completion.
+
+Adding, removing, or altering any member SHALL change the envelope digest. The
+envelope SHALL be excluded from its own preimage.
 
 The envelope's wording SHALL be temporally honest: it records that the owner
 reviewed historical delivery evidence **at genesis** and attested that it
@@ -1022,6 +1111,15 @@ prerequisite.
 - **THEN** it fails — evidence locates the delivery; the attestation is the
   human act that accepts it
 
+#### Scenario: A genesis completion binds no invented prior lifecycle
+
+- **GIVEN** a landing seeded `Complete` whose historical transition the
+  repository does not evidence
+- **WHEN** its `genesisHistoricalCompletionDigest` is computed
+- **THEN** the preimage carries the observed lifecycle and no prior lifecycle,
+  and a digest computed from an ordinary prior/target completion preimage is
+  refused
+
 #### Scenario: Altering any member changes the envelope digest
 
 - **GIVEN** a genesis completion envelope and a change to any one landing's
@@ -1047,18 +1145,19 @@ landed.
 
 Its later machine transition SHALL be exactly `ADR-0020 Proposed -> Accepted`.
 From that single primitive change the model SHALL derive U4 resolved and
-GATE-U4 satisfied. L8 SHALL remain outstanding, L9 SHALL remain not
-prerequisite-ready with `L8` as its unsatisfied prerequisite, and **no
-authorization** for L9 or anything else SHALL be inferred.
+`runner/GATE-U4` satisfied. `runner/L8` SHALL remain outstanding, `runner/L9`
+SHALL remain not prerequisite-ready with `runner/L8` as its unsatisfied
+prerequisite, and **no authorization** for `runner/L9` or anything else SHALL be
+inferred.
 
 #### Scenario: One primitive change derives the whole consequence chain
 
 - **GIVEN** the genesis registry and a legal `ADR-0020 Proposed -> Accepted`
   transition with its acceptance evidence
 - **WHEN** the model recomputes derived state
-- **THEN** U4 becomes resolved and GATE-U4 satisfied, while L8 remains
-  outstanding and `runner/L9` remains `NotReady` with unsatisfied
-  `["runner/L8"]`
+- **THEN** U4 becomes resolved and `runner/GATE-U4` satisfied, while
+  `runner/L8` remains outstanding and `runner/L9` remains `NotReady` with
+  unsatisfied `["runner/L8"]`
 
 #### Scenario: Satisfying a gate authorizes nothing
 
