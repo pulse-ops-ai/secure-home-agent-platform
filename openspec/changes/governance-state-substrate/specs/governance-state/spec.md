@@ -117,10 +117,16 @@ An unclassified collection SHALL be a schema error.
 ### Requirement: Program-node identifiers are namespaced, and shorthand is refused
 
 Every program node SHALL carry a namespaced stable identifier —
-`runner/L1` … `runner/L10`, `runner/GATE-U6`, `runner/GATE-U4` — used
+`runner/L2` … `runner/L10`, `runner/GATE-U6`, `runner/GATE-U4` — used
 byte-for-byte identically in registry entity identifiers, prerequisite
 references, source-manifest rows, query arguments, generated projections,
 fixtures, hostile mutations, and any later decision transition.
+
+The range begins at `runner/L2` because `runner/L1` is not an active node: the
+program event it names is not admissible as a landing entity (see the
+whole-program requirement below). It appears only in the genesis source manifest
+and generated historical context, where it is a display label rather than a
+registry identity.
 
 A bare form such as `L8` SHALL NOT be an accepted alias. It is an unregistered
 identifier and therefore a dangling reference, and the checker SHALL fail rather
@@ -340,11 +346,16 @@ issue, merged evidence PR and commit, canonical evidence root, evidence-manifest
 digest, findings identity, and human completion attestation; it SHALL explicitly
 require **no** OpenSpec archive.
 
-Every completion preimage SHALL bind the landing identifier, prior and target
-lifecycles, authority-anchor identity, exact delivered commit or artifact
+Every **post-genesis** completion preimage SHALL bind the landing identifier,
+prior and target lifecycles, authority-anchor identity, exact delivered commit or artifact
 identity, completion-policy identity, and that policy's specific requirements.
 The delivered identity SHALL be bound to the landing's declared scope; an
 unscoped commit hash SHALL be insufficient.
+
+This ordinary completion digest applies to a completion **transition** observed
+between two registry revisions. It SHALL NOT be used for a genesis historical
+completion, which observes a state rather than a transition and is governed by
+its own digest below.
 
 A required identity that is opaque or unavailable SHALL NOT be a valid
 completion proof: the checker SHALL fail closed, leave the landing unsatisfied,
@@ -971,6 +982,52 @@ satisfy, authorize, or make ready anything.
 
 ---
 
+### Requirement: Genesis attestations are a human act on frozen artifacts
+
+`attestations.genesis` and `attestations.genesisCompletion` SHALL be recorded by
+the repository owner, not produced by the implementation. An implementation MAY
+compute preimages and digests and present them for review; it SHALL NOT record
+either attestation on the owner's behalf.
+
+The ceremony SHALL be ordered:
+
+1. the candidate state, source manifest, consumer inventory, evidence
+   identities, historical-completion preimages, and every resulting digest are
+   **frozen**;
+2. the repository owner reviews **those exact frozen artifacts**;
+3. the owner records `attestations.genesis` and
+   `attestations.genesisCompletion`;
+4. the real checker, the hostile suite, formatting, and hosted CI re-run on the
+   **post-attestation head**;
+5. the landing does not complete until that exact head has passed review.
+
+Any change to a frozen artifact after step 3 SHALL invalidate the attestation
+bound to it, and the ceremony SHALL restart from step 1.
+
+#### Scenario: An attestation the owner did not record is refused
+
+- **GIVEN** a genesis or genesis-completion attestation produced by the
+  implementation rather than recorded by the repository owner
+- **WHEN** the checker validates it
+- **THEN** it fails — computing a digest is not attesting to it
+
+#### Scenario: A post-attestation edit invalidates the attestation
+
+- **GIVEN** a recorded attestation and a subsequent change to any artifact its
+  preimage binds
+- **WHEN** validation runs
+- **THEN** it fails, and the attestation is not valid again until the frozen
+  artifacts are re-reviewed and re-attested
+
+#### Scenario: Validation runs on the post-attestation head
+
+- **GIVEN** a completed attestation ceremony
+- **WHEN** the landing's completion is evaluated
+- **THEN** it requires the checker, hostile suite and hosted CI to have passed on
+  the exact head that carries the attestations, not on an earlier one
+
+---
+
 ### Requirement: The version-one program is seeded whole, from a closed source manifest
 
 Genesis SHALL be accompanied by a **closed source manifest**: every authored
@@ -1083,17 +1140,33 @@ was `Planned -> Complete` or `InProgress -> Complete`, and supplying one would
 assert an unobserved fact. The ordinary completion digest, which binds prior and
 target lifecycle, SHALL NOT be used for a genesis historical completion.
 
-Adding, removing, or altering any member SHALL change the envelope digest. The
-envelope SHALL be excluded from its own preimage.
+The three completion-related digests SHALL be distinct and separately defined:
+
+| Digest | Occasion | Binds |
+| --- | --- | --- |
+| `completionDigest` | a post-genesis transition | landing identity, **prior and target** lifecycle, anchor, scoped delivery, policy, policy-specific evidence |
+| `genesisHistoricalCompletionDigest` | a genesis observation | landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence |
+| `genesisCompletionEnvelopeDigest` | genesis | the canonically ordered, closed set of `genesisHistoricalCompletionDigest` values |
+
+The `attestations.genesisCompletion` envelope SHALL carry the
+`genesisCompletionEnvelopeDigest`, the ordered member set, the actor, an RFC 3339
+time, the outcome, and a typed authority reference. Adding, removing, or
+altering any member SHALL change the envelope digest. The envelope SHALL be
+excluded from its own preimage.
 
 The envelope's wording SHALL be temporally honest: it records that the owner
 reviewed historical delivery evidence **at genesis** and attested that it
 satisfies the selected policy. It SHALL NOT assert that an attestation existed
 when the original delivery occurred.
 
-A landing whose completion no v1 policy covers SHALL carry **no delivery
-lifecycle** rather than a manufactured one, and SHALL therefore satisfy no
-prerequisite.
+A program event whose completion **no v1 policy can represent** SHALL NOT be
+admitted as an active landing entity at all. It SHALL NOT appear in the landings
+collection and SHALL NOT appear in the readiness graph. It MAY be represented in
+the genesis source manifest and generated historical context.
+
+Seeding it as a lifecycle-less active node SHALL NOT be used as a compromise:
+that leaves any landing declaring it as a prerequisite permanently unsatisfiable,
+which is an impossible graph rather than a representation of one.
 
 #### Scenario: A Complete landing without its envelope member is refused
 
@@ -1127,13 +1200,22 @@ prerequisite.
 - **WHEN** the envelope digest is recomputed
 - **THEN** it differs, and validation fails until the envelope is re-attested
 
-#### Scenario: A landing no policy covers carries no delivery lifecycle
+#### Scenario: An unrepresentable event is not admitted as a landing
 
-- **GIVEN** a landing whose completion consists of human acts in externally
-  hosted systems that neither v1 completion policy covers
-- **WHEN** it is seeded
-- **THEN** it carries no delivery lifecycle, satisfies no prerequisite, and the
-  model reports that rather than inventing a policy
+- **GIVEN** a program event whose completion consists of human acts in
+  externally hosted systems that neither v1 completion policy covers
+- **WHEN** the program is seeded
+- **THEN** it does not appear in the landings collection or the readiness graph,
+  it is recorded in the source manifest and historical context, and the landings
+  that historically followed it are seeded as roots
+
+#### Scenario: A lifecycle-less active node is refused
+
+- **GIVEN** a seed that admits such an event as a landing entity carrying no
+  delivery lifecycle
+- **WHEN** the checker validates the graph
+- **THEN** it fails — a node that can never satisfy a prerequisite is not a
+  legitimate member of the readiness graph
 
 ---
 

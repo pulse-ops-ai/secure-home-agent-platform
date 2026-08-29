@@ -415,7 +415,7 @@ writing code.
   refused as a dangling reference rather than resolved as an alias.
   Both are identity-bearing rule inputs, so extending either is a reviewed
   schema-version change rather than an implementation liberty.
-- **U-item severity.** `design.md` D2.2 includes severity in v1 as an authored
+- **U-item severity.** `design.md` D2.3 includes severity in v1 as an authored
   primitive that is explicitly **rule-free** and **not identity-bearing**: no
   predicate or readiness derivation may consume it, it is included in
   `primitiveDigest`, it is bound by the genesis attestation, and history treats

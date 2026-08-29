@@ -16,7 +16,11 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
-> **Revised again after review 5058244198** — `runner/L1` leaves the seeded
+> **Revised again after review 5058507190** — a human-only genesis attestation
+> ceremony, 6.4 aligned to the scan-universe/inventory-row split, 7.2 depending
+> on the task it tests, and `ADV-G50` proven in PR-1 where it belongs.
+>
+> **Revised after review 5058244198** — `runner/L1` leaves the seeded
 > graph, task 6.1 splits locally-verified from human-attested sources, the
 > completion envelope binds an observed lifecycle, and the PR-2 verification net
 > owns every newly added control.
@@ -192,7 +196,8 @@ atomic seam is present, and review has completed on one frozen head.
   identity-bound transition…*; `INV-G16`, `INV-G18`; `D4`, `D5.3`
 
   **Proof required** — current-revision manifestations only
-  - `ADV-G10` cycle · `ADV-G12` dangling reference
+  - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
+    identifier refused as a dangling reference
   - `ADV-G26` arbitrary commit as completion evidence
   - `ADV-G27` arbitrary issue + merged PR as spike evidence
   - `ADV-G28` retrospective OpenSpec archive substituted
@@ -214,7 +219,9 @@ atomic seam is present, and review has completed on one frozen head.
 - [ ] **3.1 Current-revision hostile corpus**
   <!-- agent-task: 3.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=2.4 -->
   **Proves** — `ADV-G01`–`G07`, `G09`, `G10`, `G12`, `G19`, `G23`, `G25`–`G28`,
-  `G30`, `G33`, `G37`–`G39`
+  `G30`, `G33`, `G37`–`G39`, **`G50`** (bare shorthand refused — proven here, in
+  the landing that owns reference resolution; PR-2 may repeat it as integration
+  coverage)
 
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
@@ -388,13 +395,24 @@ atomic seam is present, and review has completed on one frozen head.
   inventory*; `INV-G29`; `D7.1`, `D7.2`
 
   **Change**
-  Enumerate **every tracked file** — not only Markdown; `openspec/config.yaml`
-  is a YAML consumer ADR-0021 names by mandate — with disposition
-  `generated-region | stable-pointer | historical-record |
-  retained-semantic-prose | not-a-governance-consumer`, plus current path, fact
-  classes copied, generated-region identifier, migration landing, and the reason
-  for any retained prose. Counts are **generated from the enumeration**, never
-  written beside it.
+  Three contracts, kept distinct — the inventory is **not** one row per tracked
+  file:
+
+  | Contract | Definition |
+  |---|---|
+  | scan universe | **every tracked file**, not only Markdown — `openspec/config.yaml` is a YAML consumer ADR-0021 names by mandate |
+  | inventory rows | every **discovered governance surface**, plus exact classified exclusions |
+  | failure | a detected governance claim in a file with no row |
+
+  Each row carries current path, fact classes copied, one of the five closed
+  dispositions — `generated-region | stable-pointer | historical-record |
+  retained-semantic-prose | not-a-governance-consumer` — the generated-region
+  identifier where applicable, the migration landing, and the reason for any
+  retained prose. **No sixth disposition exists**; the 26 surfaces discovered in
+  live, unarchived OpenSpec changes are classified individually into those five,
+  never as a category of their own.
+
+  Counts are **generated from the enumeration**, never written beside it.
 
   The historical exemption is a **rule, not a glob**: archived, or evidenced as
   merged and frozen. The 26 files in live, unarchived OpenSpec changes are
@@ -441,6 +459,43 @@ atomic seam is present, and review has completed on one frozen head.
   - `ADV-G57` a prior lifecycle bound into a genesis completion preimage
   - `EX-G23` the envelope's members are exactly the landings seeded `Complete`
 
+- [ ] **6.6 Freeze the genesis artifacts for review**
+  <!-- agent-task: 6.6 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.5 -->
+
+  **Implements** — *Genesis attestations are a human act on frozen artifacts*
+  (step 1)
+
+  Freeze the candidate state, source manifest, consumer inventory, evidence
+  identities, historical-completion preimages, and every resulting digest, and
+  present them as a reviewable set. This task computes and presents; it
+  **records no attestation**.
+
+- [ ] **6.7 Human step: record the genesis attestations**
+  <!-- agent-task: 6.7 paths=none checks=manual risk=trust-critical prerequisites=6.6 -->
+
+  **Performed by the repository owner. An implementation agent may compute a
+  digest; it may not attest to one.** Without this step either the agent
+  self-asserts the owner's evidence, or a correct validator rejects every
+  historical `Complete` landing — and with them all downstream readiness.
+
+  **Implements** — *Genesis attestations are a human act on frozen artifacts*
+  (steps 2–5); `INV-G42`
+
+  | Field | Value |
+  |---|---|
+  | Actor | @mikegtech (repository owner) |
+  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, base commit, activation identity |
+  | Attests | `attestations.genesisCompletion` — envelope digest over the ordered member set for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
+  | Evidence reviewed | exactly the artifacts frozen by 6.6 |
+  | Authority reference | issue #106 |
+  | Recorded in | the candidate registry's `attestations` object, in this landing |
+  | Invalidated by | any change to a frozen artifact bound by either preimage — the ceremony restarts at 6.6 |
+
+  **Completion**
+  The checker, hostile suite, formatting and hosted CI re-run on the
+  **post-attestation head**, and this landing does not complete until that exact
+  head has passed review.
+
 ## 7. Verification net for PR-2
 
 - [ ] **7.1 Two-revision hostile corpus**
@@ -449,9 +504,10 @@ atomic seam is present, and review has completed on one frozen head.
   `G34`, `G35`, `G40`, `G41`, **`G58`**, **`G59`**
 
 - [ ] **7.2 Genesis, projection, and query corpus**
-  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,5.2 -->
+  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.7,5.2 -->
   **Proves** — `ADV-G17`, `G20`, `G22`, `G31`, `G32`, `G36`, `G42`–`G47`,
-  **`G50`**, **`G51`–`G53`**, **`G54`**, **`G56`**, **`G57`**, **`G60`**;
+  **`G51`–`G53`**, **`G54`**, **`G56`**, **`G57`**, **`G60`**; `G50` again as
+  integration coverage, having been proven in PR-1;
   `EX-G16`, `G17`, `G18`, `G19`, `G20`, **`G21`**, **`G22`**, **`G23`**;
   `PROP-G04`, `G05`
 
@@ -468,7 +524,11 @@ atomic seam is present, and review has completed on one frozen head.
       candidate seed.
 - [ ] **`governance/state.json` still does not exist**; the seed is at a fixture
       path and no consumer is generated from it.
-- [ ] The consumer inventory enumerates every current surface.
+- [ ] The consumer inventory enumerates every discovered governance surface,
+      each carrying one of the five closed dispositions.
+- [ ] **The repository owner has recorded both genesis attestations** on the
+      frozen artifacts, and the checker, hostile suite and hosted CI passed on
+      the post-attestation head.
 - [ ] Review completed on one frozen head.
 
 ---

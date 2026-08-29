@@ -4,7 +4,11 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-> **Revised again after review 5058244198** — `runner/L1` leaves the active
+> **Revised again after review 5058507190** — the human genesis ceremony, the
+> two new digests in the central table, the gate record's missing fields, and an
+> inventory table whose every row is one of the five closed dispositions.
+>
+> **Revised after review 5058244198** — `runner/L1` leaves the active
 > readiness graph, the genesis completion envelope gets a computable preimage
 > and a schema location, v1 declares no generic reactivation, and the consumer
 > inventory's counts become one derived number instead of two contradictory
@@ -101,7 +105,9 @@ ownership and semantics. The shape:
   "gates": [
     {
       "id": "runner/GATE-U4",
+      "kind": "gate",
       "predicate": { "name": "exactly-one-current-accepted-resolver", "question": "U4" },
+      "authorityAnchor": { "type": "github-issue", "repository": "pulse-ops-ai/secure-home-agent-platform", "number": 9 },
       "sources": ["docs/decisions/ADR-0021-establish-machine-readable-governance-state.md#3c"]
     }
   ],
@@ -117,7 +123,14 @@ ownership and semantics. The shape:
   "externalReferences": [],
   "attestations": {
     "genesis": {},
-    "genesisCompletion": {}
+    "genesisCompletion": {
+      "envelopeDigest": "…",
+      "members": [{ "landingId": "runner/L2", "digest": "…" }],
+      "actor": "…",
+      "at": "…",
+      "outcome": "attested",
+      "authority": { "type": "github-issue", "number": 106 }
+    }
   }
 }
 ```
@@ -226,6 +239,13 @@ defined preimage:
 | `transitionDigest` | `{schemaVersion, priorStateDigest\|null, targetPrimitiveDigest, subject, from, to, contentDigest, relationshipDigest}` |
 | `completionDigest` | `{landingId, from, to, authorityAnchor, deliveredIdentity, completionPolicy, …policy-specific}` |
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
+| `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
+| `genesisCompletionEnvelopeDigest` | the canonically ordered, closed set of `genesisHistoricalCompletionDigest` values |
+
+`completionDigest` covers a post-genesis **transition** and binds prior and
+target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
+**observation** and binds neither. The two are never interchangeable, and the
+normative requirement scopes the ordinary preimage to post-genesis accordingly.
 
 **D3.4 — Non-self-reference, stated precisely.** Every attestation is **excluded
 from the preimage it attests**. Two consequences that must both be stated,
@@ -311,7 +331,7 @@ No row yields `AUTHORIZED`.
 | Base supplied | Readable | Is a commit | Carries a registry | Outcome |
 | --- | --- | --- | --- | --- |
 | yes | yes | yes | yes | compare |
-| yes | yes | yes | **no** | **genesis exception** — see D8.2 |
+| yes | yes | yes | **no**, and the base matches the genesis evidence binding | **genesis exception** — see D8.2 |
 | yes | yes | no | — | fail; no fallback |
 | yes | no | — | — | fail; no fallback |
 | no | — | — | — | fail; no inference |
@@ -356,11 +376,14 @@ human review — never silently treated as empty or equivalent.
 | **Delivery lifecycle and completion evidence** | merged PRs, commits, archived child OpenSpec changes, spike evidence roots | policy-specific identity verification (D4) | locally-verified where objects exist |
 | **Completion policy identity** | per-landing human declaration | human attestation | **externally-attested** |
 
-**D6.2a — This planning contract becomes a local source once merged.** After
-PR #107 is reviewed, merged, and archived, its artifacts are content-addressable
-repository evidence. The genesis manifest binds their exact archived paths and
-content digests, so these values are **locally verified** rather than resting on
-an external human assertion:
+**D6.2a — This planning contract becomes a local source at its merge commit.**
+Once PR #107 is reviewed and merged, its five artifacts are content-addressable
+repository bytes. The genesis manifest binds their **exact file blob identities
+at that merge commit** — archival is **not** a prerequisite, because PR-1 and
+PR-2 need this evidence while the change is still active. An eventual archived
+copy may be checked for equivalence later, never required first. These values
+are therefore **locally verified** rather than resting on an external human
+assertion:
 
 - the gate-predicate vocabulary and the node-kind vocabulary (D2.1);
 - the canonical identifier form (D2.2) and canonicalization rules (D3);
@@ -502,7 +525,7 @@ claim an attestation existed when the original delivery occurred.
 Option B — one attestation per landing — was rejected because it would imply six
 separate human acts at six separate times; genesis is one review.
 
-**D6.5 — Attestation construction.****D6.5 — Attestation construction.** Bind `seedDigest`,
+**D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
 and a typed authority reference, with `priorStateDigest: null`, the attestation
 excluded from its own preimage. The separate equivalence digest is what makes a
@@ -539,12 +562,23 @@ The table below is generated from it; no count is maintained beside the list.
 | **generated-region** | 2 | `docs/decisions/INDEX.md` (lifecycle regions), `docs/architecture/unresolved-decisions.md` (summary table, resolution banners) |
 | **stable-pointer** | **38** | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, **`openspec/config.yaml`**, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, `docs/architecture/api-contract-model.md`, `docs/architecture/degraded-mode.md`, `docs/architecture/distributed-effect-lifecycle.md`, `docs/architecture/effect-boundary-model.md`, `docs/architecture/knowledge-promotion-model.md`, `docs/architecture/knowledge-selection-model.md`, `docs/architecture/runner-model.md` |
 | **retained-semantic-prose** | 1 | `docs/architecture/agent-triage-and-escalation.md` — explanatory, not a current-state claim; reason in its row |
-| **live OpenSpec changes** | 26 | active, unarchived artifacts under `openspec/changes/<id>/` — **not historical**; see D7.2a |
 | **historical-record** | 27 | accepted decision bodies, `openspec/changes/archive/**`, `docs/spikes/**`, `openspec/specs/**` |
 | **not-a-governance-consumer** | 5 | `openspec/schemas/**`, `scripts/validate-scaffold.sh`, `tests/test_knowledge_catalog.py` — tooling and template text |
 
 **Live consumers total 41** = 2 generated-region + 1 retained-prose + 38
-stable-pointer.
+stable-pointer. Every row above is one of the **five closed dispositions**;
+there is no sixth, so `consumers.json` can generate this table without an
+undocumented enum.
+
+**Scan analysis — not a disposition and not an inventory subtotal.** The scan
+also discovered **26** surfaces in active, unarchived OpenSpec changes under
+`openspec/changes/<id>/`. That number is an *analysis* result recording where
+the scan found governance fact classes; it is deliberately **not** a row above,
+because a blanket classification of 26 files would be an assertion rather than a
+review. Each is classified individually into one of the five dispositions by the
+enumeration task, and until it is, its governance claim has no row and therefore
+**fails**. What is decided here is only that they may not inherit the historical
+exemption (D7.2a).
 
 `openspec/config.yaml` is **listed in the enumeration above**, not added to it by
 a footnote. The previous version wrote "37 measured + `openspec/config.yaml` by
@@ -730,7 +764,7 @@ predicate names or node kinds (reviewed schema-version change); a nested
    leave most of the 27 measured sequencing copies outside the authority.
 8. **Exclude severity from v1.** Rejected: the unresolved-decision projection
    renders it, and a generated table cannot render what the registry does not
-   hold. Included as rule-free data instead (D2.2).
+   hold. Included as rule-free data instead (D2.3).
 
 ---
 

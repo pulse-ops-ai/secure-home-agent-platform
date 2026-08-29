@@ -152,8 +152,9 @@ accordingly.
 - **INV-G33** Program-node identifiers are namespaced and used byte-for-byte
   everywhere; a bare shorthand is a dangling reference, never an alias.
 - **INV-G34** Every landing seeded `Complete` has a member in the genesis
-  completion envelope; a landing no v1 policy covers carries no delivery
-  lifecycle rather than a manufactured one.
+  completion envelope; a program event no v1 policy can represent is **not
+  admitted as a landing entity at all**, appearing only as source and historical
+  context (INV-G38).
 - **INV-G35** The historical exemption is a rule — archived or evidenced as
   merged and frozen — never a path glob; live unarchived change artifacts are
   classified on their own merits.
@@ -171,7 +172,14 @@ accordingly.
 - **INV-G40** The genesis exception applies only to the base bound by the
   genesis evidence; v1 defines no reactivation, so no later change can re-run it.
 - **INV-G41** Every displayed inventory count is generated from the
-  machine-readable inventory; no count is maintained beside the enumeration.
+  machine-readable inventory; no count is maintained beside the enumeration, and
+  every row carries one of the five closed dispositions.
+- **INV-G42** Both genesis attestations are recorded by the repository owner on
+  frozen artifacts; an implementation may compute a digest but never attest to
+  one, and any post-attestation edit to a bound artifact invalidates it.
+- **INV-G43** The ordinary completion digest binds prior and target lifecycle
+  and applies only post-genesis; a genesis historical completion binds the
+  observed lifecycle only. Neither substitutes for the other.
 
 ---
 
@@ -349,7 +357,9 @@ it.
 | INV-G38 | `ADV-G56` completed node behind an unsatisfiable prerequisite | hostile |
 | INV-G39 | `ADV-G57` prior-lifecycle bound into a genesis completion | hostile |
 | INV-G40 | `ADV-G58` unbound registry-less base; `ADV-G59` replacement activation | hostile |
-| INV-G41 | `EX-G21` counts regenerate to the enumeration | independent re-derivation |
+| INV-G41 | `EX-G21` counts regenerate to the enumeration; `ADV-G60` | independent re-derivation + hostile |
+| INV-G42 | `ADV-G61` agent-produced attestation; `ADV-G62` post-attestation edit | hostile |
+| INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -459,7 +469,15 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G59** A replacement activation after a revert, attempting a second
   genesis.
 - **ADV-G60** A prose inventory count disagreeing with the machine-readable
-  inventory it summarizes.
+  inventory it summarizes, or a row carrying a disposition outside the closed
+  five.
+- **ADV-G61** A genesis or genesis-completion attestation produced by the
+  implementation rather than recorded by the repository owner.
+- **ADV-G62** An edit, after attestation, to any artifact the attested preimage
+  binds.
+- **ADV-G63** An ordinary `completionDigest` used for a genesis historical
+  completion, or a `genesisHistoricalCompletionDigest` used for a post-genesis
+  transition.
 
 ### Provable only by the two-revision history checker (PR-2)
 
@@ -535,9 +553,10 @@ no-op that still returns success is the failure mode being hunted.
 | Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
 | Genesis source manifest | PR-2 | 6 | ADV-G20, G31, G42, G43; MUT-G10 |
 | Consumer inventory | PR-2 | 6 | ADV-G46, G47; EX-G20 |
-| Namespaced identifiers | PR-1 | 1 | ADV-G50 |
+| Namespaced identifiers | PR-1 | 2, 3 | ADV-G50 — proven in PR-1; repeated in PR-2 as integration |
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
-| Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57; EX-G23 |
+| Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
+| Human genesis ceremony | PR-2 | 6 (6.6, 6.7) | ADV-G61, ADV-G62 |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
 | Live-change exemption rule | PR-2 | 6 | ADV-G54 |
 | Bound activation / no reactivation | PR-2 | 4 | ADV-G58, ADV-G59 |
