@@ -989,27 +989,76 @@ the repository owner, not produced by the implementation. An implementation MAY
 compute preimages and digests and present them for review; it SHALL NOT record
 either attestation on the owner's behalf.
 
+**Authorship SHALL be enforced by human review, not by the checker.** The
+checker is offline and the envelope carries no signature, trusted key, signed
+object, or independently controlled review artifact, so it has **no observable
+fact** distinguishing an owner-recorded envelope from an implementation-recorded
+one. The specification SHALL NOT claim that it does.
+
+The `actor` field SHALL be treated as a **recorded assertion**, not as proof of
+identity.
+
+What the checker SHALL prove mechanically:
+
+- envelope shape and closed-schema conformance;
+- that every bound preimage recomputes to the recorded digest;
+- the content digest of every referenced artifact;
+- the **shape** of the authority reference;
+- immutability of the envelope and its bound artifacts thereafter.
+
+What **human review** SHALL prove: that the repository owner personally
+performed the attestation act.
+
+A machine-verifiable alternative — a detached owner signature over the
+attestation preimages, under a governed trust root — SHALL require its own
+decision covering key custody, rotation, and revocation. Version one does not
+adopt it.
+
+The genesis attestation binds an `activationIdentity`. The ceremony SHALL
+therefore occur in the landing where that identity **exists** — the activation
+landing — and SHALL NOT be required of an earlier landing that would have to
+bind an identity not yet allocated.
+
+`activationIdentity` SHALL be a closed typed reference of the form
+`{ type, repository, number }`, supplied to the checker by CI and compared
+byte-for-byte against the value the genesis evidence binds.
+
 The ceremony SHALL be ordered:
 
-1. the candidate state, source manifest, consumer inventory, evidence
-   identities, historical-completion preimages, and every resulting digest are
-   **frozen**;
-2. the repository owner reviews **those exact frozen artifacts**;
-3. the owner records `attestations.genesis` and
+1. an earlier landing computes and **freezes** the candidate state, source
+   manifest, consumer inventory, evidence identities, historical-completion
+   preimages, and every resulting digest, and proves the whole mechanism using
+   **test** attestations over fixtures. It SHALL NOT claim that the real
+   activation has been attested;
+2. the activation landing's pull request is opened first, allocating the stable
+   identity bound as `activationIdentity`;
+3. the repository owner reviews **those exact frozen artifacts** together with
+   the allocated identity;
+4. the owner records `attestations.genesis` and
    `attestations.genesisCompletion`;
-4. the real checker, the hostile suite, formatting, and hosted CI re-run on the
+5. the real checker, the hostile suite, formatting, and hosted CI re-run on the
    **post-attestation head**;
-5. the landing does not complete until that exact head has passed review.
+6. the landing does not complete until that exact head has passed review.
 
 Any change to a frozen artifact after step 3 SHALL invalidate the attestation
 bound to it, and the ceremony SHALL restart from step 1.
 
-#### Scenario: An attestation the owner did not record is refused
+#### Scenario: Authorship is a review gate, and the checker does not claim it
 
-- **GIVEN** a genesis or genesis-completion attestation produced by the
-  implementation rather than recorded by the repository owner
+- **GIVEN** a well-formed, correctly bound attestation envelope
 - **WHEN** the checker validates it
-- **THEN** it fails — computing a digest is not attesting to it
+- **THEN** it reports the shape, bindings and digests as valid **and makes no
+  claim about who authored it** — authorship is established at the human review
+  gate, and a control asserting the checker can tell is not admissible
+
+#### Scenario: A malformed or mis-bound envelope is refused mechanically
+
+- **GIVEN** an attestation envelope whose shape is invalid, whose bound preimage
+  does not recompute to the recorded digest, or whose authority reference is
+  malformed
+- **WHEN** the checker validates it
+- **THEN** it fails — the parts that *are* mechanically decidable remain fully
+  enforced
 
 #### Scenario: A post-attestation edit invalidates the attestation
 
@@ -1150,7 +1199,19 @@ The three completion-related digests SHALL be distinct and separately defined:
 
 The `attestations.genesisCompletion` envelope SHALL carry the
 `genesisCompletionEnvelopeDigest`, the ordered member set, the actor, an RFC 3339
-time, the outcome, and a typed authority reference. Adding, removing, or
+time, the outcome, and a typed authority reference.
+
+Its `members` collection SHALL be an **entity set**: member shape
+`{ landingId, digest }`, identity key `landingId`, canonical order `landingId`
+ascending, duplicate `landingId` rejected, and the same `digest` appearing under
+two `landingId` values rejected. The envelope preimage SHALL be the canonically
+ordered member **tuples**, not bare digest strings, so that a digest cannot be
+silently reassociated with a different landing. Member order SHALL carry no
+meaning.
+
+Every policy-specific evidence-identity collection SHALL likewise be a canonical
+set: order carries no meaning, duplicates are rejected, and the canonical sort is
+over member bytes. Adding, removing, or
 altering any member SHALL change the envelope digest. The envelope SHALL be
 excluded from its own preimage.
 
@@ -1183,6 +1244,22 @@ which is an impossible graph rather than a representation of one.
 - **WHEN** the checker validates the completion
 - **THEN** it fails — evidence locates the delivery; the attestation is the
   human act that accepts it
+
+#### Scenario: Reordering envelope members changes nothing
+
+- **GIVEN** two envelopes differing only in the order of their members
+- **WHEN** each is canonicalized
+- **THEN** they produce identical bytes and an identical
+  `genesisCompletionEnvelopeDigest`
+
+#### Scenario: A duplicated member or reassociated digest is refused
+
+- **GIVEN** an envelope carrying the same `landingId` twice, the same `digest`
+  under two `landingId` values, or a duplicated evidence identity
+- **WHEN** the checker validates it
+- **THEN** it fails naming the duplicate — and because the preimage binds
+  `{landingId, digest}` tuples, a digest moved to a different landing changes the
+  envelope digest rather than passing silently
 
 #### Scenario: A genesis completion binds no invented prior lifecycle
 

@@ -4,7 +4,12 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-> **Revised again after review 5058507190** — the human genesis ceremony, the
+> **Revised again after the `2d04d3d` review** — attestation authorship is a
+> manual gate rather than a machine claim the offline checker cannot make, the
+> real genesis ceremony moves to PR-3 where the activation identity exists, and
+> the envelope's member collection is classified like every other collection.
+>
+> **Revised after review 5058507190** — the human genesis ceremony, the
 > two new digests in the central table, the gate record's missing fields, and an
 > inventory table whose every row is one of the five closed dispositions.
 >
@@ -222,6 +227,31 @@ and the classification is part of the schema:
 | **Entity** | `adrs[]`, `questions[]`, `gates[]`, `landings[]`, `externalReferences[]` | sorted by stable id, ascending | **rejected** (duplicate identifier) | none |
 | **Set-valued relationship** | `resolves[]`, `supersedes[]`, `requires[]`, `sources[]` | sorted, ascending | **rejected** (duplicate member) | **none** — `["runner/GATE-U4","runner/L8"]` and its reverse are the same value and must produce identical bytes |
 | **Sequence-valued** | reviewed ordering intent, where order is explicitly semantic | order preserved as authored | rejected | **semantic**, and therefore included in the identity-bearing preimage |
+| **Entity set** | `attestations.genesisCompletion.members[]` | sorted by `landingId` ascending | **duplicate `landingId` rejected**; a duplicate `digest` across two landings is also rejected | **none** |
+| **Evidence-identity set** | `policyEvidenceIdentities[]` and every policy-specific identity collection | sorted by canonical member bytes | duplicates rejected | **none** |
+
+**D3.2a — The envelope's member collection, exactly.** It was previously called
+a "canonically ordered, closed set" without saying what that meant, which left
+two implementations free to produce different bytes for the same envelope —
+weakening the digest that exists to protect the historical completion seed:
+
+```text
+attestations.genesisCompletion.members:
+  class            entity set
+  member shape     { landingId, digest }
+  identity key     landingId
+  canonical order  landingId ascending
+  duplicates       duplicate landingId rejected;
+                   the same digest under two landingIds rejected
+  envelope preimage
+                   the canonically ordered member TUPLES {landingId, digest},
+                   not bare digest strings — so a digest cannot be silently
+                   reassociated with a different landing
+```
+
+Every policy-specific evidence-identity collection is an **evidence-identity
+set**: order carries no meaning, duplicates are rejected, and the canonical sort
+is over member bytes.
 
 A sequence-valued field exists only where ADR-0021 §3 D.1's "reviewed ordering
 intent" applies. Every other array is a set: the canonical sort makes logically
@@ -331,7 +361,7 @@ No row yields `AUTHORIZED`.
 | Base supplied | Readable | Is a commit | Carries a registry | Outcome |
 | --- | --- | --- | --- | --- |
 | yes | yes | yes | yes | compare |
-| yes | yes | yes | **no**, and the base matches the genesis evidence binding | **genesis exception** — see D8.2 |
+| yes | yes | yes | **no**, **and** base commit, source snapshot and `activationIdentity` all match the genesis evidence binding | **genesis exception** — see D8.2 |
 | yes | yes | no | — | fail; no fallback |
 | yes | no | — | — | fail; no fallback |
 | no | — | — | — | fail; no inference |
@@ -512,8 +542,8 @@ snapshot rather than replaying a transition it did not witness.
 **Location in the closed schema:** `attestations.genesisCompletion`. It is a
 sibling of `attestations.genesis`, not nested inside it, because the two attest
 different things — `genesis` binds the seed and its relationship equivalence;
-`genesisCompletion` binds the canonically ordered, closed set of
-`genesisHistoricalCompletionDigest` values. A closed, unknown-field-rejecting
+`genesisCompletion` binds the canonically ordered, duplicate-free set of
+`{landingId, genesisHistoricalCompletionDigest}` tuples classified in D3.2a. A closed, unknown-field-rejecting
 schema cannot be satisfied by "genesis carries an envelope"; the field is named
 here so the checker can require it. Each is excluded from its own preimage.
 
@@ -524,6 +554,37 @@ claim an attestation existed when the original delivery occurred.
 
 Option B — one attestation per landing — was rejected because it would imply six
 separate human acts at six separate times; genesis is one review.
+
+**D6.7 — Attestation authorship is a manual gate, and the checker does not
+pretend otherwise.** The specification previously said the checker rejects an
+attestation "produced by the implementation rather than recorded by the
+repository owner". An **offline** checker cannot establish that. The stored
+envelope is ordinary JSON — actor, time, outcome, authority reference — with no
+signature, no trusted owner key, no signed Git object, and no independently
+controlled review artifact. An implementation can write the same `actor` bytes a
+human can, and no observable fact distinguishes them.
+
+Claiming otherwise would have been the worst kind of control: one that reads as
+mechanical and proves nothing.
+
+The division of labour is therefore explicit:
+
+| Proven mechanically | Proven by human review |
+| --- | --- |
+| envelope shape and closed-schema conformance | that the repository owner personally performed the attestation act |
+| that every bound preimage recomputes to the recorded digest | |
+| content digests of every referenced artifact | |
+| authority-reference **shape** | |
+| immutability of the envelope and its bound artifacts thereafter | |
+
+**The `actor` string is a recorded assertion, not proof of identity.** It is
+evidence for a human reviewer, and the design does not treat it as more.
+
+The alternative — a detached owner signature over the attestation preimages with
+a governed trust root — would be machine-verifiable, and is a materially larger
+design requiring its own decision about key custody, rotation, and revocation.
+Version one does not adopt it, and the manual gate is named as such rather than
+disguised as automation.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
@@ -765,6 +826,44 @@ predicate names or node kinds (reviewed schema-version change); a nested
 8. **Exclude severity from v1.** Rejected: the unresolved-decision projection
    renders it, and a generated table cannot render what the registry does not
    hold. Included as rule-free data instead (D2.3).
+
+---
+
+## D10a. The activation identity, and where the real ceremony happens
+
+The genesis attestation binds an `activationIdentity`. The previous plan placed
+the owner's real attestation in **PR-2** while the activation is **PR-3** — so
+the identity being bound did not yet exist. Inserting it later would change the
+artifact the owner had already attested and restart the ceremony; making it the
+eventual merge commit would be self-referential.
+
+**Schema.** `activationIdentity` is a closed typed reference:
+
+```json
+{ "type": "github-pull-request",
+  "repository": "pulse-ops-ai/secure-home-agent-platform",
+  "number": 0 }
+```
+
+CI supplies the same value it supplies for the explicit history base, and the
+checker compares it byte-for-byte against the value the genesis evidence binds.
+
+**Sequence.** The real ceremony moves to PR-3, where the identity exists:
+
+| Landing | Attestations |
+| --- | --- |
+| **PR-2** | computes and **freezes** the candidate state, source manifest, consumer inventory, evidence identities, historical-completion preimages and every digest; proves the whole mechanism using **test** attestations over fixtures. It does **not** claim the real activation has been attested. |
+| **PR-3** | the draft activation PR is opened first, yielding a stable PR number; that `{repository, number}` is bound as `activationIdentity`; the external index's conditional text is written with the same number; the **owner records the two real attestations**; the complete gate re-runs on the post-attestation head; the landing merges atomically. |
+
+This keeps PR-2 honest — it proves the machinery, not the ceremony — and leaves
+PR-3's "no new authoring" claim true of the *registry content*, which is
+promoted unchanged; only the attestation envelopes and the activation identity
+are added, and both are the activation's own business.
+
+A preallocated logical activation identifier would also work, but only with its
+type, uniqueness rule, relation to the real PR number, and CI input defined.
+Version one takes the simpler route: the PR number, allocated by opening the
+draft first.
 
 ---
 

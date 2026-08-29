@@ -16,7 +16,11 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
-> **Revised again after review 5058507190** — a human-only genesis attestation
+> **Revised again after the `2d04d3d` review** — the real owner ceremony moves
+> to PR-3, where the activation identity exists; PR-2 proves the mechanism with
+> test attestations; and 6.7's task metadata names the file it changes.
+>
+> **Revised after review 5058507190** — a human-only genesis attestation
 > ceremony, 6.4 aligned to the scan-universe/inventory-row split, 7.2 depending
 > on the task it tests, and `ADV-G50` proven in PR-1 where it belongs.
 >
@@ -435,8 +439,9 @@ atomic seam is present, and review has completed on one frozen head.
 
   **Change**
   One envelope at the schema-declared location `attestations.genesisCompletion`,
-  binding a canonically ordered, closed set of
-  `genesisHistoricalCompletionDigest` values for the six landings seeded
+  binding the canonically ordered, duplicate-free set of
+  `{landingId, genesisHistoricalCompletionDigest}` tuples (D3.2a) for the six
+  landings seeded
   `Complete` — `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`,
   `runner/L7`.
 
@@ -470,31 +475,29 @@ atomic seam is present, and review has completed on one frozen head.
   present them as a reviewable set. This task computes and presents; it
   **records no attestation**.
 
-- [ ] **6.7 Human step: record the genesis attestations**
-  <!-- agent-task: 6.7 paths=none checks=manual risk=trust-critical prerequisites=6.6 -->
-
-  **Performed by the repository owner. An implementation agent may compute a
-  digest; it may not attest to one.** Without this step either the agent
-  self-asserts the owner's evidence, or a correct validator rejects every
-  historical `Complete` landing — and with them all downstream readiness.
+- [ ] **6.7 Prove the attestation mechanism with test attestations**
+  <!-- agent-task: 6.7 paths=tests/fixtures/governance/candidate/**,tests/test_governance_state.py checks=node,pytest risk=trust-critical prerequisites=6.6 -->
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
-  (steps 2–5); `INV-G42`
+  (step 1); `INV-G43`
 
-  | Field | Value |
-  |---|---|
-  | Actor | @mikegtech (repository owner) |
-  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, base commit, activation identity |
-  | Attests | `attestations.genesisCompletion` — envelope digest over the ordered member set for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
-  | Evidence reviewed | exactly the artifacts frozen by 6.6 |
-  | Authority reference | issue #106 |
-  | Recorded in | the candidate registry's `attestations` object, in this landing |
-  | Invalidated by | any change to a frozen artifact bound by either preimage — the ceremony restarts at 6.6 |
+  **Change**
+  Exercise the whole attestation path — preimage construction, digest
+  computation, envelope shape, member-set canonicalization, immutability — using
+  **test** attestations over fixtures.
 
-  **Completion**
-  The checker, hostile suite, formatting and hosted CI re-run on the
-  **post-attestation head**, and this landing does not complete until that exact
-  head has passed review.
+  **This task does not perform the real ceremony and must not claim it has.**
+  The real attestation binds an `activationIdentity` that does not exist until
+  the activation pull request is opened in PR-3. Binding a not-yet-allocated
+  identity here would either force the ceremony to restart when the real number
+  arrived, or make the binding self-referential.
+
+  **Proof required**
+  - `ADV-G62` a post-attestation edit to a bound artifact invalidates it
+  - `ADV-G64` reordered envelope members produce identical bytes
+  - `ADV-G65` duplicate `landingId`, or one `digest` under two landings
+  - `EX-G24` the checker validates shape, bindings and digests and **makes no
+    claim about authorship**
 
 ## 7. Verification net for PR-2
 
@@ -504,7 +507,7 @@ atomic seam is present, and review has completed on one frozen head.
   `G34`, `G35`, `G40`, `G41`, **`G58`**, **`G59`**
 
 - [ ] **7.2 Genesis, projection, and query corpus**
-  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.7,5.2 -->
+  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.6,6.7,5.2 -->
   **Proves** — `ADV-G17`, `G20`, `G22`, `G31`, `G32`, `G36`, `G42`–`G47`,
   **`G51`–`G53`**, **`G54`**, **`G56`**, **`G57`**, **`G60`**; `G50` again as
   integration coverage, having been proven in PR-1;
@@ -526,9 +529,8 @@ atomic seam is present, and review has completed on one frozen head.
       path and no consumer is generated from it.
 - [ ] The consumer inventory enumerates every discovered governance surface,
       each carrying one of the five closed dispositions.
-- [ ] **The repository owner has recorded both genesis attestations** on the
-      frozen artifacts, and the checker, hostile suite and hosted CI passed on
-      the post-attestation head.
+- [ ] The attestation mechanism is proven with **test** attestations, and this
+      landing makes **no claim** that the real activation has been attested.
 - [ ] Review completed on one frozen head.
 
 ---
@@ -540,8 +542,16 @@ registry appears, and it appears already protected.
 
 ## 8. Activation
 
+- [ ] **8.0 Open the activation pull request to allocate `activationIdentity`**
+  <!-- agent-task: 8.0 paths=none checks=manual risk=trust-critical prerequisites=7.3 -->
+
+  The draft activation PR is opened **before** anything binds its identity,
+  yielding a stable number. `activationIdentity` is the closed typed reference
+  `{ type: "github-pull-request", repository, number }`, supplied to the checker
+  by CI and compared byte-for-byte against the value the genesis evidence binds.
+
 - [ ] **8.1 Human step: write the conditional handoff into the external index**
-  <!-- agent-task: 8.1 paths=none checks=manual risk=trust-critical prerequisites=7.2 -->
+  <!-- agent-task: 8.1 paths=none checks=manual risk=trust-critical prerequisites=8.0 -->
 
   **Performed by the repository owner — no implementation agent can edit a
   GitHub issue.**
@@ -579,8 +589,37 @@ registry appears, and it appears already protected.
 
   **Gate:** activation is **refused** unless that binding is present.
 
+- [ ] **8.1a Human step: record the two real genesis attestations**
+  <!-- agent-task: 8.1a paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.1 -->
+
+  **Performed by the repository owner. An implementation agent may compute a
+  digest; it may not attest to one.**
+
+  **Implements** — *Genesis attestations are a human act on frozen artifacts*
+  (steps 2–6); `INV-G42`
+
+  | Field | Value |
+  |---|---|
+  | Actor | @mikegtech (repository owner) |
+  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, base commit, **`activationIdentity` allocated by 8.0** |
+  | Attests | `attestations.genesisCompletion` — envelope digest over the ordered `{landingId, digest}` members for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
+  | Evidence reviewed | exactly the artifacts frozen by 6.6, plus the allocated identity |
+  | Authority reference | issue #106 |
+  | **Recorded in** | **`governance/state.json`** — the `attestations` object |
+  | Invalidated by | any change to a frozen artifact bound by either preimage; the ceremony restarts at 6.6 |
+
+  **Authorship is a review gate, not a machine check.** The offline checker has
+  no signature or trust root, so it proves shape, bindings, digests and
+  subsequent immutability — and makes no claim about who authored the envelope.
+  The `actor` string is a recorded assertion.
+
+  **Completion**
+  The checker, hostile suite, formatting and hosted CI re-run on the
+  **post-attestation head**, and PR-3 does not complete until that exact head
+  has passed review.
+
 - [ ] **8.2 Promote the candidate artifacts to their canonical paths**
-  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
+  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1a -->
 
   The already-proven candidates move to their durable paths — no new authoring:
 
@@ -623,6 +662,11 @@ registry appears, and it appears already protected.
 - [ ] The complete seam is present: registry, genesis attestation, **completion
       envelope**, source manifest, consumer inventory, generated regions **and
       their deletions**, pointers, all gates, bound conditional handoff.
+- [ ] **The repository owner recorded both real attestations** (8.1a) binding the
+      `activationIdentity` allocated by 8.0, and the full gate passed on the
+      post-attestation head.
+- [ ] Human review confirmed the owner performed the attestation act — the
+      checker does not and cannot establish authorship.
 - [ ] **No second copy of authored current state remains usable** — the
       candidate directory is removed or explicitly frozen and refused.
 - [ ] **No surviving hand-authored copy of any fact the registry owns.**

@@ -4,7 +4,12 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
-> **Revised again after review 5058244198** — `runner/L1` leaves the graph, the
+> **Revised again after the `2d04d3d` review** — the T3 genesis row now states
+> the same mechanically testable condition as the design, ADV-G58/G59 move into
+> the history-only partition, and ADV-G61 is reclassified as the manual control
+> it actually is.
+>
+> **Revised after review 5058244198** — `runner/L1` leaves the graph, the
 > new controls gain traceability owners, and the identifiers in the hostile
 > corpus are namespaced.
 >
@@ -175,8 +180,15 @@ accordingly.
   machine-readable inventory; no count is maintained beside the enumeration, and
   every row carries one of the five closed dispositions.
 - **INV-G42** Both genesis attestations are recorded by the repository owner on
-  frozen artifacts; an implementation may compute a digest but never attest to
-  one, and any post-attestation edit to a bound artifact invalidates it.
+  frozen artifacts, in the landing where `activationIdentity` exists; an
+  implementation may compute a digest but never attest to one, and any
+  post-attestation edit to a bound artifact invalidates it. **Authorship is
+  established by human review; the checker proves shape, bindings, digests and
+  immutability only.**
+- **INV-G44** The envelope's `members` is an entity set keyed by `landingId`,
+  canonically ordered, duplicate-free, with the preimage over
+  `{landingId, digest}` tuples so a digest cannot be reassociated with another
+  landing.
 - **INV-G43** The ordinary completion digest binds prior and target lifecycle
   and applies only post-genesis; a genesis historical completion binds the
   observed lifecycle only. Neither substitutes for the other.
@@ -253,7 +265,7 @@ Independent dimensions that materially affect behavior:
 | Base supplied | Readable | Is a commit | Carries a registry | Outcome |
 | --- | --- | --- | --- | --- |
 | yes | yes | yes | yes | compare |
-| yes | yes | yes | **no**, and this is the activation revision | **genesis exception** — no prior revision exists; the genesis attestation and completion envelope are the proof |
+| yes | yes | yes | **no**, **and** base commit, source snapshot and `activationIdentity` all match the genesis evidence binding | **genesis exception** — no prior revision exists; the genesis attestation and completion envelope are the proof |
 | yes | yes | yes | **no**, after activation | **fail** — the registry was deleted; never a second genesis |
 | yes | yes | no | — | **fail** — no fallback |
 | yes | no | — | — | **fail** — no fallback |
@@ -358,7 +370,9 @@ it.
 | INV-G39 | `ADV-G57` prior-lifecycle bound into a genesis completion | hostile |
 | INV-G40 | `ADV-G58` unbound registry-less base; `ADV-G59` replacement activation | hostile |
 | INV-G41 | `EX-G21` counts regenerate to the enumeration; `ADV-G60` | independent re-derivation + hostile |
-| INV-G42 | `ADV-G61` agent-produced attestation; `ADV-G62` post-attestation edit | hostile |
+| INV-G42 | `ADV-G62` post-attestation edit; `EX-G24` checker makes no authorship claim | hostile + example |
+| INV-G42 (authorship) | **`MAN-G01`** | **manual review** |
+| INV-G44 | `ADV-G64`, `ADV-G65` | hostile |
 | INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
@@ -464,15 +478,13 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   rather than special-cased.
 - **ADV-G57** A genesis historical completion whose preimage binds a prior
   lifecycle the repository does not evidence.
-- **ADV-G58** An older registry-less commit supplied as the explicit base,
-  unmatched by the genesis evidence binding, attempting to claim the exception.
-- **ADV-G59** A replacement activation after a revert, attempting a second
-  genesis.
 - **ADV-G60** A prose inventory count disagreeing with the machine-readable
   inventory it summarizes, or a row carrying a disposition outside the closed
   five.
-- **ADV-G61** A genesis or genesis-completion attestation produced by the
-  implementation rather than recorded by the repository owner.
+- **ADV-G64** Reordered envelope members — bytes and envelope digest must be
+  unchanged.
+- **ADV-G65** Duplicate `landingId` in the envelope, one `digest` under two
+  landings, or a duplicated evidence identity.
 - **ADV-G62** An edit, after attestation, to any artifact the attested preimage
   binds.
 - **ADV-G63** An ordinary `completionDigest` used for a genesis historical
@@ -498,6 +510,10 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G29** Delivery evidence mutated or removed after a terminal lifecycle.
 - **ADV-G34** Record deleted or renumbered.
 - **ADV-G35** Resolved question's current resolver disappears.
+- **ADV-G58** An older registry-less commit supplied as the explicit base,
+  unmatched by the genesis evidence binding, attempting to claim the exception.
+- **ADV-G59** A replacement activation after a revert, attempting a second
+  genesis.
 
 ### Genesis (PR-2, proven without a prior revision)
 
@@ -512,6 +528,25 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   `runner/GATE-U6`, `runner/GATE-U4` missing.
 - **ADV-G45** Delivery lifecycle taken from issue state rather than repository
   evidence.
+
+### Manual controls — not machine-decidable, and not claimed to be
+
+- **MAN-G01** (was `ADV-G61`) **Attestation authorship.** That the repository
+  owner personally recorded `attestations.genesis` and
+  `attestations.genesisCompletion` is established at the **human review gate**,
+  not by the checker. The checker is offline and the envelope carries no
+  signature, trusted key, or signed object, so it has no observable fact
+  distinguishing an owner-recorded envelope from an implementation-recorded one.
+  The `actor` string is a recorded assertion, not proof of identity.
+
+  What remains fully automated: envelope shape, preimage recomputation, content
+  digests, authority-reference shape, and immutability thereafter — `ADV-G62`,
+  `ADV-G64`, `ADV-G65`, `EX-G24`.
+
+  A machine-verifiable alternative (detached owner signature under a governed
+  trust root) is a separate decision covering key custody, rotation and
+  revocation. Version one does not adopt it, and this control is named as manual
+  rather than dressed as a hostile case the suite cannot actually run.
 
 ## Mutation targets
 
@@ -556,7 +591,8 @@ no-op that still returns success is the failure mode being hunted.
 | Namespaced identifiers | PR-1 | 2, 3 | ADV-G50 — proven in PR-1; repeated in PR-2 as integration |
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
 | Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
-| Human genesis ceremony | PR-2 | 6 (6.6, 6.7) | ADV-G61, ADV-G62 |
+| Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62, ADV-G64, ADV-G65; EX-G24 |
+| Real genesis ceremony | **PR-3** | 8 (8.0, 8.1a) | MAN-G01 (manual) |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
 | Live-change exemption rule | PR-2 | 6 | ADV-G54 |
 | Bound activation / no reactivation | PR-2 | 4 | ADV-G58, ADV-G59 |
