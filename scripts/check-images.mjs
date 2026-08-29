@@ -112,7 +112,12 @@ const gatePins = (root) => {
   const uv = checks.match(/UV_VERSION:\s*'([^']+)'/)?.[1]
   let pnpm
   try {
-    pnpm = JSON.parse(readFileSync(manifestPath, 'utf8')).packageManager?.match(/^pnpm@(.+)$/)?.[1]
+    // packageManager may carry corepack's integrity suffix
+    // (pnpm@1.2.3+sha512.<hex>). The image mirrors the VERSION; the artifact
+    // itself is pinned separately, by ARG PNPM_SHA256 over the same tarball.
+    pnpm = JSON.parse(readFileSync(manifestPath, 'utf8')).packageManager?.match(
+      /^pnpm@([^+]+)/,
+    )?.[1]
   } catch {
     pnpm = undefined
   }
