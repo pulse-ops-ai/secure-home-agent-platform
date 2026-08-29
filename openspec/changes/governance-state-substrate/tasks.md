@@ -16,7 +16,11 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
-> **Revised again after review 5058683298** — the PR-3 order is made possible
+> **Revised again after review 5058723445** — withdrawal and replacement are
+> owned by implementation and verification tasks, PR-3's seam becomes one
+> commit, and PR-4 depends on a merged PR-3 rather than on a mid-landing task.
+>
+> **Revised after review 5058683298** — the PR-3 order is made possible
 > (build the seam, freeze, attest, verify), PR-1 owns all five collection
 > classes, and the PR-1 completion definition no longer claims an activation
 > seam it must not contain.
@@ -142,8 +146,8 @@ PR-1 must not contain — and review has completed on one frozen head.
   **Change**
   Duplicate keys rejected **before object construction**; closed-schema unknown
   field rejection; deterministic canonical serializer; and the three collection
-  classes — **all five** the design declares, because PR-1 owns the canonical
-  reader, serializer and collection model:
+  **all five collection classes** the design declares, because PR-1 owns the
+  canonical reader, serializer and collection model:
 
   | Class | Rule |
   |---|---|
@@ -213,7 +217,8 @@ PR-1 must not contain — and review has completed on one frozen head.
   <!-- agent-task: 2.3 paths=scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=2.2 -->
 
   **Implements** — *Landings carry immutable rule inputs…*; *Completion is an
-  identity-bound transition…*; `INV-G16`, `INV-G18`; `D4`, `D5.3`
+  identity-bound transition…*; the withdrawal protocol; `INV-G16`, `INV-G18`,
+  `INV-G46`; `D4`, `D5.3`, `D5a.2`
 
   **Proof required** — current-revision manifestations only
   - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
@@ -224,6 +229,22 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G30` unknown / generic-legacy policy · `ADV-G33` absent local commit
   - `EX-G02` `Planned`/`InProgress` never satisfy a prerequisite
   - `MUT-G09` scope binding → bare hash accepted
+
+  **Withdrawal is implemented here, not deferred to first use.** ADR-0021 puts
+  `Withdrawn` in the closed lifecycle and requires its typed protocol, so
+  specified-but-unimplemented is not an option; specified-and-fixture-exercised
+  is. Required cases:
+
+  | Case | Outcome |
+  |---|---|
+  | `Planned -> Withdrawn` with digest, evidence, attestation | pass (`EX-G25`) |
+  | `InProgress -> Withdrawn` with digest, evidence, attestation | pass (`EX-G25`) |
+  | without `withdrawalDigest` | fail (`ADV-G67`) |
+  | without evidence | fail (`ADV-G67`) |
+  | without attestation | fail (`ADV-G67`) |
+  | withdrawal evidence mutated after terminal | fail (`ADV-G67`) |
+  | `Withdrawn` counted as satisfying a prerequisite | fail (`ADV-G68`) |
+  | any withdrawal-preimage field changed | `withdrawalDigest` changes (`PROP-G10`) |
 
 - [ ] **2.4 Current-revision checker entry point**
   <!-- agent-task: 2.4 paths=scripts/check-governance-state.mjs checks=node,pytest risk=trust-critical prerequisites=2.3 -->
@@ -239,13 +260,14 @@ PR-1 must not contain — and review has completed on one frozen head.
 - [ ] **3.1 Current-revision hostile corpus**
   <!-- agent-task: 3.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=2.4 -->
   **Proves** — `ADV-G01`–`G07`, `G09`, `G10`, `G12`, `G19`, `G23`, `G25`–`G28`,
-  `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`** (bare shorthand refused — proven here, in
+  `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`**, **`G67`**, **`G68`** (bare shorthand refused — proven here, in
   the landing that owns reference resolution; PR-2 may repeat it as integration
   coverage)
 
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
-  **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`, **`G09`**
+  **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`, **`G09`**,
+  **`G10`**; and `EX-G25` legal withdrawal
 
 - [ ] **3.3 Mutation coverage**
   <!-- agent-task: 3.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=3.1 -->
@@ -291,7 +313,13 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G13` `runner/L8` removed from `runner/L9`'s prerequisites
   - `ADV-G14` `runner/L9` repointed away from issue #57
   - `ADV-G15` node kind or completion policy mutated in place
-  - `ADV-G16` replacement identity without supersession + attestation
+  - `ADV-G16` replacement identity without its relationship + attestation
+  - `ADV-G66` malformed replacement — absent `replaces`, absent attestation, a
+    fork, a cycle, a changed `kind`, or a dependent still naming the replaced
+    identity
+  - `EX-G26` a legal replacement: old record unchanged, new identity derived
+    current, dependents repointed in the same change
+  - `PROP-G10` any replacement-preimage change alters `replacementDigest`
   - `ADV-G18` authorization-evidence record introduced
   - `ADV-G29` terminal delivery evidence mutated or removed
   - `ADV-G34` record deleted or renumbered · `ADV-G35` resolver disappeared
@@ -560,7 +588,7 @@ registry appears, and it appears already protected.
 ## 8. Activation
 
 - [ ] **8.0 Open the activation pull request to allocate `activationIdentity`**
-  <!-- agent-task: 8.0 paths=none checks=manual risk=trust-critical prerequisites=7.3 -->
+  <!-- agent-task: 8.0 paths=openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md checks=manual risk=trust-critical prerequisites=7.3 -->
 
   The draft activation PR is opened **before** anything binds its identity,
   yielding a stable number.
@@ -569,8 +597,12 @@ registry appears, and it appears already protected.
   left to the implementer: the branch begins with a single **activation-intent
   commit** — a short, explicitly non-authoritative note under this change's own
   directory recording that the branch will carry the activation and holds no
-  governance authority yet. It creates no `governance/` path and asserts no
-  state. `activationIdentity` is the closed typed reference
+  governance authority yet — exactly
+  `openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md`. It creates
+  no `governance/` path and asserts no state.
+
+  **Disposition:** the note is **deleted by the activation-seam commit (8.5a)**,
+  so it does not survive into `main`. `activationIdentity` is the closed typed reference
   `{ type: "github-pull-request", repository, number }`, supplied to the checker
   by CI and compared byte-for-byte against the value the genesis evidence binds.
 
@@ -613,6 +645,14 @@ registry appears, and it appears already protected.
 
   **Gate:** activation is **refused** unless that binding is present.
 
+> **Tasks 8.2 through 8.5 are one commit.** The contract forbids any revision
+> holding a canonical `governance/state.json` beside a surviving hand-authored
+> copy. Committing them separately would violate that in the intermediate
+> revisions even if the PR squash-merged correctly, so they are staged together
+> and committed once as the **activation-seam commit**. The branch's content
+> history is exactly: (1) the activation-intent note, (2) the complete seam,
+> (3) the owner attestations — then verification only.
+
 - [ ] **8.2 Promote the candidate artifacts to their canonical paths**
   <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
 
@@ -652,8 +692,16 @@ registry appears, and it appears already protected.
   revision in which the canonical registry coexists with a surviving copy;
   `ADV-G55` a candidate copy left usable after activation
 
+- [ ] **8.5a Stage 8.2–8.5 as the single activation-seam commit**
+  <!-- agent-task: 8.5a paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/**,scripts/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
+
+  One commit containing the registry, manifests, generated regions, every prose
+  deletion and pointer conversion, both checkers, prohibited-copy enforcement
+  and CI integration. **No intermediate revision may contain the registry
+  alongside a copy it replaces.**
+
 - [ ] **8.6 Freeze the complete activation seam**
-  <!-- agent-task: 8.6 paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
+  <!-- agent-task: 8.6 paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5a -->
 
   Every artifact the attestations will bind is now in its final state: registry,
   manifests, generated regions and their deletions, pointers, and all gates.
@@ -695,6 +743,13 @@ registry appears, and it appears already protected.
   `git diff --check` and hosted CI all run on the **exact head carrying the
   attestations**. Nothing bound may change afterwards without restarting at 8.6.
 
+  **Including this checklist.** Ticking a box edits `tasks.md`, which moves the
+  head and would require CI to run again on a head the owner did not attest. So:
+  **every repository task and status edit for PR-3 is made before 8.7**, and the
+  evidence for 8.8 is recorded in **PR metadata only** — never by editing a file
+  in the repository. Any repository edit after the attestation restarts the
+  ceremony at 8.6.
+
 ## PR-3 Completion Gate
 
 - [ ] The complete seam is present: registry, genesis attestation, **completion
@@ -723,7 +778,12 @@ registry appears, and it appears already protected.
 **Not authorized here, and not part of the substrate's completion.**
 
 - [ ] **9.1 Rebase and narrow PR #101**
-  <!-- agent-task: 9.1 paths=docs/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
+  <!-- agent-task: 9.1 paths=docs/** checks=node,pytest,scaffold risk=trust-critical prerequisites=pr-3-merged -->
+
+  **Prerequisite is a merged PR-3, not a task inside it.** The previous metadata
+  named `8.5`, which would have permitted work on PR #101 before the seam was
+  frozen (8.6), before the owner attested (8.7), before the final head was
+  validated (8.8), and before PR-3 was reviewed and merged at all.
 
   Only after PR-1 through PR-3 have independently passed review and merged.
   PR #101 then retains only genuine semantic architecture edits — the two

@@ -4,9 +4,15 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-> **Revised again after review 5058683298** — the activation order is made
+> **Revised again after review 5058723445** — node replacement is **specified**
+> rather than refused, because refusing it contradicted accepted ADR-0021;
+> withdrawal gets real schema fields; and PR-3's commit structure makes
+> activation atomic at the Git-revision level, not only at the PR level.
+>
+> **Revised after review 5058683298** — the activation order is made
 > possible, the envelope digest binds tuples in the central table too, node
-> replacement is refused in v1, the withdrawal protocol is defined, and manual
+> replacement was refused in v1 (**superseded — see the note above**), the
+> withdrawal protocol is defined, and manual
 > provenance is generalised to every attestation class.
 >
 > **Revised after the `2d04d3d` review** — attestation authorship is a
@@ -127,7 +133,12 @@ ownership and semantics. The shape:
       "kind": "implementation-landing",
       "requires": ["runner/L8", "runner/GATE-U4"],
       "authorityAnchor": { "type": "github-issue", "repository": "pulse-ops-ai/secure-home-agent-platform", "number": 57 },
-      "delivery": { "lifecycle": "Planned", "completionPolicy": null, "completion": null }
+      "delivery": {
+        "lifecycle": "Planned",
+        "completionPolicy": null,
+        "completion": null,
+        "withdrawal": null
+      }
     }
   ],
   "externalReferences": [],
@@ -563,30 +574,39 @@ separate human acts at six separate times; genesis is one review.
 
 ## D5a. Two transitions version one deliberately does not open
 
-### D5a.1 Node replacement is refused in v1
+### D5a.1 Node replacement, specified
 
-ADR-0021 §3 D.1 permits a changed rule to arrive as a **new identity** with a
-typed supersession or replacement relationship. Version one **does not
-implement that**, because the conceptual schema does not define — and this plan
-will not have an implementer invent — any of:
+The previous revision refused replacement outright. **That contradicted accepted
+ADR-0021**, which states that a changed rule "must be introduced as a new stable
+gate or landing identity, with an explicit typed supersession/replacement
+relationship when it replaces an older identity". An OpenSpec artifact ranks
+below an accepted ADR and cannot narrow one; the only alternatives were to
+specify the protocol or to propose a superseding ADR, and this change is not
+authorized to write ADRs. So it is specified.
 
-- the replacement relationship's own shape;
-- which of the pair is current;
-- whether a replacement must preserve node kind;
-- whether one old identity may have several replacements;
-- how dependent prerequisite references move to the replacement;
-- what projections and queries report for the replaced identity;
-- the transition preimage and evidence shape.
+```json
+{ "id": "runner/GATE-U4-v2",
+  "kind": "gate",
+  "replaces": "runner/GATE-U4",
+  "replacement": { "digest": "…", "attestation": { } } }
+```
 
-**So the rule is:** a replacement relationship is an **unknown field** in v1 and
-is refused. An identity-bearing rule input therefore cannot be changed at all in
-version one — not in place, and not by replacement. Opening that path requires a
-new ADR or a reviewed schema-version decision that answers all seven questions
-above.
+| Question | Answer |
+| --- | --- |
+| **Direction** | the **new** node carries `replaces: "<oldId>"`, mirroring how a new ADR carries `supersedes`. The old record is never edited. |
+| **Cardinality** | exactly one old identity per replacement, and an identity may be replaced **at most once**. Chains (`A ← B ← C`) are legal; forks are not. |
+| **Cycles** | the replacement graph SHALL be acyclic; a cycle is refused, like a prerequisite cycle. |
+| **Current identity** | **derived, never authored**: a node is current iff no node replaces it. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
+| **Kind compatibility** | a replacement SHALL preserve `kind`. A gate may not replace a landing. |
+| **Dependent references** | **not** auto-migrated. A prerequisite naming a replaced identity is **refused**, so dependents must be repointed in the same reviewed change. Silently rewriting other nodes' prerequisites would be the model editing authored state. |
+| **Query and projection** | the replaced identity remains queryable and reports `replacedBy`; readiness is computed on current identities only; a replaced node satisfies no prerequisite — its dependents were required to move. |
+| **Transition digest** | `replacementDigest` over `{schemaVersion, oldId, newId, kind, changedRuleInputs, authorityAnchor}`, where `changedRuleInputs` is the canonical set of identity-bearing values that differ. |
+| **Attestation** | the same envelope shape — digest, actor, RFC 3339 time, outcome `replaced`, typed authority reference — excluded from its own preimage, under the manual provenance gate (D6.7). |
+| **History** | the old record is immutable thereafter; the `replaces` relationship may not be removed or repointed; the new identity and its attestation SHALL arrive in the same revision. |
+| **Genesis** | no replacements exist at genesis. |
 
-This is a deliberate narrowing rather than an omission: refusing a transition is
-safe, while half-specifying one lets an implementation choose the governance
-semantics.
+An in-place change to an identity-bearing rule input remains refused — ADR-0021
+permits **no** in-place mutation, and replacement is the only sanctioned path.
 
 ### D5a.2 The withdrawal protocol, defined
 
@@ -620,6 +640,26 @@ withdrawalDigest preimage
   evidence mutation).
 - **Genesis:** no landing is seeded `Withdrawn`, so this is a post-genesis
   protocol only.
+
+**Where it lives in the closed schema**, so an unknown-field-rejecting
+implementation does not have to invent a union:
+
+```json
+"delivery": {
+  "lifecycle": "Withdrawn",
+  "completionPolicy": null,
+  "completion": null,
+  "withdrawal": {
+    "digest": "…",                       // withdrawalDigest
+    "evidence": { "type": "…", "…": "…", "contentDigest": "…" },
+    "attestation": { "digest": "…", "actor": "…", "at": "…",
+                     "outcome": "withdrawn", "authority": { } }
+  }
+}
+```
+
+`completion` and `withdrawal` are mutually exclusive: exactly one is non-null on
+a terminal landing, and both are null on `Planned` or `InProgress`.
 
 ---
 
@@ -679,6 +719,13 @@ implementation agent — or credentials available to one — can merge to `main`
 without a separate owner-controlled act. That is the trigger to re-open the
 decision, and it is written down so the judgement is not re-derived later from
 memory.
+
+**The sufficiency condition is therefore a requirement, not an assumption:** an
+independent owner-controlled merge act SHALL be mandatory for the activation. If
+the repository cannot guarantee that — because an implementation, or credentials
+available to one, can merge to the default branch unaided — then enforceable
+branch protection or a signed attestation becomes a **pre-activation
+requirement**, not a version-two concern.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
@@ -966,6 +1013,28 @@ under the change's own directory recording that this branch will carry the
 activation and that it holds no governance authority yet. That is enough to open
 a draft PR and allocate the number. It creates no `governance/` path, asserts no
 state, and is removed or superseded by the activation content itself.
+
+**Atomicity is a property of every revision, not only of the merged PR.** The
+contract forbids any revision containing a canonical `governance/state.json`
+beside a surviving hand-authored copy. If the seam were built across several
+commits, the intermediate ones would violate that even when the PR squash-merges
+correctly. The activation branch therefore has exactly three content commits:
+
+```text
+Commit 1   the non-authoritative activation-intent note, used only to
+           allocate the PR number
+
+Commit 2   THE COMPLETE SEAM, staged and committed together:
+             canonical registry + manifests
+             generated regions
+             every prose deletion and pointer conversion
+             current checker · history checker
+             prohibited-copy enforcement · CI integration
+
+Commit 3   the owner-recorded genesis attestations
+
+thereafter verification only — no further repository-content change
+```
 
 **And the ceremony must be the last thing that happens.** Attesting before the
 seam is complete would bind artifacts that later tasks then change, so the

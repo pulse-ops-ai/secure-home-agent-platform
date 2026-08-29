@@ -280,14 +280,31 @@ fields: the gate predicate definition and its source references; a node's kind;
 a landing's prerequisite identifier set; its typed external authority anchor;
 its completion-policy identity; and reviewed ordering intent where it changes
 readiness. Version one SHALL permit **no in-place mutation** of these on an
-existing identity. An identity-bearing rule input SHALL NOT be changed in version one **at all** —
-neither in place nor by replacement. A replacement or supersession relationship
-between landing or gate identities SHALL be an unknown field in v1 and SHALL be
-refused, because the schema does not define which identity is current, whether
-kind must be preserved, how dependent prerequisite references move, what
-projections and queries report for the replaced identity, or the transition
-preimage and evidence shape. Opening that path SHALL require a new decision that
-answers all of those.
+existing identity. An identity-bearing rule input SHALL NOT be changed **in place**. A changed rule
+SHALL be introduced as a **new stable identity carrying an explicit typed
+replacement relationship** to the identity it replaces, and the old record SHALL
+remain immutable.
+
+The replacement relationship SHALL be closed:
+
+- it is carried by the **new** node as `replaces: "<oldId>"`; the old record is
+  never edited;
+- exactly one old identity per replacement, and an identity SHALL be replaced at
+  most once — chains are legal, forks are not;
+- the replacement graph SHALL be acyclic;
+- **currency SHALL be derived**, never authored: a node is current iff no node
+  replaces it;
+- a replacement SHALL preserve `kind`;
+- dependent prerequisite references SHALL NOT be auto-migrated — a prerequisite
+  naming a replaced identity SHALL be refused, so dependents are repointed in
+  the same reviewed change;
+- the replaced identity SHALL remain queryable, reporting its replacement, and
+  SHALL satisfy no prerequisite;
+- the transition SHALL bind a `replacementDigest` over the old and new
+  identities, the kind, the changed rule inputs, and the authority anchor, with
+  a human attestation excluded from its own preimage;
+- the new identity and its attestation SHALL arrive in the same revision, and
+  the relationship SHALL NOT thereafter be removed or repointed.
 
 Prerequisite readiness SHALL be derived: a landing prerequisite is satisfied
 only when its delivery lifecycle is `Complete` **and** every required completion
@@ -322,14 +339,41 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **WHEN** history validation runs
 - **THEN** it fails, independently of whether the gate's derived result changed
 
-#### Scenario: A replacement identity is refused in version one
+#### Scenario: A legal replacement introduces a new identity
 
-- **GIVEN** a new landing identity carrying a changed rule together with a
-  replacement or supersession relationship to an existing identity
+- **GIVEN** a new node carrying the changed rule, `replaces` naming an existing
+  identity of the same kind, its `replacementDigest` and human attestation, and
+  every dependent prerequisite repointed in the same change
 - **WHEN** the checkers run
-- **THEN** they fail — v1 defines no replacement semantics, and a
-  half-specified transition would let the implementation choose the governance
-  rules
+- **THEN** they pass; the old record is unchanged; the new identity is derived
+  current; and the old one is derived non-current
+
+#### Scenario: A replacement without its relationship or attestation is refused
+
+- **GIVEN** a new identity carrying a changed rule with no `replaces`
+  relationship, or with the relationship but no attested transition
+- **WHEN** the checkers run
+- **THEN** they fail — a new identity alone is not a sanctioned rule change
+
+#### Scenario: A dangling dependent is refused rather than silently migrated
+
+- **GIVEN** a legal replacement whose dependents still name the replaced
+  identity as a prerequisite
+- **WHEN** the checker runs
+- **THEN** it fails naming the dependents — references are repointed by a
+  reviewed change, never rewritten by the model
+
+#### Scenario: A forked or cyclic replacement is refused
+
+- **GIVEN** two nodes replacing the same identity, or a replacement cycle
+- **WHEN** the checker runs
+- **THEN** it fails — currency would otherwise be underivable
+
+#### Scenario: A replacement changing kind is refused
+
+- **GIVEN** a replacement whose `kind` differs from the identity it replaces
+- **WHEN** the checker runs
+- **THEN** it fails
 
 #### Scenario: Withdrawal follows its own typed protocol
 

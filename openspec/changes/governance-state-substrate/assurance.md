@@ -4,7 +4,11 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
-> **Revised again after review 5058683298** — positive collection properties
+> **Revised again after review 5058723445** — the replacement refusal is
+> withdrawn as an ADR-0021 conflict and replaced by real controls, and
+> withdrawal gains its own.
+>
+> **Revised after review 5058683298** — positive collection properties
 > move out of the hostile corpus, MAN-G01 becomes a general provenance control,
 > and PR-1 owns the full collection contract.
 >
@@ -189,9 +193,11 @@ accordingly.
   post-attestation edit to a bound artifact invalidates it. **Authorship is
   established by human review; the checker proves shape, bindings, digests and
   immutability only.**
-- **INV-G45** Version one supports no node replacement: a replacement or
-  supersession relationship between landing or gate identities is an unknown
-  field and is refused.
+- **INV-G45** An identity-bearing rule input changes only by **replacement**:
+  a new identity carrying `replaces`, of the same kind, with its attested
+  transition, in one revision. Currency is derived, the graph is acyclic and
+  fork-free, the old record is immutable, and dependents are repointed by a
+  reviewed change rather than migrated by the model.
 - **INV-G46** `Withdrawn` is reachable only through its typed withdrawal
   protocol — digest, evidence, and attestation — satisfies no prerequisite, and
   its evidence is immutable thereafter.
@@ -383,8 +389,8 @@ it.
 | INV-G42 | `ADV-G62` post-attestation edit; `EX-G24` checker makes no authorship claim | hostile + example |
 | INV-G42 (authorship) | **`MAN-G01`** | **manual review** |
 | INV-G44 | `ADV-G65`; `PROP-G09` | hostile + property |
-| INV-G45 | `ADV-G66` replacement relationship refused | hostile |
-| INV-G46 | `ADV-G67` withdrawal without evidence; `EX-G25` legal withdrawal | hostile + example |
+| INV-G45 | `ADV-G66` malformed replacement; `EX-G26` legal replacement | hostile + example |
+| INV-G46 | `ADV-G67` withdrawal without digest/evidence/attestation; `ADV-G68` withdrawn node satisfying a prerequisite; `EX-G25` legal withdrawal; `PROP-G10` | hostile + example + property |
 | INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
@@ -416,6 +422,9 @@ proven by construction and manual argument, not by a test.
   always reported as such and never as a governance finding.
 - **PROP-G07** Adding an unrelated valid record never changes an unrelated
   derived answer.
+- **PROP-G10** Changing any field of a withdrawal preimage changes
+  `withdrawalDigest`; changing any field of a replacement preimage changes
+  `replacementDigest`.
 - **PROP-G09** Reordering the members of any canonical set — a set-valued
   relationship, the completion envelope's members, or a policy-evidence identity
   set — produces identical canonical bytes and identical digests. *(Previously
@@ -498,10 +507,14 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   five.
 - **ADV-G65** Duplicate `landingId` in the envelope, one `digest` under two
   landings, or a duplicated evidence identity.
-- **ADV-G66** A replacement or supersession relationship between landing or gate
-  identities — refused as an unknown field in v1.
+- **ADV-G66** A replacement that is malformed: absent `replaces`, absent
+  attestation, a second node replacing the same identity, a replacement cycle, a
+  changed `kind`, or a dependent still naming the replaced identity.
 - **ADV-G67** A landing moved to `Withdrawn` without its withdrawal digest,
-  evidence and attestation.
+  without its evidence, or without its attestation — each refused
+  independently — and mutation of withdrawal evidence after the terminal
+  lifecycle.
+- **ADV-G68** A `Withdrawn` landing counted as satisfying a prerequisite.
 - **ADV-G62** An edit, after attestation, to any artifact the attested preimage
   binds.
 - **ADV-G63** An ordinary `completionDigest` used for a genesis historical
@@ -610,6 +623,8 @@ no-op that still returns success is the failure mode being hunted.
 | Namespaced identifiers | PR-1 | 2, 3 | ADV-G50 — proven in PR-1; repeated in PR-2 as integration |
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
 | Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
+| Withdrawal protocol | **PR-1** | 2 | ADV-G67, ADV-G68; EX-G25; PROP-G10 |
+| Node replacement | **PR-2** | 4 | ADV-G66; EX-G26; PROP-G10 |
 | Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62; EX-G24 |
 | Real genesis ceremony | **PR-3** | 8 (8.0, 8.6, 8.7, 8.8) | MAN-G01 (manual) |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
