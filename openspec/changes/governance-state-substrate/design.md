@@ -147,7 +147,7 @@ ownership and semantics. The shape:
       "replacement": null,
       "delivery": {
         "lifecycle": "Planned",
-        "completionPolicy": null,
+        "completionPolicy": "reviewed-delivery-v1",
         "completion": null,
         "withdrawal": null
       }
@@ -176,6 +176,16 @@ attestation are defined in D3.3 and D5a.1. A gate has no delivery object, while
 a replacement landing has the ordinary landing delivery object initialized by
 D5a.1.
 
+Completion policy is selected when a landing identity is introduced, independently
+of its current delivery lifecycle. An `implementation-landing` carries
+`reviewed-delivery-v1`; a `spike-landing` carries
+`reviewed-spike-evidence-v1`; and a `gate` carries no delivery object or policy.
+The selected policy is unchanged while a landing is `Planned`, `InProgress`,
+`Complete`, or `Withdrawn`. `completion` and `withdrawal` are both `null` while
+the landing is `Planned` or `InProgress`; exactly the lifecycle-appropriate
+evidence is present for a terminal landing. A replacement landing therefore
+starts `Planned` with its kind-selected policy already present.
+
 **Absent by construction** — derived, and an unknown field if authored:
 accepted counts and ranges; `isCurrent`, `isImmutable`, `resolvesU4`;
 `question.resolved`; `gate.satisfied`; `landing.blockedOn`;
@@ -188,6 +198,7 @@ accepted counts and ranges; `isCurrent`, `isImmutable`, `resolvesU4`;
 | ADR lifecycle | `Proposed`, `Accepted`, `Superseded`, `Rejected` |
 | Delivery lifecycle | `Planned`, `InProgress`, `Complete`, `Withdrawn` |
 | Completion policy | `reviewed-delivery-v1`, `reviewed-spike-evidence-v1` |
+| Landing policy assignment | `implementation-landing` → `reviewed-delivery-v1`; `spike-landing` → `reviewed-spike-evidence-v1`; `gate` → no delivery policy |
 | **Gate predicate** | **`exactly-one-current-accepted-resolver`** — the only v1 predicate |
 | **Node kind** | **`implementation-landing`, `spike-landing`, `gate`** |
 | Identity class | `local-git-commit`, `external-git-commit`, `content-sha256` |
@@ -304,12 +315,12 @@ defined preimage:
 | `relationshipDigest` | canonical relationship tuples (`resolves`, `supersedes`) |
 | `transitionDigest` | `{schemaVersion, priorStateDigest\|null, targetPrimitiveDigest, subject, from, to, contentDigest, relationshipDigest}` |
 | `completionDigest` | `{landingId, from, to, authorityAnchor, deliveredIdentity, completionPolicy, …policy-specific}` |
-| `semanticIdentityDigest` | the complete labelled semantic identity of a gate or landing: `{schemaVersion, id, kind, predicate\|null, requires\|null, authorityAnchor\|null, completionPolicy\|null, reviewedOrderingIntent\|null}`; non-applicable fields are explicit `null`; delivery, replacement, attestations, and derived values are excluded |
+| `semanticIdentityDigest` | the complete labelled semantic identity of a gate or landing: `{schemaVersion, id, kind, predicate\|null, sources\|null, requires\|null, authorityAnchor\|null, completionPolicy\|null, reviewedOrderingIntent\|null}`; non-applicable fields are explicit `null`; delivery, replacement, attestations, and derived values are excluded |
 | `replacementDigest` | `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}` |
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
 | `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
 | `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
-| `withdrawalDigest` | `{landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
+| `withdrawalDigest` | `{schemaVersion, landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
 
 `completionDigest` covers a post-genesis **transition** and binds prior and
 target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
@@ -317,9 +328,11 @@ target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
 normative requirement scopes the ordinary preimage to post-genesis accordingly.
 
 `semanticIdentityDigest` is computed from the complete, labelled identity
-object, including unchanged fields and explicit nulls. `replacementDigest`
-therefore binds both directions and every old/new value, including the old and
-new authority anchors and prerequisite sets. There is no `changedRuleInputs`
+object, including unchanged fields and explicit nulls. For gates this includes
+the canonical `sources` set as well as the predicate; for landings it includes
+the applicable prerequisite, anchor, policy, and ordering inputs.
+`replacementDigest` therefore binds both directions and every old/new value,
+including source references, authority anchors and prerequisite sets. There is no `changedRuleInputs`
 set whose omissions or unlabelled values an implementation must guess. Both
 digests exclude the replacement envelope and its attestation from their own
 preimages.
@@ -484,17 +497,19 @@ program that the registry can actually represent.
 | `runner/L6` | spike-landing | — (root) | issue #54 | Complete | `reviewed-spike-evidence-v1` |
 | `runner/GATE-U6` | gate | — | ADR-0013 / issue #11 | — | — |
 | `runner/L7` | implementation-landing | `runner/L5`, `runner/GATE-U6`, `runner/L6` | issue #55 | Complete | `reviewed-delivery-v1` |
-| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** | — |
+| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** | `reviewed-delivery-v1` |
 | `runner/GATE-U4` | gate | — | ADR-0020 / issue #9 | — | — |
-| `runner/L9` | implementation-landing | `runner/L8`, `runner/GATE-U4` | **issue #57** | **Planned** | — |
-| `runner/L10` | implementation-landing | `runner/L8`, `runner/L9` | issue #58 | Planned | — |
+| `runner/L9` | implementation-landing | `runner/L8`, `runner/GATE-U4` | **issue #57** | **Planned** | `reviewed-delivery-v1` |
+| `runner/L10` | implementation-landing | `runner/L8`, `runner/L9` | issue #58 | Planned | `reviewed-delivery-v1` |
 
 **Not every node carries a delivery lifecycle.** Gates carry a predicate and no
-delivery lifecycle at all. Only `implementation-landing` and `spike-landing`
-nodes carry one, and only those seeded `Complete` carry a completion policy and
-an envelope member. ADR-0021 §3D's "when applicable" is doing real work here,
-and the normative requirement is worded to match rather than asserting that
-every node has all three.
+delivery lifecycle at all. `implementation-landing` and `spike-landing` nodes
+carry a lifecycle and their kind-selected policy from introduction. Only a
+landing seeded `Complete` carries completion evidence and an envelope member;
+`Planned` and `InProgress` carry neither terminal evidence, and `Withdrawn`
+carries the same selected policy with withdrawal evidence. ADR-0021 §3D's
+"when applicable" applies to the delivery object itself, not to whether a
+lifecycle-bearing landing has a policy.
 
 **D6.3a — `runner/L1` is deliberately not a node.** The ratified constitution
 defines L1 as *"Post-ratification actions (human; not parent tasks)"*: mint one
@@ -627,15 +642,15 @@ authorized to write ADRs. So it is specified.
 | **Target** | `replaces` SHALL name a current identity in the pre-change current graph. Replacing a non-current historical identity is refused. |
 | **Cardinality** | exactly one old identity per replacement, and an identity may be replaced **at most once**. Chains (`A ← B ← C`) are legal; forks are not. |
 | **Cycles** | the replacement graph SHALL be acyclic; a cycle is refused, like a prerequisite cycle. |
-| **Current identity** | **derived, never authored**: a node is current iff no current successor replaces it. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
+| **Current identity** | **derived, never authored**: a node is current iff no node directly names its ID in `replaces`. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
 | **Kind compatibility** | a replacement SHALL preserve `kind`. A gate may not replace a landing. |
 | **Dependent references** | **not** auto-migrated. For a replaced current identity `x`, the replacement closure is `x` plus the complete transitive closure of every current dependent that requires `x`, computed over the pre-change current graph. A legal replacement batch carries exactly one new same-kind identity and replacement envelope for every member of that closure. Every affected dependent is replaced, not edited; each new dependent maps every replaced prerequisite to that prerequisite's new identity. |
 | **Current versus historical references** | after the batch, current nodes may reference only current prerequisite identities. Non-current historical nodes retain their original prerequisite references, including references to non-current identities, and are not revalidated against the current graph. The old records remain immutable and queryable. |
 | **Atomicity** | the complete transitive replacement closure and every dependent repoint SHALL arrive in one registry revision. If any current dependent is omitted, partially repointed, or left naming a replaced identity, the shared model refuses the revision. |
 | **Query and projection** | the replaced identity remains queryable and reports `replacedBy`; readiness is computed over current identities only; a replaced node satisfies no prerequisite. Historical records retain historical relationships and are not used to satisfy current prerequisites. |
-| **Transition digest** | `replacementDigest` is over `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}`. Each semantic-identity digest is the complete labelled old or new identity, so changed and unchanged rule inputs, including authority anchors and prerequisite sets, are bound without omission or direction ambiguity. |
-| **Replacement delivery state** | a replacement landing begins `Planned` with `completion: null` and `withdrawal: null`; it never inherits the old landing's lifecycle or evidence. A replacement gate carries no delivery object or lifecycle. Any later completion or withdrawal follows its own typed protocol. |
-| **Attestation** | the same envelope shape — digest, actor, RFC 3339 time, outcome `replaced`, typed authority reference — excluded from its own preimage, under the manual provenance gate (D6.7). |
+| **Transition digest** | `replacementDigest` is over `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}`. Each semantic-identity digest is the complete labelled old or new identity, so changed and unchanged rule inputs, including gate source references, authority anchors and prerequisite sets, are bound without omission or direction ambiguity. |
+| **Replacement delivery state** | a replacement landing begins `Planned` with the policy selected for its kind, `completion: null`, and `withdrawal: null`; it never inherits the old landing's lifecycle, policy evidence, or terminal evidence. A replacement gate carries no delivery object or lifecycle. Any later completion or withdrawal follows its own typed protocol. |
+| **Attestation** | the same envelope shape — digest, actor, RFC 3339 time, outcome `replaced`, typed authority reference — excluded from its own preimage, under the manual provenance gate (D6.7). Node replacement is included in the general `MAN-G01` provenance table. |
 | **History** | the old record and all historical prerequisite references are immutable thereafter; the `replaces` relationship may not be removed or repointed; the complete replacement batch, each new identity, and each attestation SHALL arrive in the same revision. |
 | **Genesis** | no replacements exist at genesis. |
 
@@ -649,9 +664,10 @@ replacement of `runner/L8` is legal only as one batch containing
 requiring `runner/L8-v2`, and `runner/L10-v2` replacing `runner/L10` and
 requiring `runner/L9-v2` (plus any other unchanged prerequisites). Each new
 identity carries its own complete old/new semantic-identity digest and
-attestation. The old `runner/L9` still retains its historical reference to
-`runner/L8`; it is not edited. All replacement landings begin `Planned`, so no
-completion state is silently inherited.
+attestation and its kind-selected completion policy. The old `runner/L9` still
+retains its historical reference to `runner/L8`; it is not edited. All
+replacement landings begin `Planned`, so no completion state is silently
+inherited.
 
 The shared model computes this reverse prerequisite closure and validates the
 mapping. The history checker compares the base and target states to prove that
@@ -697,7 +713,7 @@ implementation does not have to invent a union:
 ```json
 "delivery": {
   "lifecycle": "Withdrawn",
-  "completionPolicy": null,
+  "completionPolicy": "reviewed-delivery-v1",
   "completion": null,
   "withdrawal": {
     "digest": "…",                       // withdrawalDigest
@@ -748,6 +764,7 @@ carries a signature:
 | ADR rejection | shape, rejected-byte digest, preimage, immutability | who performed the rejection |
 | Ordinary completion | shape, completion preimage, scoped delivery identity, immutability | who attested the completion |
 | Withdrawal | shape, withdrawal preimage, evidence identity, immutability | who attested the withdrawal |
+| Node replacement | shape, complete old/new semantic identities, replacement preimage, immutability | who attested the replacement |
 | Genesis / genesis completion | shape, seed and envelope preimages, content digests, immutability | who performed the ceremony |
 
 Version one's general rule: **all human-attestation authorship is established at
@@ -761,10 +778,17 @@ genesis attestations and before the activation landing is merged, the owner
 SHALL record in the activation PR metadata which of these enforceable conditions
 holds, together with its evidence:
 
-1. branch or ruleset protection requires an owner-controlled merge path that an
-   implementation agent cannot bypass; or
-2. credential separation demonstrates that the implementation actor and any
-   credentials available to it cannot merge to `main`.
+1. branch or ruleset protection requires an owner-controlled path for every
+   update to `refs/heads/main`, with no applicable implementation-agent bypass;
+   or
+2. credential separation demonstrates that the implementation actor and every
+   credential available to it cannot update `refs/heads/main` through any route.
+
+The protected operation includes PR merge, direct push, force-push, API ref
+update, and ruleset or branch-protection bypass. Evidence must identify the
+enforceable branch/ruleset configuration, or the credential permissions and
+routes checked; proving only that an actor cannot invoke a PR merge is
+insufficient.
 
 The owner SHALL re-check that condition at the merge gate. `MAN-G02` is a
 manual activation control, not a registry field and not an authorization grant.

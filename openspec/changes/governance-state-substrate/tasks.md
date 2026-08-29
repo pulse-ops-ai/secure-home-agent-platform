@@ -247,9 +247,17 @@ PR-1 must not contain — and review has completed on one frozen head.
   | `runner/L8` replaced with `runner/L8-v2` while current `runner/L9` and `runner/L10` depend on it transitively | pass only with `L9-v2` and `L10-v2` in the same batch, with all new prerequisites repointed |
   | only a direct dependent replaced, or any current dependent left naming an old identity | fail (`ADV-G66`) |
   | historical `runner/L9` retaining its original `runner/L8` reference | pass; historical references are not checked against the current graph |
-  | replacement landing carrying `Complete`/`Withdrawn` or inherited evidence, or replacement gate carrying delivery state | fail (`ADV-G66`); replacements initialize `Planned` or gate-without-delivery |
-  | replacement digest omitting, swapping, or mislabelling any old/new semantic-identity input | fail (`ADV-G66`); `PROP-G10` covers preimage sensitivity |
+  | replacement landing carrying `Complete`/`Withdrawn`, inherited evidence, or a missing/kind-inconsistent completion policy, or replacement gate carrying delivery state | fail (`ADV-G66`); replacements initialize `Planned` with the policy selected for their kind, or gate-without-delivery |
+  | replacement digest omitting, swapping, or mislabelling any old/new semantic-identity input, including gate `sources` | fail (`ADV-G66`); `PROP-G10` covers preimage sensitivity |
   | replacement target is non-current, replacement forks/cycles, or kind changes | fail (`ADV-G66`)
+  | three-node replacement chain `A <- B <- C` | pass only with `C` current and `A`/`B` historical and queryable |
+
+  The model fixtures also include a two-revision `Planned -> Complete` landing
+  transition (`EX-G27`): the landing is introduced with its kind-selected
+  policy, and the target revision changes only its lifecycle and adds valid
+  policy evidence. The policy and semantic identity remain byte-for-byte
+  unchanged. A paired negative fixture attempts to assign a missing policy or
+  change the selected policy during completion and fails through `ADV-G15`.
 
   **Withdrawal is implemented here, not deferred to first use.** ADR-0021 puts
   `Withdrawn` in the closed lifecycle and requires its typed protocol, so
@@ -320,7 +328,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   detected
 
 - [ ] **4.2 History checker with exclusive explicit base**
-  <!-- agent-task: 4.2 paths=scripts/check-governance-history.mjs checks=node,pytest risk=trust-critical prerequisites=4.1 -->
+  <!-- agent-task: 4.2 paths=scripts/check-governance-history.mjs,scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=4.1 -->
 
   **Implements** — *History validation uses an exclusive explicit base…*;
   `INV-G23`, the history portion of `INV-G45`, `INV-G16`; `D5.5`,
@@ -328,9 +336,12 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   The checker invokes the shared model for both revisions. The replacement
   history fixture under `tests/fixtures/governance/replacement/history/` uses
-  a base and target state. The history checker owns only the
-  two-revision proof: it does not parse replacement semantics, derive current
-  identities, or implement closure rules independently.
+  a base and target state. The pairwise comparison helper and its history
+  semantics are owned in `scripts/governance/model/**` within this task; the
+  history entry point owns only revision selection, bytes, and reporting. It
+  does not parse replacement semantics, derive current identities, or implement
+  closure rules independently. The shared model still owns current-state
+  replacement parsing, graph validation, currency, and closure invariants.
 
   **Proof required** — the two-revision corpus, which only this checker can
   prove
@@ -341,7 +352,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G11` `runner/GATE-U4` predicate mutated in place
   - `ADV-G13` `runner/L8` removed from `runner/L9`'s prerequisites
   - `ADV-G14` `runner/L9` repointed away from issue #57
-  - `ADV-G15` node kind or completion policy mutated in place
+  - `ADV-G15` node kind or completion policy mutated in place, including a
+    policy assigned or changed during `Planned -> Complete`
+  - `EX-G27` a legal two-revision `Planned -> Complete` transition preserves
+    the selected policy and semantic identity while adding valid evidence
   - `ADV-G16` a two-revision replacement-history violation: an old record,
     historical prerequisite reference, replacement relationship, replacement
     digest, or replacement attestation is edited, removed, repointed, or
@@ -422,9 +436,11 @@ PR-1 must not contain — and review has completed on one frozen head.
   including `runner/L9.requires = ["runner/GATE-U4","runner/L8"]` and
   `runner/L9`'s anchor issue #57.
 
-  Delivery lifecycle, completion policy and evidence apply **only where the kind
-  carries them**: gates have none, and only landings seeded `Complete` carry a
-  policy and an envelope member.
+  Delivery lifecycle and completion policy apply where the kind carries a
+  delivery object: gates have none, while every implementation or spike landing
+  receives its kind-selected policy at identity introduction. Only landings
+  seeded `Complete` carry completion evidence and an envelope member; planned
+  and in-progress landings carry the selected policy with no terminal evidence.
 
   **`runner/L1` is deliberately not a node.** The constitution defines L1 as
   post-ratification human acts in externally hosted systems, which neither v1
@@ -688,7 +704,7 @@ registry appears, and it appears already protected.
 > (3) the owner attestations — then verification only.
 
 - [ ] **8.2 Promote the candidate artifacts to their canonical paths**
-  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
+  <!-- agent-task: 8.2 paths=tests/fixtures/governance/candidate/**,governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
 
   The already-proven candidates move to their durable paths — no new authoring:
 
@@ -713,7 +729,7 @@ registry appears, and it appears already protected.
   `validate-scaffold.sh` bidirectional index rules
 
 - [ ] **8.4 Replace every remaining enumerated consumer copy with a pointer**
-  <!-- agent-task: 8.4 paths=<every stable-pointer row of the consumer inventory> checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
+  <!-- agent-task: 8.4 paths=AGENTS.md,CLAUDE.md,CONTRIBUTING.md,README.md,docs/AGENTS.md,docs/README.md,docs/architecture/INDEX.md,docs/operations/INDEX.md,docs/operations/pi-bootstrap.md,agents/AGENTS.md,agents/adapters/README.md,deploy/AGENTS.md,deploy/compose/README.md,deploy/images/README.md,services/AGENTS.md,services/README.md,services/control-plane/README.md,services/runner-control/README.md,packages/runner-core/README.md,knowledge/README.md,knowledge/household/README.md,knowledge/platform/README.md,knowledge/platform/degraded-operation/README.md,knowledge/runbooks/README.md,profiles/household/README.md,schemas/automation/README.md,openspec/AGENTS.md,openspec/config.yaml,.github/copilot-instructions.md,.github/agents/architecture.agent.md,.github/agents/implementation.agent.md,docs/architecture/api-contract-model.md,docs/architecture/degraded-mode.md,docs/architecture/distributed-effect-lifecycle.md,docs/architecture/effect-boundary-model.md,docs/architecture/knowledge-promotion-model.md,docs/architecture/knowledge-selection-model.md,docs/architecture/runner-model.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
   Scoped by the inventory, not by glob. `openspec/config.yaml` is the named
   regression case.
 
@@ -727,7 +743,7 @@ registry appears, and it appears already protected.
   `ADV-G55` a candidate copy left usable after activation
 
 - [ ] **8.5a Stage 8.2–8.5 as the single activation-seam commit**
-  <!-- agent-task: 8.5a paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/**,scripts/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
+  <!-- agent-task: 8.5a paths=governance/**,tests/fixtures/governance/candidate/**,openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md,AGENTS.md,CLAUDE.md,CONTRIBUTING.md,README.md,docs/**,agents/**,deploy/**,services/**,packages/**,knowledge/**,profiles/**,schemas/**,openspec/AGENTS.md,openspec/config.yaml,.github/copilot-instructions.md,.github/agents/**,.github/workflows/**,scripts/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
 
   One commit containing the registry, manifests, generated regions, every prose
   deletion and pointer conversion, both checkers, prohibited-copy enforcement
@@ -735,7 +751,7 @@ registry appears, and it appears already protected.
   alongside a copy it replaces.**
 
 - [ ] **8.6 Freeze the complete activation seam**
-  <!-- agent-task: 8.6 paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5a -->
+  <!-- agent-task: 8.6 paths=governance/**,tests/fixtures/governance/candidate/**,openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md,AGENTS.md,CLAUDE.md,CONTRIBUTING.md,README.md,docs/**,agents/**,deploy/**,services/**,packages/**,knowledge/**,profiles/**,schemas/**,openspec/AGENTS.md,openspec/config.yaml,.github/copilot-instructions.md,.github/agents/**,.github/workflows/**,scripts/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5a -->
 
   Every artifact the attestations will bind is now in its final state: registry,
   manifests, generated regions and their deletions, pointers, and all gates.
@@ -746,12 +762,19 @@ registry appears, and it appears already protected.
 
   Before the owner records either real genesis attestation, and again before
   the activation landing is merged, the owner records in activation PR
-  metadata which enforceable condition prevents the implementation actor from
-  merging to `main`:
+  metadata which enforceable condition prevents the implementation actor and
+  every credential available to it from updating `refs/heads/main`:
 
-  - branch or ruleset protection requiring an owner-controlled merge path; or
-  - credential separation demonstrating that the implementation actor and its
-    available credentials cannot merge to `main`.
+  - branch or ruleset protection requiring an owner-controlled path for every
+    update to `refs/heads/main`, with no applicable implementation-agent bypass;
+    or
+  - credential separation demonstrating that the implementation actor and
+    every credential available to it cannot update `refs/heads/main` through any
+    route.
+
+  The protected operation includes PR merge, direct push, force-push, API ref
+  update, and ruleset or branch-protection bypass. Proving only that an actor
+  cannot invoke a PR merge is insufficient.
 
   The evidence and the merge-time re-check are `MAN-G02`. If neither condition
   is evidenced, the unsigned activation is refused: the owner must not record

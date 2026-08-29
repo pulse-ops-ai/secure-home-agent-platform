@@ -77,7 +77,7 @@ as any other derived answer.
 Each collection in the registry SHALL carry a schema-declared class, and its
 canonical form SHALL follow from that class.
 
-**Entity collections** — decisions, questions, gates, landings, external
+**Entity collections** — decisions, questions, gates, landings, and external
 references — SHALL be canonically ordered by stable identifier, and duplicate
 identifiers SHALL be rejected.
 
@@ -90,7 +90,18 @@ produce identical bytes and identical digests.
 SHALL preserve authored order, and SHALL be included in the identity-bearing
 preimage precisely because their order carries meaning.
 
-An unclassified collection SHALL be a schema error.
+**Completion-envelope entity sets** — the members of
+`attestations.genesisCompletion` — SHALL be keyed by `landingId`, canonically
+ordered by that key, and SHALL reject duplicate landing identifiers and a
+digest reassociated with more than one landing. Their preimage SHALL contain
+the labelled `{landingId, digest}` tuples, not bare digest values.
+
+**Policy-evidence identity sets** — every policy-specific evidence-identity
+collection — SHALL be canonically sorted by member bytes, SHALL carry no order
+meaning, and SHALL reject duplicates.
+
+These are the five and only five collection classes in v1. An unclassified
+collection SHALL be a schema error.
 
 #### Scenario: Reordering a set-valued relationship changes nothing
 
@@ -107,8 +118,9 @@ An unclassified collection SHALL be a schema error.
 
 #### Scenario: An unclassified collection is refused
 
-- **GIVEN** a collection the schema does not classify as entity, set-valued, or
-  sequence-valued
+- **GIVEN** a collection the schema does not classify as one of the five v1
+  classes — entity, set-valued, sequence-valued, completion-envelope entity set,
+  or policy-evidence identity set
 - **WHEN** the checker runs
 - **THEN** it fails rather than choosing a canonical rule by inference
 
@@ -267,8 +279,18 @@ the checker SHALL fail closed.
 ### Requirement: Landings carry immutable rule inputs and a closed delivery lifecycle
 
 Each landing or program node SHALL carry a stable identifier, a kind, a typed
-external authority anchor, a prerequisite identifier set, and — when it has a
-delivery lifecycle — that lifecycle and a completion-policy identity.
+external authority anchor, a prerequisite identifier set, and — for every
+landing kind — a delivery lifecycle and a completion-policy identity. A gate
+has no delivery object or completion policy.
+
+For v1, the policy is selected when the landing identity is introduced,
+independently of its lifecycle: `implementation-landing` SHALL carry
+`reviewed-delivery-v1`, and `spike-landing` SHALL carry
+`reviewed-spike-evidence-v1`. The selected policy SHALL remain unchanged while
+the landing moves through `Planned`, `InProgress`, `Complete`, or `Withdrawn`.
+`completion` and `withdrawal` are both `null` for `Planned` and `InProgress`;
+`Complete` carries completion evidence and `Withdrawn` carries withdrawal
+evidence, with the same policy identity in either terminal state.
 
 Delivery lifecycle SHALL be the closed vocabulary `Planned`, `InProgress`,
 `Complete`, `Withdrawn`, with legal transitions `Planned -> InProgress`,
@@ -296,7 +318,7 @@ The replacement relationship SHALL be closed:
   most once — chains are legal, forks are not;
 - the replacement graph SHALL be acyclic;
 - **currency SHALL be derived**, never authored: a node is current iff no node
-  replaces it;
+  directly names its ID in `replaces`;
 - a replacement target SHALL be current in the pre-change current graph;
 - a replacement SHALL preserve `kind`;
 - dependent prerequisite references SHALL NOT be auto-migrated. For a replaced
@@ -317,12 +339,13 @@ The replacement relationship SHALL be closed:
 - the transition SHALL bind a `replacementDigest` over complete, labelled
   `oldSemanticIdentityDigest` and `newSemanticIdentityDigest` values, with a
   human attestation excluded from its own preimage. Each semantic identity binds
-  the node id, kind, every applicable identity-bearing rule input, and explicit
-  nulls for non-applicable inputs; no unlabelled or omitted changed-value set is
-  permitted;
-- a replacement landing SHALL begin `Planned` with no completion or withdrawal
-  evidence and SHALL NOT inherit the old landing's lifecycle or evidence. A
-  replacement gate carries no delivery lifecycle;
+  the node id, kind, every applicable identity-bearing rule input — including a
+  gate's canonical `sources` set — and explicit nulls for non-applicable inputs;
+  no unlabelled or omitted changed-value set is permitted;
+- a replacement landing SHALL begin `Planned` with the policy selected for its
+  kind, no completion or withdrawal evidence, and SHALL NOT inherit the old
+  landing's lifecycle, policy evidence, or terminal evidence. A replacement gate
+  carries no delivery lifecycle or completion policy;
 - the new identity and its attestation SHALL arrive in the same revision, and
   the relationship SHALL NOT thereafter be removed or repointed.
 
@@ -370,7 +393,18 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **THEN** they pass; every old record and its historical prerequisite reference
   is unchanged; the three new identities are derived current; the old ones are
   derived non-current; and every replacement landing begins `Planned` rather
-  than inheriting completion
+  with its kind-selected completion policy and rather than inheriting completion
+
+#### Scenario: A replacement chain has exactly one current identity
+
+- **GIVEN** three same-kind records `runner/L8-v1`, `runner/L8-v2`, and
+  `runner/L8-v3`, where `runner/L8-v2` directly replaces `runner/L8-v1` and
+  `runner/L8-v3` directly replaces `runner/L8-v2`
+- **WHEN** the model derives current identities
+- **THEN** only `runner/L8-v3` is current; `runner/L8-v1` and `runner/L8-v2`
+  remain immutable, historical, and queryable with their original direct
+  replacement relationships, and no currentness rule follows a successor chain
+  indirectly
 
 #### Scenario: A replacement without its relationship or attestation is refused
 
@@ -414,7 +448,8 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 #### Scenario: A replacement digest binds complete old and new identities
 
 - **GIVEN** a replacement whose digest omits, swaps, or mislabels an old or new
-  semantic-identity value, including a prerequisite set or authority anchor
+  semantic-identity value, including a gate source set, prerequisite set, or
+  authority anchor
 - **WHEN** the current-revision checker runs
 - **THEN** it fails; the digest preimage is the complete labelled pair, not a
   caller-supplied list of values that differ
@@ -452,6 +487,16 @@ Completion-policy identity SHALL be the closed vocabulary
 `reviewed-delivery-v1` and `reviewed-spike-evidence-v1`. There SHALL be no
 generic legacy or bootstrap escape-hatch policy.
 
+The policy SHALL be selected at landing-identity introduction, not at
+completion. An `implementation-landing` SHALL use `reviewed-delivery-v1`, and
+a `spike-landing` SHALL use `reviewed-spike-evidence-v1`; a `gate` has no
+completion policy. A `Planned -> Complete` or `InProgress -> Complete`
+transition SHALL preserve the already selected policy and may add only the
+policy-valid completion evidence. Assigning a policy during completion, or
+changing the selected policy as part of completion, SHALL be refused as an
+identity-bearing in-place mutation. Replacement landings likewise begin
+`Planned` with their selected policy already present.
+
 `reviewed-delivery-v1` SHALL require the child archived OpenSpec identity,
 delivered scope, exact commit or artifact identity, authority anchor, and human
 completion attestation. `reviewed-spike-evidence-v1` SHALL require the authority
@@ -474,13 +519,26 @@ A required identity that is opaque or unavailable SHALL NOT be a valid
 completion proof: the checker SHALL fail closed, leave the landing unsatisfied,
 and report `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`.
 
-#### Scenario: A governed delivery completes under reviewed-delivery-v1
+#### Scenario: A planned governed delivery completes without changing policy
 
-- **GIVEN** a landing with its archived OpenSpec identity and content digest,
-  scoped delivered commit, authority anchor, and human completion attestation
-- **WHEN** the checker validates the completion
-- **THEN** it passes and the landing's `Complete` lifecycle satisfies dependent
-  prerequisites
+- **GIVEN** a base revision with a `Planned` implementation landing carrying
+  `reviewed-delivery-v1` and a complete semantic identity, and a target revision
+  that changes only its lifecycle to `Complete` while adding the archived
+  OpenSpec identity and content digest, scoped delivered commit, authority
+  anchor, and human completion attestation required by that already-selected
+  policy
+- **WHEN** the two-revision checker validates the completion
+- **THEN** it passes; the policy and semantic identity are unchanged, and the
+  landing's `Complete` lifecycle satisfies dependent prerequisites
+
+#### Scenario: Completion cannot assign or change its policy
+
+- **GIVEN** a base revision with a `Planned` implementation landing carrying
+  `reviewed-delivery-v1`, and a target `Complete` revision that assigns a policy
+  where none existed or changes it to `reviewed-spike-evidence-v1`
+- **WHEN** history validation runs
+- **THEN** it fails as an identity-bearing completion-policy mutation; the
+  landing must have selected its policy before the completion transition
 
 #### Scenario: An arbitrary commit is not completion evidence
 
@@ -1136,9 +1194,13 @@ The manual gate SHALL be sufficient only while both of these controls hold:
 
 - `MAN-G01`: an independent human owner personally performs the attestation act;
 - `MAN-G02`: before attestation and again at merge, the owner records either
-  enforceable branch or ruleset protection requiring an owner-controlled merge
-  path, or credential separation demonstrating that the implementation actor
-  and credentials available to it cannot merge to `main`.
+  enforceable branch or ruleset protection requiring an owner-controlled path for
+  every update to `refs/heads/main`, with no applicable implementation-agent
+  bypass, or credential separation demonstrating that the implementation actor
+  and every credential available to it cannot update `refs/heads/main` through
+  any route. This includes PR merge, direct push, force-push, API ref update,
+  and ruleset or branch-protection bypass; proving only that an actor cannot
+  invoke a PR merge is insufficient.
 
 If `MAN-G02` cannot be evidenced, the unsigned activation SHALL be refused. A
 future signed-attestation mechanism requires a separate decision; signing is not
@@ -1235,11 +1297,14 @@ registry can represent — `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`,
 `runner/L9`, `runner/L10` — each with its kind, prerequisite set, and authority
 anchor. A partial program SHALL NOT be seeded.
 
-Delivery lifecycle, completion policy, and completion evidence apply **only
-where the node kind carries them**: a `gate` has a predicate and no delivery
-lifecycle, and only a landing seeded `Complete` carries a completion policy,
-completion evidence, and an envelope member. A requirement that every node
-carries all three SHALL NOT be asserted.
+Delivery lifecycle and completion policy apply where the node kind carries a
+delivery object: a `gate` has a predicate and no delivery lifecycle or policy,
+while every `implementation-landing` and `spike-landing` has its kind-selected
+policy from identity introduction. Only a landing seeded `Complete` carries
+completion evidence and an envelope member; `Planned` and `InProgress` carry no
+terminal evidence, and `Withdrawn` carries the same selected policy with
+withdrawal evidence. A requirement that every node carry a delivery object
+SHALL NOT be asserted.
 
 A program event that no v1 completion policy can represent — such as a
 post-ratification set of human acts in externally hosted systems — SHALL NOT be

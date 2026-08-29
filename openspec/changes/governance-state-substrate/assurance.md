@@ -201,9 +201,10 @@ accordingly.
   transitive closure of current dependents is replaced atomically rather than
   migrated by the model. Current nodes reference only current prerequisites,
   while non-current historical nodes retain their original references. A
-  replacement digest binds complete old and new semantic identities, and a
-  replacement landing starts `Planned` without inherited evidence while a gate
-  has no delivery lifecycle.
+  replacement digest binds complete old and new semantic identities, including
+  gate source references, and a replacement landing starts `Planned` with its
+  kind-selected policy and without inherited evidence while a gate has no
+  delivery lifecycle.
 - **INV-G46** `Withdrawn` is reachable only through its typed withdrawal
   protocol — digest, evidence, and attestation — satisfies no prerequisite, and
   its evidence is immutable thereafter.
@@ -260,8 +261,13 @@ Independent dimensions that materially affect behavior:
   retain their original prerequisite references. Proof: `ADV-G66`, `ADV-G16`,
   `EX-G26`.
 - *replacement × delivery lifecycle* — a replacement landing starts `Planned`
-  and cannot inherit completion or withdrawal evidence; a replacement gate has
-  no delivery lifecycle. Proof: `ADV-G66`, `EX-G26`.
+  with its kind-selected completion policy and cannot inherit completion or
+  withdrawal evidence; a replacement gate has no delivery lifecycle. Proof:
+  `ADV-G66`, `EX-G26`.
+- *landing lifecycle × completion policy* — a landing selects its policy before
+  `Planned -> Complete`; the two-revision completion changes lifecycle and
+  evidence without changing policy identity, while assigning or changing the
+  policy during completion is refused. Proof: `EX-G27`, `ADV-G15`.
 
 ---
 
@@ -375,7 +381,7 @@ it.
 | INV-G13 | `PROP-G02` canonical round-trip | property |
 | INV-G14 | `ADV-G04` accepted-byte mutation | hostile |
 | INV-G15 | `ADV-G19` self-referential preimage | hostile |
-| INV-G16 | `ADV-G13`, `ADV-G14`, `ADV-G15` | hostile |
+| INV-G16 | `ADV-G13`, `ADV-G14`, `ADV-G15`; `EX-G27` | hostile + example |
 | INV-G17 | `ADV-G06`, `ADV-G07` | hostile |
 | INV-G18 | `ADV-G10` cycle | hostile |
 | INV-G19 | `EX-G13` no domain field copied | independent re-derivation |
@@ -527,9 +533,11 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   target, a second node replacing the same identity, a replacement fork or
   cycle, a changed `kind`, an incomplete transitive current-dependent closure,
   a current dependent still naming a replaced identity, an omitted or
-  directionally ambiguous old/new semantic-identity input in
+  directionally ambiguous old/new semantic-identity input — including a gate's
+  `sources` set — in
   `replacementDigest`, a replacement landing inheriting terminal lifecycle or
-  evidence, or a replacement gate carrying delivery state.
+  evidence, a replacement landing missing or changing its kind-selected policy,
+  or a replacement gate carrying delivery state.
 - **ADV-G67** A landing moved to `Withdrawn` without its withdrawal digest,
   without its evidence, or without its attestation — each refused
   independently — and mutation of withdrawal evidence after the terminal
@@ -588,8 +596,8 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **MAN-G01** (was `ADV-G61`) **Attestation authorship — every class.** That the
   repository owner personally recorded an attestation is established at the
   **human review gate**. This covers ADR acceptance, ADR rejection, ordinary
-  completion, withdrawal, and both genesis envelopes: none carries a signature,
-  and the same offline checker validates all of them. It is established
+  completion, withdrawal, node replacement, and both genesis envelopes: none
+  carries a signature, and the same offline checker validates all of them. It is established
   not by the checker. The checker is offline and the envelope carries no
   signature, trusted key, or signed object, so it has no observable fact
   distinguishing an owner-recorded envelope from an implementation-recorded one.
@@ -604,15 +612,19 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   revocation. Version one does not adopt it, and this control is named as manual
   rather than dressed as a hostile case the suite cannot actually run.
 
-- **MAN-G02** **Independent merge control for unsigned activation.** Before
-  the owner records the real genesis attestations and again at the activation
-  merge gate, the owner records in activation PR metadata enforceable evidence
-  of either branch/ruleset protection requiring an owner-controlled merge path,
-  or credential separation showing that the implementation actor and its
-  available credentials cannot merge to `main`. If neither condition is
-  evidenced, the unsigned activation is refused. This is a manual gate, not a
-  registry field or authorization grant; signing remains outside v1 and needs a
-  separate decision.
+- **MAN-G02** **Independent default-branch update control for unsigned
+  activation.** Before the owner records the real genesis attestations and again
+  at the activation merge gate, the owner records in activation PR metadata
+  enforceable evidence of either branch/ruleset protection requiring an
+  owner-controlled path for every update to `refs/heads/main`, with no
+  applicable implementation-agent bypass, or credential separation showing
+  that the implementation actor and every credential available to it cannot
+  update `refs/heads/main` through any route. The protected operation includes
+  PR merge, direct push, force-push, API ref update, and ruleset or
+  branch-protection bypass; proving only that an actor cannot invoke a PR merge
+  is insufficient. If neither condition is evidenced, the unsigned activation
+  is refused. This is a manual gate, not a registry field or authorization
+  grant; signing remains outside v1 and needs a separate decision.
 
 ## Mutation targets
 
@@ -645,7 +657,7 @@ no-op that still returns success is the failure mode being hunted.
 | Decision lifecycle (current manifestations) | PR-1 | 2 | ADV-G04, G05, G25; EX-G07 |
 | Questions and gates | PR-1 | 2 | ADV-G06, G07, G09 |
 | Landings and prerequisites (current) | PR-1 | 2 | ADV-G10, G12; T1 |
-| Completion policies (current) | PR-1 | 2 | ADV-G26–G28, G30, G33 |
+| Completion policies (current) | PR-1 | 2 | ADV-G26–G28, G30, G33; `EX-G27`, `ADV-G15` |
 | Attestations | PR-1 | 1 | ADV-G19; PROP-G03, G08 |
 | Current-revision validation | PR-1 | 2 | all of the above via the real checker |
 | History validation | **PR-2** | 4 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41 |
