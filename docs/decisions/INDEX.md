@@ -564,7 +564,7 @@ separated the reviewed bytes from the accepted bytes.
 | **Accepted by** | @mikegtech (repository owner) |
 | **Scope** | ADR-0021 in full: the root-level governance-state authority; primitive versus derived state; immutable-record and field-specific mirror rules; bootstrap provenance; non-self-referential acceptance and completion attestations; closed lifecycle and landing rules; fail-closed validation and history checks; deterministic projections; query separation of delivery, readiness, and authorization; and the migration/non-goals contract |
 | **Accepted ADR content SHA-256** | `0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a` |
-| **Acceptance authority** | This human-reviewed acceptance pull request; the attestation binds the exact ADR bytes and does not use the containing commit as its causal identity |
+| **Acceptance authority** | [PR #105](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/105) — human-reviewed acceptance change; the content SHA-256 is the causal byte binding, and the containing commit is supporting provenance only |
 | **Transition evidence** | This is the final pre-registry manual transition described in §12. The accepted-byte SHA and human review bind this transition; the registry transition/genesis digest protocol is a later implementation obligation and is not claimed here |
 | **Unresolved decisions resolved** | **NONE.** ADR-0021 does not resolve U4 or any other item; ADR-0020 remains `Proposed`, GATE-U4 remains unsatisfied, and no implementation authority is inferred |
 
