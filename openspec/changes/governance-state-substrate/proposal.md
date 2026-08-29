@@ -119,6 +119,38 @@ steps 3–6 and PR #101 at steps 7–9, for three reasons this change adopts:
 PR #101 is therefore a **future consumer**. This change does not modify,
 rebase, narrow, or merge it.
 
+### Implementation phases and migration order
+
+Three landings, in this order, with **one** migration moment:
+
+| Landing | Ships | Canonical `state.json`? |
+| --- | --- | --- |
+| **PR-1** | model, strict reader, collection canonicalization, current-revision checker, proof net | **no** — fixtures only |
+| **PR-2** | history checker, renderer, query, genesis machinery, **candidate** seed at a fixture path, proof net | **no** — candidate only |
+| **PR-3** | **atomic activation** | **first appearance** |
+
+PR-3 is indivisible. It contains the canonical registry, its genesis
+attestation and source manifest, every generated region **together with the
+deletion of the hand-authored copies those regions replace**, stable pointers
+for every enumerated consumer, prohibited-copy enforcement, current-revision
+validation, **history validation**, scaffold coverage, and the human transition
+of the external program index.
+
+Two orderings are prohibited, and the plan is shaped around avoiding them:
+
+1. **The registry must not appear before the copies go.** No mechanism makes a
+   file at the canonical authoritative path non-authoritative; "inert" would be
+   a description, not a property.
+2. **The registry must not become authoritative before it is protected.** If
+   history validation arrived later, an intervening change could mutate an
+   accepted lifecycle, accepted bytes, a gate predicate, `L9`'s prerequisites,
+   issue #57's anchor, or terminal completion evidence. The current-revision
+   checker would accept the internally valid result, and once history was
+   enabled that corrupted snapshot would already be the base — undetectable
+   retrospectively.
+
+Rolling back PR-3 removes the registry, the regions, and the pointers together.
+
 ### Primitive versus derived
 
 This boundary is the substance of the design, so the proposal states it
@@ -288,6 +320,14 @@ range (ADR-0021 §12 step 2).
 - **The unstructured sequencing fact:** `L9 ← L8 + GATE-U4`, whose only
   original home is
   `openspec/changes/archive/2026-08-09-runner-baseline-adoption/tasks.md`.
+- **A real source disagreement the seed must resolve, not paper over.** The
+  external program index states `L5 — next runner landing` and
+  `L7 — waits on L5`, and issues #53 and #55 are open — while the repository
+  records both L5 image lineage and L7 adapters as landed. The seed therefore
+  establishes delivery lifecycle from **repository evidence**; issue prose and
+  issue open/closed state are anchors and mirrors, never delivery evidence. The
+  disagreement is recorded in the genesis source manifest with a human
+  disposition and named by the bootstrap attestation.
 
 ## Dependencies
 
@@ -355,18 +395,35 @@ This change must not:
 
 ## Open Questions
 
-None is trust-critical, and none blocks the implementation tasks as decomposed.
+One remains, and it is not trust-critical. Two that the first version deferred
+are now decided here, because both would otherwise have been settled while
+writing code.
 
 1. **Exact field spelling in `state.json`.** ADR-0021 §3 fixes ownership and
    semantics and explicitly permits refinement of spelling during
-   implementation. `design.md` proposes a concrete shape; a reviewed
-   refinement inside the decided semantics does not require a new ADR.
-2. **Which "narrowly justified current-state sections" remain local to other
-   documents** as registered generated regions rather than becoming pointers.
-   `design.md` proposes the initial registered set; additions are a reviewed
-   decision per target, and an unregistered target is an error either way.
-3. **Governed severity for U-items.** ADR-0021 §3B admits severity only when it
-   is itself a governed primitive. The genesis seed records the existing
-   severities; whether severity remains authored or becomes derived from a
-   named rule is deferred to the seed review, and either answer leaves the
-   validators unchanged.
+   implementation. `design.md` proposes a concrete shape; a reviewed refinement
+   inside the decided semantics does not require a new ADR.
+
+**Decided, not deferred:**
+
+- **The closed vocabularies.** `design.md` D2.1 fixes the v1 gate-predicate
+  vocabulary at the single name `exactly-one-current-accepted-resolver` — both
+  existing gates are resolver gates — and the v1 node kinds at
+  `program-ratification`, `implementation-landing`, `spike-landing`, `gate`.
+  Both are identity-bearing rule inputs, so extending either is a reviewed
+  schema-version change rather than an implementation liberty.
+- **U-item severity.** `design.md` D2.2 includes severity in v1 as an authored
+  primitive that is explicitly **rule-free** and **not identity-bearing**: no
+  predicate or readiness derivation may consume it, it is included in
+  `primitiveDigest`, it is bound by the genesis attestation, and history treats
+  it as ordinary mutable data. Excluding it was rejected because the
+  unresolved-decision projection renders it, and a generated table cannot render
+  a value the registry does not hold. This choice changes the closed schema,
+  canonical bytes, the primitive digest, the genesis attestation, history rules,
+  and the projection — which is precisely why it is settled before
+  implementation rather than at the seed landing.
+- **Which surfaces are generated regions rather than pointers.** `design.md`
+  D7.2 enumerates the measured consumer inventory: 2 generated-region targets,
+  38 stable-pointer consumers, 1 retained-semantic-prose row, 52
+  historical-record files excluded from rewriting, and 2 non-consumers. A
+  surface absent from that inventory is a migration failure, not a pass.

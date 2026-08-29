@@ -4,6 +4,12 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
+> **Revised after review 5056996739.** The previous version called PR-1
+> through PR-3 a shadow phase in which the canonical registry existed beside the
+> prose copies, assigned two-revision hostile cases to a one-revision checker,
+> and asserted a digest property that contradicted the design's own
+> non-self-reference rule. All three are corrected below.
+
 **Controls reach the real mechanism.** Every control below exercises the shared
 model through a real entry point — `check-governance-state.mjs`,
 `check-governance-history.mjs`, `render-governance-state.mjs`, or
@@ -96,6 +102,13 @@ accordingly.
 - **INV-G17** A question has at most one current resolver.
 - **INV-G18** A prerequisite graph containing a cycle produces no readiness
   answer.
+- **INV-G27** Every collection is classified; entity and set-valued
+  collections are canonically ordered and duplicate-free, and set order carries
+  no meaning.
+- **INV-G28** Every authored primitive maps to a row in the closed genesis
+  source manifest, classified `locally-verified` or `externally-attested`.
+- **INV-G29** Every current governance-state surface is classified by the closed
+  consumer inventory; an unclassified surface is a migration failure.
 
 ### Compatibility
 
@@ -118,6 +131,16 @@ accordingly.
 - **INV-G25** Seeding changes no operative governance state.
 - **INV-G26** The accepted set is recorded as the non-contiguous set it is, and
   never compressed into a continuous range.
+- **INV-G30** No repository revision contains a canonical
+  `governance/state.json` alongside a surviving hand-authored copy of a fact it
+  owns. The canonical path's first appearance is the atomic activation, which
+  also enables history validation; reverting it removes registry, regions and
+  pointers together.
+- **INV-G31** The external program index no longer claims coequal current-state
+  authority once activation has occurred, and activation is refused while it
+  does.
+- **INV-G32** Delivery lifecycle derives from repository evidence; issue prose
+  and issue open/closed state are anchors and mirrors, never delivery evidence.
 
 ---
 
@@ -278,6 +301,12 @@ it.
 | INV-G24 | `ADV-G24` prohibited claim reintroduced | hostile |
 | INV-G25 | `EX-G16` before/after derivation identical | independent re-derivation |
 | INV-G26 | `EX-G17` non-contiguous set preserved | example |
+| INV-G27 | `ADV-G37`, `ADV-G38`, `ADV-G39`; `PROP-G02` | hostile + property |
+| INV-G28 | `ADV-G42`, `ADV-G43` | hostile |
+| INV-G29 | `ADV-G46`, `ADV-G47`; `EX-G20` | hostile + example |
+| INV-G30 | `ADV-G48` registry beside a surviving copy | hostile |
+| INV-G31 | `ADV-G49` activation without the index transition | hostile |
+| INV-G32 | `ADV-G45` delivery taken from issue state | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -291,9 +320,15 @@ proven by construction and manual argument, not by a test.
 - **PROP-G02** Canonical serialization round-trips: `canon(parse(canon(x))) ==
   canon(x)`; and any permutation of input key order yields identical canonical
   bytes.
-- **PROP-G03** Changing any security-relevant field — accepted bytes, a
-  relationship, a rule input, an attestation field — changes the corresponding
-  digest.
+- **PROP-G03** Changing any **preimage** field — accepted bytes, a
+  relationship, a rule input — changes the corresponding transition, completion,
+  or seed digest.
+- **PROP-G08** Changing the **attestation envelope** does **not** change the
+  digest it attests, because the envelope is excluded from that preimage by
+  construction. An unauthorized envelope change is instead rejected by evidence
+  validation and history immutability. *(The previous version asserted that an
+  attestation-field change alters the digest, which contradicts
+  non-self-reference; both could not be true.)*
 - **PROP-G04** Renderer output is a pure function of the registry: same registry
   ⇒ same bytes, independent of filesystem order or locale.
 - **PROP-G05** Across generated registries, no query output in either form
@@ -307,81 +342,92 @@ proven by construction and manual argument, not by a test.
 
 ## Hostile corpus
 
-Every case must fail the **real** entry point.
+Every case must fail the **real** entry point. The corpus is split by which
+checker can actually prove it: a one-revision checker cannot detect that a value
+*changed*, so every "mutated in place" and "regressed" case belongs to history.
 
-### Representation
+### Provable by the current-revision checker (PR-1)
+
+**Representation**
 
 - **ADV-G01** Duplicate JSON key where a permissive parser keeps the last.
 - **ADV-G02** Unknown field, including a plausible `resolved`/`satisfied`.
 - **ADV-G03** Valid JSON that is not its own canonical serialization.
 - **ADV-G23** Truncated registry — must not read as empty.
+- **ADV-G37** Reordered set-valued relationship — bytes and digests must be
+  unchanged.
+- **ADV-G38** Duplicate collection member — entity id or set member.
+- **ADV-G39** Unclassified collection.
 
-### Decisions
+**Decisions, questions, gates**
 
-- **ADV-G04** Accepted ADR bytes edited; digest mismatch.
-- **ADV-G05** Superseded ADR's historical header rewritten to `Superseded`.
-- **ADV-G08** `Accepted -> Proposed` and `Accepted -> Rejected` regressions.
-- **ADV-G25** Rejection without its final-byte attestation.
-
-### Questions and gates
-
+- **ADV-G04** Accepted bytes no longer match the recorded digest.
+- **ADV-G05** Superseded document's historical header rewritten.
+- **ADV-G25** Rejection lacking its final-byte attestation.
 - **ADV-G06** Two current accepted resolvers for one question.
-- **ADV-G07** Resolver is `Proposed`, not accepted — question must stay open.
+- **ADV-G07** Resolver is `Proposed` — question must stay open.
 - **ADV-G09** Predicate referencing a missing entity — unevaluable.
-- **ADV-G11** `GATE-U4` predicate **mutated in place**; must fail history even
-  when the derived answer is otherwise consistent.
 
-### Landings and completion
+**Landings and completion**
 
-- **ADV-G10** Prerequisite cycle.
-- **ADV-G12** Dangling prerequisite reference.
-- **ADV-G13** `L8` **removed** from `L9`'s prerequisite set.
-- **ADV-G14** `L9`'s authority anchor **repointed away from issue #57**.
-- **ADV-G15** Node kind or completion-policy identity mutated in place.
-- **ADV-G16** Replacement identity supplied **without** its typed supersession
-  relation and human-attested transition.
-- **ADV-G26** **Arbitrary existing commit** offered as completion evidence, with
-  no scoped delivered identity or attestation.
-- **ADV-G27** **Arbitrary issue plus merged PR** offered as spike completion,
-  without the bound evidence root, manifest digest, findings identity and
-  attestation.
-- **ADV-G28** **Retrospectively manufactured OpenSpec archive** substituted for
-  `reviewed-spike-evidence-v1`'s explicit no-archive fact.
-- **ADV-G29** Delivery evidence mutated or removed after a terminal lifecycle.
-- **ADV-G30** Unknown completion policy, including a generic legacy escape
-  hatch.
+- **ADV-G10** Prerequisite cycle. · **ADV-G12** Dangling reference.
+- **ADV-G26** Arbitrary existing commit offered as completion evidence.
+- **ADV-G27** Arbitrary issue plus merged PR offered as spike completion.
+- **ADV-G28** Retrospectively manufactured OpenSpec archive substituted.
+- **ADV-G30** Unknown or generic-legacy completion policy.
+- **ADV-G33** `local-git-commit` whose object is absent.
 
-### Attestations and genesis
+**Attestations**
 
 - **ADV-G19** Attestation included in its own preimage.
-- **ADV-G20** Byte-correct seed asserting one relationship its source does not
-  declare — must fail on equivalence, with no prior revision available.
-- **ADV-G31** Omitted, unparseable, or conflicting source label during
-  reconciliation — explicit bootstrap failure, never treated as empty.
-- **ADV-G32** Genesis mutated to record ADR-0020 accepted, U4 resolved, or
-  GATE-U4 satisfied.
-- **ADV-G33** `local-git-commit` whose object is absent from the checkout.
 
-### History
-
-- **ADV-G21** History base invalid, missing, unreadable, or not a commit — must
-  fail with **no fallback** to `merge-base` or `HEAD~1`.
-- **ADV-G34** Existing record deleted or renumbered.
-- **ADV-G35** Resolved question's current resolver disappears.
-
-### Projections and authorization
+**Projections, query, migration**
 
 - **ADV-G22** Unregistered generated target or marker.
-- **ADV-G36** Generated projection **edited by hand**.
-- **ADV-G24** Hand-maintained accepted range, resolved count, question status
-  list, or blocker summary **reintroduced outside a registered projection** in a
-  registered consumer.
-- **ADV-G17** Readiness `Ready` read as authorization — query must still report
-  external verification required.
-- **ADV-G18** Any authorization-evidence record introduced — refused as an
-  unknown field.
+- **ADV-G36** Generated projection edited by hand.
+- **ADV-G24** Prohibited hand-maintained claim reintroduced in a registered
+  consumer.
+- **ADV-G17** Readiness `Ready` read as authorization.
+- **ADV-G48** A revision in which the canonical registry coexists with a
+  surviving hand-authored copy.
+- **ADV-G46** Governance surface absent from the consumer inventory.
+- **ADV-G47** `retained-semantic-prose` row with no recorded reason.
+- **ADV-G49** Activation whose evidence does not record the external index
+  transition.
 
----
+### Provable only by the two-revision history checker (PR-2)
+
+- **ADV-G21** Base invalid, missing, unreadable, or not a commit — **no
+  fallback**.
+- **ADV-G41** A post-activation base carrying no registry — refused, never a
+  second genesis.
+- **ADV-G08** `Accepted -> Proposed` / `Accepted -> Rejected` regression.
+- **ADV-G04h** Accepted bytes **and** the recorded digest replaced together.
+- **ADV-G40** Accepted acceptance-evidence mutated.
+- **ADV-G11** GATE-U4 predicate mutated in place.
+- **ADV-G13** `L8` removed from `L9`'s prerequisite set.
+- **ADV-G14** `L9`'s authority anchor repointed away from issue #57.
+- **ADV-G15** Node kind or completion-policy identity mutated in place.
+- **ADV-G16** Replacement identity without its typed supersession relation and
+  human-attested transition.
+- **ADV-G18** Authorization-evidence record introduced, mutated, or removed.
+- **ADV-G29** Delivery evidence mutated or removed after a terminal lifecycle.
+- **ADV-G34** Record deleted or renumbered.
+- **ADV-G35** Resolved question's current resolver disappears.
+
+### Genesis (PR-2, proven without a prior revision)
+
+- **ADV-G20** Byte-correct seed asserting one relationship its source does not
+  declare — must fail on equivalence.
+- **ADV-G31** Omitted, unparseable, or conflicting source label.
+- **ADV-G32** Seed authoring an accepted lifecycle, a resolution, or a
+  satisfaction.
+- **ADV-G42** Authored primitive with no source-manifest row.
+- **ADV-G43** Externally-attested row reported as locally verified.
+- **ADV-G44** Partial program seed — any node of `L1`…`L10`, `GATE-U6`,
+  `GATE-U4` missing.
+- **ADV-G45** Delivery lifecycle taken from issue state rather than repository
+  evidence.
 
 ## Mutation targets
 
@@ -401,6 +447,7 @@ no-op that still returns success is the failure mode being hunted.
 - **MUT-G10** Relationship-equivalence digest → derived-count comparison only.
 - **MUT-G11** Unevaluable predicate → treated as `false` without failing.
 - **MUT-G12** Unknown-field rejection → ignore-and-continue.
+- **MUT-G13** Set-valued canonical sort removed → reordering changes the digest.
 
 ---
 
@@ -409,44 +456,69 @@ no-op that still returns success is the failure mode being hunted.
 | Requirement | Landing | Task group | Proving control |
 | --- | --- | --- | --- |
 | Canonical representation | PR-1 | 1 | ADV-G01–03, G23; PROP-G02 |
-| Decision lifecycle | PR-1 | 2 | ADV-G04, G05, G08, G25; EX-G07 |
+| Collection classification and ordering | PR-1 | 1 | ADV-G37–39; PROP-G02; MUT-G13 |
+| Decision lifecycle (current manifestations) | PR-1 | 2 | ADV-G04, G05, G25; EX-G07 |
 | Questions and gates | PR-1 | 2 | ADV-G06, G07, G09 |
-| Landings and prerequisites | PR-1 | 3 | ADV-G10, G12; T1 |
-| Completion policies | PR-1 | 3 | ADV-G26–G30 |
-| Attestations | PR-2 | 4 | ADV-G19, G33; PROP-G03 |
-| Genesis | PR-2 | 4 | ADV-G20, G31, G32; EX-G16, EX-G17 |
-| Current-revision validation | PR-1 | 1–3 | the above via the real checker |
-| Rendering | PR-3 | 5 | ADV-G22, G36; EX-G11; PROP-G04 |
-| Projection migration | PR-4 | 6 | ADV-G24; EX-G14 |
-| History validation | PR-5 | 7 | ADV-G11, G13–G16, G21, G29, G34, G35 |
-| Query | PR-6 | 8 | ADV-G17, G18; PROP-G05; T4 |
-| PR #101 transition | PR-6 | 8 | EX-G18 derived-chain example |
+| Landings and prerequisites (current) | PR-1 | 2 | ADV-G10, G12; T1 |
+| Completion policies (current) | PR-1 | 2 | ADV-G26–G28, G30, G33 |
+| Attestations | PR-1 | 1 | ADV-G19; PROP-G03, G08 |
+| Current-revision validation | PR-1 | 2 | all of the above via the real checker |
+| History validation | **PR-2** | 4 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41 |
+| Rendering | PR-2 | 5 | ADV-G22, G36; EX-G11; PROP-G04 |
+| Query | PR-2 | 5 | ADV-G17, G18; PROP-G05; T4 |
+| Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
+| Genesis source manifest | PR-2 | 6 | ADV-G20, G31, G42, G43; MUT-G10 |
+| Consumer inventory | PR-2 | 6 | ADV-G46, G47; EX-G20 |
+| Atomic activation | **PR-3** | 8 | ADV-G48; the PR-3 completion gate |
+| Projection migration | PR-3 | 8 | ADV-G24; EX-G14 |
+| External program index | PR-3 | 8 | ADV-G49 |
+| PR #101 transition | PR-2 | 5 | EX-G18 — a **fixture**, not a real transition |
 
 No deferred scenario uses a generic "later" bucket; each names its landing.
+
+**The split that the previous version got wrong.** Every "mutated in place" or
+"regressed" case now sits in PR-2 with the history checker, because a
+one-revision checker cannot observe that a value changed. PR-1 keeps only what
+a single snapshot can refute.
 
 ---
 
 ## Landing plan
 
-Serial, six landings, in the order of `design.md` D11. Each landing's
-verification net ships **with** it.
+Three landings. **All machinery is built and proven before the canonical
+registry exists.**
 
-- **PR-1** model, strict reader, current checker, and their hostile corpus.
-  Nothing is generated and no state is seeded. Safe to build on because every
-  later landing depends on the model's rules being already proven.
-- **PR-2** genesis seed and attestation. Cannot land before PR-1 can validate
-  it. Must prove state-preservation (`EX-G16`).
-- **PR-3** renderer, `governance/STATE.md`, marker registry, drift controls.
-- **PR-4** projection migration and prohibited-field refusal. **Atomic:** each
-  generated region and the deletion of the hand-authored copy it replaces land
-  in the same change; a landing that adds a region while leaving the copy
-  creates a coequal surface.
-- **PR-5** history checker and explicit-base CI wiring, with its regression
-  corpus.
-- **PR-6** query interface with axis-separation controls.
+- **PR-1 — model, strict reader, collection canonicalization, current checker,
+  and their proof net.** No `governance/state.json` at the canonical path.
+  Fixtures only. Safe to build on because every later landing depends on these
+  rules already being proven.
+- **PR-2 — history checker, renderer, query, genesis machinery, and a
+  *candidate* seed at `tests/fixtures/governance/candidate/`.** Still no
+  canonical registry. Every mechanism is proven against the candidate, so PR-3
+  promotes an already-proven artifact rather than authoring a new one.
+- **PR-3 — atomic activation.** The canonical registry's **first appearance**,
+  arriving already protected: registry, genesis attestation, source manifest,
+  generated regions **and the deletion of the copies they replace**, pointers
+  for every enumerated consumer, prohibited-copy enforcement, current-revision
+  validation, **history validation**, scaffold coverage, and the human external
+  index transition — in one indivisible change.
 
-**Authority posture:** every landing is inert with respect to governance
-authority. None accepts, resolves, satisfies, or authorizes anything.
+**Why PR-3 cannot be split.** Two intervals the previous plan created are
+closed by construction:
+
+1. *Registry beside surviving copies.* Nothing makes a file at the canonical
+   authoritative path non-authoritative; "inert" is a description, not a
+   mechanism. So the registry may not appear before the copies go.
+2. *Authoritative but unprotected.* If history validation landed after
+   activation, an intervening change could mutate an accepted lifecycle,
+   accepted bytes, a gate predicate, L9's prerequisites, issue #57's anchor, or
+   terminal completion evidence; the current checker would accept the resulting
+   internally valid snapshot, and once history was enabled that corrupted
+   snapshot would already be the base.
+
+**Authority posture.** PR-1 and PR-2 carry no governance authority whatsoever.
+PR-3 is the single authority transition, and it accepts, resolves, satisfies and
+authorizes nothing.
 
 ---
 
@@ -456,34 +528,42 @@ At each complete seam:
 
 - **Evidence review** — that each claimed control ran against the real entry
   point and a real fixture, not a helper.
-- **Repository-aware semantic review** — that derived facts are absent from the
-  registry and that no prose copy survives a migration landing.
+- **Repository-aware semantic review** — that no conclusion is authored in the
+  registry, and that PR-3 leaves no surviving prose copy.
 - **Contract conformance** — against ADR-0021's decided semantics, especially
-  §3E non-authorization and §7a non-self-reference.
+  §3E non-authorization, §7a non-self-reference, and §2.4's prohibition on a
+  hand-authored copy beside a projection.
 - **Deterministic reconciliation** — `--check` no-op, and the full gate green.
-- **Architecture review** required for PR-1 (the model boundary) and PR-5 (the
-  adapter/model split).
+- **Architecture review** required for **PR-1** (the model boundary) and
+  **PR-2** (the adapter/model split, and the genesis source manifest).
+- **Activation review** required for **PR-3**, covering the completeness of the
+  seam and the external index transition evidence.
 
-Full re-review is not required at known-incomplete intermediate checkpoints;
-each landing is reviewed once at its frozen final head.
+Full re-review is not required at intermediate checkpoints; each landing is
+reviewed once at its frozen final head.
 
 ---
 
 ## Rollout and rollback
 
-- **Shadow phase.** PR-1 through PR-3 are advisory: they validate and render but
-  no consumer depends on them, and no prose is deleted.
-- **Measurements before activation.** The full hostile corpus green; every
-  mutation target killed; `--check` a byte-for-byte no-op; genesis
-  state-preservation demonstrated.
-- **Activation condition.** PR-4 is the activation seam — the first landing that
-  deletes hand-authored copies and makes the registry load-bearing. It may
-  proceed only when PR-1–PR-3's obligations are green.
-- **Rollback condition.** If a defect is found after PR-4, rollback is reverting
-  the migration landing, which restores the hand-authored copies from Git
-  history; the registry becomes inert again rather than a competing authority.
-  Rollback of PR-5/PR-6 removes checks and a read-only query and is
-  consequence-free.
+- **Pre-activation (PR-1, PR-2).** Nothing is authoritative and nothing is
+  deleted. The candidate seed exercises every mechanism from a fixture path.
+  This is genuinely inert — not by description, but because the canonical path
+  does not exist.
+- **Measurements before activation.** The full hostile corpus green in both
+  halves; every mutation target killed; `--check` a byte-for-byte no-op;
+  genesis state-preservation demonstrated; the consumer inventory enumerating
+  every current surface; and the external index transition performed and
+  evidenced.
+- **Activation condition.** PR-3 may proceed only when all of the above hold.
+  It is the single moment at which the registry becomes authoritative, and it
+  is also the moment at which every gate protecting it turns on.
+- **Rollback condition.** Reverting PR-3 removes the registry, the generated
+  regions, and the pointers **together**, restoring the prior hand-authored
+  copies from Git history. There is no state in which the registry survives its
+  migration. *(The previous version's rollback was defective in the opposite
+  direction: reverting its activation landing would have restored the prose
+  while leaving `state.json` behind — two authorities again.)*
 - **Runtime rollback is not applicable** — no runtime or household operation
   depends on this tooling (INV-G20).
 

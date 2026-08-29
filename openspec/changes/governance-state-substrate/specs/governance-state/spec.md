@@ -47,12 +47,70 @@ as any other derived answer.
 - **WHEN** the checker runs
 - **THEN** it fails, and reports the canonical form it expected
 
+#### Scenario: Logically equal collections serialize identically
+
+- **GIVEN** two registries differing only in the order of members within a
+  set-valued relationship, such as `["L8","GATE-U4"]` against
+  `["GATE-U4","L8"]`
+- **WHEN** each is canonicalized
+- **THEN** they produce identical bytes, and identical `primitiveDigest`,
+  `relationshipDigest`, and transition identities
+
+#### Scenario: A duplicate collection member is rejected
+
+- **GIVEN** an entity collection containing two records with the same stable
+  identifier, or a set-valued relationship naming the same member twice
+- **WHEN** the checker runs
+- **THEN** it fails naming the duplicate, which is never silently deduplicated
+
 #### Scenario: A malformed registry never becomes an empty one
 
 - **GIVEN** a truncated or syntactically invalid `governance/state.json`
 - **WHEN** any consumer — checker, renderer, or query — reads it
 - **THEN** every one of them fails closed, and none reports a derived
   governance answer
+
+---
+
+### Requirement: Every collection is classified, ordered, and duplicate-free
+
+Each collection in the registry SHALL carry a schema-declared class, and its
+canonical form SHALL follow from that class.
+
+**Entity collections** — decisions, questions, gates, landings, external
+references — SHALL be canonically ordered by stable identifier, and duplicate
+identifiers SHALL be rejected.
+
+**Set-valued relationships** — `resolves`, `supersedes`, `requires`, `sources` —
+SHALL be canonically sorted, SHALL reject duplicate members, and SHALL carry no
+order meaning: two orderings of the same members are the same value and SHALL
+produce identical bytes and identical digests.
+
+**Sequence-valued fields** SHALL exist only where order is explicitly semantic,
+SHALL preserve authored order, and SHALL be included in the identity-bearing
+preimage precisely because their order carries meaning.
+
+An unclassified collection SHALL be a schema error.
+
+#### Scenario: Reordering a set-valued relationship changes nothing
+
+- **GIVEN** a registry whose `requires` members are reordered
+- **WHEN** the canonical bytes and every digest are recomputed
+- **THEN** all are unchanged, and history validation reports no change
+
+#### Scenario: Reordering a semantic sequence is a change
+
+- **GIVEN** a registry whose reviewed ordering intent is reordered
+- **WHEN** the identity-bearing preimage is recomputed
+- **THEN** the corresponding identity changes, and history validation treats it
+  as an in-place mutation of a rule input
+
+#### Scenario: An unclassified collection is refused
+
+- **GIVEN** a collection the schema does not classify as entity, set-valued, or
+  sequence-valued
+- **WHEN** the checker runs
+- **THEN** it fails rather than choosing a canonical rule by inference
 
 ---
 
@@ -480,6 +538,22 @@ not become a second rule authority.
 - **WHEN** history validation runs
 - **THEN** it fails, whatever the resulting derived state
 
+#### Scenario: The activation revision is the one genesis exception
+
+- **GIVEN** the activation revision, whose explicit base commit carries no
+  registry because none existed before it
+- **WHEN** history validation runs
+- **THEN** history comparison is not applicable, the genesis attestation is the
+  proof, and validation passes only when that attestation validates
+
+#### Scenario: A later revision may not claim a second genesis
+
+- **GIVEN** any revision after activation whose explicit base carries no
+  registry
+- **WHEN** history validation runs
+- **THEN** it fails — a missing registry in the base means the registry was
+  deleted, which is a refusal and never a second genesis
+
 #### Scenario: An authorization-evidence record is refused as an unknown field
 
 - **GIVEN** a revision introducing any record asserting local authorization
@@ -540,6 +614,133 @@ arbitrary prose contains no contradiction.
 
 ---
 
+### Requirement: The canonical registry first appears in one atomic activation
+
+The path `governance/state.json` SHALL NOT exist in the repository before the
+activation change. A pre-activation candidate registry MAY exist under a test
+fixture or candidate path, and SHALL NOT be placed at the canonical path.
+
+There SHALL be no repository revision in which a canonical
+`governance/state.json` exists while a hand-authored copy of any fact it owns
+also exists. The activation change SHALL therefore contain, indivisibly:
+
+- the canonical `governance/state.json` and its genesis attestation and source
+  manifest;
+- the generated `governance/STATE.md` and every registered generated region;
+- **the deletion of every hand-authored copy those regions replace**;
+- the stable pointers replacing every remaining enumerated consumer copy;
+- prohibited-copy enforcement;
+- current-revision validation in CI;
+- **two-revision history validation in CI**;
+- the human external-program-index mirror transition and its evidence.
+
+"Inert", "advisory", or "shadow" SHALL NOT be used to describe a canonical
+registry that coexists with the copies it replaces: no mechanism makes a file at
+the canonical authoritative path non-authoritative.
+
+Reverting the activation change SHALL remove the registry, the generated
+regions, and the pointers together, restoring the prior hand-authored copies.
+There SHALL be no rollback state in which the registry survives its migration.
+
+#### Scenario: A canonical registry beside a surviving copy is refused
+
+- **GIVEN** a revision in which `governance/state.json` exists at the canonical
+  path while an enumerated consumer still carries a hand-authored copy of a fact
+  the registry owns
+- **WHEN** validation runs
+- **THEN** it fails — this is the coequal-authority state the substrate exists
+  to remove
+
+#### Scenario: A candidate registry is not the authority
+
+- **GIVEN** a pre-activation revision carrying a candidate registry under a
+  fixture path
+- **WHEN** validation runs
+- **THEN** it passes, no consumer is generated from it, and the canonical path
+  is absent
+
+#### Scenario: Activation without history validation is refused
+
+- **GIVEN** an activation change that makes the registry authoritative without
+  enabling two-revision history validation in the same change
+- **WHEN** the activation gate is evaluated
+- **THEN** it fails — the first authoritative revision must also be the first
+  protected one
+
+---
+
+### Requirement: The migration is proven against a closed consumer inventory
+
+Migration completeness SHALL be provable against an enumerated set, not a path
+glob. The implementation SHALL carry a versioned consumer inventory in which
+**every** current governance-state surface is classified as exactly one of:
+`generated-region`, `stable-pointer`, `historical-record`,
+`retained-semantic-prose`, or `not-a-governance-consumer`.
+
+Each row SHALL identify the current path, the fact classes it currently copies,
+its target disposition, its generated-region identifier where applicable, its
+migration landing, and — for `retained-semantic-prose` — the reason
+current-state-looking prose is retained.
+
+Accepted decision bodies, archived and merged OpenSpec change records, and
+spike evidence SHALL be classified `historical-record` and SHALL NOT be
+rewritten.
+
+A governance-state surface absent from the inventory SHALL be a migration
+failure. Prohibited-copy enforcement SHALL operate over the enumerated
+`generated-region` and `stable-pointer` rows.
+
+#### Scenario: An unclassified surface fails the migration
+
+- **GIVEN** a file carrying a governance fact class that no inventory row
+  classifies
+- **WHEN** the migration gate runs
+- **THEN** it fails naming the file — a forgotten consumer is another
+  hand-maintained authority
+
+#### Scenario: Historical records are excluded from rewriting
+
+- **GIVEN** an accepted decision body or an archived OpenSpec record containing
+  a historical status statement
+- **WHEN** the migration and prohibited-copy gates run
+- **THEN** neither rewrites it nor reports it, because it is classified
+  `historical-record`
+
+#### Scenario: Retained prose must state its reason
+
+- **GIVEN** an inventory row classified `retained-semantic-prose` with no
+  recorded reason
+- **WHEN** the inventory is validated
+- **THEN** it fails — retention is a reviewed decision, not a default
+
+---
+
+### Requirement: The external program index stops claiming authority at activation
+
+The external program index that currently declares itself the mutable authority
+for landing state SHALL become a human-facing mirror and authority-anchor index
+at activation. Because no implementation agent can edit it, this SHALL be a
+human-performed step whose completion is evidenced in the activation change.
+
+The activation gate SHALL **refuse activation** while that external index still
+claims coequal current-state authority.
+
+#### Scenario: Activation is refused while the external index claims authority
+
+- **GIVEN** an activation change whose evidence does not record the external
+  index transition
+- **WHEN** the activation gate is evaluated
+- **THEN** it fails — otherwise a second mutable authority outlives activation
+
+#### Scenario: The external index becomes an anchor, not evidence
+
+- **GIVEN** the transitioned external index
+- **WHEN** the model establishes delivery lifecycle
+- **THEN** it uses repository evidence only, and the index's state and prose
+  are never treated as delivery evidence
+
+---
+
 ### Requirement: The query reports separate axes and never authorizes
 
 The query interface SHALL provide a human-readable explanation form and a
@@ -594,31 +795,51 @@ SHALL assert that a delivery was authorized.
 
 ---
 
-### Requirement: Genesis seeds the exact pre-transition state and changes nothing
+### Requirement: Genesis authors primitives only, and the required state is derived
 
 The initial registry SHALL be seeded from the `main` snapshot after ADR-0021's
-acceptance reconciliation and **before** PR #101's acceptance transition, and
-SHALL record exactly:
+acceptance reconciliation and **before** PR #101's acceptance transition.
 
-- ADR-0001 through ADR-0019 `Accepted`;
-- **ADR-0020 `Proposed`**;
-- ADR-0021 `Accepted`;
-- **U4 derived open**;
-- **GATE-U4 derived unsatisfied**;
-- L8 outstanding;
-- L9 prerequisites `L8 + GATE-U4`;
-- GitHub issue #57 as L9's external authority anchor;
-- L9 prerequisite readiness `NotReady`.
+The registry SHALL author **only primitive facts**. In particular it SHALL
+author:
 
-The accepted set SHALL be recorded as the non-contiguous set it is; it SHALL NOT
-be expressed as a continuous accepted range.
+- ADR-0001 through ADR-0019 and ADR-0021 with lifecycle `Accepted`, and
+  **ADR-0020 with lifecycle `Proposed`** — a non-contiguous accepted set that
+  SHALL NOT be expressed as a continuous range;
+- `ADR-0020.resolves = ["U4"]`;
+- the `GATE-U4` predicate
+  `exactly-one-current-accepted-resolver` over `U4`;
+- every program node of §"The version-one program is seeded whole" with its
+  kind, prerequisite set, authority anchor, delivery lifecycle, and completion
+  policy — including `L9.requires = ["L8", "GATE-U4"]` and `L9`'s authority
+  anchor GitHub issue #57.
 
-The seed SHALL be proven to change **no operative governance state**: every
-derived answer before and after seeding SHALL be identical. Seeding SHALL NOT
-accept, resolve, satisfy, authorize, or make ready anything.
+The registry SHALL NOT author, and the model SHALL instead **derive**:
 
-The genesis fixture SHALL include the real L6 spike evidence representable as
-`reviewed-spike-evidence-v1`, and hostile genesis mutations SHALL be refused.
+- U4's state — derived **open**, because its only resolver is `Proposed`;
+- GATE-U4's satisfaction — derived **unsatisfied**;
+- L9's prerequisite readiness — derived `NotReady`, with unsatisfied
+  `["L8", "GATE-U4"]` and its explanation.
+
+Seeding SHALL change **no operative governance state**: every derived answer
+before and after seeding SHALL be identical. Seeding SHALL NOT accept, resolve,
+satisfy, authorize, or make ready anything.
+
+#### Scenario: The derived state follows from the authored primitives
+
+- **GIVEN** the seeded registry, which authors no resolution, satisfaction, or
+  readiness value
+- **WHEN** the model derives governance state
+- **THEN** U4 is open, GATE-U4 is unsatisfied, and L9 is `NotReady` — each
+  produced by derivation and asserted by tests and the query, never read from a
+  stored field
+
+#### Scenario: An authored derived conclusion in the seed is refused
+
+- **GIVEN** a seed carrying `question.resolved`, `gate.satisfied`, or
+  `prerequisiteReadiness`
+- **WHEN** the checker runs
+- **THEN** it fails as an unknown field, whatever value it holds
 
 #### Scenario: Seeding is state-preserving
 
@@ -627,33 +848,69 @@ The genesis fixture SHALL include the real L6 spike evidence representable as
 - **THEN** they are identical, and no lifecycle, resolution, gate, or readiness
   value differs
 
-#### Scenario: The genesis state is exactly the pre-transition state
-
-- **GIVEN** the seeded registry
-- **WHEN** the model derives decision lifecycles, question states, gates, and
-  readiness
-- **THEN** ADR-0020 is `Proposed`, U4 is open, GATE-U4 is unsatisfied, L8 is
-  outstanding, L9 requires `L8 + GATE-U4`, L9's anchor is issue #57, and L9's
-  readiness is `NotReady`
-
-#### Scenario: The real L6 spike is representable
-
-- **GIVEN** the L6 landing with authority issue #54, merged PR #73 and commit
-  `e0e8b786201d3e92bbe05f286ae55b9e002c4109`, evidence root
-  `docs/spikes/l6-copilot-cli/`, manifest digest
-  `db7fdc1746dad6a481be295f32125353a07f3edb6e1b13add689648f23fec984`, findings
-  digest
-  `f9bb9082da596b264f569c47ebd33eee117cc10663f2ee5c0c7522371abde592`, and the
-  explicit no-OpenSpec fact
-- **WHEN** it is validated under `reviewed-spike-evidence-v1`
-- **THEN** it passes, and no retrospective archive is manufactured
-
 #### Scenario: A hostile genesis mutation is refused
 
-- **GIVEN** a seed mutated to record an accepted lifecycle, a resolved question,
-  a satisfied gate, or a prerequisite set that its sources do not support
+- **GIVEN** a seed mutated to author an accepted lifecycle for ADR-0020, a
+  resolver relationship its source does not declare, or a prerequisite set the
+  ratified DAG does not support
 - **WHEN** the genesis attestation and checkers run
 - **THEN** they fail, naming the field and the source disagreement
+
+---
+
+### Requirement: The version-one program is seeded whole, from a closed source manifest
+
+Genesis SHALL be accompanied by a **closed source manifest**: every authored
+primitive SHALL map to a row carrying its identity, exact repository path or
+typed external reference, source revision or content digest, extraction rule,
+a `locally-verified` or `externally-attested` classification, and a human
+disposition wherever the source is ambiguous or disagrees.
+
+A primitive with no manifest row SHALL be a bootstrap failure. Facts that no
+listed source contains — gate predicates, node kinds, prerequisite sets,
+authority anchors, and completion policies — SHALL NOT be claimed as equivalent
+to sources that do not carry them.
+
+The seeded program SHALL be the **complete** version-one runner program —
+`L1`, `L2`, `L3`, `L4`, `L5`, `L6`, `GATE-U6`, `L7`, `L8`, `GATE-U4`, `L9`,
+`L10` — each with kind, prerequisites, authority anchor, delivery lifecycle,
+completion policy, and completion-evidence source. A partial program SHALL NOT
+be seeded.
+
+Delivery lifecycle SHALL be established from **repository evidence** — merged
+pull requests, commits, archived child OpenSpec changes, and spike evidence
+roots. Issue prose and issue open/closed state SHALL NOT be delivery evidence;
+they are anchors and mirrors only. A disagreement between them SHALL be recorded
+in the manifest with a human disposition and named by the bootstrap attestation,
+never silently reconciled.
+
+#### Scenario: A primitive with no source row fails the bootstrap
+
+- **GIVEN** an authored primitive absent from the source manifest
+- **WHEN** the bootstrap proof runs
+- **THEN** it fails naming the unmapped primitive
+
+#### Scenario: A stale issue does not establish delivery
+
+- **GIVEN** a landing whose authority issue is open and whose issue text says
+  the work is next, while merged repository evidence shows it delivered
+- **WHEN** the seed establishes delivery lifecycle
+- **THEN** it uses the repository evidence, records the disagreement with its
+  human disposition, and the bootstrap attestation names it
+
+#### Scenario: A partial program seed is refused
+
+- **GIVEN** a seed omitting any node of the version-one program
+- **WHEN** the checker runs
+- **THEN** it fails naming the missing node
+
+#### Scenario: An externally attested rule input is classified as such
+
+- **GIVEN** a gate predicate, node kind, or completion policy that no local
+  source declares
+- **WHEN** the manifest is validated
+- **THEN** the row is required to be classified `externally-attested` and bound
+  by the human bootstrap attestation, and is never reported as locally verified
 
 ---
 
