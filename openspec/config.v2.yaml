@@ -1,0 +1,66 @@
+schema: governed-spec-driven-v2
+
+context: |
+  Local-first, security-first platform for household agents. Governance comes
+  first: AGENTS.md is the universal agent contract; docs/decisions/INDEX.md is
+  the highest authority. Current governance status is not authored in this
+  configuration: during the ADR-0021 bootstrap, consult
+  docs/decisions/INDEX.md and docs/architecture/unresolved-decisions.md for
+  the manually reconciled state. ADR-0021 is accepted as a contract only; its
+  future governance/state.json and query tooling do not exist yet. Do not infer
+  authorization from this file, an issue reference, or an accepted ADR.
+  Tech stack (ADR-0012): TypeScript-first pnpm workspace — NestJS 11 on
+  Fastify 5, Next.js, Zod-authored contracts; Python only in
+  services/workers/python-inference, managed by uv.
+  Conventions: Conventional Commits scoped to the top-level area; never commit
+  to main; PRs open as drafts using .github/pull_request_template.md.
+  OpenSpec artifacts are planning documents only: they cannot change an ADR's
+  status, resolve an unresolved decision, or authorize deployment, secrets, or
+  device access.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+operations:
+  apply:
+    guidance:
+      - >-
+        For a change using governed-spec-driven-v2, the presence of
+        preimplementation-review.md is not approval. Before changing any
+        implementation or canonical authority, run `openspec validate
+        <change-name> --strict` and `node
+        scripts/openspec-review-gate.mjs verify --change <change-name>`.
+        Stop on any refusal.
+      - >-
+        OpenSpec readiness is necessary but not sufficient. Before changing
+        any source file, verify the external authorization recorded in the
+        change's tasks.md Implementation Authorization section: a GitHub
+        issue, an explicit user task, or another repository-approved task
+        contract must authorize the specific work. If that provenance is
+        missing, ambiguous, or narrower than the landing being applied, stop
+        and report NOT_AUTHORIZED instead of implementing.
+      - >-
+        Task checkbox state is progress tracking, never proof and never
+        authorization. Completion claims come from verification evidence.
+  archive:
+    guidance:
+      - >-
+        Canonical specs under openspec/specs/ become behavioral
+        source-of-truth only through validated archive/sync of a reviewed
+        change — never by direct edit.
