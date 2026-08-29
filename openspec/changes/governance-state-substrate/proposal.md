@@ -409,7 +409,9 @@ writing code.
 - **The closed vocabularies.** `design.md` D2.1 fixes the v1 gate-predicate
   vocabulary at the single name `exactly-one-current-accepted-resolver` — both
   existing gates are resolver gates — and the v1 node kinds at
-  `program-ratification`, `implementation-landing`, `spike-landing`, `gate`.
+  `program-materialization`, `implementation-landing`, `spike-landing`, `gate`.
+  Program-node identifiers are namespaced (`runner/L9`), and bare shorthand is
+  refused as a dangling reference rather than resolved as an alias.
   Both are identity-bearing rule inputs, so extending either is a reviewed
   schema-version change rather than an implementation liberty.
 - **U-item severity.** `design.md` D2.2 includes severity in v1 as an authored
@@ -423,7 +425,10 @@ writing code.
   and the projection — which is precisely why it is settled before
   implementation rather than at the seed landing.
 - **Which surfaces are generated regions rather than pointers.** `design.md`
-  D7.2 enumerates the measured consumer inventory: 2 generated-region targets,
-  38 stable-pointer consumers, 1 retained-semantic-prose row, 52
-  historical-record files excluded from rewriting, and 2 non-consumers. A
-  surface absent from that inventory is a migration failure, not a pass.
+  D7.2 enumerates the measured consumer inventory across **every tracked file**,
+  not only Markdown: 2 generated-region targets, 37 measured stable-pointer
+  consumers plus `openspec/config.yaml` by ADR mandate, 1 retained-semantic-prose
+  row, 27 historical records, 26 artifacts of **live, unarchived** OpenSpec
+  changes classified on their own merits rather than exempted, and 5
+  non-consumers. Counts are generated from the enumeration. A surface absent
+  from it is a migration failure, not a pass.

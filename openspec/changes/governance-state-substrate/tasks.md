@@ -16,6 +16,12 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
+> **Revised again after review 5058112067** — canonical namespaced identifiers,
+> `runner/L1` corrected to the post-ratification landing, a genesis completion
+> envelope for the historical `Complete` landings, a conditional external-index
+> handoff, and exact pre/post-activation artifact paths so PR-2 no longer
+> creates the root `governance/` directory without its README.
+>
 > **Revised after review 5056996739.** The previous decomposition landed
 > `governance/state.json` at its canonical path in PR-2 and deleted the prose
 > copies in PR-4 — the coequal-authority interval the proposal prohibits — and
@@ -83,12 +89,13 @@ that component.
 
 ### Decided before implementation, not during it
 
-`design.md` D2.1 and D2.2 close the vocabularies that would otherwise be
+`design.md` D2.1–D2.3 close the vocabularies that would otherwise be
 invented while coding: the v1 gate-predicate vocabulary is the single name
 `exactly-one-current-accepted-resolver`; the v1 node kinds are
-`program-ratification`, `implementation-landing`, `spike-landing`, `gate`; and
-question severity **is** in v1 as authored, rule-free, non-identity-bearing
-data. Extending either vocabulary is a reviewed schema-version change, because
+`program-materialization`, `implementation-landing`, `spike-landing`, `gate`;
+program-node identifiers are namespaced (`runner/L9`, `runner/GATE-U4`) with
+bare shorthand refused as a dangling reference; and question severity **is** in
+v1 as authored, rule-free, non-identity-bearing data. Extending either vocabulary is a reviewed schema-version change, because
 predicates and kinds are identity-bearing rule inputs.
 
 ---
@@ -310,10 +317,19 @@ atomic seam is present, and review has completed on one frozen head.
 
   **Change**
   Author **primitives only**: ADR lifecycles including **ADR-0020 `Proposed`**,
-  `ADR-0020.resolves = ["U4"]`, the `GATE-U4` predicate, and every node of the
-  complete program `L1`…`L10`, `GATE-U6`, `GATE-U4` with kind, prerequisites,
-  authority anchor, delivery lifecycle and completion policy — including
-  `L9.requires = ["L8","GATE-U4"]` and `L9`'s anchor issue #57.
+  `ADR-0020.resolves = ["U4"]`, the `runner/GATE-U4` predicate, and every node of
+  the complete program `runner/L1`…`runner/L10`, `runner/GATE-U6`,
+  `runner/GATE-U4` with kind, prerequisites, authority anchor, delivery lifecycle
+  and completion policy — including
+  `runner/L9.requires = ["runner/GATE-U4","runner/L8"]` and `runner/L9`'s anchor
+  issue #57.
+
+  **`runner/L1` is the post-ratification landing**, not the ratification: the
+  constitution (PR #48, the archived `2026-08-09-runner-baseline-adoption`
+  change, `openspec/specs/runner-adoption/spec.md`) is seeded as a
+  **source/evidence artifact**, never as the node. `runner/L1` carries **no v1
+  delivery lifecycle**, because neither completion policy covers human
+  post-ratification acts and ADR-0021 forbids inventing a third.
 
   **Author no conclusion.** U4 open, GATE-U4 unsatisfied and L9 `NotReady` are
   **derived** and asserted by tests and the query.
@@ -331,6 +347,9 @@ atomic seam is present, and review has completed on one frozen head.
   - `ADV-G32` seed authoring an accepted lifecycle, a resolution, or a
     satisfaction
   - `ADV-G44` partial program seed
+  - `ADV-G50` bare shorthand identifier refused
+  - `EX-G22` no `Planned` node's readiness depends on `runner/L1`, asserted so
+    the fact cannot silently change
   - `ADV-G45` delivery lifecycle taken from issue state rather than repository
     evidence
 
@@ -342,22 +361,54 @@ atomic seam is present, and review has completed on one frozen head.
   comparison only
 
 - [ ] **6.4 Closed consumer inventory**
-  <!-- agent-task: 6.4 paths=governance/consumers.json,scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=5.1 -->
+  <!-- agent-task: 6.4 paths=tests/fixtures/governance/candidate/consumers.json,scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=5.1 -->
 
   **Implements** — *The migration is proven against a closed consumer
   inventory*; `INV-G29`; `D7.1`, `D7.2`
 
   **Change**
-  Enumerate **every** current governance-state surface with disposition
+  Enumerate **every tracked file** — not only Markdown; `openspec/config.yaml`
+  is a YAML consumer ADR-0021 names by mandate — with disposition
   `generated-region | stable-pointer | historical-record |
   retained-semantic-prose | not-a-governance-consumer`, plus current path, fact
   classes copied, generated-region identifier, migration landing, and the reason
-  for any retained prose. Accepted ADR bodies, archived OpenSpec records, and
-  spike evidence are `historical-record` and are never rewritten.
+  for any retained prose. Counts are **generated from the enumeration**, never
+  written beside it.
+
+  The historical exemption is a **rule, not a glob**: archived, or evidenced as
+  merged and frozen. The 26 files in live, unarchived OpenSpec changes are
+  classified on their own merits.
+
+  Lives at `tests/fixtures/governance/candidate/consumers.json` until
+  activation.
 
   **Proof required** — `ADV-G46` surface absent from the inventory; `ADV-G47`
-  `retained-semantic-prose` row with no reason; `EX-G20` historical records
-  neither rewritten nor reported
+  `retained-semantic-prose` row with no reason; `ADV-G54` live unarchived change
+  claiming the historical exemption; `EX-G20` historical records neither
+  rewritten nor reported; `EX-G21` counts regenerate to the enumeration
+
+- [ ] **6.5 Genesis completion envelope**
+  <!-- agent-task: 6.5 paths=scripts/governance/genesis/**,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.3 -->
+
+  **Implements** — *Historical completions carry a genesis completion envelope*;
+  `INV-G34`; `D6.6`
+
+  **Change**
+  One envelope binding a canonically ordered, closed set of per-landing
+  completion digests for the six landings seeded `Complete` — `runner/L2`,
+  `L3`, `L4`, `L5`, `L6`, `L7` — each computed over that landing's full
+  policy-specific preimage. Excluded from its own preimage.
+
+  Temporally honest wording: the owner reviewed historical delivery evidence
+  **at genesis** and attested that it satisfies the selected policy. It does not
+  claim an attestation existed at delivery time.
+
+  **Proof required**
+  - `ADV-G51` `Complete` landing with no envelope member
+  - `ADV-G52` source-manifest row offered as an attestation
+  - `ADV-G53` altering any member changes the envelope digest
+  - `EX-G23` a landing no policy covers carries no delivery lifecycle and
+    satisfies no prerequisite
 
 ## 7. Verification net for PR-2
 
@@ -393,27 +444,56 @@ registry appears, and it appears already protected.
 
 ## 8. Activation
 
-- [ ] **8.1 Human step: transition the external program index**
+- [ ] **8.1 Human step: write the conditional handoff into the external index**
   <!-- agent-task: 8.1 paths=none checks=manual risk=trust-critical prerequisites=7.2 -->
 
   **Performed by the repository owner — no implementation agent can edit a
   GitHub issue.**
 
   **Implements** — *The external program index stops claiming authority at
-  activation*; `D7.6`
+  activation*; `INV-G37`; `D7.6`
 
-  - **Replacement wording:** the index becomes a human-facing mirror and
-    authority-anchor list pointing at `governance/STATE.md`, explicitly
-    disclaiming current-state authority.
-  - **When:** immediately before the activation merge.
-  - **Evidence:** the issue revision identity recorded in the activation change.
-  - **Rollback wording:** the prior text, restored if activation is reverted.
-  - **Gate:** activation is **refused** while the index still claims coequal
-    authority.
+  Written **before** activation, not at the merge boundary, because the
+  repository and the external system share no transaction. An unconditional
+  demotion would leave an interval with no authority anywhere, strand the index
+  demoted if the merge were abandoned, and invert the race on revert.
 
-- [ ] **8.2 Promote the candidate seed to the canonical path**
-  <!-- agent-task: 8.2 paths=governance/state.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
-  The already-proven candidate becomes `governance/state.json`. No new authoring.
+  **Conditional text:**
+
+  ```text
+  Until activation PR #<number> is merged and governance/state.json exists on
+  main, this issue remains the manual program-state authority.
+
+  When both conditions are true, governance/state.json is authoritative and
+  this issue becomes a human-facing mirror and authority-anchor index.
+
+  If that activation is reverted and the canonical registry disappears, the
+  manual authority resumes until a replacement activation succeeds.
+  ```
+
+  **Evidence bound by the activation change:** the index's stable identity, the
+  exact conditional body bytes or their SHA-256, the activation change identity,
+  and the expected canonical registry path.
+
+  **Gate:** activation is **refused** unless that binding is present.
+
+- [ ] **8.2 Promote the candidate artifacts to their canonical paths**
+  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
+
+  The already-proven candidates move to their durable paths — no new authoring:
+
+  | From | To |
+  |---|---|
+  | `tests/fixtures/governance/candidate/state.json` | `governance/state.json` |
+  | `…/source-manifest.json` | `governance/genesis-source-manifest.json` |
+  | `…/consumers.json` | `governance/consumers.json` |
+  | — | `governance/README.md` (created here, with the domain) |
+
+  The candidate directory is **removed**. If any part is retained as test
+  evidence it is explicitly frozen and the checker refuses it as an authority.
+
+  **Proof required** — `ADV-G55` a candidate copy left usable as authored
+  current state after activation
 
 - [ ] **8.3 Generate projections and delete the copies they replace**
   <!-- agent-task: 8.3 paths=governance/STATE.md,docs/decisions/INDEX.md,docs/architecture/unresolved-decisions.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.2 -->
@@ -423,7 +503,7 @@ registry appears, and it appears already protected.
   `validate-scaffold.sh` bidirectional index rules
 
 - [ ] **8.4 Replace every remaining enumerated consumer copy with a pointer**
-  <!-- agent-task: 8.4 paths=<the 38 stable-pointer rows of the consumer inventory> checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
+  <!-- agent-task: 8.4 paths=<every stable-pointer row of the consumer inventory> checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
   Scoped by the inventory, not by glob. `openspec/config.yaml` is the named
   regression case.
 
@@ -437,9 +517,11 @@ registry appears, and it appears already protected.
 
 ## PR-3 Completion Gate
 
-- [ ] The complete seam is present: registry, attestation, source manifest,
-      generated regions **and their deletions**, pointers, all gates, external
-      index transition.
+- [ ] The complete seam is present: registry, genesis attestation, **completion
+      envelope**, source manifest, consumer inventory, generated regions **and
+      their deletions**, pointers, all gates, bound conditional handoff.
+- [ ] **No second copy of authored current state remains usable** — the
+      candidate directory is removed or explicitly frozen and refused.
 - [ ] **No surviving hand-authored copy of any fact the registry owns.**
 - [ ] History validation is on **in this change**, not a later one.
 - [ ] Reverting this change removes registry, regions and pointers together.
@@ -490,7 +572,8 @@ occurs:
 - ADR-0001 through ADR-0019 and ADR-0021 `Accepted`; **ADR-0020 `Proposed`** —
   a **non-contiguous** accepted set, never compressed into a range
 - **U4 derived open**; **GATE-U4 derived unsatisfied** — neither is authored
-- L8 outstanding; L9 requires `L8 + GATE-U4`; L9 anchor issue #57; L9 readiness
+- `runner/L8` outstanding; `runner/L9` requires
+  `["runner/GATE-U4","runner/L8"]`; `runner/L9` anchor issue #57; readiness
   derived `NotReady`
 - No implementation authorization inferred from registry state, issue
   existence, accepted ADRs, or satisfied prerequisites

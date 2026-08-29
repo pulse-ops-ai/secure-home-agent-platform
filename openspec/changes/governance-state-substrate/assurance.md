@@ -4,6 +4,10 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
+> **Revised again after review 5058112067** — the history-base table now carries
+> the `carries registry` dimension and the genesis exception, and the
+> completeness section no longer states the superseded severity policy.
+>
 > **Revised after review 5056996739.** The previous version called PR-1
 > through PR-3 a shadow phase in which the canonical registry existed beside the
 > prose copies, assigned two-revision hostile cases to a one-revision checker,
@@ -141,6 +145,19 @@ accordingly.
   does.
 - **INV-G32** Delivery lifecycle derives from repository evidence; issue prose
   and issue open/closed state are anchors and mirrors, never delivery evidence.
+- **INV-G33** Program-node identifiers are namespaced and used byte-for-byte
+  everywhere; a bare shorthand is a dangling reference, never an alias.
+- **INV-G34** Every landing seeded `Complete` has a member in the genesis
+  completion envelope; a landing no v1 policy covers carries no delivery
+  lifecycle rather than a manufactured one.
+- **INV-G35** The historical exemption is a rule — archived or evidenced as
+  merged and frozen — never a path glob; live unarchived change artifacts are
+  classified on their own merits.
+- **INV-G36** After activation, no second copy of authored current state remains
+  usable anywhere in the tree.
+- **INV-G37** The external index handoff is conditional and bound by the
+  activation evidence; no interval exists in which neither it nor the registry
+  is authoritative.
 
 ---
 
@@ -211,12 +228,14 @@ Independent dimensions that materially affect behavior:
 
 ### T3 — History base
 
-| Base supplied | Readable | Is a commit | Outcome |
-| --- | --- | --- | --- |
-| yes | yes | yes | compare |
-| yes | yes | no | **fail** — no fallback |
-| yes | no | — | **fail** — no fallback |
-| no | — | — | **fail** — no inference |
+| Base supplied | Readable | Is a commit | Carries a registry | Outcome |
+| --- | --- | --- | --- | --- |
+| yes | yes | yes | yes | compare |
+| yes | yes | yes | **no**, and this is the activation revision | **genesis exception** — no prior revision exists; the genesis attestation and completion envelope are the proof |
+| yes | yes | yes | **no**, after activation | **fail** — the registry was deleted; never a second genesis |
+| yes | yes | no | — | **fail** — no fallback |
+| yes | no | — | — | **fail** — no fallback |
+| no | — | — | — | **fail** — no inference |
 
 ### T4 — Authorization assessment
 
@@ -240,11 +259,11 @@ No row yields `AUTHORIZED`. An undecidable state is never mapped to success.
 | Accepted set shape | non-contiguous | non-contiguous | contiguous only if truly so |
 | **U4** | **open** | **open (unchanged)** | resolved (derived) |
 | **GATE-U4** | **unsatisfied** | **unsatisfied (unchanged)** | satisfied (derived) |
-| L8 | outstanding | outstanding (unchanged) | **outstanding** |
-| L9 requires | `L8 + GATE-U4` | unchanged | unchanged |
-| L9 anchor | issue #57 | unchanged | unchanged |
-| L9 readiness | `NotReady` | `NotReady` (unchanged) | **`NotReady`**, unsatisfied `["L8"]` |
-| L9 authorization | none inferred | none inferred | **none inferred** |
+| `runner/L8` | outstanding | outstanding (unchanged) | **outstanding** |
+| `runner/L9` requires | `["runner/GATE-U4","runner/L8"]` | unchanged | unchanged |
+| `runner/L9` anchor | issue #57 | unchanged | unchanged |
+| `runner/L9` readiness | `NotReady` | `NotReady` (unchanged) | **`NotReady`**, unsatisfied `["runner/L8"]` |
+| `runner/L9` authorization | none inferred | none inferred | **none inferred** |
 
 The middle column is the whole claim of INV-G25: seeding moves nothing. The
 right column is a **future** derivation example; this change performs none of
@@ -307,6 +326,11 @@ it.
 | INV-G30 | `ADV-G48` registry beside a surviving copy | hostile |
 | INV-G31 | `ADV-G49` activation without the index transition | hostile |
 | INV-G32 | `ADV-G45` delivery taken from issue state | hostile |
+| INV-G33 | `ADV-G50` bare shorthand identifier | hostile |
+| INV-G34 | `ADV-G51`, `ADV-G52`, `ADV-G53` | hostile |
+| INV-G35 | `ADV-G54` live unarchived change claiming the exemption | hostile |
+| INV-G36 | `ADV-G55` candidate copy usable after activation | hostile |
+| INV-G37 | `ADV-G49` unbound conditional handoff | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -392,8 +416,20 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   surviving hand-authored copy.
 - **ADV-G46** Governance surface absent from the consumer inventory.
 - **ADV-G47** `retained-semantic-prose` row with no recorded reason.
-- **ADV-G49** Activation whose evidence does not record the external index
-  transition.
+- **ADV-G49** Activation whose evidence does not bind the conditional handoff —
+  index identity, conditional body bytes, activation identity, registry path.
+- **ADV-G50** A prerequisite or query naming bare `L8` where the registry
+  declares `runner/L8` — a dangling reference, never resolved by inference.
+- **ADV-G51** A landing seeded `Complete` with no member in the genesis
+  completion envelope.
+- **ADV-G52** A source-manifest row offered as a completion attestation.
+- **ADV-G53** Any member of the completion envelope altered — the envelope
+  digest must change and validation must fail until re-attested.
+- **ADV-G54** A live, unarchived OpenSpec change introducing a current decision
+  range or program blocker claim, attempting to inherit the historical
+  exemption.
+- **ADV-G55** A candidate state copy left usable as authored current state after
+  activation.
 
 ### Provable only by the two-revision history checker (PR-2)
 
@@ -572,9 +608,16 @@ reviewed once at its frozen final head.
 ## Assurance completeness
 
 **Unresolved state-model questions.** None trust-critical. Exact field spelling
-inside ADR-0021 §3's decided semantics is refinable at implementation; whether
-U-item severity remains authored or becomes derived is deferred to seed review
-and changes no validator.
+inside ADR-0021 §3's decided semantics is refinable at implementation.
+
+Severity is **no longer an open question and is no longer deferred**: `design.md`
+D2.3 decides it is authored in v1 as rule-free, non-identity-bearing data,
+included in canonical bytes and `primitiveDigest`, bound by the genesis
+attestation, rendered into the unresolved-decision projection, and ordinarily
+mutable under history. *(A previous version of this section said the choice was
+deferred to seed review and changed no validator. Both halves were wrong — the
+choice changes the schema, canonical bytes, the primitive digest, genesis, and
+history behavior, which is why it is settled before implementation.)*
 
 **Requirements lacking proof.** None in current scope. INV-G20 is proven by
 construction and manual argument rather than by test, and is marked as such.

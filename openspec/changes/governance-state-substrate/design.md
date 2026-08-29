@@ -4,6 +4,11 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
+> **Revised again after review 5058112067** — canonical namespaced identifiers,
+> L1's real identity, a genesis completion envelope for historical `Complete`
+> landings, a conditional external-index handoff, and a corrected consumer
+> inventory whose numbers are generated rather than copied.
+>
 > **Revised after review 5056996739.** The first version built the machinery
 > incrementally and landed `governance/state.json` at its canonical path four
 > landings before the prose copies were deleted. That is the coequal-authority
@@ -89,7 +94,7 @@ ownership and semantics. The shape:
   ],
   "gates": [
     {
-      "id": "GATE-U4",
+      "id": "runner/GATE-U4",
       "predicate": { "name": "exactly-one-current-accepted-resolver", "question": "U4" },
       "sources": ["docs/decisions/ADR-0021-establish-machine-readable-governance-state.md#3c"]
     }
@@ -98,7 +103,7 @@ ownership and semantics. The shape:
     {
       "id": "runner/L9",
       "kind": "implementation-landing",
-      "requires": ["runner/L8", "GATE-U4"],
+      "requires": ["runner/L8", "runner/GATE-U4"],
       "authorityAnchor": { "type": "github-issue", "repository": "pulse-ops-ai/secure-home-agent-platform", "number": 57 },
       "delivery": { "lifecycle": "Planned", "completionPolicy": null, "completion": null }
     }
@@ -121,7 +126,7 @@ accepted counts and ranges; `isCurrent`, `isImmutable`, `resolvesU4`;
 | Delivery lifecycle | `Planned`, `InProgress`, `Complete`, `Withdrawn` |
 | Completion policy | `reviewed-delivery-v1`, `reviewed-spike-evidence-v1` |
 | **Gate predicate** | **`exactly-one-current-accepted-resolver`** — the only v1 predicate |
-| **Node kind** | **`program-ratification`, `implementation-landing`, `spike-landing`, `gate`** |
+| **Node kind** | **`program-materialization`, `implementation-landing`, `spike-landing`, `gate`** |
 | Identity class | `local-git-commit`, `external-git-commit`, `content-sha256` |
 | Anchor type | `github-issue`, `github-pull-request`, `task-contract` |
 | Question severity | `critical`, `high`, `medium` |
@@ -135,7 +140,28 @@ GATE-U6 — are resolver gates over a question. Adding a predicate name is a
 reviewed schema-version change, not an implementation liberty, because
 predicates are identity-bearing rule inputs (ADR-0021 §3 D.1).
 
-### D2.2 Severity is in v1, authored, and deliberately rule-free
+### D2.2 Program-node identifiers are namespaced, and the namespace is the identity
+
+Every program node identifier is **namespaced**, byte-for-byte, everywhere:
+
+```text
+runner/L1 … runner/L10        runner/GATE-U6        runner/GATE-U4
+```
+
+The namespace is not decoration. A second governed program may one day
+introduce its own `L8` or `GATE-U4`, and a closed graph cannot resolve a
+collision by inference.
+
+The bare form is therefore **not an alias**. `L8` is an unregistered identifier
+and a dangling reference: the checker fails rather than resolving it to
+`runner/L8`. This spelling is used identically in registry entity ids,
+prerequisite references, source-manifest rows, query arguments, generated
+projections, fixtures, hostile mutations, and the later ADR-0020 transition.
+
+Decision identifiers (`ADR-0020`) and question identifiers (`U4`) are already
+globally unique within their own collections and are not namespaced.
+
+### D2.3 Severity is in v1, authored, and deliberately rule-free
 
 Severity **is** included as an authored primitive on the question record, and is
 explicitly:
@@ -172,7 +198,7 @@ and the classification is part of the schema:
 | Collection class | Members | Canonical rule | Duplicates | Order meaning |
 | --- | --- | --- | --- | --- |
 | **Entity** | `adrs[]`, `questions[]`, `gates[]`, `landings[]`, `externalReferences[]` | sorted by stable id, ascending | **rejected** (duplicate identifier) | none |
-| **Set-valued relationship** | `resolves[]`, `supersedes[]`, `requires[]`, `sources[]` | sorted, ascending | **rejected** (duplicate member) | **none** — `["L8","GATE-U4"]` and `["GATE-U4","L8"]` are the same value and must produce identical bytes |
+| **Set-valued relationship** | `resolves[]`, `supersedes[]`, `requires[]`, `sources[]` | sorted, ascending | **rejected** (duplicate member) | **none** — `["runner/GATE-U4","runner/L8"]` and its reverse are the same value and must produce identical bytes |
 | **Sequence-valued** | reviewed ordering intent, where order is explicitly semantic | order preserved as authored | rejected | **semantic**, and therefore included in the identity-bearing preimage |
 
 A sequence-valued field exists only where ADR-0021 §3 D.1's "reviewed ordering
@@ -321,33 +347,76 @@ human review — never silently treated as empty or equivalent.
 | **Delivery lifecycle and completion evidence** | merged PRs, commits, archived child OpenSpec changes, spike evidence roots | policy-specific identity verification (D4) | locally-verified where objects exist |
 | **Completion policy identity** | per-landing human declaration | human attestation | **externally-attested** |
 
+**D6.2a — This planning contract becomes a local source once merged.** After
+PR #107 is reviewed, merged, and archived, its artifacts are content-addressable
+repository evidence. The genesis manifest binds their exact archived paths and
+content digests, so these values are **locally verified** rather than resting on
+an external human assertion:
+
+- the gate-predicate vocabulary and the node-kind vocabulary (D2.1);
+- the canonical identifier form (D2.2) and canonicalization rules (D3);
+- completion-policy semantics and the envelope protocol (D6.6);
+- the whole-program enumeration (D6.3);
+- the activation contract (D11).
+
+Human attestation remains required, and is not replaced, for: historical
+interpretation of pre-registry evidence; node-to-policy assignment; source
+conflict dispositions; and acceptance of externally hosted anchors.
+
 **D6.3 — Complete v1 program enumeration.** Version one seeds the whole runner
-program, not a selection. Naming only L6/L8/L9/GATE-U4 would leave most of the
-27 measured sequencing copies outside the authority.
+program, not a selection.
 
 | Node | Kind | Prerequisites | Anchor | Delivery | Policy |
 | --- | --- | --- | --- | --- | --- |
-| `runner/L1` | program-ratification | — | PR #48 / `openspec/specs/runner-adoption/spec.md` | Complete | `reviewed-delivery-v1` |
-| `runner/L2` | implementation-landing | L1 | issue #51 | Complete | `reviewed-delivery-v1` |
-| `runner/L3` | implementation-landing | L2 | issue #52 | Complete | `reviewed-delivery-v1` |
-| `runner/L4` | implementation-landing | L3 | issue #27 | Complete | `reviewed-delivery-v1` |
-| `runner/L5` | implementation-landing | L4 | issue #53 | Complete | `reviewed-delivery-v1` |
-| `runner/L6` | spike-landing | L1 | issue #54 | Complete | `reviewed-spike-evidence-v1` |
-| `GATE-U6` | gate | — | ADR-0013 / issue #11 | — | — |
-| `runner/L7` | implementation-landing | L5, GATE-U6, L6 | issue #55 | Complete | `reviewed-delivery-v1` |
-| `runner/L8` | implementation-landing | L7 | issue #56 | **Planned** | — |
-| `GATE-U4` | gate | — | ADR-0020 / issue #9 | — | — |
-| `runner/L9` | implementation-landing | L8, GATE-U4 | **issue #57** | **Planned** | — |
-| `runner/L10` | implementation-landing | L8, L9 | issue #58 | Planned | — |
+| `runner/L1` | program-materialization | — | the ratified constitution (source, below) | **none in v1** | — |
+| `runner/L2` | implementation-landing | `runner/L1` | issue #51 | Complete | `reviewed-delivery-v1` |
+| `runner/L3` | implementation-landing | `runner/L2` | issue #52 | Complete | `reviewed-delivery-v1` |
+| `runner/L4` | implementation-landing | `runner/L3` | issue #27 | Complete | `reviewed-delivery-v1` |
+| `runner/L5` | implementation-landing | `runner/L4` | issue #53 | Complete | `reviewed-delivery-v1` |
+| `runner/L6` | spike-landing | `runner/L1` | issue #54 | Complete | `reviewed-spike-evidence-v1` |
+| `runner/GATE-U6` | gate | — | ADR-0013 / issue #11 | — | — |
+| `runner/L7` | implementation-landing | `runner/L5`, `runner/GATE-U6`, `runner/L6` | issue #55 | Complete | `reviewed-delivery-v1` |
+| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** | — |
+| `runner/GATE-U4` | gate | — | ADR-0020 / issue #9 | — | — |
+| `runner/L9` | implementation-landing | `runner/L8`, `runner/GATE-U4` | **issue #57** | **Planned** | — |
+| `runner/L10` | implementation-landing | `runner/L8`, `runner/L9` | issue #58 | Planned | — |
 
 The DAG matches the ratified constitution:
 `L2←L1 · L3←L2 · L4←L3 · L5←L4 · L6←L1 · L7←L5+GATE-U6(+L6) · L8←L7 ·
 L9←L8+GATE-U4 · L10←L8+L9`.
 
-Each `Complete` row requires its own policy-specific evidence under D4; a row in
-this table is a **seeding obligation**, not a completion proof. Where evidence
-cannot be locally verified, the seed records the landing as not-completable and
-the checker fails closed rather than accepting the table.
+**D6.3a — `runner/L1` is the post-ratification landing, not the ratification.**
+The ratified constitution defines L1 as *"Post-ratification actions (human; not
+parent tasks)"*: mint one issue per landing L2–L10, revise #19 and #27, and
+update the documentation pointers. That is a landing whose completion occurred
+as human acts in externally hosted systems.
+
+The constitution itself — PR #48, the archived change
+`openspec/changes/archive/2026-08-09-runner-baseline-adoption/`, and
+`openspec/specs/runner-adoption/spec.md` — is the program's **normative
+source**, modelled as a source/evidence artifact in the manifest, **not** as a
+node. Collapsing the two would let the source stand in as the landing's own
+completion evidence.
+
+Consequently `runner/L1` has **no v1 delivery lifecycle**: neither
+`reviewed-delivery-v1` (it has no child archived OpenSpec identity — its actions
+are a section of the parent change) nor `reviewed-spike-evidence-v1` (it is not
+a spike) covers human post-ratification acts, and ADR-0021 forbids inventing a
+third policy without a new ADR. ADR-0021 §3D permits a node to carry a delivery
+lifecycle only "when applicable", so this is representable rather than a gap
+papered over.
+
+**What that costs, stated plainly.** A landing with no delivery lifecycle can
+never satisfy a prerequisite. `runner/L2` and `runner/L6` declare `runner/L1` as
+a prerequisite, and both are already `Complete`, so no *live* readiness answer
+depends on it — every `Planned` node's chain runs through `runner/L7`/`L8`/`L9`.
+A conformance test asserts exactly that, so the fact cannot silently change. If
+a future `Planned` node ever depends on `runner/L1`, a new ADR adding a
+completion policy is required; the checker will report it rather than guess.
+
+Each `Complete` row is a **seeding obligation**, not a completion proof: it
+requires its own policy-specific evidence under D4 **and** its completion
+attestation under D6.6.
 
 **D6.4 — A real source disagreement, and its disposition.** Issue #19 states
 `L5 — next runner landing` and `L7 — waits on L5`, and issues #53 and #55 are
@@ -364,6 +433,33 @@ must resolve, and it is recorded as such:
 - The disagreement is recorded in the genesis source manifest with a human
   disposition, and the bootstrap attestation names it. It is not silently
   reconciled.
+
+**D6.6 — Historical completions need attestations, and genesis is one human act.**
+`reviewed-delivery-v1` and `reviewed-spike-evidence-v1` each require a human
+completion attestation. Repository evidence alone does not satisfy them, and a
+source-manifest row is not an attestation. Without this, a correct checker must
+refuse every `Complete` row — and no downstream readiness could be derived.
+
+Six landings need one at genesis: `runner/L2`, `L3`, `L4`, `L5`, `L6`, `L7`.
+
+**Option A is selected: a single genesis completion envelope.** It binds a
+canonically ordered, closed set of per-landing completion digests — one per
+completed landing, each computed over that landing's full policy-specific
+preimage (landing identity, prior and target lifecycle, authority anchor,
+archived OpenSpec or evidence identity, delivered scope, exact commit or
+artifact identity, completion policy). Adding, removing, or altering any
+landing changes the envelope digest. The envelope is excluded from its own
+preimage, like every other attestation.
+
+Option B — one attestation per landing — was rejected because it would imply
+six separate human acts at six separate times. Genesis is one review, in one
+sitting.
+
+**The wording is temporally honest.** The envelope records that *the owner
+reviewed historical delivery evidence at genesis and attested that it satisfies
+the selected completion policy*. It does **not** assert that an attestation
+existed when the original delivery occurred, and it must not be phrased as
+though it did.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
@@ -385,21 +481,45 @@ landing, and the reason for any retained current-state-looking prose.
 Dispositions: `generated-region`, `stable-pointer`, `historical-record`,
 `retained-semantic-prose`, `not-a-governance-consumer`.
 
-**D7.2 — Measured inventory at `eb6e248`.** 40 live consumer files, classified
-by the fact classes they copy (`adr-range`, `adr-status`, `u-count`, `u-state`,
-`gate-seq`):
+**D7.2 — Measured inventory at `eb6e248`.** The counts below are **generated
+from the enumeration**, not asserted beside it; the implementation regenerates
+them and the checker compares.
 
-| Disposition | Files | Members |
+Scope is **every tracked file**, not only Markdown: `openspec/config.yaml` is a
+YAML consumer that ADR-0021 §10 names explicitly, and a Markdown-only scan
+would have missed it.
+
+| Disposition | Count | Members |
 | --- | --- | --- |
 | **generated-region** | 2 | `docs/decisions/INDEX.md` (lifecycle regions), `docs/architecture/unresolved-decisions.md` (summary table, resolution banners) |
-| **stable-pointer** | 38 | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `deploy/runtime/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, `openspec/config.yaml`, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, and the architecture documents carrying only `u-state` links (`api-contract-model.md`, `degraded-mode.md`, `distributed-effect-lifecycle.md`, `effect-boundary-model.md`, `knowledge-promotion-model.md`, `knowledge-selection-model.md`, `runner-model.md`) |
-| **retained-semantic-prose** | `docs/architecture/agent-triage-and-escalation.md` | carries a `u-count`-shaped phrase that is explanatory, not a current-state claim; reason recorded per row |
-| **historical-record — excluded from rewriting** | 52 | accepted ADR bodies (`docs/decisions/ADR-*.md`), archived and merged OpenSpec change artifacts (`openspec/changes/**`), spike evidence (`docs/spikes/**`), and the canonical `openspec/specs/runner-adoption/spec.md`, which changes only through validated archive |
-| **not-a-governance-consumer** | 2 | `openspec/schemas/governed-spec-driven-v1/templates/{proposal,design}.md` — schema template text, not a state copy |
+| **stable-pointer** | 37 measured + `openspec/config.yaml` by ADR mandate | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, and the architecture documents carrying only `u-state` links (`api-contract-model.md`, `degraded-mode.md`, `distributed-effect-lifecycle.md`, `effect-boundary-model.md`, `knowledge-promotion-model.md`, `knowledge-selection-model.md`, `runner-model.md`) |
+| **retained-semantic-prose** | 1 | `docs/architecture/agent-triage-and-escalation.md` — an explanatory phrase, not a current-state claim; reason recorded in its row |
+| **live OpenSpec changes** | **26** | active, unarchived artifacts under `openspec/changes/<id>/` — **not historical**; see D7.2a |
+| **historical-record** | 27 | accepted decision bodies, `openspec/changes/archive/**`, `docs/spikes/**`, `openspec/specs/**` |
+| **not-a-governance-consumer** | 5 | `openspec/schemas/**` templates and `schema.yaml`, `scripts/validate-scaffold.sh`, `tests/test_knowledge_catalog.py` — tooling and template text, not state copies |
 
-A file absent from the inventory is a **migration failure**, not a pass. The
-prohibited-copy gate operates over the enumerated `generated-region` and
-`stable-pointer` rows.
+`live-consumer` totals **40**: 2 generated-region + 1 retained-prose + 37
+stable-pointer. The previous version said 38 pointers and listed 39 paths; both
+were wrong, which is precisely why the numbers are now derived.
+
+**D7.2a — The historical exemption is a rule, not a glob.** Exempting
+`openspec/changes/**` would have swallowed **26 files in active, unarchived
+changes** — the category most likely to carry current planning-state claims. A
+change is `historical-record` only when:
+
+```text
+its path is under openspec/changes/archive/**
+  OR repository evidence identifies the change as merged and frozen
+```
+
+Everything else under `openspec/changes/` is a live surface and is classified on
+its own merits. A negative case is required: a live unarchived OpenSpec change
+that introduces a current decision range or program blocker claim **must fail**,
+not disappear behind the exemption.
+
+A file absent from the inventory is a **migration failure**. Prohibited-copy
+enforcement operates over the enumerated `generated-region` and `stable-pointer`
+rows.
 
 **D7.3 — Markers.** Each generated region carries an explicit begin/end marker
 naming target and region, registered by the renderer. An unregistered target or
@@ -415,19 +535,59 @@ hand-authored copy of a fact it owns.
 **D7.5 — `openspec/config.yaml`** is a named regression case: it becomes a
 pointer, and a test proves it cannot revert to an independent state store.
 
-**D7.6 — Issue #19 requires a human act.** No implementation agent can edit a
-GitHub issue. Unless a human act is part of the activation gate, issue #19 keeps
-declaring itself *"the mutable program index … where landing links and current
-execution state live"* after `state.json` becomes authoritative — a second
-mutable authority, externally hosted.
+**D7.6 — The external index handoff is conditional, because two systems cannot
+commit in one transaction.** No implementation agent can edit a GitHub issue,
+and Git and GitHub have no shared transaction. The previous plan — demote the
+index immediately before merging, then record the revision in the activation PR
+— leaves a real gap:
 
-The activation gate therefore includes a human-only step specifying: the exact
-replacement wording (#19 becomes a human-facing mirror and authority-anchor
-index pointing at `governance/STATE.md`, explicitly disclaiming current-state
-authority); who performs it (the repository owner); when (immediately before the
-activation merge); the evidence (issue revision identity recorded in the
-activation change); the rollback wording (restoring the prior text); and a gate
-that **refuses activation while issue #19 still claims coequal authority**.
+```text
+issue #19 stops claiming authority
+        ↓   ← gap: no canonical authority anywhere
+activation PR not yet merged
+        ↓
+governance/state.json does not yet exist on main
+```
+
+It also moves the branch head (forcing another CI run), strands the index
+demoted if the merge is abandoned, and inverts the race on revert.
+
+**The index therefore carries a conditional handoff, written before activation:**
+
+```text
+Until activation PR #<number> is merged and governance/state.json exists on
+main, this issue remains the manual program-state authority.
+
+When both conditions are true, governance/state.json is authoritative and this
+issue becomes a human-facing mirror and authority-anchor index.
+
+If that activation is reverted and the canonical registry disappears, the
+manual authority resumes until a replacement activation succeeds.
+```
+
+The activation evidence binds the index's stable identity, the exact conditional
+body bytes or their SHA-256, the activation PR identity, and the expected
+canonical registry path. This is the closest achievable equivalent to an atomic
+cross-system transition; it does not pretend the two systems commit together.
+
+The activation gate still **refuses activation** unless that conditional body is
+in place and bound.
+
+**D7.7 — Exact artifact paths, before and after.**
+
+| Phase | Paths |
+| --- | --- |
+| Pre-activation (PR-2) | `tests/fixtures/governance/candidate/state.json`, `…/source-manifest.json`, `…/consumers.json` |
+| After activation (PR-3) | `governance/state.json`, `governance/genesis-source-manifest.json`, `governance/consumers.json`, `governance/README.md`, `governance/STATE.md` |
+
+PR-2 therefore creates **no** `governance/` directory: the previous plan placed
+`governance/consumers.json` in PR-2 while `governance/README.md` arrived in
+PR-3, which would have introduced the root domain without its required README.
+
+On activation the candidate directory is **removed**. If any part is retained as
+test evidence it is explicitly frozen, and the checker refuses it as an
+authority. The activation proof asserts that **no second copy of authored
+current state remains usable** anywhere in the tree.
 
 ---
 
@@ -526,7 +686,7 @@ governance/STATE.md                   (generated)
 genesis attestation + source manifest
 generated decision-index regions      + deletion of the copies they replace
 generated unresolved-decision regions + deletion of the copies they replace
-stable pointers in all 38 pointer consumers
+stable pointers in every enumerated pointer consumer
 prohibited-copy enforcement
 current-state validation in CI
 history validation in CI              (with the D8.2 genesis exception)

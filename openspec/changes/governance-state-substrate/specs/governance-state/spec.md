@@ -50,8 +50,8 @@ as any other derived answer.
 #### Scenario: Logically equal collections serialize identically
 
 - **GIVEN** two registries differing only in the order of members within a
-  set-valued relationship, such as `["L8","GATE-U4"]` against
-  `["GATE-U4","L8"]`
+  set-valued relationship, such as `["runner/GATE-U4","runner/L8"]` against
+  its reverse
 - **WHEN** each is canonicalized
 - **THEN** they produce identical bytes, and identical `primitiveDigest`,
   `relationshipDigest`, and transition identities
@@ -111,6 +111,34 @@ An unclassified collection SHALL be a schema error.
   sequence-valued
 - **WHEN** the checker runs
 - **THEN** it fails rather than choosing a canonical rule by inference
+
+---
+
+### Requirement: Program-node identifiers are namespaced, and shorthand is refused
+
+Every program node SHALL carry a namespaced stable identifier —
+`runner/L1` … `runner/L10`, `runner/GATE-U6`, `runner/GATE-U4` — used
+byte-for-byte identically in registry entity identifiers, prerequisite
+references, source-manifest rows, query arguments, generated projections,
+fixtures, hostile mutations, and any later decision transition.
+
+A bare form such as `L8` SHALL NOT be an accepted alias. It is an unregistered
+identifier and therefore a dangling reference, and the checker SHALL fail rather
+than resolve it.
+
+#### Scenario: The namespaced identifier resolves
+
+- **GIVEN** a prerequisite naming `runner/L8`, which the registry declares
+- **WHEN** the graph is resolved
+- **THEN** it resolves, and the same spelling appears in every projection and
+  query result
+
+#### Scenario: Shorthand is a dangling reference, not an alias
+
+- **GIVEN** a prerequisite naming `L8` while the registry declares `runner/L8`
+- **WHEN** the checker runs
+- **THEN** it fails as a dangling reference — inferring the namespace would make
+  a closed graph resolvable by guesswork
 
 ---
 
@@ -682,9 +710,15 @@ its target disposition, its generated-region identifier where applicable, its
 migration landing, and — for `retained-semantic-prose` — the reason
 current-state-looking prose is retained.
 
-Accepted decision bodies, archived and merged OpenSpec change records, and
-spike evidence SHALL be classified `historical-record` and SHALL NOT be
-rewritten.
+The inventory's scope SHALL be **every tracked file**, not only Markdown: a
+governance-state consumer may be YAML or another format.
+
+Accepted decision bodies, spike evidence, and OpenSpec change records SHALL be
+classified `historical-record` and SHALL NOT be rewritten — but the OpenSpec
+exemption SHALL be a **rule, not a path glob**. A change SHALL qualify as
+historical only when its path is under an archive directory, or repository
+evidence identifies it as merged and frozen. Artifacts of live, unarchived
+changes SHALL be classified on their own merits.
 
 A governance-state surface absent from the inventory SHALL be a migration
 failure. Prohibited-copy enforcement SHALL operate over the enumerated
@@ -697,6 +731,20 @@ failure. Prohibited-copy enforcement SHALL operate over the enumerated
 - **WHEN** the migration gate runs
 - **THEN** it fails naming the file — a forgotten consumer is another
   hand-maintained authority
+
+#### Scenario: A live unarchived change does not inherit the historical exemption
+
+- **GIVEN** an active, unarchived OpenSpec change whose artifacts introduce a
+  current decision range or program blocker claim
+- **WHEN** the migration and prohibited-copy gates run
+- **THEN** they fail — the exemption covers archived and frozen records, never
+  every path beneath the changes directory
+
+#### Scenario: A non-Markdown consumer is in scope
+
+- **GIVEN** a YAML or other non-Markdown file carrying a governance state claim
+- **WHEN** the inventory is validated
+- **THEN** it is required to be classified, exactly as a Markdown consumer is
 
 #### Scenario: Historical records are excluded from rewriting
 
@@ -718,19 +766,40 @@ failure. Prohibited-copy enforcement SHALL operate over the enumerated
 ### Requirement: The external program index stops claiming authority at activation
 
 The external program index that currently declares itself the mutable authority
-for landing state SHALL become a human-facing mirror and authority-anchor index
-at activation. Because no implementation agent can edit it, this SHALL be a
-human-performed step whose completion is evidenced in the activation change.
+for landing state SHALL become a human-facing mirror and authority-anchor index.
+Because no implementation agent can edit it, and because the repository and the
+external system share no transaction, the handoff SHALL be **conditional** and
+written **before** activation rather than performed at the merge boundary.
 
-The activation gate SHALL **refuse activation** while that external index still
-claims coequal current-state authority.
+The conditional text SHALL state that the index remains the manual authority
+until the named activation change is merged and the canonical registry exists;
+that the registry is authoritative once both hold; and that manual authority
+**resumes** if the activation is reverted and the registry disappears.
 
-#### Scenario: Activation is refused while the external index claims authority
+The activation evidence SHALL bind the index's stable identity, the exact
+conditional body bytes or their SHA-256, the activation change identity, and the
+expected canonical registry path. The activation gate SHALL **refuse activation**
+unless that binding is present.
 
-- **GIVEN** an activation change whose evidence does not record the external
-  index transition
+An unconditional demotion performed at the merge boundary SHALL NOT be used: it
+leaves an interval with no authority anywhere, strands the index demoted if the
+merge is abandoned, and inverts the race on revert.
+
+#### Scenario: Activation is refused without the bound conditional handoff
+
+- **GIVEN** an activation change whose evidence does not bind the index
+  identity, the conditional body bytes, the activation identity, and the
+  expected registry path
 - **WHEN** the activation gate is evaluated
 - **THEN** it fails — otherwise a second mutable authority outlives activation
+
+#### Scenario: Reverting activation returns authority to the index
+
+- **GIVEN** a reverted activation in which the canonical registry no longer
+  exists
+- **WHEN** the conditional text is read
+- **THEN** manual authority resumes by its own terms, leaving no interval in
+  which neither the registry nor the index is authoritative
 
 #### Scenario: The external index becomes an anchor, not evidence
 
@@ -811,15 +880,16 @@ author:
   `exactly-one-current-accepted-resolver` over `U4`;
 - every program node of §"The version-one program is seeded whole" with its
   kind, prerequisite set, authority anchor, delivery lifecycle, and completion
-  policy — including `L9.requires = ["L8", "GATE-U4"]` and `L9`'s authority
-  anchor GitHub issue #57.
+  policy — including
+  `runner/L9.requires = ["runner/GATE-U4", "runner/L8"]` and `runner/L9`'s
+  authority anchor GitHub issue #57.
 
 The registry SHALL NOT author, and the model SHALL instead **derive**:
 
 - U4's state — derived **open**, because its only resolver is `Proposed`;
 - GATE-U4's satisfaction — derived **unsatisfied**;
-- L9's prerequisite readiness — derived `NotReady`, with unsatisfied
-  `["L8", "GATE-U4"]` and its explanation.
+- `runner/L9`'s prerequisite readiness — derived `NotReady`, with unsatisfied
+  `["runner/GATE-U4", "runner/L8"]` and its explanation.
 
 Seeding SHALL change **no operative governance state**: every derived answer
 before and after seeding SHALL be identical. Seeding SHALL NOT accept, resolve,
@@ -914,6 +984,61 @@ never silently reconciled.
 
 ---
 
+### Requirement: Historical completions carry a genesis completion envelope
+
+A landing SHALL NOT be `Complete` on repository evidence alone: each selected
+completion policy requires a human completion attestation. A source-manifest row
+SHALL NOT be treated as a completion attestation, and the general genesis
+attestation SHALL NOT stand in for a per-landing completion transition.
+
+Genesis SHALL therefore carry a **completion envelope** binding a canonically
+ordered, closed set of per-landing completion digests — one for each landing
+seeded `Complete` — each computed over that landing's full policy-specific
+preimage. Adding, removing, or altering any member SHALL change the envelope
+digest. The envelope SHALL be excluded from its own preimage.
+
+The envelope's wording SHALL be temporally honest: it records that the owner
+reviewed historical delivery evidence **at genesis** and attested that it
+satisfies the selected policy. It SHALL NOT assert that an attestation existed
+when the original delivery occurred.
+
+A landing whose completion no v1 policy covers SHALL carry **no delivery
+lifecycle** rather than a manufactured one, and SHALL therefore satisfy no
+prerequisite.
+
+#### Scenario: A Complete landing without its envelope member is refused
+
+- **GIVEN** a landing seeded `Complete` whose completion digest is absent from
+  the genesis completion envelope
+- **WHEN** the checker validates genesis
+- **THEN** it fails, the landing satisfies no prerequisite, and no downstream
+  readiness is derived from it
+
+#### Scenario: A source-manifest row is not an attestation
+
+- **GIVEN** a landing whose only completion support is its source-manifest
+  evidence row
+- **WHEN** the checker validates the completion
+- **THEN** it fails — evidence locates the delivery; the attestation is the
+  human act that accepts it
+
+#### Scenario: Altering any member changes the envelope digest
+
+- **GIVEN** a genesis completion envelope and a change to any one landing's
+  completion preimage
+- **WHEN** the envelope digest is recomputed
+- **THEN** it differs, and validation fails until the envelope is re-attested
+
+#### Scenario: A landing no policy covers carries no delivery lifecycle
+
+- **GIVEN** a landing whose completion consists of human acts in externally
+  hosted systems that neither v1 completion policy covers
+- **WHEN** it is seeded
+- **THEN** it carries no delivery lifecycle, satisfies no prerequisite, and the
+  model reports that rather than inventing a policy
+
+---
+
 ### Requirement: The PR #101 acceptance is a future consumer transition that authorizes nothing
 
 PR #101 SHALL be treated as a **future consumer** of this substrate. This
@@ -932,13 +1057,14 @@ authorization** for L9 or anything else SHALL be inferred.
   transition with its acceptance evidence
 - **WHEN** the model recomputes derived state
 - **THEN** U4 becomes resolved and GATE-U4 satisfied, while L8 remains
-  outstanding and L9 remains `NotReady` with unsatisfied `["L8"]`
+  outstanding and `runner/L9` remains `NotReady` with unsatisfied
+  `["runner/L8"]`
 
 #### Scenario: Satisfying a gate authorizes nothing
 
 - **GIVEN** the state after that transition
 - **WHEN** `runner/L9` is queried
-- **THEN** it reports GATE-U4 satisfied, `L8` unsatisfied, readiness
+- **THEN** it reports `runner/GATE-U4` satisfied, `runner/L8` unsatisfied, readiness
   `NotReady`, issue #57 as the external authority anchor, and
   `authorizationAssessment: "PREREQUISITES_NOT_READY"` — never `AUTHORIZED`
 
