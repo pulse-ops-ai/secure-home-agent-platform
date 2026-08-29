@@ -195,9 +195,15 @@ accordingly.
   immutability only.**
 - **INV-G45** An identity-bearing rule input changes only by **replacement**:
   a new identity carrying `replaces`, of the same kind, with its attested
-  transition, in one revision. Currency is derived, the graph is acyclic and
-  fork-free, the old record is immutable, and dependents are repointed by a
-  reviewed change rather than migrated by the model.
+  transition, in one revision. The target is current in the pre-change graph;
+  currency is derived; the replacement graph is acyclic and fork-free; the old
+  record and its historical references are immutable; and the complete
+  transitive closure of current dependents is replaced atomically rather than
+  migrated by the model. Current nodes reference only current prerequisites,
+  while non-current historical nodes retain their original references. A
+  replacement digest binds complete old and new semantic identities, and a
+  replacement landing starts `Planned` without inherited evidence while a gate
+  has no delivery lifecycle.
 - **INV-G46** `Withdrawn` is reachable only through its typed withdrawal
   protocol — digest, evidence, and attestation — satisfies no prerequisite, and
   its evidence is immutable thereafter.
@@ -229,6 +235,8 @@ Independent dimensions that materially affect behavior:
 | Completion evidence | valid · missing · opaque · wrong-policy · manufactured |
 | Identity class | local-git-commit present · absent · external · content-sha256 |
 | Prerequisite graph | acyclic · cyclic · dangling |
+| Replacement graph / closure | absent · legal · transitive · forked · cyclic · incomplete current closure · historical-reference only |
+| Replacement digest | valid complete old/new identities · mismatched · omitted · directionally ambiguous |
 | History base | valid · invalid · missing · not-a-commit |
 | Projection | in-sync · drifted · unregistered-target · hand-edited |
 | Readiness | Ready · NotReady |
@@ -247,6 +255,13 @@ Independent dimensions that materially affect behavior:
   `AUTHORIZED`.
 - *terminal delivery × prospective assessment* — non-applicable, and distinct
   from the historical question.
+- *replacement × current/history identity* — a replacement requires the complete
+  transitive closure of current dependents, while non-current historical records
+  retain their original prerequisite references. Proof: `ADV-G66`, `ADV-G16`,
+  `EX-G26`.
+- *replacement × delivery lifecycle* — a replacement landing starts `Planned`
+  and cannot inherit completion or withdrawal evidence; a replacement gate has
+  no delivery lifecycle. Proof: `ADV-G66`, `EX-G26`.
 
 ---
 
@@ -389,7 +404,7 @@ it.
 | INV-G42 | `ADV-G62` post-attestation edit; `EX-G24` checker makes no authorship claim | hostile + example |
 | INV-G42 (authorship) | **`MAN-G01`** | **manual review** |
 | INV-G44 | `ADV-G65`; `PROP-G09` | hostile + property |
-| INV-G45 | `ADV-G66` malformed replacement; `EX-G26` legal replacement | hostile + example |
+| INV-G45 | current model: `ADV-G66` malformed/incomplete replacement; `EX-G26` legal replacement; history: `ADV-G16`, `MUT-G08`; `PROP-G10` | current + history + example + property |
 | INV-G46 | `ADV-G67` withdrawal without digest/evidence/attestation; `ADV-G68` withdrawn node satisfying a prerequisite; `EX-G25` legal withdrawal; `PROP-G10` | hostile + example + property |
 | INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 
@@ -507,9 +522,14 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   five.
 - **ADV-G65** Duplicate `landingId` in the envelope, one `digest` under two
   landings, or a duplicated evidence identity.
-- **ADV-G66** A replacement that is malformed: absent `replaces`, absent
-  attestation, a second node replacing the same identity, a replacement cycle, a
-  changed `kind`, or a dependent still naming the replaced identity.
+- **ADV-G66** A current-revision replacement that is malformed or incomplete:
+  absent paired `replaces`/`replacement` fields or attestation, a non-current
+  target, a second node replacing the same identity, a replacement fork or
+  cycle, a changed `kind`, an incomplete transitive current-dependent closure,
+  a current dependent still naming a replaced identity, an omitted or
+  directionally ambiguous old/new semantic-identity input in
+  `replacementDigest`, a replacement landing inheriting terminal lifecycle or
+  evidence, or a replacement gate carrying delivery state.
 - **ADV-G67** A landing moved to `Withdrawn` without its withdrawal digest,
   without its evidence, or without its attestation — each refused
   independently — and mutation of withdrawal evidence after the terminal
@@ -534,8 +554,12 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G13** `runner/L8` removed from `runner/L9`'s prerequisite set.
 - **ADV-G14** `runner/L9`'s authority anchor repointed away from issue #57.
 - **ADV-G15** Node kind or completion-policy identity mutated in place.
-- **ADV-G16** Replacement identity without its typed supersession relation and
-  human-attested transition.
+- **ADV-G16** A two-revision replacement-history violation: an old record or
+  historical prerequisite reference is edited, a `replaces` relationship is
+  removed/repointed/reassociated, replacement digest or attestation evidence
+  is mutated, or a new replacement identity, relationship and attestation do
+  not arrive together. Current graph and transitive-closure rules are proven by
+  the shared model through `ADV-G66` and `EX-G26`.
 - **ADV-G18** Authorization-evidence record introduced, mutated, or removed.
 - **ADV-G29** Delivery evidence mutated or removed after a terminal lifecycle.
 - **ADV-G34** Record deleted or renumbered.
@@ -580,6 +604,16 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   revocation. Version one does not adopt it, and this control is named as manual
   rather than dressed as a hostile case the suite cannot actually run.
 
+- **MAN-G02** **Independent merge control for unsigned activation.** Before
+  the owner records the real genesis attestations and again at the activation
+  merge gate, the owner records in activation PR metadata enforceable evidence
+  of either branch/ruleset protection requiring an owner-controlled merge path,
+  or credential separation showing that the implementation actor and its
+  available credentials cannot merge to `main`. If neither condition is
+  evidenced, the unsigned activation is refused. This is a manual gate, not a
+  registry field or authorization grant; signing remains outside v1 and needs a
+  separate decision.
+
 ## Mutation targets
 
 Removing or weakening each guard must fail the suite. A guard replaced by a
@@ -592,8 +626,8 @@ no-op that still returns success is the failure mode being hunted.
 - **MUT-G05** Query axis separation → a single collapsed status field.
 - **MUT-G06** History semantics moved into the Git adapter (second authority).
 - **MUT-G07** Projection `--check` → non-byte-exact comparison.
-- **MUT-G08** Identity-bearing rule-input immutability → permitted in-place
-  edit.
+- **MUT-G08** Identity-bearing rule-input and replacement-relation immutability
+  plus closure enforcement → permitted in-place edit or leaf-only replacement.
 - **MUT-G09** Completion scope binding → bare commit hash accepted.
 - **MUT-G10** Relationship-equivalence digest → derived-count comparison only.
 - **MUT-G11** Unevaluable predicate → treated as `false` without failing.
@@ -624,9 +658,10 @@ no-op that still returns success is the failure mode being hunted.
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
 | Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
 | Withdrawal protocol | **PR-1** | 2 | ADV-G67, ADV-G68; EX-G25; PROP-G10 |
-| Node replacement | **PR-2** | 4 | ADV-G66; EX-G26; PROP-G10 |
+| Node replacement (current model) | **PR-1** | 2, 3 | ADV-G66; EX-G26; PROP-G10 |
+| Node replacement (history) | **PR-2** | 4, 7 | ADV-G16; MUT-G08 |
 | Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62; EX-G24 |
-| Real genesis ceremony | **PR-3** | 8 (8.0, 8.6, 8.7, 8.8) | MAN-G01 (manual) |
+| Real genesis ceremony | **PR-3** | 8 (8.0, 8.6, 8.6a, 8.7, 8.8) | MAN-G01, MAN-G02 (manual) |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
 | Live-change exemption rule | PR-2 | 6 | ADV-G54 |
 | Bound activation / no reactivation | PR-2 | 4 | ADV-G58, ADV-G59 |

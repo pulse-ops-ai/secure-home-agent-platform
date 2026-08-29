@@ -20,6 +20,12 @@ nothing, and no task in this change is executed.
 > real genesis ceremony moves to PR-3 where the activation identity exists, and
 > the envelope's member collection is classified like every other collection.
 >
+> **Revised after review 5058893761** — replacement closure is evaluated over
+> current identities while historical references remain immutable; replacement
+> digests bind complete old/new semantic identities; replacement logic belongs
+> to the shared model; and activation has an executable independent-merge
+> control (`MAN-G02`).
+>
 > **Revised after review 5058507190** — the human genesis ceremony, the
 > two new digests in the central table, the gate record's missing fields, and an
 > inventory table whose every row is one of the five closed dispositions.
@@ -68,11 +74,13 @@ nothing, and no task in this change is executed.
 ```
 
 **D1.1 — One implementation of every rule.** The model owns parsing,
-canonicalization, schema closure, digest computation, lifecycle legality,
-predicate evaluation, readiness derivation, and explanation. The four entry
-points are thin: they select inputs, call the model, and format output. A
-validator, renderer, query command, or test that re-implements a predicate is a
-second rule authority and a defect.
+canonicalization, schema closure, semantic-identity and transition-digest
+computation, lifecycle legality, replacement-graph validation, current-identity
+derivation, transitive replacement-closure validation, predicate evaluation,
+readiness derivation, and explanation. The four entry points are thin: they
+select inputs, call the model, and format output. A validator, renderer, query
+command, or test that re-implements a predicate or replacement rule is a second
+rule authority and a defect.
 
 **D1.2 — The Git adapter carries no rules.** It resolves a revision to bytes
 and nothing else. History semantics live in the model, which is handed two
@@ -86,9 +94,9 @@ deliberate proof technique, never the mechanism under test.
 
 | Component | Owns | Must not |
 | --- | --- | --- |
-| `model` (shared) | canonical parse, schema closure, digests, lifecycle legality, predicates, readiness, explanations | read Git, write files, format human output, reach the network |
+| `model` (shared) | canonical parse, schema closure, semantic identities and digests, lifecycle legality, replacement graph and transitive closure, current-identity derivation, predicates, readiness, explanations | read Git, write files, format human output, reach the network |
 | `check-governance-state.mjs` | select current revision, invoke model, report | implement any predicate or legality rule |
-| `check-governance-history.mjs` | select explicit base, invoke adapter for bytes, invoke model for comparison | infer a base; encode regression rules |
+| `check-governance-history.mjs` | select explicit base, invoke adapter for bytes, invoke the model for two-state comparison | infer a base; become the replacement or lifecycle rule authority |
 | `git history adapter` | revision → bytes | interpret content |
 | `render-governance-state.mjs` | deterministic projection; registered targets/markers; `--check` vs write | derive anything the model does not; edit unregistered files |
 | `query-governance-state.mjs` | read-only explanation, human and JSON forms | return `AUTHORIZED`; collapse axes; mutate state |
@@ -124,7 +132,9 @@ ownership and semantics. The shape:
       "kind": "gate",
       "predicate": { "name": "exactly-one-current-accepted-resolver", "question": "U4" },
       "authorityAnchor": { "type": "github-issue", "repository": "pulse-ops-ai/secure-home-agent-platform", "number": 9 },
-      "sources": ["docs/decisions/ADR-0021-establish-machine-readable-governance-state.md#3c"]
+      "sources": ["docs/decisions/ADR-0021-establish-machine-readable-governance-state.md#3c"],
+      "replaces": null,
+      "replacement": null
     }
   ],
   "landings": [
@@ -133,6 +143,8 @@ ownership and semantics. The shape:
       "kind": "implementation-landing",
       "requires": ["runner/L8", "runner/GATE-U4"],
       "authorityAnchor": { "type": "github-issue", "repository": "pulse-ops-ai/secure-home-agent-platform", "number": 57 },
+      "replaces": null,
+      "replacement": null,
       "delivery": {
         "lifecycle": "Planned",
         "completionPolicy": null,
@@ -155,6 +167,14 @@ ownership and semantics. The shape:
   }
 }
 ```
+
+`replaces` and `replacement` are paired transition fields on both gate and
+landing records. Ordinary records carry both as `null`; a replacement record
+carries both as non-null values. A one-sided pair is invalid. The replacement
+object is closed as `{ "digest": "…", "attestation": { } }`; its digest and
+attestation are defined in D3.3 and D5a.1. A gate has no delivery object, while
+a replacement landing has the ordinary landing delivery object initialized by
+D5a.1.
 
 **Absent by construction** — derived, and an unknown field if authored:
 accepted counts and ranges; `isCurrent`, `isImmutable`, `resolvesU4`;
@@ -284,6 +304,8 @@ defined preimage:
 | `relationshipDigest` | canonical relationship tuples (`resolves`, `supersedes`) |
 | `transitionDigest` | `{schemaVersion, priorStateDigest\|null, targetPrimitiveDigest, subject, from, to, contentDigest, relationshipDigest}` |
 | `completionDigest` | `{landingId, from, to, authorityAnchor, deliveredIdentity, completionPolicy, …policy-specific}` |
+| `semanticIdentityDigest` | the complete labelled semantic identity of a gate or landing: `{schemaVersion, id, kind, predicate\|null, requires\|null, authorityAnchor\|null, completionPolicy\|null, reviewedOrderingIntent\|null}`; non-applicable fields are explicit `null`; delivery, replacement, attestations, and derived values are excluded |
+| `replacementDigest` | `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}` |
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
 | `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
 | `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
@@ -293,6 +315,14 @@ defined preimage:
 target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
 **observation** and binds neither. The two are never interchangeable, and the
 normative requirement scopes the ordinary preimage to post-genesis accordingly.
+
+`semanticIdentityDigest` is computed from the complete, labelled identity
+object, including unchanged fields and explicit nulls. `replacementDigest`
+therefore binds both directions and every old/new value, including the old and
+new authority anchors and prerequisite sets. There is no `changedRuleInputs`
+set whose omissions or unlabelled values an implementation must guess. Both
+digests exclude the replacement envelope and its attestation from their own
+preimages.
 
 **D3.4 — Non-self-reference, stated precisely.** Every attestation is **excluded
 from the preimage it attests**. Two consequences that must both be stated,
@@ -572,7 +602,7 @@ claim an attestation existed when the original delivery occurred.
 Option B — one attestation per landing — was rejected because it would imply six
 separate human acts at six separate times; genesis is one review.
 
-## D5a. Two transitions version one deliberately does not open
+## D5a. Replacement and withdrawal transitions
 
 ### D5a.1 Node replacement, specified
 
@@ -594,19 +624,39 @@ authorized to write ADRs. So it is specified.
 | Question | Answer |
 | --- | --- |
 | **Direction** | the **new** node carries `replaces: "<oldId>"`, mirroring how a new ADR carries `supersedes`. The old record is never edited. |
+| **Target** | `replaces` SHALL name a current identity in the pre-change current graph. Replacing a non-current historical identity is refused. |
 | **Cardinality** | exactly one old identity per replacement, and an identity may be replaced **at most once**. Chains (`A ← B ← C`) are legal; forks are not. |
 | **Cycles** | the replacement graph SHALL be acyclic; a cycle is refused, like a prerequisite cycle. |
-| **Current identity** | **derived, never authored**: a node is current iff no node replaces it. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
+| **Current identity** | **derived, never authored**: a node is current iff no current successor replaces it. There is no `isCurrent` field — that would be the primitive/derived collapse again. |
 | **Kind compatibility** | a replacement SHALL preserve `kind`. A gate may not replace a landing. |
-| **Dependent references** | **not** auto-migrated. A prerequisite naming a replaced identity is **refused**, so dependents must be repointed in the same reviewed change. Silently rewriting other nodes' prerequisites would be the model editing authored state. |
-| **Query and projection** | the replaced identity remains queryable and reports `replacedBy`; readiness is computed on current identities only; a replaced node satisfies no prerequisite — its dependents were required to move. |
-| **Transition digest** | `replacementDigest` over `{schemaVersion, oldId, newId, kind, changedRuleInputs, authorityAnchor}`, where `changedRuleInputs` is the canonical set of identity-bearing values that differ. |
+| **Dependent references** | **not** auto-migrated. For a replaced current identity `x`, the replacement closure is `x` plus the complete transitive closure of every current dependent that requires `x`, computed over the pre-change current graph. A legal replacement batch carries exactly one new same-kind identity and replacement envelope for every member of that closure. Every affected dependent is replaced, not edited; each new dependent maps every replaced prerequisite to that prerequisite's new identity. |
+| **Current versus historical references** | after the batch, current nodes may reference only current prerequisite identities. Non-current historical nodes retain their original prerequisite references, including references to non-current identities, and are not revalidated against the current graph. The old records remain immutable and queryable. |
+| **Atomicity** | the complete transitive replacement closure and every dependent repoint SHALL arrive in one registry revision. If any current dependent is omitted, partially repointed, or left naming a replaced identity, the shared model refuses the revision. |
+| **Query and projection** | the replaced identity remains queryable and reports `replacedBy`; readiness is computed over current identities only; a replaced node satisfies no prerequisite. Historical records retain historical relationships and are not used to satisfy current prerequisites. |
+| **Transition digest** | `replacementDigest` is over `{schemaVersion, oldId, newId, oldSemanticIdentityDigest, newSemanticIdentityDigest}`. Each semantic-identity digest is the complete labelled old or new identity, so changed and unchanged rule inputs, including authority anchors and prerequisite sets, are bound without omission or direction ambiguity. |
+| **Replacement delivery state** | a replacement landing begins `Planned` with `completion: null` and `withdrawal: null`; it never inherits the old landing's lifecycle or evidence. A replacement gate carries no delivery object or lifecycle. Any later completion or withdrawal follows its own typed protocol. |
 | **Attestation** | the same envelope shape — digest, actor, RFC 3339 time, outcome `replaced`, typed authority reference — excluded from its own preimage, under the manual provenance gate (D6.7). |
-| **History** | the old record is immutable thereafter; the `replaces` relationship may not be removed or repointed; the new identity and its attestation SHALL arrive in the same revision. |
+| **History** | the old record and all historical prerequisite references are immutable thereafter; the `replaces` relationship may not be removed or repointed; the complete replacement batch, each new identity, and each attestation SHALL arrive in the same revision. |
 | **Genesis** | no replacements exist at genesis. |
 
 An in-place change to an identity-bearing rule input remains refused — ADR-0021
 permits **no** in-place mutation, and replacement is the only sanctioned path.
+
+**Legal two-level cascade.** Suppose the pre-change current graph contains
+`runner/L9` requiring `runner/L8`, and `runner/L10` requiring `runner/L9`. A
+replacement of `runner/L8` is legal only as one batch containing
+`runner/L8-v2` replacing `runner/L8`, `runner/L9-v2` replacing `runner/L9` and
+requiring `runner/L8-v2`, and `runner/L10-v2` replacing `runner/L10` and
+requiring `runner/L9-v2` (plus any other unchanged prerequisites). Each new
+identity carries its own complete old/new semantic-identity digest and
+attestation. The old `runner/L9` still retains its historical reference to
+`runner/L8`; it is not edited. All replacement landings begin `Planned`, so no
+completion state is silently inherited.
+
+The shared model computes this reverse prerequisite closure and validates the
+mapping. The history checker compares the base and target states to prove that
+the old records, historical references, and replacement relationships were not
+edited or reassociated; it does not implement closure rules itself.
 
 ### D5a.2 The withdrawal protocol, defined
 
@@ -706,26 +756,35 @@ preimage binding, content identity, authority-reference shape, and subsequent
 immutability — and never the human actor's identity. `MAN-G01` is written as one
 general provenance control covering every row above.
 
+**`MAN-G02` — independent merge control.** Before the owner records the real
+genesis attestations and before the activation landing is merged, the owner
+SHALL record in the activation PR metadata which of these enforceable conditions
+holds, together with its evidence:
+
+1. branch or ruleset protection requires an owner-controlled merge path that an
+   implementation agent cannot bypass; or
+2. credential separation demonstrates that the implementation actor and any
+   credentials available to it cannot merge to `main`.
+
+The owner SHALL re-check that condition at the merge gate. `MAN-G02` is a
+manual activation control, not a registry field and not an authorization grant.
+The unsigned v1 path is refused unless both `MAN-G01` and `MAN-G02` have been
+performed and recorded. Version one does not adopt signing; a future signed
+attestation path requires a separate decision covering its trust root and key
+operations.
+
 **Signing is deliberately not adopted in v1, and the condition that would change
 that is recorded.** A detached owner signature would introduce a whole trust
 domain — trusted public key, private-key custody, rotation, revocation, loss
 recovery, compromise response, algorithm, and canonical signed bytes — which
 deserves its own ADR rather than being added to close a review finding.
 
-The manual gate is sufficient while **an independent human owner controls the
-final merge and personally performs the attestation ceremony**. It stops being
-sufficient, and signing becomes necessary before activation, if an
-implementation agent — or credentials available to one — can merge to `main`
-without a separate owner-controlled act. That is the trigger to re-open the
-decision, and it is written down so the judgement is not re-derived later from
-memory.
-
-**The sufficiency condition is therefore a requirement, not an assumption:** an
-independent owner-controlled merge act SHALL be mandatory for the activation. If
-the repository cannot guarantee that — because an implementation, or credentials
-available to one, can merge to the default branch unaided — then enforceable
-branch protection or a signed attestation becomes a **pre-activation
-requirement**, not a version-two concern.
+The manual gate is sufficient only while **an independent human owner controls
+the final merge and personally performs the attestation ceremony**, with both
+`MAN-G01` and `MAN-G02` evidenced. If the repository cannot establish the
+owner-controlled merge condition, the unsigned activation is refused; signing
+is not silently substituted and remains outside v1 until a separate decision
+defines it.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
@@ -931,8 +990,10 @@ rule forbids. D7.6 is written to match.
 ## D9. Shared versus independently implemented logic
 
 **Shared — exactly one implementation:** canonical parse and serialization;
-collection canonicalization; digest computation; schema closure; lifecycle
-legality; predicate evaluation; readiness derivation; explanation construction.
+collection canonicalization; schema closure; semantic-identity and replacement
+digest computation; lifecycle legality; replacement graph, current-identity and
+transitive-closure validation; predicate evaluation; readiness derivation;
+explanation construction.
 
 **Independently implemented:** the conformance suite's *expectations*, where a
 proof requires independent re-derivation.
@@ -994,7 +1055,7 @@ checker compares it byte-for-byte against the value the genesis evidence binds.
 | Landing | Attestations |
 | --- | --- |
 | **PR-2** | computes and **freezes** the candidate state, source manifest, consumer inventory, evidence identities, historical-completion preimages and every digest; proves the whole mechanism using **test** attestations over fixtures. It does **not** claim the real activation has been attested. |
-| **PR-3** | the draft activation PR is opened first, yielding a stable PR number; that `{repository, number}` is bound as `activationIdentity`; the external index's conditional text is written with the same number; the **owner records the two real attestations**; the complete gate re-runs on the post-attestation head; the landing merges atomically. |
+| **PR-3** | the draft activation PR is opened first, yielding a stable PR number; that `{repository, number}` is bound as `activationIdentity`; the external index's conditional text is written with the same number; the owner records `MAN-G02`, then the **two real attestations**; the complete gate re-runs on the post-attestation head; the landing merges atomically. |
 
 This keeps PR-2 honest — it proves the machinery, not the ceremony — and leaves
 PR-3's "no new authoring" claim true of the *registry content*, which is
@@ -1035,6 +1096,11 @@ Commit 3   the owner-recorded genesis attestations
 
 thereafter verification only — no further repository-content change
 ```
+
+The owner completes and records `MAN-G02` in PR metadata before Commit 3 and
+re-checks it at merge time. If neither an enforceable owner-controlled merge
+path nor credential separation is evidenced, the owner must not record the real
+attestations or merge the activation.
 
 **And the ceremony must be the last thing that happens.** Attesting before the
 seam is complete would bind artifacts that later tasks then change, so the

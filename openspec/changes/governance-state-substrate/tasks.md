@@ -145,8 +145,8 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   **Change**
   Duplicate keys rejected **before object construction**; closed-schema unknown
-  field rejection; deterministic canonical serializer; and the three collection
-  **all five collection classes** the design declares, because PR-1 owns the
+  field rejection; deterministic canonical serializer; and **all five
+  collection classes** the design declares, because PR-1 owns the
   canonical reader, serializer and collection model:
 
   | Class | Rule |
@@ -213,12 +213,12 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `MUT-G03` resolver uniqueness → first-match-wins · `MUT-G11` unevaluable →
     silently false
 
-- [ ] **2.3 Landings, prerequisites, and completion policies**
+- [ ] **2.3 Landings, prerequisites, completion policies, and node replacement**
   <!-- agent-task: 2.3 paths=scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=2.2 -->
 
   **Implements** — *Landings carry immutable rule inputs…*; *Completion is an
-  identity-bound transition…*; the withdrawal protocol; `INV-G16`, `INV-G18`,
-  `INV-G46`; `D4`, `D5.3`, `D5a.2`
+  identity-bound transition…*; the withdrawal and replacement protocols;
+  `INV-G16`, `INV-G18`, `INV-G45`, `INV-G46`; `D4`, `D5.3`, `D5a.1`, `D5a.2`
 
   **Proof required** — current-revision manifestations only
   - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
@@ -229,6 +229,27 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G30` unknown / generic-legacy policy · `ADV-G33` absent local commit
   - `EX-G02` `Planned`/`InProgress` never satisfy a prerequisite
   - `MUT-G09` scope binding → bare hash accepted
+
+  **Replacement is owned by the shared model, not by the history entry point.**
+  This task implements replacement parsing and closed-schema validation,
+  semantic-identity and `replacementDigest` construction, replacement-graph
+  acyclicity and cardinality, current-identity derivation, and the complete
+  transitive current-dependent closure. It validates that current nodes point
+  only to current prerequisites, while preserving historical references on
+  non-current records. The history checker may compare two model states, but it
+  does not become a second replacement-rule authority.
+
+  Required current-revision fixtures under
+  `tests/fixtures/governance/replacement/current/` include:
+
+  | Case | Outcome |
+  |---|---|
+  | `runner/L8` replaced with `runner/L8-v2` while current `runner/L9` and `runner/L10` depend on it transitively | pass only with `L9-v2` and `L10-v2` in the same batch, with all new prerequisites repointed |
+  | only a direct dependent replaced, or any current dependent left naming an old identity | fail (`ADV-G66`) |
+  | historical `runner/L9` retaining its original `runner/L8` reference | pass; historical references are not checked against the current graph |
+  | replacement landing carrying `Complete`/`Withdrawn` or inherited evidence, or replacement gate carrying delivery state | fail (`ADV-G66`); replacements initialize `Planned` or gate-without-delivery |
+  | replacement digest omitting, swapping, or mislabelling any old/new semantic-identity input | fail (`ADV-G66`); `PROP-G10` covers preimage sensitivity |
+  | replacement target is non-current, replacement forks/cycles, or kind changes | fail (`ADV-G66`)
 
   **Withdrawal is implemented here, not deferred to first use.** ADR-0021 puts
   `Withdrawn` in the closed lifecycle and requires its typed protocol, so
@@ -261,8 +282,9 @@ PR-1 must not contain — and review has completed on one frozen head.
   <!-- agent-task: 3.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=2.4 -->
   **Proves** — `ADV-G01`–`G07`, `G09`, `G10`, `G12`, `G19`, `G23`, `G25`–`G28`,
   `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`**, **`G67`**, **`G68`** (bare shorthand refused — proven here, in
-  the landing that owns reference resolution; PR-2 may repeat it as integration
-  coverage)
+  the landing that owns reference resolution); **`G66`** (replacement graph,
+  closure, identity and lifecycle); PR-2 may repeat these as integration
+  coverage
 
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
@@ -301,7 +323,14 @@ PR-1 must not contain — and review has completed on one frozen head.
   <!-- agent-task: 4.2 paths=scripts/check-governance-history.mjs checks=node,pytest risk=trust-critical prerequisites=4.1 -->
 
   **Implements** — *History validation uses an exclusive explicit base…*;
-  `INV-G23`, `INV-G16`; `D5.5`, `D8.2`
+  `INV-G23`, the history portion of `INV-G45`, `INV-G16`; `D5.5`,
+  `D5a.1` (history only), `D8.2`
+
+  The checker invokes the shared model for both revisions. The replacement
+  history fixture under `tests/fixtures/governance/replacement/history/` uses
+  a base and target state. The history checker owns only the
+  two-revision proof: it does not parse replacement semantics, derive current
+  identities, or implement closure rules independently.
 
   **Proof required** — the two-revision corpus, which only this checker can
   prove
@@ -313,13 +342,12 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G13` `runner/L8` removed from `runner/L9`'s prerequisites
   - `ADV-G14` `runner/L9` repointed away from issue #57
   - `ADV-G15` node kind or completion policy mutated in place
-  - `ADV-G16` replacement identity without its relationship + attestation
-  - `ADV-G66` malformed replacement — absent `replaces`, absent attestation, a
-    fork, a cycle, a changed `kind`, or a dependent still naming the replaced
-    identity
-  - `EX-G26` a legal replacement: old record unchanged, new identity derived
-    current, dependents repointed in the same change
-  - `PROP-G10` any replacement-preimage change alters `replacementDigest`
+  - `ADV-G16` a two-revision replacement-history violation: an old record,
+    historical prerequisite reference, replacement relationship, replacement
+    digest, or replacement attestation is edited, removed, repointed, or
+    reassociated; or a new replacement identity, relationship and attestation
+    do not arrive together. Current graph and closure semantics are delegated
+    to the shared model and are covered by PR-1's `ADV-G66` and `EX-G26`.
   - `ADV-G18` authorization-evidence record introduced
   - `ADV-G29` terminal delivery evidence mutated or removed
   - `ADV-G34` record deleted or renumbered · `ADV-G35` resolver disappeared
@@ -539,7 +567,7 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   **Proof required**
   - `ADV-G62` a post-attestation edit to a bound artifact invalidates it
-  - `ADV-G64` reordered envelope members produce identical bytes
+  - `PROP-G09` reordered envelope members produce identical bytes
   - `ADV-G65` duplicate `landingId`, or one `digest` under two landings
   - `EX-G24` the checker validates shape, bindings and digests and **makes no
     claim about authorship**
@@ -549,7 +577,11 @@ PR-1 must not contain — and review has completed on one frozen head.
 - [ ] **7.1 Two-revision hostile corpus**
   <!-- agent-task: 7.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=4.2 -->
   **Proves** — `ADV-G04h`, `G08`, `G11`, `G13`–`G16`, `G18`, `G21`, `G29`,
-  `G34`, `G35`, `G40`, `G41`, **`G58`**, **`G59`**
+  `G34`, `G35`, `G40`, `G41`, **`G58`**, **`G59`**. This includes a
+  two-revision replacement fixture with a valid multi-level current cascade in
+  the target, proving that the history checker rejects edits or reassociation
+  of the old records and replacement envelopes while delegating current graph
+  semantics to the shared model.
 
 - [ ] **7.2 Genesis, projection, and query corpus**
   <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.6,6.7,5.2 -->
@@ -564,7 +596,9 @@ PR-1 must not contain — and review has completed on one frozen head.
 
 - [ ] **7.3 Mutation coverage for PR-2**
   <!-- agent-task: 7.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=7.1 -->
-  **Proves** — `MUT-G04`, `G06`, `G07`, `G08`, `G10`
+  **Proves** — `MUT-G04`, `G06`, `G07`, `G08`, `G10`; `MUT-G08` includes
+  identity-bearing replacement relationships and evidence, not only ordinary
+  rule-input edits.
 
 ## PR-2 Completion Gate
 
@@ -707,14 +741,31 @@ registry appears, and it appears already protected.
   manifests, generated regions and their deletions, pointers, and all gates.
   Freeze the seam and present it for review.
 
+- [ ] **8.6a Human step: establish independent merge control (`MAN-G02`)**
+  <!-- agent-task: 8.6a paths=none checks=manual risk=trust-critical prerequisites=8.6 -->
+
+  Before the owner records either real genesis attestation, and again before
+  the activation landing is merged, the owner records in activation PR
+  metadata which enforceable condition prevents the implementation actor from
+  merging to `main`:
+
+  - branch or ruleset protection requiring an owner-controlled merge path; or
+  - credential separation demonstrating that the implementation actor and its
+    available credentials cannot merge to `main`.
+
+  The evidence and the merge-time re-check are `MAN-G02`. If neither condition
+  is evidenced, the unsigned activation is refused: the owner must not record
+  the real attestations and the activation must not merge. A future signed
+  attestation path remains outside v1 and requires a separate decision.
+
 - [ ] **8.7 Human step: record the two real genesis attestations**
-  <!-- agent-task: 8.7 paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.6 -->
+  <!-- agent-task: 8.7 paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.6a -->
 
   **Performed by the repository owner. An implementation agent may compute a
   digest; it may not attest to one.**
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
-  (steps 5–7); `INV-G42`
+  (steps 5–7); `INV-G42`; `MAN-G02` must already be evidenced
 
   This is the **last content change of the landing**. Attesting earlier would
   bind artifacts that later tasks then modify, so the "post-attestation head"
@@ -731,17 +782,19 @@ registry appears, and it appears already protected.
   | **Recorded in** | **`governance/state.json`** — the `attestations` object, which 8.2 has already created |
   | Invalidated by | any change to a bound artifact; the ceremony restarts at 8.6 |
 
-  **Authorship is a review gate, not a machine check** (`MAN-G01`). The offline
-  checker proves shape, bindings, digests and subsequent immutability, and makes
-  no claim about who authored the envelope; the `actor` string is a recorded
-  assertion.
+  **Authorship and merge control are review gates, not machine checks**
+  (`MAN-G01` and `MAN-G02`). The offline checker proves shape, bindings,
+  digests and subsequent immutability, and makes no claim about who authored
+  the envelope or who could merge around the owner; the `actor` string and
+  merge-control evidence are recorded assertions reviewed by the owner.
 
 - [ ] **8.8 Verify on the post-attestation head**
   <!-- agent-task: 8.8 paths=none checks=node,pytest,scaffold,ci risk=trust-critical prerequisites=8.7 -->
 
   The checker, history checker, hostile suite, formatting, secret scan,
   `git diff --check` and hosted CI all run on the **exact head carrying the
-  attestations**. Nothing bound may change afterwards without restarting at 8.6.
+  attestations**. The owner also re-checks `MAN-G02` at the merge gate. Nothing
+  bound may change afterwards without restarting at 8.6.
 
   **Including this checklist.** Ticking a box edits `tasks.md`, which moves the
   head and would require CI to run again on a head the owner did not attest. So:
@@ -761,6 +814,8 @@ registry appears, and it appears already protected.
       post-attestation head (8.8).
 - [ ] Human review confirmed the owner performed the attestation act — the
       checker does not and cannot establish authorship.
+- [ ] **`MAN-G02` was evidenced before attestation and re-checked at merge; an
+      unsigned activation was refused if independent merge control was absent.**
 - [ ] **No second copy of authored current state remains usable** — the
       candidate directory is removed or explicitly frozen and refused.
 - [ ] **No surviving hand-authored copy of any fact the registry owns.**

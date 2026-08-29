@@ -289,20 +289,40 @@ The replacement relationship SHALL be closed:
 
 - it is carried by the **new** node as `replaces: "<oldId>"`; the old record is
   never edited;
+- `replaces` and `replacement` are paired optional fields on both gate and
+  landing records; a replacement carries both, and an ordinary record carries
+  neither transition; a one-sided pair is invalid;
 - exactly one old identity per replacement, and an identity SHALL be replaced at
   most once — chains are legal, forks are not;
 - the replacement graph SHALL be acyclic;
 - **currency SHALL be derived**, never authored: a node is current iff no node
   replaces it;
+- a replacement target SHALL be current in the pre-change current graph;
 - a replacement SHALL preserve `kind`;
-- dependent prerequisite references SHALL NOT be auto-migrated — a prerequisite
-  naming a replaced identity SHALL be refused, so dependents are repointed in
-  the same reviewed change;
+- dependent prerequisite references SHALL NOT be auto-migrated. For a replaced
+  current identity, the replacement closure is that identity plus the complete
+  transitive closure of its current dependents through `requires`. A legal
+  replacement SHALL replace every member of that closure in one registry
+  revision, with each affected dependent carrying its own `replaces` relationship
+  and mapping every replaced prerequisite to the corresponding new identity. A
+  current node naming a replaced identity, or an omitted transitive dependent,
+  SHALL be refused;
+- non-current historical nodes SHALL retain their original prerequisite
+  references, including references to non-current identities. The current-graph
+  rule applies only to current identities; historical records remain immutable
+  and queryable;
 - the replaced identity SHALL remain queryable, reporting its replacement, and
-  SHALL satisfy no prerequisite;
-- the transition SHALL bind a `replacementDigest` over the old and new
-  identities, the kind, the changed rule inputs, and the authority anchor, with
-  a human attestation excluded from its own preimage;
+  SHALL satisfy no current prerequisite; readiness SHALL be evaluated only over
+  current identities;
+- the transition SHALL bind a `replacementDigest` over complete, labelled
+  `oldSemanticIdentityDigest` and `newSemanticIdentityDigest` values, with a
+  human attestation excluded from its own preimage. Each semantic identity binds
+  the node id, kind, every applicable identity-bearing rule input, and explicit
+  nulls for non-applicable inputs; no unlabelled or omitted changed-value set is
+  permitted;
+- a replacement landing SHALL begin `Planned` with no completion or withdrawal
+  evidence and SHALL NOT inherit the old landing's lifecycle or evidence. A
+  replacement gate carries no delivery lifecycle;
 - the new identity and its attestation SHALL arrive in the same revision, and
   the relationship SHALL NOT thereafter be removed or repointed.
 
@@ -339,14 +359,18 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **WHEN** history validation runs
 - **THEN** it fails, independently of whether the gate's derived result changed
 
-#### Scenario: A legal replacement introduces a new identity
+#### Scenario: A legal transitive replacement introduces a new identity closure
 
-- **GIVEN** a new node carrying the changed rule, `replaces` naming an existing
-  identity of the same kind, its `replacementDigest` and human attestation, and
-  every dependent prerequisite repointed in the same change
+- **GIVEN** a current graph in which `runner/L9` requires `runner/L8` and
+  `runner/L10` requires `runner/L9`, and one revision carrying
+  `runner/L8-v2` replacing `runner/L8`, `runner/L9-v2` replacing `runner/L9`
+  and requiring `runner/L8-v2`, and `runner/L10-v2` replacing `runner/L10` and
+  requiring `runner/L9-v2`, with each replacement digest and attestation valid
 - **WHEN** the checkers run
-- **THEN** they pass; the old record is unchanged; the new identity is derived
-  current; and the old one is derived non-current
+- **THEN** they pass; every old record and its historical prerequisite reference
+  is unchanged; the three new identities are derived current; the old ones are
+  derived non-current; and every replacement landing begins `Planned` rather
+  than inheriting completion
 
 #### Scenario: A replacement without its relationship or attestation is refused
 
@@ -355,13 +379,16 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **WHEN** the checkers run
 - **THEN** they fail — a new identity alone is not a sanctioned rule change
 
-#### Scenario: A dangling dependent is refused rather than silently migrated
+#### Scenario: An incomplete current replacement closure is refused
 
-- **GIVEN** a legal replacement whose dependents still name the replaced
-  identity as a prerequisite
+- **GIVEN** a replacement of `runner/L8` that replaces only its direct dependent
+  while a second-level current dependent still names the old identity, or a
+  current dependent still names any replaced identity
 - **WHEN** the checker runs
-- **THEN** it fails naming the dependents — references are repointed by a
-  reviewed change, never rewritten by the model
+- **THEN** it fails naming the incomplete transitive closure — references are
+  repointed by replacing the affected dependents in the same reviewed revision,
+  never rewritten by the model; an old non-current historical record retaining
+  its original reference is not itself a failure
 
 #### Scenario: A forked or cyclic replacement is refused
 
@@ -374,6 +401,23 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **GIVEN** a replacement whose `kind` differs from the identity it replaces
 - **WHEN** the checker runs
 - **THEN** it fails
+
+#### Scenario: A replacement cannot inherit delivery state
+
+- **GIVEN** a replacement landing carrying `Complete`, `Withdrawn`, completion
+  evidence, or withdrawal evidence at introduction, or a replacement gate
+  carrying a delivery lifecycle
+- **WHEN** the current-revision checker runs
+- **THEN** it fails; a replacement landing starts `Planned` and a replacement
+  gate carries no delivery state
+
+#### Scenario: A replacement digest binds complete old and new identities
+
+- **GIVEN** a replacement whose digest omits, swaps, or mislabels an old or new
+  semantic-identity value, including a prerequisite set or authority anchor
+- **WHEN** the current-revision checker runs
+- **THEN** it fails; the digest preimage is the complete labelled pair, not a
+  caller-supplied list of values that differ
 
 #### Scenario: Withdrawal follows its own typed protocol
 
@@ -615,13 +659,15 @@ question, gate, or landing; `Accepted -> Proposed` or `Accepted -> Rejected`
 regression; any other illegal decision transition, including a rejection lacking
 its final-byte attestation; mutation of accepted evidence or accepted bytes;
 mutation of an accepted decision's `resolves`; disappearance of a resolved
-question's current resolver; illegal supersession; prerequisite
-re-identification or dangling references; illegal landing lifecycle regression;
-completion or withdrawal without required evidence; mutation or disappearance of
-delivery evidence after a terminal lifecycle; in-place mutation of any
-identity-bearing rule input; a replacement identity without its typed
-supersession relation and human-attested transition; and the introduction,
-mutation, or disappearance of any authorization-evidence record.
+  question's current resolver; illegal supersession; prerequisite
+  re-identification or dangling references; illegal landing lifecycle regression;
+  completion or withdrawal without required evidence; mutation or disappearance of
+  delivery evidence after a terminal lifecycle; in-place mutation of any
+  identity-bearing rule input; removal, repointing, or reassociation of an
+  existing replacement relationship, replacement digest, or replacement
+  attestation; a replacement identity whose typed relationship and attestation
+  did not arrive in the same revision; and the introduction, mutation, or
+  disappearance of any authorization-evidence record.
 
 Semantic rules SHALL be delegated to the shared model so the Git adapter does
 not become a second rule authority.
@@ -1086,11 +1132,17 @@ attestation preimages, under a governed trust root — SHALL require its own
 decision covering key custody, rotation, and revocation. Version one does not
 adopt it.
 
-The manual gate SHALL be sufficient only while an independent human owner
-controls the final merge and personally performs the attestation act. If an
-implementation, or credentials available to one, can merge to the default branch
-without a separate owner-controlled act, that decision SHALL be re-opened before
-activation.
+The manual gate SHALL be sufficient only while both of these controls hold:
+
+- `MAN-G01`: an independent human owner personally performs the attestation act;
+- `MAN-G02`: before attestation and again at merge, the owner records either
+  enforceable branch or ruleset protection requiring an owner-controlled merge
+  path, or credential separation demonstrating that the implementation actor
+  and credentials available to it cannot merge to `main`.
+
+If `MAN-G02` cannot be evidenced, the unsigned activation SHALL be refused. A
+future signed-attestation mechanism requires a separate decision; signing is not
+adopted by version one.
 
 The genesis attestation binds an `activationIdentity`. The ceremony SHALL
 therefore occur in the landing where that identity **exists** — the activation
@@ -1113,12 +1165,14 @@ The ceremony SHALL be ordered:
    projections generated and the copies they replace deleted, pointer consumers
    converted, and every gate wired;
 4. the complete seam is **frozen**;
-5. the repository owner reviews those exact frozen artifacts together with the
+5. the repository owner establishes and records `MAN-G02` in activation review
+   evidence, and re-checks it at the merge gate;
+6. the repository owner reviews those exact frozen artifacts together with the
    allocated identity, and records `attestations.genesis` and
    `attestations.genesisCompletion`;
-6. the real checker, the hostile suite, formatting, and hosted CI re-run on the
+7. the real checker, the hostile suite, formatting, and hosted CI re-run on the
    **post-attestation head**;
-7. the landing does not complete until that exact head has passed review.
+8. the landing does not complete until that exact head has passed review.
 
 The attestation SHALL be the **last** content change of the landing. Attesting
 before the seam is complete would bind artifacts that later steps then modify,
