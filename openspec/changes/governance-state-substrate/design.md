@@ -4,7 +4,12 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-> **Revised again after the `2d04d3d` review** — attestation authorship is a
+> **Revised again after review 5058683298** — the activation order is made
+> possible, the envelope digest binds tuples in the central table too, node
+> replacement is refused in v1, the withdrawal protocol is defined, and manual
+> provenance is generalised to every attestation class.
+>
+> **Revised after the `2d04d3d` review** — attestation authorship is a
 > manual gate rather than a machine claim the offline checker cannot make, the
 > real genesis ceremony moves to PR-3 where the activation identity exists, and
 > the envelope's member collection is classified like every other collection.
@@ -270,7 +275,8 @@ defined preimage:
 | `completionDigest` | `{landingId, from, to, authorityAnchor, deliveredIdentity, completionPolicy, …policy-specific}` |
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
 | `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
-| `genesisCompletionEnvelopeDigest` | the canonically ordered, closed set of `genesisHistoricalCompletionDigest` values |
+| `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
+| `withdrawalDigest` | `{landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
 
 `completionDigest` covers a post-genesis **transition** and binds prior and
 target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
@@ -555,6 +561,68 @@ claim an attestation existed when the original delivery occurred.
 Option B — one attestation per landing — was rejected because it would imply six
 separate human acts at six separate times; genesis is one review.
 
+## D5a. Two transitions version one deliberately does not open
+
+### D5a.1 Node replacement is refused in v1
+
+ADR-0021 §3 D.1 permits a changed rule to arrive as a **new identity** with a
+typed supersession or replacement relationship. Version one **does not
+implement that**, because the conceptual schema does not define — and this plan
+will not have an implementer invent — any of:
+
+- the replacement relationship's own shape;
+- which of the pair is current;
+- whether a replacement must preserve node kind;
+- whether one old identity may have several replacements;
+- how dependent prerequisite references move to the replacement;
+- what projections and queries report for the replaced identity;
+- the transition preimage and evidence shape.
+
+**So the rule is:** a replacement relationship is an **unknown field** in v1 and
+is refused. An identity-bearing rule input therefore cannot be changed at all in
+version one — not in place, and not by replacement. Opening that path requires a
+new ADR or a reviewed schema-version decision that answers all seven questions
+above.
+
+This is a deliberate narrowing rather than an omission: refusing a transition is
+safe, while half-specifying one lets an implementation choose the governance
+semantics.
+
+### D5a.2 The withdrawal protocol, defined
+
+`Withdrawn` is in ADR-0021 §3D's closed vocabulary and the ADR requires "the
+corresponding typed withdrawal protocol", so it is defined here rather than
+dropped:
+
+```text
+withdrawalDigest preimage
+  { schemaVersion,
+    landingId,
+    from,                       // Planned | InProgress
+    to: "Withdrawn",
+    authorityAnchor,
+    withdrawalEvidence }        // typed reference + content identity for the
+                                // reviewed decision to withdraw
+```
+
+- **Legal transitions:** `Planned -> Withdrawn` and `InProgress -> Withdrawn`
+  only. `Withdrawn` is terminal.
+- **Attestation:** the same envelope shape as completion — digest, actor, RFC
+  3339 time, outcome `withdrawn`, typed authority reference — excluded from its
+  own preimage, and subject to the same manual provenance gate (D6.7).
+- **Readiness:** a `Withdrawn` landing satisfies **no** prerequisite, exactly as
+  `Planned` and `InProgress` do not.
+- **Query:** `deliveryState: "Withdrawn"`, prospective assessment
+  non-applicable (`null`), and the withdrawal evidence reported. No form asserts
+  the withdrawal was authorized.
+- **History:** withdrawal without its evidence and attestation is refused, and
+  withdrawal evidence is immutable thereafter (`ADV-G29` already covers terminal
+  evidence mutation).
+- **Genesis:** no landing is seeded `Withdrawn`, so this is a post-genesis
+  protocol only.
+
+---
+
 **D6.7 — Attestation authorship is a manual gate, and the checker does not
 pretend otherwise.** The specification previously said the checker rejects an
 attestation "produced by the implementation rather than recorded by the
@@ -580,11 +648,37 @@ The division of labour is therefore explicit:
 **The `actor` string is a recorded assertion, not proof of identity.** It is
 evidence for a human reviewer, and the design does not treat it as more.
 
-The alternative — a detached owner signature over the attestation preimages with
-a governed trust root — would be machine-verifiable, and is a materially larger
-design requiring its own decision about key custody, rotation, and revocation.
-Version one does not adopt it, and the manual gate is named as such rather than
-disguised as automation.
+**This limitation is general, not specific to genesis.** The same offline
+checker validates every human attestation the model admits, and none of them
+carries a signature:
+
+| Attestation class | Machine-decidable | Human review |
+| --- | --- | --- |
+| ADR acceptance | shape, accepted-byte digest, transition preimage, immutability | who performed the acceptance |
+| ADR rejection | shape, rejected-byte digest, preimage, immutability | who performed the rejection |
+| Ordinary completion | shape, completion preimage, scoped delivery identity, immutability | who attested the completion |
+| Withdrawal | shape, withdrawal preimage, evidence identity, immutability | who attested the withdrawal |
+| Genesis / genesis completion | shape, seed and envelope preimages, content digests, immutability | who performed the ceremony |
+
+Version one's general rule: **all human-attestation authorship is established at
+an explicit human review gate.** The checker proves schema and shape, digest and
+preimage binding, content identity, authority-reference shape, and subsequent
+immutability — and never the human actor's identity. `MAN-G01` is written as one
+general provenance control covering every row above.
+
+**Signing is deliberately not adopted in v1, and the condition that would change
+that is recorded.** A detached owner signature would introduce a whole trust
+domain — trusted public key, private-key custody, rotation, revocation, loss
+recovery, compromise response, algorithm, and canonical signed bytes — which
+deserves its own ADR rather than being added to close a review finding.
+
+The manual gate is sufficient while **an independent human owner controls the
+final merge and personally performs the attestation ceremony**. It stops being
+sufficient, and signing becomes necessary before activation, if an
+implementation agent — or credentials available to one — can merge to `main`
+without a separate owner-controlled act. That is the trigger to re-open the
+decision, and it is written down so the judgement is not re-derived later from
+memory.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
@@ -864,6 +958,20 @@ A preallocated logical activation identifier would also work, but only with its
 type, uniqueness rule, relation to the real PR number, and CI input defined.
 Version one takes the simpler route: the PR number, allocated by opening the
 draft first.
+
+**How the draft is opened before it has a reviewable diff**, decided here rather
+than left for an implementer to invent: the activation branch begins with a
+single **activation-intent commit** — a short, explicitly non-authoritative note
+under the change's own directory recording that this branch will carry the
+activation and that it holds no governance authority yet. That is enough to open
+a draft PR and allocate the number. It creates no `governance/` path, asserts no
+state, and is removed or superseded by the activation content itself.
+
+**And the ceremony must be the last thing that happens.** Attesting before the
+seam is complete would bind artifacts that later tasks then change, so the
+"post-attestation head" would not be final. The order in D11a is therefore:
+build the entire seam, freeze it, attest, and re-run everything on that exact
+head.
 
 ---
 

@@ -280,9 +280,14 @@ fields: the gate predicate definition and its source references; a node's kind;
 a landing's prerequisite identifier set; its typed external authority anchor;
 its completion-policy identity; and reviewed ordering intent where it changes
 readiness. Version one SHALL permit **no in-place mutation** of these on an
-existing identity. A changed rule SHALL be introduced as a new stable identity
-with an explicit typed supersession relationship; the old identity remains
-immutable.
+existing identity. An identity-bearing rule input SHALL NOT be changed in version one **at all** —
+neither in place nor by replacement. A replacement or supersession relationship
+between landing or gate identities SHALL be an unknown field in v1 and SHALL be
+refused, because the schema does not define which identity is current, whether
+kind must be preserved, how dependent prerequisite references move, what
+projections and queries report for the replaced identity, or the transition
+preimage and evidence shape. Opening that path SHALL require a new decision that
+answers all of those.
 
 Prerequisite readiness SHALL be derived: a landing prerequisite is satisfied
 only when its delivery lifecycle is `Complete` **and** every required completion
@@ -317,13 +322,33 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 - **WHEN** history validation runs
 - **THEN** it fails, independently of whether the gate's derived result changed
 
-#### Scenario: A rule change arrives as a new identity
+#### Scenario: A replacement identity is refused in version one
 
-- **GIVEN** a new landing identity carrying the changed rule and an explicit
-  typed supersession relationship to the old identity, with its human-attested
-  transition
+- **GIVEN** a new landing identity carrying a changed rule together with a
+  replacement or supersession relationship to an existing identity
 - **WHEN** the checkers run
-- **THEN** they pass, and the old identity remains present and unmodified
+- **THEN** they fail — v1 defines no replacement semantics, and a
+  half-specified transition would let the implementation choose the governance
+  rules
+
+#### Scenario: Withdrawal follows its own typed protocol
+
+- **GIVEN** a landing moving `Planned -> Withdrawn` or
+  `InProgress -> Withdrawn` with a `withdrawalDigest` binding the landing
+  identity, both lifecycles, the authority anchor and typed withdrawal
+  evidence, plus its human attestation
+- **WHEN** the checkers run
+- **THEN** they pass; the landing satisfies no prerequisite; the query reports
+  the withdrawal without asserting it was authorized; and the evidence is
+  immutable thereafter
+
+#### Scenario: Withdrawal without its evidence is refused
+
+- **GIVEN** a landing moved to `Withdrawn` with no withdrawal digest,
+  evidence or attestation
+- **WHEN** the checkers run
+- **THEN** they fail — `Withdrawn` is terminal and may not be reached by
+  assertion
 
 #### Scenario: A cycle in prerequisites is refused
 
@@ -989,7 +1014,10 @@ the repository owner, not produced by the implementation. An implementation MAY
 compute preimages and digests and present them for review; it SHALL NOT record
 either attestation on the owner's behalf.
 
-**Authorship SHALL be enforced by human review, not by the checker.** The
+**Authorship SHALL be enforced by human review, not by the checker — for every
+attestation class, not only genesis.** The same limitation applies to ADR
+acceptance, ADR rejection, ordinary completion, and withdrawal: none carries a
+signature, and the checker is offline. The
 checker is offline and the envelope carries no signature, trusted key, signed
 object, or independently controlled review artifact, so it has **no observable
 fact** distinguishing an owner-recorded envelope from an implementation-recorded
@@ -1014,6 +1042,12 @@ attestation preimages, under a governed trust root — SHALL require its own
 decision covering key custody, rotation, and revocation. Version one does not
 adopt it.
 
+The manual gate SHALL be sufficient only while an independent human owner
+controls the final merge and personally performs the attestation act. If an
+implementation, or credentials available to one, can merge to the default branch
+without a separate owner-controlled act, that decision SHALL be re-opened before
+activation.
+
 The genesis attestation binds an `activationIdentity`. The ceremony SHALL
 therefore occur in the landing where that identity **exists** — the activation
 landing — and SHALL NOT be required of an earlier landing that would have to
@@ -1025,20 +1059,27 @@ byte-for-byte against the value the genesis evidence binds.
 
 The ceremony SHALL be ordered:
 
-1. an earlier landing computes and **freezes** the candidate state, source
-   manifest, consumer inventory, evidence identities, historical-completion
-   preimages, and every resulting digest, and proves the whole mechanism using
-   **test** attestations over fixtures. It SHALL NOT claim that the real
-   activation has been attested;
+1. an earlier landing computes the candidate state, source manifest, consumer
+   inventory, evidence identities, historical-completion preimages and every
+   resulting digest, and proves the whole mechanism using **test** attestations
+   over fixtures. It SHALL NOT claim that the real activation has been attested;
 2. the activation landing's pull request is opened first, allocating the stable
    identity bound as `activationIdentity`;
-3. the repository owner reviews **those exact frozen artifacts** together with
-   the allocated identity;
-4. the owner records `attestations.genesis` and
+3. **the entire activation seam is built** — registry and manifests promoted,
+   projections generated and the copies they replace deleted, pointer consumers
+   converted, and every gate wired;
+4. the complete seam is **frozen**;
+5. the repository owner reviews those exact frozen artifacts together with the
+   allocated identity, and records `attestations.genesis` and
    `attestations.genesisCompletion`;
-5. the real checker, the hostile suite, formatting, and hosted CI re-run on the
+6. the real checker, the hostile suite, formatting, and hosted CI re-run on the
    **post-attestation head**;
-6. the landing does not complete until that exact head has passed review.
+7. the landing does not complete until that exact head has passed review.
+
+The attestation SHALL be the **last** content change of the landing. Attesting
+before the seam is complete would bind artifacts that later steps then modify,
+so the reviewed head would not be final. Any change to a bound artifact after
+step 5 SHALL restart the ceremony from step 4.
 
 Any change to a frozen artifact after step 3 SHALL invalidate the attestation
 bound to it, and the ceremony SHALL restart from step 1.
@@ -1195,7 +1236,7 @@ The three completion-related digests SHALL be distinct and separately defined:
 | --- | --- | --- |
 | `completionDigest` | a post-genesis transition | landing identity, **prior and target** lifecycle, anchor, scoped delivery, policy, policy-specific evidence |
 | `genesisHistoricalCompletionDigest` | a genesis observation | landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence |
-| `genesisCompletionEnvelopeDigest` | genesis | the canonically ordered, closed set of `genesisHistoricalCompletionDigest` values |
+| `genesisCompletionEnvelopeDigest` | genesis | the canonically ordered, duplicate-free entity set of **`{landingId, genesisHistoricalCompletionDigest}` tuples** — never bare digests, so a digest cannot be reassociated with another landing |
 
 The `attestations.genesisCompletion` envelope SHALL carry the
 `genesisCompletionEnvelopeDigest`, the ordered member set, the actor, an RFC 3339

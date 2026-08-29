@@ -4,7 +4,11 @@ Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
 
-> **Revised again after the `2d04d3d` review** — the T3 genesis row now states
+> **Revised again after review 5058683298** — positive collection properties
+> move out of the hostile corpus, MAN-G01 becomes a general provenance control,
+> and PR-1 owns the full collection contract.
+>
+> **Revised after the `2d04d3d` review** — the T3 genesis row now states
 > the same mechanically testable condition as the design, ADV-G58/G59 move into
 > the history-only partition, and ADV-G61 is reclassified as the manual control
 > it actually is.
@@ -185,6 +189,12 @@ accordingly.
   post-attestation edit to a bound artifact invalidates it. **Authorship is
   established by human review; the checker proves shape, bindings, digests and
   immutability only.**
+- **INV-G45** Version one supports no node replacement: a replacement or
+  supersession relationship between landing or gate identities is an unknown
+  field and is refused.
+- **INV-G46** `Withdrawn` is reachable only through its typed withdrawal
+  protocol — digest, evidence, and attestation — satisfies no prerequisite, and
+  its evidence is immutable thereafter.
 - **INV-G44** The envelope's `members` is an entity set keyed by `landingId`,
   canonically ordered, duplicate-free, with the preimage over
   `{landingId, digest}` tuples so a digest cannot be reassociated with another
@@ -355,7 +365,7 @@ it.
 | INV-G24 | `ADV-G24` prohibited claim reintroduced | hostile |
 | INV-G25 | `EX-G16` before/after derivation identical | independent re-derivation |
 | INV-G26 | `EX-G17` non-contiguous set preserved | example |
-| INV-G27 | `ADV-G37`, `ADV-G38`, `ADV-G39`; `PROP-G02` | hostile + property |
+| INV-G27 | `ADV-G38`, `ADV-G39`; `PROP-G02`, `PROP-G09` | hostile + property |
 | INV-G28 | `ADV-G42`, `ADV-G43` | hostile |
 | INV-G29 | `ADV-G46`, `ADV-G47`; `EX-G20` | hostile + example |
 | INV-G30 | `ADV-G48` registry beside a surviving copy | hostile |
@@ -372,7 +382,9 @@ it.
 | INV-G41 | `EX-G21` counts regenerate to the enumeration; `ADV-G60` | independent re-derivation + hostile |
 | INV-G42 | `ADV-G62` post-attestation edit; `EX-G24` checker makes no authorship claim | hostile + example |
 | INV-G42 (authorship) | **`MAN-G01`** | **manual review** |
-| INV-G44 | `ADV-G64`, `ADV-G65` | hostile |
+| INV-G44 | `ADV-G65`; `PROP-G09` | hostile + property |
+| INV-G45 | `ADV-G66` replacement relationship refused | hostile |
+| INV-G46 | `ADV-G67` withdrawal without evidence; `EX-G25` legal withdrawal | hostile + example |
 | INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
@@ -404,6 +416,11 @@ proven by construction and manual argument, not by a test.
   always reported as such and never as a governance finding.
 - **PROP-G07** Adding an unrelated valid record never changes an unrelated
   derived answer.
+- **PROP-G09** Reordering the members of any canonical set — a set-valued
+  relationship, the completion envelope's members, or a policy-evidence identity
+  set — produces identical canonical bytes and identical digests. *(Previously
+  filed as `ADV-G37`/`ADV-G64` inside the hostile corpus, whose preamble requires
+  every case to fail. These must succeed, so they are properties.)*
 
 ---
 
@@ -421,8 +438,6 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G02** Unknown field, including a plausible `resolved`/`satisfied`.
 - **ADV-G03** Valid JSON that is not its own canonical serialization.
 - **ADV-G23** Truncated registry — must not read as empty.
-- **ADV-G37** Reordered set-valued relationship — bytes and digests must be
-  unchanged.
 - **ADV-G38** Duplicate collection member — entity id or set member.
 - **ADV-G39** Unclassified collection.
 
@@ -481,10 +496,12 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G60** A prose inventory count disagreeing with the machine-readable
   inventory it summarizes, or a row carrying a disposition outside the closed
   five.
-- **ADV-G64** Reordered envelope members — bytes and envelope digest must be
-  unchanged.
 - **ADV-G65** Duplicate `landingId` in the envelope, one `digest` under two
   landings, or a duplicated evidence identity.
+- **ADV-G66** A replacement or supersession relationship between landing or gate
+  identities — refused as an unknown field in v1.
+- **ADV-G67** A landing moved to `Withdrawn` without its withdrawal digest,
+  evidence and attestation.
 - **ADV-G62** An edit, after attestation, to any artifact the attested preimage
   binds.
 - **ADV-G63** An ordinary `completionDigest` used for a genesis historical
@@ -531,9 +548,11 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 
 ### Manual controls — not machine-decidable, and not claimed to be
 
-- **MAN-G01** (was `ADV-G61`) **Attestation authorship.** That the repository
-  owner personally recorded `attestations.genesis` and
-  `attestations.genesisCompletion` is established at the **human review gate**,
+- **MAN-G01** (was `ADV-G61`) **Attestation authorship — every class.** That the
+  repository owner personally recorded an attestation is established at the
+  **human review gate**. This covers ADR acceptance, ADR rejection, ordinary
+  completion, withdrawal, and both genesis envelopes: none carries a signature,
+  and the same offline checker validates all of them. It is established
   not by the checker. The checker is offline and the envelope carries no
   signature, trusted key, or signed object, so it has no observable fact
   distinguishing an owner-recorded envelope from an implementation-recorded one.
@@ -541,7 +560,7 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 
   What remains fully automated: envelope shape, preimage recomputation, content
   digests, authority-reference shape, and immutability thereafter — `ADV-G62`,
-  `ADV-G64`, `ADV-G65`, `EX-G24`.
+  `ADV-G65`, `PROP-G09`, `EX-G24`.
 
   A machine-verifiable alternative (detached owner signature under a governed
   trust root) is a separate decision covering key custody, rotation and
@@ -575,7 +594,7 @@ no-op that still returns success is the failure mode being hunted.
 | Requirement | Landing | Task group | Proving control |
 | --- | --- | --- | --- |
 | Canonical representation | PR-1 | 1 | ADV-G01–03, G23; PROP-G02 |
-| Collection classification and ordering | PR-1 | 1 | ADV-G37–39; PROP-G02; MUT-G13 |
+| Collection classification and ordering | PR-1 | 1 | ADV-G38, ADV-G39, **ADV-G65**; PROP-G02, **PROP-G09**; MUT-G13 |
 | Decision lifecycle (current manifestations) | PR-1 | 2 | ADV-G04, G05, G25; EX-G07 |
 | Questions and gates | PR-1 | 2 | ADV-G06, G07, G09 |
 | Landings and prerequisites (current) | PR-1 | 2 | ADV-G10, G12; T1 |
@@ -591,8 +610,8 @@ no-op that still returns success is the failure mode being hunted.
 | Namespaced identifiers | PR-1 | 2, 3 | ADV-G50 — proven in PR-1; repeated in PR-2 as integration |
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
 | Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
-| Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62, ADV-G64, ADV-G65; EX-G24 |
-| Real genesis ceremony | **PR-3** | 8 (8.0, 8.1a) | MAN-G01 (manual) |
+| Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62; EX-G24 |
+| Real genesis ceremony | **PR-3** | 8 (8.0, 8.6, 8.7, 8.8) | MAN-G01 (manual) |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
 | Live-change exemption rule | PR-2 | 6 | ADV-G54 |
 | Bound activation / no reactivation | PR-2 | 4 | ADV-G58, ADV-G59 |

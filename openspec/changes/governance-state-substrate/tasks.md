@@ -16,7 +16,12 @@ redefine the specification, architecture, or assurance model.
 below is executed in it.** It creates no `governance/` directory, no
 `state.json`, no scripts, no tests, and no CI change.
 
-> **Revised again after the `2d04d3d` review** — the real owner ceremony moves
+> **Revised again after review 5058683298** — the PR-3 order is made possible
+> (build the seam, freeze, attest, verify), PR-1 owns all five collection
+> classes, and the PR-1 completion definition no longer claims an activation
+> seam it must not contain.
+>
+> **Revised after the `2d04d3d` review** — the real owner ceremony moves
 > to PR-3, where the activation identity exists; PR-2 proves the mechanism with
 > test attestations; and 6.7's task metadata names the file it changes.
 >
@@ -121,7 +126,8 @@ predicates and kinds are identity-bearing rule inputs.
 
 Complete only when every PR-1 task is complete, every current-revision scenario
 is proven through the real checker, every assigned invariant has its proof, the
-atomic seam is present, and review has completed on one frozen head.
+complete PR-1 model/checker seam is present — **not** the activation seam, which
+PR-1 must not contain — and review has completed on one frozen head.
 
 ## 1. Representation
 
@@ -136,15 +142,25 @@ atomic seam is present, and review has completed on one frozen head.
   **Change**
   Duplicate keys rejected **before object construction**; closed-schema unknown
   field rejection; deterministic canonical serializer; and the three collection
-  classes — entity (sorted by id, duplicate ids rejected), set-valued (sorted,
-  duplicate members rejected, order meaningless), sequence-valued (order
-  preserved and identity-bearing).
+  classes — **all five** the design declares, because PR-1 owns the canonical
+  reader, serializer and collection model:
+
+  | Class | Rule |
+  |---|---|
+  | entity collection | sorted by id; duplicate ids rejected |
+  | set-valued relationship | sorted; duplicates rejected; order meaningless |
+  | sequence-valued | order preserved and identity-bearing |
+  | completion-envelope entity set | keyed by `landingId`; ordered; duplicate `landingId` and one `digest` under two landings rejected; preimage over `{landingId, digest}` tuples |
+  | policy-evidence identity set | sorted by member bytes; duplicates rejected |
 
   **Proof required**
   - `ADV-G01` duplicate key · `ADV-G02` unknown field · `ADV-G03` noncanonical ·
     `ADV-G23` truncated never reads as empty
-  - `ADV-G37` reordered set-valued relationship — bytes and digests unchanged
+  - `PROP-G09` reordering any canonical set — relationship, envelope members, or
+    evidence identities — yields identical bytes and digests
   - `ADV-G38` duplicate collection member rejected
+  - `ADV-G65` duplicate `landingId`, one `digest` under two landings, or a
+    duplicated evidence identity
   - `ADV-G39` unclassified collection refused
   - `PROP-G02` canonical round-trip and order independence
   - `MUT-G01` strict reader → permissive `JSON.parse`
@@ -223,13 +239,13 @@ atomic seam is present, and review has completed on one frozen head.
 - [ ] **3.1 Current-revision hostile corpus**
   <!-- agent-task: 3.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=2.4 -->
   **Proves** — `ADV-G01`–`G07`, `G09`, `G10`, `G12`, `G19`, `G23`, `G25`–`G28`,
-  `G30`, `G33`, `G37`–`G39`, **`G50`** (bare shorthand refused — proven here, in
+  `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`** (bare shorthand refused — proven here, in
   the landing that owns reference resolution; PR-2 may repeat it as integration
   coverage)
 
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
-  **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`
+  **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`, **`G09`**
 
 - [ ] **3.3 Mutation coverage**
   <!-- agent-task: 3.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=3.1 -->
@@ -479,7 +495,8 @@ atomic seam is present, and review has completed on one frozen head.
   <!-- agent-task: 6.7 paths=tests/fixtures/governance/candidate/**,tests/test_governance_state.py checks=node,pytest risk=trust-critical prerequisites=6.6 -->
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
-  (step 1); `INV-G43`
+  (step 1); `INV-G42` (the authorship limitation), `INV-G44` (member
+  canonicalization)
 
   **Change**
   Exercise the whole attestation path — preimage construction, digest
@@ -546,7 +563,14 @@ registry appears, and it appears already protected.
   <!-- agent-task: 8.0 paths=none checks=manual risk=trust-critical prerequisites=7.3 -->
 
   The draft activation PR is opened **before** anything binds its identity,
-  yielding a stable number. `activationIdentity` is the closed typed reference
+  yielding a stable number.
+
+  **How it is opened before it has a reviewable diff**, decided here rather than
+  left to the implementer: the branch begins with a single **activation-intent
+  commit** — a short, explicitly non-authoritative note under this change's own
+  directory recording that the branch will carry the activation and holds no
+  governance authority yet. It creates no `governance/` path and asserts no
+  state. `activationIdentity` is the closed typed reference
   `{ type: "github-pull-request", repository, number }`, supplied to the checker
   by CI and compared byte-for-byte against the value the genesis evidence binds.
 
@@ -589,37 +613,8 @@ registry appears, and it appears already protected.
 
   **Gate:** activation is **refused** unless that binding is present.
 
-- [ ] **8.1a Human step: record the two real genesis attestations**
-  <!-- agent-task: 8.1a paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.1 -->
-
-  **Performed by the repository owner. An implementation agent may compute a
-  digest; it may not attest to one.**
-
-  **Implements** — *Genesis attestations are a human act on frozen artifacts*
-  (steps 2–6); `INV-G42`
-
-  | Field | Value |
-  |---|---|
-  | Actor | @mikegtech (repository owner) |
-  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, base commit, **`activationIdentity` allocated by 8.0** |
-  | Attests | `attestations.genesisCompletion` — envelope digest over the ordered `{landingId, digest}` members for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
-  | Evidence reviewed | exactly the artifacts frozen by 6.6, plus the allocated identity |
-  | Authority reference | issue #106 |
-  | **Recorded in** | **`governance/state.json`** — the `attestations` object |
-  | Invalidated by | any change to a frozen artifact bound by either preimage; the ceremony restarts at 6.6 |
-
-  **Authorship is a review gate, not a machine check.** The offline checker has
-  no signature or trust root, so it proves shape, bindings, digests and
-  subsequent immutability — and makes no claim about who authored the envelope.
-  The `actor` string is a recorded assertion.
-
-  **Completion**
-  The checker, hostile suite, formatting and hosted CI re-run on the
-  **post-attestation head**, and PR-3 does not complete until that exact head
-  has passed review.
-
 - [ ] **8.2 Promote the candidate artifacts to their canonical paths**
-  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1a -->
+  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1 -->
 
   The already-proven candidates move to their durable paths — no new authoring:
 
@@ -657,14 +652,58 @@ registry appears, and it appears already protected.
   revision in which the canonical registry coexists with a surviving copy;
   `ADV-G55` a candidate copy left usable after activation
 
+- [ ] **8.6 Freeze the complete activation seam**
+  <!-- agent-task: 8.6 paths=governance/**,docs/**,openspec/config.yaml,.github/workflows/** checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5 -->
+
+  Every artifact the attestations will bind is now in its final state: registry,
+  manifests, generated regions and their deletions, pointers, and all gates.
+  Freeze the seam and present it for review.
+
+- [ ] **8.7 Human step: record the two real genesis attestations**
+  <!-- agent-task: 8.7 paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.6 -->
+
+  **Performed by the repository owner. An implementation agent may compute a
+  digest; it may not attest to one.**
+
+  **Implements** — *Genesis attestations are a human act on frozen artifacts*
+  (steps 5–7); `INV-G42`
+
+  This is the **last content change of the landing**. Attesting earlier would
+  bind artifacts that later tasks then modify, so the "post-attestation head"
+  would not be final — which is exactly why the ceremony sits here rather than
+  before 8.2.
+
+  | Field | Value |
+  |---|---|
+  | Actor | @mikegtech (repository owner) |
+  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, base commit, **`activationIdentity` allocated by 8.0** |
+  | Attests | `attestations.genesisCompletion` — envelope digest over the ordered `{landingId, digest}` tuples for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
+  | Evidence reviewed | exactly the seam frozen by 8.6, plus the allocated identity |
+  | Authority reference | issue #106 |
+  | **Recorded in** | **`governance/state.json`** — the `attestations` object, which 8.2 has already created |
+  | Invalidated by | any change to a bound artifact; the ceremony restarts at 8.6 |
+
+  **Authorship is a review gate, not a machine check** (`MAN-G01`). The offline
+  checker proves shape, bindings, digests and subsequent immutability, and makes
+  no claim about who authored the envelope; the `actor` string is a recorded
+  assertion.
+
+- [ ] **8.8 Verify on the post-attestation head**
+  <!-- agent-task: 8.8 paths=none checks=node,pytest,scaffold,ci risk=trust-critical prerequisites=8.7 -->
+
+  The checker, history checker, hostile suite, formatting, secret scan,
+  `git diff --check` and hosted CI all run on the **exact head carrying the
+  attestations**. Nothing bound may change afterwards without restarting at 8.6.
+
 ## PR-3 Completion Gate
 
 - [ ] The complete seam is present: registry, genesis attestation, **completion
       envelope**, source manifest, consumer inventory, generated regions **and
       their deletions**, pointers, all gates, bound conditional handoff.
-- [ ] **The repository owner recorded both real attestations** (8.1a) binding the
-      `activationIdentity` allocated by 8.0, and the full gate passed on the
-      post-attestation head.
+- [ ] **The repository owner recorded both real attestations** (8.7) binding the
+      `activationIdentity` allocated by 8.0, **after** the complete seam was
+      built and frozen (8.6), and the full gate passed on that exact
+      post-attestation head (8.8).
 - [ ] Human review confirmed the owner performed the attestation act — the
       checker does not and cannot establish authorship.
 - [ ] **No second copy of authored current state remains usable** — the
