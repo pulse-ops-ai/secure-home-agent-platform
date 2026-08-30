@@ -71,12 +71,73 @@ OpenSpec's custom artifact graph controls dependency order and requires a review
 file before apply is available. OpenSpec does not semantically validate a custom
 review verdict or prove that the reviewed files are still the same files.
 
-The dependency-free companion script closes that gap:
+The dependency-free companion script closes part of that gap — and it is worth
+being exact about which part, because the name "review gate" invites a stronger
+reading than the mechanism supports.
+
+**What `REVIEW_GATE_VALID` proves.** At the pre-apply boundary, the planning
+bytes are still exactly the bytes recorded in the accepting review; the reviewed
+commit is an ancestor of HEAD; nothing outside the review report and
+`reviews/**` changed since that commit; the working tree is clean; the review
+report is committed and was recorded after the planning pin; and the report
+satisfies the declared contract — required sections, section-owned markers, and
+exactly one governed verdict.
+
+**What it does not prove.** It does not authenticate the reviewer. The
+`reviewer` field is a declared string, and nothing here binds it to a
+cryptographic identity or to a human at all. It cannot show that the review was
+independent, that a reviewer read anything, or that the verdict reflects
+judgement rather than a paste. **Reviewer identity and reviewer independence
+remain external, procedural facts** — established by who may push, who reviews
+the pull request, and the repository's own social process, not by this script.
+No cryptographic reviewer authentication is claimed or implemented.
+
+The gate makes drift and contract violations mechanically impossible to miss. It
+does not make a dishonest review impossible to write.
+
+The commands:
 
 ```sh
-node scripts/openspec-review-gate.mjs manifest --change <change-name>
-node scripts/openspec-review-gate.mjs verify --change <change-name>
+pnpm run review:manifest -- --change <change-name>   # before the review
+pnpm run review:verify   -- --change <change-name>   # immediately before apply
 ```
+
+(equivalently `node scripts/openspec-review-gate.mjs manifest|verify --change <name>`)
+
+## When to run it — and when not to
+
+`verify` is a **pre-apply boundary check**, not a continuous one. It refuses any
+repository change made after the reviewed planning commit, so it passes exactly
+once: in the moment between an accepted review and the first implementation
+edit. Every legitimate commit after that point makes it fail, correctly.
+
+| | |
+|---|---|
+| **Run `verify`** | once, immediately before the first implementation or canonical-authority change |
+| **Never** | as an unconditional `check.sh` step or CI job — it would fail every change under implementation |
+
+What runs continuously instead:
+
+- `pnpm run check:review-history` — admitted `reviews/**` rounds are append-only, a two-revision property enforced on every push and pull request;
+- `tests/test_openspec_review_gate.py` — the gate's own behaviour, in the unconditional governance suite.
+
+**CI tests the mechanism; it does not re-execute the one-time authorization.**
+
+## A worked sequence
+
+```text
+1. author proposal, specs, design, assurance, tasks    (planning artifacts)
+2. commit them; the worktree must be clean
+3. pnpm run review:manifest -- --change <name>         (pins HEAD + byte digests)
+4. paste the emitted block into preimplementation-review.md
+5. independent review; fill reviewer, reviewed_at, counts, verdict
+6. commit the completed review
+7. pnpm run review:verify -- --change <name>           -> REVIEW_GATE_VALID
+8. implement — from here verify will refuse, and that is correct
+```
+
+`tests/test_openspec_review_gate.py` executes this sequence against real Git
+repositories, so the worked example is a test rather than prose.
 
 `manifest` prints the exact JSON gate block for the current clean planning
 commit. `verify` checks:
