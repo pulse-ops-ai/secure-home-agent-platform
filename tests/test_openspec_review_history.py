@@ -597,64 +597,65 @@ def test_the_review_boundary_workflow_takes_its_base_from_github() -> None:
     assert "base moved during the boundary run" in tail
 
 
-def test_the_boundary_workflow_never_executes_pull_request_code() -> None:
-    """CodeQL found this, and the authorization consequence is worse than the
+def test_the_boundary_workflow_never_checks_out_pull_request_code() -> None:
+    """CodeQL flagged this, and the authorization consequence is worse than the
     alert title.
 
-    An earlier revision checked out the pull request and then ran `pnpm install`
-    and `pnpm run review:verify` inside it. That meant the lockfile's lifecycle
-    scripts, the resolved binaries, the package.json script names, AND
-    `scripts/openspec-review-gate.mjs` itself all came from the branch being
-    authorized -- which could have replaced the gate with `process.exit(0)`.
+    An earlier revision checked out the pull request and ran `pnpm install` and
+    `pnpm run review:verify` inside it, so the lockfile's lifecycle scripts, the
+    resolved binaries, and `scripts/openspec-review-gate.mjs` ITSELF came from
+    the branch being authorized -- which could have replaced the gate with
+    `process.exit(0)`.
 
-    The property is easy to undo by adding one convenient step, so it is pinned.
+    Moving the tooling to a second checkout was not enough: CodeQL still flags
+    execution that follows untrusted code landing in the workspace, and it is
+    right to. The answer is that the pull request is never a working tree at
+    all -- it is fetched as objects and the gate reads them from git.
     """
     workflow = BOUNDARY.read_text()
     steps = workflow_steps(workflow, "boundary")
     assert len(steps) >= 8, f"the step extraction is vacuous: {len(steps)} steps"
 
-    checkouts: dict[str, str] = {}
-    for step in steps:
-        if "actions/checkout" not in step:
-            continue
-        path = step_field(step, "path")
-        assert path is not None, "every checkout must declare an explicit path"
-        checkouts[path] = step
-    assert {"trusted", "pr"} <= set(checkouts), (
-        f"expected separate trusted/ and pr/ checkouts, got {sorted(checkouts)}"
+    checkouts = [step for step in steps if "actions/checkout" in step]
+    assert len(checkouts) == 1, (
+        f"exactly one checkout, of the default branch; found {len(checkouts)}"
     )
-    assert (
-        step_field(checkouts["trusted"], "ref") == "${{ github.event.repository.default_branch }}"
+    assert step_field(checkouts[0], "ref") == "${{ github.event.repository.default_branch }}", (
+        "the only working tree must be the default branch"
     )
-    for path, step in checkouts.items():
-        assert step_field(step, "persist-credentials") == "false", (
-            f"the {path} checkout keeps credentials on disk"
-        )
+    assert step_field(checkouts[0], "persist-credentials") == "false"
 
+    # The pull request reaches the runner only as git objects.
+    fetches = [step for step in steps if "git fetch" in step_run(step)]
+    assert fetches, "the pull request must be fetched as objects"
+    for step in fetches:
+        run = step_run(step)
+        assert "refs/boundary/head" in run
+        assert "checkout" not in run, "fetching must not be followed by a checkout"
+
+    # Nothing anywhere may check out or merge the pull request's ref.
     for step in steps:
         run = step_run(step)
-        where = step_field(step, "working-directory")
-        if "pnpm install" in run:
-            assert where == "trusted", (
-                "dependencies must be installed from the DEFAULT BRANCH lockfile; "
-                f"this step installs in {where!r} and would run the pull request's "
-                "lifecycle scripts"
-            )
-        if where == "pr":
-            # Anything executed while sitting in the untrusted tree must be a
-            # binary or script resolved from trusted/.
-            for token in ("pnpm run", "pnpm exec", "npm run", "npx "):
-                assert token not in run, (
-                    f"{token!r} in the pr/ working directory resolves scripts and "
-                    "binaries from the pull request"
-                )
-            assert "$GITHUB_WORKSPACE/trusted/" in run, (
-                "a step running in pr/ must invoke tooling from trusted/:\n" + run
-            )
+        for forbidden in ("git checkout refs/boundary", "git switch", "git merge"):
+            assert forbidden not in run, f"{forbidden!r} materialises the pull request"
 
-    # A dependency cache populated from an untrusted tree is restorable by later
-    # default-branch runs -- the poisoning path CodeQL named.
-    assert "cache:" not in workflow, "dependency caching enabled in the boundary workflow"
+    # The gate is invoked against the ref, from the default branch's own copy.
+    # Steps that INVOKE it, not steps that merely name it -- the bootstrap
+    # guard legitimately checks for the file by path.
+    gate_steps = [s for s in steps if "node scripts/openspec-review-gate.mjs" in step_run(s)]
+    assert len(gate_steps) == 1, f"expected one gate invocation, found {len(gate_steps)}"
+    gate_run = step_run(gate_steps[0])
+    assert "--ref refs/boundary/head" in gate_run
+    assert "pnpm run" not in gate_run and "pnpm exec" not in gate_run
+
+    # A dependency cache populated in this context is restorable by later
+    # default-branch runs -- the poisoning path CodeQL named. Asserted on step
+    # INPUTS, not on the file text: a comment explaining why caching is absent
+    # would otherwise fail this, which is the same comment-versus-code mistake
+    # this suite has already made once.
+    for step in steps:
+        assert step_field(step, "cache") is None, f"a step enables caching:\n{step}"
+        assert step_field(step, "cache-dependency-path") is None
 
 
 def test_the_boundary_workflow_refuses_when_the_default_branch_has_no_gate() -> None:
@@ -664,7 +665,7 @@ def test_the_boundary_workflow_refuses_when_the_default_branch_has_no_gate() -> 
     workflow must refuse instead.
     """
     workflow = BOUNDARY.read_text()
-    assert "trusted/scripts/openspec-review-gate.mjs" in workflow
+    assert "scripts/openspec-review-gate.mjs is missing on the default branch" in workflow
     assert "A boundary cannot be established with tooling taken from the pull request" in workflow
 
 

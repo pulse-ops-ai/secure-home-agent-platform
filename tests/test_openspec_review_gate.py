@@ -564,11 +564,12 @@ def _ignore(repo: Path, pattern: str) -> None:
 
 
 def test_an_ignored_untracked_delta_spec_never_enters_the_manifest(tmp_path: Path) -> None:
-    """The blocker: ignored files are invisible to the clean-worktree check.
+    """The original blocker, now closed by construction rather than by refusal.
 
     Discovery used readdir, so an ignored spec could be digested into
     reviewed_artifacts while existing in no commit -- the manifest would name
-    bytes that are nowhere in reviewed_commit.
+    bytes that are nowhere in reviewed_commit. Enumeration now comes from the
+    committed tree, so the file is not merely REFUSED, it is never seen.
     """
     repo = _planning_repo(tmp_path)
     _ignore(repo, "ghost.md")
@@ -576,7 +577,18 @@ def test_an_ignored_untracked_delta_spec_never_enters_the_manifest(tmp_path: Pat
         "# ghost\n"
     )
     assert _git(repo, "status", "--porcelain").strip() == "", "the fixture must look clean to git"
-    assert _refusal(_gate(repo, "manifest")) == "PLANNING_FILE_NOT_TRACKED"
+
+    gate = _manifest(repo)
+    paths = [artifact["path"] for artifact in gate["reviewed_artifacts"]]
+    assert not any("ghost" in path for path in paths), (
+        f"an uncommitted file reached the reviewed manifest: {paths}"
+    )
+    # And every path that DID reach it is in the pinned commit.
+    for path in paths:
+        assert (
+            _git(repo, "cat-file", "-e", f"{gate['reviewed_commit']}:openspec/changes/demo/{path}")
+            == ""
+        )
 
 
 def test_an_ignored_untracked_required_artifact_is_refused(tmp_path: Path) -> None:
@@ -598,7 +610,13 @@ def test_an_ignored_untracked_required_artifact_is_refused(tmp_path: Path) -> No
     }
 
 
-def test_verify_refuses_a_planning_package_holding_an_untracked_artifact(tmp_path: Path) -> None:
+def test_an_untracked_artifact_cannot_disturb_an_accepted_review(tmp_path: Path) -> None:
+    """An ignored file appearing later must not change what was reviewed.
+
+    Before, it would have been digested and produced ARTIFACT_SET_DRIFT against
+    the accepted manifest -- a refusal, but for a file that was never part of
+    the change. Now it is invisible, so the accepted review still verifies.
+    """
     repo = _planning_repo(tmp_path)
     _accept(repo)
     _ignore(repo, "ghost.md")
@@ -606,7 +624,8 @@ def test_verify_refuses_a_planning_package_holding_an_untracked_artifact(tmp_pat
         "# ghost\n"
     )
     assert _git(repo, "status", "--porcelain").strip() == ""
-    assert _refusal(_gate(repo, "verify")) == "PLANNING_FILE_NOT_TRACKED"
+    result = _gate(repo, "verify")
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_every_manifest_artifact_exists_in_the_reviewed_commit(tmp_path: Path) -> None:
@@ -1184,3 +1203,69 @@ def test_supplying_both_freshness_sources_is_refused(tmp_path: Path) -> None:
     _accept(repo)
     result = _gate(repo, "verify", extra=["--remote", "origin/main"])
     assert _refusal(result) == "CONFLICTING_FRESHNESS_SOURCES"
+
+
+# ── verifying a commit that was never written to disk ───────────────────────
+
+
+def test_the_gate_verifies_a_ref_that_is_not_checked_out(tmp_path: Path) -> None:
+    """The property that removes untrusted code from the privileged runner.
+
+    CodeQL flagged the boundary workflow for executing untrusted code: it
+    checked out the pull request and then ran tooling in that workspace. The
+    structural answer is to never place the pull request on disk at all -- fetch
+    its objects and verify the ref. Every governed read already came from git
+    objects; this proves the last one, spec enumeration, does too.
+    """
+    upstream = _planning_repo(tmp_path)
+    _accept(upstream)
+    assert _gate(upstream, "verify").returncode == 0, "the control, in the repo itself"
+    reviewed = _git(upstream, "rev-parse", "HEAD").strip()
+    base_sha = _git(upstream, "rev-parse", f"{BASE}^{{commit}}").strip()
+
+    # A separate repository that has the OBJECTS but no working tree for them.
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    _git(consumer, "init", "-q", "-b", "fixture")
+    (consumer / "unrelated.md").write_text("# nothing to do with the change\n")
+    _git(consumer, "add", "-A")
+    _git(consumer, "commit", "-qm", "consumer root")
+    _git(consumer, "fetch", "-q", str(upstream), f"+{reviewed}:refs/boundary/head")
+    _git(consumer, "fetch", "-q", str(upstream), f"+{base_sha}:refs/boundary/base")
+
+    # The change is NOT on disk here.
+    assert not (consumer / "openspec" / "changes" / "demo").exists()
+
+    result = subprocess.run(
+        [
+            "node",
+            str(SCRIPT),
+            "verify",
+            "--change",
+            "demo",
+            "--ref",
+            "refs/boundary/head",
+            "--base",
+            "refs/boundary/base",
+            "--base-sha",
+            base_sha,
+        ],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "REVIEW_GATE_VALID" in result.stdout
+
+    # And it really read the fetched ref, not the consumer's own tree: the
+    # pinned planning commit is upstream's, and the consumer has no such path.
+    assert f"reviewed_commit={base_sha}" in result.stdout
+    assert _git(consumer, "rev-parse", "refs/boundary/head").strip() == reviewed
+
+
+def test_an_unresolvable_ref_is_refused(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    result = _gate(repo, "verify", extra=["--ref", "refs/boundary/nope"], base_sha="AUTO")
+    assert _refusal(result) == "REF_UNRESOLVABLE"

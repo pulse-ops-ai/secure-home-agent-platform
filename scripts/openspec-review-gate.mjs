@@ -276,6 +276,7 @@ function parseArgs(argv) {
     '--base',
     '--base-sha',
     '--remote',
+    '--ref',
   ]
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -319,6 +320,7 @@ function parseArgs(argv) {
     base: values.get('--base'),
     baseSha: values.get('--base-sha'),
     remote: values.get('--remote'),
+    ref: values.get('--ref'),
   }
 }
 
@@ -355,7 +357,7 @@ function isInside(parent, child) {
   )
 }
 
-async function resolveContext({ change, changeDirArg }) {
+async function resolveContext({ change, changeDirArg, ref }) {
   const repoRootText = runGit(process.cwd(), ['rev-parse', '--show-toplevel'], {
     allowFailure: true,
   })
@@ -365,7 +367,18 @@ async function resolveContext({ change, changeDirArg }) {
   }
 
   const repoRoot = await realpath(repoRootText)
-  const changesRoot = await realpath(path.join(repoRoot, 'openspec', 'changes'))
+  // With --ref, openspec/changes need not exist on disk either. The path is
+  // still resolved logically so containment is checked the same way.
+  const changesRootPath = path.join(repoRoot, 'openspec', 'changes')
+  let changesRoot
+  try {
+    changesRoot = await realpath(changesRootPath)
+  } catch {
+    if (ref === undefined) {
+      fail('CHANGE_NOT_FOUND', `openspec/changes does not exist: ${changesRootPath}`)
+    }
+    changesRoot = changesRootPath
+  }
 
   const unresolved =
     change !== null ? path.join(changesRoot, change) : path.resolve(repoRoot, changeDirArg)
@@ -374,7 +387,12 @@ async function resolveContext({ change, changeDirArg }) {
   try {
     changeDir = await realpath(unresolved)
   } catch {
-    fail('CHANGE_NOT_FOUND', `change directory does not exist: ${unresolved}`)
+    // With --ref the change need not be checked out at all: the whole point is
+    // verifying a commit that was never written to disk.
+    if (ref === undefined) {
+      fail('CHANGE_NOT_FOUND', `change directory does not exist: ${unresolved}`)
+    }
+    changeDir = unresolved
   }
 
   if (!isInside(changesRoot, changeDir)) {
@@ -451,17 +469,17 @@ function readSchemaSelection(context, ref = 'HEAD') {
  *
  * `git ls-tree -r` emits `<mode> SP <type> SP <object> TAB <path>`.
  */
-function trackedAtHead(repoRoot, changeRepoPath) {
+function trackedAtHead(repoRoot, changeRepoPath, ref = 'HEAD') {
   // -z, not the default: git QUOTES non-ASCII paths under core.quotePath, so
   // `specs/x/Ábaco.md` comes back as "specs/x/\303\201baco.md" and matches no
   // path discovery produced. NUL termination also survives a newline in a name.
-  const listing = runGit(repoRoot, ['ls-tree', '-r', '-z', 'HEAD', '--', changeRepoPath], {
+  const listing = runGit(repoRoot, ['ls-tree', '-r', '-z', ref, '--', changeRepoPath], {
     allowFailure: true,
   })
   if (listing === null) {
     fail(
       'HEAD_TREE_UNREADABLE',
-      `could not read the committed tree at HEAD for ${changeRepoPath}; nothing ` +
+      `could not read the committed tree at ${ref} for ${changeRepoPath}; nothing ` +
         'was compared, so the planning set could not be proved committed',
     )
   }
@@ -493,8 +511,8 @@ function trackedAtHead(repoRoot, changeRepoPath) {
  * repository stay ignored — the requirement is only that everything ADMITTED to
  * the planning manifest is committed.
  */
-function assertPlanningPathsTracked(repoRoot, changeRepoPath, paths) {
-  const tracked = trackedAtHead(repoRoot, changeRepoPath)
+function assertPlanningPathsTracked(repoRoot, changeRepoPath, paths, ref = 'HEAD') {
+  const tracked = trackedAtHead(repoRoot, changeRepoPath, ref)
   const untracked = paths.filter((relative) => !tracked.has(relative))
 
   if (untracked.length > 0) {
@@ -516,25 +534,34 @@ function assertPlanningPathsTracked(repoRoot, changeRepoPath, paths) {
   }
 }
 
-async function planningPaths(context) {
-  const { changeDir } = context
-  readSchemaSelection(context)
+/**
+ * The planning set, derived ENTIRELY from the committed tree.
+ *
+ * The last filesystem dependency: delta specs were enumerated with readdir, so
+ * the gate needed the change checked out. Deriving them from the tree instead
+ * means the gate can verify a commit that was never written to disk — which is
+ * what lets the governed boundary run without placing untrusted code on a
+ * privileged runner at all.
+ */
+function planningPaths(context, ref = 'HEAD') {
+  readSchemaSelection(context, ref)
 
-  const fixedBeforeSpecs = ['.openspec.yaml', 'proposal.md']
-  const specPaths = await listMarkdownFiles(path.join(changeDir, 'specs'), 'specs')
-  const fixedAfterSpecs = ['design.md', 'assurance.md', 'tasks.md']
+  const tracked = trackedAtHead(context.repoRoot, context.changeRepoPath, ref)
+
+  const specPaths = [...tracked.keys()]
+    .filter((relative) => relative.startsWith('specs/') && relative.endsWith('.md'))
+    .sort(compareUtf8)
+
+  const symlinked = specPaths.filter((relative) => tracked.get(relative) === '120000')
+  if (symlinked.length > 0) {
+    fail('SPEC_SYMLINK_REFUSED', `delta-spec paths must not be symlinks: ${symlinked.join(', ')}`)
+  }
 
   if (specPaths.length === 0) {
     fail('NO_DELTA_SPECS', 'governed-spec-driven-v2 requires at least one specs/**/*.md file')
   }
 
-  const paths = [...fixedBeforeSpecs, ...specPaths, ...fixedAfterSpecs]
-
-  for (const relative of paths) {
-    await assertRegularFileInside(changeDir, path.join(changeDir, relative), relative)
-  }
-
-  return paths
+  return ['.openspec.yaml', 'proposal.md', ...specPaths, 'design.md', 'assurance.md', 'tasks.md']
 }
 
 function sha256(bytes) {
@@ -542,9 +569,9 @@ function sha256(bytes) {
 }
 
 async function artifactManifest(context, ref = 'HEAD') {
-  const { changeDir, repoRoot, changeRepoPath } = context
-  const paths = await planningPaths(context)
-  assertPlanningPathsTracked(repoRoot, changeRepoPath, paths)
+  const { repoRoot, changeRepoPath } = context
+  const paths = planningPaths(context, ref)
+  assertPlanningPathsTracked(repoRoot, changeRepoPath, paths, ref)
   return paths.map((relative) => {
     // The COMMITTED bytes, never the worktree's.
     const bytes = gitBlob(repoRoot, ref, `${changeRepoPath}/${relative}`)
@@ -552,13 +579,13 @@ async function artifactManifest(context, ref = 'HEAD') {
   })
 }
 
-function repositoryChanges(repoRoot, reviewedCommit) {
+function repositoryChanges(repoRoot, reviewedCommit, ref = 'HEAD') {
   const committed =
     runGit(repoRoot, [
       'diff',
       '--name-only',
       '--diff-filter=ACDMRTUXB',
-      `${reviewedCommit}..HEAD`,
+      `${reviewedCommit}..${ref}`,
     ]) || ''
   const unstaged = runGit(repoRoot, ['diff', '--name-only', '--diff-filter=ACDMRTUXB']) || ''
   const staged =
@@ -767,8 +794,8 @@ function validateGateShape(gate) {
   }
 }
 
-async function verifyArtifactManifest(context, gate) {
-  const actual = await artifactManifest(context)
+async function verifyArtifactManifest(context, gate, ref = 'HEAD') {
+  const actual = await artifactManifest(context, ref)
   const declared = gate.reviewed_artifacts
 
   const actualPaths = actual.map((item) => item.path)
@@ -1053,10 +1080,12 @@ function assertVerifyWorktreeClean(repoRoot) {
  * relaxed. They are documented as unreachable rather than covered by a test
  * that cannot be written.
  */
-function assertReviewCommittedAfterPin({ repoRoot, changeRepoPath, reviewedCommit }) {
+function assertReviewCommittedAfterPin({ repoRoot, changeRepoPath, reviewedCommit, ref = 'HEAD' }) {
   const reviewPath = `${changeRepoPath}/${REVIEW_FILE}`
 
-  const tracked = runGit(repoRoot, ['ls-files', '--error-unmatch', '--', reviewPath], {
+  // ls-files reads the index, which does not exist when verifying a bare ref;
+  // the tree is the equivalent question and works for both.
+  const tracked = runGit(repoRoot, ['cat-file', '-e', `${ref}:${reviewPath}`], {
     allowFailure: true,
   })
   if (tracked === null) {
@@ -1067,12 +1096,12 @@ function assertReviewCommittedAfterPin({ repoRoot, changeRepoPath, reviewedCommi
   }
 
   const changed =
-    runGit(repoRoot, ['diff', '--name-only', `${reviewedCommit}..HEAD`, '--', reviewPath]) || ''
+    runGit(repoRoot, ['diff', '--name-only', `${reviewedCommit}..${ref}`, '--', reviewPath]) || ''
 
   if (changed.trim().length === 0) {
     fail(
       'REVIEW_UNCHANGED_SINCE_PIN',
-      `${reviewPath} is unchanged between ${reviewedCommit} and HEAD; the ` +
+      `${reviewPath} is unchanged between ${reviewedCommit} and ${ref}; the ` +
         'accepting review must be recorded after the reviewed planning commit',
     )
   }
@@ -1348,20 +1377,20 @@ function assertBaseIsCurrent(repoRoot, baseCommit, options) {
   )
 }
 
-function assertBaseIncorporated(repoRoot, baseCommit) {
-  const incorporated = runGit(repoRoot, ['merge-base', '--is-ancestor', baseCommit, 'HEAD'], {
+function assertBaseIncorporated(repoRoot, baseCommit, ref = 'HEAD') {
+  const incorporated = runGit(repoRoot, ['merge-base', '--is-ancestor', baseCommit, ref], {
     allowFailure: true,
   })
   if (incorporated === null) {
     fail(
       'BASE_NOT_INCORPORATED',
-      `base commit ${baseCommit} is not an ancestor of HEAD; the reviewed work ` +
+      `base commit ${baseCommit} is not an ancestor of ${ref}; the reviewed work ` +
         'does not sit on the base it claims',
     )
   }
 }
 
-function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit }) {
+function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit, ref = 'HEAD' }) {
   const commitExists = runGit(repoRoot, ['cat-file', '-e', `${reviewedCommit}^{commit}`], {
     allowFailure: true,
   })
@@ -1369,19 +1398,19 @@ function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit }) {
     fail('REVIEWED_COMMIT_NOT_FOUND', `reviewed commit is not available locally: ${reviewedCommit}`)
   }
 
-  const isAncestor = runGit(repoRoot, ['merge-base', '--is-ancestor', reviewedCommit, 'HEAD'], {
+  const isAncestor = runGit(repoRoot, ['merge-base', '--is-ancestor', reviewedCommit, ref], {
     allowFailure: true,
   })
   if (isAncestor === null) {
     fail(
       'REVIEWED_COMMIT_NOT_ANCESTOR',
-      `reviewed commit is not an ancestor of HEAD: ${reviewedCommit}`,
+      `reviewed commit is not an ancestor of ${ref}: ${reviewedCommit}`,
     )
   }
 
   const allowedReviewPath = `${changeRepoPath}/${REVIEW_FILE}`
   const allowedHistoryPrefix = `${changeRepoPath}/reviews/`
-  const changed = repositoryChanges(repoRoot, reviewedCommit)
+  const changed = repositoryChanges(repoRoot, reviewedCommit, ref)
   const forbidden = [...changed]
     .filter(
       (candidate) => candidate !== allowedReviewPath && !candidate.startsWith(allowedHistoryPrefix),
@@ -1445,32 +1474,47 @@ async function manifestMode(context, options) {
 }
 
 async function verifyMode(context, options) {
-  assertVerifyWorktreeClean(context.repoRoot)
-  assertNoHiddenIndexFlags(context.repoRoot)
-  readSchemaSelection(context)
+  // With --ref nothing is checked out, so there is no worktree to be dirty and
+  // no index to carry hidden flags: the ref IS the object under review. This is
+  // what lets the governed boundary verify a pull request without ever placing
+  // its code on a privileged runner.
+  const ref = options.ref ?? 'HEAD'
+  if (options.ref === undefined) {
+    assertVerifyWorktreeClean(context.repoRoot)
+    assertNoHiddenIndexFlags(context.repoRoot)
+  } else if (
+    runGit(context.repoRoot, ['rev-parse', '--verify', `${options.ref}^{commit}`], {
+      allowFailure: true,
+    }) === null
+  ) {
+    fail('REF_UNRESOLVABLE', `--ref "${options.ref}" does not resolve to a commit`)
+  }
+  readSchemaSelection(context, ref)
 
   // The COMMITTED review, never the worktree's: a committed non-accepting
   // review could otherwise be edited locally under skip-worktree while verify
   // read the local accepted bytes.
-  const reviewText = gitText(context.repoRoot, 'HEAD', `${context.changeRepoPath}/${REVIEW_FILE}`)
+  const reviewText = gitText(context.repoRoot, ref, `${context.changeRepoPath}/${REVIEW_FILE}`)
 
   const gate = extractGateBlock(reviewText)
   validateGateShape(gate)
-  const artifacts = await verifyArtifactManifest(context, gate)
+  const artifacts = await verifyArtifactManifest(context, gate, ref)
   assertReviewBody(reviewText)
   assertRepositoryPin({
     repoRoot: context.repoRoot,
     changeRepoPath: context.changeRepoPath,
     reviewedCommit: gate.reviewed_commit,
+    ref,
   })
   assertReviewCommittedAfterPin({
     repoRoot: context.repoRoot,
     changeRepoPath: context.changeRepoPath,
     reviewedCommit: gate.reviewed_commit,
+    ref,
   })
 
-  assertScopeResolves(context, gate.scope_id)
-  assertEpochSequence(context, gate.review_epoch)
+  assertScopeResolves(context, gate.scope_id, ref)
+  assertEpochSequence(context, gate.review_epoch, ref)
 
   const baseCommit = resolveBaseCommit(context.repoRoot, options.base)
   const freshness = assertBaseIsCurrent(context.repoRoot, baseCommit, options)
@@ -1485,7 +1529,7 @@ async function verifyMode(context, options) {
         'automatically another unrestricted architecture audit',
     )
   }
-  assertBaseIncorporated(context.repoRoot, baseCommit)
+  assertBaseIncorporated(context.repoRoot, baseCommit, ref)
 
   process.stdout.write(
     [
