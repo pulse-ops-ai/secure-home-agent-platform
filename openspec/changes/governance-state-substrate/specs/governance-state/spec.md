@@ -625,14 +625,84 @@ and report `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`.
 
 ### Requirement: reviewed-delivery-v1 uses a closed whole-change archived OpenSpec identity
 
-The `reviewed-delivery-v1` completion evidence SHALL contain exactly one
-closed `archivedOpenSpec` object with this shape:
+The `reviewed-delivery-v1` value of `delivery.completion` SHALL be exactly
+this policy-discriminated object. No field from spike evidence or withdrawal
+evidence is permitted:
+
+```json
+{
+  "policy": "reviewed-delivery-v1",
+  "deliveredIdentity": {
+    "class": "local-git-commit",
+    "value": "<local Git object id>",
+    "scope": ["<repository-relative delivered path>"]
+  },
+  "deliveredScope": ["<repository-relative delivered path>"],
+  "authorityAnchor": {
+    "type": "github-issue",
+    "repository": "pulse-ops-ai/secure-home-agent-platform",
+    "number": 0
+  },
+  "archivedOpenSpec": {
+    "schemaVersion": 1,
+    "contract": "archived-openspec-change-v1",
+    "changeId": "<canonical-change-id>",
+    "activeRoot": "openspec/changes/<canonical-change-id>",
+    "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
+    "members": [
+      {
+        "path": "<relative-member-path>",
+        "contentSha256": "<64 lowercase hex>"
+      }
+    ],
+    "bundleSha256": "<64 lowercase hex>",
+    "reviewedIdentity": {
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
+      "scope": [
+        "openspec/changes/<canonical-change-id>/<relative-member-path>"
+      ]
+    },
+    "archiveIdentity": {
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
+      "scope": [
+        "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
+      ]
+    }
+  },
+  "attestation": {
+    "digest": "<completionDigest>",
+    "actor": "<human actor>",
+    "at": "<RFC 3339 time>",
+    "outcome": "completed",
+    "authority": {
+      "type": "github-issue",
+      "repository": "pulse-ops-ai/secure-home-agent-platform",
+      "number": 0
+    }
+  }
+}
+```
+
+The complete `reviewed-spike-evidence-v1` completion object is a different
+closed shape containing `policy`, `authorityAnchor`, the merged evidence
+identity, canonical evidence root, evidence-manifest identity, findings
+identity, and `attestation`. It SHALL contain no `archivedOpenSpec`,
+`deliveredIdentity`, or `deliveredScope`. `delivery.withdrawal` is a sibling
+envelope, not completion evidence, and SHALL never satisfy this policy. Unknown
+fields, aliases, and fields belonging to another policy SHALL be refused.
+The `policy` value SHALL equal the landing's immutable
+`delivery.completionPolicy`.
+
+The nested `archivedOpenSpec` object SHALL have exactly this closed shape:
 
 ```json
 {
   "schemaVersion": 1,
   "contract": "archived-openspec-change-v1",
   "changeId": "<canonical-change-id>",
+  "activeRoot": "openspec/changes/<canonical-change-id>",
   "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
   "members": [
     {
@@ -642,8 +712,15 @@ closed `archivedOpenSpec` object with this shape:
   ],
   "bundleSha256": "<64 lowercase hex>",
   "reviewedIdentity": {
-    "type": "local-git-commit",
-    "value": "<40 lowercase hex>",
+    "class": "local-git-commit",
+    "value": "<local Git object id>",
+    "scope": [
+      "openspec/changes/<canonical-change-id>/<relative-member-path>"
+    ]
+  },
+  "archiveIdentity": {
+    "class": "local-git-commit",
+    "value": "<local Git object id>",
     "scope": [
       "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
     ]
@@ -651,39 +728,53 @@ closed `archivedOpenSpec` object with this shape:
 }
 ```
 
-No broad evidence-field union, alias, generic archive identity, or other
-policy's field is permitted. `changeId` SHALL match the canonical grammar
-`[a-z0-9]+(?:-[a-z0-9]+)*`, with no leading, trailing, or repeated hyphen.
-`archiveRoot` SHALL be exactly
+`changeId` SHALL match `[a-z0-9]+(?:-[a-z0-9]+)*`, with no leading, trailing,
+or repeated hyphen. `activeRoot` SHALL be exactly
+`openspec/changes/<changeId>`. `archiveRoot` SHALL be exactly
 `openspec/changes/archive/YYYY-MM-DD-<changeId>`, with a valid calendar date
-and an exact final-component suffix match. An active non-archived change,
-ADR, README, arbitrary file, individual archive subfile, unrelated archive
-root, or root whose declared `changeId` does not match its path SHALL be
-refused.
+and exact final-component suffix correspondence. The active root is the
+package location in the reviewed active-change commit. The archive root is the
+package location in the archive-introduction commit and in the current
+snapshot. An active non-archived change, ADR, README, arbitrary file,
+individual archive subfile, unrelated archive root, or root whose declared
+`changeId` does not match its path SHALL be refused.
 
-`members` SHALL be the complete recursively enumerated set of all tracked,
-regular, non-symlink files under `archiveRoot` at the reviewed identity. The
-set SHALL include, when present, `.openspec.yaml`, `proposal.md`, every
+`members` SHALL be the complete recursively enumerated set of regular, tracked,
+non-symlink files in the reviewed active package and the archived package. The
+set includes, when present, `.openspec.yaml`, `proposal.md`, every
 `specs/**/*.md` artifact, `design.md`, `assurance.md`, `tasks.md`, and every
-other tracked regular file under that root; no present governed file may be
-omitted by an implementation-selected allowlist. Members SHALL be sorted
-lexicographically by canonical relative path and SHALL contain no duplicate
-paths. Every enumerated file SHALL have one member and every member SHALL have
-one enumerated file. Missing, extra, or unmanifested files SHALL be refused.
-Member paths SHALL be nonempty relative paths with no absolute form, traversal,
-empty segment, `.` or `..` component. A symlinked ancestor or final member,
-non-regular file, or path escaping the real repository root SHALL be refused.
-Each `contentSha256` SHALL be recomputed over the exact member bytes after
-real-path containment is established.
+other tracked regular file under the package root; no present governed file may
+be omitted by an implementation-selected allowlist. Each member `path` is
+relative to `activeRoot`; the corresponding archive path is the same relative
+suffix under `archiveRoot`. Members SHALL be sorted lexicographically by
+canonical relative path and SHALL contain no duplicate paths. Every file in
+the reviewed active tree, the archive tree at `archiveIdentity`, and the
+current checkout's archive root SHALL have one member, and every member SHALL
+have one file in each applicable tree. Missing, extra, or unmanifested files,
+non-regular entries, and symlinks SHALL be refused. Member paths SHALL be
+nonempty relative paths with no absolute form, traversal, empty segment, `.`
+or `..` component. Each `contentSha256` SHALL be recomputed over exact bytes
+after real-path containment is established.
+
+The required membership proof is three-way and exact: (1) the complete
+reviewed active-package tree at `reviewedIdentity`, (2) the complete current
+archive-root tree, and (3) the declared `members` set and bytes SHALL be equal
+after active-to-archive path normalization. `archiveIdentity` is an additional
+provenance observation whose complete scoped archive tree SHALL match the
+current archive tree and the same member bytes. This prevents a file added to
+the current archive, omitted from the manifest, or absent from either reviewed
+tree from being hidden by a partial declaration.
 
 `bundleSha256` SHALL be SHA-256 over the canonical serialization of exactly
-this preimage, with `bundleSha256` and `reviewedIdentity` excluded:
+this preimage, excluding `bundleSha256`, `reviewedIdentity`, and
+`archiveIdentity`:
 
 ```json
 {
   "schemaVersion": 1,
   "contract": "archived-openspec-change-v1",
   "changeId": "<canonical-change-id>",
+  "activeRoot": "openspec/changes/<canonical-change-id>",
   "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
   "members": [
     {
@@ -695,56 +786,60 @@ this preimage, with `bundleSha256` and `reviewedIdentity` excluded:
 ```
 
 Canonical serialization SHALL use the repository's D3.1 and D3.2 rules.
-Changing `changeId`, `archiveRoot`, any member path, or any member digest SHALL
-change the bundle identity, even where the underlying file bytes are identical.
-The implementation SHALL provide a literal preimage, its exact serialized
-bytes, an expected SHA-256, and an independently re-derived golden vector;
-mutation tests SHALL remove or alter each of those four identity-bearing
-inputs and fail.
+Changing `changeId`, `activeRoot`, `archiveRoot`, any member path, or any
+member digest SHALL change the bundle identity, even where the underlying file
+bytes are identical. The implementation SHALL provide a literal preimage, its
+exact serialized bytes, an expected SHA-256, and an independently re-derived
+golden vector; mutation tests SHALL remove or alter each identity-bearing
+input and fail.
 
-`reviewedIdentity` is supporting provenance separate from `bundleSha256`. For
-ordinary post-genesis completion its only permitted class is
-`local-git-commit`. The object SHALL exist locally, and the commit tree at the
-exact repository-relative `scope` paths SHALL contain the complete member set
-and exact bytes represented by the bundle. Missing, opaque, out-of-scope, or
-byte-mismatched reviewed identities SHALL fail closed. The commit is the
-reviewed identity of the archived child OpenSpec package, not merely the
-landing's authority issue or an unrelated parent commit; comparing its scoped
-tree is the machine check of that relationship. This verifies the reviewed
-child archive's repository bytes and scope; it does not authenticate a human
-reviewer. The human completion attestation remains the causal reviewed
-association between the archive and the landing.
+`reviewedIdentity` and `archiveIdentity` are supporting provenance separate
+from `bundleSha256`. For ordinary post-genesis completion, both have the only
+permitted class `local-git-commit` and both objects SHALL exist locally.
+`reviewedIdentity` names the commit whose complete active package was reviewed;
+its scoped tree SHALL match the member paths and bytes after normalization.
+`archiveIdentity` names the commit that introduced the complete archived
+package; its scoped tree SHALL match the current archive tree and the same
+member bytes. An `external-git-commit`, missing object, incomplete scope, or
+byte mismatch is not local proof and SHALL fail closed. These checks prove
+repository bytes and scope, not that a human reviewer authenticated either
+commit. A commit is supporting provenance, not the landing's authority issue
+or an unrelated parent commit.
 
 The post-genesis completion preimage SHALL bind, together, `landingId`, prior
 and target lifecycle, `authorityAnchor`, delivered identity and scope,
-`completionPolicy`, and the complete `archivedOpenSpec` object. The human
-completion attestation SHALL bind that digest. The checker SHALL verify the
-archive shape, path, complete membership, exact bytes, reviewed identity, scope,
-and digest binding. It SHALL not infer ownership from archive filenames,
-unstructured prose, issue text, or an implicit marker. This requirement
-selects no stronger archive-internal machine binding, so existing historical
-archives need not be rewritten merely to add one.
+`completionPolicy`, and the complete `archivedOpenSpec` object, including both
+provenance identities. The human completion attestation SHALL bind that digest.
+The checker SHALL verify the policy-specific shape, both roots, complete
+membership, exact bytes, both scoped identities, and digest binding. It SHALL
+not infer semantic ownership from a filename, archive prose, issue text, or an
+implicit marker. Whether a mechanically valid archive is conceptually the
+child change for this landing is a human review fact in `MAN-G03`, recorded by
+the completion attestation; v1 deliberately selects no stronger archive-
+internal machine binding.
 
 #### Scenario: A valid complete archived child change is accepted
 
-- **GIVEN** a reviewed-delivery-v1 completion whose archive root, change ID,
-  complete member set, member bytes, bundle digest, locally present reviewed
-  commit, delivered scope, authority anchor, and human attestation all bind
-  the same landing
+- **GIVEN** a reviewed-delivery-v1 completion whose active reviewed package,
+  archive-introduction package, current archive, complete member set, member
+  bytes, bundle digest, local provenance, delivered scope, authority anchor,
+  and human attestation all bind the same landing
 - **WHEN** the current checker validates the snapshot
-- **THEN** the archived identity is accepted as completion evidence
+- **THEN** the machine-decidable archive evidence is accepted as completion
+  evidence, subject to the human semantic-association control
 
 #### Scenario: An arbitrary document is not an archived child change
 
 - **GIVEN** an ADR, README, arbitrary file, or one file copied from an archive
   is supplied as `archivedOpenSpec`
 - **WHEN** the checker validates it
-- **THEN** it refuses the evidence because the canonical archive root and
-  complete whole-change membership are absent
+- **THEN** it refuses the evidence because the canonical active/archive roots
+  and complete whole-change membership are absent
 
-#### Scenario: Active and unrelated archives are refused
+#### Scenario: Active paths and mismatched archive identities are refused
 
-- **GIVEN** an active non-archived change, an unrelated archived change, or an
+- **GIVEN** an active non-archived change, an individual archive subfile, an
+  archive root that does not correspond to its declared change ID, or an
   archive whose declared ID does not match its date-prefixed root
 - **WHEN** the checker validates it
 - **THEN** it refuses the identity
@@ -752,48 +847,54 @@ archives need not be rewritten merely to add one.
 #### Scenario: Whole-change membership is complete and deterministic
 
 - **GIVEN** a member manifest with a partial set, duplicate path, missing file,
-  extra unmanifested file, or member content mismatch
+  extra unmanifested file, non-regular entry, symlink, or member content
+  mismatch in any of the three compared sources
 - **WHEN** the checker validates it
-- **THEN** it refuses the archive; a complete set sorted by canonical relative
-  path is required
+- **THEN** it refuses the archive; the complete set sorted by canonical
+  relative path and exact bytes is required
 
 #### Scenario: Bundle identity binds identity-bearing fields
 
-- **GIVEN** identical member bytes represented under a different `changeId` or
-  `archiveRoot`, or a bundle whose preimage omits, alters, or reorders a member
-  path or digest
+- **GIVEN** identical member bytes represented under a different `changeId`,
+  `activeRoot`, or `archiveRoot`, or a bundle whose preimage omits, alters, or
+  reorders a member path or digest
 - **WHEN** the bundle digest is checked
 - **THEN** the expected golden vector and mutation tests fail unless the exact
   complete preimage is preserved
 
-#### Scenario: Reviewed provenance is locally verifiable
+#### Scenario: Reviewed and archive provenance is locally verifiable
 
 - **GIVEN** a missing, opaque, absent-local, out-of-scope, or byte-mismatched
-  `reviewedIdentity`
+  `reviewedIdentity` or `archiveIdentity`
 - **WHEN** the checker validates ordinary completion
 - **THEN** it fails closed with external verification required; a recomputed
   envelope cannot make arbitrary identity bytes valid
 
-#### Scenario: Landing association is explicit
+#### Scenario: Machine bindings and human association are distinct
 
-- **GIVEN** an archive identity or delivered scope associated with another
-  landing, or an authority anchor that does not match the landing
-- **WHEN** the completion digest and attestation are checked
-- **THEN** the association is refused; only the human attestation over the
-  complete bound preimage establishes the reviewed association
+- **GIVEN** a delivered scope or authority anchor that does not match the
+  landing, a stale completion digest or archive association lacking a new
+  complete binding, or a mechanically valid archive selected for the wrong
+  landing
+- **WHEN** the completion is reviewed
+- **THEN** the first cases are refused by the checker; the last case requires
+  `MAN-G03` and SHALL not be accepted as a truthful completion without the
+  human attestation over the complete bound preimage
 
-#### Scenario: A retrospective archive is not reviewed evidence
+#### Scenario: A retrospective archive without a reviewed archive identity is not evidence
 
-- **GIVEN** an archive assembled after the reviewed identity or a genesis
-  human-disposition record supplied as ordinary post-genesis evidence
+- **GIVEN** an archive assembled after the reviewed active commit without the
+  required archive-introduction identity, or a genesis human-disposition
+  record supplied as ordinary post-genesis evidence
 - **WHEN** the checker validates completion
-- **THEN** it refuses the evidence; genesis disposition is not a generic
-  fallback and a post-genesis archive must be present in its reviewed identity
+- **THEN** it refuses the evidence; a later archive commit is valid only when
+  its complete tree is locally verified and equivalent to the reviewed active
+  package, and genesis disposition is never a generic fallback
 
 #### Scenario: Archive paths cannot escape or traverse by symlink
 
-- **GIVEN** an archive root or member path using traversal, a lexical sibling,
-  a symlinked directory, or a symlinked final file
+- **GIVEN** an active root, archive root, scope, or member path using traversal,
+  a lexical sibling, a symlinked directory, or a symlinked final file
 - **WHEN** the checker validates the identity
 - **THEN** it refuses the path after real-path containment and regular-file
   checks
@@ -1816,7 +1917,7 @@ The three completion-related digests SHALL be distinct and separately defined:
 | Digest | Occasion | Binds |
 | --- | --- | --- |
 | `completionDigest` | a post-genesis transition | landing identity, **prior and target** lifecycle, anchor, scoped delivery, policy, policy-specific evidence |
-| `genesisHistoricalCompletionDigest` | a genesis observation | landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, and the complete historical `archivedOpenSpec` identity for `reviewed-delivery-v1` or the policy-specific evidence for `reviewed-spike-evidence-v1` |
+| `genesisHistoricalCompletionDigest` | a genesis observation | landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, and the complete two-stage historical `archivedOpenSpec` identity — reviewed active-package identity plus archive-introduction identity — for `reviewed-delivery-v1`, or the policy-specific evidence for `reviewed-spike-evidence-v1` |
 | `genesisCompletionEnvelopeDigest` | genesis | the canonically ordered, duplicate-free entity set of **`{landingId, genesisHistoricalCompletionDigest}` tuples** — never bare digests, so a digest cannot be reassociated with another landing |
 
 The `attestations.genesisCompletion` envelope SHALL carry the

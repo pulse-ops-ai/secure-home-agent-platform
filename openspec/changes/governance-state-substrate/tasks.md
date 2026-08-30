@@ -171,8 +171,12 @@ them. PR-2, PR-3, PR-4, and the separately reviewed PR #101 transition remain
 - Neither issue #106's existence, nor ADR-0021's acceptance, nor any future
   satisfied prerequisite manufactures permission to start.
 
-**Only the named PR-1 tasks may begin under this status. PR-2, PR-3, PR-4, and
-the PR #101 transition must not begin without a separate owner authorization.**
+While status is **`NOT_AUTHORIZED`**, no implementation task may begin.
+
+After this amendment merges, only a separate owner authorization refresh
+against the exact new `main` commit may release the named PR-1 tasks. PR-2,
+PR-3, PR-4, and the PR #101 transition must not begin without their separate
+authorizations.
 
 ### PR #101
 
@@ -312,9 +316,77 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   ```json
   {
+    "policy": "reviewed-delivery-v1",
+    "deliveredIdentity": {
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
+      "scope": ["<repository-relative delivered path>"]
+    },
+    "deliveredScope": ["<repository-relative delivered path>"],
+    "authorityAnchor": {
+      "type": "github-issue",
+      "repository": "pulse-ops-ai/secure-home-agent-platform",
+      "number": 0
+    },
+    "archivedOpenSpec": {
+      "schemaVersion": 1,
+      "contract": "archived-openspec-change-v1",
+      "changeId": "<canonical-change-id>",
+      "activeRoot": "openspec/changes/<canonical-change-id>",
+      "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
+      "members": [
+        {
+          "path": "<relative-member-path>",
+          "contentSha256": "<64 lowercase hex>"
+        }
+      ],
+      "bundleSha256": "<64 lowercase hex>",
+      "reviewedIdentity": {
+        "class": "local-git-commit",
+        "value": "<local Git object id>",
+        "scope": [
+          "openspec/changes/<canonical-change-id>/<relative-member-path>"
+        ]
+      },
+      "archiveIdentity": {
+        "class": "local-git-commit",
+        "value": "<local Git object id>",
+        "scope": [
+          "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
+        ]
+      }
+    },
+    "attestation": {
+      "digest": "<completionDigest>",
+      "actor": "<human actor>",
+      "at": "<RFC 3339 time>",
+      "outcome": "completed",
+      "authority": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 0
+      }
+    }
+  }
+  ```
+
+  The `policy` value equals the landing's immutable
+  `delivery.completionPolicy`. The complete `reviewed-spike-evidence-v1`
+  completion object is a separate closed shape containing its authority anchor,
+  merged evidence identity, canonical evidence root, evidence-manifest
+  identity, findings identity, and attestation; it contains no
+  `archivedOpenSpec`, `deliveredIdentity`, or `deliveredScope`. The sibling
+  `delivery.withdrawal` envelope is not completion evidence. Unknown fields,
+  aliases, and fields belonging to another policy fail closed.
+
+  The nested `archivedOpenSpec` object is:
+
+  ```json
+  {
     "schemaVersion": 1,
     "contract": "archived-openspec-change-v1",
     "changeId": "<canonical-change-id>",
+    "activeRoot": "openspec/changes/<canonical-change-id>",
     "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
     "members": [
       {
@@ -324,8 +396,15 @@ PR-1 must not contain — and review has completed on one frozen head.
     ],
     "bundleSha256": "<64 lowercase hex>",
     "reviewedIdentity": {
-      "type": "local-git-commit",
-      "value": "<40 lowercase hex>",
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
+      "scope": [
+        "openspec/changes/<canonical-change-id>/<relative-member-path>"
+      ]
+    },
+    "archiveIdentity": {
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
       "scope": [
         "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
       ]
@@ -333,30 +412,59 @@ PR-1 must not contain — and review has completed on one frozen head.
   }
   ```
 
-  `changeId` uses `[a-z0-9]+(?:-[a-z0-9]+)*`. `archiveRoot` is exactly
+  `changeId` uses `[a-z0-9]+(?:-[a-z0-9]+)*`. `activeRoot` is exactly
+  `openspec/changes/<changeId>`. `archiveRoot` is exactly
   `openspec/changes/archive/YYYY-MM-DD-<changeId>`, with a valid calendar date
-  and exact suffix correspondence. `members` is the complete recursively
-  enumerated set of tracked regular non-symlink files under that root,
-  including every present `.openspec.yaml`, `proposal.md`, `specs/**/*.md`,
-  `design.md`, `assurance.md`, `tasks.md`, and every other tracked regular
-  file. Members are sorted lexicographically by canonical relative path and
-  must be duplicate-free, complete, and exact-byte bound. Absolute paths,
-  traversal, empty segments, symlinks, missing members, extra members, and
-  non-regular files fail. An active change, ADR, README, arbitrary file,
-  archive subfile, unrelated archive, or mismatched ID/root fails.
+  and exact suffix correspondence. The active root is the package location in
+  the reviewed active-change commit; the archive root is the package location
+  in the archive-introduction commit and current snapshot. `members` is the
+  complete recursively enumerated set of tracked regular non-symlink files in
+  both package trees, including every present `.openspec.yaml`, `proposal.md`,
+  `specs/**/*.md`, `design.md`, `assurance.md`, `tasks.md`, and every other
+  tracked regular file. Each member `path` is relative to `activeRoot`; the
+  archive path is the same relative suffix under `archiveRoot`. Members are
+  sorted lexicographically by canonical relative path and must be duplicate-
+  free, complete, and exact-byte bound. The reviewed active tree, current
+  archive tree, and declared member set must be equal in paths and bytes;
+  `archiveIdentity`'s scoped tree must also match the current archive tree.
+  Absolute paths, traversal, empty segments, symlinks, missing members, extra
+  members, and non-regular files fail. An active completion, ADR, README,
+  arbitrary file, archive subfile, path-unrelated archive root, or mismatched
+  ID/root fails. The checker does not label a mechanically valid archive
+  semantically unrelated to a landing; that judgment is `MAN-G03`.
+
+  The bundle preimage is exactly:
+
+  ```json
+  {
+    "schemaVersion": 1,
+    "contract": "archived-openspec-change-v1",
+    "changeId": "<canonical-change-id>",
+    "activeRoot": "openspec/changes/<canonical-change-id>",
+    "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
+    "members": [
+      {
+        "path": "<relative-member-path>",
+        "contentSha256": "<64 lowercase hex>"
+      }
+    ]
+  }
+  ```
 
   `bundleSha256` is the SHA-256 of the canonical serialization of exactly
-  `{schemaVersion, contract, changeId, archiveRoot, members}`, excluding
-  `bundleSha256` and `reviewedIdentity`. The implementation must provide an
-  independent literal golden vector and mutation cases for `changeId`,
-  `archiveRoot`, every member path, and every member digest. Ordinary
-  post-genesis completion permits only a locally present `local-git-commit`
-  whose exact scoped tree matches the complete archive member set and bytes;
-  opaque, missing, out-of-scope, or mismatched provenance fails closed. This
-  provenance supports, but does not replace, the human completion attestation.
-  The completion preimage binds the landing, lifecycle transition, authority
-  anchor, delivered identity and scope, completion policy, and this complete
-  archive object. A genesis disposition is not an ordinary fallback.
+  `{schemaVersion, contract, changeId, activeRoot, archiveRoot, members}`,
+  excluding `bundleSha256`, `reviewedIdentity`, and `archiveIdentity`. The
+  implementation must provide an independent literal golden vector and
+  mutation cases for `changeId`, `activeRoot`, `archiveRoot`, every member path,
+  and every member digest. Ordinary post-genesis completion requires locally
+  present `local-git-commit` values for both provenance identities: the reviewed
+  active tree and archive-introduction tree must match the complete member set
+  and bytes. Opaque, missing, out-of-scope, or mismatched provenance fails
+  closed. This provenance supports, but does not replace, the human completion
+  attestation. The completion preimage binds the landing, lifecycle transition,
+  authority anchor, delivered identity and scope, completion policy, and this
+  complete archive object, including both provenance identities. A genesis
+  disposition is not an ordinary fallback.
 
   **Proof required** — current-revision manifestations only
   - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
@@ -365,13 +473,16 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G27` arbitrary issue + merged PR as spike evidence
   - `ADV-G28` retrospective OpenSpec archive substituted
   - `ADV-G30` unknown / generic-legacy policy · `ADV-G33` absent local commit
-  - `ADV-G78` closed archive shape and policy-specific substitution refusal
-  - `ADV-G79` complete membership, path, symlink, and exact-byte refusal
+  - `ADV-G78` closed parent/nested shape and policy-specific substitution refusal
+  - `ADV-G79` complete three-way membership, path, symlink, and exact-byte refusal
   - `ADV-G80` bundle preimage and digest refusal
-  - `ADV-G81` reviewed-identity local-proof refusal
-  - `ADV-G82` landing scope, authority-anchor, and reassociation refusal
+  - `ADV-G81` reviewed-active and archive-identity local-proof refusal
+  - `ADV-G82` machine-decidable scope, authority-anchor, and stale-binding refusal;
+    semantic association remains `MAN-G03`
   - `ADV-G84` real-path containment and traversal refusal
-  - `EX-G29` valid complete archived child change
+  - `ADV-G85` reviewed-active/current-archive/manifest equality refusal
+  - `EX-G29` valid complete archived child change with `MAN-G03` human association
+  - `MAN-G03` semantic archive-to-landing association is human-attested, not inferred
   - `PROP-G11` independent bundle field sensitivity
   - `MUT-G15` weakened archive bundle/association guards are killed
   - `EX-G02` `Planned`/`InProgress` never satisfy a prerequisite
@@ -425,9 +536,14 @@ PR-1 must not contain — and review has completed on one frozen head.
   | any withdrawal-preimage field changed | `withdrawalDigest` changes (`PROP-G10`) |
 
 - [ ] **2.4 Current-revision checker entry point**
-  <!-- agent-task: 2.4 paths=scripts/check-governance-state.mjs checks=node,pytest risk=trust-critical prerequisites=2.3 -->
+  <!-- agent-task: 2.4 paths=scripts/check-governance-state.mjs,scripts/governance/git-tree/** checks=node,pytest risk=trust-critical prerequisites=2.3 -->
 
-  A thin entry point over the model, implementing **no** rule of its own.
+  A thin entry point over the model, implementing **no** rule of its own. This
+  task also owns the rules-free Git-tree observation adapter: given a local
+  commit and repository-relative scope, it returns recursively enumerated tree
+  paths, entry modes, and blob bytes. The adapter applies no archive, identity,
+  lifecycle, or landing-association rule; task 2.3's shared model remains the
+  sole semantic owner.
 
   **Proof required** — `EX-G12` offline run; `MUT-G05` a predicate
   re-implemented in the entry point is detected; every current-revision `ADV-`
@@ -441,14 +557,16 @@ PR-1 must not contain — and review has completed on one frozen head.
   `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`**, **`G67`**, **`G68`** (bare shorthand refused — proven here, in
   the landing that owns reference resolution); **`G66`** (replacement graph,
   closure, identity and lifecycle); **`G78`**–**`G82`**, **`G84`** (closed
-  archived OpenSpec identity, complete membership, local proof, association,
-  and real-path containment); **`EX-G29`** (valid complete archive); PR-2 may
-  repeat these as integration coverage
+  archived OpenSpec identity, complete membership, local proof, machine
+  bindings, and real-path containment); **`ADV-G85`** (three-way membership
+  equality); **`EX-G29`** (valid complete archive); `MAN-G03` remains the human
+  semantic-association control; PR-2 may repeat these as integration coverage
 
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
   **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`, **`G09`**,
-  **`G10`**, **`PROP-G11`**
+  **`G10`**, **`PROP-G11`** (including active/archive path sensitivity and
+  provenance independence)
 
 - [ ] **3.3 Mutation coverage**
   <!-- agent-task: 3.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=3.1 -->
@@ -573,8 +691,9 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   For each historical landing whose evidence includes an archived child
   change, the manifest also records the complete `archivedOpenSpec` identity
-  defined by PR-1, the source snapshot, the landing association, and the
-  human disposition that maps the existing archive to that landing. This is a
+  defined by PR-1, including its reviewed active-package and archive-package
+  identities, the source snapshot, the landing association, and the human
+  disposition that maps the existing archive to that landing. This is a
   genesis-only historical observation; it does not rewrite the archive or
   authorize the ordinary post-genesis completion path.
 
@@ -591,8 +710,8 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   **Proof required** — `ADV-G42` primitive with no manifest row; `ADV-G43`
   externally-attested row reported as locally verified; the historical archive
-  identity and landing disposition are present and bound for every seeded
-  completion
+  reviewed active/archive identities and landing disposition are present and
+  bound for every seeded completion
 
 - [ ] **6.2 Candidate seed of the whole v1 program**
   <!-- agent-task: 6.2 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.1 -->
@@ -708,7 +827,8 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   Each preimage binds the **observed** lifecycle `Complete`, the source-snapshot
   identity, authority anchor, completion policy, scoped delivered identity, and
-  the complete historical `archivedOpenSpec` identity where the policy is
+  the complete historical `archivedOpenSpec` identity, including its reviewed
+  active-package and archive-package identities, where the policy is
   `reviewed-delivery-v1` — and **no prior lifecycle**. The
   repository proves the observed state at genesis; it does not evidence whether
   the transition was `Planned -> Complete` or `InProgress -> Complete`, and
