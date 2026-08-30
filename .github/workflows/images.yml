@@ -11,6 +11,15 @@
 # and every produced index/manifest/parent identity is compared with
 # image-lock.yaml. GHA BuildKit cache changes where layers come from, never
 # which final digest is trusted.
+#
+# For a pull request the proof is established against the COMPOSED tree —
+# merge(live target-branch tip, PR head) — not the isolated PR head and not the
+# historical pull_request.base.sha. The live base is resolved from the remote
+# at run time, the composition is a synthetic Git merge (no branch is mutated),
+# and both identities are re-checked at the end so a mid-run head/base move
+# fails the proof. This is a run-boundary composition proof; it is not a
+# branch-protection or merge-queue policy (this repository declares none), so a
+# green run does not stay fresh after `main` later advances.
 
 name: images
 
@@ -62,88 +71,96 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          # A pull_request checkout defaults to the synthetic merge ref. Image
-          # identity belongs to the candidate head itself.
+          # Start at the exact candidate head. The composed merge tree is
+          # constructed and checked out by the next step; GitHub's default
+          # merge ref is not used because it is built against a base the PR
+          # event recorded, which can lag the live branch tip.
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-      - name: Select trusted image comparison
+      - name: Select trusted comparison and compose the PR merge tree
         id: comparison
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_PREVIOUS: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+          PUSH_PREVIOUS: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          event_name="$GITHUB_EVENT_NAME"
-          head="$CANDIDATE_HEAD"
-          base=""
-          force_all=false
-          note=""
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # Identity agreement: the checkout must be exactly the PR head.
+            checked_out="$(git rev-parse HEAD)"
+            if [ "$checked_out" != "$PR_HEAD" ]; then
+              echo "checked-out $checked_out is not the PR head $PR_HEAD; failing closed" >&2
+              exit 1
+            fi
 
-          event_value() {
-            node -e "
-              const e = JSON.parse(require('node:fs').readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-              const path = process.argv[1].split('.');
-              let value = e;
-              for (const part of path) value = value?.[part];
-              if (value !== undefined && value !== null) process.stdout.write(String(value));
-            " "$1"
-          }
-
-          if [ "$event_name" = "pull_request" ]; then
-            action="$(event_value action)"
-            base_tip="$(event_value pull_request.base.sha)"
-            previous="$(event_value before)"
-            pr_number="$(event_value number)"
-
-            # A synchronize event names the prior PR head. It is trusted only
-            # when this workflow already concluded successfully for that exact
-            # SHA and PR. API failure or no successful proof falls back to the
-            # trusted base-branch merge-base and analyzes the whole PR.
-            if [ "$action" = "synchronize" ] \
-              && [ -n "$previous" ] \
-              && git cat-file -e "$previous^{commit}" 2>/dev/null; then
+            # The previous PR head is a valid incremental origin ONLY if this
+            # workflow already concluded successfully for that exact SHA and PR.
+            # Base-incorporation freshness is enforced separately, in the plan
+            # module, so an advanced base cannot silently reuse a stale proof.
+            prev_proven=false
+            if [ "$PR_ACTION" = "synchronize" ] && [ -n "$PR_PREVIOUS" ] \
+              && printf '%s' "$PR_PREVIOUS" | grep -q '[1-9a-f]'; then
               runs="$RUNNER_TEMP/previous-image-runs.json"
               if gh api -X GET \
                 "repos/$GITHUB_REPOSITORY/actions/workflows/images.yml/runs" \
-                -f head_sha="$previous" \
+                -f head_sha="$PR_PREVIOUS" \
                 -f event=pull_request \
                 -f status=success \
                 -f per_page=100 > "$runs"; then
-                if node - "$runs" "$pr_number" <<'NODE'
+                if node - "$runs" "$PR_NUMBER" <<'NODE'
           const [path, number] = process.argv.slice(2)
           const runs = JSON.parse(require('node:fs').readFileSync(path, 'utf8')).workflow_runs ?? []
-          const trusted = runs.some(
+          const proven = runs.some(
             (run) =>
               run.status === 'completed' &&
               run.conclusion === 'success' &&
               run.pull_requests?.some((pull) => String(pull.number) === number),
           )
-          process.exit(trusted ? 0 : 1)
+          process.exit(proven ? 0 : 1)
           NODE
-                then
-                  base="$previous"
-                  note="previous PR head has a successful governed image proof"
-                fi
+                then prev_proven=true; fi
               else
-                echo "Image-run history lookup failed; falling back to the full PR comparison." >&2
+                echo "Image-run history lookup failed; previous-head fast path disabled." >&2
               fi
             fi
 
-            if [ -z "$base" ]; then
-              if base="$(git merge-base "$base_tip" "$head")"; then
-                note="trusted PR merge-base; previous-head proof unavailable"
-              else
-                force_all=true
-                note="PR merge-base cannot be resolved"
-              fi
-            fi
-          elif [ "$event_name" = "push" ]; then
-            previous="$(event_value before)"
-            case "$previous" in
+            # Resolve the LIVE base tip, compose merge(live base, PR head), and
+            # decide the comparison origin with base-incorporation freshness.
+            # The module writes head/comparison_base/live_base/pr_head/base_ref/
+            # mode/force_all/note to GITHUB_OUTPUT and prints the merge SHA. It
+            # fails closed on an unresolvable base, an unresolvable head, or a
+            # merge conflict — it never falls back to PR-head-only verification.
+            merge_sha="$(node scripts/pr-merge-plan.mjs plan \
+              --root "$PWD" \
+              --remote origin \
+              --base-ref "$BASE_REF" \
+              --pr-head "$PR_HEAD" \
+              --previous "${PR_PREVIOUS:-}" \
+              --action "${PR_ACTION:-}" \
+              --previous-proven "$prev_proven" \
+              --github-output "$GITHUB_OUTPUT")"
+
+            # Prove the COMPOSED tree: every later step (impact, static lineage,
+            # Bake plans, Dockerfiles, build scripts, OCI, digest verification)
+            # runs against merge(live base, PR head).
+            git checkout --quiet --detach "$merge_sha"
+            echo "composed merge tree $merge_sha checked out"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            # The pushed commit is the actual repository state being proved.
+            base=""
+            force_all=false
+            note=""
+            case "$PUSH_PREVIOUS" in
               *[!0]*)
-                if git cat-file -e "$previous^{commit}" 2>/dev/null; then
-                  base="$previous"
-                  note="prior protected/default-branch commit"
+                if git cat-file -e "$PUSH_PREVIOUS^{commit}" 2>/dev/null; then
+                  base="$PUSH_PREVIOUS"
+                  note="prior default-branch commit"
                 else
                   force_all=true
                   note="push comparison commit cannot be resolved"
@@ -154,24 +171,26 @@ jobs:
                 note="push event has no usable prior commit"
                 ;;
             esac
+            {
+              echo "head=$PUSH_HEAD"
+              echo "comparison_base=$base"
+              echo "force_all=$force_all"
+              echo "note=$note"
+            } >> "$GITHUB_OUTPUT"
           else
             # A manual run has no repository transition to prove irrelevant.
-            force_all=true
-            note="manual invocation has no trusted comparison; full verification required"
+            {
+              echo "head=$PUSH_HEAD"
+              echo "comparison_base="
+              echo "force_all=true"
+              echo "note=manual invocation has no trusted comparison; full verification required"
+            } >> "$GITHUB_OUTPUT"
           fi
-
-          echo "comparison source: $note"
-          {
-            echo "base=$base"
-            echo "head=$head"
-            echo "force_all=$force_all"
-            echo "note=$note"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Determine governed image impact
         id: impact
         env:
-          COMPARISON_BASE: ${{ steps.comparison.outputs.base }}
+          COMPARISON_BASE: ${{ steps.comparison.outputs.comparison_base }}
           CANDIDATE_HEAD: ${{ steps.comparison.outputs.head }}
           FORCE_ALL: ${{ steps.comparison.outputs.force_all }}
           COMPARISON_NOTE: ${{ steps.comparison.outputs.note }}
@@ -270,3 +289,26 @@ jobs:
       - name: Lineage inspection (evidence)
         if: ${{ always() && steps.impact.outputs.build_required == 'true' }}
         run: bash deploy/images/scripts/inspect.sh || true
+
+      # TOCTOU boundary: re-resolve the live PR head and target-branch tip and
+      # require exact equality with the identities the merge tree was built
+      # from. If either moved while this job ran, the composed proof describes a
+      # tree that no longer exists — fail, and let the newer event prove the new
+      # composition. Cancellation of superseded PR runs is an optimisation, not
+      # this identity check.
+      - name: Confirm PR head and live base are unchanged (TOCTOU)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ steps.comparison.outputs.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_LIVE_BASE: ${{ steps.comparison.outputs.live_base }}
+          EXPECTED_PR_HEAD: ${{ steps.comparison.outputs.pr_head }}
+        run: |
+          set -euo pipefail
+          node scripts/pr-merge-plan.mjs verify \
+            --root "$PWD" \
+            --remote origin \
+            --base-ref "$BASE_REF" \
+            --pr-number "$PR_NUMBER" \
+            --expected-live-base "$EXPECTED_LIVE_BASE" \
+            --expected-pr-head "$EXPECTED_PR_HEAD"

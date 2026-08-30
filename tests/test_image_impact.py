@@ -90,6 +90,7 @@ def image_repo(tmp_path: Path) -> Path:
         "scripts/check.sh",
         "scripts/check-images.mjs",
         "scripts/image-impact.mjs",
+        "scripts/pr-merge-plan.mjs",
         "README.md",
         "docs/README.md",
     ):
@@ -514,6 +515,182 @@ def test_semantic_extraction_failure_selects_full_set(
     assert any("semantic extraction failed" in reason for reason in result["unknownReasons"])
 
 
+# ── P1-1 closed Dockerfile grammar -------------------------------------------
+#
+# Every logical Dockerfile instruction is modeled as an input, proven not to
+# consume the build context, or refused (IMAGE_IMPACT_UNKNOWN → full build).
+# There is no silent skip for an unmodeled context consumer, so a no-build proof
+# is always positive. These drive the real classifier through Git fixtures.
+
+CLAUDE_DOCKERFILE = "deploy/images/runner-claude/Dockerfile"
+CLAUDE_DIR = "deploy/images/runner-claude"
+
+
+def _append_dockerfile(root: Path, relative: str, line: str) -> None:
+    path = root / relative
+    path.write_text(path.read_text() + line + "\n")
+
+
+def _two_commits(
+    image_repo: Path,
+    at_a: Callable[[Path], None],
+    at_b: Callable[[Path], None],
+) -> Impact:
+    """Commit A (establish the construct), commit B (the isolated change)."""
+    at_a(image_repo)
+    _git(image_repo, "add", "-A")
+    _git(image_repo, "commit", "-qm", "A")
+    a = _git(image_repo, "rev-parse", "HEAD")
+    at_b(image_repo)
+    _git(image_repo, "add", "-A")
+    _git(image_repo, "commit", "-qm", "B")
+    b = _git(image_repo, "rev-parse", "HEAD")
+    return _impact(image_repo, a, b)
+
+
+def test_run_mount_bind_payload_change_cannot_be_none(image_repo: Path) -> None:
+    """MUTATION A: a file consumed only by RUN --mount must never yield NONE."""
+
+    def at_a(root: Path) -> None:
+        (root / CLAUDE_DIR / "payload.txt").write_text("payload-v1\n")
+        _append_dockerfile(
+            root,
+            CLAUDE_DOCKERFILE,
+            "RUN --mount=type=bind,source=payload.txt,target=/tmp/payload cat /tmp/payload",
+        )
+
+    def at_b(root: Path) -> None:
+        (root / CLAUDE_DIR / "payload.txt").write_text("payload-v2\n")
+
+    result = _two_commits(image_repo, at_a, at_b)
+    assert result["decision"] != "none"
+    assert result["marker"] != "IMAGE_IMPACT_NONE"
+    assert result["affected"] == ALL_IMAGES
+    assert any(
+        "RUN --mount bind reads the build context" in reason for reason in result["unknownReasons"]
+    )
+
+
+def test_run_mount_bind_without_type_reads_context_and_fails_closed(image_repo: Path) -> None:
+    # type= defaults to bind, so an omitted type still reads the build context.
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append_dockerfile(
+            root, CLAUDE_DOCKERFILE, "RUN --mount=target=/tmp/ctx ls /tmp/ctx"
+        ),
+    )
+    assert result["decision"] == "unknown"
+    assert result["affected"] == ALL_IMAGES
+
+
+@pytest.mark.parametrize(
+    "mount",
+    [
+        "RUN --mount=type=cache,target=/root/.cache echo cache",
+        "RUN --mount=type=secret,id=tok echo secret",
+        "RUN --mount=type=ssh echo ssh",
+        "RUN --mount=type=tmpfs,target=/scratch echo tmpfs",
+        "RUN --mount=type=bind,from=secure-home-runner-base,source=/x,target=/y cat /y",
+    ],
+)
+def test_safe_run_mounts_do_not_poison_the_classifier(image_repo: Path, mount: str) -> None:
+    # A non-context mount (cache/secret/ssh/tmpfs) or a bind FROM the registered
+    # parent is not a repository input: the classifier must still resolve a
+    # normal leaf change rather than failing closed.
+    def at_a(root: Path) -> None:
+        _append_dockerfile(root, CLAUDE_DOCKERFILE, mount)
+
+    def at_b(root: Path) -> None:
+        _append(root / "deploy/images/runner-copilot/Dockerfile")
+
+    result = _two_commits(image_repo, at_a, at_b)
+    assert result["decision"] == "affected"
+    assert result["affected"] == [COPILOT]
+
+
+def test_ambiguous_copy_from_named_context_fails_closed(image_repo: Path) -> None:
+    # --from that is neither a declared stage nor the registered parent could be
+    # a repository-backed named context; the closed grammar refuses it.
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append_dockerfile(
+            root, CLAUDE_DOCKERFILE, "COPY --from=some-named-context /a /b"
+        ),
+    )
+    assert result["decision"] == "unknown"
+    assert result["affected"] == ALL_IMAGES
+    assert any("--from=some-named-context" in reason for reason in result["unknownReasons"])
+
+
+def test_copy_from_registered_parent_is_internal_not_a_new_input(image_repo: Path) -> None:
+    # --from=<registered parent> resolves to the OCI-layout parent context the
+    # build plan wires; it is internal, not a new repository input.
+    def at_a(root: Path) -> None:
+        _append_dockerfile(
+            root, CLAUDE_DOCKERFILE, "COPY --from=secure-home-runner-base /etc/os-release /tmp/o"
+        )
+
+    def at_b(root: Path) -> None:
+        _append(root / "deploy/images/runner-copilot/Dockerfile")
+
+    result = _two_commits(image_repo, at_a, at_b)
+    assert result["decision"] == "affected"
+    assert result["affected"] == [COPILOT]
+
+
+def test_copy_from_declared_stage_is_internal(image_repo: Path) -> None:
+    def at_a(root: Path) -> None:
+        _append_dockerfile(
+            root,
+            CLAUDE_DOCKERFILE,
+            "FROM secure-home-runner-base AS helper\nCOPY --from=helper /etc/os-release /tmp/o",
+        )
+
+    def at_b(root: Path) -> None:
+        _append(root / "deploy/images/runner-copilot/Dockerfile")
+
+    result = _two_commits(image_repo, at_a, at_b)
+    assert result["decision"] == "affected"
+    assert result["affected"] == [COPILOT]
+
+
+def test_onbuild_fails_closed(image_repo: Path) -> None:
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append_dockerfile(root, CLAUDE_DOCKERFILE, "ONBUILD COPY extra /extra"),
+    )
+    assert result["decision"] == "unknown"
+    assert result["affected"] == ALL_IMAGES
+    assert any("ONBUILD" in reason for reason in result["unknownReasons"])
+
+
+def test_unrecognized_instruction_fails_closed(image_repo: Path) -> None:
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append_dockerfile(root, CLAUDE_DOCKERFILE, "FROBNICATE payload.txt"),
+    )
+    assert result["decision"] == "unknown"
+    assert result["affected"] == ALL_IMAGES
+    assert any(
+        "unrecognized instruction FROBNICATE" in reason for reason in result["unknownReasons"]
+    )
+
+
+def test_unrecognized_run_flag_fails_closed(image_repo: Path) -> None:
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append_dockerfile(root, CLAUDE_DOCKERFILE, "RUN --frobnicate=1 echo hi"),
+    )
+    assert result["decision"] == "unknown"
+    assert result["affected"] == ALL_IMAGES
+
+
+def test_pr_merge_plan_change_selects_full_set(image_repo: Path) -> None:
+    # The merge-composition proof machinery is a global build input.
+    result = _mutated_impact(image_repo, lambda root: _append(root / "scripts/pr-merge-plan.mjs"))
+    assert result["affected"] == ALL_IMAGES
+
+
 # ── deterministic build plan -------------------------------------------------
 
 
@@ -788,13 +965,40 @@ def test_required_image_check_name_is_preserved() -> None:
     assert "name: build and verify image identities" in workflow
 
 
-def test_pr_checkout_and_comparison_use_candidate_head_with_full_history() -> None:
+def test_pr_run_proves_the_composed_live_base_plus_head_tree() -> None:
     workflow = WORKFLOW.read_text()
+    # Full history, and the checkout starts at the exact PR head.
     assert "fetch-depth: 0" in workflow
     assert "github.event.pull_request.head.sha" in workflow
-    assert "git merge-base" in workflow
-    assert "previous PR head has a successful governed image proof" in workflow
+    # The live base ref (not base.sha) drives resolution, the merge is composed
+    # by the plan module, and the composed tree is checked out for the proof.
+    assert "github.event.pull_request.base.ref" in workflow
+    assert "node scripts/pr-merge-plan.mjs plan" in workflow
+    assert "git checkout --quiet --detach" in workflow
+    # The previous-head fast path still requires an exact-SHA successful proof.
     assert "status=success" in workflow
+    assert "--previous-proven" in workflow
+    # base.sha is NOT consumed as the live-base authority anywhere (it may only
+    # be mentioned in prose explaining why it is not used).
+    assert "${{ github.event.pull_request.base.sha" not in workflow
+    assert "steps.comparison.outputs.base " not in workflow
+
+
+def test_pr_run_rechecks_head_and_base_for_toctou() -> None:
+    workflow = WORKFLOW.read_text()
+    assert "node scripts/pr-merge-plan.mjs verify" in workflow
+    assert "--expected-live-base" in workflow
+    assert "--expected-pr-head" in workflow
+    toctou = workflow.index("node scripts/pr-merge-plan.mjs verify")
+    verify_final = workflow.index("- name: Verify selected digests")
+    # The TOCTOU boundary check runs after the digest proof.
+    assert verify_final < toctou
+
+
+def test_workflow_does_not_claim_branch_protection() -> None:
+    workflow = WORKFLOW.read_text().lower()
+    assert "protected/default-branch" not in workflow
+    assert "main is protected" not in workflow
 
 
 def test_manual_or_unknown_comparison_forces_full_selection() -> None:

@@ -27,6 +27,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
 | [`check-images.mjs`](check-images.mjs) | Image **lock and lineage** invariants (`deploy/images/image-lock.yaml`): closed lineage classes, immutable external pins, the base→derived digest chain, provider-neutral base/gates definitions, and image inertness. Structural only — real digests come from the governed images workflow |
 | [`image-impact.mjs`](image-impact.mjs) | Fail-closed semantic image-impact analysis: compares a trusted Git revision with the candidate, derives build inputs and dependency closure from the image lock/Dockerfiles/toolchain inventory, and selects no build only when irrelevance is positively proved |
+| [`pr-merge-plan.mjs`](pr-merge-plan.mjs) | Composed-tree PR proof planning: resolves the **live** target-branch tip, composes a synthetic `merge(live base, PR head)` with Git plumbing (no branch mutated), gates the previous-head fast path on base incorporation, and re-checks both identities at run end (TOCTOU). Fails closed on an unresolvable base/head or a merge conflict |
 
 ## What belongs here
 

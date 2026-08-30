@@ -196,17 +196,104 @@ would make a correctness-sensitive perimeter brittle, so the broad filter only
 decides whether the cheap classifier runs.
 
 [`../../scripts/image-impact.mjs`](../../scripts/image-impact.mjs) owns the
-inner decision. For the first PR run it compares the candidate with the trusted
-base-branch merge-base. On a later synchronization it may compare with the
-previous PR head **only when the GitHub Actions API proves that this exact SHA
-and PR already completed this workflow successfully**. If that lookup fails or
-no successful proof exists, it falls back to the complete PR comparison. A
-push to the protected/default branch compares its previous commit; a manual
+inner decision, and for a pull request it runs against the **composed** tree
+described in [Composed-tree PR proof](#composed-tree-pr-proof), never the
+isolated PR head. The comparison origin is the live target-branch tip, unless a
+previous PR head both has a successful proof and already incorporates that live
+base — see [Previous-head fast path](#composed-tree-pr-proof). If nothing can be
+proved, the classifier emits `IMAGE_IMPACT_UNKNOWN` and the complete governed
+set builds. A push to the default branch compares its previous commit; a manual
 invocation has no transition to prove and therefore builds the complete set.
 
 Only pull-request runs share a cancellable concurrency group. Push and manual
 runs use the unique workflow run ID, so one governance event cannot cancel
-another.
+another. Cancellation is an optimisation, not the identity proof: the
+end-of-run freshness check (below) is what binds a proof to exact identities.
+
+### Closed Dockerfile / context-consumer model
+
+A no-build decision is valid only when the classifier has **positively proved**
+that no governed image output can change. Deriving inputs from `COPY`/`ADD`
+alone is not such a proof: BuildKit can consume repository bytes through other
+instructions. The Dockerfile model is therefore a **closed admitted grammar** —
+every logical instruction is one of:
+
+```text
+recognized + proved non-context-consuming   -> may continue
+recognized context input                     -> add exact/prefix input
+anything potentially context-consuming but not modeled
+                                             -> IMAGE_IMPACT_UNKNOWN / full build
+```
+
+There is no silent skip. Concretely:
+
+- **`COPY`/`ADD` (local)** — JSON and shell forms, directories (prefix), globs
+  (whole-context prefix), `.dockerignore`, missing inputs, absolute/`..`/URL
+  sources, and unparseable forms are handled exactly as before (modeled or
+  refused).
+- **`COPY --from` / `ADD --from`** — a declared build stage, a numeric stage
+  index, or the registered parent (which the build plan wires **only** as an
+  OCI layout, never a local context) is internal and adds no repository input.
+  Any other `--from` value may be a repository-backed named context and is
+  refused (`UNKNOWN`).
+- **`RUN --mount`** — `cache`, `tmpfs`, `secret`, and `ssh` mounts never read
+  the build context; a `bind` mount from a declared stage or the registered
+  parent is an image input, not a repository input. A `bind` mount that reads
+  the build context (the default when `type=`/`from=` is omitted) is refused
+  (`UNKNOWN`) — the fail-closed choice, since the governed images use no such
+  mount today.
+- **`ONBUILD`** — refused: it can defer a context-consuming instruction into a
+  child build, which cannot be proven safe locally.
+- **Any unrecognized instruction keyword or `RUN` flag** — refused.
+
+A change to a file consumed **only** through one of these newly-modeled
+mechanisms can therefore never produce `IMAGE_IMPACT_NONE`; it produces the
+affected image or, for the fail-closed forms, the complete governed set.
+
+### Composed-tree PR proof
+
+Governed image identity for a pull request is established against the tree that
+results from **composing the live target branch with the candidate head**, not
+the isolated head and not the PR's historical `pull_request.base.sha` (which can
+lag the branch it names). [`../../scripts/pr-merge-plan.mjs`](../../scripts/pr-merge-plan.mjs)
+establishes four identities with Git plumbing only, mutating no branch:
+
+```text
+PR_HEAD_SHA    exact candidate head (from the PR event, re-verified)
+BASE_REF       the PR target branch NAME
+LIVE_BASE_SHA  the CURRENT tip of BASE_REF, resolved from the remote at run time
+MERGE_SHA      an ephemeral commit whose tree is the clean composition of
+               LIVE_BASE_SHA + PR_HEAD_SHA
+```
+
+The workflow checks out `MERGE_SHA`, so impact analysis, static lineage, Bake
+plans, Dockerfiles, build scripts, OCI construction, and digest verification all
+describe `image(LIVE_BASE + PR_HEAD)`. It fails closed: an unresolvable base or
+head, or a merge conflict, aborts the run — it never falls back to PR-head-only
+verification.
+
+**Previous-head fast path.** The incremental optimisation is preserved but bound
+to base freshness. A previously proven PR head is a valid comparison origin only
+when (1) that exact SHA for that exact PR has a successful `images.yml` proof
+(GitHub Actions API), **and** (2) `LIVE_BASE_SHA` is already an ancestor of that
+previous head. If the live base has advanced beyond the previous head, the
+previous-head proof is **not** reused; the comparison falls back to
+`LIVE_BASE_SHA → MERGE_SHA`.
+
+**TOCTOU boundary.** At the end of a PR proof the workflow re-resolves the live
+PR head (`refs/pull/<n>/head`) and the live base tip and requires exact equality
+with the identities the merge tree was built from. If either moved while the job
+ran, the proof is refused and the newer event establishes the new proof.
+
+**This is a run-boundary composition proof, not a merge-time freshness policy.**
+It guarantees only that, at the moment a run succeeds, the exact PR head, the
+exact live base tip, and their exact clean composition were proved together.
+This repository declares **no** GitHub branch protection, ruleset, or merge
+queue, so `main` is **not** enforced-current before merge, `pull_request.base.sha`
+is **not** the live base, and a PR-head-only build is **not** a merge-tree proof.
+A successful check does **not** stay fresh after `main` later advances;
+continuous merge-time freshness would require a separate, enforceable repository
+control that does not exist here.
 
 ### Authoritative input and dependency model
 
@@ -385,6 +472,14 @@ Both runs showed the relevant BuildKit steps as `CACHED`, still exported fresh
 OCI layouts, and passed the unchanged digest and parent checks. The remaining
 warm-path time is predominantly OCI materialization/export plus QEMU/Buildx
 setup, not image construction.
+
+> **These timings predate the P1 correction** (closed Dockerfile grammar and
+> composed-tree PR proof). They remain valid evidence of the performance
+> architecture, which the correction preserves: the fast paths still exist when
+> their premises are proven. What changed is the proof's rigor, not its speed —
+> a PR now compares against `merge(live base, PR head)` rather than the isolated
+> head, and the previous-head fast path is gated on base incorporation. New
+> hosted run IDs for the corrected workflow are recorded in the PR description.
 
 ## What does not belong here
 

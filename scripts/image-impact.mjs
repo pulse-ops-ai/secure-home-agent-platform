@@ -38,6 +38,7 @@ const GLOBAL_BUILD_INPUTS = new Set([
   '.github/workflows/images.yml',
   'scripts/check-images.mjs',
   'scripts/image-impact.mjs',
+  'scripts/pr-merge-plan.mjs',
   'deploy/images/scripts/build.sh',
   'deploy/images/scripts/build-plan.mjs',
   'deploy/images/scripts/verify.sh',
@@ -53,6 +54,44 @@ const GATE_SOURCE_KEYS = new Map([
   ['checks.yml UV_VERSION', 'uv'],
   ['package.json packageManager', 'pnpm'],
 ])
+
+// The closed Dockerfile grammar. Every logical instruction a governed
+// Dockerfile can carry is either proven not to consume repository/build-context
+// bytes, modeled as an explicit input, or refused (IMAGE_IMPACT_UNKNOWN → full
+// verification). There is no silent skip for a construct whose effect on the
+// build context is unknown: a no-build proof must be positive.
+//
+// SAFE instructions cannot read the build context (they act on the image
+// filesystem, metadata, or an already-resolved image). COPY/ADD and RUN are
+// handled explicitly below; ONBUILD is refused because it defers an unknown
+// instruction into a child build's context; any unrecognized keyword is refused.
+const DOCKERFILE_SAFE_INSTRUCTIONS = new Set([
+  'FROM',
+  'ARG',
+  'ENV',
+  'LABEL',
+  'EXPOSE',
+  'ENTRYPOINT',
+  'CMD',
+  'WORKDIR',
+  'USER',
+  'VOLUME',
+  'STOPSIGNAL',
+  'HEALTHCHECK',
+  'SHELL',
+  'MAINTAINER',
+])
+
+// RUN --mount types that never read the repository build context: an ephemeral
+// cache or tmpfs, or a CLI-supplied secret/ssh agent. A `bind` mount (the
+// default when `type=` is omitted) DOES read the build context unless it binds
+// from an already-resolved image/stage.
+const SAFE_MOUNT_TYPES = new Set(['cache', 'tmpfs', 'secret', 'ssh'])
+
+// Only these leading flags are valid on a RUN instruction. `--mount` is
+// classified; `--network`/`--security` do not consume the context. Any other
+// leading `--flag` is unrecognized and refused rather than assumed harmless.
+const SAFE_RUN_FLAGS = new Set(['network', 'security'])
 
 class ImpactUnknown extends Error {
   constructor(message) {
@@ -111,6 +150,51 @@ const objectTypeAtRevision = (root, revision, path) => {
   } catch {
     return undefined
   }
+}
+
+// The keyword of a folded logical Dockerfile instruction (first bareword),
+// upper-cased. `undefined` when the line does not begin with an instruction
+// token — an unparseable construct the closed grammar must refuse.
+const instructionKeyword = (logical) => {
+  const match = logical.match(/^([A-Za-z][A-Za-z0-9_]*)(?:\s|$)/)
+  return match === undefined || match === null ? undefined : match[1].toUpperCase()
+}
+
+// Parse a `--mount=<spec>` option string into a lower-cased key→value map. A
+// bare token (e.g. `ro`) maps to the empty string.
+const parseMountSpec = (spec) => {
+  const options = new Map()
+  for (const field of spec.split(',')) {
+    if (field === '') continue
+    const eq = field.indexOf('=')
+    if (eq === -1) options.set(field.toLowerCase(), '')
+    else options.set(field.slice(0, eq).toLowerCase(), field.slice(eq + 1))
+  }
+  return options
+}
+
+// Extract the leading `--flag[=value]` tokens of a RUN instruction, returning
+// its `--mount` specs. Stops at the first non-flag token (the command). An
+// unrecognized leading flag is refused so a future context-consuming RUN flag
+// cannot be silently treated as harmless.
+const runMountSpecs = (logical) => {
+  let rest = logical.replace(/^RUN\s+/i, '')
+  const mounts = []
+  for (;;) {
+    const withValue = rest.match(/^--([a-z-]+)=(\S+)\s+/i)
+    const bare = rest.match(/^--([a-z-]+)\s+/i)
+    const flag = withValue ?? bare
+    if (flag === null) break
+    const name = flag[1].toLowerCase()
+    if (name === 'mount') {
+      if (withValue === null) return { error: 'RUN --mount without a value' }
+      mounts.push(flag[2])
+    } else if (!SAFE_RUN_FLAGS.has(name)) {
+      return { error: `unrecognized RUN flag --${name}` }
+    }
+    rest = rest.slice(flag[0].length)
+  }
+  return { mounts }
 }
 
 const readLockAtRevision = (root, revision) => {
@@ -307,43 +391,115 @@ const localBuildInputs = (root, revision, graph) => {
 
     const exact = new Set([definition, `${context}/.dockerignore`])
     const prefixes = new Set()
-    for (const instruction of dockerfileInstructions(dockerfile)) {
-      const logical = instruction.trim()
-      if (!/^(COPY|ADD)\s/i.test(logical)) continue
-      const parsed = parseCopySources(logical)
-      if (parsed.error !== undefined) {
-        throw new ImpactUnknown(`${definition} has an unclassifiable ${logical}: ${parsed.error}`)
+    const instructions = dockerfileInstructions(dockerfile)
+
+    // A COPY/ADD `--from`, or a RUN `--mount=...,from=`, is a NEW repository
+    // input only when it can resolve to a repository-backed (local/named)
+    // build context. It is NOT a new input when it names a declared build
+    // stage, a numeric stage index, or the registered parent image — which the
+    // build plan wires exclusively as an OCI layout, never a local context.
+    // Anything else is refused: the classifier cannot prove from syntax alone
+    // that a name will not be a repository-backed named context.
+    const stageAliases = new Set()
+    for (const raw of instructions) {
+      const logical = raw.trim()
+      const alias = /^FROM\s/i.test(logical) ? logical.match(/\sAS\s+(\S+)\s*$/i) : null
+      if (alias !== null) stageAliases.add(alias[1].toLowerCase())
+    }
+    const parentName =
+      image.lineage === 'runner-derived' ? String(image.parent).toLowerCase() : undefined
+    const isInternalFrom = (value) => {
+      const from = String(value).trim().toLowerCase()
+      if (from === '') return false
+      if (stageAliases.has(from)) return true
+      if (/^[0-9]+$/.test(from)) return true
+      return parentName !== undefined && from === parentName
+    }
+
+    const modelLocalSource = (rawSource) => {
+      const source = normalizeRepoPath(rawSource)
+      if (source === '') {
+        prefixes.add(`${context}/`)
+        return
       }
-      if (parsed.fromValue !== undefined) continue
-      for (const rawSource of parsed.sources) {
-        let source = normalizeRepoPath(rawSource)
-        if (source === '') {
-          prefixes.add(`${context}/`)
-          continue
+      if (
+        source.startsWith('/') ||
+        source.split('/').includes('..') ||
+        /^[a-z][a-z0-9+.-]*:\/\//i.test(source)
+      ) {
+        throw new ImpactUnknown(
+          `${definition} has ambiguous local input ${JSON.stringify(rawSource)}`,
+        )
+      }
+      const full = normalizeRepoPath(posix.join(context, source))
+      if (/[*?[]/.test(source)) {
+        // A glob is still classifiable without implementing a second
+        // Dockerignore/glob engine: every change in this image's context is
+        // conservatively treated as input.
+        prefixes.add(`${context}/`)
+        return
+      }
+      const type = objectTypeAtRevision(root, revision, full)
+      if (type === undefined) {
+        throw new ImpactUnknown(`${definition} copies missing input ${full} at ${revision}`)
+      }
+      if (type === 'tree') prefixes.add(`${full}/`)
+      else exact.add(full)
+    }
+
+    for (const raw of instructions) {
+      const logical = raw.trim()
+      if (logical === '' || logical.startsWith('#')) continue
+      const keyword = instructionKeyword(logical)
+      if (keyword === undefined) {
+        throw new ImpactUnknown(
+          `${definition} has an unparseable instruction ${JSON.stringify(logical.slice(0, 60))}`,
+        )
+      }
+      if (keyword === 'COPY' || keyword === 'ADD') {
+        const parsed = parseCopySources(logical)
+        if (parsed.error !== undefined) {
+          throw new ImpactUnknown(`${definition} has an unclassifiable ${keyword}: ${parsed.error}`)
         }
-        if (
-          source.startsWith('/') ||
-          source.split('/').includes('..') ||
-          /^[a-z][a-z0-9+.-]*:\/\//i.test(source)
-        ) {
+        if (parsed.fromValue !== undefined) {
+          if (isInternalFrom(parsed.fromValue)) continue
           throw new ImpactUnknown(
-            `${definition} has ambiguous local input ${JSON.stringify(rawSource)}`,
+            `${definition}: ${keyword} --from=${parsed.fromValue} may reference a ` +
+              'repository-backed named context; failing closed',
           )
         }
-        const full = normalizeRepoPath(posix.join(context, source))
-        if (/[*?[]/.test(source)) {
-          // A glob is still classifiable without implementing a second
-          // Dockerignore/glob engine: every change in this image's context is
-          // conservatively treated as input.
-          prefixes.add(`${context}/`)
-          continue
+        for (const rawSource of parsed.sources) modelLocalSource(rawSource)
+      } else if (keyword === 'RUN') {
+        const parsed = runMountSpecs(logical)
+        if (parsed.error !== undefined) {
+          throw new ImpactUnknown(`${definition}: ${parsed.error}; failing closed`)
         }
-        const type = objectTypeAtRevision(root, revision, full)
-        if (type === undefined) {
-          throw new ImpactUnknown(`${definition} copies missing input ${full} at ${revision}`)
+        for (const spec of parsed.mounts) {
+          const options = parseMountSpec(spec)
+          const type = (options.get('type') ?? 'bind').toLowerCase()
+          if (SAFE_MOUNT_TYPES.has(type)) continue
+          if (type !== 'bind') {
+            throw new ImpactUnknown(
+              `${definition}: RUN --mount type=${type} is not a modeled build input; failing closed`,
+            )
+          }
+          const from = options.get('from')
+          if (from !== undefined && isInternalFrom(from)) continue
+          throw new ImpactUnknown(
+            `${definition}: RUN --mount bind reads the build context ` +
+              `(source=${options.get('source') ?? '.'}, from=${from ?? '(context)'}) ` +
+              'and is not a modeled input; failing closed',
+          )
         }
-        if (type === 'tree') prefixes.add(`${full}/`)
-        else exact.add(full)
+      } else if (keyword === 'ONBUILD') {
+        throw new ImpactUnknown(
+          `${definition}: ONBUILD can defer a context-consuming instruction into a child build; ` +
+            'failing closed',
+        )
+      } else if (!DOCKERFILE_SAFE_INSTRUCTIONS.has(keyword)) {
+        throw new ImpactUnknown(
+          `${definition}: unrecognized instruction ${keyword}; the closed grammar fails closed`,
+        )
       }
     }
 

@@ -16,6 +16,7 @@ properties**, not the behaviour of a single unit.
 | [`test_source_imports.py`](test_source_imports.py) | source **imports** obey dependency direction — separately from what manifests declare |
 | [`test_affected_targets.py`](test_affected_targets.py) | CI target selection follows the dependency graph, and governance gates stay unconditional |
 | [`test_image_impact.py`](test_image_impact.py) | governed-image semantic impact, transitive closure, fail-closed paths, deterministic Bake plans/cache scopes, and workflow skip/build/cancellation construction |
+| [`test_pr_merge_plan.py`](test_pr_merge_plan.py) | composed-tree PR proof: live-base resolution, `merge(live base, PR head)` composition, base-incorporation-gated previous-head reuse, and end-of-run head/base TOCTOU refusal |
 | [`test_secret_scanner.py`](test_secret_scanner.py) | the secret scan has no bypass, and its allowlist fails closed |
 | [`test_knowledge_catalog.py`](test_knowledge_catalog.py) | the knowledge registry is coherent, least-context selection is real, and no module content is authored |
 | [`workflow_model.py`](workflow_model.py) | *(helper, not a test)* parses `checks.yml` into job sections so "this gate is unconditional" assertions inspect the real job |
