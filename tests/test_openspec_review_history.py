@@ -658,15 +658,73 @@ def test_the_boundary_workflow_never_checks_out_pull_request_code() -> None:
         assert step_field(step, "cache-dependency-path") is None
 
 
-def test_the_boundary_workflow_refuses_when_the_default_branch_has_no_gate() -> None:
-    """Bootstrap honesty: before v2 lands on main there is no trusted gate.
+def test_the_boundary_validates_the_candidate_before_the_review_gate() -> None:
+    """The v2 apply contract is strict validation THEN the gate, in that order.
 
-    Falling back to the pull request's copy is exactly the defect above, so the
-    workflow must refuse instead.
+    The conformance suite proves the schema and tooling behave; it cannot prove
+    that THIS candidate is a valid OpenSpec change. Only the boundary can, and
+    only against the trusted schema. Running the gate first would let an invalid
+    change reach implementation authorization.
     """
     workflow = BOUNDARY.read_text()
-    assert "scripts/openspec-review-gate.mjs is missing on the default branch" in workflow
-    assert "A boundary cannot be established with tooling taken from the pull request" in workflow
+    steps = workflow_steps(workflow, "boundary")
+    names = [step_field(step, "name") or "" for step in steps]
+
+    materialize = next(i for i, n in enumerate(names) if "Materialize the candidate" in n)
+    validate = next(i for i, n in enumerate(names) if "Strict OpenSpec validation" in n)
+    gate = next(i for i, n in enumerate(names) if n == "Review gate")
+    reread = next(i for i, n in enumerate(names) if "Re-read the pull request" in n)
+
+    assert materialize < validate < gate < reread, (
+        f"boundary steps are out of contract order: {names}"
+    )
+
+    # Validation runs the TRUSTED binary against the isolated workspace.
+    validate_run = step_run(steps[validate])
+    assert "$GITHUB_WORKSPACE/node_modules/.bin/openspec" in validate_run
+    assert "--strict" in validate_run
+    assert (
+        step_field(
+            steps[validate],
+            "working-directory",
+        )
+        is not None
+    )
+
+    # And the workspace is built from the candidate REF, never a checkout.
+    materialize_run = step_run(steps[materialize])
+    assert "openspec-candidate-workspace.mjs" in materialize_run
+    assert "--ref refs/boundary/head" in materialize_run
+
+
+def test_the_boundary_passes_dispatch_inputs_through_the_environment() -> None:
+    """An interpolated `${{ }}` value is substituted before the shell parses the
+    line, so a crafted input would be script rather than an argument."""
+    workflow = BOUNDARY.read_text()
+    for step in workflow_steps(workflow, "boundary"):
+        run = step_run(step)
+        assert "${{ inputs." not in run, f"a dispatch input is interpolated into a command:\n{run}"
+        assert "${{ steps.pr.outputs" not in run, (
+            f"a resolved SHA is interpolated into a command:\n{run}"
+        )
+
+
+def test_the_boundary_refuses_when_the_default_branch_has_no_openspec_cli() -> None:
+    """A missing tool is a failure here, never a skip.
+
+    On a workstation an absent optional CLI may be reported as skipped. This
+    runner exists to establish the proof, so it cannot.
+    """
+    workflow = BOUNDARY.read_text()
+    assert "node_modules/.bin/openspec" in workflow
+    assert "openspec-candidate-workspace.mjs" in workflow
+    guard = workflow.split("Refuse if the default branch", 1)[1].split("- name:", 1)[0]
+    for required in (
+        "scripts/openspec-review-gate.mjs",
+        "scripts/openspec-candidate-workspace.mjs",
+        "node_modules/.bin/openspec",
+    ):
+        assert required in guard, f"{required} is not covered by the bootstrap guard"
 
 
 def test_the_boundary_workflow_is_not_a_continuous_check() -> None:

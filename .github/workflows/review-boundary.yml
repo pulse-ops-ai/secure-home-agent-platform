@@ -66,13 +66,38 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Validate the dispatch inputs before anything uses them
+        # Inputs reach shell only through the environment, never through `${{ }}`
+        # interpolation into a command: an interpolated value is substituted
+        # BEFORE the shell parses the line, so a crafted input would be script,
+        # not an argument. They are also range-checked here, before being used
+        # as a path segment or a CLI argument.
+        env:
+          PR: ${{ inputs.pr }}
+          CHANGE: ${{ inputs.change }}
+        run: |
+          set -euo pipefail
+          case "$PR" in
+            ''|*[!0-9]*) echo "::error::pr must be a number: $PR"; exit 1 ;;
+          esac
+          case "$CHANGE" in
+            [a-z0-9]*) ;;
+            *) echo "::error::change must match ^[a-z0-9][a-z0-9-]*$: $CHANGE"; exit 1 ;;
+          esac
+          if printf '%s' "$CHANGE" | LC_ALL=C grep -q '[^a-z0-9-]'; then
+            echo "::error::change must match ^[a-z0-9][a-z0-9-]*$: $CHANGE"
+            exit 1
+          fi
+
       - name: Read the pull request from GitHub
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          payload="$(gh api "repos/${{ github.repository }}/pulls/${{ inputs.pr }}")"
+          payload="$(gh api "repos/$REPO/pulls/$PR")"
           head="$(printf '%s' "$payload" | jq -r .head.sha)"
           base="$(printf '%s' "$payload" | jq -r .base.sha)"
           state="$(printf '%s' "$payload" | jq -r .state)"
@@ -85,7 +110,7 @@ jobs:
             esac
           done
           if [ "$state" != "open" ]; then
-            echo "::error::pull request ${{ inputs.pr }} is $state; a boundary is established on an open PR"
+            echo "::error::pull request $PR is $state; a boundary is established on an open PR"
             exit 1
           fi
 
@@ -94,7 +119,7 @@ jobs:
             echo "base=$base"
             echo "base_ref=$base_ref"
           } >> "$GITHUB_OUTPUT"
-          echo "PR ${{ inputs.pr }}: head=$head base=$base ($base_ref)"
+          echo "PR $PR: head=$head base=$base ($base_ref)"
 
       - name: Check out the default branch — the ONLY code that runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -106,11 +131,14 @@ jobs:
         # The pull request's commit is fetched into a ref. It is never checked
         # out, so no file from it ever exists on this runner: nothing to
         # execute, nothing to install from, nothing to poison a cache with.
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+          BASE_SHA: ${{ steps.pr.outputs.base }}
         run: |
           set -euo pipefail
           git fetch --no-tags --quiet origin \
-            "+${{ steps.pr.outputs.head }}:refs/boundary/head" \
-            "+${{ steps.pr.outputs.base }}:refs/boundary/base"
+            "+$HEAD_SHA:refs/boundary/head" \
+            "+$BASE_SHA:refs/boundary/base"
           git rev-parse --verify refs/boundary/head^{commit} >/dev/null
           git rev-parse --verify refs/boundary/base^{commit} >/dev/null
 
@@ -127,46 +155,90 @@ jobs:
       - name: Install tooling from the default branch
         run: pnpm install --frozen-lockfile
 
-      - name: Refuse if the default branch has no gate
+      - name: Refuse if the default branch has no gate or OpenSpec CLI
+        # The boundary EXISTS to establish these proofs, so a missing tool is a
+        # failure, never a skip. A developer workstation may report an absent
+        # optional CLI; this runner may not.
         run: |
           set -euo pipefail
-          if [ ! -f scripts/openspec-review-gate.mjs ]; then
-            echo "::error::scripts/openspec-review-gate.mjs is missing on the default branch."
-            echo "::error::A boundary cannot be established with tooling taken from the pull request."
-            exit 1
-          fi
+          for required in \
+            scripts/openspec-review-gate.mjs \
+            scripts/openspec-candidate-workspace.mjs \
+            node_modules/.bin/openspec; do
+            if [ ! -e "$required" ]; then
+              echo "::error::$required is missing from the trusted context."
+              echo "::error::A boundary cannot be established with tooling taken from the pull request."
+              exit 1
+            fi
+          done
+
+      - name: Materialize the candidate change as inert data
+        # Trusted schema and config, candidate change directory read from git
+        # objects. Only regular blobs are written, always 0644, so nothing the
+        # candidate carries can execute or escape.
+        env:
+          CHANGE: ${{ inputs.change }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/candidate"
+          node scripts/openspec-candidate-workspace.mjs \
+            --ref refs/boundary/head \
+            --change "$CHANGE" \
+            --out "$RUNNER_TEMP/candidate"
+
+      - name: Strict OpenSpec validation of the exact candidate
+        # The proof the conformance suite cannot make. Those tests answer "is
+        # the v2 schema/tooling correct?"; this answers "is THIS candidate a
+        # valid OpenSpec change under the TRUSTED schema?" -- separate proofs,
+        # and apply requires both.
+        working-directory: ${{ runner.temp }}/candidate
+        env:
+          CHANGE: ${{ inputs.change }}
+          OPENSPEC_TELEMETRY: '0'
+        run: |
+          set -euo pipefail
+          "$GITHUB_WORKSPACE/node_modules/.bin/openspec" validate "$CHANGE" --strict
 
       - name: Review gate
-        # The gate reads every governed byte from git OBJECTS, so it verifies
-        # refs/boundary/head without that commit ever being checked out. --base
-        # and --base-sha are both the SHA GitHub reported, so the freshness
-        # proof comes from the API rather than a local ref that may be stale.
+        # Only after strict validation succeeds. The gate reads every governed
+        # byte from git OBJECTS, so it verifies refs/boundary/head without that
+        # commit ever being checked out. --base and --base-sha are both the SHA
+        # GitHub reported, so the freshness proof comes from the API rather than
+        # a local ref that may be stale.
+        env:
+          CHANGE: ${{ inputs.change }}
+          BASE: ${{ steps.pr.outputs.base }}
         run: |
+          set -euo pipefail
           node scripts/openspec-review-gate.mjs verify \
-            --change "${{ inputs.change }}" \
+            --change "$CHANGE" \
             --ref refs/boundary/head \
             --base refs/boundary/base \
-            --base-sha "${{ steps.pr.outputs.base }}"
+            --base-sha "$BASE"
 
       - name: Re-read the pull request and refuse if anything moved
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          REPO: ${{ github.repository }}
+          EXPECTED_HEAD: ${{ steps.pr.outputs.head }}
+          EXPECTED_BASE: ${{ steps.pr.outputs.base }}
         run: |
           set -euo pipefail
           # The boundary is only meaningful if the thing it authorized is still
           # the thing that exists. A push to the branch, or a merge into the
           # base, WHILE this job ran would otherwise leave a green boundary for
           # a repository state that no longer exists.
-          payload="$(gh api "repos/${{ github.repository }}/pulls/${{ inputs.pr }}")"
+          payload="$(gh api "repos/$REPO/pulls/$PR")"
           head="$(printf '%s' "$payload" | jq -r .head.sha)"
           base="$(printf '%s' "$payload" | jq -r .base.sha)"
 
-          if [ "$head" != "${{ steps.pr.outputs.head }}" ]; then
-            echo "::error::head moved during the boundary run: ${{ steps.pr.outputs.head }} -> $head"
+          if [ "$head" != "$EXPECTED_HEAD" ]; then
+            echo "::error::head moved during the boundary run: $EXPECTED_HEAD -> $head"
             exit 1
           fi
-          if [ "$base" != "${{ steps.pr.outputs.base }}" ]; then
-            echo "::error::base moved during the boundary run: ${{ steps.pr.outputs.base }} -> $base"
+          if [ "$base" != "$EXPECTED_BASE" ]; then
+            echo "::error::base moved during the boundary run: $EXPECTED_BASE -> $base"
             exit 1
           fi
           echo "boundary established: head=$head base=$base"
