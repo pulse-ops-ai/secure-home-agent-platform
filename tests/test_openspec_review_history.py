@@ -620,8 +620,8 @@ def test_the_boundary_workflow_never_checks_out_pull_request_code() -> None:
     assert len(checkouts) == 1, (
         f"exactly one checkout, of the default branch; found {len(checkouts)}"
     )
-    assert step_field(checkouts[0], "ref") == "${{ github.event.repository.default_branch }}", (
-        "the only working tree must be the default branch"
+    assert step_field(checkouts[0], "ref") == "${{ steps.pr.outputs.base }}", (
+        "the only working tree must be the exact reviewed base commit"
     )
     assert step_field(checkouts[0], "persist-credentials") == "false"
 
@@ -656,6 +656,49 @@ def test_the_boundary_workflow_never_checks_out_pull_request_code() -> None:
     for step in steps:
         assert step_field(step, "cache") is None, f"a step enables caching:\n{step}"
         assert step_field(step, "cache-dependency-path") is None
+
+
+def test_the_trusted_context_is_pinned_to_the_exact_reviewed_base() -> None:
+    """One authority domain, not two.
+
+    Checking out `main` by NAME resolves at checkout time, so the trusted
+    tooling, schema, config, and canonical specs could come from a different
+    commit than the one the review is bound to -- and nothing would notice. The
+    checkout is pinned to the API-provided base SHA, then asserted.
+    """
+    workflow = BOUNDARY.read_text()
+    steps = workflow_steps(workflow, "boundary")
+
+    checkouts = [step for step in steps if "actions/checkout" in step]
+    assert len(checkouts) == 1
+    assert step_field(checkouts[0], "ref") == "${{ steps.pr.outputs.base }}", (
+        "the trusted checkout must pin the SHA, not a branch name that re-resolves"
+    )
+
+    names = [step_field(step, "name") or "" for step in steps]
+    assertion = next(i for i, n in enumerate(names) if "trusted context IS" in n)
+    run = step_run(steps[assertion])
+    assert "git rev-parse HEAD" in run
+    assert "$BASE_SHA" in run
+
+    install = next(i for i, n in enumerate(names) if "Install tooling" in n)
+    assert assertion < install, f"the base assertion must precede installation: {names}"
+
+
+def test_the_boundary_refuses_a_pull_request_targeting_another_branch() -> None:
+    """A PR onto release/foo would be reviewed against that branch's commit while
+    judged by the default branch's schema, config, and gate -- two authority
+    domains. The boundary is default-branch-only."""
+    workflow = BOUNDARY.read_text()
+    read_step = next(
+        step
+        for step in workflow_steps(workflow, "boundary")
+        if (step_field(step, "name") or "").startswith("Read the pull request")
+    )
+    assert '"$base_ref" != "$DEFAULT_BRANCH"' in step_run(read_step), (
+        "the boundary does not require the PR to target the default branch"
+    )
+    assert "DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}" in read_step
 
 
 def test_the_boundary_validates_the_candidate_before_the_review_gate() -> None:

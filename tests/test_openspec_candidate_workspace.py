@@ -266,7 +266,17 @@ def test_hostile_candidate_content_is_materialized_inert(tmp_path: Path) -> None
         assert target.is_file(), relative
         mode = target.stat().st_mode & 0o777
         assert mode == 0o644, f"{relative} was materialised as {oct(mode)}, not 0644"
-    assert not pwned.exists(), "candidate content executed"
+    assert not pwned.exists(), "candidate content executed during materialisation"
+
+    # And through the phase that actually interprets candidate bytes. Stopping
+    # at materialisation left the strongest claim -- "no candidate-controlled
+    # executable content runs at the boundary" -- only half demonstrated, since
+    # the real boundary goes on to run a parser over exactly these files.
+    validation = _validate(out)
+    assert validation.returncode in (0, 1), (
+        f"the parser crashed rather than deciding:\n{validation.stdout}{validation.stderr}"
+    )
+    assert not pwned.exists(), "candidate content executed during strict validation"
 
 
 @pytest.mark.parametrize("mode", ["120000", "160000"])
@@ -326,3 +336,143 @@ def test_a_trusted_context_without_openspec_is_refused(tmp_path: Path) -> None:
     empty = tmp_path / "empty-trusted"
     (empty / "openspec").mkdir(parents=True)
     assert _refusal(_materialize(repo, empty, tmp_path / "ws")) == "TRUSTED_OPENSPEC_MISSING"
+
+
+# ── the whole boundary, composed ────────────────────────────────────────────
+
+
+def test_the_full_boundary_sequence_against_one_candidate(tmp_path: Path) -> None:
+    """materialize -> strict validate -> review gate, on the SAME ref and base.
+
+    Component tests prove each piece. They cannot catch a mismatch BETWEEN them:
+    a wrong repo root, a candidate ref that differs from the one validated, a
+    trusted schema the gate does not agree with, a base identity that drifts
+    between steps, or artifact hashes computed over a different tree. #107 is
+    about to be the first real use of this boundary, so the composition is
+    exercised here rather than discovered there.
+    """
+    gate = REPO_ROOT / "scripts" / "openspec-review-gate.mjs"
+    change = "candidate-change"
+
+    # A candidate repository carrying an accepted review over its planning.
+    repo = _candidate_repo(tmp_path, change=change)
+    _git(repo, "branch", "-f", "base-ref", "HEAD")
+    base_sha = _git(repo, "rev-parse", "base-ref^{commit}").strip()
+
+    manifest = subprocess.run(
+        [
+            "node",
+            str(gate),
+            "manifest",
+            "--change",
+            change,
+            "--scope",
+            "probe",
+            "--epoch",
+            "1",
+            "--base",
+            "base-ref",
+            "--base-sha",
+            base_sha,
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert manifest.returncode == 0, manifest.stdout + manifest.stderr
+
+    block = re.search(r"<!--\s*openspec-review-gate\s*([\s\S]*?)-->", manifest.stdout)
+    assert block is not None
+    import json as _json
+
+    pinned = _json.loads(block.group(1))
+    pinned.update(
+        reviewer="human:independent-reviewer",
+        reviewed_at="2026-08-30T09:15:00Z",
+        verdict="ARCHITECTURE_ACCEPTED",
+        unresolved_p1_count=0,
+        unassigned_p2_p3_count=0,
+        invariant_set_changed=False,
+        authority_allocation_complete=True,
+    )
+    sections = [
+        "Review Pin",
+        "Independent Review Statement",
+        "Reviewed Artifact Manifest",
+        "Review Method",
+        "Architecture Acceptance Checks",
+        "Severity Calibration",
+        "Findings",
+        "Authority Allocation Assessment",
+        "Repository Feasibility",
+        "Invariant Stability",
+        "Review-Finding Regression Promotion",
+        "Verdict",
+        "Apply Eligibility",
+    ]
+    markers = {
+        "Findings": ["**Unresolved P1 findings:** `none`", "**Unassigned P2/P3 findings:** `0`"],
+        "Authority Allocation Assessment": ["**Authority allocation complete:** `YES`"],
+        "Invariant Stability": ["**Invariant set changed by this review:** `NO`"],
+        "Verdict": ["**ARCHITECTURE_ACCEPTED**"],
+        "Apply Eligibility": ["**Apply eligible:** `YES`"],
+    }
+    body = [
+        "# Pre-Implementation Review\n",
+        "<!-- openspec-review-gate\n",
+        _json.dumps(pinned, indent=2),
+        "\n-->\n",
+    ]
+    for heading in sections:
+        body.append(f"\n## {heading}\n\n")
+        body.extend(f"{line}\n" for line in markers.get(heading, ["n/a"]))
+    (repo / "openspec" / "changes" / change / "preimplementation-review.md").write_text(
+        "".join(body)
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "accepting review")
+    head_sha = _git(repo, "rev-parse", "HEAD").strip()
+
+    # ── the boundary, in order, from a consumer that never checks it out ────
+    consumer = tmp_path / "boundary"
+    consumer.mkdir()
+    _git(consumer, "init", "-q", "-b", "trusted")
+    (consumer / "placeholder.md").write_text("# trusted context\n")
+    _git(consumer, "add", "-A")
+    _git(consumer, "commit", "-qm", "trusted root")
+    _git(consumer, "fetch", "-q", str(repo), f"+{head_sha}:refs/boundary/head")
+    _git(consumer, "fetch", "-q", str(repo), f"+{base_sha}:refs/boundary/base")
+    assert not (consumer / "openspec" / "changes").exists(), "the candidate is not checked out"
+
+    trusted = _trusted(tmp_path)
+    workspace = tmp_path / "isolated"
+    step1 = _materialize(consumer, trusted, workspace, change=change, ref="refs/boundary/head")
+    assert step1.returncode == 0, step1.stdout + step1.stderr
+
+    step2 = _validate(workspace, change)
+    assert step2.returncode == 0, step2.stdout + step2.stderr
+
+    step3 = subprocess.run(
+        [
+            "node",
+            str(gate),
+            "verify",
+            "--change",
+            change,
+            "--ref",
+            "refs/boundary/head",
+            "--base",
+            "refs/boundary/base",
+            "--base-sha",
+            base_sha,
+        ],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert step3.returncode == 0, step3.stdout + step3.stderr
+    assert "REVIEW_GATE_VALID" in step3.stdout
+    # The gate verified the SAME base the workspace was validated against.
+    assert f"base={base_sha}" in step3.stdout

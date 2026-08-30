@@ -25,17 +25,28 @@
 # "established" its own boundary. CodeQL flagged it as cache poisoning via
 # execution of untrusted code; the authorization consequence is worse.
 #
-# The answer is not "check it out more carefully" — it is not to check it out
-# at all. Only the default branch is ever a working tree here. The pull
-# request's commit is FETCHED AS OBJECTS into `refs/boundary/head`, and the gate
-# reads every governed byte from git objects, so it verifies a commit that never
-# touches the filesystem.
+# The answer is not "check it out more carefully" — it is not to check it out at
+# all. The threat model, stated precisely, because a vaguer claim would be
+# easier to write and would not survive reading the steps below:
 #
-#   working tree   default branch — the only code that runs
-#   refs/boundary  pull request objects — read, never materialised
+#   CANDIDATE GIT TREE
+#     never checked out as a working tree; never installed; never executed as
+#     programs. No hook, filter, or lifecycle script of the candidate runs.
 #
-# Nothing from the pull request is installed, executed, or written to disk, so
-# there is no untrusted code for a cache to be poisoned from.
+#   CANDIDATE OPENSPEC CHANGE BYTES
+#     ARE written to disk — deliberately. `openspec validate --strict` is a
+#     parser and needs files. They are materialised as regular 0644 data into an
+#     isolated workspace, and are then PARSED by the trusted implementation.
+#     The claim is not "nothing is written"; it is that what is written is inert
+#     data, and the only thing interpreting it is trusted code.
+#
+#   TRUSTED EXECUTABLE CODE
+#     the exact reviewed base commit, and nothing else: workflow definition,
+#     OpenSpec CLI, schemas, config, canonical specs, and the review gate.
+#
+# So there is no candidate-controlled executable content for a cache to be
+# poisoned from, and no path by which the candidate supplies the rules that
+# judge it.
 name: review boundary
 
 on:
@@ -95,6 +106,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ inputs.pr }}
           REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           payload="$(gh api "repos/$REPO/pulls/$PR")"
@@ -114,6 +126,18 @@ jobs:
             exit 1
           fi
 
+          # ONE authority domain. The trusted schema, config, canonical specs,
+          # gate implementation, and OpenSpec dependency all come from the base
+          # commit below; if the pull request targets some other branch, the
+          # review would be bound to that branch's commit while being judged by
+          # the default branch's rules. Refuse rather than mix the two.
+          if [ "$base_ref" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::pull request $PR targets '$base_ref', not '$DEFAULT_BRANCH'."
+            echo "::error::The v2 boundary is default-branch-only: trusted tooling and the"
+            echo "::error::reviewed base must be the same commit."
+            exit 1
+          fi
+
           {
             echo "head=$head"
             echo "base=$base"
@@ -121,11 +145,28 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "PR $PR: head=$head base=$base ($base_ref)"
 
-      - name: Check out the default branch — the ONLY code that runs
+      - name: Check out the EXACT reviewed base — the only code that runs
+        # The exact SHA GitHub reported, not the branch name. A branch resolves
+        # at checkout time, so `ref: main` would let the trusted tooling, schema,
+        # config, and canonical specs come from a DIFFERENT commit than the one
+        # the review is bound to — an authority mismatch the workflow would
+        # never notice. Pinning the SHA collapses both into one identity.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.pr.outputs.base }}
           persist-credentials: false
+
+      - name: Assert the trusted context IS the reviewed base
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$BASE_SHA" ]; then
+            echo "::error::trusted checkout is $actual but the reviewed base is $BASE_SHA"
+            exit 1
+          fi
+          echo "trusted tooling and reviewed base are both $BASE_SHA"
 
       - name: Fetch the pull request as OBJECTS, never a working tree
         # The pull request's commit is fetched into a ref. It is never checked
@@ -173,9 +214,11 @@ jobs:
           done
 
       - name: Materialize the candidate change as inert data
-        # Trusted schema and config, candidate change directory read from git
-        # objects. Only regular blobs are written, always 0644, so nothing the
-        # candidate carries can execute or escape.
+        # Trusted schema and config; the candidate's change directory read from
+        # git objects. Only regular blobs are written, always 0644, and symlink
+        # and submodule entries are refused — so what lands here is data the
+        # trusted parser reads, not programs this runner could execute, and
+        # nothing reaches outside the workspace.
         env:
           CHANGE: ${{ inputs.change }}
         run: |

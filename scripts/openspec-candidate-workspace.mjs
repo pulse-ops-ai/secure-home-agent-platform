@@ -24,8 +24,10 @@
  * substitute the schema or configuration that judges it: the paths that decide
  * validity are structurally outside what the candidate supplies.
  *
- * Nothing from the candidate is executed, and nothing it contains can become
- * executable here:
+ * The candidate's bytes ARE written to disk — `openspec validate --strict` is a
+ * parser and needs files. The claim is narrower and more defensible than
+ * "nothing is written": what lands here is inert data, and the only thing that
+ * interprets it is the trusted implementation.
  *
  *   - entries are read with `git cat-file`, never checked out, so no hook,
  *     filter, or lifecycle script of the candidate ever runs;
