@@ -456,3 +456,24 @@ def test_a_new_round_first_appearing_inside_an_archived_change_is_refused(
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "sneak a round into the archive")
     _refused(_check(repo, base="HEAD~1"), "first appears inside an archived change")
+
+
+def test_an_added_archived_review_copy_while_the_change_stays_live_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The added-path loophole.
+
+    A detected rename and an unpaired delete both went through the full
+    whole-change provenance check. An ADDED archived review took a weaker path:
+    byte equality with the live copy was enough, so a COPY could appear under
+    archive/ while the live change stayed active and its own review remained.
+    """
+    repo = _repo_with_round(tmp_path)
+    copied = repo / "openspec" / "changes" / "archive" / "2026-08-30-demo" / "reviews"
+    copied.mkdir(parents=True)
+    (copied / "001-abc123def456.md").write_text(
+        (repo / ROUND).read_text()  # byte-identical, but nothing was archived
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "copy the round into an archive path")
+    _refused(_check(repo), "still live")

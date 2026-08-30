@@ -12,6 +12,7 @@ for the wrong reason sends someone to fix the wrong thing.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -85,17 +86,32 @@ def _gate(
     scope: str | None = SCOPE,
     epoch: int | None = 1,
     base: str | None = BASE,
+    base_sha: str | None = "AUTO",
     extra: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     args = ["node", str(SCRIPT), mode, "--change", change]
     if base is not None:
         args += ["--base", base]
+    if base_sha is not None:
+        args += ["--base-sha", base_sha]
     if mode == "manifest":
         if scope is not None:
             args += ["--scope", scope]
         if epoch is not None:
             args += ["--epoch", str(epoch)]
     args += extra or []
+    if base_sha == "AUTO":
+        # The authoritative-SHA path, which is how CI proves freshness from
+        # pull_request.base.sha. Substituted here so every existing test keeps
+        # exercising the same shape a real caller uses.
+        resolved = subprocess.run(
+            ["git", "rev-parse", f"{base}^{{commit}}"] if base else ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        args = [a if a != "AUTO" else resolved for a in args]
     return subprocess.run(args, cwd=repo, capture_output=True, text=True, check=False)
 
 
@@ -500,6 +516,8 @@ def test_artifact_order_is_locale_independent(tmp_path: Path) -> None:
                 "1",
                 "--base",
                 BASE,
+                "--base-sha",
+                _git(repo, "rev-parse", f"{BASE}^{{commit}}").strip(),
             ],
             cwd=repo,
             capture_output=True,
@@ -555,7 +573,14 @@ def test_an_ignored_untracked_required_artifact_is_refused(tmp_path: Path) -> No
         f"# tasks\n\n<!-- review-scope: {SCOPE} -->\n"
     )
     assert _git(repo, "status", "--porcelain").strip() == ""
-    assert _refusal(_gate(repo, "manifest")) == "PLANNING_FILE_NOT_TRACKED"
+    # Either refusal proves the property: the ignored worktree copy cannot
+    # stand in for a committed artifact. Reading governed bytes from the object
+    # store reaches PLANNING_FILE_MISSING first, which is the more direct
+    # statement -- the file is simply not in the commit.
+    assert _refusal(_gate(repo, "manifest")) in {
+        "PLANNING_FILE_NOT_TRACKED",
+        "PLANNING_FILE_MISSING",
+    }
 
 
 def test_verify_refuses_a_planning_package_holding_an_untracked_artifact(tmp_path: Path) -> None:
@@ -615,12 +640,20 @@ def test_a_real_calendar_instant_passes(tmp_path: Path, value: str) -> None:
 
 
 def _archive_current_round(repo: Path, epoch: int) -> None:
-    """Move the accepted current review into history, byte-for-byte."""
+    """Move the accepted current review into history, byte-for-byte.
+
+    The name carries the reviewed sha12 because admission is mechanical: the
+    gate parses the round's own block and requires it to agree with the name.
+    """
     change = repo / "openspec" / "changes" / "demo"
     reviews = change / "reviews"
     reviews.mkdir(exist_ok=True)
     current = change / "preimplementation-review.md"
-    (reviews / f"{epoch}-round.md").write_text(current.read_text())
+    text = current.read_text()
+    block = re.search(r"<!--\s*openspec-review-gate\s*([\s\S]*?)-->", text)
+    assert block is not None, "the accepted review carries no gate block"
+    gate = json.loads(block.group(1))
+    (reviews / f"{epoch}-{gate['reviewed_commit'][:12]}.md").write_text(text)
     current.unlink()
 
 
@@ -679,8 +712,9 @@ def test_a_second_review_epoch_reopens_the_boundary_after_scope_one_lands(
     # epoch advanced.
     assert all("src/" not in a["path"] for a in gate["reviewed_artifacts"])
     # And the historical round is still exactly the bytes that were accepted.
-    history = repo / "openspec" / "changes" / "demo" / "reviews" / "1-round.md"
-    assert "review_epoch" in history.read_text()
+    rounds = sorted((repo / "openspec" / "changes" / "demo" / "reviews").glob("1-*.md"))
+    assert len(rounds) == 1, rounds
+    assert "review_epoch" in rounds[0].read_text()
 
 
 @pytest.mark.parametrize(
@@ -838,3 +872,198 @@ def test_an_unresolved_p1_blocks_acceptance(tmp_path: Path) -> None:
     repo = _planning_repo(tmp_path)
     _accept(repo, gate_overrides={"unresolved_p1_count": 1})
     assert _refusal(_gate(repo, "verify")) == "UNRESOLVED_P1"
+
+
+# ── admission is a state transition, not a naming convention ────────────────
+
+
+def test_a_fabricated_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -> None:
+    """`reviews/1-fake.md` containing `# round 1` used to admit epoch 1.
+
+    Enumeration was filesystem readdir over any `<n>-*.md`, and nothing looked
+    inside. That let epoch 2 be claimed with no accepted epoch 1 at all.
+    """
+    repo = _planning_repo(tmp_path)
+    reviews = repo / "openspec" / "changes" / "demo" / "reviews"
+    reviews.mkdir()
+    (reviews / "1-abcdefabcdef.md").write_text("# round 1\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "fabricated history")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    assert _refusal(_gate(repo, "manifest", epoch=2)) == "UNADMISSIBLE_REVIEW_HISTORY"
+
+
+def test_an_ignored_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -> None:
+    """The same class the planning-artifact fix closed, on the history side."""
+    repo = _planning_repo(tmp_path)
+    _ignore(repo, "1-abcdefabcdef.md")
+    reviews = repo / "openspec" / "changes" / "demo" / "reviews"
+    reviews.mkdir()
+    (reviews / "1-abcdefabcdef.md").write_text("# round 1\n")
+    assert _git(repo, "status", "--porcelain").strip() == ""
+    # Enumerating the committed tree means an uncommitted round is simply not
+    # there, so epoch 2 has no predecessor.
+    assert _refusal(_gate(repo, "manifest", epoch=2)) == "REVIEW_EPOCH_SEQUENCE"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "fragment"),
+    [
+        ({"review_epoch": 7}, "review_epoch is 7"),
+        ({"verdict": "REVIEW_REQUIRED"}, "verdict is REVIEW_REQUIRED"),
+        ({"contract": "preimplementation-review-v1"}, "contract is"),
+    ],
+)
+def test_a_history_round_whose_block_disagrees_is_not_admitted(
+    tmp_path: Path, mutation: dict[str, Any], fragment: str
+) -> None:
+    """A round must be a real accepted review that agrees with its own name."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    _archive_current_round(repo, 1)
+    reviews = repo / "openspec" / "changes" / "demo" / "reviews"
+    round_file = next(reviews.glob("1-*.md"))
+    text = round_file.read_text()
+    block = re.search(r"<!--\s*openspec-review-gate\s*([\s\S]*?)-->", text)
+    assert block is not None, "the accepted review carries no gate block"
+    gate = json.loads(block.group(1))
+    gate.update(mutation)
+    round_file.write_text(
+        re.sub(
+            r"<!--\s*openspec-review-gate\s*[\s\S]*?-->",
+            "<!-- openspec-review-gate\n" + json.dumps(gate, indent=2) + "\n-->",
+            text,
+            count=1,
+        )
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "tamper with history")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    result = _gate(repo, "manifest", epoch=2)
+    assert _refusal(result) == "UNADMISSIBLE_REVIEW_HISTORY"
+    assert fragment in result.stderr
+
+
+def test_a_misnamed_history_round_is_refused(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    reviews = repo / "openspec" / "changes" / "demo" / "reviews"
+    reviews.mkdir()
+    (reviews / "1-round.md").write_text("# round\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "misnamed round")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    assert _refusal(_gate(repo, "manifest", epoch=2)) == "MALFORMED_REVIEW_HISTORY"
+
+
+# ── committed objects are the byte authority ────────────────────────────────
+
+
+def test_skip_worktree_cannot_substitute_planning_bytes(tmp_path: Path) -> None:
+    """git reports a skip-worktree file as clean while its bytes differ.
+
+    Verified directly: `git update-index --skip-worktree a.md`, edit a.md,
+    `git status --porcelain` and `git diff --name-only` are both empty while the
+    worktree holds B and HEAD holds A. Hashing the worktree would have pinned a
+    commit containing A while digesting B.
+    """
+    repo = _planning_repo(tmp_path)
+    design = "openspec/changes/demo/design.md"
+    _git(repo, "update-index", "--skip-worktree", design)
+    (repo / design).write_text("# design\n\nsubstituted bytes\n")
+    assert _git(repo, "status", "--porcelain").strip() == "", "git must report this clean"
+
+    # The flag itself is refused, because the worktree-clean claim is false.
+    assert _refusal(_gate(repo, "manifest")) == "HIDDEN_INDEX_FLAGS"
+
+    # And with the flag cleared, the digest is the COMMITTED blob's, not the
+    # worktree's -- which is still holding the substituted bytes.
+    _git(repo, "update-index", "--no-skip-worktree", design)
+    _git(repo, "checkout", "--", design)
+    gate = _manifest(repo)
+    committed = _git(repo, "rev-parse", "HEAD").strip()
+    for artifact in gate["reviewed_artifacts"]:
+        blob = subprocess.run(
+            ["git", "show", f"{committed}:openspec/changes/demo/{artifact['path']}"],
+            cwd=repo,
+            capture_output=True,
+            check=True,
+        ).stdout
+        assert hashlib.sha256(blob).hexdigest() == artifact["sha256"], artifact["path"]
+
+
+def test_the_manifest_digest_equals_the_git_blob_not_the_worktree(tmp_path: Path) -> None:
+    """The assertion the earlier existence check did not make."""
+    repo = _planning_repo(tmp_path)
+    gate = _manifest(repo)
+    for artifact in gate["reviewed_artifacts"]:
+        blob = subprocess.run(
+            ["git", "show", f"{gate['reviewed_commit']}:openspec/changes/demo/{artifact['path']}"],
+            cwd=repo,
+            capture_output=True,
+            check=True,
+        ).stdout
+        assert hashlib.sha256(blob).hexdigest() == artifact["sha256"], artifact["path"]
+
+
+# ── base freshness must be proven, never assumed ────────────────────────────
+
+
+def test_a_base_with_no_freshness_proof_is_refused(tmp_path: Path) -> None:
+    """A local remote-tracking ref can be arbitrarily stale."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    assert _refusal(_gate(repo, "verify", base_sha=None)) == "BASE_FRESHNESS_REQUIRED"
+
+
+def test_a_stale_local_base_is_refused_against_the_authoritative_sha(tmp_path: Path) -> None:
+    """GitHub main advanced; the local ref did not. Both used to resolve the
+    same stale SHA and the gate passed."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    authoritative = "b" * 40
+    result = _gate(repo, "verify", base_sha=authoritative)
+    assert _refusal(result) == "REVIEW_BASE_STALE"
+    assert "behind the real target branch" in result.stderr
+
+
+def test_an_unreachable_remote_refuses_rather_than_assuming_freshness(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    result = _gate(repo, "verify", base_sha=None, extra=["--remote", "nosuchremote/main"])
+    assert _refusal(result) == "BASE_FRESHNESS_UNPROVEN"
+
+
+def test_a_live_remote_matching_the_base_is_accepted(tmp_path: Path) -> None:
+    """The control: a genuinely current base must still pass."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "push", "-q", "origin", f"{BASE}:refs/heads/main")
+    result = _gate(repo, "verify", base_sha=None, extra=["--remote", "origin/main"])
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "freshness=--remote origin/main" in result.stdout
+
+
+def test_a_live_remote_ahead_of_the_local_base_is_refused(tmp_path: Path) -> None:
+    """The real scenario: the branch advanced and nobody fetched."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    _git(repo, "remote", "add", "origin", str(origin))
+    _git(repo, "push", "-q", "origin", f"{BASE}:refs/heads/main")
+
+    # Someone else lands on main. The local ref is untouched.
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", str(origin), str(other)], check=True, capture_output=True)
+    _git(other, "config", "user.email", "t@e")
+    (other / "landed.md").write_text("# landed elsewhere\n")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-qm", "someone else lands")
+    _git(other, "push", "-q", "origin", "HEAD:main")
+
+    result = _gate(repo, "verify", base_sha=None, extra=["--remote", "origin/main"])
+    assert _refusal(result) == "REVIEW_BASE_STALE"
+    assert "stale" in result.stderr

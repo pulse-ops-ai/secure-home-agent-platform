@@ -40,7 +40,11 @@ const REVIEWED_AT_PLACEHOLDER = 'REPLACE_WITH_RFC3339_TIMESTAMP'
  * spellings, so a date-only or locale-flavoured value would have passed while
  * carrying no reviewable instant.
  */
-const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+// Captured, not sliced: slicing around the OPTIONAL fraction meant
+// `2026-08-26T09:15:00.123+24:00` reached the offset check as ".123+24:00",
+// which "starts with a dot", so the +24:00 bound was never validated.
+const RFC3339 =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/
 
 /**
  * RFC 3339 shape is not a calendar.
@@ -53,8 +57,8 @@ function isRealInstant(value) {
   const match = RFC3339.exec(value)
   if (match === null) return false
 
-  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
-  const [hour, minute, second] = value.slice(11, 19).split(':').map(Number)
+  const [, y, mo, d, h, mi, sec, , offH, offM] = match
+  const [year, month, day, hour, minute, second] = [y, mo, d, h, mi, sec].map(Number)
 
   if (month < 1 || month > 12) return false
   if (hour > 23 || minute > 59) return false
@@ -65,13 +69,8 @@ function isRealInstant(value) {
   const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   if (day < 1 || day > lengths[month - 1]) return false
 
-  const offset = value.slice(19)
-  if (offset !== 'Z' && !offset.startsWith('.')) {
-    const sign = offset.slice(-6)
-    const offsetHour = Number(sign.slice(1, 3))
-    const offsetMinute = Number(sign.slice(4, 6))
-    if (offsetHour > 23 || offsetMinute > 59) return false
-  }
+  // Validated independently of whether a fraction was present.
+  if (offH !== undefined && (Number(offH) > 23 || Number(offM) > 59)) return false
 
   return true
 }
@@ -183,12 +182,77 @@ function runGit(repoRoot, args, { allowFailure = false } = {}) {
       cwd: repoRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', allowFailure ? 'pipe' : 'inherit'],
+      maxBuffer: 64 * 1024 * 1024,
     }).trim()
   } catch (error) {
     if (allowFailure) {
       return null
     }
     throw error
+  }
+}
+
+/**
+ * THE COMMITTED OBJECT IS THE AUTHORITY, NOT THE FILE ON DISK.
+ *
+ * Hashing the worktree while claiming to describe `reviewed_commit` is only
+ * sound if the two are provably identical, and git's cleanliness checks do not
+ * establish that: `skip-worktree` and `assume-unchanged` make git report a
+ * MODIFIED tracked file as clean. Verified directly —
+ *
+ *     git update-index --skip-worktree a.md ; echo B > a.md
+ *     git status --porcelain  ->  (empty)
+ *     git diff --name-only    ->  (empty)
+ *     worktree = B, HEAD = A
+ *
+ * so a manifest could hash B while pinning a commit containing A. Every
+ * governed byte is therefore read from the object store.
+ */
+function gitBlob(repoRoot, ref, repoPath, { allowMissing = false } = {}) {
+  try {
+    return execFileSync('git', ['show', `${ref}:${repoPath}`], {
+      cwd: repoRoot,
+      encoding: 'buffer',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  } catch {
+    if (allowMissing) return null
+    fail('PLANNING_FILE_MISSING', `${repoPath} is not present at ${ref}`)
+  }
+}
+
+const gitText = (repoRoot, ref, repoPath, options) => {
+  const bytes = gitBlob(repoRoot, ref, repoPath, options)
+  return bytes === null ? null : bytes.toString('utf8')
+}
+
+/**
+ * `skip-worktree` and `assume-unchanged` are index flags that make git lie about
+ * cleanliness by design. Reading bytes from the object store defeats the byte
+ * substitution, but the flags would still make the worktree-clean claim false,
+ * so they are refused outright rather than merely worked around.
+ */
+function assertNoHiddenIndexFlags(repoRoot) {
+  const listing = runGit(repoRoot, ['ls-files', '-v'], { allowFailure: true })
+  if (listing === null) {
+    fail('INDEX_UNREADABLE', 'could not read the git index; nothing was verified')
+  }
+  const hidden = listing
+    .split('\n')
+    // 'H' is the NORMAL cached state -- flagging it would call every tracked
+    // file hidden. Only 'S' (skip-worktree) and any LOWERCASE tag
+    // (assume-unchanged) make git under-report a modification.
+    .filter((line) => /^(S|[a-z]) /.test(line))
+    .map((line) => line.slice(2).trim())
+    .sort(compareUtf8)
+
+  if (hidden.length > 0) {
+    fail(
+      'HIDDEN_INDEX_FLAGS',
+      'paths carry skip-worktree or assume-unchanged, so git reports them clean ' +
+        `even when modified:\n${hidden.map((item) => `  - ${item}`).join('\n')}`,
+    )
   }
 }
 
@@ -204,7 +268,15 @@ function parseArgs(argv) {
   }
 
   const values = new Map()
-  const FLAGS = ['--change', '--change-dir', '--scope', '--epoch', '--base']
+  const FLAGS = [
+    '--change',
+    '--change-dir',
+    '--scope',
+    '--epoch',
+    '--base',
+    '--base-sha',
+    '--remote',
+  ]
 
   for (let index = 1; index < argv.length; index += 1) {
     const flag = argv[index]
@@ -245,6 +317,8 @@ function parseArgs(argv) {
     scope: values.get('--scope'),
     epoch: epochText === undefined ? undefined : Number(epochText),
     base: values.get('--base'),
+    baseSha: values.get('--base-sha'),
+    remote: values.get('--remote'),
   }
 }
 
@@ -359,10 +433,8 @@ async function listMarkdownFiles(directory, relativePrefix) {
   return results
 }
 
-async function readSchemaSelection(changeDir) {
-  const metadataPath = path.join(changeDir, '.openspec.yaml')
-  await assertRegularFileInside(changeDir, metadataPath, '.openspec.yaml')
-  const metadata = await readFile(metadataPath, 'utf8')
+function readSchemaSelection(context, ref = 'HEAD') {
+  const metadata = gitText(context.repoRoot, ref, `${context.changeRepoPath}/.openspec.yaml`)
 
   const selected = metadata.match(/^\s*schema:\s*([^\s#]+)\s*(?:#.*)?$/m)?.[1]
   if (selected !== SCHEMA) {
@@ -444,8 +516,9 @@ function assertPlanningPathsTracked(repoRoot, changeRepoPath, paths) {
   }
 }
 
-async function planningPaths(changeDir) {
-  await readSchemaSelection(changeDir)
+async function planningPaths(context) {
+  const { changeDir } = context
+  readSchemaSelection(context)
 
   const fixedBeforeSpecs = ['.openspec.yaml', 'proposal.md']
   const specPaths = await listMarkdownFiles(path.join(changeDir, 'specs'), 'specs')
@@ -468,16 +541,15 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function artifactManifest(context) {
+async function artifactManifest(context, ref = 'HEAD') {
   const { changeDir, repoRoot, changeRepoPath } = context
-  const paths = await planningPaths(changeDir)
+  const paths = await planningPaths(context)
   assertPlanningPathsTracked(repoRoot, changeRepoPath, paths)
-  return Promise.all(
-    paths.map(async (relative) => {
-      const bytes = await readFile(path.join(changeDir, relative))
-      return { path: relative, sha256: sha256(bytes) }
-    }),
-  )
+  return paths.map((relative) => {
+    // The COMMITTED bytes, never the worktree's.
+    const bytes = gitBlob(repoRoot, ref, `${changeRepoPath}/${relative}`)
+    return { path: relative, sha256: sha256(bytes) }
+  })
 }
 
 function repositoryChanges(repoRoot, reviewedCommit) {
@@ -1013,10 +1085,8 @@ function assertReviewCommittedAfterPin({ repoRoot, changeRepoPath, reviewedCommi
  * stable id and never restates its paths, tasks, or authorization — otherwise
  * "what is in this scope" would have two authorities that can disagree.
  */
-async function assertScopeResolves(changeDir, scopeId) {
-  const tasksPath = path.join(changeDir, 'tasks.md')
-  await assertRegularFileInside(changeDir, tasksPath, 'tasks.md')
-  const tasks = await readFile(tasksPath, 'utf8')
+function assertScopeResolves(context, scopeId, ref = 'HEAD') {
+  const tasks = gitText(context.repoRoot, ref, `${context.changeRepoPath}/tasks.md`)
 
   // Fenced blocks are masked so an EXAMPLE marker in documentation cannot
   // declare a scope. Comments are NOT masked: the marker is deliberately an
@@ -1051,21 +1121,80 @@ async function assertScopeResolves(changeDir, scopeId) {
  * `<epoch>-<anything>.md`, so the directory listing IS the admitted sequence
  * and no hand-maintained count can drift from it.
  */
-async function assertEpochSequence(changeDir, epoch) {
-  const admitted = []
-  let entries
-  try {
-    entries = await readdir(path.join(changeDir, 'reviews'), { withFileTypes: true })
-  } catch {
-    entries = []
+/**
+ * ADMISSION IS A STATE TRANSITION, NOT A NAMING CONVENTION.
+ *
+ * An earlier revision read `reviews/` with readdir and treated ANY `<n>-*.md`
+ * as an admitted epoch. Nothing looked inside. So `reviews/1-fake.md`
+ * containing `# round 1` manufactured an epoch-1 predecessor, and because
+ * enumeration used the filesystem while cleanliness used git's normal untracked
+ * checks, an IGNORED file could do it without being committed at all — the
+ * exact class of bug just fixed for planning artifacts.
+ *
+ * A historical round is admitted only if it is committed, named
+ * `<epoch>-<reviewed-sha12>.md`, and carries a gate block that agrees with its
+ * own filename and was accepted.
+ */
+function admittedEpochs(context, ref = 'HEAD') {
+  const listing = runGit(
+    context.repoRoot,
+    ['ls-tree', '-r', '-z', '--name-only', ref, '--', `${context.changeRepoPath}/reviews`],
+    { allowFailure: true },
+  )
+  if (listing === null) {
+    fail('HEAD_TREE_UNREADABLE', 'could not read the committed review history')
   }
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-    const match = /^(\d+)-/.exec(entry.name)
-    if (match === null) continue
-    admitted.push(Number(match[1]))
+
+  const admitted = []
+  for (const repoPath of listing.split('\0').filter(Boolean)) {
+    const name = repoPath.slice(repoPath.lastIndexOf('/') + 1)
+    if (!name.endsWith('.md')) continue
+
+    const named = /^(\d+)-([0-9a-f]{12})\.md$/.exec(name)
+    if (named === null) {
+      fail(
+        'MALFORMED_REVIEW_HISTORY',
+        `reviews/${name} is not <epoch>-<reviewed-sha12>.md; a round that cannot be ` +
+          'identified cannot be admitted',
+      )
+    }
+    const [, epochText, sha12] = named
+    const text = gitText(context.repoRoot, ref, repoPath)
+
+    let gate
+    try {
+      gate = extractGateBlock(text)
+    } catch (error) {
+      fail(
+        'UNADMISSIBLE_REVIEW_HISTORY',
+        `reviews/${name} carries no readable review gate block (${error.message}); ` +
+          'a historical round must be a real accepted review, not a placeholder',
+      )
+    }
+
+    const problems = []
+    if (gate.contract !== CONTRACT) problems.push(`contract is ${String(gate.contract)}`)
+    if (gate.review_epoch !== Number(epochText))
+      problems.push(`review_epoch is ${String(gate.review_epoch)}, filename says ${epochText}`)
+    if (typeof gate.reviewed_commit !== 'string' || !gate.reviewed_commit.startsWith(sha12))
+      problems.push(`reviewed_commit does not start with ${sha12}`)
+    if (gate.verdict !== 'ARCHITECTURE_ACCEPTED')
+      problems.push(`verdict is ${String(gate.verdict)}`)
+
+    if (problems.length > 0) {
+      fail(
+        'UNADMISSIBLE_REVIEW_HISTORY',
+        `reviews/${name} is not an admitted accepted review: ${problems.join('; ')}`,
+      )
+    }
+    admitted.push(Number(epochText))
   }
   admitted.sort((a, b) => a - b)
+  return admitted
+}
+
+function assertEpochSequence(context, epoch, ref = 'HEAD') {
+  const admitted = admittedEpochs(context, ref)
 
   const duplicates = admitted.filter((value, index) => admitted.indexOf(value) !== index)
   if (duplicates.length > 0) {
@@ -1075,13 +1204,13 @@ async function assertEpochSequence(changeDir, epoch) {
     )
   }
 
-  const expectedHistory = Array.from({ length: epoch - 1 }, (_, index) => index + 1)
-  if (JSON.stringify(admitted) !== JSON.stringify(expectedHistory)) {
+  const expected = Array.from({ length: epoch - 1 }, (_, index) => index + 1)
+  if (JSON.stringify(admitted) !== JSON.stringify(expected)) {
     fail(
       'REVIEW_EPOCH_SEQUENCE',
-      `epoch ${epoch} requires exactly epochs [${expectedHistory.join(', ')}] in ` +
-        `reviews/; found [${admitted.join(', ')}]. An epoch may not be skipped, ` +
-        'repeated, or regressed, and a superseded review must be archived first',
+      `epoch ${epoch} requires exactly admitted epochs [${expected.join(', ')}]; ` +
+        `found [${admitted.join(', ')}]. An epoch may not be skipped, repeated, or ` +
+        'regressed, and a superseded review must be archived first',
     )
   }
 }
@@ -1119,6 +1248,75 @@ function resolveBaseCommit(repoRoot, baseRef) {
     )
   }
   return resolved
+}
+
+/**
+ * PROVE THE RESOLVED BASE IS THE CURRENT TARGET BRANCH.
+ *
+ * `origin/main` is a LOCAL remote-tracking ref. If the real branch advances and
+ * nobody fetched, both manifest and verify resolve the same stale SHA and the
+ * gate passes — so the previous implementation proved "the caller's locally
+ * visible base has not moved", while the documentation claimed "the target
+ * branch has not advanced". Those are different statements.
+ *
+ * Freshness is therefore established explicitly, with no inferred fallback:
+ * either an authoritative SHA is supplied (CI knows `pull_request.base.sha`),
+ * or the live remote is consulted. An unreachable remote REFUSES rather than
+ * assuming currency.
+ */
+function assertBaseIsCurrent(repoRoot, baseCommit, options) {
+  if (options.baseSha !== undefined) {
+    if (!/^[0-9a-f]{40}$/.test(options.baseSha)) {
+      fail('INVALID_BASE_SHA', '--base-sha must be a full lowercase 40-hex commit')
+    }
+    if (options.baseSha !== baseCommit) {
+      fail(
+        'REVIEW_BASE_STALE',
+        `the authoritative base is ${options.baseSha} but "${options.base}" resolves ` +
+          'to ' +
+          baseCommit +
+          '. The local ref is behind the real target branch; ' +
+          'fetch and take a fresh review epoch',
+      )
+    }
+    return `--base-sha ${options.baseSha.slice(0, 12)}`
+  }
+
+  if (options.remote !== undefined) {
+    const separator = options.remote.indexOf('/')
+    if (separator === -1) {
+      fail('INVALID_REMOTE', '--remote must be <remote>/<branch>, for example origin/main')
+    }
+    const remote = options.remote.slice(0, separator)
+    const branch = options.remote.slice(separator + 1)
+    const listed = runGit(repoRoot, ['ls-remote', '--exit-code', remote, `refs/heads/${branch}`], {
+      allowFailure: true,
+    })
+    if (listed === null || listed.length === 0) {
+      fail(
+        'BASE_FRESHNESS_UNPROVEN',
+        `could not read ${options.remote} from the remote, so the base could not be ` +
+          'proved current. This refuses rather than assuming the local ref is fresh',
+      )
+    }
+    const live = listed.split(/\s+/)[0]
+    if (live !== baseCommit) {
+      fail(
+        'REVIEW_BASE_STALE',
+        `${options.remote} is at ${live} but "${options.base}" resolves to ` +
+          `${baseCommit}. The local ref is stale; fetch and take a fresh review epoch`,
+      )
+    }
+    return `--remote ${options.remote}`
+  }
+
+  fail(
+    'BASE_FRESHNESS_REQUIRED',
+    'the base must be proved CURRENT, not merely resolvable: pass --base-sha ' +
+      '<40-hex> (an authoritative SHA, for example a pull request base) or ' +
+      '--remote <remote>/<branch> to consult the live ref. A local remote-tracking ' +
+      'ref can be arbitrarily stale, and this gate never assumes it is fresh',
+  )
 }
 
 function assertBaseIncorporated(repoRoot, baseCommit) {
@@ -1182,10 +1380,12 @@ async function manifestMode(context, options) {
     fail('SCOPE_REQUIRED', '--scope <id> is required: every review pins one release scope')
   }
 
-  await assertScopeResolves(context.changeDir, options.scope)
-  await assertEpochSequence(context.changeDir, epoch)
+  assertNoHiddenIndexFlags(context.repoRoot)
+  assertScopeResolves(context, options.scope)
+  assertEpochSequence(context, epoch)
 
   const baseCommit = resolveBaseCommit(context.repoRoot, options.base)
+  assertBaseIsCurrent(context.repoRoot, baseCommit, options)
   assertBaseIncorporated(context.repoRoot, baseCommit)
 
   const artifacts = await artifactManifest(context)
@@ -1217,11 +1417,13 @@ async function manifestMode(context, options) {
 
 async function verifyMode(context, options) {
   assertVerifyWorktreeClean(context.repoRoot)
-  await readSchemaSelection(context.changeDir)
+  assertNoHiddenIndexFlags(context.repoRoot)
+  readSchemaSelection(context)
 
-  const reviewPath = path.join(context.changeDir, REVIEW_FILE)
-  await assertRegularFileInside(context.changeDir, reviewPath, REVIEW_FILE)
-  const reviewText = await readFile(reviewPath, 'utf8')
+  // The COMMITTED review, never the worktree's: a committed non-accepting
+  // review could otherwise be edited locally under skip-worktree while verify
+  // read the local accepted bytes.
+  const reviewText = gitText(context.repoRoot, 'HEAD', `${context.changeRepoPath}/${REVIEW_FILE}`)
 
   const gate = extractGateBlock(reviewText)
   validateGateShape(gate)
@@ -1238,10 +1440,11 @@ async function verifyMode(context, options) {
     reviewedCommit: gate.reviewed_commit,
   })
 
-  await assertScopeResolves(context.changeDir, gate.scope_id)
-  await assertEpochSequence(context.changeDir, gate.review_epoch)
+  assertScopeResolves(context, gate.scope_id)
+  assertEpochSequence(context, gate.review_epoch)
 
   const baseCommit = resolveBaseCommit(context.repoRoot, options.base)
+  const freshness = assertBaseIsCurrent(context.repoRoot, baseCommit, options)
   if (baseCommit !== gate.reviewed_base_commit) {
     fail(
       'REVIEW_BASE_DRIFT',
@@ -1263,6 +1466,7 @@ async function verifyMode(context, options) {
       `scope=${gate.scope_id}`,
       `reviewed_commit=${gate.reviewed_commit}`,
       `base=${gate.reviewed_base_commit}`,
+      `freshness=${freshness}`,
       `artifacts=${artifacts.length}`,
       `reviewer=${gate.reviewer}`,
       '',

@@ -119,12 +119,29 @@ complete planning package
 `tasks.md` owns scope and declares one `<!-- review-scope: <id> -->` marker per
 independently releasable scope. The review block refers to a scope **only by
 id** — it never restates the scope's paths, tasks, requirements, or
-authorization, so scope keeps exactly one authority. A one-scope change declares
-one id and runs one epoch.
+authorization, so scope keeps exactly one authority.
 
-Superseded rounds move to `reviews/<epoch>-<sha12>.md`, and the directory
-listing IS the admitted epoch sequence — no hand-maintained count can drift from
-it. Epoch N requires exactly epochs 1..N-1 in history: no skip, no duplicate, no
+**An epoch is a review attempt, not a scope ordinal.** `review_epoch` counts
+review boundaries and increases monotonically across the change; `scope_id` says
+which scope a given boundary reviewed. A scope can need several epochs — most
+obviously when the base advances before implementation begins — so epoch N does
+not mean "the Nth scope":
+
+```text
+epoch 1 -> scope A     accepted
+base advances
+epoch 2 -> scope A     focused base-freshness review
+epoch 3 -> scope B     after scope A is released
+```
+
+A single-scope change that is reviewed once declares one id and runs one epoch.
+
+Superseded rounds move to `reviews/<epoch>-<reviewed-sha12>.md`. **Admission is
+mechanical, not a naming convention**: a round counts only if it is committed,
+named for its own epoch and reviewed commit, and carries a gate block whose
+contract, epoch, reviewed commit, and `ARCHITECTURE_ACCEPTED` verdict all agree
+with that name. A placeholder file called `1-anything.md` admits nothing. Epoch
+N requires exactly the admitted epochs 1..N-1: no skip, no duplicate, no
 regression.
 
 ## When to run it — and when not to
@@ -171,8 +188,15 @@ A review is accepted against one exact target-base commit, recorded as
 origin/main`) and records the **resolved SHA** — never the mutable ref, which
 would be an authority that changes without anybody deciding.
 
-If the target branch advances, `verify` refuses with `REVIEW_BASE_DRIFT` and a
+If the recorded base moves, `verify` refuses with `REVIEW_BASE_DRIFT` and a
 fresh epoch is required.
+
+**Resolvable is not current.** `origin/main` is a local remote-tracking ref that
+can be arbitrarily stale, so the gate also demands a freshness proof and never
+assumes one: pass `--base-sha <40-hex>` (an authoritative SHA — in CI, the pull
+request's base) or `--remote <remote>/<branch>` to consult the live ref. An
+unreachable remote refuses with `BASE_FRESHNESS_UNPROVEN` rather than assuming
+the local ref is fresh, and a stale local ref refuses with `REVIEW_BASE_STALE`.
 
 **A base advance does not automatically mean architectural redesign.** When the
 planning bytes are unchanged and the base movement does not touch their

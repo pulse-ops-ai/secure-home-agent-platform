@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -147,63 +148,77 @@ def test_the_parser_understands_per_change_v2_selection(
     assert "Source: project" in result.stdout
 
 
-def test_the_parser_agrees_the_dag_is_serialized(cli_available: bool) -> None:
-    """proposal -> specs -> design -> assurance -> tasks -> review.
+def _status(root: Path) -> dict[str, Any]:
+    result = _openspec("status", "--change", "conformance-probe", "--json", cwd=root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload: dict[str, Any] = json.loads(result.stdout)
+    return payload
 
-    Read from the schema the parser just accepted, so this cannot pass against
-    a schema the parser would reject.
+
+def _artifact(status: dict[str, Any], artifact_id: str) -> dict[str, Any]:
+    return next(a for a in status["artifacts"] if a["id"] == artifact_id)
+
+
+def test_the_parser_reports_apply_blocked_until_the_review_exists(
+    tmp_path: Path, cli_available: bool
+) -> None:
+    """Ask OPENSPEC whether apply is blocked, not the schema text.
+
+    An earlier version grepped the schema for `- preimplementation-review` under
+    `apply:`, which proves the file says so and not that the parser enforces it.
+    This drives the pinned binary through the actual transition.
     """
-    assert _openspec("schema", "validate", SCHEMA).returncode == 0
+    root = _fixture_change(tmp_path)
 
-    schema = (REPO_ROOT / "openspec" / "schemas" / SCHEMA / "schema.yaml").read_text()
-    sections: dict[str, list[str]] = {}
-    current = None
-    for line in schema.splitlines():
-        if line.startswith("  - id: "):
-            current = line.split("id: ", 1)[1].strip()
-            sections[current] = []
-        elif current is not None:
-            sections[current].append(line)
+    before = _status(root)
+    assert before["applyRequires"] == ["preimplementation-review"]
+    assert before["isPlanningComplete"] is False
+    assert _artifact(before, "preimplementation-review")["status"] != "done"
 
-    def requires(artifact: str) -> list[str]:
-        """Read the `requires:` KEY, not the word.
+    (
+        root / "openspec" / "changes" / "conformance-probe" / "preimplementation-review.md"
+    ).write_text("# Pre-Implementation Review\n\nAccepted for the probe.\n")
 
-        Prose inside a description ("A P1 requires:") matched a naive split and
-        returned description bullets, so the assertion below passed against text
-        rather than the graph. The key is anchored to its own indentation.
-        """
-        out: list[str] = []
-        collecting = False
-        for line in sections[artifact]:
-            if line.rstrip() == "    requires:":
-                collecting = True
-                continue
-            if line.rstrip() == "    requires: []":
-                return []
-            if not collecting:
-                continue
-            stripped = line.strip()
-            if stripped.startswith("#"):
-                continue
-            if stripped.startswith("- "):
-                out.append(stripped[2:].strip())
-                continue
-            if stripped:
-                break
-        return out
-
-    assert requires("specs") == ["proposal"]
-    assert requires("design") == ["proposal", "specs"], "design must be based on the specs"
-    assert set(requires("assurance")) >= {"specs", "design"}
-    assert "assurance" in requires("tasks")
-    assert set(requires("preimplementation-review")) >= set(ARTIFACTS[:-1])
+    after = _status(root)
+    assert after["isPlanningComplete"] is True
+    assert _artifact(after, "preimplementation-review")["status"] == "done"
 
 
-def test_the_parser_requires_review_before_apply(cli_available: bool) -> None:
-    assert _openspec("schema", "validate", SCHEMA).returncode == 0
-    schema = (REPO_ROOT / "openspec" / "schemas" / SCHEMA / "schema.yaml").read_text()
-    apply_block = schema.split("\napply:", 1)[1]
-    assert "- preimplementation-review" in apply_block
+def test_the_parser_resolves_this_change_onto_v2(tmp_path: Path, cli_available: bool) -> None:
+    """Ask for the CHANGE's resolved schema, not merely that v2 exists."""
+    root = _fixture_change(tmp_path)
+    status = _status(root)
+    assert status["schemaName"] == SCHEMA
+    # The project default is untouched by the change's opt-in.
+    assert status["planningHome"]["defaultSchema"] != SCHEMA
+    assert (
+        (root / "openspec" / "config.yaml")
+        .read_text()
+        .startswith("schema: governed-spec-driven-v1")
+    )
+
+
+def test_the_parser_itself_reports_the_serialized_dag(tmp_path: Path, cli_available: bool) -> None:
+    """The DAG as OPENSPEC computes it, not as the YAML reads.
+
+    A text-parsing assertion can agree with a schema the parser would reject, or
+    disagree with how the parser actually resolves dependencies.
+    """
+    root = _fixture_change(tmp_path)
+    status = _status(root)
+    requires = {a["id"]: a["requires"] for a in status["artifacts"]}
+
+    assert requires["specs"] == ["proposal"]
+    assert requires["design"] == ["proposal", "specs"], "design must be based on the specs"
+    assert set(requires["assurance"]) >= {"specs", "design"}
+    assert "assurance" in requires["tasks"]
+    assert set(requires["preimplementation-review"]) >= {
+        "proposal",
+        "specs",
+        "design",
+        "assurance",
+        "tasks",
+    }
 
 
 def test_a_change_missing_a_required_artifact_is_refused(

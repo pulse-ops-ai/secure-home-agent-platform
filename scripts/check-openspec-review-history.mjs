@@ -275,9 +275,15 @@ export function checkReviewHistory(root = DEFAULT_ROOT, explicitBase = undefined
       // there; it belongs to the live change that is still being reviewed.
       const relative = from.slice(from.lastIndexOf('/reviews/') + '/reviews/'.length)
       const liveSource = `${CHANGES}${ARCHIVED_REVIEW_RE.exec(from)[2]}/reviews/${relative}`
-      const before = blobId(root, base.ref, liveSource)
-      const after = blobId(root, 'HEAD', from)
-      if (before !== undefined && after !== undefined && before === after) {
+      // The SAME provenance the rename and delete paths require. Byte equality
+      // alone let an added archived review take a weaker path: a COPY could
+      // appear under archive/ while the live change stayed active.
+      if (blobId(root, base.ref, liveSource) !== undefined) {
+        const problem = archiveMoveProblem(root, base.ref, liveSource, from)
+        if (problem !== undefined) {
+          fail(`review history ${problem}`)
+          continue
+        }
         archived += 1
         continue
       }

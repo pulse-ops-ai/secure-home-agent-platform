@@ -295,7 +295,19 @@ Rules:
 - a single-scope change declares exactly one;
 - a marker inside a fenced block is documentation, not a declaration.
 
-Each scope gets its own **review epoch**: epoch 1 authorizes the first scope,
-epoch 2 the next, and so on. External implementation authorization stays here,
-in the Implementation Authorization section — it is never copied into the review
-block.
+**An epoch is a review attempt, not a scope ordinal.** `review_epoch` counts
+review boundaries; `scope_id` says which scope that boundary reviewed. The two
+are independent:
+
+```text
+epoch 1 -> scope A     accepted
+base advances before implementation begins
+epoch 2 -> scope A     again, this time a focused base-freshness review
+epoch 3 -> scope B     once scope A is released
+```
+
+A scope may therefore hold several epochs, and epoch N does **not** mean "the
+Nth scope". Epochs increase monotonically across the whole change.
+
+External implementation authorization stays here, in the Implementation
+Authorization section — it is never copied into the review block.

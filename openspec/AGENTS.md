@@ -79,7 +79,8 @@ each scope**, and not at any later point within that scope:
 
 ```sh
 pnpm exec openspec validate <change-name> --strict
-pnpm run review:verify -- --change <change-name> --base origin/main
+pnpm run review:verify -- --change <change-name> \
+    --base origin/main --remote origin/main
 ```
 
 Stop on any refusal.
@@ -89,9 +90,18 @@ a continuous check: the gate refuses repository changes made after the reviewed
 planning commit, so re-running it during implementation will and should fail —
 that refusal is what tells you the next scope needs its own epoch.
 
-**The base is bound too.** A review is accepted against one exact base commit,
-recorded as `reviewed_base_commit`. If the target branch advances, verify
-refuses with `REVIEW_BASE_DRIFT` and a fresh epoch is required. That epoch is
+**The base is bound, and its freshness is proved.** A review is accepted
+against one exact base commit, recorded as `reviewed_base_commit`. A local
+`origin/main` can be arbitrarily stale, so the gate additionally requires either
+`--base-sha` (an authoritative SHA — in CI, the pull request's base) or
+`--remote` to consult the live ref; it never assumes the local ref is current.
+If the base moved, verify refuses with `REVIEW_BASE_DRIFT` and a fresh epoch is
+required.
+
+**An epoch is a review attempt, not a scope ordinal.** `review_epoch` counts
+review boundaries across the whole change; `scope_id` says which scope a
+boundary reviewed. A scope may need several epochs — a base advance before
+implementation is the ordinary case. That epoch is
 **not automatically another unrestricted architecture audit**: when the planning
 bytes are unchanged and the base movement does not touch their assumptions, it
 may be a focused base-freshness review.
