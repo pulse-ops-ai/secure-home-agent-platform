@@ -11,8 +11,11 @@ check-set-releases.mjs versus check-release-history.mjs.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "check-openspec-review-history.mjs"
@@ -27,9 +30,16 @@ def _git(repo: Path, *args: str) -> None:
         check=True,
         capture_output=True,
         text=True,
+        # Matches tests/test_release_history.py: the host's git configuration
+        # must not reach the fixture. A system /etc/gitconfig can set
+        # init.defaultBranch -- colliding with the `main` these tests create --
+        # or commit.gpgsign, which would demand a signing key. PATH is inherited
+        # because /usr/bin:/bin holds no git on Homebrew or Nix hosts.
         env={
-            "PATH": "/usr/bin:/bin",
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": str(repo),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_AUTHOR_NAME": "t",
             "GIT_AUTHOR_EMAIL": "t@e",
             "GIT_COMMITTER_NAME": "t",
@@ -47,7 +57,7 @@ def _write(repo: Path, relative: str, text: str) -> None:
 def _repo_with_round(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir(parents=True)
-    _git(repo, "init", "-q")
+    _git(repo, "init", "-q", "-b", "fixture")
     _write(repo, ROUND, "# round 1\n\nfindings\n")
     _write(repo, "openspec/changes/demo/proposal.md", "# proposal\n")
     _git(repo, "add", "-A")
@@ -135,37 +145,39 @@ def test_renaming_a_round_inside_the_live_change_is_refused(tmp_path: Path) -> N
 # ── the archive carve-out ────────────────────────────────────────────────────
 
 
-def test_a_byte_identical_archive_move_is_allowed(tmp_path: Path) -> None:
-    """Archiving a change relocates its whole directory. That must keep working."""
+def test_an_undated_archive_path_is_refused(tmp_path: Path) -> None:
+    """The repository convention is archive/YYYY-MM-DD-<change-name>/.
+
+    An undated archive directory is not the archive operation this exception
+    exists for, so byte equality alone must not admit it.
+    """
     repo = _repo_with_round(tmp_path)
     (repo / "openspec" / "changes" / "archive" / "demo" / "reviews").mkdir(parents=True)
+    _git(repo, "mv", ROUND, "openspec/changes/archive/demo/reviews/001-abc123def456.md")
     _git(
         repo,
         "mv",
-        "openspec/changes/demo/reviews/001-abc123def456.md",
-        "openspec/changes/archive/demo/reviews/001-abc123def456.md",
+        "openspec/changes/demo/proposal.md",
+        "openspec/changes/archive/demo/proposal.md",
     )
-    _git(
-        repo, "mv", "openspec/changes/demo/proposal.md", "openspec/changes/archive/demo/proposal.md"
-    )
-    _git(repo, "commit", "-qm", "archive the change")
-    result = _check(repo)
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "1 archived" in result.stdout
+    _git(repo, "commit", "-qm", "archive without a date")
+    _refused(_check(repo), "openspec/changes/archive/YYYY-MM-DD-")
 
 
 def test_an_archive_move_that_also_edits_the_round_is_refused(tmp_path: Path) -> None:
     """Relocation preserves a round; relocation plus an edit does not."""
     repo = _repo_with_round(tmp_path)
-    archived = repo / "openspec" / "changes" / "archive" / "demo" / "reviews"
-    archived.mkdir(parents=True)
-    _git(
-        repo,
-        "mv",
-        "openspec/changes/demo/reviews/001-abc123def456.md",
-        "openspec/changes/archive/demo/reviews/001-abc123def456.md",
+    _archive(repo, "demo", "2026-08-26-demo")
+    archived = (
+        repo
+        / "openspec"
+        / "changes"
+        / "archive"
+        / "2026-08-26-demo"
+        / "reviews"
+        / "001-abc123def456.md"
     )
-    (archived / "001-abc123def456.md").write_text("# round 1\n\nedited during archive\n")
+    archived.write_text("# round 1\n\nedited during archive\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "archive and edit")
     _refused(_check(repo), "modified bytes")
@@ -230,6 +242,33 @@ def test_the_history_check_is_an_unconditional_governance_step() -> None:
     assert "check:review-history" in governance, "the step is not in the governance job"
 
 
+def test_the_local_aggregate_runs_it_without_the_pnpm_workspace() -> None:
+    """It is Node-stdlib only, so it must not be contingent on pnpm.
+
+    check.sh gates the workspace checks behind pnpm; a stdlib checker parked
+    there would be skipped on a host with no workspace installed -- exactly the
+    freshly-provisioned Pi the stdlib section exists for.
+    """
+    check_sh = (REPO_ROOT / "scripts" / "check.sh").read_text()
+    invocation = [
+        line
+        for line in check_sh.splitlines()
+        if "check-openspec-review-history.mjs" in line and not line.strip().startswith("#")
+    ]
+    assert invocation, "check.sh does not run the review-history checker"
+    assert all("pnpm" not in line for line in invocation), (
+        f"review history is behind the pnpm gate: {invocation}"
+    )
+    assert any(line.strip().startswith("run ") for line in invocation)
+
+    # And it must be in the node-guarded block, with an explicit skip.
+    node_block = check_sh.split("if command -v node")[1].split("# --- TypeScript")[0]
+    assert "check-openspec-review-history.mjs" in node_block
+    assert 'skip "openspec review history"' in node_block, (
+        "a missing node must be reported as a skip, never a silent pass"
+    )
+
+
 def test_the_pre_apply_gate_is_deliberately_not_a_ci_step() -> None:
     """The lifecycle distinction, asserted rather than only documented.
 
@@ -257,3 +296,163 @@ def test_the_pre_apply_gate_is_deliberately_not_a_ci_step() -> None:
             assert "review:verify" not in line, (
                 f"{surface} invokes review:verify at {line.strip()!r}"
             )
+
+
+# ── a failed comparison must refuse, never read as "nothing changed" ─────────
+
+
+def test_a_failed_git_comparison_refuses_rather_than_reporting_zero(tmp_path: Path) -> None:
+    """`git(...) ?? ''` was fail-open.
+
+    The helper returns undefined for ANY subprocess failure, so a comparison
+    that could not be established was indistinguishable from one that found no
+    changed review files. The base resolves fine here; it is the authoritative
+    diff itself that fails, which is the case the old code turned into success.
+
+    The fixture ALSO contains a real violation, so a checker that silently
+    compared nothing would exit 0 and be caught by this test twice over.
+    """
+    repo = _repo_with_round(tmp_path)
+    _write(repo, ROUND, "# round 1\n\nrewritten\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "rewrite")
+
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo), "--base", "HEAD~1"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "REVIEW_HISTORY_MAX_BUFFER": "1"},
+    )
+    assert result.returncode == 1, result.stdout
+    assert "could not be established" in result.stderr
+    assert "NOTHING was compared" in result.stderr
+
+
+# ── CLI hardening, ported from the review gate ──────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("args", "fragment"),
+    [
+        (["--base"], "requires a value"),
+        (["--root"], "requires a value"),
+        (["--base", "--root", "x"], "requires a value"),
+        (["--nope", "x"], 'unknown option "--nope"'),
+        (["--base", "HEAD~1", "--base", "HEAD~1"], "was supplied twice"),
+    ],
+)
+def test_malformed_invocation_is_refused(tmp_path: Path, args: list[str], fragment: str) -> None:
+    repo = _repo_with_round(tmp_path)
+    result = subprocess.run(
+        ["node", str(SCRIPT), "--root", str(repo), *args]
+        if "--root" not in args
+        else ["node", str(SCRIPT), *args],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, result.stdout
+    assert fragment in result.stderr, result.stderr
+
+
+def test_invocation_through_a_symlink_still_runs_the_checker(tmp_path: Path) -> None:
+    """Comparing process.argv[1] raw would exit 0 having run nothing.
+
+    A silent no-op that reads as PASS is the worst failure mode a gate has.
+    """
+    repo = _repo_with_round(tmp_path)
+    _write(repo, ROUND, "# round 1\n\nrewritten\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "rewrite")
+
+    link = tmp_path / "review-history-link.mjs"
+    link.symlink_to(SCRIPT)
+    result = subprocess.run(
+        ["node", str(link), "--root", str(repo), "--base", "HEAD~1"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, f"the symlinked invocation ran nothing:\n{result.stdout}"
+    assert "was modified" in result.stderr
+
+
+# ── archive provenance, not only archive bytes ──────────────────────────────
+
+
+def _archive(repo: Path, change: str, dated: str) -> None:
+    (repo / "openspec" / "changes" / "archive" / dated / "reviews").mkdir(parents=True)
+    for relative in ("reviews/001-abc123def456.md", "proposal.md"):
+        source = f"openspec/changes/{change}/{relative}"
+        target = f"openspec/changes/archive/{dated}/{relative}"
+        _git(repo, "mv", source, target)
+
+
+def test_a_real_dated_whole_change_archive_passes(tmp_path: Path) -> None:
+    """Ordinary archiving must keep working; this is the control."""
+    repo = _repo_with_round(tmp_path)
+    _archive(repo, "demo", "2026-08-26-demo")
+    _git(repo, "commit", "-qm", "archive demo")
+    result = _check(repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 archived" in result.stdout
+
+
+def test_a_review_only_move_while_the_change_stays_live_is_refused(tmp_path: Path) -> None:
+    """Byte equality alone accepted this: the change is still active."""
+    repo = _repo_with_round(tmp_path)
+    (repo / "openspec" / "changes" / "archive" / "2026-08-26-demo" / "reviews").mkdir(parents=True)
+    _git(
+        repo,
+        "mv",
+        ROUND,
+        "openspec/changes/archive/2026-08-26-demo/reviews/001-abc123def456.md",
+    )
+    _git(repo, "commit", "-qm", "move only the review")
+    _refused(_check(repo), "still live")
+
+
+def test_a_review_moved_under_another_changes_archive_identity_is_refused(
+    tmp_path: Path,
+) -> None:
+    repo = _repo_with_round(tmp_path)
+    (repo / "openspec" / "changes" / "archive" / "2026-08-26-other" / "reviews").mkdir(parents=True)
+    _git(
+        repo,
+        "mv",
+        ROUND,
+        "openspec/changes/archive/2026-08-26-other/reviews/001-abc123def456.md",
+    )
+    _git(
+        repo,
+        "mv",
+        "openspec/changes/demo/proposal.md",
+        "openspec/changes/archive/2026-08-26-other/proposal.md",
+    )
+    _git(repo, "commit", "-qm", "archive under the wrong identity")
+    _refused(_check(repo), "another change")
+
+
+def test_a_new_round_first_appearing_inside_an_archived_change_is_refused(
+    tmp_path: Path,
+) -> None:
+    """An archived change is a closed record.
+
+    Adding a round directly under archive/ would let history grow where nobody
+    is reviewing it. Rounds are added to the live change, then archived with it.
+    """
+    repo = _repo_with_round(tmp_path)
+    _archive(repo, "demo", "2026-08-26-demo")
+    _git(repo, "commit", "-qm", "archive demo")
+    _write(
+        repo,
+        "openspec/changes/archive/2026-08-26-demo/reviews/002-late.md",
+        "# a round nobody reviewed\n",
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "sneak a round into the archive")
+    _refused(_check(repo, base="HEAD~1"), "first appears inside an archived change")

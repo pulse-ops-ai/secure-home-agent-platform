@@ -36,6 +36,40 @@ const REVIEWED_AT_PLACEHOLDER = 'REPLACE_WITH_RFC3339_TIMESTAMP'
  */
 const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
 
+/**
+ * RFC 3339 shape is not a calendar.
+ *
+ * `Date.parse('2026-02-30T00:00:00Z')` NORMALISES to 2 March and returns a
+ * number, so a shape check plus `Date.parse` accepts dates that never existed.
+ * The components are therefore range-checked directly, including leap years.
+ */
+function isRealInstant(value) {
+  const match = RFC3339.exec(value)
+  if (match === null) return false
+
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  const [hour, minute, second] = value.slice(11, 19).split(':').map(Number)
+
+  if (month < 1 || month > 12) return false
+  if (hour > 23 || minute > 59) return false
+  // 60 is a leap second, which RFC 3339 permits.
+  if (second > 60) return false
+
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+  const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (day < 1 || day > lengths[month - 1]) return false
+
+  const offset = value.slice(19)
+  if (offset !== 'Z' && !offset.startsWith('.')) {
+    const sign = offset.slice(-6)
+    const offsetHour = Number(sign.slice(1, 3))
+    const offsetMinute = Number(sign.slice(4, 6))
+    if (offsetHour > 23 || offsetMinute > 59) return false
+  }
+
+  return true
+}
+
 const VERDICT_TOKENS = [
   'REVIEW_REQUIRED',
   'ARCHITECTURE_ACCEPTED',
@@ -308,6 +342,77 @@ async function readSchemaSelection(changeDir) {
   }
 }
 
+/**
+ * Every path the committed tree carries under the change directory, with its
+ * mode, so a symlink entry can be told from a regular file.
+ *
+ * `git ls-tree -r` emits `<mode> SP <type> SP <object> TAB <path>`.
+ */
+function trackedAtHead(repoRoot, changeRepoPath) {
+  // -z, not the default: git QUOTES non-ASCII paths under core.quotePath, so
+  // `specs/x/Ábaco.md` comes back as "specs/x/\303\201baco.md" and matches no
+  // path discovery produced. NUL termination also survives a newline in a name.
+  const listing = runGit(repoRoot, ['ls-tree', '-r', '-z', 'HEAD', '--', changeRepoPath], {
+    allowFailure: true,
+  })
+  if (listing === null) {
+    fail(
+      'HEAD_TREE_UNREADABLE',
+      `could not read the committed tree at HEAD for ${changeRepoPath}; nothing ` +
+        'was compared, so the planning set could not be proved committed',
+    )
+  }
+
+  const tracked = new Map()
+  for (const entry of listing.split('\0')) {
+    if (entry.length === 0) continue
+    const tab = entry.indexOf('\t')
+    if (tab === -1) continue
+    const mode = entry.slice(0, entry.indexOf(' '))
+    const repoPath = entry.slice(tab + 1)
+    tracked.set(repoPath.slice(`${changeRepoPath}/`.length), mode)
+  }
+  return tracked
+}
+
+/**
+ * PROVE THE MANIFEST DESCRIBES THE PINNED COMMIT, NOT THE WORKING DIRECTORY.
+ *
+ * The artifact set was discovered with `readdir`, while the clean-worktree check
+ * uses `git ls-files --others --exclude-standard` — which excludes IGNORED
+ * files. An ignored, untracked `specs/**.md` was therefore invisible to the
+ * clean check and visible to discovery, so it could enter `reviewed_artifacts`
+ * with a digest while existing in no commit at all. The entire contract is that
+ * the manifest names bytes inside `reviewed_commit`; that let it name bytes that
+ * were nowhere.
+ *
+ * Git's committed tree is the authority. Ignored files elsewhere in the
+ * repository stay ignored — the requirement is only that everything ADMITTED to
+ * the planning manifest is committed.
+ */
+function assertPlanningPathsTracked(repoRoot, changeRepoPath, paths) {
+  const tracked = trackedAtHead(repoRoot, changeRepoPath)
+  const untracked = paths.filter((relative) => !tracked.has(relative))
+
+  if (untracked.length > 0) {
+    fail(
+      'PLANNING_FILE_NOT_TRACKED',
+      'planning artifacts are not committed at HEAD, so no review could bind ' +
+        `them:\n${untracked.map((item) => `  - ${item}`).join('\n')}`,
+    )
+  }
+
+  const symlinked = paths.filter((relative) => tracked.get(relative) === '120000')
+  if (symlinked.length > 0) {
+    fail(
+      'PLANNING_FILE_NOT_REGULAR',
+      `planning artifacts are symlinks in the committed tree:\n${symlinked
+        .map((item) => `  - ${item}`)
+        .join('\n')}`,
+    )
+  }
+}
+
 async function planningPaths(changeDir) {
   await readSchemaSelection(changeDir)
 
@@ -332,8 +437,10 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function artifactManifest(changeDir) {
+async function artifactManifest(context) {
+  const { changeDir, repoRoot, changeRepoPath } = context
   const paths = await planningPaths(changeDir)
+  assertPlanningPathsTracked(repoRoot, changeRepoPath, paths)
   return Promise.all(
     paths.map(async (relative) => {
       const bytes = await readFile(path.join(changeDir, relative))
@@ -470,7 +577,7 @@ function validateGateShape(gate) {
       `reviewed_at must be an RFC 3339 date-time; got ${gate.reviewed_at}`,
     )
   }
-  if (Number.isNaN(Date.parse(gate.reviewed_at))) {
+  if (!isRealInstant(gate.reviewed_at)) {
     fail(
       'INVALID_REVIEWED_AT',
       `reviewed_at is RFC 3339-shaped but not a real instant: ${gate.reviewed_at}`,
@@ -532,8 +639,8 @@ function validateGateShape(gate) {
   }
 }
 
-async function verifyArtifactManifest(changeDir, gate) {
-  const actual = await artifactManifest(changeDir)
+async function verifyArtifactManifest(context, gate) {
+  const actual = await artifactManifest(context)
   const declared = gate.reviewed_artifacts
 
   const actualPaths = actual.map((item) => item.path)
@@ -883,7 +990,7 @@ function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit }) {
 async function manifestMode(context) {
   assertManifestWorktreeClean(context.repoRoot)
 
-  const artifacts = await artifactManifest(context.changeDir)
+  const artifacts = await artifactManifest(context)
   const reviewedCommit = runGit(context.repoRoot, ['rev-parse', 'HEAD'])
 
   const gate = {
@@ -917,7 +1024,7 @@ async function verifyMode(context) {
 
   const gate = extractGateBlock(reviewText)
   validateGateShape(gate)
-  const artifacts = await verifyArtifactManifest(context.changeDir, gate)
+  const artifacts = await verifyArtifactManifest(context, gate)
   assertReviewBody(reviewText)
   assertRepositoryPin({
     repoRoot: context.repoRoot,

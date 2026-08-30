@@ -474,3 +474,98 @@ def test_artifact_order_is_locale_independent(tmp_path: Path) -> None:
         orders.append([a["path"] for a in json.loads(body.group(1))["reviewed_artifacts"]])
 
     assert orders[0] == orders[1] == orders[2], f"artifact order is locale-dependent: {orders}"
+
+
+# ── the manifest must describe the pinned commit, not the working directory ──
+
+
+def _ignore(repo: Path, pattern: str) -> None:
+    """Ignore a path the way a real .gitignore would, without adding a file.
+
+    `.git/info/exclude` is used deliberately: a tracked `.gitignore` would
+    itself change the planning package, and the defect under test is precisely
+    a file that `git ls-files --others --exclude-standard` cannot see.
+    """
+    exclude = repo / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a") as handle:
+        handle.write(f"{pattern}\n")
+
+
+def test_an_ignored_untracked_delta_spec_never_enters_the_manifest(tmp_path: Path) -> None:
+    """The blocker: ignored files are invisible to the clean-worktree check.
+
+    Discovery used readdir, so an ignored spec could be digested into
+    reviewed_artifacts while existing in no commit -- the manifest would name
+    bytes that are nowhere in reviewed_commit.
+    """
+    repo = _planning_repo(tmp_path)
+    _ignore(repo, "ghost.md")
+    (repo / "openspec" / "changes" / "demo" / "specs" / "capability" / "ghost.md").write_text(
+        "# ghost\n"
+    )
+    assert _git(repo, "status", "--porcelain").strip() == "", "the fixture must look clean to git"
+    assert _refusal(_gate(repo, "manifest")) == "PLANNING_FILE_NOT_TRACKED"
+
+
+def test_an_ignored_untracked_required_artifact_is_refused(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _git(repo, "rm", "-q", "openspec/changes/demo/tasks.md")
+    _git(repo, "commit", "-qm", "remove tasks")
+    _ignore(repo, "tasks.md")
+    (repo / "openspec" / "changes" / "demo" / "tasks.md").write_text("# tasks\n")
+    assert _git(repo, "status", "--porcelain").strip() == ""
+    assert _refusal(_gate(repo, "manifest")) == "PLANNING_FILE_NOT_TRACKED"
+
+
+def test_verify_refuses_a_planning_package_holding_an_untracked_artifact(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    _ignore(repo, "ghost.md")
+    (repo / "openspec" / "changes" / "demo" / "specs" / "capability" / "ghost.md").write_text(
+        "# ghost\n"
+    )
+    assert _git(repo, "status", "--porcelain").strip() == ""
+    assert _refusal(_gate(repo, "verify")) == "PLANNING_FILE_NOT_TRACKED"
+
+
+def test_every_manifest_artifact_exists_in_the_reviewed_commit(tmp_path: Path) -> None:
+    """The positive form of the same property, checked against Git itself."""
+    repo = _planning_repo(tmp_path)
+    gate = _manifest(repo)
+    commit = gate["reviewed_commit"]
+    for artifact in gate["reviewed_artifacts"]:
+        blob = _git(repo, "cat-file", "-e", f"{commit}:openspec/changes/demo/{artifact['path']}")
+        assert blob == "", f"{artifact['path']} is not in {commit}"
+
+
+# ── reviewed_at must be a real calendar instant ─────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-02-29T00:00:00Z",  # 2026 is not a leap year
+        "2026-02-30T00:00:00Z",  # Date.parse normalises this to 2 March
+        "2026-04-31T00:00:00Z",
+        "2026-00-10T00:00:00Z",
+        "2026-08-26T24:00:00Z",
+        "2026-08-26T09:61:00Z",
+        "2026-08-26T09:15:00+24:00",
+    ],
+)
+def test_an_impossible_calendar_instant_is_refused(tmp_path: Path, value: str) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"reviewed_at": value})
+    assert _refusal(_gate(repo, "verify")) == "INVALID_REVIEWED_AT"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["2024-02-29T00:00:00Z", "2000-02-29T12:00:00Z", "2026-08-26T23:59:60Z"],
+)
+def test_a_real_calendar_instant_passes(tmp_path: Path, value: str) -> None:
+    """Leap day in a leap year, a century leap year, and a leap second."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"reviewed_at": value})
+    assert _gate(repo, "verify").returncode == 0, value

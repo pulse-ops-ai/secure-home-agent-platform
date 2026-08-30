@@ -118,6 +118,7 @@ node scripts/check-knowledge.mjs       # knowledge registry conformance
 node scripts/check-set-releases.mjs    # real release records and manifest bytes
 node scripts/check-release-history.mjs # what changed since the prior revision
 node scripts/check-openspec-review-history.mjs  # reviews/** are append-only
+#   (stdlib-only: check.sh runs it beside the other node checks, not behind pnpm)
 
 # Pre-apply only — once, before the first implementation change of a v2 change:
 pnpm run review:manifest -- --change <change-name>
