@@ -26,6 +26,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-openspec-review-history.mjs`](check-openspec-review-history.mjs) | The **two-revision** companion: admitted `reviews/**` rounds are append-only. Adding is allowed; modifying, deleting, or renaming one is refused; a byte-identical move into `changes/archive/**` is allowed. Runs always |
 | [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
 | [`check-images.mjs`](check-images.mjs) | Image **lock and lineage** invariants (`deploy/images/image-lock.yaml`): closed lineage classes, immutable external pins, the base→derived digest chain, provider-neutral base/gates definitions, and image inertness. Structural only — real digests come from the governed images workflow |
+| [`image-impact.mjs`](image-impact.mjs) | Fail-closed semantic image-impact analysis: compares a trusted Git revision with the candidate, derives build inputs and dependency closure from the image lock/Dockerfiles/toolchain inventory, and selects no build only when irrelevance is positively proved |
 
 ## What belongs here
 
@@ -125,6 +126,7 @@ node scripts/check-openspec-review-history.mjs  # reviews/** are append-only
 pnpm run review:manifest -- --change <change-name>
 pnpm run review:verify   -- --change <change-name>
 node scripts/check-images.mjs          # image lock and lineage invariants
+node scripts/image-impact.mjs --base <trusted-commit> --head HEAD
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```

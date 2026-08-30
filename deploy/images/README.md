@@ -157,6 +157,218 @@ token, no credential-shaped names).
   bootstrap sentinel `pending-first-governed-build` fails that
   verification loudly until real evidence is recorded.
 
+## Governed CI selection and execution
+
+The workflow has two deliberately separate selection layers:
+
+```text
+broad GitHub path perimeter
+        ↓
+trusted-revision semantic image-impact proof
+        ↓
+affected image dependency closure
+        ↓
+selected multi-platform OCI builds
+        ↓
+lock-authoritative digest and lineage verification
+```
+
+### Why the outer path filter remains broad
+
+The outer `paths` list is conservative on both pull requests and pushes to
+`main`:
+
+```text
+deploy/images/**
+.github/workflows/images.yml
+scripts/check-images.mjs
+scripts/image-impact.mjs
+.github/workflows/checks.yml
+package.json
+scripts/check.sh
+```
+
+For a pull request, GitHub evaluates that filter against the complete
+three-dot PR diff. Once any path above is in the PR, a later synchronization
+can select `images.yml` even when the new commit changes only an unrelated
+review gate. Encoding semantic JSON/YAML fields into `paths` is impossible and
+would make a correctness-sensitive perimeter brittle, so the broad filter only
+decides whether the cheap classifier runs.
+
+[`../../scripts/image-impact.mjs`](../../scripts/image-impact.mjs) owns the
+inner decision. For the first PR run it compares the candidate with the trusted
+base-branch merge-base. On a later synchronization it may compare with the
+previous PR head **only when the GitHub Actions API proves that this exact SHA
+and PR already completed this workflow successfully**. If that lookup fails or
+no successful proof exists, it falls back to the complete PR comparison. A
+push to the protected/default branch compares its previous commit; a manual
+invocation has no transition to prove and therefore builds the complete set.
+
+Only pull-request runs share a cancellable concurrency group. Push and manual
+runs use the unique workflow run ID, so one governance event cannot cancel
+another.
+
+### Authoritative input and dependency model
+
+The classifier does not carry a second hand-maintained image inventory:
+
+- image names, definitions, platforms, lineage classes, parent edges, and
+  locked identities come from [`image-lock.yaml`](image-lock.yaml), through
+  the same strict parser as `check-images.mjs`;
+- local context inputs come from the registered Dockerfile's parsed
+  `COPY`/`ADD` sources, plus the Dockerfile and `.dockerignore` itself;
+- the gates-toolchain's repository-wide semantic version sources come from
+  [`gates-toolchain/toolchain.json`](gates-toolchain/toolchain.json);
+- build/verification machinery and the shared Debian closure authority are
+  global inputs.
+
+| Image | Direct output inputs | Dependency impact |
+|---|---|---|
+| `secure-home-runner-base` | registered Dockerfile; copied AMD64/ARM64 package manifests; external base/identity fields in the lock; shared Debian closure; global build/proof machinery | changing it adds Claude and Copilot transitively |
+| `secure-home-runner-claude` | registered Dockerfile; copied manifests; runtime/tool pins; its lock entry; verified base OCI layout at `parent_digest` | leaf-only; does not add Copilot or gates |
+| `secure-home-runner-copilot` | registered Dockerfile; copied manifests; runtime/helper/tool pins; its lock entry; verified base OCI layout at `parent_digest` | leaf-only; does not add Claude or gates |
+| `secure-home-gates-toolchain` | registered Dockerfile; copied manifests; `toolchain.json`; Node/uv semantic pins in `checks.yml`; pnpm semantic version in `package.json`; its lock entry | independent of the runner lineage |
+
+The exact `package.json` finding matters: image construction consumes the pnpm
+**version** before the Corepack `+sha512...` suffix. The gates Dockerfile pins
+the pnpm tarball bytes independently with `PNPM_SHA256`; it does not consume
+the root Corepack integrity string. Therefore an unrelated dependency/field
+change — or an integrity-suffix-only change with the same pnpm version — cannot
+change this image. A pnpm version change does affect the gates image. The same
+semantic comparison applies to the `NODE_VERSION` and `UV_VERSION` values
+named by the toolchain inventory; unrelated `checks.yml` bytes do not affect
+an image.
+
+The positive no-build proof is:
+
+```text
+trusted base + candidate diff + derived input model + semantic values
+    = no governed image output can differ
+```
+
+An unresolved base/head, failed Git diff, malformed lock or toolchain metadata,
+missing dependency, dependency cycle, unparseable semantic value, ambiguous
+Dockerfile input, or unclassified shared image path emits
+`IMAGE_IMPACT_UNKNOWN`. `UNKNOWN` selects the complete inventory; it never
+means no build.
+
+### Parallel phases, cache, and parent proof
+
+[`scripts/build-plan.mjs`](scripts/build-plan.mjs) projects the selected
+closure into deterministic BuildKit Bake phases:
+
+```text
+runner-base ── verify parent ─┬─ Claude ──┐
+                              └─ Copilot ─┼─ final verify
+gates-toolchain ──────────────────────────┘
+```
+
+Independent targets within a phase run concurrently. The base and gates image
+may run together; after the base OCI layout equals the lock, selected Claude
+and Copilot children may run together. The independent gates digest is checked
+at final verification rather than serializing the runner children. Digest
+collection still follows lock order, so parallel completion order cannot
+change the proof.
+
+Every image has one stable multi-platform GHA BuildKit cache scope:
+
+```text
+secure-home-images-v1-secure-home-runner-base
+secure-home-images-v1-secure-home-runner-claude
+secure-home-images-v1-secure-home-runner-copilot
+secure-home-images-v1-secure-home-gates-toolchain
+```
+
+Each scope carries both declared platforms because each image is one
+multi-platform BuildKit target. `mode=max` retains intermediate layers; scopes
+do not overwrite one another. Cache is an acceleration source only: every
+selected target still exports an OCI layout, and the exported index,
+per-platform manifests, and parent identity still have to equal the lock.
+
+A selected derived leaf needs the unpublished base bytes as a build context.
+Because no governed image is published to a registry, the plan materializes
+the locked base as **support**, normally from its warm BuildKit cache, and
+verifies its index before the leaf consumes it. This is not transitive impact
+(the sibling remains unselected); it is the minimum parent-input work possible
+without inventing a registry or weakening the exact-parent rule. A cold/missing
+cache rebuilds the parent rather than assuming it exists.
+
+### AMD64, ARM64, and QEMU
+
+Every selected image still produces both `linux/amd64` and `linux/arm64`.
+GitHub's hosted runner is AMD64, so the pinned binfmt/QEMU helper executes
+ARM64 build instructions under emulation. QEMU setup itself is only a few
+seconds; emulated `RUN` instructions are the cost. It is intentionally skipped
+only when the semantic classifier proves that **no** image build is needed.
+Native ARM64 runners remain a possible follow-up after semantic skipping,
+closure, caching, and parallelism are measured; this change introduces no new
+runner trust model or infrastructure.
+
+### Baseline measured before optimization
+
+Measured on 2026-08-30 from 11 successful current-shape workflow runs between
+Actions runs `33170862120` and `33309513089` (2026-08-28 through
+2026-08-30):
+
+| Step | Median duration |
+|---|---:|
+| job setup + checkout | 2 s |
+| QEMU setup | 5 s |
+| Buildx setup | 5 s |
+| static lineage | < 1 s |
+| governed four-image multi-platform build | 12 min 45 s |
+| digest verification + inspection | < 1 s |
+| total job | 13 min 1 s |
+
+The current-shape runs `33170862120` and `33309513089` also expose the
+serialization cost:
+
+| Image | Typical elapsed |
+|---|---:|
+| runner-base | 1 min 33 s |
+| gates-toolchain | 3 min 45 s |
+| Claude leaf | 3 min 14 s |
+| Copilot leaf | 4 min 10 s |
+
+Run `33309513089` is the direct unnecessary-build example. Its new commit
+changed only `.github/workflows/review-boundary.yml`,
+`scripts/openspec-review-gate.mjs`, and two review tests. The complete PR still
+contained `checks.yml`, `package.json`, and `scripts/check.sh`, so GitHub
+selected `images.yml` and the build step ran for 12 min 47 s (13 min 5 s job;
+13 min 8 s workflow wall clock).
+
+There was no persistent BuildKit import/export in that baseline. Only the QEMU
+setup action restored its helper image cache. One fresh builder ran
+runner-base, gates, Claude, then Copilot serially. The old concurrency group
+cancelled every same-ref event, including manual events, and the workflow had
+no push-to-`main` trigger.
+
+ARM64 emulation dominated the representative run's principal `RUN` step:
+
+| Image | AMD64 | ARM64/QEMU |
+|---|---:|---:|
+| runner-base | 5.9 s | 89.7 s |
+| gates-toolchain | 19.2 s | 174.9 s |
+| Claude leaf | 18.2 s | 132.0 s |
+| Copilot leaf | 23.3 s | 159.4 s |
+
+### Hosted before/after evidence
+
+Local Docker execution is prohibited by [`../AGENTS.md`](../AGENTS.md), so
+performance conclusions come from hosted Actions, never a developer-machine
+timing. The optimization PR records four cases before merge:
+
+| Case | Selected proof | Hosted result |
+|---|---|---|
+| unrelated synchronization | semantic no-impact; no QEMU/Buildx/build | pending optimization-PR run |
+| one leaf | leaf plus verified cached base support; both platforms | pending optimization-PR run |
+| runner-base | base + Claude + Copilot; both platforms | pending optimization-PR run |
+| full governance/build change | all four images; both platforms | pending optimization-PR run |
+
+The full build remains mandatory for global build/verification machinery,
+shared package-closure changes, inventory changes, manual invocation, and every
+unknown/unclassifiable state.
+
 ## What does not belong here
 
 - **Credentials or API keys.** Provisioned at run time from the profile,
