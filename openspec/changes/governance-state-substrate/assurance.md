@@ -29,6 +29,11 @@ requirement, and authorizes no implementation.
 > is closed to unlinked identities; pre-change currentness and first-appearance
 > proofs move fully into PR-2; activation freshness becomes a gated proof; and
 > PR-3 staging/freeze scopes are verification-only rather than whole subtrees.
+
+> **Revised after review 5059408696** — freshness extraction and proof move to
+> PR-2; candidate identity and final activation-base equality are explicit;
+> candidate and intent deletions gain authoring owners; withdrawal succession
+> moves to PR-2; and the replacement-fork control is stated directly.
 >
 > **Revised after review 5056996739.** The previous version called PR-1
 > through PR-3 a shadow phase in which the canonical registry existed beside the
@@ -209,9 +214,10 @@ accordingly.
   gate has no delivery lifecycle. The history model additionally proves that
   the target was current in the base and that the post-genesis first appearance
   and replacement transition were legal.
-- **INV-G46** `Withdrawn` is reachable only through its typed withdrawal
-  protocol — digest, evidence, and attestation — satisfies no prerequisite, and
-  its evidence is immutable thereafter.
+- **INV-G46** The current model accepts `Withdrawn` only with its typed
+  withdrawal protocol — digest, evidence, and attestation — and it satisfies no
+  prerequisite. The history model alone proves the legal source lifecycle and
+  immutability of its terminal evidence thereafter.
 - **INV-G47** The post-genesis runner node identity set is closed to unlinked
   introductions: every gate or landing ID first appearing after genesis is a
   replacement of a base-current node with a valid paired relationship, digest,
@@ -221,7 +227,9 @@ accordingly.
   field/byte equivalence with the selected `activationBaseCommit` across
   primitive source tuples, relationship tuples, locally verifiable evidence
   identities, and the complete consumer inventory; the result and base are
-  bound in the genesis attestation.
+  bound in the genesis attestation. At final merge, current `refs/heads/main`,
+  the PR-3 current base SHA, and attested `activationBaseCommit` must also be
+  equal.
 - **INV-G44** The envelope's `members` is an entity set keyed by `landingId`,
   canonically ordered, duplicate-free, with the preimage over
   `{landingId, digest}` tuples so a digest cannot be reassociated with another
@@ -254,7 +262,9 @@ Independent dimensions that materially affect behavior:
 | Replacement digest | valid complete old/new identities · mismatched · omitted · directionally ambiguous |
 | Runner-node introduction | genesis identity · post-genesis replacement · unlinked post-genesis identity · new conceptual node |
 | History base | valid · invalid · missing · not-a-commit |
+| Candidate freeze identity | exact content-bound bundle · label/commit-only · missing member · stale after member change |
 | Activation freshness | equivalent · lifecycle/relationship drift · new ADR · evidence drift · source drift · inventory drift · skipped/commit-only |
+| Final activation base equality | equal · current main advanced · PR-3 base differs · attested base differs |
 | Projection | in-sync · drifted · unregistered-target · hand-edited |
 | Readiness | Ready · NotReady |
 
@@ -286,8 +296,11 @@ Independent dimensions that materially affect behavior:
   policy during completion is refused. Proof: `EX-G27`, `ADV-G15`.
 - *candidate × activation base* — an unchanged candidate cannot mask source,
   evidence, relationship, or consumer-inventory drift at the later activation
-  base; exact extraction equivalence is required before promotion. Proof:
-  `EX-G28`, `ADV-G69`–`ADV-G74`, `MUT-G14`.
+  base; exact extraction equivalence and a content-bound candidate identity are
+  required before promotion. Proof: `EX-G28`, `ADV-G69`–`ADV-G74`, `ADV-G76`,
+  `MUT-G14`.
+- *activation base × final merge* — a base that advances after attestation must
+  refuse the merge and restart the ceremony. Proof: `ADV-G77`.
 
 ---
 
@@ -431,10 +444,10 @@ it.
 | INV-G42 (authorship) | **`MAN-G01`** | **manual review** |
 | INV-G44 | `ADV-G65`; `PROP-G09` | hostile + property |
 | INV-G45 | current model: `ADV-G66` target-state malformed/incomplete replacement; history: `ADV-G16`, `MUT-G08`; `PROP-G10` | current + history + property |
-| INV-G46 | `ADV-G67` withdrawal without digest/evidence/attestation; `ADV-G68` withdrawn node satisfying a prerequisite; `EX-G25` legal withdrawal; `PROP-G10` | hostile + example + property |
+| INV-G46 | target state: `ADV-G67` withdrawal without digest/evidence/attestation or malformed envelope; `ADV-G68` withdrawn node satisfying a prerequisite; history: `ADV-G29`, `ADV-G75`, `EX-G25`; `PROP-G10` | current + history + example + property |
 | INV-G43 | `ADV-G57` prior lifecycle in a genesis completion; `ADV-G63` ordinary digest used at genesis | hostile |
 | INV-G47 | `ADV-G16` post-genesis first-appearance cases; `EX-G26` legal replacement | history + example |
-| INV-G48 | `ADV-G69`–`ADV-G74`; `EX-G28`; `MUT-G14` | hostile + example + mutation |
+| INV-G48 | freshness: `ADV-G69`–`ADV-G74`, `ADV-G76`; final merge: `ADV-G77`; `EX-G28`; `MUT-G14` | hostile + example + mutation |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -552,8 +565,8 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   landings, or a duplicated evidence identity.
 - **ADV-G66** A current-revision replacement whose **target state** is malformed
   or incomplete: absent paired `replaces`/`replacement` fields or attestation,
-  a target already directly replaced in the target graph, a second node
-  replacing the same identity, a replacement fork or cycle, a changed `kind`,
+  two distinct nodes directly naming the same target in `replaces`, a replacement
+  fork or cycle, a changed `kind`,
   an incomplete target-state transitive dependent closure, a current dependent
   still naming a replaced identity, an omitted or directionally ambiguous
   old/new semantic-identity input — including a gate's `sources` set — in
@@ -561,10 +574,11 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   evidence, a replacement landing missing or changing its kind-selected policy,
   or a replacement gate carrying delivery state. It does **not** claim to prove
   base-revision currentness or first appearance.
-- **ADV-G67** A landing moved to `Withdrawn` without its withdrawal digest,
-  without its evidence, or without its attestation — each refused
-  independently — and mutation of withdrawal evidence after the terminal
-  lifecycle.
+- **ADV-G67** A target snapshot carries `Withdrawn` without its withdrawal
+  digest, without its evidence, or without its attestation — each refused
+  independently — or with a malformed or mutually exclusive completion and
+  withdrawal envelope. This target-state control does not prove the source
+  lifecycle or later immutability.
 - **ADV-G68** A `Withdrawn` landing counted as satisfying a prerequisite.
 - **ADV-G62** An edit, after attestation, to any artifact the attested preimage
   binds.
@@ -594,13 +608,19 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   arrive together. Target-state graph and closure rules are proven by the
   shared model through `ADV-G66`; the legal two-revision case is `EX-G26`.
 - **ADV-G18** Authorization-evidence record introduced, mutated, or removed.
-- **ADV-G29** Delivery evidence mutated or removed after a terminal lifecycle.
+- **ADV-G29** Delivery or withdrawal evidence, digest, or attestation envelope
+  is mutated or removed after a terminal lifecycle.
+- **ADV-G75** A `Withdrawn` target whose base lifecycle is not `Planned` or
+  `InProgress`, or whose legal withdrawal source lifecycle cannot be proved.
 - **ADV-G34** Record deleted or renumbered.
 - **ADV-G35** Resolved question's current resolver disappears.
 - **ADV-G58** An older registry-less commit supplied as the explicit base,
   unmatched by the genesis evidence binding, attempting to claim the exception.
 - **ADV-G59** A replacement activation after a revert, attempting a second
   genesis.
+
+### Candidate freshness mechanism (PR-2)
+
 - **ADV-G69** Candidate ADR lifecycle or relationship changed after the PR-2
   freeze while the candidate remains unchanged.
 - **ADV-G70** A new ADR appears in the activation base after candidate freeze.
@@ -612,6 +632,14 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   byte-identical.
 - **ADV-G74** Activation skips a required extraction or reduces freshness to a
   commit-identity comparison.
+- **ADV-G76** `candidateFreezeIdentity` uses only a label or commit, omits one
+  of the three required members, or remains unchanged after a member's bytes
+  change.
+
+### Final activation merge gate (PR-3)
+
+- **ADV-G77** Final merge permits current `refs/heads/main`, the PR-3 current
+  base SHA, and attested `activationBaseCommit` to differ.
 
 ### Genesis (PR-2, proven without a prior revision)
 
@@ -639,10 +667,14 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **EX-G27** A legal two-revision `Planned -> Complete` transition that keeps
   the selected completion policy and semantic identity unchanged while adding
   valid policy evidence. The fixture and proof are owned by PR-2.
+- **EX-G25** A legal two-revision `Planned -> Withdrawn` or
+  `InProgress -> Withdrawn` transition with a valid withdrawal envelope. The
+  fixture and proof are owned by PR-2; illegal source lifecycles and terminal
+  envelope mutation are history failures.
 - **EX-G28** An activation-base freshness pass in which every required source,
   relationship, local-evidence, and consumer-inventory tuple is exactly
-  equivalent to the frozen candidate and the result is bound to
-  `activationBaseCommit`.
+  equivalent to the frozen candidate, the content-bound `candidateFreezeIdentity`
+  is valid, and the result is bound to `activationBaseCommit`.
 
 ### Manual controls — not machine-decidable, and not claimed to be
 
@@ -715,7 +747,8 @@ no-op that still returns success is the failure mode being hunted.
 | Completion policies (current) | PR-1 | 2 | ADV-G26–G28, G30, G33; target-state lifecycle/evidence rules |
 | Attestations | PR-1 | 1 | ADV-G19; PROP-G03, G08 |
 | Current-revision validation | PR-1 | 2 | all of the above via the real checker |
-| History validation | **PR-2** | 4, 7 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41, G69–G74; EX-G26, EX-G27; MUT-G08, MUT-G14 |
+| History validation | **PR-2** | 4, 7 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41, G75; EX-G25, EX-G26, EX-G27; MUT-G08 |
+| Candidate freshness mechanism | **PR-2** | 6.8, 7.1 | INV-G48; ADV-G69–G74, G76; EX-G28; MUT-G14 |
 | Rendering | PR-2 | 5 | ADV-G22, G36; EX-G11; PROP-G04 |
 | Query | PR-2 | 5 | ADV-G17, G18; PROP-G05; T4 |
 | Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
@@ -725,7 +758,8 @@ no-op that still returns success is the failure mode being hunted.
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
 | Post-genesis runner-node introduction | **PR-2** | 4, 7 | INV-G47; ADV-G16; EX-G26 |
 | Genesis completion envelope | PR-2 | 6 | ADV-G51–G53, ADV-G57, ADV-G63; EX-G23 |
-| Withdrawal protocol | **PR-1** | 2 | ADV-G67, ADV-G68; EX-G25; PROP-G10 |
+| Withdrawal target-state validity | PR-1 | 2, 3 | ADV-G67, ADV-G68; PROP-G10 |
+| Withdrawal succession/history | **PR-2** | 4, 7 | ADV-G29, ADV-G75; EX-G25 |
 | Node replacement (current model) | **PR-1** | 2, 3 | ADV-G66; PROP-G10 |
 | Node replacement (history) | **PR-2** | 4, 7 | ADV-G16; EX-G26; MUT-G08 |
 | Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62; EX-G24 |
@@ -737,7 +771,8 @@ no-op that still returns success is the failure mode being hunted.
 | Atomic activation | **PR-3** | 8 | ADV-G48; the PR-3 completion gate |
 | Projection migration | PR-3 | 8 | ADV-G24; EX-G14 |
 | External program index | PR-3 | 8 | ADV-G49 |
-| Activation-base freshness | **PR-3** | 8.1a | INV-G48; ADV-G69–G74; EX-G28; MUT-G14 |
+| Activation-base freshness invocation | **PR-3** | 8.1a, 8.8 | INV-G48; D8.2a |
+| Activation merge-base equality | **PR-3** | 8.8 | INV-G48; ADV-G77 |
 | PR #101 transition | PR-2 | 5 | EX-G18 — a **fixture**, not a real transition |
 
 No deferred scenario uses a generic "later" bucket; each names its landing.
@@ -758,10 +793,11 @@ registry exists.**
   and their proof net.** No `governance/state.json` at the canonical path.
   Fixtures only. Safe to build on because every later landing depends on these
   rules already being proven.
-- **PR-2 — history checker, renderer, query, genesis machinery, and a
-  *candidate* seed at `tests/fixtures/governance/candidate/`.** Still no
-  canonical registry. Every mechanism is proven against the candidate, so PR-3
-  promotes an already-proven artifact rather than authoring a new one.
+- **PR-2 — history checker, renderer, query, genesis machinery, canonical
+  freshness extraction/comparison and digest proof, and a *candidate* seed at
+  `tests/fixtures/governance/candidate/`.** Still no canonical registry. Every
+  mechanism is proven against the candidate, so PR-3 promotes an already-proven
+  artifact rather than authoring a new one.
 - **PR-3 — atomic activation.** The canonical registry's **first appearance**,
   arriving already protected: exact-base freshness equivalence, registry,
   genesis attestation, source manifest, generated regions **and the deletion of
@@ -770,7 +806,10 @@ registry exists.**
   validation**, scaffold coverage, and the human external index transition — in
   one indivisible change. The freshness gate runs before candidate promotion and
   again immediately before the seam is staged; any drift restarts candidate
-  review rather than being patched into activation.
+  review rather than being patched into activation. The final merge gate also
+  requires current `refs/heads/main`, the PR-3 base SHA, and attested
+  `activationBaseCommit` to be equal; a mismatch restarts freshness, seam,
+  freeze, attestation, and hosted verification.
 
 **Why PR-3 cannot be split.** Two intervals the previous plan created are
 closed by construction:

@@ -49,6 +49,12 @@ below is executed in it.** It creates no `governance/` directory, no
 > are pairwise PR-2 proofs; activation requires an exact-base freshness fence;
 > 8.5a and 8.6 verify and freeze a closed seam without broad subtree authority;
 > and PR-1 claims target-state rules only.
+
+> **Revised after review 5059408696** — the canonical freshness extraction,
+> comparison, candidate identity, and digest proof move to PR-2; final merge
+> requires activation-base equality; candidate and activation-intent deletions
+> gain exact authoring owners; withdrawal succession proofs move to PR-2; and
+> replacement fork wording is made direct.
 >
 > **Revised after review 5056996739.** The previous decomposition landed
 > `governance/state.json` at its canonical path in PR-2 and deleted the prose
@@ -107,8 +113,8 @@ merged.
 | Landing | Ships | Canonical `state.json`? | Authority posture | Completion condition |
 |---|---|---|---|---|
 | **PR-1** | model, strict reader, collection canonicalization, current checker, its proof net | **no** | none | current-revision rules proven; canonical path absent |
-| **PR-2** | history checker, renderer, query, genesis machinery, **candidate** seed at a fixture path, full proof net | **no** | none | every mechanism proven against the candidate; canonical path still absent |
-| **PR-3** | **atomic activation** | **first appearance** | authoritative | exact freshness equivalence proven, whole seam present, all gates on, external index transitioned |
+| **PR-2** | history checker, renderer, query, genesis machinery, canonical freshness extraction/comparison and digest proof, **candidate** seed at a fixture path, full proof net | **no** | none | every mechanism and freshness proof proven against the candidate; canonical path still absent |
+| **PR-3** | **atomic activation** after freshness invocation and final base-equality gate | **first appearance** | authoritative | exact freshness equivalence proven, whole seam present, all gates on, external index transitioned, final base equality holds |
 | **PR-4** | rebase and narrow PR #101 | — | consumer | only after PR-1–PR-3 merged and reviewed |
 
 A landing is the unit that may be independently merged. **Do not merge a
@@ -256,7 +262,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   | historical `runner/L9` retaining its original `runner/L8` reference | pass; historical references are not checked against the current graph |
   | replacement landing carrying `Complete`/`Withdrawn`, inherited evidence, or a missing/kind-inconsistent completion policy, or replacement gate carrying delivery state | fail (`ADV-G66`); replacements initialize `Planned` with the policy selected for their kind, or gate-without-delivery |
   | replacement digest omitting, swapping, or mislabelling any old/new semantic-identity input, including gate `sources` | fail (`ADV-G66`); `PROP-G10` covers preimage sensitivity |
-  | replacement target is already non-current in the target graph, replacement forks/cycles, or kind changes | fail (`ADV-G66`)
+  | two distinct replacement nodes directly naming the same target, or a replacement cycle or kind change | fail (`ADV-G66`); whether a target was current before the change is proved pairwise by PR-2 |
   | three-node replacement chain `A <- B <- C` | pass only with `C` current and `A`/`B` historical and queryable |
 
   These are target-state fixtures only. They prove that every landing carries
@@ -267,19 +273,20 @@ PR-1 must not contain — and review has completed on one frozen head.
   a `Planned -> Complete` transition. Those pairwise proofs belong exclusively
   to PR-2 task 4.2 and its `EX-G26`, `EX-G27`, `ADV-G15`, and `ADV-G16` cases.
 
-  **Withdrawal is implemented here, not deferred to first use.** ADR-0021 puts
-  `Withdrawn` in the closed lifecycle and requires its typed protocol, so
-  specified-but-unimplemented is not an option; specified-and-fixture-exercised
-  is. Required cases:
+  **Target-state withdrawal validity is implemented here, not deferred to first
+  use.** ADR-0021 puts `Withdrawn` in the closed lifecycle and requires its typed
+  protocol, so specified-but-unimplemented is not an option;
+  specified-and-fixture-exercised is. This task validates only one target
+  snapshot. It does not claim a predecessor lifecycle or later immutability;
+  those succession proofs belong exclusively to PR-2 task 4.2.
 
   | Case | Outcome |
   |---|---|
-  | `Planned -> Withdrawn` with digest, evidence, attestation | pass (`EX-G25`) |
-  | `InProgress -> Withdrawn` with digest, evidence, attestation | pass (`EX-G25`) |
+  | target snapshot carrying `Withdrawn` with digest, evidence, attestation and no completion envelope | pass (`ADV-G67`); predecessor is not inferred |
   | without `withdrawalDigest` | fail (`ADV-G67`) |
   | without evidence | fail (`ADV-G67`) |
   | without attestation | fail (`ADV-G67`) |
-  | withdrawal evidence mutated after terminal | fail (`ADV-G67`) |
+  | malformed or mutually exclusive completion/withdrawal envelopes | fail (`ADV-G67`) |
   | `Withdrawn` counted as satisfying a prerequisite | fail (`ADV-G68`) |
   | any withdrawal-preimage field changed | `withdrawalDigest` changes (`PROP-G10`) |
 
@@ -305,7 +312,7 @@ PR-1 must not contain — and review has completed on one frozen head.
 - [ ] **3.2 Property coverage**
   <!-- agent-task: 3.2 paths=tests/test_governance_state.py checks=pytest risk=high prerequisites=2.4 -->
   **Proves** — `PROP-G01`, `G02`, `G03`, `G06`, `G07`, `G08`, **`G09`**,
-  **`G10`**; and `EX-G25` legal withdrawal
+  **`G10`**
 
 - [ ] **3.3 Mutation coverage**
   <!-- agent-task: 3.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=3.1 -->
@@ -378,7 +385,11 @@ PR-1 must not contain — and review has completed on one frozen head.
     closure semantics are delegated to the shared model and are covered by
     PR-1's `ADV-G66` and target-state fixture data.
   - `ADV-G18` authorization-evidence record introduced
-  - `ADV-G29` terminal delivery evidence mutated or removed
+  - `ADV-G29` terminal delivery or withdrawal evidence/envelope mutated or
+    removed
+  - `EX-G25` legal two-revision `Planned -> Withdrawn` and
+    `InProgress -> Withdrawn` transitions with valid withdrawal evidence;
+    `ADV-G75` illegal source lifecycle to `Withdrawn`
   - `ADV-G34` record deleted or renumbered · `ADV-G35` resolver disappeared
   - `ADV-G41` a post-activation base carrying no registry — refused, never a
     second genesis
@@ -603,20 +614,71 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `EX-G24` the checker validates shape, bindings and digests and **makes no
     claim about authorship**
 
+- [ ] **6.8 Implement and prove candidate freshness extraction**
+  <!-- agent-task: 6.8 paths=scripts/governance/genesis/**,scripts/governance/model/**,tests/test_governance_state.py,tests/fixtures/governance/freshness/** checks=node,pytest risk=trust-critical prerequisites=6.7 -->
+
+  **Implements** — the reusable canonical extraction, comparison, equivalent
+  result construction, and `activationFreshnessDigest` mechanism used by the
+  activation gate. PR-2 owns this mechanism and its proof; PR-3 task 8.1a may
+  only invoke the already-merged implementation against the real activation
+  base.
+
+  `candidateFreezeIdentity` is a closed, content-bound identity. Its exact
+  shape is:
+
+  ```json
+  {
+    "schemaVersion": 1,
+    "type": "governance-candidate-bundle",
+    "members": [
+      { "path": "tests/fixtures/governance/candidate/consumers.json", "contentSha256": "<64 lowercase hex>" },
+      { "path": "tests/fixtures/governance/candidate/source-manifest.json", "contentSha256": "<64 lowercase hex>" },
+      { "path": "tests/fixtures/governance/candidate/state.json", "contentSha256": "<64 lowercase hex>" }
+    ],
+    "bundleSha256": "<64 lowercase hex>"
+  }
+  ```
+
+  `members` is exactly this three-item set, sorted by `path`. `bundleSha256`
+  is the SHA-256 of the canonical serialization of the same object with
+  `bundleSha256` omitted; a commit name, label, or non-content identifier is
+  never a substitute. A candidate byte change therefore changes the identity.
+
+  The mechanism extracts the candidate and an explicit activation base into
+  canonically ordered primitive source tuples, relationship tuples, locally
+  verifiable evidence identities, and the complete consumer inventory. It
+  compares every tuple field and byte, constructs the equivalent result, and
+  computes the digest over the exact canonical inputs. The result records
+  `candidateFreezeIdentity`, `activationBaseCommit`, all comparison tuple
+  identities, `activationFreshnessDigest`, and `outcome: "equivalent"` only
+  after every comparison passes.
+
+  **Proof required** — `ADV-G69`–`ADV-G74` lifecycle, relationship, new-ADR,
+  inventory, evidence, source-artifact, and skipped/commit-only drift;
+  `ADV-G76` non-content-bound, missing-member, or stale candidate identity;
+  `EX-G28` equivalent result; `MUT-G14` commit-only or skipped extraction;
+  `INV-G48`. The freshness fixtures include every negative case, including a
+  byte-identical stale candidate and a freshness check reduced to commit
+  identity. No PR-3 task owns first proof of this mechanism.
+
 ## 7. Verification net for PR-2
 
 - [ ] **7.1 Two-revision hostile corpus**
   <!-- agent-task: 7.1 paths=tests/test_governance_state.py,tests/fixtures/governance/** checks=pytest risk=trust-critical prerequisites=4.2 -->
   **Proves** — `ADV-G04h`, `G08`, `G11`, `G13`–`G16`, `G18`, `G21`, `G29`,
-  `G34`, `G35`, `G40`, `G41`, **`G47`**, **`G58`**, **`G59`**; `EX-G26` and
-  `EX-G27`. This includes a two-revision replacement fixture with at least two
+  `G34`, `G35`, `G40`, `G41`, **`G47`**, **`G58`**, **`G59`**; `EX-G25`,
+  `EX-G26`, and `EX-G27`; `ADV-G75` covers an illegal withdrawal
+  source lifecycle. This includes a two-revision replacement fixture with at least two
   dependent levels and a valid multi-level current cascade in the target,
   proving base currentness, post-genesis first-appearance legality, atomic
   replacement evidence, and the `Planned -> Complete` policy-preservation
-  transition. Target graph semantics remain delegated to the shared model.
+  transition. It also includes legal `Planned -> Withdrawn` and
+  `InProgress -> Withdrawn` transitions, illegal source lifecycle cases, and
+  terminal withdrawal envelope/evidence mutation or removal. Target graph
+  semantics remain delegated to the shared model.
 
 - [ ] **7.2 Genesis, projection, and query corpus**
-  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.6,6.7,5.2 -->
+  <!-- agent-task: 7.2 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=6.3,6.4,6.5,6.6,6.7,6.8,5.2 -->
   **Proves** — `ADV-G17`, `G20`, `G22`, `G31`, `G32`, `G36`, `G42`–`G47`,
   **`G51`–`G53`**, **`G54`**, **`G56`**, **`G57`**, **`G60`**; `G50` again as
   integration coverage, having been proven in PR-1;
@@ -636,6 +698,9 @@ PR-1 must not contain — and review has completed on one frozen head.
 
 - [ ] Every mechanism — history, renderer, query, genesis — proven against the
       candidate seed.
+- [ ] The reusable freshness extraction/comparison/digest mechanism and its
+      negative corpus are implemented and proven by task 6.8 before PR-3; task
+      8.1a only invokes that merged mechanism.
 - [ ] **`governance/state.json` still does not exist**; the seed is at a fixture
       path and no consumer is generated from it.
 - [ ] The consumer inventory enumerates every discovered governance surface,
@@ -712,7 +777,7 @@ registry appears, and it appears already protected.
   **Gate:** activation is **refused** unless that binding is present.
 
 - [ ] **8.1a Activation-base freshness gate**
-  <!-- agent-task: 8.1a paths=none checks=node,pytest,manual risk=trust-critical prerequisites=8.1 -->
+  <!-- agent-task: 8.1a paths=none checks=node,manual risk=trust-critical prerequisites=8.1,pr-2-merged -->
 
   **Purpose** — prove that the PR-2 candidate still describes the exact
   repository state on which PR-3 will activate. This is a verification gate,
@@ -735,6 +800,12 @@ registry appears, and it appears already protected.
   tuple identities, and `activationFreshnessDigest`. The result and digest are
   the values bound into `attestations.genesis` by task 8.7.
 
+  The canonical extraction, comparison, digest construction, and equivalent-
+  result mechanism is implemented and proven by PR-2 task 6.8 and is already
+  merged before this task runs. This task only invokes that mechanism against
+  the real activation base; it does not implement or first prove the freshness
+  rules.
+
   A commit-identity comparison alone is not an implementation of this gate.
   Missing or ambiguous extraction, any field or byte difference, a changed
   base, a skipped extraction, or a check reduced to commit identity refuses
@@ -742,13 +813,14 @@ registry appears, and it appears already protected.
   is rerun immediately before 8.5a; if the base or any input changes, the
   candidate is refreshed and reviewed rather than patched in the seam.
 
-  **Proof required** — `EX-G28` equivalent freshness; `ADV-G69` ADR lifecycle
-  or relationship drift; `ADV-G70` new ADR; `ADV-G71` consumer-inventory drift;
-  `ADV-G72` delivery/evidence drift; `ADV-G73` source-artifact drift while the
-  stale candidate remains byte-identical; `ADV-G74` skipped or commit-only
-  freshness; `MUT-G14`; `INV-G48`; `D8.2a`.
+  **Proof required** — an equivalent result over the real activation base with
+  the content-bound `candidateFreezeIdentity` and freshness digest bound to the
+  result and genesis attestation. Mechanism proofs `ADV-G69`–`ADV-G74`,
+  `ADV-G76`, `EX-G28`, and `MUT-G14` belong exclusively to PR-2 task 6.8;
+  this task records their successful invocation, plus the `D8.2a` and
+  `INV-G48` activation gate.
 
-> **Tasks 8.2 through 8.5 are one commit.** The contract forbids any revision
+> **Tasks 8.2, 8.2a, and 8.3 through 8.5 are one commit.** The contract forbids any revision
 > holding a canonical `governance/state.json` beside a surviving hand-authored
 > copy. Committing them separately would violate that in the intermediate
 > revisions even if the PR squash-merged correctly, so they are staged together
@@ -757,26 +829,38 @@ registry appears, and it appears already protected.
 > (3) the owner attestations — then verification only.
 
 - [ ] **8.2 Promote the candidate artifacts to their canonical paths**
-  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md checks=node,pytest risk=trust-critical prerequisites=8.1a -->
+  <!-- agent-task: 8.2 paths=governance/state.json,governance/genesis-source-manifest.json,governance/consumers.json,governance/README.md,tests/fixtures/governance/candidate/state.json,tests/fixtures/governance/candidate/source-manifest.json,tests/fixtures/governance/candidate/consumers.json checks=node,pytest risk=trust-critical prerequisites=8.1a -->
 
-  The already-proven candidates move to their durable paths — no new authoring:
+  The already-proven candidates move to their durable paths, and this task
+  authors the exact three candidate-source deletions — no other candidate path
+  is in scope and no new registry content is invented:
 
   | From | To |
   |---|---|
   | `tests/fixtures/governance/candidate/state.json` | `governance/state.json` |
-  | `…/source-manifest.json` | `governance/genesis-source-manifest.json` |
-  | `…/consumers.json` | `governance/consumers.json` |
+  | `tests/fixtures/governance/candidate/source-manifest.json` | `governance/genesis-source-manifest.json` |
+  | `tests/fixtures/governance/candidate/consumers.json` | `governance/consumers.json` |
   | — | `governance/README.md` (created here, with the domain) |
 
-  The candidate directory is **removed**. If any part is retained as test
-  evidence it is explicitly frozen and the checker refuses it as an authority.
+  The three source files in the table are deleted after promotion. The
+  candidate directory is not an open-ended deletion scope: any extra tracked
+  candidate file, or any retained candidate copy usable as authored current
+  state, fails the task and activation.
 
   **Proof required** — `ADV-G55` a candidate copy left usable as authored
   current state after activation
 
+- [ ] **8.2a Author the activation-intent deletion**
+  <!-- agent-task: 8.2a paths=openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md checks=none risk=trust-critical prerequisites=8.2 -->
+
+  This task authors only deletion of the exact activation-intent file in the
+  working tree. It creates no replacement content and does not commit
+  independently. Task 8.5a only stages this already-authorized deletion as part
+  of the activation seam.
+
 - [ ] **8.3 Generate projections and delete the copies they replace**
-  <!-- agent-task: 8.3 paths=governance/STATE.md,docs/decisions/INDEX.md,docs/architecture/unresolved-decisions.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.2 -->
-  **Atomic with 8.2.** Each generated region and the deletion of the
+  <!-- agent-task: 8.3 paths=governance/STATE.md,docs/decisions/INDEX.md,docs/architecture/unresolved-decisions.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.2,8.2a -->
+  **Atomic with 8.2 and 8.2a.** Each generated region and the deletion of the
   hand-authored values it replaces land together.
   **Proof required** — `EX-G14` generated index still satisfies
   `validate-scaffold.sh` bidirectional index rules
@@ -798,23 +882,21 @@ registry appears, and it appears already protected.
   revision in which the canonical registry coexists with a surviving copy;
   `ADV-G55` a candidate copy left usable after activation
 
-- [ ] **8.5a Stage 8.2–8.5 as the single activation-seam commit**
-  <!-- agent-task: 8.5a paths=none checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5,8.1a -->
+- [ ] **8.5a Stage 8.2, 8.2a, and 8.3–8.5 as the single activation-seam commit**
+  <!-- agent-task: 8.5a paths=none checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5,8.1a,8.2a -->
 
   This task authors no content and stages no new content. It verifies and stages
-  only the already-authored outputs of tasks 8.2–8.5, plus the explicitly owned
-  deletion of `tests/fixtures/governance/candidate/` and
-  `openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md`, into one
-  activation-seam commit. **No intermediate revision may contain the registry
+  only the already-authored outputs of tasks 8.2, 8.2a, and 8.3–8.5 into one
+  activation-seam commit. The candidate-source deletions are authored by 8.2;
+  the activation-intent deletion is authored by 8.2a. This task only stages
+  those deletions. **No intermediate revision may contain the registry
   alongside a copy it replaces.**
 
   Before staging, compute `ACTIVATION_SEAM_SCOPE` as the sorted unique union of
-  the concrete paths in task scopes 8.2, 8.3, 8.4, and 8.5, plus the exact
-  tracked files deleted under `tests/fixtures/governance/candidate/` and the
-  exact `ACTIVATION-INTENT.md` deletion. After staging, require sorted
+  the concrete paths in task scopes 8.2, 8.2a, 8.3, 8.4, and 8.5. Those scopes
+  enumerate the exact candidate-source and activation-intent deletions. After staging, require sorted
   `git diff --cached --name-only` to equal `ACTIVATION_SEAM_SCOPE` byte for
-  byte; the candidate-directory deletion is expanded to its concrete tracked
-  files, not treated as an open-ended subtree. Any changed path outside it,
+  byte. Any changed path outside it,
   including an accepted ADR, a domain authority, an unrelated
   service/schema/script, or a broad subtree expansion, fails activation. This
   task does not authorize any path outside that equality check and does not
@@ -825,9 +907,10 @@ registry appears, and it appears already protected.
 
   This task authors no content. It verifies and freezes the exact seam produced
   by 8.5a: registry, manifests, generated regions and their deletions, pointers,
-  named governance scripts/workflow wiring, and the explicitly owned candidate
-  and activation-intent deletions. Recompute the same `ACTIVATION_SEAM_SCOPE`
-  from the concrete authoring scopes of 8.2–8.5 and require the seam commit's
+  named governance scripts/workflow wiring, and the candidate and
+  activation-intent deletions already authored by 8.2 and 8.2a. Recompute the
+  same `ACTIVATION_SEAM_SCOPE` from the concrete authoring scopes of 8.2, 8.2a,
+  and 8.3–8.5 and require the seam commit's
   exact sorted `git diff --name-only <seam-parent> <seam-commit>` to equal it;
   checking only the worktree is insufficient. Any path outside that union
   fails the freeze; this task has no authority to add, remove, or edit content.
@@ -891,8 +974,20 @@ registry appears, and it appears already protected.
 
   The checker, history checker, hostile suite, formatting, secret scan,
   `git diff --check` and hosted CI all run on the **exact head carrying the
-  attestations**. The owner also re-checks `MAN-G02` at the merge gate. Nothing
-  bound may change afterwards without restarting at 8.6.
+  attestations**. The owner also re-checks `MAN-G02` at the merge gate. Before
+  merge, the final gate rereads `refs/heads/main` and the PR-3 current base SHA
+  and requires:
+
+  ```text
+  current refs/heads/main == PR-3 current base SHA == attested activationBaseCommit
+  ```
+
+  This equality gate is separate from `MAN-G02` and post-attestation CI. If it
+  fails, merge is refused: PR-3 is updated onto the new exact `main`, freshness
+  is rerun through 8.1a, the seam is rebuilt or revalidated, the seam is frozen
+  again, new owner attestations are recorded, and hosted checks are rerun. No
+  prior attestation may be reused after the base changes. Nothing bound may
+  change afterwards without restarting at 8.6.
 
   **Including this checklist.** Ticking a box edits `tasks.md`, which moves the
   head and would require CI to run again on a head the owner did not attest. So:
@@ -914,6 +1009,10 @@ registry appears, and it appears already protected.
       checker does not and cannot establish authorship.
 - [ ] **`MAN-G02` was evidenced before attestation and re-checked at merge; an
       unsigned activation was refused if independent merge control was absent.**
+- [ ] **At the final merge gate, current `refs/heads/main`, the PR-3 current
+      base SHA, and attested `activationBaseCommit` were equal.** A mismatch
+      refused merge and required freshness, seam, freeze, attestation, and CI
+      restart.
 - [ ] **No second copy of authored current state remains usable** — the
       candidate directory is removed or explicitly frozen and refused.
 - [ ] **No surviving hand-authored copy of any fact the registry owns.**

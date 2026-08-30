@@ -341,6 +341,11 @@ Delivery lifecycle SHALL be the closed vocabulary `Planned`, `InProgress`,
 `Planned -> Complete`, `Planned -> Withdrawn`, `InProgress -> Complete`,
 `InProgress -> Withdrawn`. `Complete` and `Withdrawn` are terminal.
 
+The current-revision model validates only the target snapshot's lifecycle,
+policy, evidence, and replacement shape. Whether a lifecycle edge or a
+replacement first appearance was legal is a two-revision history property and
+SHALL be proved by the history entry point.
+
 The following SHALL be identity-bearing rule inputs, not ordinary mutable
 fields: the gate predicate definition and its source references; a node's kind;
 a landing's prerequisite identifier set; its typed external authority anchor;
@@ -363,8 +368,9 @@ The replacement relationship SHALL be closed:
 - the replacement graph SHALL be acyclic;
 - **currency SHALL be derived**, never authored: a node is current iff no node
   directly names its ID in `replaces`;
-- a target-state replacement SHALL not name an identity that is already directly
-  replaced in the target graph;
+- no two distinct nodes SHALL directly name the same target in `replaces`; this
+  is fork refusal, while whether the target was current before the change is a
+  separate pairwise history rule, and chains remain legal;
 - a replacement SHALL preserve `kind`;
 - dependent prerequisite references SHALL NOT be auto-migrated. In the target
   state, the replacement closure SHALL be complete: every affected current
@@ -492,20 +498,21 @@ prerequisite. A landing SHALL NOT carry an authored `blockedOn`.
 
 #### Scenario: Withdrawal follows its own typed protocol
 
-- **GIVEN** a landing moving `Planned -> Withdrawn` or
-  `InProgress -> Withdrawn` with a `withdrawalDigest` binding the landing
-  identity, both lifecycles, the authority anchor and typed withdrawal
-  evidence, plus its human attestation
-- **WHEN** the checkers run
-- **THEN** they pass; the landing satisfies no prerequisite; the query reports
-  the withdrawal without asserting it was authorized; and the evidence is
-  immutable thereafter
+- **GIVEN** a target snapshot with a landing at `Withdrawn` and a
+  `withdrawalDigest` binding the landing identity, an allowed source lifecycle,
+  the authority anchor and typed withdrawal evidence, plus its human
+  attestation
+- **WHEN** the current-revision checker runs
+- **THEN** it passes the target-state protocol; the landing satisfies no
+  prerequisite and the query reports the withdrawal without asserting it was
+  authorized. A predecessor lifecycle and immutability thereafter are not
+  inferred by this checker; those are PR-2 history proofs.
 
 #### Scenario: Withdrawal without its evidence is refused
 
 - **GIVEN** a landing moved to `Withdrawn` with no withdrawal digest,
   evidence or attestation
-- **WHEN** the checkers run
+- **WHEN** the current-revision checker runs
 - **THEN** they fail — `Withdrawn` is terminal and may not be reached by
   assertion
 
@@ -763,8 +770,11 @@ mutation of an accepted decision's `resolves`; disappearance of a resolved
   did not arrive in the same revision; a replacement target that was not current
   in the base revision; any gate or landing identity first appearing after
   genesis without a valid paired replacement transition; any post-genesis
-  conceptual-node introduction; and the introduction, mutation, or disappearance
-  of any authorization-evidence record.
+  conceptual-node introduction; an illegal `Planned` or `InProgress` to
+  `Withdrawn` source lifecycle; a `Withdrawn` transition from any other source;
+  mutation or disappearance of a terminal withdrawal envelope, evidence, or
+  attestation; and the introduction, mutation, or disappearance of any
+  authorization-evidence record.
 
 Semantic rules SHALL be delegated to the shared model so the Git adapter does
 not become a second rule authority.
@@ -815,6 +825,24 @@ not become a second rule authority.
 - **WHEN** history validation runs
 - **THEN** it passes; no old record or historical prerequisite reference is
   edited, and the post-genesis node identities are sanctioned replacements
+
+#### Scenario: Withdrawal succession is proved pairwise
+
+- **GIVEN** a base with a landing in `Planned` or `InProgress` and a target
+  carrying `Withdrawn` with a valid withdrawal digest, evidence, and
+  attestation
+- **WHEN** history validation runs
+- **THEN** it passes as `EX-G25`; a base `Complete`, `Withdrawn`, missing, or
+  otherwise illegal source lifecycle fails as `ADV-G75`, and target-state
+  validity alone cannot infer a legal predecessor
+
+#### Scenario: Terminal withdrawal evidence cannot be mutated
+
+- **GIVEN** a base with a valid `Withdrawn` landing and a target that changes or
+  removes its withdrawal digest, evidence, or attestation
+- **WHEN** history validation runs
+- **THEN** it fails as `ADV-G29`; terminal withdrawal evidence and its envelope
+  are immutable after the transition
 
 The genesis exception SHALL be identified by **binding, not by absence**. The
 genesis evidence SHALL bind the exact source-snapshot identity, the exact
@@ -892,6 +920,41 @@ rechecked immediately before the activation-seam commit; a changed base,
 candidate, source, evidence identity, or consumer inventory restarts the
 ceremony rather than being patched in the seam.
 
+`candidateFreezeIdentity` SHALL itself be a closed, content-bound identity. Its
+exact shape is:
+
+```json
+{
+  "schemaVersion": 1,
+  "type": "governance-candidate-bundle",
+  "members": [
+    { "path": "tests/fixtures/governance/candidate/consumers.json", "contentSha256": "<64 lowercase hex>" },
+    { "path": "tests/fixtures/governance/candidate/source-manifest.json", "contentSha256": "<64 lowercase hex>" },
+    { "path": "tests/fixtures/governance/candidate/state.json", "contentSha256": "<64 lowercase hex>" }
+  ],
+  "bundleSha256": "<64 lowercase hex>"
+}
+```
+
+`members` SHALL be exactly this three-item set, sorted by `path`. The
+`bundleSha256` SHALL be the SHA-256 of the canonical serialization of the same
+object with `bundleSha256` omitted. A commit name, label, or other non-content
+identifier SHALL NOT substitute for this identity; changing any candidate byte
+must change a member digest and the bundle digest.
+
+Before final merge, the merge gate SHALL reread the current
+`refs/heads/main` and the PR-3 current base SHA and require:
+
+```text
+current refs/heads/main == PR-3 current base SHA == attested activationBaseCommit
+```
+
+This is separate from owner merge-control evidence and post-attestation CI. If
+the equality does not hold, merge SHALL be refused. The owner SHALL update PR-3
+onto the new exact `main`, rerun freshness, rebuild or revalidate the seam,
+freeze it again, recreate the owner attestations, and rerun hosted checks. No
+prior attestation may be reused after the activation base changes.
+
 If the base is invalid, a required extraction is unavailable or ambiguous, any
 comparison differs, or the check is skipped or reduced to commit identity, the
 candidate SHALL NOT be promoted and no activation attestation SHALL be
@@ -947,6 +1010,23 @@ recorded.
   required extraction classes, or omits the freshness gate
 - **WHEN** activation validation runs
 - **THEN** it fails and refuses candidate promotion and attestation
+
+#### Scenario: Candidate freeze identity binds candidate bytes
+
+- **GIVEN** a candidate identity that omits a required member, uses only a
+  commit or label, or remains unchanged after a candidate member changes
+- **WHEN** freshness validation runs
+- **THEN** it fails as `ADV-G76`; the candidate identity must be the exact
+  content-bound three-member bundle identity
+
+#### Scenario: Advancing main invalidates an attested activation base
+
+- **GIVEN** freshness and owner attestation bind activation base `A`, but
+  `refs/heads/main` or the PR-3 current base advances to `B`
+- **WHEN** the final merge gate runs
+- **THEN** it refuses merge as `ADV-G77` and requires freshness, seam, freeze,
+  attestation, and hosted-check restart on `B`; no attestation bound to `A` is
+  reused
 
 ---
 
