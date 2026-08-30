@@ -75,30 +75,89 @@ This section RECORDS external authorization. It can never create it.
 | Field | Value |
 |---|---|
 | Source type | `github_issue` |
-| Source id / link | **#106** — *Implement ADR-0021 governance-state substrate and migrate mutable governance projections* |
+| Source issue | **[#106](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106)** — *Implement ADR-0021 governance-state substrate and migrate mutable governance projections* |
 | Governing ADR | **ADR-0021** — `Accepted`, immutable, SHA-256 `0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a` |
-| Base revision | `origin/main` `eb6e24806cb76898e74f16208ab40587313c126a` (merge of PR #105) |
-| Authorized scope | Phase 1 of #106 — **the OpenSpec planning contract only** |
-| Constraints | Phase 1 does not authorize implementation of the registry, validators, renderer, query interface, migration, or CI changes. PR #101 is not to be modified. |
+| Authorized scope | **PR-1 only** — tasks `1.1`, `1.2`, `2.1`, `2.2`, `2.3`, `2.4`, `3.1`, `3.2`, `3.3`, and the **PR-1 completion gate** |
+| Constraints | This authorization releases only the named PR-1 scope. It does not authorize PR-2, PR-3, PR-4, the separately reviewed PR #101 transition, or any work outside those tasks. PR #101 is not to be modified. |
 | Owner | @mikegtech (repository owner) |
-| Recorded at | this change, on branch `spec/governance-state-substrate` |
+
+### Planning-contract baseline
+
+The reviewed planning-contract baseline is the exact commit
+`7a2d731837ea9f14cae09436ddb78e6e47607ee5`, which entered `main` by merging
+PR #107. It is the baseline and base of PR #110. It is not the post-merge
+PR-1 implementation checkout and must not be used as the implementation-start
+base after PR #110 merges.
+
+### Owner authorization sources
+
+Issue #106 contains both owner authorization records. The following metadata
+was obtained from the exact GitHub API comment bodies. Each digest is the
+SHA-256 of the exact UTF-8 comment body string returned by GitHub, without
+manual normalization.
+
+| Record | Stable comment | `created_at` | `updated_at` | Exact body SHA-256 |
+|---|---|---|---|---|
+| Original authorization | [#5466054457](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5466054457) — **`OWNER AUTHORIZATION — GOVERNANCE-STATE PR-1 ONLY`** | `2026-08-30T01:42:32Z` | `2026-08-30T01:42:32Z` | `5250026ad78ee9633ff1affebc38c346bbf485b26d67431a74b4b777400ceb7b` |
+| Start-base clarification | [#5466777202](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5466777202) — **`OWNER AUTHORIZATION CLARIFICATION — GOVERNANCE-STATE PR-1 START BASE`** | `2026-08-30T04:49:54Z` | `2026-08-30T04:49:54Z` | `6a6378e700cde3f96cb8c47e8dcd9fbeb5cf6a92fcc55c5f4b1c41d238bae15f` |
+
+A later body mismatch for either recorded comment invalidates the external
+provenance recorded here and requires renewed owner review. Neither comment
+is copied, edited, deleted, or replaced by this change.
+
+### Authorization transition
+
+The authorization transition is [PR #110](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/110),
+the authorization-recording change for the named PR-1 scope. The PR-1
+authorization becomes operative only when PR #110 merges. An open or draft
+PR #110 does not authorize PR-1 execution, and PR #110 must remain limited to
+authorization recording with no PR-1 implementation.
+
+### Implementation-start base
+
+The implementation-start base is the exact commit placed on
+`refs/heads/main` by merging PR #110. This rule deliberately does not attempt
+to record PR #110's future merge SHA in this pre-merge file. The PR-1
+implementation agent must, before editing code:
+
+1. fetch PR #110 after it has merged;
+2. obtain its exact merged commit identity from GitHub;
+3. fetch `origin/main`;
+4. require `origin/main` to equal that merged commit;
+5. create the PR-1 branch from that exact commit; and
+6. record that exact implementation base in PR-1 pull-request metadata.
+
+If `main` advances after PR #110 merges and before PR-1 branch creation, the
+implementation agent must stop with
+`NOT_AUTHORIZED_PENDING_BASE_REFRESH`. The merge of PR #110 itself is the one
+expected change from the planning-contract baseline above and is not an
+invalidating unrelated `main` advance.
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED_WITH_EXPLICIT_DEFERRED_ITEMS`**
 
-Issue #106 is the standing external authority for the substrate, and phase 1 —
-this planning contract — is the only phase released. PR-1, PR-2, PR-3 and PR-4
-below are each uncovered by that release and are therefore `NOT_AUTHORIZED` for
-execution until the repository owner explicitly releases them.
+Before PR #110 merges, PR-1 remains inoperative and no implementation task may
+begin. After PR #110 merges and the implementation-start exact-base preflight
+succeeds, only PR-1 tasks `1.1`, `1.2`, `2.1`, `2.2`, `2.3`, `2.4`, `3.1`,
+`3.2`, `3.3`, and the PR-1 completion gate are executable. This status does
+not create authority for any other landing or transition.
 
-- Authority narrower than the landing plan ⇒ `NOT_AUTHORIZED` for every
-  uncovered landing, named explicitly.
+- PR-2 remains **`NOT_AUTHORIZED`**.
+- PR-3 remains **`NOT_AUTHORIZED`**.
+- PR-4 and the separately reviewed PR #101 transition remain
+  **`NOT_AUTHORIZED`**.
+- PR #101 remains **untouched** — not modified, rebased, narrowed, closed, or
+  merged.
+
+- Authority narrower than the landing plan ⇒ every uncovered landing remains
+  `NOT_AUTHORIZED`, named explicitly above.
 - Assurance completeness is necessary but never sufficient.
 - Neither issue #106's existence, nor ADR-0021's acceptance, nor any future
   satisfied prerequisite manufactures permission to start.
 
-**While this status is `NOT_AUTHORIZED`, implementation tasks must not begin.**
+**Only the named PR-1 tasks may begin under this status. PR-2, PR-3, PR-4, and
+the PR #101 transition must not begin without a separate owner authorization.**
 
 ### PR #101
 
