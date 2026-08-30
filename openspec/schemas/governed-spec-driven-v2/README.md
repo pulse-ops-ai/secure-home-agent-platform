@@ -221,12 +221,31 @@ pnpm run review:verify -- --change <name> \
 
 For the **governed one-time boundary**, provenance comes from
 [`.github/workflows/review-boundary.yml`](../../../.github/workflows/review-boundary.yml):
-a manually dispatched workflow that reads the pull request through the GitHub
-API, checks out the exact head GitHub reported, runs strict validation and the
-gate with GitHub's base SHA, then **re-reads the pull request and refuses if the
-head or base moved while it ran**. Because it is `workflow_dispatch`, its
-definition comes from the default branch — a pull request cannot rewrite the
-check that authorizes it.
+
+```sh
+gh api repos/<owner>/<repo>/dispatches \
+  -f event_type=review-boundary \
+  -F client_payload[pr]=<number> \
+  -F client_payload[change]=<change-name>
+```
+
+It reads the pull request through the GitHub API, requires the PR to target the
+default branch, takes the **live branch tip** as the base authority, checks that
+exact commit out as the only working tree, materialises the candidate from git
+objects, runs strict validation and then the gate, and finally re-reads both the
+PR head and the live tip — refusing if either moved while it ran.
+
+Two GitHub details are load-bearing, and getting either wrong silently voids the
+boundary:
+
+- **`pull_request.base.sha` is frozen at open time.** GitHub does not advance it
+  with the branch, so binding to it proves `X == X` while the branch has moved
+  past X. The live branch tip is queried instead.
+- **`workflow_dispatch` lets the triggerer choose a branch**, and the run then
+  executes the workflow version at that ref — so a candidate branch could ship
+  an altered boundary and have its own copy authorize it. `repository_dispatch`
+  has no ref to choose: GitHub runs the default branch's definition, by
+  construction rather than by assertion.
 
 **A base advance does not automatically mean architectural redesign.** When the
 planning bytes are unchanged and the base movement does not touch their

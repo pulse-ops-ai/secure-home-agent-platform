@@ -570,17 +570,27 @@ def test_the_review_boundary_workflow_takes_its_base_from_github() -> None:
     """
     workflow = BOUNDARY.read_text()
 
-    # Manually triggered: workflow_dispatch also means the DEFINITION comes from
-    # the default branch, so a pull request cannot rewrite the check that
-    # authorizes it.
-    assert "workflow_dispatch:" in workflow
+    # repository_dispatch, NOT workflow_dispatch: the latter lets the triggerer
+    # choose a branch (UI, `gh workflow run --ref`, REST), and the run then
+    # executes the workflow version at that ref -- so a candidate branch could
+    # ship an altered review-boundary.yml and have its own copy authorize it.
+    # An in-workflow `if github.ref != main` cannot help; the altered definition
+    # deletes it. repository_dispatch has no ref to choose.
+    assert "repository_dispatch:" in workflow
+    assert "workflow_dispatch:" not in workflow, (
+        "workflow_dispatch lets the triggerer select the branch whose workflow "
+        "definition runs, which defeats the trust this boundary establishes"
+    )
     assert "pull_request:" not in workflow, (
         "a pull_request trigger would run this continuously and from PR code"
     )
 
     # The SHAs come from the API, not from the caller.
     assert "gh api" in workflow
-    assert ".base.sha" in workflow and ".head.sha" in workflow
+    assert ".head.sha" in workflow, "the candidate identity must come from the API"
+    assert "branches/$DEFAULT_BRANCH" in workflow, (
+        "the base must come from the live branch tip, not the frozen PR base"
+    )
 
     # The gate receives that SHA as both base and freshness proof.
     assert "--base-sha" in workflow
@@ -594,7 +604,7 @@ def test_the_review_boundary_workflow_takes_its_base_from_github() -> None:
     # And the movement re-read that closes the window during the run.
     tail = workflow.split("Re-read the pull request", 1)[1]
     assert "head moved during the boundary run" in tail
-    assert "base moved during the boundary run" in tail
+    assert "moved during the boundary run" in tail
 
 
 def test_the_boundary_workflow_never_checks_out_pull_request_code() -> None:
@@ -683,6 +693,55 @@ def test_the_trusted_context_is_pinned_to_the_exact_reviewed_base() -> None:
 
     install = next(i for i, n in enumerate(names) if "Install tooling" in n)
     assert assertion < install, f"the base assertion must precede installation: {names}"
+
+
+def test_the_boundary_uses_the_live_branch_tip_not_the_recorded_pr_base() -> None:
+    """`pull_request.base.sha` is frozen at open time.
+
+    GitHub does not update it as the target branch advances, so binding to it
+    lets the boundary prove `X == X` while the branch has moved far past X --
+    making "target-base advancement invalidates the old boundary" a rule nothing
+    enforced. Proven on this repository: PR #109 recorded eb6e248 while main was
+    at f9915e5.
+    """
+    workflow = BOUNDARY.read_text()
+    steps = workflow_steps(workflow, "boundary")
+
+    read_step = next(
+        step
+        for step in steps
+        if (step_field(step, "name") or "").startswith("Read the pull request")
+    )
+    run = step_run(read_step)
+    assert 'gh api "repos/$REPO/branches/$DEFAULT_BRANCH"' in run, (
+        "the live branch tip is never queried"
+    )
+    assert 'echo "base=$live"' in run, "the exported base is not the live tip"
+
+    # The recorded base may be reported, but must not BE the authority.
+    assert 'echo "base=$base"' not in run, (
+        "the frozen pull_request.base.sha is being exported as the base"
+    )
+
+    # And the final re-read must check the live tip too, not the frozen value.
+    reread = next(step for step in steps if (step_field(step, "name") or "").startswith("Re-read"))
+    reread_run = step_run(reread)
+    assert 'gh api "repos/$REPO/branches/$DEFAULT_BRANCH"' in reread_run
+    assert "moved during the boundary run" in reread_run
+
+
+def test_the_boundary_refuses_when_the_branch_moved_between_dispatch_and_run() -> None:
+    """GITHUB_SHA is the default-branch tip at dispatch time."""
+    workflow = BOUNDARY.read_text()
+    read_step = next(
+        step
+        for step in workflow_steps(workflow, "boundary")
+        if (step_field(step, "name") or "").startswith("Read the pull request")
+    )
+    run = step_run(read_step)
+    assert '"$live" != "$GITHUB_SHA"' in run, (
+        "the boundary does not detect the branch moving between dispatch and run"
+    )
 
 
 def test_the_boundary_refuses_a_pull_request_targeting_another_branch() -> None:

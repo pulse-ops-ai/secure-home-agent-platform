@@ -92,10 +92,13 @@ that refusal is what tells you the next scope needs its own epoch.
 
 **The governed boundary runs in CI, not on a laptop.** `--base-sha` is only an
 argument: nothing in the script proves where the value came from. The trusted
-one-time run is `.github/workflows/review-boundary.yml`, dispatched manually for
-a pull request — it takes the head and base SHAs from the GitHub API, runs the
-gate against them, and refuses if either moved while it ran. A local run should
-use `--remote`, which actually contacts the remote.
+one-time run is `.github/workflows/review-boundary.yml`, triggered by
+`repository_dispatch` so the definition that runs is the default branch's. It
+takes the candidate head from the GitHub API and the base from the **live**
+branch tip — not `pull_request.base.sha`, which GitHub freezes at open time —
+runs strict OpenSpec validation and then the gate, and refuses if either moved
+while it ran. A local run should use `--remote`, which actually contacts the
+remote.
 
 **The base is bound, and its freshness is proved.** A review is accepted
 against one exact base commit, recorded as `reviewed_base_commit`. A local

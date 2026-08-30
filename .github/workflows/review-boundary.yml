@@ -15,9 +15,30 @@
 # fail every change under implementation. CI tests the mechanism elsewhere; this
 # executes the authorization, once, at the boundary.
 #
-# TRUSTED TOOLING, UNTRUSTED DATA. `workflow_dispatch` takes the workflow
-# DEFINITION from the default branch, but that alone is not enough and an
-# earlier revision of this file got it wrong: it checked out the pull request
+# WHY repository_dispatch AND NOT workflow_dispatch.
+#
+# `workflow_dispatch` requires the workflow to exist on the default branch, but
+# whoever triggers it CHOOSES a branch — the UI offers one, `gh workflow run`
+# takes `--ref`, and the REST API takes a ref — and the run then executes the
+# workflow version at that ref. A candidate branch could therefore ship an
+# altered `review-boundary.yml` and have its own version authorize it. An
+# in-workflow `if github.ref != main` cannot help: the altered definition simply
+# deletes the check.
+#
+# `repository_dispatch` has no ref to choose. GitHub sets GITHUB_REF to the
+# default branch and GITHUB_SHA to its last commit, and triggers only if the
+# workflow exists there. The definition that runs is the one on the default
+# branch, by construction rather than by assertion.
+#
+# Trigger it with:
+#
+#   gh api repos/<owner>/<repo>/dispatches \
+#     -f event_type=review-boundary \
+#     -F client_payload[pr]=<number> \
+#     -F client_payload[change]=<change-name>
+#
+# TRUSTED TOOLING, UNTRUSTED DATA. An earlier revision of this file got the
+# rest wrong too: it checked out the pull request
 # and then ran `pnpm install` and `pnpm run review:verify` inside it, so the
 # lockfile's lifecycle scripts, the resolved binaries, the package.json script
 # names, and `scripts/openspec-review-gate.mjs` itself all came from the pull
@@ -50,16 +71,8 @@
 name: review boundary
 
 on:
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: 'Pull request number to establish a review boundary for'
-        required: true
-        type: string
-      change:
-        description: 'OpenSpec change name (openspec/changes/<name>)'
-        required: true
-        type: string
+  repository_dispatch:
+    types: [review-boundary]
 
 permissions:
   contents: read
@@ -68,7 +81,7 @@ permissions:
 concurrency:
   # Never two boundary runs for one pull request: they could observe different
   # repository states and both report success.
-  group: review-boundary-${{ inputs.pr }}
+  group: review-boundary-${{ github.event.client_payload.pr }}
   cancel-in-progress: false
 
 jobs:
@@ -84,8 +97,8 @@ jobs:
         # not an argument. They are also range-checked here, before being used
         # as a path segment or a CLI argument.
         env:
-          PR: ${{ inputs.pr }}
-          CHANGE: ${{ inputs.change }}
+          PR: ${{ github.event.client_payload.pr }}
+          CHANGE: ${{ github.event.client_payload.change }}
         run: |
           set -euo pipefail
           case "$PR" in
@@ -104,7 +117,7 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ inputs.pr }}
+          PR: ${{ github.event.client_payload.pr }}
           REPO: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -138,12 +151,43 @@ jobs:
             exit 1
           fi
 
+          # THE LIVE TIP, not the pull request's recorded base.
+          #
+          # `pull_request.base.sha` is the commit the target branch pointed at
+          # WHEN THE PULL REQUEST WAS OPENED. GitHub does not update it as the
+          # branch advances, so binding to it lets the boundary prove
+          # `X == X` while the branch has moved far past X — which would make
+          # "target-base advancement invalidates the old boundary" a rule the
+          # workflow never enforced. Proven on this repository: PR #109 recorded
+          # eb6e248 while main was at f9915e5.
+          live="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
+          case "$live" in
+            [0-9a-f]*) ;;
+            *) echo "::error::could not read the live $DEFAULT_BRANCH tip"; exit 1 ;;
+          esac
+
+          # GITHUB_SHA is the default-branch tip at dispatch. If it disagrees
+          # with the tip now, the branch moved between dispatch and this run and
+          # the boundary is already stale.
+          if [ "$live" != "$GITHUB_SHA" ]; then
+            echo "::error::$DEFAULT_BRANCH moved between dispatch ($GITHUB_SHA) and now ($live)."
+            echo "::error::Re-dispatch the boundary against the current tip."
+            exit 1
+          fi
+
+          if [ "$base" != "$live" ]; then
+            echo "::notice::the pull request records base $base; $DEFAULT_BRANCH is now $live."
+            echo "::notice::The live tip is the authority; a review pinned to the older base"
+            echo "::notice::will be refused and needs a fresh epoch."
+          fi
+
           {
             echo "head=$head"
-            echo "base=$base"
+            echo "base=$live"
+            echo "recorded_base=$base"
             echo "base_ref=$base_ref"
           } >> "$GITHUB_OUTPUT"
-          echo "PR $PR: head=$head base=$base ($base_ref)"
+          echo "PR $PR: head=$head live-base=$live (recorded $base, branch $base_ref)"
 
       - name: Check out the EXACT reviewed base — the only code that runs
         # The exact SHA GitHub reported, not the branch name. A branch resolves
@@ -156,14 +200,14 @@ jobs:
           ref: ${{ steps.pr.outputs.base }}
           persist-credentials: false
 
-      - name: Assert the trusted context IS the reviewed base
+      - name: Assert the trusted context IS the live base
         env:
           BASE_SHA: ${{ steps.pr.outputs.base }}
         run: |
           set -euo pipefail
           actual="$(git rev-parse HEAD)"
           if [ "$actual" != "$BASE_SHA" ]; then
-            echo "::error::trusted checkout is $actual but the reviewed base is $BASE_SHA"
+            echo "::error::trusted checkout is $actual but the live base is $BASE_SHA"
             exit 1
           fi
           echo "trusted tooling and reviewed base are both $BASE_SHA"
@@ -220,7 +264,7 @@ jobs:
         # trusted parser reads, not programs this runner could execute, and
         # nothing reaches outside the workspace.
         env:
-          CHANGE: ${{ inputs.change }}
+          CHANGE: ${{ github.event.client_payload.change }}
         run: |
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/candidate"
@@ -236,7 +280,7 @@ jobs:
         # and apply requires both.
         working-directory: ${{ runner.temp }}/candidate
         env:
-          CHANGE: ${{ inputs.change }}
+          CHANGE: ${{ github.event.client_payload.change }}
           OPENSPEC_TELEMETRY: '0'
         run: |
           set -euo pipefail
@@ -249,7 +293,7 @@ jobs:
         # GitHub reported, so the freshness proof comes from the API rather than
         # a local ref that may be stale.
         env:
-          CHANGE: ${{ inputs.change }}
+          CHANGE: ${{ github.event.client_payload.change }}
           BASE: ${{ steps.pr.outputs.base }}
         run: |
           set -euo pipefail
@@ -262,8 +306,9 @@ jobs:
       - name: Re-read the pull request and refuse if anything moved
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ inputs.pr }}
+          PR: ${{ github.event.client_payload.pr }}
           REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EXPECTED_HEAD: ${{ steps.pr.outputs.head }}
           EXPECTED_BASE: ${{ steps.pr.outputs.base }}
         run: |
@@ -274,14 +319,17 @@ jobs:
           # a repository state that no longer exists.
           payload="$(gh api "repos/$REPO/pulls/$PR")"
           head="$(printf '%s' "$payload" | jq -r .head.sha)"
-          base="$(printf '%s' "$payload" | jq -r .base.sha)"
+          live="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
 
           if [ "$head" != "$EXPECTED_HEAD" ]; then
             echo "::error::head moved during the boundary run: $EXPECTED_HEAD -> $head"
             exit 1
           fi
-          if [ "$base" != "$EXPECTED_BASE" ]; then
-            echo "::error::base moved during the boundary run: $EXPECTED_BASE -> $base"
+          # The LIVE tip again, for the same reason it was the authority above:
+          # a merge into the target branch while this ran would leave a green
+          # boundary for a base that no longer exists.
+          if [ "$live" != "$EXPECTED_BASE" ]; then
+            echo "::error::$DEFAULT_BRANCH moved during the boundary run: $EXPECTED_BASE -> $live"
             exit 1
           fi
-          echo "boundary established: head=$head base=$base"
+          echo "boundary established: head=$head base=$live"
