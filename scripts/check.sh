@@ -93,6 +93,13 @@ if command -v pnpm >/dev/null 2>&1; then
   # mechanism nothing calls is a mechanism nothing enforces.
   run "set releases"          pnpm run check:set-releases
   run "release history"       pnpm run check:release-history
+  # Append-only review history is a repository property and belongs here.
+  # The PRE-APPLY gate (openspec-review-gate.mjs verify) deliberately does NOT:
+  # it refuses repository changes after the reviewed planning commit, so running
+  # it unconditionally would fail every implementation commit that follows a
+  # review. CI tests that mechanism; it does not re-execute the one-time
+  # authorization.
+  run "openspec review history" pnpm run check:review-history
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

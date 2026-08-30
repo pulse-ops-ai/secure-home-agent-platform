@@ -44,6 +44,45 @@ implementation detail can never override the artifact it belongs to.
   regenerable projections, not the canonical definition — do not hand-edit
   them, and do not treat them as authoritative when they drift.
 
+## Two workflows during staged adoption
+
+Two workflow schemas are supported. Which one applies is a property of the
+change, never an assumption.
+
+| | Selected by | Status |
+|---|---|---|
+| **`governed-spec-driven-v1`** | `openspec/config.yaml` | the **project default**. A change with no `.openspec.yaml` is v1. |
+| **`governed-spec-driven-v2`** | a change's own `.openspec.yaml` | **explicitly selectable**, staged. `openspec/config.v2.yaml` holds its configuration in parallel; it is not the global default and this is deliberate. |
+
+v2 adds one thing v1 has no equivalent for: a **deterministic pre-apply review
+gate**. A v2 change carries `preimplementation-review.md`, and its existence is
+not approval.
+
+**Before the first implementation or canonical-authority mutation of a v2
+change**, and not at any later point:
+
+```sh
+openspec validate <change-name> --strict
+pnpm run review:verify -- --change <change-name>
+```
+
+Stop on any refusal.
+
+This runs **once, at the pre-apply boundary**. It is deliberately not a
+continuous check: the gate refuses repository changes made after the reviewed
+planning commit, so re-running it during implementation will and should fail.
+What CI runs continuously is `pnpm run check:review-history`, which enforces
+that admitted review rounds are append-only, plus the governance test suite that
+proves the gate itself still behaves.
+
+**Neither workflow creates authorization.** A green gate says the reviewed
+planning bytes are unchanged and the review satisfies its contract. It does not
+authenticate the reviewer, prove the review was independent, or authorize the
+work — external authorization recorded in `tasks.md` remains a separate,
+non-negotiable check, and OpenSpec artifacts still cannot change an ADR's
+status, resolve an unresolved decision, or permit deployment, secrets, or
+device access.
+
 ## Validation
 
 `bash scripts/validate-scaffold.sh` enforces the structural invariants

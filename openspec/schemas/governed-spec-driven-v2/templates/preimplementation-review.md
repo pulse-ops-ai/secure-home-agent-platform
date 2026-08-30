@@ -263,12 +263,16 @@ Do not request another unrestricted “find more issues” round.
 
 ## Verdict
 
-Use exactly one:
+<!--
+State exactly ONE governed verdict token, as a bold line of its own:
 
-- `REVIEW_REQUIRED`
-- `ARCHITECTURE_ACCEPTED`
-- `FOCUSED_CLOSURE_REQUIRED`
-- `ARCHITECTURE_REJECTED`
+  REVIEW_REQUIRED  ·  ARCHITECTURE_ACCEPTED
+  FOCUSED_CLOSURE_REQUIRED  ·  ARCHITECTURE_REJECTED
+
+The gate refuses this section if it carries more or fewer than one such line,
+so the option list above lives inside a comment on purpose: replace the line
+below, never add to it. Backticked mentions in prose are not verdicts.
+-->
 
 **REVIEW_REQUIRED**
 
@@ -296,6 +300,11 @@ remains.
 
 The deterministic review gate validates the machine-readable subset. External
 implementation authorization remains a separate tasks.md check.
+
+`REVIEW_GATE_VALID` proves the planning bytes are still those reviewed and that
+this report satisfies the declared contract at the pre-apply boundary. It does
+**not** authenticate who wrote this report, and it cannot prove the review was
+independent — those remain external, procedural facts.
 
 ## Review History
 
