@@ -75,30 +75,39 @@ This section RECORDS external authorization. It can never create it.
 | Field | Value |
 |---|---|
 | Source type | `github_issue` |
-| Source id / link | **#106** — *Implement ADR-0021 governance-state substrate and migrate mutable governance projections* |
+| Source issue | **[#106](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106)** — *Implement ADR-0021 governance-state substrate and migrate mutable governance projections* |
+| Owner authorization | [Issue comment #5466054457](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5466054457) — **`OWNER AUTHORIZATION — GOVERNANCE-STATE PR-1 ONLY`** |
 | Governing ADR | **ADR-0021** — `Accepted`, immutable, SHA-256 `0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a` |
-| Base revision | `origin/main` `eb6e24806cb76898e74f16208ab40587313c126a` (merge of PR #105) |
-| Authorized scope | Phase 1 of #106 — **the OpenSpec planning contract only** |
-| Constraints | Phase 1 does not authorize implementation of the registry, validators, renderer, query interface, migration, or CI changes. PR #101 is not to be modified. |
+| Base revision | `origin/main` `7a2d731837ea9f14cae09436ddb78e6e47607ee5` (exact current base; merged PR #107) |
+| Authorized scope | **PR-1 only** — tasks `1.1`, `1.2`, `2.1`, `2.2`, `2.3`, `2.4`, `3.1`, `3.2`, `3.3`, and the **PR-1 completion gate** |
+| Constraints | This authorization releases only the named PR-1 scope. It does not authorize PR-2, PR-3, PR-4, the separately reviewed PR #101 transition, or any work outside those tasks. PR #101 is not to be modified. |
 | Owner | @mikegtech (repository owner) |
-| Recorded at | this change, on branch `spec/governance-state-substrate` |
+| Recorded at | this change, on branch `chore/governance-state-pr1-authorization` |
 
 ### Status
 
-**`NOT_AUTHORIZED`**
+**`AUTHORIZED_WITH_EXPLICIT_DEFERRED_ITEMS`**
 
-Issue #106 is the standing external authority for the substrate, and phase 1 —
-this planning contract — is the only phase released. PR-1, PR-2, PR-3 and PR-4
-below are each uncovered by that release and are therefore `NOT_AUTHORIZED` for
-execution until the repository owner explicitly releases them.
+The owner authorization is limited to the exact PR-1 task set recorded above.
+It releases implementation of that scope against the accepted planning
+contract and exact `origin/main` base; it does not create authority for any
+other landing or transition.
 
-- Authority narrower than the landing plan ⇒ `NOT_AUTHORIZED` for every
-  uncovered landing, named explicitly.
+- PR-2 remains **`NOT_AUTHORIZED`**.
+- PR-3 remains **`NOT_AUTHORIZED`**.
+- PR-4 and the separately reviewed PR #101 transition remain
+  **`NOT_AUTHORIZED`**.
+- PR #101 remains **untouched** — not modified, rebased, narrowed, closed, or
+  merged.
+
+- Authority narrower than the landing plan ⇒ every uncovered landing remains
+  `NOT_AUTHORIZED`, named explicitly above.
 - Assurance completeness is necessary but never sufficient.
 - Neither issue #106's existence, nor ADR-0021's acceptance, nor any future
   satisfied prerequisite manufactures permission to start.
 
-**While this status is `NOT_AUTHORIZED`, implementation tasks must not begin.**
+**Only the named PR-1 tasks may begin under this status. PR-2, PR-3, PR-4, and
+the PR #101 transition must not begin without a separate owner authorization.**
 
 ### PR #101
 
