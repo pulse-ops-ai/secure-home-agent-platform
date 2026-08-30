@@ -242,10 +242,16 @@ PR-1 must not contain — and review has completed on one frozen head.
   | Class | Rule |
   |---|---|
   | entity collection | sorted by id; duplicate ids rejected |
-  | set-valued relationship | sorted; duplicates rejected; order meaningless |
+  | set-valued relationship | sorted; duplicates rejected; order meaningless; identity `scope[]` is its canonical-path-set specialization |
   | sequence-valued | order preserved and identity-bearing |
   | completion-envelope entity set | keyed by `landingId`; ordered; duplicate `landingId` and one `digest` under two landings rejected; preimage over `{landingId, digest}` tuples |
   | policy-evidence identity set | sorted by member bytes; duplicates rejected |
+
+  Identity `scope[]` collections are not a sixth class: they are set-valued
+  relationships specialized to canonical repository-relative paths, sorted
+  lexicographically with duplicates rejected and no order meaning.
+  `archivedOpenSpec.members[]` is an entity set keyed by `path`, sorted by path,
+  with duplicate paths rejected and each member's exact content digest bound.
 
   **Proof required**
   - `ADV-G01` duplicate key · `ADV-G02` unknown field · `ADV-G03` noncanonical ·
@@ -311,49 +317,49 @@ PR-1 must not contain — and review has completed on one frozen head.
   `INV-G18`, the current-state portion of `INV-G45`, `INV-G46`; `D4`, `D5.3`,
   `D5a.1`, `D5a.2`
 
-  **Closed reviewed-delivery-v1 archive identity.** This task owns the exact
-  policy-specific evidence object, with no broad evidence-field union:
+  **Closed policy-discriminated completion evidence.** This task owns the
+  stable completion envelope and its exact policy-specific evidence branches,
+  with no broad evidence-field union:
 
   ```json
   {
-    "policy": "reviewed-delivery-v1",
-    "deliveredIdentity": {
-      "class": "local-git-commit",
-      "value": "<local Git object id>",
-      "scope": ["<repository-relative delivered path>"]
-    },
-    "deliveredScope": ["<repository-relative delivered path>"],
-    "authorityAnchor": {
-      "type": "github-issue",
-      "repository": "pulse-ops-ai/secure-home-agent-platform",
-      "number": 0
-    },
-    "archivedOpenSpec": {
-      "schemaVersion": 1,
-      "contract": "archived-openspec-change-v1",
-      "changeId": "<canonical-change-id>",
-      "activeRoot": "openspec/changes/<canonical-change-id>",
-      "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
-      "members": [
-        {
-          "path": "<relative-member-path>",
-          "contentSha256": "<64 lowercase hex>"
-        }
-      ],
-      "bundleSha256": "<64 lowercase hex>",
-      "reviewedIdentity": {
+    "from": "Planned",
+    "to": "Complete",
+    "digest": "<completionDigest>",
+    "evidence": {
+      "policy": "reviewed-delivery-v1",
+      "deliveredIdentity": {
         "class": "local-git-commit",
         "value": "<local Git object id>",
-        "scope": [
-          "openspec/changes/<canonical-change-id>/<relative-member-path>"
-        ]
+        "scope": ["<repository-relative delivered path>"]
       },
-      "archiveIdentity": {
-        "class": "local-git-commit",
-        "value": "<local Git object id>",
-        "scope": [
-          "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
-        ]
+      "archivedOpenSpec": {
+        "schemaVersion": 1,
+        "contract": "archived-openspec-change-v1",
+        "changeId": "<canonical-change-id>",
+        "activeRoot": "openspec/changes/<canonical-change-id>",
+        "archiveRoot": "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>",
+        "members": [
+          {
+            "path": "<relative-member-path>",
+            "contentSha256": "<64 lowercase hex>"
+          }
+        ],
+        "bundleSha256": "<64 lowercase hex>",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "<local Git object id>",
+          "scope": [
+            "openspec/changes/<canonical-change-id>/<relative-member-path>"
+          ]
+        },
+        "archivedPackageIdentity": {
+          "class": "local-git-commit",
+          "value": "<local Git object id>",
+          "scope": [
+            "openspec/changes/archive/YYYY-MM-DD-<canonical-change-id>/<relative-member-path>"
+          ]
+        }
       }
     },
     "attestation": {
@@ -364,20 +370,70 @@ PR-1 must not contain — and review has completed on one frozen head.
       "authority": {
         "type": "github-issue",
         "repository": "pulse-ops-ai/secure-home-agent-platform",
-        "number": 0
+        "number": 106
       }
     }
   }
   ```
 
-  The `policy` value equals the landing's immutable
-  `delivery.completionPolicy`. The complete `reviewed-spike-evidence-v1`
-  completion object is a separate closed shape containing its authority anchor,
-  merged evidence identity, canonical evidence root, evidence-manifest
-  identity, findings identity, and attestation; it contains no
-  `archivedOpenSpec`, `deliveredIdentity`, or `deliveredScope`. The sibling
-  `delivery.withdrawal` envelope is not completion evidence. Unknown fields,
-  aliases, and fields belonging to another policy fail closed.
+  The envelope has no optional fields: `from` is `Planned` or `InProgress`,
+  `to` is `Complete`, and PR-2 proves that `from` equals the prior lifecycle.
+  `digest` and `attestation.digest` equal the recomputed `completionDigest`.
+  The preimage obtains the authority anchor and completion policy from the
+  landing, so neither is duplicated in the envelope. `evidence.policy` is a
+  required discriminator and checked mirror of the landing policy, not a
+  second authority. The attestation's `authority` is distinct from the
+  landing's authority anchor.
+
+  For `reviewed-delivery-v1`, `evidence.deliveredIdentity` is a closed union of
+  `local-git-commit` and `content-sha256`. The first requires an existing
+  commit and nonempty canonical scope; the second requires exactly one
+  canonical repository-relative path in `scope[]` and exact-byte hashing. An
+  `external-git-commit` is opaque and cannot satisfy completion. The nested
+  `reviewedIdentity` and `archivedPackageIdentity` remain local-git-commit
+  only.
+
+  The complete `reviewed-spike-evidence-v1` evidence branch is:
+
+  ```json
+  {
+    "policy": "reviewed-spike-evidence-v1",
+    "mergedEvidencePullRequest": {
+      "type": "github-pull-request",
+      "repository": "pulse-ops-ai/secure-home-agent-platform",
+      "number": 106
+    },
+    "mergedEvidenceIdentity": {
+      "class": "local-git-commit",
+      "value": "<local Git object id>",
+      "scope": [
+        "docs/spikes/<canonical-spike-id>/<relative-evidence-path>"
+      ]
+    },
+    "evidenceRoot": "docs/spikes/<canonical-spike-id>",
+    "evidenceManifestIdentity": {
+      "class": "content-sha256",
+      "value": "<64 lowercase hex>",
+      "scope": ["docs/spikes/<canonical-spike-id>/MANIFEST.sha256"]
+    },
+    "findingsIdentity": {
+      "class": "content-sha256",
+      "value": "<64 lowercase hex>",
+      "scope": [
+        "docs/spikes/<canonical-spike-id>/<findings-file>"
+      ]
+    }
+  }
+  ```
+
+  This spike branch has no optional fields and contains no
+  `archivedOpenSpec`, `deliveredIdentity`, `deliveredScope`, or attestation
+  member. The landing's typed `authorityAnchor` is the required authority issue
+  and is not copied into evidence. The PR reference is supporting external
+  provenance, not offline proof; the local merged commit, complete evidence
+  root scope, manifest bytes, findings bytes, and envelope attestation are
+  required. Unknown fields, aliases, and fields belonging to another policy
+  fail closed.
 
   The nested `archivedOpenSpec` object is:
 
@@ -402,7 +458,7 @@ PR-1 must not contain — and review has completed on one frozen head.
         "openspec/changes/<canonical-change-id>/<relative-member-path>"
       ]
     },
-    "archiveIdentity": {
+    "archivedPackageIdentity": {
       "class": "local-git-commit",
       "value": "<local Git object id>",
       "scope": [
@@ -417,7 +473,8 @@ PR-1 must not contain — and review has completed on one frozen head.
   `openspec/changes/archive/YYYY-MM-DD-<changeId>`, with a valid calendar date
   and exact suffix correspondence. The active root is the package location in
   the reviewed active-change commit; the archive root is the package location
-  in the archive-introduction commit and current snapshot. `members` is the
+  in the selected archived-package snapshot commit and current snapshot; the
+  contract makes no claim that that commit introduced the archive. `members` is the
   complete recursively enumerated set of tracked regular non-symlink files in
   both package trees, including every present `.openspec.yaml`, `proposal.md`,
   `specs/**/*.md`, `design.md`, `assurance.md`, `tasks.md`, and every other
@@ -426,7 +483,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   sorted lexicographically by canonical relative path and must be duplicate-
   free, complete, and exact-byte bound. The reviewed active tree, current
   archive tree, and declared member set must be equal in paths and bytes;
-  `archiveIdentity`'s scoped tree must also match the current archive tree.
+  `archivedPackageIdentity`'s scoped tree must also match the current archive
+  tree. Every member in each observed tree must have Git mode `100644`; symlink,
+  gitlink, executable, and all other modes fail. Mode is a fixed validity
+  constraint rather than an unbound digest field.
   Absolute paths, traversal, empty segments, symlinks, missing members, extra
   members, and non-regular files fail. An active completion, ADR, README,
   arbitrary file, archive subfile, path-unrelated archive root, or mismatched
@@ -453,18 +513,20 @@ PR-1 must not contain — and review has completed on one frozen head.
 
   `bundleSha256` is the SHA-256 of the canonical serialization of exactly
   `{schemaVersion, contract, changeId, activeRoot, archiveRoot, members}`,
-  excluding `bundleSha256`, `reviewedIdentity`, and `archiveIdentity`. The
+  excluding `bundleSha256`, `reviewedIdentity`, and
+  `archivedPackageIdentity`. The
   implementation must provide an independent literal golden vector and
   mutation cases for `changeId`, `activeRoot`, `archiveRoot`, every member path,
   and every member digest. Ordinary post-genesis completion requires locally
   present `local-git-commit` values for both provenance identities: the reviewed
-  active tree and archive-introduction tree must match the complete member set
-  and bytes. Opaque, missing, out-of-scope, or mismatched provenance fails
-  closed. This provenance supports, but does not replace, the human completion
+  active tree and archived-package snapshot tree must match the complete member
+  set and bytes. Opaque, missing, out-of-scope, or mismatched provenance fails
+  closed. The archived-package identity does not claim first appearance in its
+  commit. This provenance supports, but does not replace, the human completion
   attestation. The completion preimage binds the landing, lifecycle transition,
-  authority anchor, delivered identity and scope, completion policy, and this
-  complete archive object, including both provenance identities. A genesis
-  disposition is not an ordinary fallback.
+  landing-owned authority anchor and completion policy, and the complete
+  policy-specific evidence object. A genesis disposition is not an ordinary
+  fallback.
 
   **Proof required** — current-revision manifestations only
   - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
@@ -474,13 +536,13 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G28` retrospective OpenSpec archive substituted
   - `ADV-G30` unknown / generic-legacy policy · `ADV-G33` absent local commit
   - `ADV-G78` closed parent/nested shape and policy-specific substitution refusal
-  - `ADV-G79` complete three-way membership, path, symlink, and exact-byte refusal
+  - `ADV-G79` complete three-way membership, path, symlink, mode, and exact-byte refusal
   - `ADV-G80` bundle preimage and digest refusal
-  - `ADV-G81` reviewed-active and archive-identity local-proof refusal
+  - `ADV-G81` reviewed-active and archived-package-snapshot local-proof refusal
   - `ADV-G82` machine-decidable scope, authority-anchor, and stale-binding refusal;
     semantic association remains `MAN-G03`
   - `ADV-G84` real-path containment and traversal refusal
-  - `ADV-G85` reviewed-active/current-archive/manifest equality refusal
+  - `ADV-G85` reviewed-active/current-archive/manifest equality and mode refusal
   - `EX-G29` valid complete archived child change with `MAN-G03` human association
   - `MAN-G03` semantic archive-to-landing association is human-attested, not inferred
   - `PROP-G11` independent bundle field sensitivity
@@ -559,7 +621,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   closure, identity and lifecycle); **`G78`**–**`G82`**, **`G84`** (closed
   archived OpenSpec identity, complete membership, local proof, machine
   bindings, and real-path containment); **`ADV-G85`** (three-way membership
-  equality); **`EX-G29`** (valid complete archive); `MAN-G03` remains the human
+  equality and mode refusal); **`EX-G29`** (valid complete archive); `MAN-G03` remains the human
   semantic-association control; PR-2 may repeat these as integration coverage
 
 - [ ] **3.2 Property coverage**
