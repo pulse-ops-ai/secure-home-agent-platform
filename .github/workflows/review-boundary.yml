@@ -1,0 +1,135 @@
+# The trusted one-time review boundary for a governed-spec-driven-v2 change.
+#
+# WHY THIS EXISTS. `openspec-review-gate.mjs verify` proves a review was
+# accepted against exact planning bytes at an exact base. Its weakest link was
+# the word "authoritative": `--base-sha` is just an argument, and an agent could
+# pass its own stale local SHA as both the base and its own proof. Nothing in
+# the script can tell the difference.
+#
+# This workflow supplies that provenance. It reads the pull request through the
+# GitHub API, so the head and base SHAs come from GitHub rather than from the
+# caller, checks out that exact head, and hands the base SHA to the gate.
+#
+# It is MANUALLY TRIGGERED and one-time by design: the gate refuses repository
+# change after the reviewed planning commit, so running it continuously would
+# fail every change under implementation. CI tests the mechanism elsewhere; this
+# executes the authorization, once, at the boundary.
+#
+# `workflow_dispatch` also means the workflow definition is taken from the
+# DEFAULT BRANCH, never from the pull request's own (mutable) code — a PR cannot
+# rewrite the check that authorizes it.
+name: review boundary
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Pull request number to establish a review boundary for'
+        required: true
+        type: string
+      change:
+        description: 'OpenSpec change name (openspec/changes/<name>)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  # Never two boundary runs for one pull request: they could observe different
+  # repository states and both report success.
+  group: review-boundary-${{ inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  boundary:
+    name: establish the review boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Read the pull request from GitHub
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload="$(gh api "repos/${{ github.repository }}/pulls/${{ inputs.pr }}")"
+          head="$(printf '%s' "$payload" | jq -r .head.sha)"
+          base="$(printf '%s' "$payload" | jq -r .base.sha)"
+          state="$(printf '%s' "$payload" | jq -r .state)"
+          base_ref="$(printf '%s' "$payload" | jq -r .base.ref)"
+
+          for value in "$head" "$base"; do
+            case "$value" in
+              [0-9a-f][0-9a-f]*) ;;
+              *) echo "::error::GitHub returned no usable SHA ($value)"; exit 1 ;;
+            esac
+          done
+          if [ "$state" != "open" ]; then
+            echo "::error::pull request ${{ inputs.pr }} is $state; a boundary is established on an open PR"
+            exit 1
+          fi
+
+          {
+            echo "head=$head"
+            echo "base=$base"
+            echo "base_ref=$base_ref"
+          } >> "$GITHUB_OUTPUT"
+          echo "PR ${{ inputs.pr }}: head=$head base=$base ($base_ref)"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The exact head GitHub reported, not a ref that could move between
+          # reading the metadata and checking it out.
+          ref: ${{ steps.pr.outputs.head }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION || '24' }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Strict OpenSpec validation
+        env:
+          OPENSPEC_TELEMETRY: '0'
+        run: pnpm exec openspec validate "${{ inputs.change }}" --strict
+
+      - name: Review gate
+        # --base and --base-sha are both the SHA GitHub reported, so the
+        # freshness proof comes from the API rather than from a local
+        # remote-tracking ref that may never have been fetched.
+        run: |
+          pnpm run review:verify -- \
+            --change "${{ inputs.change }}" \
+            --base "${{ steps.pr.outputs.base }}" \
+            --base-sha "${{ steps.pr.outputs.base }}"
+
+      - name: Re-read the pull request and refuse if anything moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The boundary is only meaningful if the thing it authorized is still
+          # the thing that exists. A push to the branch, or a merge into the
+          # base, WHILE this job ran would otherwise leave a green boundary for
+          # a repository state that no longer exists.
+          payload="$(gh api "repos/${{ github.repository }}/pulls/${{ inputs.pr }}")"
+          head="$(printf '%s' "$payload" | jq -r .head.sha)"
+          base="$(printf '%s' "$payload" | jq -r .base.sha)"
+
+          if [ "$head" != "${{ steps.pr.outputs.head }}" ]; then
+            echo "::error::head moved during the boundary run: ${{ steps.pr.outputs.head }} -> $head"
+            exit 1
+          fi
+          if [ "$base" != "${{ steps.pr.outputs.base }}" ]; then
+            echo "::error::base moved during the boundary run: ${{ steps.pr.outputs.base }} -> $base"
+            exit 1
+          fi
+          echo "boundary established: head=$head base=$base"

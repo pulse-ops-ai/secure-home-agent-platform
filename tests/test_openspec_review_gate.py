@@ -146,6 +146,21 @@ def _planning_repo(tmp_path: Path, *, schema: str = "governed-spec-driven-v2") -
     return repo
 
 
+def _bare_origin(tmp_path: Path) -> Path:
+    """A bare origin whose HEAD really points at `main`.
+
+    `git init --bare` leaves HEAD on the host git's default branch, which is
+    `master` on the GitHub runner and `main` on newer local installs.
+    """
+    origin = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(origin)],
+        check=True,
+        capture_output=True,
+    )
+    return origin
+
+
 def _base(repo: Path) -> None:
     """A stable ref standing in for `origin/main`, pointing at the planning commit."""
     _git(repo, "branch", "-f", BASE, "HEAD")
@@ -911,7 +926,7 @@ def test_an_ignored_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -> 
     [
         ({"review_epoch": 7}, "review_epoch is 7"),
         ({"verdict": "REVIEW_REQUIRED"}, "verdict is REVIEW_REQUIRED"),
-        ({"contract": "preimplementation-review-v1"}, "contract is"),
+        ({"contract": "preimplementation-review-v1"}, "contract must be"),
     ],
 )
 def test_a_history_round_whose_block_disagrees_is_not_admitted(
@@ -1035,8 +1050,7 @@ def test_an_unreachable_remote_refuses_rather_than_assuming_freshness(tmp_path: 
 
 def test_a_live_remote_matching_the_base_is_accepted(tmp_path: Path) -> None:
     """The control: a genuinely current base must still pass."""
-    origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    origin = _bare_origin(tmp_path)
     repo = _planning_repo(tmp_path)
     _accept(repo)
     _git(repo, "remote", "add", "origin", str(origin))
@@ -1048,8 +1062,7 @@ def test_a_live_remote_matching_the_base_is_accepted(tmp_path: Path) -> None:
 
 def test_a_live_remote_ahead_of_the_local_base_is_refused(tmp_path: Path) -> None:
     """The real scenario: the branch advanced and nobody fetched."""
-    origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    origin = _bare_origin(tmp_path)
     repo = _planning_repo(tmp_path)
     _accept(repo)
     _git(repo, "remote", "add", "origin", str(origin))
@@ -1057,7 +1070,15 @@ def test_a_live_remote_ahead_of_the_local_base_is_refused(tmp_path: Path) -> Non
 
     # Someone else lands on main. The local ref is untouched.
     other = tmp_path / "other"
-    subprocess.run(["git", "clone", "-q", str(origin), str(other)], check=True, capture_output=True)
+    # --branch main explicitly: a bare repository's HEAD still points at the host
+    # git's default branch -- master on the GitHub runner -- so a plain clone
+    # checks out the wrong branch and the later push is a non-fast-forward.
+    # Leaving that platform-dependent is what made this pass locally and fail in CI.
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", "main", str(origin), str(other)],
+        check=True,
+        capture_output=True,
+    )
     _git(other, "config", "user.email", "t@e")
     (other / "landed.md").write_text("# landed elsewhere\n")
     _git(other, "add", "-A")
@@ -1067,3 +1088,99 @@ def test_a_live_remote_ahead_of_the_local_base_is_refused(tmp_path: Path) -> Non
     result = _gate(repo, "verify", base_sha=None, extra=["--remote", "origin/main"])
     assert _refusal(result) == "REVIEW_BASE_STALE"
     assert "stale" in result.stderr
+
+
+# ── the repository squash-merges, so prove the epoch flow survives it ───────
+
+
+def test_a_squash_merged_planning_package_needs_a_fresh_epoch(tmp_path: Path) -> None:
+    """This repository squash-merges pull requests.
+
+    A squash merge produces a NEW commit on main whose only parent is the old
+    main -- the reviewed branch commit is not an ancestor of it. The gate's
+    "reviewed_commit is an ancestor of HEAD" rule therefore refuses a
+    carried-over epoch, and that rule is deliberately NOT weakened. The epoch
+    model is what makes it recoverable: archive the old round, take a fresh
+    epoch for the same scope against the real squash-merge base.
+
+    Written so the first dogfood of v2 on a real change is not the first time
+    anyone finds out how it behaves through the actual merge strategy.
+    """
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    assert _gate(repo, "verify").returncode == 0, "epoch 1 on the planning branch"
+
+    planning_head = _git(repo, "rev-parse", "HEAD").strip()
+    review_text = (
+        repo / "openspec" / "changes" / "demo" / "preimplementation-review.md"
+    ).read_text()
+    pre_merge_base = _git(repo, "rev-parse", f"{BASE}^{{commit}}").strip()
+
+    # Squash merge: a brand-new commit whose single parent is the old base and
+    # whose tree is the branch's. Nothing from the branch is an ancestor of it.
+    _git(repo, "checkout", "-q", "-B", "trunk", pre_merge_base)
+    _git(repo, "read-tree", planning_head)
+    _git(repo, "checkout-index", "-a", "-f")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "squash merge the planning package (#N)")
+    squashed = _git(repo, "rev-parse", "HEAD").strip()
+
+    parents = _git(repo, "rev-list", "--parents", "-n", "1", squashed).split()
+    assert len(parents) == 2, f"a squash merge has exactly one parent: {parents}"
+    assert planning_head not in parents
+    assert (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", planning_head, squashed],
+            cwd=repo,
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ), "the reviewed branch commit must NOT be an ancestor of the squashed commit"
+
+    # The base is now the squashed commit; implementation branches off it.
+    _git(repo, "branch", "-f", BASE, squashed)
+    _git(repo, "checkout", "-q", "-b", "implement-scope-one", squashed)
+
+    # The pre-merge epoch cannot authorize here. Two independent rules are
+    # violated -- the base advanced onto the squash commit, and the reviewed
+    # commit is not an ancestor (asserted against git above). Which one the gate
+    # reports first is an ordering detail; that it refuses is the contract.
+    assert _refusal(_gate(repo, "verify")) in {
+        "REVIEW_BASE_DRIFT",
+        "REVIEWED_COMMIT_NOT_ANCESTOR",
+    }
+
+    # Recover the governed way: archive the pre-merge round, take a fresh epoch
+    # for the SAME scope against the real squash-merge base.
+    change = repo / "openspec" / "changes" / "demo"
+    (change / "reviews").mkdir(exist_ok=True)
+    block = re.search(r"<!--\s*openspec-review-gate\s*([\s\S]*?)-->", review_text)
+    assert block is not None
+    reviewed = json.loads(block.group(1))["reviewed_commit"]
+    (change / "reviews" / f"1-{reviewed[:12]}.md").write_text(review_text)
+    (change / "preimplementation-review.md").unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archive the pre-merge review round")
+
+    gate = _accepted_gate(_manifest(repo, scope=SCOPE, epoch=2))
+    (change / "preimplementation-review.md").write_text(_review_text(gate))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "accepting review epoch 2 after the squash merge")
+
+    result = _gate(repo, "verify")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "epoch=2" in result.stdout
+    assert f"scope={SCOPE}" in result.stdout, "the same scope, a later boundary"
+
+
+def test_supplying_both_freshness_sources_is_refused(tmp_path: Path) -> None:
+    """They are alternative AUTHORITIES, not a preference order.
+
+    Silently preferring one would let a caller pass a real remote alongside a
+    hand-written SHA and have the SHA decide without saying so.
+    """
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    result = _gate(repo, "verify", extra=["--remote", "origin/main"])
+    assert _refusal(result) == "CONFLICTING_FRESHNESS_SOURCES"

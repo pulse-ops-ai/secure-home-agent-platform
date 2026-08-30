@@ -23,6 +23,22 @@ SCRIPT = REPO_ROOT / "scripts" / "check-openspec-review-history.mjs"
 ROUND = "openspec/changes/demo/reviews/001-abc123def456.md"
 
 
+def _git_out(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(repo),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+        },
+    ).stdout.strip()
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(
         ["git", *args],
@@ -52,6 +68,29 @@ def _write(repo: Path, relative: str, text: str) -> None:
     target = repo / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text)
+
+
+def _archive_transition(repo: Path, epoch: int, body: str) -> str:
+    """Perform a REAL archival: current review -> historical round.
+
+    Admission provenance requires the round's bytes to have been the change's
+    `preimplementation-review.md` in the parent of the commit that adds them, so
+    a test cannot simply author a file under `reviews/` any more -- which is the
+    whole point of the rule.
+    """
+    change = repo / "openspec" / "changes" / "demo"
+    current = change / "preimplementation-review.md"
+    current.write_text(body)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", f"accepted review epoch {epoch}")
+
+    name = f"{epoch:03d}-abc123def456.md"
+    (change / "reviews").mkdir(exist_ok=True)
+    (change / "reviews" / name).write_text(body)
+    current.unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", f"archive review epoch {epoch}")
+    return f"openspec/changes/demo/reviews/{name}"
 
 
 def _repo_with_round(tmp_path: Path) -> Path:
@@ -108,15 +147,50 @@ def test_the_live_repository_passes_its_own_history_gate() -> None:
 # ── the four rules ───────────────────────────────────────────────────────────
 
 
-def test_adding_a_new_historical_round_is_allowed(tmp_path: Path) -> None:
-    """The control: append-only must still permit appending."""
+def test_a_real_archival_transition_is_allowed(tmp_path: Path) -> None:
+    """The control: append-only must still permit a genuine archival."""
     repo = _repo_with_round(tmp_path)
-    _write(repo, "openspec/changes/demo/reviews/002-def456abc789.md", "# round 2\n")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-qm", "admit round 2")
-    result = _check(repo)
+    base = _git_out(repo, "rev-parse", "HEAD")
+    _archive_transition(repo, 2, "# round 2\n\nthe accepted current review\n")
+    result = _check(repo, base=base)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "1 added" in result.stdout
+
+
+def test_an_authored_historical_round_with_no_transition_is_refused(tmp_path: Path) -> None:
+    """The loophole the current-revision gate cannot see.
+
+    A well-formed round can be written directly under reviews/ without ever
+    having been the change's current review. Single-revision checks find it
+    self-consistent; only the two-revision comparison can tell.
+    """
+    repo = _repo_with_round(tmp_path)
+    base = _git_out(repo, "rev-parse", "HEAD")
+    _write(
+        repo, "openspec/changes/demo/reviews/002-def456abc789.md", "# authored, never reviewed\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "author a round directly")
+    _refused(_check(repo, base=base), "carries no preimplementation-review.md")
+
+
+def test_a_round_whose_bytes_differ_from_the_archived_review_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Archival copies the current review; it does not rewrite it in passing."""
+    repo = _repo_with_round(tmp_path)
+    base = _git_out(repo, "rev-parse", "HEAD")
+    change = repo / "openspec" / "changes" / "demo"
+    (change / "preimplementation-review.md").write_text("# round 2\n\nas accepted\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "accepted review epoch 2")
+
+    (change / "reviews").mkdir(exist_ok=True)
+    (change / "reviews" / "002-abc123def456.md").write_text("# round 2\n\nquietly edited\n")
+    (change / "preimplementation-review.md").unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archive with an edit")
+    _refused(_check(repo, base=base), "different document")
 
 
 def test_modifying_an_admitted_round_is_refused(tmp_path: Path) -> None:
@@ -188,9 +262,9 @@ def test_an_archive_move_that_also_edits_the_round_is_refused(tmp_path: Path) ->
 
 def test_an_invalid_explicit_base_fails_rather_than_falling_back(tmp_path: Path) -> None:
     repo = _repo_with_round(tmp_path)
-    _write(repo, "openspec/changes/demo/reviews/002-x.md", "# round 2\n")
+    _write(repo, "openspec/changes/demo/proposal.md", "# proposal\n\nrevised\n")
     _git(repo, "add", "-A")
-    _git(repo, "commit", "-qm", "round 2")
+    _git(repo, "commit", "-qm", "an ordinary non-review change")
     assert _check(repo, base="HEAD~1").returncode == 0, "the fallback must be usable"
     result = _check(repo, base="does-not-exist")
     assert result.returncode == 1
@@ -477,3 +551,50 @@ def test_an_added_archived_review_copy_while_the_change_stays_live_is_refused(
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "copy the round into an archive path")
     _refused(_check(repo), "still live")
+
+
+# ── the trusted one-time review boundary ────────────────────────────────────
+
+
+def test_the_review_boundary_workflow_takes_its_base_from_github() -> None:
+    """`--base-sha` is only as trustworthy as its provenance.
+
+    The script cannot tell an authoritative SHA from a stale local one an agent
+    typed. This workflow is what supplies the provenance, so its shape is part
+    of the guarantee rather than incidental.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "review-boundary.yml").read_text()
+
+    # Manually triggered: workflow_dispatch also means the DEFINITION comes from
+    # the default branch, so a pull request cannot rewrite the check that
+    # authorizes it.
+    assert "workflow_dispatch:" in workflow
+    assert "pull_request:" not in workflow, (
+        "a pull_request trigger would run this continuously and from PR code"
+    )
+
+    # The SHAs come from the API, not from the caller.
+    assert "gh api" in workflow
+    assert ".base.sha" in workflow and ".head.sha" in workflow
+
+    # The gate receives that SHA as both base and freshness proof.
+    assert "--base-sha" in workflow
+    assert "steps.pr.outputs.base" in workflow
+
+    # Least privilege.
+    assert "contents: read" in workflow
+    assert "pull-requests: read" in workflow
+    assert "write" not in workflow.split("permissions:")[1].split("concurrency:")[0]
+
+    # And the movement re-read that closes the window during the run.
+    tail = workflow.split("Re-read the pull request", 1)[1]
+    assert "head moved during the boundary run" in tail
+    assert "base moved during the boundary run" in tail
+
+
+def test_the_boundary_workflow_is_not_a_continuous_check() -> None:
+    """It executes the one-time authorization; it must not be a gate on pushes."""
+    workflow = (REPO_ROOT / ".github" / "workflows" / "review-boundary.yml").read_text()
+    triggers = workflow.split("on:", 1)[1].split("permissions:", 1)[0]
+    for continuous in ("push:", "pull_request:", "schedule:"):
+        assert continuous not in triggers, f"{continuous} would make the boundary continuous"

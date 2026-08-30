@@ -192,11 +192,41 @@ If the recorded base moves, `verify` refuses with `REVIEW_BASE_DRIFT` and a
 fresh epoch is required.
 
 **Resolvable is not current.** `origin/main` is a local remote-tracking ref that
-can be arbitrarily stale, so the gate also demands a freshness proof and never
-assumes one: pass `--base-sha <40-hex>` (an authoritative SHA — in CI, the pull
-request's base) or `--remote <remote>/<branch>` to consult the live ref. An
-unreachable remote refuses with `BASE_FRESHNESS_UNPROVEN` rather than assuming
-the local ref is fresh, and a stale local ref refuses with `REVIEW_BASE_STALE`.
+can be arbitrarily stale, so the gate demands a freshness proof and never
+assumes one. Exactly one of:
+
+| | |
+|---|---|
+| `--remote <remote>/<branch>` | contacts the remote and compares the live ref |
+| `--base-sha <40-hex>` | an externally supplied authoritative SHA |
+
+Supplying both is refused (`CONFLICTING_FRESHNESS_SOURCES`) — they are
+alternative authorities, and silent precedence would hide which one decided. An
+unreachable remote refuses with `BASE_FRESHNESS_UNPROVEN`; a stale local ref
+refuses with `REVIEW_BASE_STALE`.
+
+### The `--base-sha` trust limit, and what closes it
+
+**The script cannot prove a `--base-sha` value came from anywhere in
+particular.** It is an argument; an agent could pass its own stale SHA as both
+the base and its own proof. That limitation is real and is not solved by naming
+the flag well.
+
+For local and manual runs, use the remote form, which actually contacts it:
+
+```sh
+pnpm run review:verify -- --change <name> \
+    --base origin/main --remote origin/main
+```
+
+For the **governed one-time boundary**, provenance comes from
+[`.github/workflows/review-boundary.yml`](../../../.github/workflows/review-boundary.yml):
+a manually dispatched workflow that reads the pull request through the GitHub
+API, checks out the exact head GitHub reported, runs strict validation and the
+gate with GitHub's base SHA, then **re-reads the pull request and refuses if the
+head or base moved while it ran**. Because it is `workflow_dispatch`, its
+definition comes from the default branch — a pull request cannot rewrite the
+check that authorizes it.
 
 **A base advance does not automatically mean architectural redesign.** When the
 planning bytes are unchanged and the base movement does not touch their

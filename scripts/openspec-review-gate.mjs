@@ -1172,14 +1172,32 @@ function admittedEpochs(context, ref = 'HEAD') {
       )
     }
 
+    // The COMPLETE contract, not four selected fields: an admitted round is a
+    // real accepted review, so it must satisfy every rule the current review
+    // does — shape, reviewer, calendar instant, counts, artifact manifest — and
+    // its body must satisfy the section and verdict contract too.
+    try {
+      validateGateShape(gate)
+      assertReviewBody(text)
+    } catch (error) {
+      fail(
+        'UNADMISSIBLE_REVIEW_HISTORY',
+        `reviews/${name} does not satisfy the review contract: ${error.message}`,
+      )
+    }
+
     const problems = []
-    if (gate.contract !== CONTRACT) problems.push(`contract is ${String(gate.contract)}`)
     if (gate.review_epoch !== Number(epochText))
       problems.push(`review_epoch is ${String(gate.review_epoch)}, filename says ${epochText}`)
-    if (typeof gate.reviewed_commit !== 'string' || !gate.reviewed_commit.startsWith(sha12))
+    if (!gate.reviewed_commit.startsWith(sha12))
       problems.push(`reviewed_commit does not start with ${sha12}`)
-    if (gate.verdict !== 'ARCHITECTURE_ACCEPTED')
-      problems.push(`verdict is ${String(gate.verdict)}`)
+    // The reviewed commit must be a real commit in this repository's history.
+    if (
+      runGit(context.repoRoot, ['cat-file', '-e', `${gate.reviewed_commit}^{commit}`], {
+        allowFailure: true,
+      }) === null
+    )
+      problems.push(`reviewed_commit ${gate.reviewed_commit} is not a commit in this repository`)
 
     if (problems.length > 0) {
       fail(
@@ -1265,6 +1283,17 @@ function resolveBaseCommit(repoRoot, baseRef) {
  * assuming currency.
  */
 function assertBaseIsCurrent(repoRoot, baseCommit, options) {
+  if (options.baseSha !== undefined && options.remote !== undefined) {
+    // Two alternative sources of freshness AUTHORITY. Silently preferring one
+    // would let a caller supply a real remote alongside a hand-written SHA and
+    // have the SHA win without saying so.
+    fail(
+      'CONFLICTING_FRESHNESS_SOURCES',
+      '--base-sha and --remote are alternative freshness authorities; supply ' +
+        'exactly one so which one decided is never ambiguous',
+    )
+  }
+
   if (options.baseSha !== undefined) {
     if (!/^[0-9a-f]{40}$/.test(options.baseSha)) {
       fail('INVALID_BASE_SHA', '--base-sha must be a full lowercase 40-hex commit')

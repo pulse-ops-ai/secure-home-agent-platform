@@ -99,6 +99,72 @@ export function resolveBase(root, explicit) {
 
 const blobId = (root, ref, path) => git(root, ['rev-parse', `${ref}:${path}`])?.trim()
 
+/**
+ * PROVE ADMISSION WAS A TRANSITION, NOT AN AUTHORED FILE.
+ *
+ * The current-revision gate can prove a historical round is SELF-CONSISTENT: it
+ * parses, it satisfies the review contract, its block agrees with its filename.
+ * It cannot prove those bytes were ever the change's current review, because
+ * that is a two-revision fact — which is why it lives here.
+ *
+ * A hand-written `reviews/1-deadbeefcafe.md` carrying a well-formed accepted
+ * block would satisfy every single-revision rule while never having been
+ * reviewed as the current document. So: find the commit that FIRST adds the
+ * historical path, look at its parent, and require the parent's
+ * `preimplementation-review.md` to be byte-identical to the round being
+ * admitted.
+ *
+ *     parent:  preimplementation-review.md  == these exact bytes
+ *     commit:  reviews/<epoch>-<sha12>.md   == these exact bytes
+ *
+ * That is the archival step, and nothing else produces that shape.
+ */
+function admissionProvenanceProblem(root, baseRef, historicalPath) {
+  const changeRoot = historicalPath.slice(0, historicalPath.indexOf('/reviews/'))
+  const currentPath = `${changeRoot}/preimplementation-review.md`
+
+  // The oldest commit in base..HEAD that introduced this path.
+  const adds = git(root, [
+    'log',
+    '--reverse',
+    '--diff-filter=A',
+    '--format=%H',
+    `${baseRef}..HEAD`,
+    '--',
+    historicalPath,
+  ])
+  if (adds === undefined) {
+    return `"${historicalPath}": the commit that added it could not be determined`
+  }
+  const addingCommit = adds
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)[0]
+  if (addingCommit === undefined) {
+    return `"${historicalPath}": no commit in this window adds it`
+  }
+
+  const admitted = blobId(root, addingCommit, historicalPath)
+  const parentCurrent = blobId(root, `${addingCommit}^`, currentPath)
+
+  if (parentCurrent === undefined) {
+    return (
+      `"${historicalPath}" was added in ${addingCommit.slice(0, 12)}, whose parent ` +
+      'carries no preimplementation-review.md. A historical round is admitted by ' +
+      'archiving the CURRENT review, so those bytes must have been the current ' +
+      'review immediately before'
+    )
+  }
+  if (admitted !== parentCurrent) {
+    return (
+      `"${historicalPath}" does not match the current review it claims to archive: ` +
+      `at ${addingCommit.slice(0, 12)}^ the current review was a different document. ` +
+      'Admission is a transition, not an authored file'
+    )
+  }
+  return undefined
+}
+
 /** The change NAME a live review path belongs to, or undefined. */
 const liveChangeOf = (path) => /^openspec\/changes\/([^/]+)\/reviews\//.exec(path)?.[1]
 
@@ -298,6 +364,11 @@ export function checkReviewHistory(root = DEFAULT_ROOT, explicitBase = undefined
     if (!REVIEW_RE.test(from)) continue
 
     if (status === 'A') {
+      const problem = admissionProvenanceProblem(root, base.ref, from)
+      if (problem !== undefined) {
+        fail(`review history ${problem}`)
+        continue
+      }
       added += 1
       continue
     }

@@ -90,6 +90,13 @@ a continuous check: the gate refuses repository changes made after the reviewed
 planning commit, so re-running it during implementation will and should fail —
 that refusal is what tells you the next scope needs its own epoch.
 
+**The governed boundary runs in CI, not on a laptop.** `--base-sha` is only an
+argument: nothing in the script proves where the value came from. The trusted
+one-time run is `.github/workflows/review-boundary.yml`, dispatched manually for
+a pull request — it takes the head and base SHAs from the GitHub API, runs the
+gate against them, and refuses if either moved while it ran. A local run should
+use `--remote`, which actually contacts the remote.
+
 **The base is bound, and its freshness is proved.** A review is accepted
 against one exact base commit, recorded as `reviewed_base_commit`. A local
 `origin/main` can be arbitrarily stale, so the gate additionally requires either
