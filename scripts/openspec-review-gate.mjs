@@ -22,7 +22,13 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-const CONTRACT = 'preimplementation-review-v1'
+// v2, not v1: the block gained review_epoch, scope_id, and
+// reviewed_base_commit, and its semantics changed from "one review before the
+// first edit" to "one review epoch per independently released scope". A v1
+// block must be REFUSED rather than reinterpreted — silently reading an old
+// block under new rules would treat a review that never considered a scope
+// boundary as though it had.
+const CONTRACT = 'preimplementation-review-v2'
 const SCHEMA = 'governed-spec-driven-v2'
 const RUBRIC = 'governed-preimplementation-review-v1'
 const REVIEW_FILE = 'preimplementation-review.md'
@@ -82,6 +88,10 @@ const VERDICT_TOKENS = [
  * once. Order is part of the contract: a review that answers Apply Eligibility
  * before it has stated Findings is not the reviewed document this gate claims.
  */
+/** `<!-- review-scope: <id> -->` in tasks.md. tasks.md owns scope; the review
+ * only REFERS to it, so scope contents never gain a second authority. */
+const SCOPE_MARKER = /^<!--\s*review-scope:\s*([a-z0-9][a-z0-9-]*)\s*-->\s*$/gm
+
 const REQUIRED_SECTIONS = [
   'Review Pin',
   'Independent Review Statement',
@@ -153,14 +163,17 @@ function fail(code, message) {
 
 function usage() {
   return `Usage:
-  node scripts/openspec-review-gate.mjs manifest --change <change-name>
-  node scripts/openspec-review-gate.mjs verify   --change <change-name>
-  node scripts/openspec-review-gate.mjs manifest --change-dir <path>
-  node scripts/openspec-review-gate.mjs verify   --change-dir <path>
+  node scripts/openspec-review-gate.mjs manifest --change <name> \\
+      --scope <scope-id> --epoch <n> --base <ref>
+  node scripts/openspec-review-gate.mjs verify   --change <name> --base <ref>
+
+  --change-dir <path> may be used instead of --change.
 
 Modes:
-  manifest  Print a machine-readable gate block for the current clean HEAD.
-  verify    Verify the accepting review, artifact hashes, and repository pin.
+  manifest  Print a machine-readable gate block for the current clean HEAD,
+            pinned to one release scope, one review epoch, and one exact base.
+  verify    Verify the accepting review, artifact hashes, repository pin, epoch
+            sequence, declared scope, and that the base has not moved.
 `
 }
 
@@ -190,21 +203,27 @@ function parseArgs(argv) {
     fail('USAGE', `first argument must be "manifest" or "verify"\n\n${usage()}`)
   }
 
-  let change = null
-  let changeDirArg = null
+  const values = new Map()
+  const FLAGS = ['--change', '--change-dir', '--scope', '--epoch', '--base']
 
   for (let index = 1; index < argv.length; index += 1) {
-    const arg = argv[index]
-    if (arg === '--change') {
-      change = argv[index + 1] ?? null
-      index += 1
-    } else if (arg === '--change-dir') {
-      changeDirArg = argv[index + 1] ?? null
-      index += 1
-    } else {
-      fail('USAGE', `unknown argument: ${arg}\n\n${usage()}`)
+    const flag = argv[index]
+    if (!FLAGS.includes(flag)) {
+      fail('USAGE', `unknown argument: ${flag}\n\n${usage()}`)
     }
+    const value = argv[index + 1]
+    if (value === undefined || value.startsWith('--')) {
+      fail('USAGE', `${flag} requires a value\n\n${usage()}`)
+    }
+    if (values.has(flag)) {
+      fail('USAGE', `${flag} was supplied twice\n\n${usage()}`)
+    }
+    values.set(flag, value)
+    index += 1
   }
+
+  const change = values.get('--change') ?? null
+  const changeDirArg = values.get('--change-dir') ?? null
 
   if ((change === null) === (changeDirArg === null)) {
     fail('USAGE', 'provide exactly one of --change <name> or --change-dir <path>')
@@ -214,7 +233,19 @@ function parseArgs(argv) {
     fail('INVALID_CHANGE_NAME', `change name must match ^[a-z0-9][a-z0-9-]*$: ${change}`)
   }
 
-  return { mode, change, changeDirArg }
+  const epochText = values.get('--epoch')
+  if (epochText !== undefined && !/^[0-9]+$/.test(epochText)) {
+    fail('INVALID_REVIEW_EPOCH', `--epoch must be a positive integer; got ${epochText}`)
+  }
+
+  return {
+    mode,
+    change,
+    changeDirArg,
+    scope: values.get('--scope'),
+    epoch: epochText === undefined ? undefined : Number(epochText),
+    base: values.get('--base'),
+  }
 }
 
 function toPosix(value) {
@@ -538,6 +569,9 @@ function validateGateShape(gate) {
     'schema',
     'rubric',
     'reviewed_commit',
+    'reviewed_base_commit',
+    'review_epoch',
+    'scope_id',
     'reviewed_at',
     'reviewer',
     'verdict',
@@ -561,6 +595,28 @@ function validateGateShape(gate) {
 
   if (typeof gate.reviewed_commit !== 'string' || !/^[0-9a-f]{40}$/.test(gate.reviewed_commit)) {
     fail('INVALID_REVIEWED_COMMIT', 'reviewed_commit must be a full lowercase 40-hex Git commit')
+  }
+
+  if (
+    typeof gate.reviewed_base_commit !== 'string' ||
+    !/^[0-9a-f]{40}$/.test(gate.reviewed_base_commit)
+  ) {
+    fail(
+      'INVALID_REVIEWED_BASE_COMMIT',
+      'reviewed_base_commit must be a full lowercase 40-hex Git commit',
+    )
+  }
+
+  if (!Number.isInteger(gate.review_epoch) || gate.review_epoch < 1) {
+    fail(
+      'INVALID_REVIEW_EPOCH',
+      `review_epoch must be an integer >= 1; got ${JSON.stringify(gate.review_epoch)}`,
+    )
+  }
+
+  assertString(gate.scope_id, 'scope_id')
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(gate.scope_id)) {
+    fail('INVALID_SCOPE_ID', `scope_id must match ^[a-z0-9][a-z0-9-]*$; got ${gate.scope_id}`)
   }
 
   assertString(gate.reviewed_at, 'reviewed_at')
@@ -678,7 +734,7 @@ async function verifyArtifactManifest(context, gate) {
  * the machine-readable gate block is itself an HTML comment. Masking rather
  * than deleting keeps line numbers meaningful in refusals.
  */
-function maskNonProse(text) {
+function maskNonProse(text, { maskComments = true } = {}) {
   const lines = text.split('\n')
   const masked = []
   let fence = null
@@ -712,7 +768,7 @@ function maskNonProse(text) {
       continue
     }
 
-    const open = line.indexOf('<!--')
+    const open = maskComments ? line.indexOf('<!--') : -1
     if (open === -1) {
       masked.push(line)
       continue
@@ -950,6 +1006,134 @@ function assertReviewCommittedAfterPin({ repoRoot, changeRepoPath, reviewedCommi
   }
 }
 
+/**
+ * The scope must resolve EXACTLY ONCE in the pinned tasks.md.
+ *
+ * tasks.md owns implementation and release scope. The review refers to it by a
+ * stable id and never restates its paths, tasks, or authorization — otherwise
+ * "what is in this scope" would have two authorities that can disagree.
+ */
+async function assertScopeResolves(changeDir, scopeId) {
+  const tasksPath = path.join(changeDir, 'tasks.md')
+  await assertRegularFileInside(changeDir, tasksPath, 'tasks.md')
+  const tasks = await readFile(tasksPath, 'utf8')
+
+  // Fenced blocks are masked so an EXAMPLE marker in documentation cannot
+  // declare a scope. Comments are NOT masked: the marker is deliberately an
+  // HTML comment so it is machine-readable and invisible in rendered markdown.
+  const declared = [...maskNonProse(tasks, { maskComments: false }).matchAll(SCOPE_MARKER)].map(
+    (match) => match[1],
+  )
+  const matching = declared.filter((id) => id === scopeId)
+
+  const duplicates = declared.filter((id, index) => declared.indexOf(id) !== index)
+  if (duplicates.length > 0) {
+    fail(
+      'DUPLICATE_REVIEW_SCOPE',
+      `tasks.md declares review-scope ids more than once: ${[...new Set(duplicates)].join(', ')}`,
+    )
+  }
+
+  if (matching.length !== 1) {
+    fail(
+      'SCOPE_NOT_DECLARED',
+      `scope_id "${scopeId}" resolves ${matching.length} times in tasks.md; ` +
+        `declared scopes: ${declared.length > 0 ? declared.join(', ') : '(none)'}`,
+    )
+  }
+}
+
+/**
+ * Epoch sequence, read from the append-only history beside the current review.
+ *
+ * Historical immutability belongs to the two-revision history checker; this
+ * only asks whether the CURRENT epoch is the next one. Rounds are named
+ * `<epoch>-<anything>.md`, so the directory listing IS the admitted sequence
+ * and no hand-maintained count can drift from it.
+ */
+async function assertEpochSequence(changeDir, epoch) {
+  const admitted = []
+  let entries
+  try {
+    entries = await readdir(path.join(changeDir, 'reviews'), { withFileTypes: true })
+  } catch {
+    entries = []
+  }
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+    const match = /^(\d+)-/.exec(entry.name)
+    if (match === null) continue
+    admitted.push(Number(match[1]))
+  }
+  admitted.sort((a, b) => a - b)
+
+  const duplicates = admitted.filter((value, index) => admitted.indexOf(value) !== index)
+  if (duplicates.length > 0) {
+    fail(
+      'DUPLICATE_REVIEW_EPOCH',
+      `review history admits epoch ${[...new Set(duplicates)].join(', ')} more than once`,
+    )
+  }
+
+  const expectedHistory = Array.from({ length: epoch - 1 }, (_, index) => index + 1)
+  if (JSON.stringify(admitted) !== JSON.stringify(expectedHistory)) {
+    fail(
+      'REVIEW_EPOCH_SEQUENCE',
+      `epoch ${epoch} requires exactly epochs [${expectedHistory.join(', ')}] in ` +
+        `reviews/; found [${admitted.join(', ')}]. An epoch may not be skipped, ` +
+        'repeated, or regressed, and a superseded review must be archived first',
+    )
+  }
+}
+
+/**
+ * Bind the review to the exact target-base revision its assumptions were made
+ * against.
+ *
+ * Pinning only the planning branch commit left the base free to move: a review
+ * accepted against one `main` could authorize apply against a different one,
+ * silently. The exact SHA is recorded — never a mutable ref like `main`, which
+ * would be an authority that changes without anybody deciding.
+ *
+ * A base advance requires a fresh epoch. It does NOT automatically require
+ * another unrestricted architecture audit: when the planning bytes are
+ * unchanged and the base movement does not touch their assumptions, the next
+ * epoch may be a focused base-freshness review.
+ */
+function resolveBaseCommit(repoRoot, baseRef) {
+  if (baseRef === undefined) {
+    fail(
+      'BASE_REF_REQUIRED',
+      '--base <ref> is required: a review boundary is never inferred. Pass the ' +
+        'target branch this review was made against, for example origin/main',
+    )
+  }
+  const resolved = runGit(repoRoot, ['rev-parse', '--verify', `${baseRef}^{commit}`], {
+    allowFailure: true,
+  })
+  if (resolved === null || !/^[0-9a-f]{40}$/.test(resolved)) {
+    fail(
+      'BASE_REF_UNRESOLVABLE',
+      `--base "${baseRef}" does not resolve to a commit. An explicit base never ` +
+        'demotes to inference: nothing was compared',
+    )
+  }
+  return resolved
+}
+
+function assertBaseIncorporated(repoRoot, baseCommit) {
+  const incorporated = runGit(repoRoot, ['merge-base', '--is-ancestor', baseCommit, 'HEAD'], {
+    allowFailure: true,
+  })
+  if (incorporated === null) {
+    fail(
+      'BASE_NOT_INCORPORATED',
+      `base commit ${baseCommit} is not an ancestor of HEAD; the reviewed work ` +
+        'does not sit on the base it claims',
+    )
+  }
+}
+
 function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit }) {
   const commitExists = runGit(repoRoot, ['cat-file', '-e', `${reviewedCommit}^{commit}`], {
     allowFailure: true,
@@ -987,8 +1171,22 @@ function assertRepositoryPin({ repoRoot, changeRepoPath, reviewedCommit }) {
   }
 }
 
-async function manifestMode(context) {
+async function manifestMode(context, options) {
   assertManifestWorktreeClean(context.repoRoot)
+
+  const epoch = options.epoch
+  if (!Number.isInteger(epoch) || epoch < 1) {
+    fail('INVALID_REVIEW_EPOCH', '--epoch <n> must be an integer >= 1')
+  }
+  if (options.scope === undefined) {
+    fail('SCOPE_REQUIRED', '--scope <id> is required: every review pins one release scope')
+  }
+
+  await assertScopeResolves(context.changeDir, options.scope)
+  await assertEpochSequence(context.changeDir, epoch)
+
+  const baseCommit = resolveBaseCommit(context.repoRoot, options.base)
+  assertBaseIncorporated(context.repoRoot, baseCommit)
 
   const artifacts = await artifactManifest(context)
   const reviewedCommit = runGit(context.repoRoot, ['rev-parse', 'HEAD'])
@@ -998,6 +1196,9 @@ async function manifestMode(context) {
     schema: SCHEMA,
     rubric: RUBRIC,
     reviewed_commit: reviewedCommit,
+    reviewed_base_commit: baseCommit,
+    review_epoch: epoch,
+    scope_id: options.scope,
     // NOT the current time. `manifest` runs BEFORE the independent review, so a
     // generated timestamp would record when the bytes were pinned and read as
     // when they were reviewed. The accepting reviewer replaces this.
@@ -1014,7 +1215,7 @@ async function manifestMode(context) {
   process.stdout.write(`<!-- openspec-review-gate\n${JSON.stringify(gate, null, 2)}\n-->\n`)
 }
 
-async function verifyMode(context) {
+async function verifyMode(context, options) {
   assertVerifyWorktreeClean(context.repoRoot)
   await readSchemaSelection(context.changeDir)
 
@@ -1037,11 +1238,31 @@ async function verifyMode(context) {
     reviewedCommit: gate.reviewed_commit,
   })
 
+  await assertScopeResolves(context.changeDir, gate.scope_id)
+  await assertEpochSequence(context.changeDir, gate.review_epoch)
+
+  const baseCommit = resolveBaseCommit(context.repoRoot, options.base)
+  if (baseCommit !== gate.reviewed_base_commit) {
+    fail(
+      'REVIEW_BASE_DRIFT',
+      `the base moved after this review: it was accepted against ` +
+        `${gate.reviewed_base_commit} and "${options.base}" now resolves to ` +
+        `${baseCommit}. A fresh review epoch is required. That epoch MAY be a ` +
+        'focused base-freshness review when the planning bytes are unchanged and ' +
+        'the base movement does not touch their assumptions — it is not ' +
+        'automatically another unrestricted architecture audit',
+    )
+  }
+  assertBaseIncorporated(context.repoRoot, baseCommit)
+
   process.stdout.write(
     [
       'REVIEW_GATE_VALID',
       `change=${context.changeName}`,
+      `epoch=${gate.review_epoch}`,
+      `scope=${gate.scope_id}`,
       `reviewed_commit=${gate.reviewed_commit}`,
+      `base=${gate.reviewed_base_commit}`,
       `artifacts=${artifacts.length}`,
       `reviewer=${gate.reviewer}`,
       '',
@@ -1054,9 +1275,9 @@ async function main() {
   const context = await resolveContext(parsed)
 
   if (parsed.mode === 'manifest') {
-    await manifestMode(context)
+    await manifestMode(context, parsed)
   } else {
-    await verifyMode(context)
+    await verifyMode(context, parsed)
   }
 }
 

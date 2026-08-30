@@ -5,7 +5,8 @@ This file is the current review gate. It is not a specification.
 
 Generate the exact planning-file manifest with:
 
-  node scripts/openspec-review-gate.mjs manifest --change <change-name>
+  pnpm run review:manifest -- --change <change-name> \
+      --scope <tasks.md review-scope id> --epoch <n> --base origin/main
 
 Paste the emitted JSON between `openspec-review-gate` and the closing comment,
 then complete the review in a fresh, read-only, repository-aware session.
@@ -16,10 +17,13 @@ criteria below are satisfied.
 
 <!-- openspec-review-gate
 {
-  "contract": "preimplementation-review-v1",
+  "contract": "preimplementation-review-v2",
   "schema": "governed-spec-driven-v2",
   "rubric": "governed-preimplementation-review-v1",
   "reviewed_commit": "REPLACE_WITH_40_HEX_COMMIT",
+  "reviewed_base_commit": "REPLACE_WITH_40_HEX_COMMIT",
+  "review_epoch": 1,
+  "scope_id": "REPLACE_WITH_TASKS_REVIEW_SCOPE_ID",
   "reviewed_at": "REPLACE_WITH_RFC3339_TIMESTAMP",
   "reviewer": "REPLACE_WITH_INDEPENDENT_REVIEWER",
   "verdict": "REVIEW_REQUIRED",

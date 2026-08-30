@@ -104,12 +104,36 @@ pnpm run review:verify   -- --change <change-name>   # immediately before apply
 
 (equivalently `node scripts/openspec-review-gate.mjs manifest|verify --change <name>`)
 
+## Review epochs — one per independently released scope
+
+v2 is not "one review before the first edit". It is **one review epoch before
+each independently released implementation scope**:
+
+```text
+complete planning package
+  -> review epoch 1 -> verify -> implementation scope 1
+  -> review epoch 2 -> verify -> implementation scope 2
+  -> ...
+```
+
+`tasks.md` owns scope and declares one `<!-- review-scope: <id> -->` marker per
+independently releasable scope. The review block refers to a scope **only by
+id** — it never restates the scope's paths, tasks, requirements, or
+authorization, so scope keeps exactly one authority. A one-scope change declares
+one id and runs one epoch.
+
+Superseded rounds move to `reviews/<epoch>-<sha12>.md`, and the directory
+listing IS the admitted epoch sequence — no hand-maintained count can drift from
+it. Epoch N requires exactly epochs 1..N-1 in history: no skip, no duplicate, no
+regression.
+
 ## When to run it — and when not to
 
 `verify` is a **pre-apply boundary check**, not a continuous one. It refuses any
-repository change made after the reviewed planning commit, so it passes exactly
-once: in the moment between an accepted review and the first implementation
-edit. Every legitimate commit after that point makes it fail, correctly.
+repository change made after the reviewed planning commit, so each epoch passes
+exactly once: between an accepted review and the first implementation edit of
+its scope. Every legitimate commit after that point makes it fail — and that
+refusal is the signal that the next scope needs its own epoch.
 
 | | |
 |---|---|
@@ -137,7 +161,23 @@ What runs continuously instead:
 ```
 
 `tests/test_openspec_review_gate.py` executes this sequence against real Git
-repositories, so the worked example is a test rather than prose.
+repositories, so the worked example is a test rather than prose — including the
+full two-epoch lifecycle with real implementation drift between the epochs.
+
+## The base is bound too
+
+A review is accepted against one exact target-base commit, recorded as
+`reviewed_base_commit`. The CLI takes the base ref explicitly (`--base
+origin/main`) and records the **resolved SHA** — never the mutable ref, which
+would be an authority that changes without anybody deciding.
+
+If the target branch advances, `verify` refuses with `REVIEW_BASE_DRIFT` and a
+fresh epoch is required.
+
+**A base advance does not automatically mean architectural redesign.** When the
+planning bytes are unchanged and the base movement does not touch their
+assumptions, the next epoch may be a **focused base-freshness review**. v2 does
+not turn every base movement into another unrestricted architecture audit.
 
 `manifest` prints the exact JSON gate block for the current clean planning
 commit. `verify` checks:

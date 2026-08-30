@@ -101,6 +101,11 @@ artifacts:
       schema, policy, typed table, fixture, or derivation function.
     requires:
       - proposal
+      # SERIALIZED DELIBERATELY. Governed technical design must be based on the
+      # normative behaviour it implements, not authored beside it: a design
+      # written in parallel with specs describes a system whose required
+      # behaviour was still moving.
+      - specs
 
   - id: assurance
     generates: assurance.md

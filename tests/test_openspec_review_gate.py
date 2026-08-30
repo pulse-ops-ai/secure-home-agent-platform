@@ -73,14 +73,30 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout
 
 
-def _gate(repo: Path, mode: str, change: str = "demo") -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["node", str(SCRIPT), mode, "--change", change],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+SCOPE = "scope-one"
+BASE = "base-ref"
+
+
+def _gate(
+    repo: Path,
+    mode: str,
+    change: str = "demo",
+    *,
+    scope: str | None = SCOPE,
+    epoch: int | None = 1,
+    base: str | None = BASE,
+    extra: list[str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    args = ["node", str(SCRIPT), mode, "--change", change]
+    if base is not None:
+        args += ["--base", base]
+    if mode == "manifest":
+        if scope is not None:
+            args += ["--scope", scope]
+        if epoch is not None:
+            args += ["--epoch", str(epoch)]
+    args += extra or []
+    return subprocess.run(args, cwd=repo, capture_output=True, text=True, check=False)
 
 
 def _refusal(result: subprocess.CompletedProcess[str]) -> str:
@@ -99,18 +115,28 @@ def _planning_repo(tmp_path: Path, *, schema: str = "governed-spec-driven-v2") -
     (repo / "scripts" / "openspec-review-gate.mjs").write_text(SCRIPT.read_text())
 
     (change / ".openspec.yaml").write_text(f"schema: {schema}\n")
-    for name in ("proposal", "design", "assurance", "tasks"):
+    for name in ("proposal", "design", "assurance"):
         (change / f"{name}.md").write_text(f"# {name}\n\nplanning content\n")
+    # tasks.md OWNS release scope. The review only refers to the id.
+    (change / "tasks.md").write_text(
+        f"# tasks\n\n## Scope one\n\n<!-- review-scope: {SCOPE} -->\n\n- [ ] do the work\n"
+    )
     (change / "specs" / "capability" / "spec.md").write_text("# spec\n\nADDED requirement\n")
 
-    _git(repo, "init", "-q")
+    _git(repo, "init", "-q", "-b", "fixture")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "planning")
+    _git(repo, "branch", "-f", BASE, "HEAD")
     return repo
 
 
-def _manifest(repo: Path) -> dict[str, Any]:
-    result = _gate(repo, "manifest")
+def _base(repo: Path) -> None:
+    """A stable ref standing in for `origin/main`, pointing at the planning commit."""
+    _git(repo, "branch", "-f", BASE, "HEAD")
+
+
+def _manifest(repo: Path, *, scope: str = SCOPE, epoch: int = 1) -> dict[str, Any]:
+    result = _gate(repo, "manifest", scope=scope, epoch=epoch)
     assert result.returncode == 0, result.stdout + result.stderr
     body = re.search(r"<!--\s*openspec-review-gate\s*([\s\S]*?)-->", result.stdout)
     assert body is not None
@@ -462,7 +488,19 @@ def test_artifact_order_is_locale_independent(tmp_path: Path) -> None:
     orders = []
     for locale in ("C", "en_US.UTF-8", "tr_TR.UTF-8"):
         result = subprocess.run(
-            ["node", str(SCRIPT), "manifest", "--change", "demo"],
+            [
+                "node",
+                str(SCRIPT),
+                "manifest",
+                "--change",
+                "demo",
+                "--scope",
+                SCOPE,
+                "--epoch",
+                "1",
+                "--base",
+                BASE,
+            ],
             cwd=repo,
             capture_output=True,
             text=True,
@@ -513,7 +551,9 @@ def test_an_ignored_untracked_required_artifact_is_refused(tmp_path: Path) -> No
     _git(repo, "rm", "-q", "openspec/changes/demo/tasks.md")
     _git(repo, "commit", "-qm", "remove tasks")
     _ignore(repo, "tasks.md")
-    (repo / "openspec" / "changes" / "demo" / "tasks.md").write_text("# tasks\n")
+    (repo / "openspec" / "changes" / "demo" / "tasks.md").write_text(
+        f"# tasks\n\n<!-- review-scope: {SCOPE} -->\n"
+    )
     assert _git(repo, "status", "--porcelain").strip() == ""
     assert _refusal(_gate(repo, "manifest")) == "PLANNING_FILE_NOT_TRACKED"
 
@@ -569,3 +609,232 @@ def test_a_real_calendar_instant_passes(tmp_path: Path, value: str) -> None:
     repo = _planning_repo(tmp_path)
     _accept(repo, gate_overrides={"reviewed_at": value})
     assert _gate(repo, "verify").returncode == 0, value
+
+
+# ── repeatable review epochs ────────────────────────────────────────────────
+
+
+def _archive_current_round(repo: Path, epoch: int) -> None:
+    """Move the accepted current review into history, byte-for-byte."""
+    change = repo / "openspec" / "changes" / "demo"
+    reviews = change / "reviews"
+    reviews.mkdir(exist_ok=True)
+    current = change / "preimplementation-review.md"
+    (reviews / f"{epoch}-round.md").write_text(current.read_text())
+    current.unlink()
+
+
+def test_a_second_review_epoch_reopens_the_boundary_after_scope_one_lands(
+    tmp_path: Path,
+) -> None:
+    """The whole point of epochs, end to end.
+
+    Epoch 1 authorizes scope 1. Real implementation drift then lands -- drift
+    that makes the epoch-1 review unusable, which is asserted rather than
+    assumed. Epoch 2 establishes a fresh boundary for scope 2 over the new
+    bytes, and the epoch-1 review survives only as history.
+    """
+    repo = _planning_repo(tmp_path)
+    tasks = repo / "openspec" / "changes" / "demo" / "tasks.md"
+    tasks.write_text(
+        f"# tasks\n\n## Scope one\n\n<!-- review-scope: {SCOPE} -->\n\n"
+        "- [ ] land scope one\n\n## Scope two\n\n<!-- review-scope: scope-two -->\n\n"
+        "- [ ] land scope two\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "two release scopes")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+
+    _accept(repo)
+    assert _gate(repo, "verify").returncode == 0, "epoch 1 must authorize scope 1"
+
+    # Real implementation drift for scope 1.
+    (repo / "src").mkdir()
+    (repo / "src" / "scope_one.ts").write_text("export const one = 1\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "implement scope one")
+
+    # The epoch-1 review is now unusable, and that is what makes epoch 2 needed.
+    assert _refusal(_gate(repo, "verify")) == "REPOSITORY_DRIFT_AFTER_REVIEW"
+
+    # New boundary: archive epoch 1, pin epoch 2 for the next scope.
+    _archive_current_round(repo, 1)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archive review epoch 1")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+
+    gate = _accepted_gate(_manifest(repo, scope="scope-two", epoch=2))
+    (repo / "openspec" / "changes" / "demo" / "preimplementation-review.md").write_text(
+        _review_text(gate)
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "accepting review epoch 2")
+
+    result = _gate(repo, "verify")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "epoch=2" in result.stdout
+    assert "scope=scope-two" in result.stdout
+
+    # The implementation file is NOT a planning artifact merely because the
+    # epoch advanced.
+    assert all("src/" not in a["path"] for a in gate["reviewed_artifacts"])
+    # And the historical round is still exactly the bytes that were accepted.
+    history = repo / "openspec" / "changes" / "demo" / "reviews" / "1-round.md"
+    assert "review_epoch" in history.read_text()
+
+
+@pytest.mark.parametrize(
+    ("epoch", "code"),
+    [(1, "REVIEW_EPOCH_SEQUENCE"), (3, "REVIEW_EPOCH_SEQUENCE"), (0, "INVALID_REVIEW_EPOCH")],
+)
+def test_a_duplicate_skipped_or_invalid_epoch_is_refused(
+    tmp_path: Path, epoch: int, code: str
+) -> None:
+    """With epoch 1 admitted, only epoch 2 is next."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    _archive_current_round(repo, 1)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archive epoch 1")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    assert _refusal(_gate(repo, "manifest", epoch=epoch)) == code
+
+
+def test_a_current_review_whose_epoch_disagrees_with_history_is_refused(
+    tmp_path: Path,
+) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"review_epoch": 4})
+    assert _refusal(_gate(repo, "verify")) == "REVIEW_EPOCH_SEQUENCE"
+
+
+def test_an_unknown_scope_id_is_refused(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"scope_id": "no-such-scope"})
+    assert _refusal(_gate(repo, "verify")) == "SCOPE_NOT_DECLARED"
+
+
+def test_a_duplicated_scope_declaration_is_refused(tmp_path: Path) -> None:
+    """One scope, one id: a repeated marker makes `scope_id` ambiguous."""
+    repo = _planning_repo(tmp_path)
+    tasks = repo / "openspec" / "changes" / "demo" / "tasks.md"
+    tasks.write_text(tasks.read_text() + f"\n<!-- review-scope: {SCOPE} -->\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "duplicate scope")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    assert _refusal(_gate(repo, "manifest")) == "DUPLICATE_REVIEW_SCOPE"
+
+
+def test_a_scope_marker_inside_a_fence_does_not_declare_a_scope(tmp_path: Path) -> None:
+    """Documentation showing the marker must not declare a release scope."""
+    repo = _planning_repo(tmp_path)
+    tasks = repo / "openspec" / "changes" / "demo" / "tasks.md"
+    tasks.write_text(
+        "# tasks\n\n```markdown\n<!-- review-scope: documented-example -->\n```\n\n"
+        f"<!-- review-scope: {SCOPE} -->\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "documented example")
+    _git(repo, "branch", "-f", BASE, "HEAD")
+    assert _gate(repo, "manifest").returncode == 0
+    assert _refusal(_gate(repo, "manifest", scope="documented-example")) == "SCOPE_NOT_DECLARED"
+
+
+# ── the review is bound to an exact target base ─────────────────────────────
+
+
+def test_the_base_is_recorded_as_an_exact_commit_not_a_ref(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    gate = _manifest(repo)
+    head = _git(repo, "rev-parse", "HEAD").strip()
+    assert gate["reviewed_base_commit"] == head
+    assert BASE not in json.dumps(gate), "a mutable ref must never be the recorded authority"
+
+
+def test_base_drift_after_the_review_is_refused(tmp_path: Path) -> None:
+    """The gate pinned the planning branch but not the base it was reviewed against."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    assert _gate(repo, "verify").returncode == 0
+
+    # The target branch advances underneath the accepted review.
+    _git(repo, "checkout", "-q", BASE)
+    (repo / "unrelated.md").write_text("# landed on the base\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base moves")
+    _git(repo, "checkout", "-q", "fixture")
+
+    result = _gate(repo, "verify")
+    assert _refusal(result) == "REVIEW_BASE_DRIFT"
+    # And it must say a fresh epoch may be a FOCUSED review, not an audit.
+    assert "focused base-freshness review" in result.stderr
+
+
+def test_a_missing_or_unresolvable_base_never_demotes_to_inference(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    assert _refusal(_gate(repo, "verify", base=None)) == "BASE_REF_REQUIRED"
+    assert _refusal(_gate(repo, "verify", base="no-such-ref")) == "BASE_REF_UNRESOLVABLE"
+    assert _refusal(_gate(repo, "manifest", base="no-such-ref")) == "BASE_REF_UNRESOLVABLE"
+
+
+def test_a_base_not_incorporated_into_head_is_refused(tmp_path: Path) -> None:
+    """The reviewed work must actually sit on the base it claims."""
+    repo = _planning_repo(tmp_path)
+    _git(repo, "checkout", "-q", "--orphan", "elsewhere")
+    (repo / "other.md").write_text("# unrelated history\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "unrelated root")
+    _git(repo, "branch", "-f", "detached-base", "HEAD")
+    _git(repo, "checkout", "-q", "fixture")
+    assert _refusal(_gate(repo, "manifest", base="detached-base")) == "BASE_NOT_INCORPORATED"
+
+
+# ── the v1 contract must not be reinterpreted under v2 rules ────────────────
+
+
+def test_a_v1_contract_block_is_refused(tmp_path: Path) -> None:
+    """A v1 review never considered a scope or a base; reading it as v2 would
+    treat it as though it had."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"contract": "preimplementation-review-v1"})
+    assert _refusal(_gate(repo, "verify")) == "WRONG_GATE_CONTRACT"
+
+
+# ── the architecture-review stopping rule ───────────────────────────────────
+
+
+def test_assigned_p2_p3_findings_do_not_block_architecture_acceptance(
+    tmp_path: Path,
+) -> None:
+    """v2 is not an all-findings-must-be-zero process.
+
+    Architecture may be accepted with P2/P3 findings when each is assigned to an
+    executable task, proof obligation, or explicitly deferred landing. Only
+    UNASSIGNED non-P1 findings and unresolved P1s block.
+    """
+    repo = _planning_repo(tmp_path)
+    markers = {key: list(value) for key, value in MARKERS.items()}
+    markers["Findings"] = [
+        "| P2 | digest ordering is locale-dependent | assigned to task 4 |",
+        "| P3 | refusal message names the wrong section | assigned to task 7 |",
+        "",
+        "**Unresolved P1 findings:** `none`",
+        "**Unassigned P2/P3 findings:** `0`",
+    ]
+    _accept(repo, markers=markers)
+    result = _gate(repo, "verify")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_an_unassigned_non_p1_finding_blocks_acceptance(tmp_path: Path) -> None:
+    """The other half: assignment is what makes a P2 acceptable, not silence."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"unassigned_p2_p3_count": 2})
+    assert _refusal(_gate(repo, "verify")) == "UNASSIGNED_NON_P1_FINDINGS"
+
+
+def test_an_unresolved_p1_blocks_acceptance(tmp_path: Path) -> None:
+    repo = _planning_repo(tmp_path)
+    _accept(repo, gate_overrides={"unresolved_p1_count": 1})
+    assert _refusal(_gate(repo, "verify")) == "UNRESOLVED_P1"

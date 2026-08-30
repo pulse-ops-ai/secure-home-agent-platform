@@ -147,6 +147,12 @@ jobs:
       - name: Set releases
         run: pnpm run check:set-releases
 
+      - name: OpenSpec schema (real parser)
+        # This repository AUTHORS an OpenSpec schema, so the parser that will
+        # read it must accept it. validate-scaffold.sh is fast structural
+        # defence in depth and cannot make this claim.
+        run: pnpm run check:openspec-schema
+
       - name: OpenSpec review history
         # Append-only history is a two-revision repository property, so it runs
         # here always. The PRE-APPLY review gate is deliberately NOT a CI step:

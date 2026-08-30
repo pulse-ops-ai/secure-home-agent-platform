@@ -24,7 +24,7 @@ authority, or authorization.
 Before any implementation task begins:
 
 - `openspec validate <change-name> --strict` must pass;
-- `node scripts/openspec-review-gate.mjs verify --change <change-name>` must
+- `pnpm run review:verify -- --change <change-name> --base origin/main` must
   pass;
 - the review verdict must be `ARCHITECTURE_ACCEPTED`;
 - unresolved P1 count must be zero;
@@ -268,3 +268,34 @@ PR-N
 
 Do not create one catch-all final verification task for proof required by
 earlier landings.
+
+## Review scopes
+
+**This file owns implementation and release scope.** The review artifact refers
+to a scope by its stable id and never restates its paths, tasks, requirements,
+or authorization — otherwise "what is in this scope" would have two authorities
+that can disagree.
+
+Declare one marker per **independently releasable** scope, immediately under the
+heading that describes it:
+
+```markdown
+## Landing 1 — the parser
+
+<!-- review-scope: parser -->
+
+- [ ] ...
+```
+
+Rules:
+
+- one stable id per independently released scope, matching `^[a-z0-9][a-z0-9-]*$`;
+- ids are unique within this file — a repeated id makes `scope_id` ambiguous and
+  is refused;
+- a single-scope change declares exactly one;
+- a marker inside a fenced block is documentation, not a declaration.
+
+Each scope gets its own **review epoch**: epoch 1 authorizes the first scope,
+epoch 2 the next, and so on. External implementation authorization stays here,
+in the Implementation Authorization section — it is never copied into the review
+block.

@@ -31,9 +31,11 @@
     "check:review-history": "node scripts/check-openspec-review-history.mjs",
     "review:manifest": "node scripts/openspec-review-gate.mjs manifest",
     "review:verify": "node scripts/openspec-review-gate.mjs verify",
+    "check:openspec-schema": "OPENSPEC_TELEMETRY=0 openspec schema validate governed-spec-driven-v2",
     "check:images": "node scripts/check-images.mjs"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "catalog:",
     "@secure-home/knowledge-toolchain": "workspace:*",
     "prettier": "catalog:",
     "syncpack": "catalog:",

@@ -52,25 +52,49 @@ change, never an assumption.
 | | Selected by | Status |
 |---|---|---|
 | **`governed-spec-driven-v1`** | `openspec/config.yaml` | the **project default**. A change with no `.openspec.yaml` is v1. |
-| **`governed-spec-driven-v2`** | a change's own `.openspec.yaml` | **explicitly selectable**, staged. `openspec/config.v2.yaml` holds its configuration in parallel; it is not the global default and this is deliberate. |
+| **`governed-spec-driven-v2`** | a change's own `.openspec.yaml` | **explicitly selectable**, staged. It is not the global default, and that is deliberate. |
 
-v2 adds one thing v1 has no equivalent for: a **deterministic pre-apply review
-gate**. A v2 change carries `preimplementation-review.md`, and its existence is
-not approval.
+There is no separate v2 configuration file. `openspec/config.yaml` holds the
+shared project context for both workflows; the v2 workflow and its apply
+instructions live in `schemas/governed-spec-driven-v2/schema.yaml`; and this
+file holds the stable process guidance. Current, mutable governance status is
+not authored into any of them.
 
-**Before the first implementation or canonical-authority mutation of a v2
-change**, and not at any later point:
+v2 adds one thing v1 has no equivalent for: a **deterministic review gate**,
+repeated once per independently released scope.
+
+```text
+complete planning package
+  -> review epoch 1 -> verify -> implementation scope 1
+  -> review epoch 2 -> verify -> implementation scope 2
+  -> ...
+```
+
+`tasks.md` owns scope. It declares one `<!-- review-scope: <id> -->` marker per
+independently releasable scope, and the review block refers to a scope only by
+id — never by restating its paths, tasks, or authorization.
+
+**Immediately before the first implementation or canonical-authority mutation of
+each scope**, and not at any later point within that scope:
 
 ```sh
-openspec validate <change-name> --strict
-pnpm run review:verify -- --change <change-name>
+pnpm exec openspec validate <change-name> --strict
+pnpm run review:verify -- --change <change-name> --base origin/main
 ```
 
 Stop on any refusal.
 
-This runs **once, at the pre-apply boundary**. It is deliberately not a
-continuous check: the gate refuses repository changes made after the reviewed
-planning commit, so re-running it during implementation will and should fail.
+Each epoch runs **once, at its own pre-apply boundary**. It is deliberately not
+a continuous check: the gate refuses repository changes made after the reviewed
+planning commit, so re-running it during implementation will and should fail —
+that refusal is what tells you the next scope needs its own epoch.
+
+**The base is bound too.** A review is accepted against one exact base commit,
+recorded as `reviewed_base_commit`. If the target branch advances, verify
+refuses with `REVIEW_BASE_DRIFT` and a fresh epoch is required. That epoch is
+**not automatically another unrestricted architecture audit**: when the planning
+bytes are unchanged and the base movement does not touch their assumptions, it
+may be a focused base-freshness review.
 What CI runs continuously is `pnpm run check:review-history`, which enforces
 that admitted review rounds are append-only, plus the governance test suite that
 proves the gate itself still behaves.

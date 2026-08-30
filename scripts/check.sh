@@ -99,6 +99,9 @@ if command -v pnpm >/dev/null 2>&1; then
   # mechanism nothing calls is a mechanism nothing enforces.
   run "set releases"          pnpm run check:set-releases
   run "release history"       pnpm run check:release-history
+  # The real OpenSpec parser, against the schema this repository authors.
+  # Needs the workspace, so it belongs here rather than in the stdlib block.
+  run "openspec schema"       pnpm run check:openspec-schema
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

@@ -613,10 +613,20 @@ section "OpenSpec governed-spec-driven-v2 (staged)"
 V2_DIR="openspec/schemas/governed-spec-driven-v2"
 V2_SCHEMA="$V2_DIR/schema.yaml"
 
-if grep -q '^schema: governed-spec-driven-v2$' openspec/config.v2.yaml 2>/dev/null; then
-  pass "openspec/config.v2.yaml selects governed-spec-driven-v2"
+# There is deliberately NO parallel v2 configuration file. openspec/config.yaml
+# holds the shared project context for both workflows and stays on v1 during
+# staged adoption; a second config would duplicate project state and invite the
+# two to disagree.
+if [ -e openspec/config.v2.yaml ]; then
+  fail "openspec/config.v2.yaml exists — v2 has no separate project configuration"
 else
-  fail "openspec/config.v2.yaml is missing or does not select governed-spec-driven-v2"
+  pass "no parallel v2 project configuration"
+fi
+
+if grep -q '^schema: governed-spec-driven-v1$' openspec/config.yaml 2>/dev/null; then
+  pass "openspec/config.yaml remains the v1 project default"
+else
+  fail "openspec/config.yaml no longer selects governed-spec-driven-v1"
 fi
 
 if [ -f "$V2_SCHEMA" ]; then
@@ -635,6 +645,14 @@ if [ -f "$V2_SCHEMA" ]; then
     pass "v2 assurance requires specs and design"
   else
     fail "v2 assurance artifact no longer requires specs and design"
+  fi
+
+  # SERIALIZED: design must be based on the normative behaviour it implements.
+  # If this dependency disappears, design can be authored beside specs again.
+  if awk '/- id: design/,/- id: assurance/' "$V2_SCHEMA" | grep -q -- '- specs'; then
+    pass "v2 design requires specs (serialized, not parallel)"
+  else
+    fail "v2 design no longer requires specs — the DAG went back to parallel authoring"
   fi
 
   if awk '/- id: tasks/,/- id: preimplementation-review/' "$V2_SCHEMA" | grep -q -- '- assurance'; then
@@ -685,6 +703,18 @@ if [ -f scripts/check-openspec-review-history.mjs ]; then
   pass "the append-only review-history checker exists"
 else
   fail "scripts/check-openspec-review-history.mjs is missing"
+fi
+
+if grep -q 'review-scope' "$V2_DIR/templates/tasks.md" 2>/dev/null; then
+  pass "the v2 tasks template owns review-scope declaration"
+else
+  fail "the v2 tasks template lost its review-scope contract"
+fi
+
+if grep -q 'preimplementation-review-v2' "$V2_DIR/templates/preimplementation-review.md" 2>/dev/null; then
+  pass "the v2 review template declares the v2 review contract"
+else
+  fail "the v2 review template does not declare preimplementation-review-v2"
 fi
 
 # Staged adoption must be written down where an agent reads governance, or the
