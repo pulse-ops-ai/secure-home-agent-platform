@@ -360,10 +360,10 @@ timing. The optimization PR records four cases before merge:
 
 | Case | Selected proof | Hosted result |
 |---|---|---|
-| unrelated synchronization | semantic no-impact; no QEMU/Buildx/build | pending optimization-PR run |
-| one leaf | leaf plus verified cached base support; both platforms | pending optimization-PR run |
-| runner-base | base + Claude + Copilot; both platforms | pending optimization-PR run |
-| full governance/build change | all four images; both platforms | Actions `33313135341`: roots 4 min 18 s, children 5 min 20 s, 9 min 59 s total |
+| unrelated synchronization | semantic no-impact; no QEMU/Buildx/build | Actions `33313643162`: 6 s job / 9 s workflow |
+| one leaf | Claude plus verified cached base support; both platforms | Actions `33313680350`: parent 10 s, leaf 1 min 9 s, 1 min 45 s job / 1 min 49 s workflow |
+| runner-base | base + Claude + Copilot; both platforms | Actions `33313809299`: base 9 s, children 1 min 46 s, 2 min 25 s job / 2 min 29 s workflow |
+| full governance/build change | all four images; both platforms | Actions `33313135341`: roots 4 min 18 s, children 5 min 20 s, 9 min 59 s job / 10 min 2 s workflow |
 
 The full build remains mandatory for global build/verification machinery,
 shared package-closure changes, inventory changes, manual invocation, and every
@@ -375,6 +375,16 @@ index, platform manifest, and parent identity against the unchanged lock. Its
 9 min 59 s job was 3 min 2 s (23%) below the 13 min 1 s historical median;
 the still-dominant 5 min 20 s child phase shows why native ARM64 remains the
 possible follow-up rather than part of this change.
+
+The next synchronization changed only this README. The workflow proved the
+exact prior PR head had succeeded, compared only the new commit, emitted
+`IMAGE_IMPACT_NONE`, and skipped every expensive step. The leaf and base cases
+used temporary full-line Dockerfile comments that BuildKit ignores; the
+comments existed only to exercise selection and were removed after measurement.
+Both runs showed the relevant BuildKit steps as `CACHED`, still exported fresh
+OCI layouts, and passed the unchanged digest and parent checks. The remaining
+warm-path time is predominantly OCI materialization/export plus QEMU/Buildx
+setup, not image construction.
 
 ## What does not belong here
 
