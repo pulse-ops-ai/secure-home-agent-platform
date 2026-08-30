@@ -363,11 +363,18 @@ timing. The optimization PR records four cases before merge:
 | unrelated synchronization | semantic no-impact; no QEMU/Buildx/build | pending optimization-PR run |
 | one leaf | leaf plus verified cached base support; both platforms | pending optimization-PR run |
 | runner-base | base + Claude + Copilot; both platforms | pending optimization-PR run |
-| full governance/build change | all four images; both platforms | pending optimization-PR run |
+| full governance/build change | all four images; both platforms | Actions `33313135341`: roots 4 min 18 s, children 5 min 20 s, 9 min 59 s total |
 
 The full build remains mandatory for global build/verification machinery,
 shared package-closure changes, inventory changes, manual invocation, and every
 unknown/unclassifiable state.
+
+The first optimization-PR run was the full-change/cold-population case. It
+exported all four image scopes to the GHA cache and verified every rebuilt OCI
+index, platform manifest, and parent identity against the unchanged lock. Its
+9 min 59 s job was 3 min 2 s (23%) below the 13 min 1 s historical median;
+the still-dominant 5 min 20 s child phase shows why native ARM64 remains the
+possible follow-up rather than part of this change.
 
 ## What does not belong here
 
