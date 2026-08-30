@@ -579,7 +579,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `EX-G23` the envelope's members are exactly the landings seeded `Complete`
 
 - [ ] **6.6 Freeze the genesis artifacts for review**
-  <!-- agent-task: 6.6 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.5 -->
+  <!-- agent-task: 6.6 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.4,6.5 -->
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
   (step 1)
@@ -685,8 +685,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   `EX-G16`, `G17`, `G18`, `G19`, `G20`, **`G21`**, **`G22`**, **`G23`**;
   `PROP-G04`, `G05`
 
-  Every control added by this revision is owned here, so a landing completion
-  gate cannot pass while a newly added proof was never executed.
+  Only the controls listed for task 7.2 are owned here. Freshness is owned by
+  task 6.8, withdrawal history by task 7.1, and final-base equality by task 8.8;
+  those assignments remain explicit in `assurance.md`. The 7.2 completion gate
+  cannot pass while a proof assigned to this task is unexecuted.
 
 - [ ] **7.3 Mutation coverage for PR-2**
   <!-- agent-task: 7.3 paths=tests/test_governance_state.py checks=pytest risk=trust-critical prerequisites=7.1 -->
@@ -1029,8 +1031,15 @@ registry appears, and it appears already protected.
 
 **Not authorized here, and not part of the substrate's completion.**
 
-- [ ] **9.1 Rebase and narrow PR #101**
-  <!-- agent-task: 9.1 paths=docs/** checks=node,pytest,scaffold risk=trust-critical prerequisites=pr-3-merged -->
+- [ ] **9.1 Handoff: separately plan the PR #101 transition**
+  <!-- agent-task: 9.1 paths=none checks=manual risk=trust-critical prerequisites=pr-3-merged -->
+
+  This is a **non-executable handoff**, not an implementation task and not an
+  authorization to edit PR #101. After PR-3 merges, the owner must create a
+  separately reviewed transition plan for rebasing and narrowing PR #101. That
+  later plan, rather than this substrate change, must enumerate its exact
+  authoring paths and proof obligations after inspecting the activated registry
+  and generated projections.
 
   **Prerequisite is a merged PR-3, not a task inside it.** The previous metadata
   named `8.5`, which would have permitted work on PR #101 before the seam was

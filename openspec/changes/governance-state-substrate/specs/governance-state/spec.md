@@ -859,10 +859,10 @@ substrate SHALL require a new decision defining a reactivation protocol.
 
 #### Scenario: The bound activation revision is the one genesis exception
 
-- **GIVEN** the activation revision whose explicit base matches the
-  `activationBaseCommit`, source snapshot, equivalent freshness result, and
-  activation identity bound by the genesis evidence, and which carries no
-  registry
+- **GIVEN** the activation revision, which carries the registry, whose explicit
+  base carries no registry and matches the `activationBaseCommit`, source
+  snapshot, equivalent freshness result, and activation identity bound by the
+  genesis evidence
 - **WHEN** history validation runs
 - **THEN** history comparison is not applicable, the genesis and completion
   attestations are the proof, and validation passes only when both validate

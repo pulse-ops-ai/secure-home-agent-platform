@@ -748,7 +748,7 @@ no-op that still returns success is the failure mode being hunted.
 | Attestations | PR-1 | 1 | ADV-G19; PROP-G03, G08 |
 | Current-revision validation | PR-1 | 2 | all of the above via the real checker |
 | History validation | **PR-2** | 4, 7 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41, G75; EX-G25, EX-G26, EX-G27; MUT-G08 |
-| Candidate freshness mechanism | **PR-2** | 6.8, 7.1 | INV-G48; ADV-G69–G74, G76; EX-G28; MUT-G14 |
+| Candidate freshness mechanism | **PR-2** | 6.8 | INV-G48; ADV-G69–G74, G76; EX-G28; MUT-G14 |
 | Rendering | PR-2 | 5 | ADV-G22, G36; EX-G11; PROP-G04 |
 | Query | PR-2 | 5 | ADV-G17, G18; PROP-G05; T4 |
 | Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
