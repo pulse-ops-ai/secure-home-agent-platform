@@ -1,20 +1,25 @@
-# The governed image build path (L5 / issue #53).
+# Governed image identity verification (L5 / issue #53).
 #
-# deploy/AGENTS.md prohibits any coding agent from running deployment assets
-# locally — docker build included. This workflow is the governed mechanism
-# that produces and re-verifies REAL image identities instead: it builds
-# every image registered in deploy/images/image-lock.yaml for every declared
-# platform, as OCI layouts, and compares the resulting digests to the lock.
+# The broad paths filter is only an outer perimeter. GitHub evaluates
+# pull_request paths against the complete three-dot PR diff, so a later,
+# unrelated synchronization still selects this workflow after package.json or
+# checks.yml changed once. The repository-owned impact classifier is the
+# authoritative inner decision: skip only when a trusted comparison proves no
+# image input changed; unknown means the complete governed set.
 #
-# It deliberately does NOT: push or publish anything, log in anywhere, run a
-# built image, start a service, or deploy. Build and digest verification
-# only. While the lock carries the bootstrap sentinel the verify step FAILS,
-# printing the built digests as the exact evidence to record — so a pending
-# lock can never read as complete, and a recorded lock is re-proved by an
-# independent rebuild at the exact head.
+# Selected images still produce OCI layouts for every lock-declared platform,
+# and every produced index/manifest/parent identity is compared with
+# image-lock.yaml. GHA BuildKit cache changes where layers come from, never
+# which final digest is trusted.
 #
-# Like the merge gate, every third-party action is pinned to a full commit
-# SHA (Dependabot proposes bumps as reviewable pull requests).
+# For a pull request the proof is established against the COMPOSED tree —
+# merge(live target-branch tip, PR head) — not the isolated PR head and not the
+# historical pull_request.base.sha. The live base is resolved from the remote
+# at run time, the composition is a synthetic Git merge (no branch is mutated),
+# and both identities are re-checked at the end so a mid-run head/base move
+# fails the proof. This is a run-boundary composition proof; it is not a
+# branch-protection or merge-queue policy (this repository declares none), so a
+# green run does not stay fresh after `main` later advances.
 
 name: images
 
@@ -24,8 +29,31 @@ on:
       - 'deploy/images/**'
       - '.github/workflows/images.yml'
       - 'scripts/check-images.mjs'
-      # The gates-toolchain image mirrors the governed gate environment, so
-      # the sources that define that environment re-trigger build + verify.
+      - 'scripts/image-impact.mjs'
+      # Every repository-level global image-proof input (GLOBAL_BUILD_INPUTS in
+      # image-impact.mjs) must appear on this outer perimeter, or the proof
+      # machinery itself could change without its own governed verification
+      # running. Inputs under deploy/images/** are already subsumed by that
+      # glob; the standalone proof scripts are listed explicitly. The structural
+      # test tests/test_image_impact.py::
+      # test_every_global_build_input_has_an_outer_workflow_trigger enforces it.
+      - 'scripts/pr-merge-plan.mjs'
+      # The gates-toolchain image mirrors selected semantic pins from the
+      # governed gate environment. The classifier distinguishes those values
+      # from unrelated edits in the same broad files.
+      - '.github/workflows/checks.yml'
+      - 'package.json'
+      - 'scripts/check.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/images/**'
+      - '.github/workflows/images.yml'
+      - 'scripts/check-images.mjs'
+      - 'scripts/image-impact.mjs'
+      # Mirror of the pull_request perimeter: every GLOBAL_BUILD_INPUTS entry
+      # not subsumed by deploy/images/** must be represented here too.
+      - 'scripts/pr-merge-plan.mjs'
       - '.github/workflows/checks.yml'
       - 'package.json'
       - 'scripts/check.sh'
@@ -33,29 +61,228 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
-# Cancelling a superseded run loses nothing here: verification is stateless
-# against the lock at whatever head runs last, unlike the release-history
-# gate's per-window comparison in checks.yml.
+# A PR's previous head is useful only after its image proof succeeded. Newer PR
+# heads cancel obsolete work. Push-to-main and manual runs are independent
+# governance events, so each receives its own group and must finish.
 concurrency:
-  group: images-${{ github.ref }}
-  cancel-in-progress: true
+  group: images-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-verify:
+    # Preserve the required-check context while changing its internal graph.
     name: build and verify image identities
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # Start at the exact candidate head. The composed merge tree is
+          # constructed and checked out by the next step; GitHub's default
+          # merge ref is not used because it is built against a base the PR
+          # event recorded, which can lag the live branch tip.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-      # The transitive build machinery is pinned like everything else in the
-      # digest chain: a SHA-pinned ACTION whose defaults pull `:latest`
-      # helpers is not a pinned build path. The binfmt/QEMU helper runs in
-      # the privileged host path and the BuildKit container produces the
-      # security-relevant identities — both are pinned by immutable digest
-      # (resolved 2026-08-23), and Buildx itself by exact version.
+      - name: Select trusted comparison and compose the PR merge tree
+        id: comparison
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_PREVIOUS: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+          PUSH_PREVIOUS: ${{ github.event.before }}
+          PUSH_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # Identity agreement: the checkout must be exactly the PR head.
+            checked_out="$(git rev-parse HEAD)"
+            if [ "$checked_out" != "$PR_HEAD" ]; then
+              echo "checked-out $checked_out is not the PR head $PR_HEAD; failing closed" >&2
+              exit 1
+            fi
+
+            # The previous PR head is a valid incremental origin ONLY if this
+            # workflow already concluded successfully for that exact SHA and PR.
+            # Base-incorporation freshness is enforced separately, in the plan
+            # module, so an advanced base cannot silently reuse a stale proof.
+            prev_proven=false
+            if [ "$PR_ACTION" = "synchronize" ] && [ -n "$PR_PREVIOUS" ] \
+              && printf '%s' "$PR_PREVIOUS" | grep -q '[1-9a-f]'; then
+              runs="$RUNNER_TEMP/previous-image-runs.json"
+              if gh api -X GET \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/images.yml/runs" \
+                -f head_sha="$PR_PREVIOUS" \
+                -f event=pull_request \
+                -f status=success \
+                -f per_page=100 > "$runs"; then
+                if node - "$runs" "$PR_NUMBER" <<'NODE'
+          const [path, number] = process.argv.slice(2)
+          const runs = JSON.parse(require('node:fs').readFileSync(path, 'utf8')).workflow_runs ?? []
+          const proven = runs.some(
+            (run) =>
+              run.status === 'completed' &&
+              run.conclusion === 'success' &&
+              run.pull_requests?.some((pull) => String(pull.number) === number),
+          )
+          process.exit(proven ? 0 : 1)
+          NODE
+                then prev_proven=true; fi
+              else
+                echo "Image-run history lookup failed; previous-head fast path disabled." >&2
+              fi
+            fi
+
+            # Resolve the LIVE base tip, compose merge(live base, PR head), and
+            # decide the comparison origin with base-incorporation freshness.
+            # The module writes head/comparison_base/live_base/pr_head/base_ref/
+            # mode/force_all/note to GITHUB_OUTPUT and prints the merge SHA. It
+            # fails closed on an unresolvable base, an unresolvable head, or a
+            # merge conflict — it never falls back to PR-head-only verification.
+            merge_sha="$(node scripts/pr-merge-plan.mjs plan \
+              --root "$PWD" \
+              --remote origin \
+              --base-ref "$BASE_REF" \
+              --pr-head "$PR_HEAD" \
+              --previous "${PR_PREVIOUS:-}" \
+              --action "${PR_ACTION:-}" \
+              --previous-proven "$prev_proven" \
+              --github-output "$GITHUB_OUTPUT")"
+
+            # Prove the COMPOSED tree: every later step (impact, static lineage,
+            # Bake plans, Dockerfiles, build scripts, OCI, digest verification)
+            # runs against merge(live base, PR head).
+            git checkout --quiet --detach "$merge_sha"
+            echo "composed merge tree $merge_sha checked out"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            # The pushed commit is the actual repository state being proved. Its
+            # immediately preceding commit is a valid incremental comparison base
+            # ONLY if this workflow already concluded successfully for that exact
+            # commit on this branch. Without that proof, a docs-only push B could
+            # inherit an UNVERIFIED or failed governed image change introduced by
+            # push A and skip it. Resolvable-but-unproven, unresolvable, or absent
+            # all fail closed to a full governed build — mirroring the PR
+            # previous-head proof gate above.
+            base=""
+            force_all=false
+            note=""
+            case "$PUSH_PREVIOUS" in
+              *[!0]*)
+                if git cat-file -e "$PUSH_PREVIOUS^{commit}" 2>/dev/null; then
+                  push_prev_proven=false
+                  runs="$RUNNER_TEMP/previous-push-image-runs.json"
+                  if gh api -X GET \
+                    "repos/$GITHUB_REPOSITORY/actions/workflows/images.yml/runs" \
+                    -f head_sha="$PUSH_PREVIOUS" \
+                    -f event=push \
+                    -f status=success \
+                    -f per_page=100 > "$runs"; then
+                    if node - "$runs" "$PUSH_BRANCH" "$PUSH_PREVIOUS" <<'NODE'
+          const [path, branch, expectedSha] = process.argv.slice(2)
+          const runs = JSON.parse(require('node:fs').readFileSync(path, 'utf8')).workflow_runs ?? []
+          const proven = runs.some(
+            (run) =>
+              run.status === 'completed' &&
+              run.conclusion === 'success' &&
+              run.event === 'push' &&
+              run.head_sha === expectedSha &&
+              run.head_branch === branch,
+          )
+          process.exit(proven ? 0 : 1)
+          NODE
+                    then push_prev_proven=true; fi
+                  else
+                    echo "Image-run history lookup failed; push incremental base disabled." >&2
+                  fi
+                  if [ "$push_prev_proven" = "true" ]; then
+                    base="$PUSH_PREVIOUS"
+                    note="prior verified default-branch commit"
+                  else
+                    force_all=true
+                    note="prior default-branch commit has no successful image proof; full build"
+                  fi
+                else
+                  force_all=true
+                  note="push comparison commit cannot be resolved"
+                fi
+                ;;
+              *)
+                force_all=true
+                note="push event has no usable prior commit"
+                ;;
+            esac
+            {
+              echo "head=$PUSH_HEAD"
+              echo "comparison_base=$base"
+              echo "force_all=$force_all"
+              echo "note=$note"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # A manual run has no repository transition to prove irrelevant.
+            {
+              echo "head=$PUSH_HEAD"
+              echo "comparison_base="
+              echo "force_all=true"
+              echo "note=manual invocation has no trusted comparison; full verification required"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine governed image impact
+        id: impact
+        env:
+          COMPARISON_BASE: ${{ steps.comparison.outputs.comparison_base }}
+          CANDIDATE_HEAD: ${{ steps.comparison.outputs.head }}
+          FORCE_ALL: ${{ steps.comparison.outputs.force_all }}
+          COMPARISON_NOTE: ${{ steps.comparison.outputs.note }}
+        run: |
+          set -euo pipefail
+          args=(
+            --head "$CANDIDATE_HEAD"
+            --github-output "$GITHUB_OUTPUT"
+            --summary "$GITHUB_STEP_SUMMARY"
+          )
+          if [ "$FORCE_ALL" = "true" ]; then
+            args+=(--force-all "$COMPARISON_NOTE")
+          else
+            args+=(--base "$COMPARISON_BASE")
+          fi
+          node scripts/image-impact.mjs "${args[@]}"
+
+      # Structural lineage remains authoritative and unconditional once the
+      # broad workflow perimeter selected this run.
+      - name: Image lineage (static)
+        run: node scripts/check-images.mjs
+
+      - name: No governed build required
+        if: steps.impact.outputs.build_required != 'true'
+        run: |
+          echo "IMAGE_IMPACT_NONE"
+          echo "The semantic classifier proved that no governed image output could change."
+          echo "QEMU, Buildx, OCI production, and digest comparison were not invoked."
+
+      - name: Prepare affected build graph
+        id: plan
+        if: steps.impact.outputs.build_required == 'true'
+        env:
+          IMAGE_SELECTION_MODE: ${{ steps.impact.outputs.selection_mode }}
+          IMAGE_SELECTION_JSON: ${{ steps.impact.outputs.affected_json }}
+          IMAGE_CACHE_BACKEND: gha
+        run: bash deploy/images/scripts/build.sh plan
+
+      # The privileged binfmt helper and digest-producing BuildKit container
+      # remain immutable. ARM64 stays mandatory; QEMU is avoided only when the
+      # semantic proof avoids every container build.
       - name: Set up QEMU (linux/arm64 emulation)
+        if: steps.impact.outputs.build_required == 'true'
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
         with:
           platforms: arm64
@@ -63,21 +290,74 @@ jobs:
           image: docker.io/tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
 
       - name: Set up Buildx
+        if: steps.impact.outputs.build_required == 'true'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         with:
           version: v0.36.1
-          # Keep in lockstep with BUILDKIT_IMAGE in deploy/images/scripts/build.sh.
+          # Keep in lockstep with BUILDKIT_IMAGE in build.sh.
           driver-opts: image=docker.io/moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
 
-      - name: Image lineage (static)
-        run: node scripts/check-images.mjs
+      # Bake executes independent targets concurrently. This phase contains
+      # gates-toolchain and/or runner-base (including a cached parent
+      # materialization for a derived-only change).
+      - name: Governed root builds (parallel, OCI layouts, both platforms)
+        if: steps.impact.outputs.build_required == 'true'
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        with:
+          source: .
+          files: ${{ steps.plan.outputs.roots_file }}
+          targets: selected
+          provenance: false
+          sbom: false
 
-      - name: Governed build (OCI layouts, both platforms)
-        run: bash deploy/images/scripts/build.sh
+      # A derived image never consumes an unverified parent layout. Independent
+      # gates output is left for final verification and cannot serialize the
+      # runner lineage.
+      - name: Verify parent identities
+        if: steps.impact.outputs.build_required == 'true' && steps.plan.outputs.has_derived == 'true'
+        run: |
+          bash deploy/images/scripts/build.sh collect parents
+          bash deploy/images/scripts/verify.sh --phase parents --allow-pending
 
-      - name: Verify digests against image-lock.yaml
-        run: bash deploy/images/scripts/verify.sh
+      - name: Governed derived builds (parallel, OCI layouts, both platforms)
+        if: steps.impact.outputs.build_required == 'true' && steps.plan.outputs.has_derived == 'true'
+        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        with:
+          source: .
+          files: ${{ steps.plan.outputs.derived_file }}
+          targets: selected
+          provenance: false
+          sbom: false
+
+      - name: Verify selected digests against image-lock.yaml
+        if: steps.impact.outputs.build_required == 'true'
+        run: |
+          bash deploy/images/scripts/build.sh collect all
+          bash deploy/images/scripts/verify.sh
 
       - name: Lineage inspection (evidence)
-        if: always()
+        if: ${{ always() && steps.impact.outputs.build_required == 'true' }}
         run: bash deploy/images/scripts/inspect.sh || true
+
+      # TOCTOU boundary: re-resolve the live PR head and target-branch tip and
+      # require exact equality with the identities the merge tree was built
+      # from. If either moved while this job ran, the composed proof describes a
+      # tree that no longer exists — fail, and let the newer event prove the new
+      # composition. Cancellation of superseded PR runs is an optimisation, not
+      # this identity check.
+      - name: Confirm PR head and live base are unchanged (TOCTOU)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ steps.comparison.outputs.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_LIVE_BASE: ${{ steps.comparison.outputs.live_base }}
+          EXPECTED_PR_HEAD: ${{ steps.comparison.outputs.pr_head }}
+        run: |
+          set -euo pipefail
+          node scripts/pr-merge-plan.mjs verify \
+            --root "$PWD" \
+            --remote origin \
+            --base-ref "$BASE_REF" \
+            --pr-number "$PR_NUMBER" \
+            --expected-live-base "$EXPECTED_LIVE_BASE" \
+            --expected-pr-head "$EXPECTED_PR_HEAD"
