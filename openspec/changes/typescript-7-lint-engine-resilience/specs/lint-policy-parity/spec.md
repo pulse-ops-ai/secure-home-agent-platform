@@ -14,7 +14,8 @@ run is not parity evidence.
 
 **Requirement ID:** `REQ-LP-001`
 
-**Canonical authority references:** `AUTH-LINT-POLICY`, `AUTH-LEGACY-EXTRACTOR`
+**Canonical authority references:** `AUTH-LINT-POLICY`,
+`AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LEGACY-EXTRACTOR`
 
 Before replacement enforcement can be trusted, every effective rule and
 role-specific difference from current `main` SHALL appear exactly once in the
@@ -27,6 +28,13 @@ canonical lint-policy inventory with exactly one disposition:
 No entry may be `DROPPED`, omitted, inferred from an engine default, or owned by
 review prose. The inventory SHALL be derived and drift-checked against the
 resolved current ESLint configurations while ESLint exists.
+
+Stable policy identity, role applicability, semantic options, blocking posture,
+and proof references SHALL be engine-neutral. ESLint origin and Oxlint/tsgolint
+rule or parser mappings SHALL live in separate per-engine mapping authority.
+Historical ESLint origin MAY remain as migration provenance for current rows but
+SHALL NOT be a mandatory permanent identity for a policy introduced after this
+migration.
 
 #### Scenario: Inherited preset rule is omitted
 
@@ -51,11 +59,20 @@ resolved current ESLint configurations while ESLint exists.
 - **AND** the change SHALL require explicit policy reconciliation rather than
   silently using the stale inventory
 
+#### Scenario: Engine mapping is mistaken for semantic policy
+
+- **GIVEN** a stable policy row and its fixture corpus are unchanged
+- **WHEN** the selected engine implementation or rule identifier changes
+- **THEN** only the per-engine mapping and generated projection MAY change
+- **AND** the stable policy identity, semantics, role applicability, blocking
+  posture, and proof references SHALL remain unchanged
+
 ### Requirement: Scope 1 runs both legacy and replacement enforcement
 
 **Requirement ID:** `REQ-LP-002`
 
-**Canonical authority references:** `AUTH-LINT-POLICY`, `AUTH-LINT-CONFORMANCE`,
+**Canonical authority references:** `AUTH-LINT-POLICY`,
+`AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFORMANCE`,
 `AUTH-LEGACY-EXTRACTOR`, `AUTH-ENGINE-PINS`
 
 Scope 1 SHALL keep TypeScript 6.0.3, ESLint, and typescript-eslint operational
@@ -87,7 +104,8 @@ both execute and both SHALL be blocking.
 
 **Requirement ID:** `REQ-LP-003`
 
-**Canonical authority references:** `AUTH-LINT-POLICY`, `AUTH-LINT-CONFORMANCE`
+**Canonical authority references:** `AUTH-LINT-POLICY`,
+`AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFORMANCE`
 
 Every policy entry SHALL reference executable positive and negative evidence.
 Multiple entries MAY share a fixture only when the canonical mapping names each
@@ -97,6 +115,11 @@ arbitrary failure.
 Configuration-string assertions, rule registration, help output, and successful
 lint of the repository SHALL be supporting evidence only, never sufficient
 parity proof.
+
+Every active policy SHALL remain blocking. A warning-only diagnostic SHALL NOT
+count as rejection. Where an existing policy option controls observable fix
+output rather than only accept/reject behavior, the conformance corpus SHALL
+include the corresponding deterministic fixed-output evidence.
 
 #### Scenario: A rule name registers but its semantics differ
 
@@ -119,6 +142,21 @@ parity proof.
 - **THEN** at least one assigned negative fixture or drift check SHALL fail
 - **AND** the mutation MUST NOT survive because another unrelated rule rejects
   the file
+
+#### Scenario: A policy is downgraded to warning-only
+
+- **GIVEN** an active policy whose current severity is blocking
+- **WHEN** an engine mapping emits only a warning and exits successfully
+- **THEN** parity SHALL fail
+- **AND** the presence of the warning text SHALL NOT count as enforcement
+
+#### Scenario: A fix-bearing option changes output
+
+- **GIVEN** an existing policy option that selects deterministic fix behavior
+- **WHEN** the replacement emits a different fixed form
+- **THEN** its fixed-output conformance case SHALL fail
+- **AND** ordinary violation detection SHALL NOT be treated as proof of option
+  parity
 
 ### Requirement: Role-specific behavior is preserved
 
@@ -173,7 +211,8 @@ file consumes that export.
 
 **Requirement ID:** `REQ-LP-005`
 
-**Canonical authority references:** `AUTH-LINT-POLICY`, `AUTH-LINT-CONFIG`
+**Canonical authority references:** `AUTH-LINT-POLICY`,
+`AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFIG`
 
 All lint categories and rules SHALL be explicitly derived from the canonical
 policy inventory. Engine default categories, newly added default rules, ambient

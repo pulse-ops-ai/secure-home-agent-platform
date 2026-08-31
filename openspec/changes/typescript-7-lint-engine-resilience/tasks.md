@@ -9,7 +9,7 @@
 | `design.md` | architecture, decisions, verified feasibility, landing seams |
 | `assurance.md` | invariants, proof obligations, authority allocation, review exit |
 | Proposed ADR-0022 | capability authority model, only after explicit acceptance |
-| `AUTH-*` canonical artifacts | exact mutable facts in their allocated families |
+| `AUTH-*` canonical artifacts | exact mutable facts in their allocated families, including semantic policy, per-engine mappings, and maintenance transition classes |
 | `tasks.md` | sequencing, paths, prerequisites, checks, progress, review scopes |
 | `preimplementation-review.md` | current independent decision over pinned planning bytes |
 
@@ -54,7 +54,8 @@ This section records authority; it does not create it.
 **`NOT_AUTHORIZED`**
 
 Reason: the explicit task authorizes PR-A planning only; ADR-0022 is Proposed;
-`preimplementation-review.md` remains `REVIEW_REQUIRED`; neither implementation
+the first independent review required focused closure and the corrected planning
+bytes have not yet received a fresh accepting review; neither implementation
 scope has an accepted review epoch or an external implementation task contract.
 
 ---
@@ -85,8 +86,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
 ## 1. Contract and implementation tasks
 
-- [ ] **1.1 Create lint-policy and toolchain-boundary schemas**
-  <!-- agent-task: 1.1 paths=packages/lint-config/policy.schema.json,scripts/toolchain-boundaries.schema.json,packages/lint-config/package.json,packages/lint-config/README.md checks=lint-policy-schema-tests,scaffold risk=high prerequisites=none -->
+- [ ] **1.1 Create semantic-policy, engine-mapping, and toolchain-boundary schemas**
+  <!-- agent-task: 1.1 paths=packages/lint-config/policy.schema.json,packages/lint-config/engine-mappings.schema.json,scripts/toolchain-boundaries.schema.json,packages/lint-config/package.json,packages/lint-config/README.md,scripts/workspace-model.mjs,tests/test_source_imports.py checks=lint-policy-schema-tests,workspace-tooling-boundary,scaffold risk=high prerequisites=none -->
 
   **Task type**
 
@@ -94,39 +95,57 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Implements / proves**
 
-  - Requirements: `REQ-LP-001`, `REQ-LP-003`, `REQ-TA-004`, `REQ-SC-003`
+  - Requirements: `REQ-LP-001`, `REQ-LP-003`, `REQ-TA-004`, `REQ-SC-003`,
+    `REQ-SC-006`
   - Scenarios: missing disposition, missing fixture mapping, unapproved
     compatibility consumer
-  - Invariants: `INV-TS7-04`, `INV-TS7-13`, `INV-TS7-19`
-  - Decisions: `D1`, `D5`, `D10`, `D12`
+  - Invariants: `INV-TS7-04`, `INV-TS7-13`, `INV-TS7-19`,
+    `INV-TS7-25`, `INV-TS7-26`
+  - Decisions: `D1`, `D5`, `D10`, `D12`, `D13`
   - Authorities: `AUTH-LINT-POLICY-SCHEMA`,
+    `AUTH-LINT-ENGINE-MAPPINGS-SCHEMA`,
     `AUTH-TOOLCHAIN-BOUNDARIES-SCHEMA`
-  - Proofs: `PROP-LP-003`, `PROP-TS6-002`, `PROP-REV-001`
+  - Proofs: `PROP-LP-003`, `PROP-MAP-001`, `PROP-TS6-002`,
+    `PROP-REV-001`, `PROP-MAINT-001`, `MUT-ARCH-003`
 
   **Change**
 
   Create the capability-oriented `packages/lint-config` package and closed
-  schemas for the future policy manifest and toolchain boundaries. The policy
-  schema must require stable IDs, exact one-of disposition, role applicability,
-  legacy origin, replacement mechanism, and proof references. The boundary
-  schema must express compatibility-consumer and platform facts without package
-  versions.
+  schemas for the future engine-neutral policy manifest, per-engine mappings,
+  and toolchain boundaries. The policy schema must require stable IDs, exact
+  one-of disposition, role applicability, semantic options, blocking posture,
+  and proof references without requiring a vendor identity. The mapping schema
+  must key each legacy/replacement rule or parser mechanism to a stable policy
+  ID and prohibit semantic-policy fields. Historical ESLint origin is bootstrap
+  provenance in the legacy mapping/extractor, not permanent policy identity.
+  The boundary schema must express compatibility-consumer, platform, and closed
+  maintenance-class allowed/protected projections without package versions.
+
+  Add `packages/lint-config` to the existing layer-0/build-tooling model so
+  production source cannot import it. The package-retirement task must remove
+  `packages/eslint-config` from the same authority later.
 
   **Does not own**
 
-  Rule rows, version pins, engine configuration, or implementation behavior.
+  Rule rows, mapping rows, version pins, generated engine configuration, or
+  implementation behavior.
 
   **Affected paths**
 
-  - `packages/lint-config/{package.json,README.md,policy.schema.json}`
+  - `packages/lint-config/{package.json,README.md,policy.schema.json,engine-mappings.schema.json}`
   - `scripts/toolchain-boundaries.schema.json`
+  - `scripts/workspace-model.mjs`
   - focused schema tests
 
   **Proof required**
 
-  - positive minimal documents validate;
+  - positive minimal semantic-policy, mapping, and boundary documents validate;
   - unknown fields, missing/duplicate dispositions, malformed scope IDs, and
     missing proof references fail;
+  - vendor rule IDs in semantic policy and semantic fields in engine mappings
+    fail;
+  - production import of `@secure-home/lint-config` fails the source-architecture
+    gate;
   - scaffold/index rules pass for new files/package.
 
   **Size and atomicity**
@@ -139,8 +158,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   Complete only when positive/negative schema tests pass and no functional lint
   or compiler path changed.
 
-- [ ] **1.2 Extract and commit the complete current lint policy**
-  <!-- agent-task: 1.2 paths=packages/lint-config/src/extract-legacy-policy.mjs,packages/lint-config/policy.json,packages/lint-config/tests/** checks=legacy-policy-bijection risk=high prerequisites=1.1 -->
+- [ ] **1.2 Extract and commit semantic policy plus legacy/replacement mappings**
+  <!-- agent-task: 1.2 paths=packages/lint-config/src/extract-legacy-policy.mjs,packages/lint-config/policy.json,packages/lint-config/engine-mappings.json,packages/lint-config/tests/** checks=legacy-policy-bijection,mapping-referential-integrity risk=high prerequisites=1.1 -->
 
   **Task type**
 
@@ -150,19 +169,23 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   - Requirement: `REQ-LP-001`
   - Scenarios: inherited rule omitted; current engine changes
-  - Invariants: `INV-TS7-02`, `INV-TS7-19`, `INV-TS7-21`
-  - Decisions: `D1`, `D2`
-  - Authorities: `AUTH-LINT-POLICY`, `AUTH-LEGACY-EXTRACTOR`,
-    `AUTH-MEMBER-ROLES`
-  - Proofs: `PROP-LP-001`, `MUT-LP-001`, `ADV-ROLE-002`
+  - Invariants: `INV-TS7-02`, `INV-TS7-19`, `INV-TS7-21`,
+    `INV-TS7-25`
+  - Decisions: `D1`, `D2`, `D13`
+  - Authorities: `AUTH-LINT-POLICY`, `AUTH-LINT-ENGINE-MAPPINGS`,
+    `AUTH-LEGACY-EXTRACTOR`, `AUTH-MEMBER-ROLES`
+  - Proofs: `PROP-LP-001`, `PROP-MAP-001`, `MUT-LP-001`,
+    `MUT-MAP-001`, `ADV-ROLE-002`
 
   **Change**
 
   Resolve every effective ESLint mode through the real ESLint API, normalize the
-  resulting policy, and commit the schema-valid canonical manifest. Capture
-  recommended-preset rules, explicit options, roles, config/JavaScript behavior,
+  resulting semantics, and commit the schema-valid canonical policy plus
+  separate legacy/replacement mappings. Capture recommended-preset rules,
+  explicit options, blocking severity, roles, config/JavaScript behavior,
   ignores, adapter-bin exception, and the exported-test-vs-consumer distinction.
-  Assign every row one allowed disposition and proof placeholder.
+  Assign every semantic row one allowed disposition and proof placeholder; keep
+  vendor rule/parser identities and normalization only in mapping authority.
 
   **Does not own**
 
@@ -172,11 +195,14 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   - `packages/lint-config/src/extract-legacy-policy.mjs`
   - `packages/lint-config/policy.json`
+  - `packages/lint-config/engine-mappings.json`
   - policy extraction/drift tests
 
   **Proof required**
 
   - normalized extracted set bijects with manifest;
+  - every mapping references exactly one stable policy ID and no policy row
+    contains a vendor rule identity;
   - deleting or changing any current rule/role/ignore causes drift failure;
   - all current 117 identities and exact role behavior are accounted for;
   - no policy is classified `DROPPED`.
@@ -191,7 +217,7 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   Complete only when the manifest is the declared single authority and the
   current ESLint config is a drift-checked legacy projection.
 
-- [ ] **1.3 Implement manifest integrity and source/fixture referential checks**
+- [ ] **1.3 Implement policy, mapping, and source/fixture referential checks**
   <!-- agent-task: 1.3 paths=packages/lint-config/src/check-policy.mjs,packages/lint-config/tests/**,package.json,scripts/check.sh,.github/workflows/checks.yml checks=policy-integrity risk=high prerequisites=1.2 -->
 
   **Task type**
@@ -200,18 +226,22 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Implements / proves**
 
-  - Requirements: `REQ-LP-001`, `REQ-LP-003`, `REQ-LP-005`
+  - Requirements: `REQ-LP-001`, `REQ-LP-003`, `REQ-LP-005`,
+    `REQ-SC-006`
   - Scenarios: missing disposition/mapping; implicit default
-  - Invariants: `INV-TS7-16`, `INV-TS7-19`, `INV-TS7-24`
-  - Decisions: `D1`, `D4`
-  - Authority: `AUTH-LINT-POLICY`
-  - Proofs: `PROP-LP-003`, `MUT-LP-004`
+  - Invariants: `INV-TS7-16`, `INV-TS7-19`, `INV-TS7-24`,
+    `INV-TS7-25`
+  - Decisions: `D1`, `D4`, `D13`
+  - Authorities: `AUTH-LINT-POLICY`, `AUTH-LINT-ENGINE-MAPPINGS`
+  - Proofs: `PROP-LP-003`, `PROP-MAP-001`, `MUT-LP-004`,
+    `MUT-MAP-001`
 
   **Change**
 
   Add a deterministic checker consumed by local aggregate and CI that validates
-  schema, stable ID uniqueness, role references, exact one disposition, mapping
-  support, fixture/proof references, and absence of orphan fixtures.
+  schema, stable ID uniqueness, role references, blocking posture, exact one
+  disposition, mapping support, fixture/proof references, and absence of orphan
+  fixtures. Validate policy and mapping files independently before joining them.
 
   **Does not own**
 
@@ -226,7 +256,9 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Proof required**
 
   Hostile documents for duplicate/missing IDs, unsupported disposition,
-  unreferenced fixture, unknown role, and implicit/default-only mapping all fail.
+  warning-only active policy, unreferenced fixture, unknown role,
+  implicit/default-only mapping, mapping without policy, and vendor identity in
+  semantic policy all fail.
 
   **Size and atomicity**
 
@@ -251,17 +283,19 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Invariants: `INV-TS7-09`, `INV-TS7-11`, `INV-TS7-12`, `INV-TS7-16`
   - Decisions: `D3`, `D4`, `D9`
   - Authorities: `AUTH-ENGINE-PINS`, `AUTH-RESOLVED-GRAPH`,
-    `AUTH-LINT-CONFIG`, `AUTH-INSTALL-POLICY`
+    `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFIG`,
+    `AUTH-INSTALL-POLICY`
   - Proofs: `EX-INSTALL-001`, `PROP-LP-002`, `PROP-INSTALL-001`,
     `ADV-LP-001`, `MUT-INSTALL-001`, `MUT-INSTALL-002`
 
   **Change**
 
   Add exact audited catalog pins for Oxlint and tsgolint, update the frozen lock,
-  and generate the Oxlint config from the manifest. Explicitly neutralize all
-  engine categories/defaults, select required plugins and type-aware mode, keep
-  type-check mode off, and normalize engine-specific options only with assigned
-  fixtures (including `preserve-caught-error`).
+  and generate the Oxlint config from semantic policy joined with the selected
+  engine mapping. Explicitly neutralize all engine categories/defaults, select
+  required plugins and type-aware mode, keep type-check mode off, and normalize
+  engine-specific options only in mapping authority with assigned fixtures
+  (including `preserve-caught-error`).
 
   **Does not own**
 
@@ -350,7 +384,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Invariants: `INV-TS7-02`, `INV-TS7-15`, `INV-TS7-19`
   - Decision: `D2`
   - Authority: `AUTH-LINT-CONFORMANCE`
-  - Proofs: `EX-LP-001`, `EX-LP-002`, `ADV-LP-002`, `MUT-LP-003`
+  - Proofs: `EX-LP-001`, `EX-LP-002`, `ADV-LP-002`, `ADV-LP-004`,
+    `MUT-LP-003`
 
   **Change**
 
@@ -370,7 +405,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Proof required**
 
   Legacy and replacement accept/reject parity per assigned manifest row;
-  unrelated parser/compiler failures do not count.
+  unrelated parser/compiler failures do not count. Every active negative must
+  produce a blocking command result rather than a warning-only diagnostic.
 
   **Size and atomicity**
 
@@ -415,7 +451,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Proof required**
 
   Valid and negative cases prove each assigned current core/JS policy and its
-  relevant options under both engines.
+  relevant options under both engines. Warning-only mappings fail even when a
+  diagnostic is present.
 
   **Size and atomicity**
 
@@ -459,7 +496,9 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Proof required**
 
   Each assigned row has valid/negative cases accepted/rejected by both engines
-  for intended policy.
+  for intended policy. Existing options that select fix output, including
+  `consistent-type-imports.fixStyle`, have deterministic fixed-output golden
+  cases rather than accept/reject evidence alone.
 
   **Size and atomicity**
 
@@ -573,7 +612,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     rule, ignored fixture
   - Invariants: `INV-TS7-06`, `INV-TS7-21`, `INV-TS7-24`
   - Decisions: `D4`, `D8`, `D12`
-  - Authorities: `AUTH-MEMBER-ROLES`, `AUTH-LINT-CONFORMANCE`,
+  - Authorities: `AUTH-MEMBER-ROLES`, `AUTH-LINT-POLICY`,
+    `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFORMANCE`,
     `AUTH-FORMAT-POLICY`
   - Proofs: `EX-ROLE-001`, `ADV-ROLE-001`, `ADV-ROLE-002`,
     `MUT-ROLE-001`, `PROP-FMT-001`, `MUT-FMT-001`
@@ -597,7 +637,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Proof required**
 
   Narrow exceptions pass only where admitted; broadened globs, test-role
-  misapplication, framework rules, or stylistic rules fail.
+  misapplication, framework rules, stylistic rules, or warning-only active
+  policies fail.
 
   **Size and atomicity**
 
@@ -623,13 +664,18 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Decisions: `D2`, `D6`, `D12`
   - Authorities: `AUTH-LINT-POLICY`, `AUTH-LINT-CONFIG`,
     `AUTH-TS-ENTRYPOINTS`
-  - Proofs: `EX-ENTRY-001`, `PROP-SEP-001`, `PROP-SEP-002`, `MUT-ENTRY-001`
+  - Proofs: `EX-ENTRY-001`, `PROP-SEP-001`, `PROP-SEP-002`,
+    `ADV-LP-004`, `MUT-ENTRY-001`
 
   **Change**
 
   Introduce the capability runner and update root/member wiring so `pnpm lint`
   executes legacy and replacement paths as separate blocking results, while
   `pnpm typecheck`, `pnpm build`, and `check:imports` remain independent.
+  Preserve existing member-specific prerequisite commands such as `pnpm run
+  deps`; preserve the JSON-only `packages/tsconfig` lint contract; and prohibit a
+  member from bypassing the capability runner through direct standalone
+  `tsgolint`.
 
   **Does not own**
 
@@ -646,7 +692,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   Mutating out either engine, architecture check, or typecheck fails structural
   and behavioral tests. Diagnostic aggregation must not turn one failure into
-  success.
+  success. Dropping a current pre-lint prerequisite, changing a blocking policy
+  to warning-only, or invoking standalone `tsgolint` fails.
 
   **Size and atomicity**
 
@@ -679,8 +726,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   Add the exact compatibility package and locked API identity, switch only
   `check-source-imports.mjs` to it, create the schema-valid boundary document
-  with initial singleton allowlist/platform set, and add an AST-based import and
-  compiler-entry-point guard.
+  with initial singleton allowlist/platform/maintenance-class set, and add a
+  closed AST-based import and compiler-entry-point guard. Literal package
+  imports are enumerated; any unmodeled/non-literal module-load form capable of
+  resolving `@typescript/typescript6` fails closed rather than being ignored.
 
   **Does not own**
 
@@ -696,9 +745,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Proof required**
 
-  All existing source-import behavior passes; a normal-TS7 import or unapproved
-  compatibility import fails; actual compatibility API version is exact; no
-  `tsc6` build/typecheck/generator command exists.
+  All existing source-import behavior passes; a normal-TS7 import, unapproved
+  compatibility import, ambiguous dynamic module load, or direct `tsc6`
+  build/typecheck/generator command fails; actual compatibility API version is
+  exact.
 
   **Size and atomicity**
 
@@ -760,8 +810,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   Complete only with exact hosted run IDs/results for both architectures.
 
-- [ ] **1.15 Prove vulnerability-driven engine substitution**
-  <!-- agent-task: 1.15 paths=packages/lint-config/tests/**,tests/test_toolchain_boundaries.py,packages/lint-config/README.md,scripts/README.md checks=engine-substitution-conformance risk=high prerequisites=1.3,1.4,1.5,1.6,1.7,1.8,1.9,1.10,1.11,1.14 -->
+- [ ] **1.15 Prove predecessor-bound vulnerability-driven substitution**
+  <!-- agent-task: 1.15 paths=packages/lint-config/engine-mappings.json,packages/lint-config/tests/**,scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,tests/test_toolchain_boundaries.py,packages/lint-config/README.md,scripts/README.md checks=engine-substitution-conformance,maintenance-predecessor-continuity risk=high prerequisites=1.3,1.4,1.5,1.6,1.7,1.8,1.9,1.10,1.11,1.14 -->
 
   **Task type**
 
@@ -769,51 +819,87 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Implements / proves**
 
-  - Requirements: `REQ-TA-003`, `REQ-SC-004`, `REQ-SC-005`
-  - Scenarios: advisory replacement; patch upgrade; policy loss
-  - Invariants: `INV-TS7-09`, `INV-TS7-10`, `INV-TS7-23`, `INV-TS7-24`
-  - Decisions: `D1`, `D3`, `D9`
+  - Requirements: `REQ-TA-001`, `REQ-TA-003`, `REQ-SC-004`,
+    `REQ-SC-005`, `REQ-SC-006`
+  - Scenarios: advisory replacement; patch upgrade; policy loss; row/fixture
+    co-deletion; compiler-policy relaxation; unknown predecessor
+  - Invariants: `INV-TS7-01`, `INV-TS7-09`, `INV-TS7-10`,
+    `INV-TS7-23`, `INV-TS7-24`, `INV-TS7-25`, `INV-TS7-26`
+  - Decisions: `D1`, `D3`, `D5`, `D9`, `D13`
   - Authorities: `AUTH-LINT-POLICY`, `AUTH-LINT-CONFORMANCE`,
-    `AUTH-ENGINE-PINS`, `AUTH-PLATFORM-MATRIX`
-  - Proofs: `ADV-CVE-001`, `MUT-CVE-001`
+    `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-ENGINE-PINS`,
+    `AUTH-TS-CONFIGS`, `AUTH-TS-CONFORMANCE`, `AUTH-MAINTENANCE-CLASSES`,
+    `AUTH-PLATFORM-MATRIX`
+  - Proofs: `EX-MAINT-001`, `PROP-MAP-001`, `PROP-MAINT-001`,
+    `ADV-CVE-001`, `ADV-MAINT-001`, `MUT-CVE-001`, `MUT-MAP-001`,
+    `MUT-MAINT-001`, `MUT-MAINT-002`, `MUT-MAINT-003`
 
   **Change**
 
-  Add a testable engine-adapter substitution path and documentation explaining
-  runtime dependency vs PR-byte parser vs local-only utility classification.
-  Exercise a changed engine-mapping fixture against the unchanged corpus.
+  Add a testable maintenance classifier and engine-adapter substitution path.
+  Scope 1 creates the genesis maintenance class under the ordinary full
+  dual-engine/review/platform proof; it must not classify PR-B itself as
+  maintenance.
+
+  The checker resolves one exact trusted predecessor through the repository/CI
+  boundary, loads the closed class/checker contract from the predecessor,
+  permits only its implementation-specific projections, and requires every
+  protected semantic/config/corpus/harness projection to match. Candidate edits
+  cannot widen their own class. Lockfile change is restricted to the selected
+  package roots and their deterministically derived transitive closure. Missing
+  base, unreadable diff, malformed class, unrelated graph movement, or
+  unexpected protected drift fails closed.
+
+  Document runtime dependency vs PR-byte parser vs local-only utility
+  classification. Exercise changed engine and compatibility mappings/pins
+  against unchanged protected authorities, and a later exact normal TypeScript
+  pin against unchanged compiler-policy/conformance authority.
 
   **Does not own**
 
-  Response SLAs or permission to delete policy during an emergency.
+  Response SLAs, merge-time freshness policy, or permission to delete policy
+  during an emergency.
 
   **Affected paths**
 
-  - conformance/substitution tests
+  - conformance/substitution and two-revision Git tests
+  - toolchain boundary policy/checker
   - lint/tooling documentation
 
   **Proof required**
 
-  A conforming mapping passes; dropping one policy mapping fails. Version changes
-  rerun frozen install and native matrix rather than trusting registration.
+  - an admitted pin/mapping-only change passes against the exact predecessor;
+  - deleting a policy row and its only fixture together fails;
+  - changing a TypeScript pin while relaxing shared tsconfig or its negative
+    fixture fails;
+  - changing platform, install, format, architecture, or TS6-consumer authority
+    under maintenance fails;
+  - widening the candidate's maintenance class/checker or changing an unrelated
+    lockfile importer/package fails;
+  - missing/malformed/unreadable predecessor identity fails closed; and
+  - version changes rerun frozen install and native matrix rather than trusting
+    registration.
 
   **Size and atomicity**
 
-  One focused day: substitution seam, mutation, and operator documentation.
+  One focused day: closed maintenance table, predecessor checker, two-revision
+  mutations, substitution seam, and operator documentation.
 
   **Completion**
 
-  Complete only when the answer to “what proves replacement Y?” is one executable
-  command/corpus, not prose.
+  Complete only when the answer to “what proves replacement Y?” is one
+  predecessor-bound executable command/corpus, not candidate-local prose or
+  self-consistency.
 
 ## PR-B Verification Net
 
 - [ ] **2.1 Policy completeness and authority proof**
-  <!-- agent-task: 2.1 paths=packages/lint-config/** checks=policy-schema,bijection,config-drift risk=high prerequisites=1.1,1.2,1.3,1.4 -->
+  <!-- agent-task: 2.1 paths=packages/lint-config/** checks=policy-schema,mapping-schema,bijection,config-drift risk=high prerequisites=1.1,1.2,1.3,1.4 -->
 
   **Proves**
 
-  - `PROP-LP-001/002/003`, `MUT-LP-001/004`
+  - `PROP-LP-001/002/003`, `PROP-MAP-001`,
+    `MUT-LP-001/004`, `MUT-MAP-001`
 
 - [ ] **2.2 Complete dual-engine parity corpus**
   <!-- agent-task: 2.2 paths=packages/lint-config/tests/** checks=legacy-and-replacement-parity risk=high prerequisites=1.5,1.6,1.7,1.8,1.9,1.10,1.11,1.12 -->
@@ -840,8 +926,16 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     `ADV-INSTALL-001`, `ADV-PLAT-001`, `MUT-INSTALL-001`, `MUT-INSTALL-002`,
     `MUT-PLAT-001`
 
-- [ ] **2.5 Scope 1 full gate and frozen-head review**
-  <!-- agent-task: 2.5 paths=repository checks=bash-scripts-check,strict-openspec,hosted-checks risk=high prerequisites=1.15,2.1,2.2,2.3,2.4 -->
+- [ ] **2.5 Predecessor-bound maintenance transition proof**
+  <!-- agent-task: 2.5 paths=scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,packages/lint-config/**,packages/tsconfig/tests/**,tests/test_toolchain_boundaries.py checks=maintenance-predecessor-continuity risk=high prerequisites=1.15,2.1,2.2,2.3,2.4 -->
+
+  **Proves**
+
+  - `EX-MAINT-001`, `PROP-MAINT-001`, `ADV-MAINT-001`,
+    `MUT-MAINT-001/002/003`, `MUT-CVE-001`
+
+- [ ] **2.6 Scope 1 full gate and frozen-head review**
+  <!-- agent-task: 2.6 paths=repository checks=bash-scripts-check,strict-openspec,hosted-checks risk=high prerequisites=2.5 -->
 
   **Proves**
 
@@ -852,12 +946,20 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 - [ ] Every PR-B task and proof is complete.
 - [ ] Manifest bijects with complete effective legacy policy.
 - [ ] Every policy row has one disposition and executable evidence.
+- [ ] Semantic policy is engine-neutral; per-engine mappings are separate and
+      referentially complete.
 - [ ] Both engines pass valid cases and reject intended negative cases.
+- [ ] Active policies remain blocking; fix-bearing option semantics have golden
+      output evidence.
 - [ ] TypeScript remains 6.0.3 authoritative.
 - [ ] ESLint remains installed and blocking.
 - [ ] Source-import gate behavior is unchanged through bounded TS6 API.
 - [ ] `onlyBuiltDependencies: []` is unchanged.
 - [ ] Native AMD64 and ARM64 command packs pass.
+- [ ] An admitted pin/mapping-only maintenance candidate passes against a trusted
+      predecessor.
+- [ ] Row-plus-fixture deletion, compiler-policy relaxation, protected-authority
+      drift, and unknown predecessor mutations fail closed.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.
@@ -892,14 +994,16 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   - Invariants: `INV-TS7-01`, `INV-TS7-05`, `INV-TS7-17`
   - Decisions: `D5`, `D11`
   - Authorities: `AUTH-TS-CONFIGS`, `AUTH-TS-ENTRYPOINTS`, `AUTH-TS-PINS`
-  - Proof: `ADV-TC-001`
+  - Proofs: `ADV-TC-001`, `ADV-TC-002`
 
   **Change**
 
   Regenerate tracked tsconfig, compiler command, generator, direct API, and
   option-consumer inventory against current main; run TS7 showConfig, typecheck,
   build, generator, and existing compiler fixture probes in a controlled branch.
-  Assign only actual incompatibilities.
+  Assign only actual incompatibilities. Add TS7-language fixtures containing
+  governed import edges and prove the TS6 parser either extracts them
+  equivalently or fails closed.
 
   **Does not own**
 
@@ -912,7 +1016,8 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   **Proof required**
 
   Inventory completeness mutation; all used configs/commands exercised; actual
-  findings have regression tests.
+  findings have regression tests; a TS7-accepted forbidden import edge cannot
+  disappear through TS6 parser recovery.
 
   **Size and atomicity**
 
@@ -1016,7 +1121,7 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   authority.
 
 - [ ] **3.4 Remove the legacy ESLint implementation atomically**
-  <!-- agent-task: 3.4 paths=pnpm-workspace.yaml,pnpm-lock.yaml,packages/eslint-config/**,**/eslint.config.js,**/package.json,tests/**,docs/** checks=no-eslint-residue risk=high prerequisites=3.3 -->
+  <!-- agent-task: 3.4 paths=pnpm-workspace.yaml,pnpm-lock.yaml,packages/eslint-config/**,scripts/workspace-model.mjs,**/eslint.config.js,**/package.json,tests/**,docs/** checks=no-eslint-residue,workspace-tooling-boundary risk=high prerequisites=3.3 -->
 
   **Task type**
 
@@ -1036,8 +1141,10 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   Remove `eslint`, `@eslint/js`, `typescript-eslint`, `globals`, the legacy
   config package, imports, lock entries, and legacy-only tests/extractor. Preserve
-  the policy manifest, replacement config, fixtures, roles, and engine-
-  substitution conformance.
+  the policy manifest, separate replacement mapping, replacement config,
+  fixtures, roles, and predecessor-bound engine-substitution conformance. Remove
+  `packages/eslint-config` from the canonical workspace layer/build-tooling sets
+  while keeping `packages/lint-config` classified there.
 
   **Does not own**
 
@@ -1050,8 +1157,9 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   **Proof required**
 
-  Repository-wide package/import/path scan finds no legacy residue; complete
-  corpus still passes; deliberate orphan residue is caught.
+  Repository-wide package/import/path/layer scan finds no legacy residue;
+  complete corpus still passes; deliberate orphan residue is caught; production
+  import of the surviving lint policy package remains forbidden.
 
   **Size and atomicity**
 
@@ -1077,12 +1185,13 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   - Authorities: `AUTH-TS6-CONSUMERS`, `AUTH-ARCH-IMPORT-GATE`,
     `AUTH-TS-ENTRYPOINTS`
   - Proofs: `EX-ARCH-001`, `PROP-TS6-001`, `PROP-TS6-002`, `PROP-SEP-002`,
-    `MUT-ARCH-001`, `MUT-ARCH-002`, `MUT-TS6-001`
+    `ADV-TC-002`, `MUT-ARCH-001`, `MUT-ARCH-002`, `MUT-TS6-001`
 
   **Change**
 
   Re-run the full source-import corpus under normal TS7 plus the exact TS6 API
-  seam; verify singleton imports and absence of `tsc6` commands.
+  seam; verify singleton imports and absence of `tsc6` commands. Include the
+  TS7-language/TS6-parser differential fixtures from task 3.1.
 
   **Does not own**
 
@@ -1096,7 +1205,8 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   **Proof required**
 
   Current positive/negative/hostile/mutation source-import suite; API import
-  mutation; independent workflow/check invocation.
+  mutation; TS7-accepted forbidden-edge parser-recovery mutation; independent
+  workflow/check invocation.
 
   **Size and atomicity**
 
@@ -1247,8 +1357,11 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 - [ ] `pnpm lint` enforces the complete manifest through Oxlint + tsgolint.
 - [ ] No ESLint package, config, import, script, lock entry, or test remains.
 - [ ] Source-import architecture behavior is unchanged through bounded TS6 API.
+- [ ] TS7-accepted syntax cannot hide a governed import edge from the TS6 parser
+      seam.
 - [ ] `onlyBuiltDependencies: []` remains.
 - [ ] Native AMD64 and ARM64 full command packs pass.
+- [ ] Predecessor-bound maintenance proofs remain intact after ESLint retirement.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.
@@ -1263,9 +1376,10 @@ This file owns exactly two implementation scopes:
 - `typescript7-cutover` — PR-C.
 
 An epoch number is not a scope ordinal. Base movement may require another epoch
-for the same scope. The current review file initially targets
-`replacement-authority-parity` and remains `REVIEW_REQUIRED` until an independent
-review occurs.
+for the same scope. The current review file targets
+`replacement-authority-parity`, records focused closure against the original
+planning commit, and must be replaced by a fresh independent epoch-1 review of
+the corrected planning bytes.
 
 ## Program stopping rules
 

@@ -118,6 +118,16 @@ compatibility API.
 - **THEN** behavior SHALL remain equivalent
 - **AND** a semantic difference SHALL block Scope 1 or Scope 2 as appropriate
 
+#### Scenario: TypeScript 7 accepts syntax parsed by the TS6 seam
+
+- **GIVEN** source syntax accepted by the authoritative TypeScript 7 compiler
+- **WHEN** the TS6 compatibility parser evaluates a fixture containing governed
+  import edges
+- **THEN** it SHALL either extract and classify every edge equivalently or fail
+  closed with a syntax diagnostic
+- **AND** a forbidden edge MUST NOT disappear through parser recovery or an
+  unmodeled TS7 syntax form
+
 ### Requirement: Compiler and lint cutover remain distinct
 
 **Requirement ID:** `REQ-TC-004`

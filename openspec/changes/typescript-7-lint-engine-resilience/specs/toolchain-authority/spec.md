@@ -19,7 +19,7 @@ authorities allocated in `assurance.md`.
 
 **Canonical authority references:** `AUTH-TS-PINS`, `AUTH-TS-CONFIGS`
 
-After the compiler cutover, the repository SHALL have exactly one authoritative
+At the compiler cutover, the repository SHALL have exactly one authoritative
 compiler version: TypeScript 7.0.2 from the normal `typescript` package. Every
 ordinary typecheck, build, generator compilation, and shared-tsconfig fixture
 SHALL use that compiler.
@@ -27,6 +27,13 @@ SHALL use that compiler.
 The compatibility package SHALL NOT become an alternate compiler authority and
 its `tsc6` binary SHALL NOT be used by repository `typecheck`, `build`, or
 generator entry points.
+
+After that initial cutover, the repository SHALL continue to have exactly one
+exact normal compiler pin. A later exact TypeScript version MAY replace 7.0.2
+without changing compiler authority only through the predecessor-bound
+maintenance behavior in `REQ-SC-006`. Changing the authority from the normal
+`typescript` package to `tsc6`, a lint type-check mode, or another implementation
+outside that contract SHALL require architecture review.
 
 #### Scenario: Scope 1 keeps the current compiler authority
 
@@ -49,6 +56,17 @@ generator entry points.
   unstable TypeScript API compiler path, or another compiler version
 - **THEN** repository validation SHALL fail
 - **AND** the result MUST NOT be accepted merely because both compilers pass
+
+#### Scenario: A later TypeScript security update preserves compiler authority
+
+- **GIVEN** the Scope 2 cutover to 7.0.2 has completed
+- **AND** a later exact TypeScript version is proposed as a security maintenance
+  update
+- **WHEN** the normal package remains the sole compiler and the trusted-
+  predecessor compiler-policy, conformance, platform, installation, and
+  architecture protections remain unchanged
+- **THEN** the exact compiler pin MAY advance without a new authority decision
+- **AND** the complete compiler maintenance proof SHALL still be required
 
 ### Requirement: Toolchain authorities remain separate
 
@@ -181,8 +199,8 @@ SHALL have explicit external implementation authorization.
 
 #### Scenario: Scope 1 has no accepted review or implementation authority
 
-- **GIVEN** this planning package exists with `REVIEW_REQUIRED` or the Proposed
-  ADR remains unaccepted
+- **GIVEN** this planning package lacks a current `ARCHITECTURE_ACCEPTED` review
+  or the Proposed ADR remains unaccepted
 - **WHEN** Scope 1 implementation is considered
 - **THEN** its status SHALL be `NOT_AUTHORIZED`
 - **AND** no dependency, configuration, source, or CI implementation edit may begin

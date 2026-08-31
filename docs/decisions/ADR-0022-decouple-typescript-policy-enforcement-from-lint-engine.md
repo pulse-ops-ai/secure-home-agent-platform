@@ -99,6 +99,7 @@ Typed and static defect policy
     -> a repository-owned machine-readable lint-policy contract
 
 Lint execution
+    -> repository-owned per-engine mappings
     -> one or more replaceable engine implementations
 
 Package/source architectural direction
@@ -113,8 +114,8 @@ source.
 
 ### 2. TypeScript compiler diagnostics are authoritative for compiler correctness
 
-After cutover, the normal `typescript` package at exactly TypeScript 7.0.2 is the
-one answer to “what compiler does this repository use?”
+At Scope 2 cutover, the normal `typescript` package at exactly TypeScript 7.0.2
+is the one answer to “what compiler does this repository use?”
 
 `pnpm typecheck`, member `typecheck`, member `build`, and generator compilation
 continue to use that normal package. Compiler success and lint success are
@@ -122,6 +123,15 @@ separate results.
 
 Oxlint's type-check option is not the compiler authority and may not substitute
 for the independent TypeScript gate.
+
+The exact 7.0.2 pin is the initial cutover identity, not a permanent ban on a
+later security or compatibility update. After cutover, one exact normal compiler
+pin remains authoritative. A later exact TypeScript version may replace 7.0.2
+without a new ADR only through the predecessor-bound maintenance contract in
+§10, with compiler configuration, negative/positive conformance, architecture
+gates, installation posture, and supported platforms preserved. Replacing the
+normal compiler authority with `tsc6`, a lint type-check mode, or another
+authority is an architecture change.
 
 ### 3. Typed and static lint policy remains mandatory
 
@@ -135,9 +145,15 @@ REPLACED_BY_DEDICATED_REPOSITORY_GATE
 
 `DROPPED`, omitted, and “the new engine does not support it” are not dispositions.
 
-The canonical executable policy must include role/path applicability, policy
-options, replacement mapping, and proof references. Engine defaults are disabled:
-a new default rule is a policy proposal, not an automatic upgrade benefit.
+The canonical executable policy must include stable engine-neutral policy IDs,
+role/path applicability, policy semantics/options, blocking posture, and proof
+references. Per-engine rule/parser mappings are a separate implementation
+authority joined to those stable IDs. Historical ESLint origin may be retained
+as bootstrap provenance, but it is not a required permanent identity for a
+future policy.
+
+Engine defaults are disabled: a new default rule is a policy proposal, not an
+automatic upgrade benefit.
 
 ### 4. Prettier remains the single formatting authority
 
@@ -176,6 +192,12 @@ Their exact versions are implementation pins in the pnpm catalog and frozen
 lockfile, not permanent architectural identities. The audited initial versions
 are recorded by the governed change; a conforming future exact version or
 replacement may be selected without a new ADR when §10 is satisfied.
+
+Engine mappings are repository-owned implementation data separate from the
+semantic policy and conformance corpus. Replacing an engine may change its pin,
+its mapping, and generated engine projections. It may not redefine a stable
+policy ID, role, option, blocking posture, or fixture merely to make the
+replacement pass.
 
 ### 7. Removing the legacy engine requires executable parity
 
@@ -238,6 +260,8 @@ may be reintroduced behind the same policy contract.
 A vulnerability-driven implementation update or substitution does not require a
 new architecture decision when all of these remain true:
 
+- the maintenance claim is compared with a trusted predecessor selected by the
+  repository workflow, not only with candidate-authored state;
 - positive policy fixtures pass;
 - negative policy fixtures fail for the intended policy;
 - required compiler/lint/architecture commands remain separate;
@@ -245,6 +269,36 @@ new architecture decision when all of these remain true:
 - install-script policy remains satisfied;
 - supported native platforms execute the required command pack; and
 - every canonical policy entry retains one enforcing disposition.
+
+The maintenance transition is a closed, fail-closed classification:
+
+| Maintenance class | Candidate may change | Candidate must preserve from the trusted predecessor |
+|---|---|---|
+| lint engine | exact engine pins, only their derived transitive lock subgraph, the selected engine's mapping, generated engine config/adapter | semantic lint policy, roles/options/blocking posture, conformance fixture bytes and harness, compiler policy, formatter, architecture gates, install posture, platform set, and the predecessor maintenance class/checker |
+| normal TypeScript compiler | exact normal-compiler pin, only its derived transitive lock subgraph, version expectations, audit evidence/adapter required by the new compiler | shared compiler configuration, compiler conformance fixtures/harness, lint policy/corpus, TS6 consumer boundary, formatter, architecture gates, install posture, platform set, and the predecessor maintenance class/checker |
+| TS6 compatibility parser | exact compatibility-package pin, only its derived transitive lock subgraph, expected resolved API identity, and the bounded package-import adapter | admitted consumer allowlist, source-import semantics/corpus/harness, normal compiler authority, lint policy/corpus, install posture, platform set, and the predecessor maintenance class/checker |
+
+The exact allowed/protected authority sets are machine-readable and
+history-checked. The predecessor's maintenance class defines the comparison; a
+candidate may not widen its own allowed set or weaken the checker. Lockfile
+change is limited to the selected package roots and their deterministically
+derived transitive closure; unrelated graph movement fails.
+
+Scope 1 creates this maintenance authority under the full dual-engine,
+architecture-review, and native-platform proof. It is the genesis contract and
+does not self-classify PR-B as maintenance. Only a later candidate may claim a
+maintenance class against the merged predecessor authority.
+
+A missing or ambiguous predecessor, unreadable diff, malformed maintenance
+policy, changed protected authority, unrelated lock movement, or candidate that
+deletes a policy row together with its fixture is **not** a successful
+maintenance update. It fails closed and is routed to the separately reviewed
+policy or architecture path.
+
+The initial TypeScript 7.0.2 cutover is still mandatory for this program.
+Subsequent exact compiler updates do not reopen the authority decision when the
+normal `typescript` package remains the sole compiler and the compiler
+maintenance row above is satisfied.
 
 If remediation requires changing policy, authority allocation, trust boundary,
 supported-platform set, or install-script posture, it is not merely a version
@@ -306,6 +360,8 @@ program, not used as input to it.
 
 - TypeScript 7 can become the compiler without deleting typed lint.
 - A lint-engine CVE can be remediated through a reusable conformance corpus.
+- A tool-update PR cannot delete a policy and its only failing fixture together
+  while still claiming the predecessor's contract.
 - The repository can prove every old policy survived rather than comparing rule
   counts or config strings.
 - Compiler, lint, formatter, and architecture-gate responsibilities are explicit.
@@ -348,6 +404,14 @@ policy. Compiler strictness does not replace those semantics.
 Rejected. Registration and documentation do not prove options, roles, ignores,
 or accept/reject behavior. One audited mismatch already exists in a materialized
 rule option.
+
+### Validate only the candidate's policy and fixtures during tool maintenance
+
+Rejected. After ESLint retirement, a candidate could delete a policy row and its
+only negative fixture together, leaving a self-consistent smaller corpus. A
+maintenance claim must therefore bind protected policy/config/corpus bytes to a
+trusted predecessor and permit only the implementation-specific deltas declared
+for that maintenance class.
 
 ### Make Oxlint configuration the policy authority
 
@@ -440,9 +504,12 @@ This ADR may be accepted when a reviewer and repository owner agree that:
    compiler authority;
 5. exact package, install-script, and native-platform obligations are sufficient
    for supply-chain resilience;
-6. the two implementation scopes and review epochs are the correct atomic seams;
-7. security-remediation substitution cannot remove policy; and
-8. no unrelated ADR, unresolved decision, runtime, or PR #113 scope is changed.
+6. engine mappings are separate from engine-neutral policy and fixture
+   authority;
+7. security-remediation substitution is predecessor-bound and cannot remove a
+   policy together with its evidence;
+8. the two implementation scopes and review epochs are the correct atomic seams;
+9. no unrelated ADR, unresolved decision, runtime, or PR #113 scope is changed.
 
 ## Validation and follow-up obligations
 
@@ -451,23 +518,28 @@ This ADR may be accepted when a reviewer and repository owner agree that:
 2. An independent governed review evaluates the exact planning bytes. The
    author may not self-accept.
 3. Repository-owner acceptance is explicit and precedes PR-B authorization.
-4. PR-B lands the policy schema/manifest, full current-policy extraction,
-   generated replacement config, complete fixture corpus, dual blocking engines,
-   bounded TS6 seam, and native AMD64/ARM64 proof while retaining TypeScript 6
-   and ESLint.
+4. PR-B lands the engine-neutral policy schema/manifest, separate per-engine
+   mappings, full current-policy extraction, generated replacement config,
+   complete fixture corpus, dual blocking engines, predecessor-bound maintenance
+   classifier, bounded TS6 seam, and native AMD64/ARM64 proof while retaining
+   TypeScript 6 and ESLint.
 5. If any current policy lacks semantic parity, PR-B stops; ESLint remains and
    PR-C is not authorized.
-6. PR-C repeats the TS7 audit against current main, establishes TS7 compiler
+6. PR-B proves an allowed
+   pin/mapping-only update passes while row-plus-fixture deletion,
+   shared-tsconfig relaxation, protected-corpus drift, and unresolved predecessor
+   identity fail.
+7. PR-C repeats the TS7 audit against current main, establishes TS7 compiler
    identity, removes all ESLint residue atomically, retains the compatibility
    seam, and proves native AMD64/ARM64 full commands.
-7. Every future tooling security substitution executes the same policy,
-   installation, platform, and separation contract.
-8. `onlyBuiltDependencies: []` remains; any exception requires separate review.
-9. Promotion determination: this ADR is the canonical architectural home. After
+8. Every future tooling security substitution executes the same policy,
+   installation, platform, separation, and predecessor-continuity contract.
+9. `onlyBuiltDependencies: []` remains; any exception requires separate review.
+10. Promotion determination: this ADR is the canonical architectural home. After
    acceptance, existing portable implementation/review knowledge may be updated
    as a subordinate projection under a separately authorized change; no new
    module is required by this proposal.
-10. This ADR resolves no item in `unresolved-decisions.md` and authorizes no
+11. This ADR resolves no item in `unresolved-decisions.md` and authorizes no
     deployment, credential, or device access.
 
 ## Links

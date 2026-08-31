@@ -24,12 +24,15 @@ security replacement a conformance exercise rather than an architecture rewrite.
 ## Goals
 
 - Make repository-owned policy, not a lint binary, the authority.
+- Keep semantic policy/conformance separate from per-engine mappings.
 - Establish a complete executable parity boundary before retiring ESLint.
 - Make TypeScript 7.0.2 the one authoritative normal compiler.
 - Keep Prettier and dedicated architecture checks independent.
 - Bound the TypeScript 6 API to known repository tooling.
 - Preserve deterministic frozen installs with no install-script exception.
 - Prove required execution natively on Linux AMD64 and ARM64.
+- Bind tool-only security maintenance to a trusted predecessor and a closed
+  allowed-delta class so deleting policy and evidence together cannot pass.
 - Land exactly PR-A (planning), PR-B (parity foundation), and PR-C (cutover),
   unless an explicit owner acceptance process requires a separate ADR transition
   or Scope 1 proves a policy cannot be preserved.
@@ -374,10 +377,19 @@ may invalidate this evidence.
 ```text
                                 ┌───────────────────────────────┐
                                 │ AUTH-LINT-POLICY              │
-                                │ policy + roles + options +    │
-                                │ disposition + proof mapping   │
+                                │ stable semantics + roles +    │
+                                │ options + proof mapping       │
                                 └──────────────┬────────────────┘
                                                │ checked/generated
+                         ┌─────────────────────┴─────────────────────┐
+                         ▼                                           ▼
+             AUTH-LINT-ENGINE-MAPPINGS                    AUTH-LINT-CONFORMANCE
+             legacy + replacement rule/parser             stable fixture bytes
+             mechanisms keyed by policy ID                keyed by policy ID
+                         │                                           │
+                         └─────────────────────┬─────────────────────┘
+                                               ▼
+                                  generated/checkable adapters
                          ┌─────────────────────┴──────────────────────┐
                          ▼                                            ▼
              legacy ESLint adapter/config                 Oxlint config/runner
@@ -398,19 +410,25 @@ normal `typescript` package                 @typescript/typescript6
 
 Prettier ------------------------------------------------ formatting authority
 check-workspace.mjs + workspace model ------------------ manifest architecture
+
+trusted predecessor + AUTH-MAINTENANCE-CLASSES
+  -> classify admitted implementation-only deltas
+  -> protected policy/config/corpus drift or unknown base = REFUSE
 ```
 
 ### Component responsibilities
 
 | Component | Responsibility | Not an authority for |
 |---|---|---|
-| `packages/lint-config/policy.schema.json` (planned) | validates policy-entry and role/proof-reference shape | policy values |
-| `packages/lint-config/policy.json` (planned) | exact lint policy identities, applicability, dispositions, engine mapping, and proof references | compiler options, dependency layers |
+| `packages/lint-config/policy.schema.json` (planned) | validates engine-neutral policy-entry, role, blocking, and proof-reference shape | policy values or engine mappings |
+| `packages/lint-config/engine-mappings.schema.json` (planned) | validates per-engine rule/parser mappings and normalization keyed by stable policy ID | semantic policy |
+| `packages/lint-config/policy.json` (planned) | exact stable lint policy identities, semantics/options, applicability, dispositions, blocking posture, and proof references | engine mappings, compiler options, dependency layers |
+| `packages/lint-config/engine-mappings.json` (planned) | exact legacy/replacement rule or parser mechanisms keyed by stable policy ID | semantic policy or fixture bytes |
 | legacy extractor/drift check (planned) | proves the initial manifest contains the complete effective ESLint policy and detects drift during Scope 1 | future policy decisions |
 | generated Oxlint config (planned) | engine-specific mirror with all categories/defaults neutralized | policy |
 | lint conformance harness and fixtures (planned) | executable accept/reject parity evidence | policy definition |
-| `scripts/toolchain-boundaries.json` (planned) | exact TS6 consumer allowlist and required native platform set | package versions |
-| `scripts/check-toolchain-boundaries.mjs` (planned) | validates compiler identity, compatibility imports, entry-point separation, and platform/workflow projection | architecture layers or lint semantics |
+| `scripts/toolchain-boundaries.json` (planned) | exact TS6 consumer allowlist, required native platform set, and closed maintenance classes with allowed/protected authority projections | package versions or policy values |
+| `scripts/check-toolchain-boundaries.mjs` (planned) | validates compiler identity, compatibility imports, entry-point separation, platform/workflow projection, trusted predecessor resolution, and maintenance deltas | architecture layers or lint semantics |
 | pnpm catalog/lock | exact selected implementation versions and resolved graph | lint policy |
 | `packages/tsconfig/*.json` | compiler options and role inheritance | lint policy |
 | `check-source-imports.mjs` | source dependency architecture | general lint or type correctness |
@@ -427,6 +445,7 @@ check-workspace.mjs + workspace model ------------------ manifest architecture
 | TB-TS7-5 normal compiler → compatibility API | TypeScript 7 compiler lane | legacy TS6 API | parser capability only | exact allowlist; no `tsc6` entry point in build/typecheck |
 | TB-TS7-6 lint → architecture gate | separate repository commands | shared parser technology | no authority crossing permitted | independent commands/tests; lint cannot satisfy import gate |
 | TB-TS7-7 AMD64 evidence → ARM64 claim | native ARM64 runner | package metadata/cross artifact | support claim | native frozen install and command execution |
+| TB-TS7-8 trusted predecessor → maintenance candidate | live repository-selected predecessor | candidate-authored pins, mappings, policy, config, and fixtures | claim that policy/config/corpus continuity was preserved | exact predecessor identity; closed allowed/protected authority projections; unreadable/ambiguous state fails closed |
 
 No credential, production data, runtime authorization, or external system effect
 crosses these boundaries.
@@ -444,7 +463,8 @@ crosses these boundaries.
 - **Trust consequence:** an engine may not silently add/drop rules through
   defaults or unsupported options.
 - **Canonical authority consequence:** creates `AUTH-LINT-POLICY-SCHEMA` and
-  `AUTH-LINT-POLICY`; configs are checked/generated mirrors.
+  `AUTH-LINT-POLICY`; `AUTH-LINT-ENGINE-MAPPINGS` owns implementation mappings;
+  configs are checked/generated mirrors.
 - **Revisit trigger:** no executable representation can express the policy/role
   model without becoming engine-specific.
 
@@ -458,7 +478,7 @@ crosses these boundaries.
   mode permits ignored drift; one-step replacement has no independent oracle.
 - **Trust consequence:** a mismatch stops Scope 1 and preserves old enforcement.
 - **Canonical authority consequence:** legacy extractor and conformance corpus
-  bind both engines to one manifest.
+  bind both engines to one semantic manifest through separate engine mappings.
 - **Revisit trigger:** dual execution is operationally impossible even when
   scoped to the migration PR.
 
@@ -475,7 +495,8 @@ crosses these boundaries.
 - **Trust consequence:** registration is only feasibility; fixtures decide
   semantic acceptance.
 - **Canonical authority consequence:** versions live only in catalog/lock;
-  manifest maps policy, not versions.
+  engine mappings live in `AUTH-LINT-ENGINE-MAPPINGS`; the policy manifest owns
+  semantics, not versions or vendor rule identities.
 - **Revisit trigger:** Scope 1 parity or native platform execution fails.
 
 ### D4: Engine defaults are disabled
@@ -497,7 +518,8 @@ crosses these boundaries.
 
 - **Decision:** normal `typescript` becomes 7.0.2 in Scope 2;
   `@typescript/typescript6` 6.0.2 reexports the locked TS6 API only to admitted
-  repository tooling.
+  repository tooling. A later exact normal TypeScript pin may advance through
+  D13 without changing compiler authority.
 - **Requirement(s):** `REQ-TA-001`, `REQ-TA-004`, `REQ-TC-002`, `REQ-TC-003`.
 - **Rationale:** the normal TS7 package has no traditional stable API surface;
   Microsoft publishes the side-by-side compatibility package.
@@ -505,7 +527,8 @@ crosses these boundaries.
   retaining normal TS6 compiler. All change semantics, stability, or objective.
 - **Trust consequence:** compatibility cannot spread or become compiler authority.
 - **Canonical authority consequence:** `AUTH-TS6-CONSUMERS` owns one allowlist;
-  catalog/lock own package identity.
+  catalog/lock own package identity; `AUTH-MAINTENANCE-CLASSES` distinguishes
+  initial cutover from later conforming compiler maintenance.
 - **Revisit trigger:** a stable TS7 API can prove behavioral equivalence in a
   separate lifecycle change.
 
@@ -614,6 +637,35 @@ crosses these boundaries.
 - **Revisit trigger:** repository taxonomy proves the authority belongs in a
   root governance/tooling domain instead.
 
+### D13: Tool-only maintenance is predecessor-bound
+
+- **Decision:** an engine/compiler/compatibility-parser maintenance claim compares
+  the candidate with an exact trusted predecessor. A closed machine-readable
+  maintenance class names the implementation authorities that may change and
+  the semantic/config/conformance authorities that must remain equal. Unknown
+  predecessor or protected drift fails closed. The predecessor class/checker,
+  not the candidate's edited copy, governs the comparison; lockfile movement is
+  limited to the selected package roots and their derived transitive closure.
+  PR-B creates the genesis class under full dual-engine review; it does not
+  authorize itself as maintenance.
+- **Requirement(s):** `REQ-TA-001`, `REQ-TA-003`, `REQ-SC-004`,
+  `REQ-SC-005`, `REQ-SC-006`.
+- **Rationale:** after ESLint retirement, candidate-local schema and fixtures can
+  be made consistently smaller by deleting a policy row and its only evidence.
+  Continuity is a two-revision property.
+- **Alternatives considered:** trust candidate-only conformance; embed immutable
+  policy IDs in prose; forbid all future tool updates. The first permits silent
+  deletion, the second creates a competing authority, and the third defeats
+  vulnerability response.
+- **Trust consequence:** a tool-maintenance candidate does not select the policy
+  or predecessor against which it is judged.
+- **Canonical authority consequence:** adds `AUTH-MAINTENANCE-CLASSES` under the
+  toolchain-boundary document and keeps `AUTH-LINT-ENGINE-MAPPINGS` separate from
+  semantic policy.
+- **Revisit trigger:** repository CI cannot supply an exact trustworthy
+  predecessor or an implementation requires changing a protected authority; the
+  change is then routed to explicit policy/architecture review.
+
 ## Repository Feasibility
 
 | Assumption | Repository evidence | Status | Design consequence |
@@ -634,6 +686,7 @@ crosses these boundaries.
 | ARM64 package artifacts exist | registry metadata + ELF AArch64 tarball inspection for TS7/Oxlint/tsgolint | verified distribution, not execution | native CI remains gating |
 | native hosted ARM64 is available | public repository; GitHub standard `ubuntu-24.04-arm` | verified availability | use existing hosted trust model |
 | current member lint role uses `/test` export | all member config imports inspected | mismatch: no consumer | manifest separates export contract from assignments |
+| candidate-local maintenance conformance proves predecessor continuity | planned candidate-only policy/schema/corpus checks | absent | D13 and Scope 1 add trusted-predecessor comparison plus co-deletion/tsconfig-relaxation mutations |
 
 ### Upstream sources verified 2026-08-31
 
@@ -650,10 +703,19 @@ crosses these boundaries.
 
 `assurance.md#authority-allocation` owns the complete `AUTH-*` allocation.
 
-The key choice is a schema-validated policy manifest plus executable fixture
-mapping. It can represent stable policy IDs, role applicability, legacy origin,
-one disposition, replacement mapping, and proof references without making an
-engine config canonical. Engine configs are generated or drift-checked mirrors.
+The key choice is a schema-validated engine-neutral policy manifest, a separate
+per-engine mapping authority, and executable fixture mapping. The policy can
+represent stable IDs, role applicability, semantic options, blocking posture,
+one disposition, and proof references without making a vendor rule name
+canonical. Engine configs are generated or drift-checked mirrors.
+
+`AUTH-MAINTENANCE-CLASSES` owns the exact two-revision projections used for a
+tool-only maintenance claim: which implementation authorities may differ, which
+policy/config/corpus/harness authorities must match the trusted predecessor,
+and how selected package roots derive the only lock subgraph allowed to move.
+The predecessor's class governs; the candidate does not define or widen that
+comparison ad hoc. Scope 1 is the genesis authority landing and is reviewed by
+the ordinary full scope proof rather than by the maintenance shortcut it creates.
 
 The current inventory in this document is explicitly a pinned evidence snapshot,
 not a second policy authority.
@@ -666,20 +728,24 @@ not a second policy authority.
 | Scope 1 ready | manifest complete, both engines and platform proofs green | merge dual-engine foundation; TypeScript 6 and ESLint remain | D1/D2/D10 |
 | Scope 1 mismatch | any policy/role/option lacks parity | stop; retain old engine; Scope 2 blocked | D2 / INV-TS7-02 |
 | Scope 2 ready | Scope 1 merged, ADR accepted, fresh review epoch, TS7 audit and both platforms green | cut over compiler and retire ESLint atomically | D5/D11 |
-| security upgrade | same policy corpus and platform/install proofs pass | implementation update may proceed without new ADR | D1/D9 |
+| security upgrade | predecessor-protected policy/config/corpus plus platform/install proofs pass | implementation update may proceed without new ADR | D1/D9/D13 |
 | security upgrade requires policy deletion | no conforming mapping | reject or open explicit policy/architecture review | D1/D3 |
+| security candidate deletes policy row + fixture | candidate remains internally consistent but predecessor semantic projection differs | refuse maintenance classification | D13 / INV-TS7-25 |
+| compiler security update preserves normal authority and predecessor config/corpus | exact pin/graph/version expectation change only plus complete proof | maintenance update may proceed without replacing compiler authority | D5/D13 |
 
 ## Interfaces and Contracts
 
 | Contract | Producer | Consumer | Trust boundary | Compatibility | Canonical authority |
 |---|---|---|---|---|---|
 | lint policy manifest | reviewed policy change | config generator, parity harness, member-role validator | policy → engine | stable IDs; schema versioned | `AUTH-LINT-POLICY` |
-| generated Oxlint config | deterministic generator | Oxlint runner | policy → engine | no defaults; exact mapping | mirror of `AUTH-LINT-POLICY` via `AUTH-LINT-CONFIG` |
+| per-engine mappings | reviewed implementation mapping | config generator and conformance runners | semantic policy → selected engine | keyed by stable policy ID; no policy semantics | `AUTH-LINT-ENGINE-MAPPINGS` |
+| generated Oxlint config | deterministic generator | Oxlint runner | policy + mapping → engine | no defaults; exact mapping | mirror of policy + mapping via `AUTH-LINT-CONFIG` |
 | legacy extraction snapshot | ESLint API resolver | drift checker | legacy engine → manifest bootstrap | Scope 1 only | `AUTH-LEGACY-EXTRACTOR` |
 | policy fixture corpus | reviewed fixtures mapped by manifest | legacy/replacement runners | fixture → parity claim | accept/reject semantics, not message identity | `AUTH-LINT-CONFORMANCE` |
 | TS6 consumer allowlist | toolchain boundary policy | import guard | normal compiler → legacy API | singleton initially | `AUTH-TS6-CONSUMERS` |
 | platform matrix | toolchain boundary policy | hosted workflow/tests | package metadata → support claim | native execution required | `AUTH-PLATFORM-MATRIX` |
 | compiler entry points | package scripts/shared config | CI/local aggregate | package resolution → compiler authority | normal package only | `AUTH-TS-ENTRYPOINTS` |
+| maintenance class and predecessor comparison | toolchain boundary policy + repository-selected exact base | maintenance checker | predecessor → candidate continuity claim | closed allowed/protected projections; unknown fails | `AUTH-MAINTENANCE-CLASSES` |
 
 ## Failure Classification Boundaries
 
@@ -691,6 +757,7 @@ not a second policy authority.
 | compatibility import | boundary checker | unapproved import or tsc6 entry point | package unavailable | architecture gate fails |
 | package install | pnpm policy/lock | range, lock drift, install script, missing native package | registry/runner outage | no support claim; retry later |
 | platform support | native matrix | architecture-specific functional failure | hosted runner unavailable | incomplete, never infer from metadata |
+| maintenance continuity | toolchain-boundary checker | protected semantic/config/corpus drift | predecessor unavailable/unreadable | refuse maintenance classification; candidate-only success is insufficient |
 
 ## Shared vs Independent Logic
 
@@ -709,6 +776,10 @@ Must remain independent:
 - Prettier and lint configuration; and
 - AMD64 and ARM64 executions.
 
+For maintenance, the semantic policy/corpus projection and per-engine mapping
+projection are intentionally distinct. A lint-engine update may alter the latter
+while the former remains predecessor-identical.
+
 Tests must fail if a wrapper collapses these into one process result or lets one
 success satisfy another required command.
 
@@ -717,7 +788,9 @@ success satisfy another required command.
 ### PR-A — planning and architecture
 
 - Proposed ADR-0022 remains non-operative.
-- v2 package owns both implementation scopes and `REVIEW_REQUIRED` state.
+- v2 package owns both implementation scopes. The first independent review
+  required focused closure; the corrected planning bytes still need a fresh
+  accepting review.
 - no dependency, config, command, CI, or source behavior changes.
 
 ### PR-B — Scope 1: replacement authority / parity foundation
@@ -726,12 +799,16 @@ success satisfy another required command.
 - ESLint/typescript-eslint stay installed and blocking.
 - policy schema/manifest is created from current effective config and becomes
   canonical with drift protection.
+- engine-specific legacy/replacement mappings are separate from semantic policy.
 - Oxlint 1.80.0 and oxlint-tsgolint 7.0.2001 are exact catalog pins.
 - both engines run every mapped fixture and member policy.
 - the source-import gate switches to the exact TS6 compatibility package and
   gains an import allowlist guard.
 - native AMD64/ARM64 matrix proves frozen install, both lint paths, current
   compiler, source-import gate, and tests.
+- predecessor-bound maintenance classification proves an admitted mapping/pin
+  update passes and policy-row-plus-fixture deletion, compiler-policy relaxation,
+  protected-corpus drift, and unknown predecessor fail.
 
 ### PR-C — Scope 2: TypeScript 7 cutover / ESLint retirement
 
@@ -742,6 +819,9 @@ success satisfy another required command.
 - `pnpm lint` and `pnpm typecheck` remain separate;
 - the TS6 API seam remains bounded; and
 - native AMD64/ARM64 matrix proves the cutover.
+
+After PR-C, the exact normal compiler pin may change through D13 without changing
+compiler authority. The initial program landing remains exactly 7.0.2.
 
 Rollback before merge is the last green predecessor scope. There is no partial
 activation and no production data migration.
@@ -766,7 +846,7 @@ admission.
 | Landing | Atomic seam | Remains inert until | Proof landing with seam | Authority change |
 |---|---|---|---|---|
 | PR-A | Proposed ADR + full v2 planning package | explicit human acceptance/review and implementation authorization | strict OpenSpec + repository planning gates | none; proposed only |
-| PR-B | manifest/schema, legacy drift, generated replacement config, dual runners, complete corpus, TS6 allowlist seam, native matrix | Scope 1 review epoch accepted | parity/property/adversarial/mutation + AMD64/ARM64 | lint policy moves from engine config to manifest; compiler remains TS6 |
+| PR-B | semantic policy/schema, separate engine mappings, legacy drift, generated replacement config, dual runners, complete corpus, predecessor-bound maintenance classifier, TS6 allowlist seam, native matrix | Scope 1 review epoch accepted | parity/property/adversarial/mutation + maintenance co-deletion refusal + AMD64/ARM64 | lint policy moves from engine config to manifest; compiler remains TS6 |
 | PR-C | TS7 pin, member entrypoints, ESLint removal, retained seam, native matrix | Scope 2 review epoch accepted after PR-B | compiler/build/full tests + parity regression + both platforms | compiler becomes TS7; ESLint implementation retired |
 
 No additional implementation PR is justified by current evidence. A separate ADR
@@ -783,6 +863,7 @@ sequence rather than be hidden.
 | GQ-TS7-003 | native ARM64 proof | architecture review | PR-B | resolved by D10; execution still due |
 | GQ-TS7-004 | three-PR ADR acceptance path | repository owner | PR-A merge / PR-B authorization | resolved conditionally by D11; owner action required |
 | GQ-TS7-005 | parity gap behavior | implementation reviewer | PR-B completion | resolved: stop and retain enforcement |
+| GQ-TS7-006 | predecessor proof for tool-only security maintenance | architecture review | PR-B | resolved by D13; exact class rows are contract-first implementation data |
 
 No open technical gating decision remains. Owner acceptance and implementation
 authorization are external prerequisites, not facts this design may manufacture.
@@ -795,6 +876,7 @@ authorization are external prerequisites, not facts this design may manufacture.
 | NQ-TS7-002 | root wrapper vs package-local wrapper shape | PR-B/PR-C entry-point tasks | required commands and independent outcomes are fixed |
 | NQ-TS7-003 | fixture source sharing | PR-B conformance task | each manifest entry still has explicit intended proof |
 | NQ-TS7-004 | exact normalization for default-equivalent engine options | PR-B engine adapter task | fixture parity decides equivalence; mismatch stops |
+| NQ-TS7-005 | exact Git/API plumbing for trusted maintenance predecessor | PR-B boundary task | exact identity, fail-closed resolution, and allowed/protected projections are fixed by D13 |
 
 ## Promotion Determination
 

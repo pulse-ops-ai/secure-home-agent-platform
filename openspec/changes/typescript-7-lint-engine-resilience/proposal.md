@@ -59,7 +59,8 @@ The repository will separate stable policy authorities from replaceable tooling:
 formatting                       -> Prettier
 compiler/type correctness        -> authoritative TypeScript compiler
 static and typed defect policy   -> repository-owned lint-policy contract
-lint execution                   -> replaceable engine adapter(s)
+lint execution mapping           -> repository-owned engine adapters
+lint execution                   -> replaceable engine implementation(s)
 package/source architecture      -> dedicated repository gates
 traditional TypeScript AST API   -> bounded compatibility seam for admitted tooling
 ```
@@ -80,7 +81,8 @@ permitted only for an explicit allowlist of repository tooling, initially
 - Plan a second implementation scope that makes TypeScript 7.0.2 authoritative
   and retires ESLint only after the first scope's parity contract is proven.
 - Establish executable security-remediation requirements so future tool
-  replacement cannot silently remove policy.
+  replacement cannot silently remove policy, including by deleting a policy row
+  together with the only fixture that would have exposed its loss.
 - Keep PR #113 frozen and outside every branch, task, authority, and proof in
   this change.
 
@@ -94,8 +96,10 @@ This governed change defines three merge-order pull requests:
    complete governed-spec-driven-v2 contract. No toolchain behavior changes.
 2. **PR-B — replacement authority / parity foundation:** retain TypeScript 6 and
    ESLint, add the engine-independent policy authority, Oxlint plus typed lint,
-   the TS6 compatibility seam, complete parity evidence, and native Linux
-   AMD64/ARM64 proof. Both legacy and replacement lint paths must pass.
+   separate per-engine mappings, the genesis predecessor-bound maintenance
+   contract, the TS6 compatibility seam, complete parity evidence, and native
+   Linux AMD64/ARM64 proof. Both legacy and replacement lint paths must pass;
+   PR-B does not self-classify through the maintenance shortcut it creates.
 3. **PR-C — TypeScript 7 cutover / ESLint retirement:** make TypeScript 7.0.2
    authoritative, preserve the bounded compatibility seam, move every member
    lint entry point to the replacement policy path, and remove ESLint only after
@@ -103,6 +107,9 @@ This governed change defines three merge-order pull requests:
 
 The change also defines the future security-remediation contract for substituting
 one lint/tooling implementation with another without changing repository policy.
+That maintenance path is bound to a trusted predecessor: candidate-local schema
+and fixture consistency is necessary but not sufficient evidence that policy was
+preserved.
 
 ### Out of scope
 
@@ -197,6 +204,7 @@ make such a parser security-neutral.
 | Compatibility-seam audit | disposable TS7 copy plus `@typescript/typescript6` | source-import gate passes over 308 files / 18 members; 44 behavioral import tests pass; TS7 remains the normal compiler | Temporary probe, not implementation |
 | Package install probe | exact npm packages in a temporary pnpm workspace with `onlyBuiltDependencies: []` | frozen install succeeds; selected and native platform packages declare no install lifecycle scripts | Linux AMD64 execution only |
 | Oxlint rule-registration probe | Oxlint 1.80.0 `--type-aware --print-config` | 115 current rule mappings register; `no-dupe-args` and `no-octal` are parser diagnostics; one materialized ESLint default option needs an engine-specific normalization | Rule registration is not fixture parity |
+| Maintenance falsification | review of planned post-ESLint checks | deleting a policy row and its fixture together would leave the candidate policy/config/corpus internally consistent | Requires a trusted-predecessor and admitted-delta authority in Scope 1 |
 | Native package inventory | npm registry manifests and downloaded tarballs | TS7, Oxlint, and tsgolint publish Linux x64 and ARM64 artifacts; binary formats match each architecture | ARM64 artifacts were inspected, not executed locally |
 | Hosted ARM64 path | repository is public; GitHub-hosted standard runner docs list `ubuntu-24.04-arm` | native ARM64 proof can use the repository's existing GitHub-hosted trust model without self-hosted infrastructure | Must be exercised in PR-B and PR-C |
 
@@ -219,8 +227,11 @@ evidence:
 
 - exactly which compiler is authoritative;
 - exactly which static and typed policies are mandatory;
-- which engine currently enforces each policy;
+- which engine mapping currently enforces each policy without making that
+  mapping part of the semantic policy identity;
 - whether an engine upgrade or substitution preserves every accept/reject case;
+- whether the candidate preserved the trusted predecessor's policy/config/corpus
+  rather than presenting a smaller self-consistent replacement;
 - why the architecture import gate remains independent and fail-closed;
 - where the temporary TypeScript 6 API may be imported;
 - whether frozen installation and required commands work on Linux AMD64 and
@@ -246,6 +257,7 @@ resolve any unrelated architectural decision or alter PR #113.
 | GQ-TS7-003 | What provides native ARM64 proof without new self-hosted infrastructure? | architecture review | PR-B | closed: standard GitHub-hosted `ubuntu-24.04-arm` in this public repository |
 | GQ-TS7-004 | How can the three-PR sequence respect explicit ADR acceptance? | repository owner | before PR-A merge / PR-B authorization | closed conditionally: PR-A starts Proposed and is the reviewed acceptance vehicle; only explicit owner action may accept it. If the owner requires a separate PR, the three-PR constraint is unsafe and work stops |
 | GQ-TS7-005 | What happens if any current rule or option lacks semantic parity? | implementation reviewer | PR-B completion | closed: PR-B stops, ESLint remains, PR-C is not authorized, and architecture is revisited only if no engine/repository/compiler allocation can preserve the policy |
+| GQ-TS7-006 | What proves a tool-only security update preserved the predecessor's contract after the legacy oracle is gone? | architecture review | PR-B | closed by design: semantic policy/corpus and other protected authorities are compared with a trusted predecessor; only maintenance-class implementation deltas are admitted; unknown base or protected drift fails closed |
 
 ### Non-gating questions
 
@@ -254,11 +266,13 @@ resolve any unrelated architectural decision or alter PR #113.
 | NQ-TS7-001 | Exact JSON field names and generator implementation for the policy manifest | PR-B contract-first tasks | authority path/type and required facts are fixed; serialization details do not change behavior |
 | NQ-TS7-002 | Whether member lint commands call a wrapper directly or through a root script | PR-B/PR-C entry-point tasks | `pnpm lint`, role coverage, dual-run, and separation outcomes are fixed |
 | NQ-TS7-003 | Whether individual equivalent fixtures share a source file | PR-B fixture task | every policy-to-proof mapping remains explicit and executable |
+| NQ-TS7-004 | Exact Git plumbing/API used to resolve the maintenance comparison base | PR-B maintenance-boundary task | trusted predecessor identity, fail-closed resolution, protected semantic projections, and allowed deltas are fixed |
 
 ## Exactness Excluded from This Artifact
 
-This proposal does not own the future policy-entry schema, rule mapping rows,
-fixture inventory, package lock resolution, member-path inventory, or CI matrix.
-`assurance.md` allocates those exact facts to one authority and `tasks.md` creates
-them contract-first. `design.md` records current-main evidence only and labels it
-as a snapshot, not a future policy source.
+This proposal does not own the future policy-entry schema, engine mapping rows,
+fixture inventory, maintenance-class rows, package lock resolution, member-path
+inventory, or CI matrix. `assurance.md` allocates those exact facts to one
+authority and `tasks.md` creates them contract-first. `design.md` records
+current-main evidence only and labels it as a snapshot, not a future policy
+source.
