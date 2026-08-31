@@ -1,0 +1,335 @@
+# The trusted one-time review boundary for a governed-spec-driven-v2 change.
+#
+# WHY THIS EXISTS. `openspec-review-gate.mjs verify` proves a review was
+# accepted against exact planning bytes at an exact base. Its weakest link was
+# the word "authoritative": `--base-sha` is just an argument, and an agent could
+# pass its own stale local SHA as both the base and its own proof. Nothing in
+# the script can tell the difference.
+#
+# This workflow supplies that provenance. It reads the pull request through the
+# GitHub API, so the head and base SHAs come from GitHub rather than from the
+# caller, checks out that exact head, and hands the base SHA to the gate.
+#
+# It is MANUALLY TRIGGERED and one-time by design: the gate refuses repository
+# change after the reviewed planning commit, so running it continuously would
+# fail every change under implementation. CI tests the mechanism elsewhere; this
+# executes the authorization, once, at the boundary.
+#
+# WHY repository_dispatch AND NOT workflow_dispatch.
+#
+# `workflow_dispatch` requires the workflow to exist on the default branch, but
+# whoever triggers it CHOOSES a branch — the UI offers one, `gh workflow run`
+# takes `--ref`, and the REST API takes a ref — and the run then executes the
+# workflow version at that ref. A candidate branch could therefore ship an
+# altered `review-boundary.yml` and have its own version authorize it. An
+# in-workflow `if github.ref != main` cannot help: the altered definition simply
+# deletes the check.
+#
+# `repository_dispatch` has no ref to choose. GitHub sets GITHUB_REF to the
+# default branch and GITHUB_SHA to its last commit, and triggers only if the
+# workflow exists there. The definition that runs is the one on the default
+# branch, by construction rather than by assertion.
+#
+# Trigger it with:
+#
+#   gh api repos/<owner>/<repo>/dispatches \
+#     -f event_type=review-boundary \
+#     -F client_payload[pr]=<number> \
+#     -F client_payload[change]=<change-name>
+#
+# TRUSTED TOOLING, UNTRUSTED DATA. An earlier revision of this file got the
+# rest wrong too: it checked out the pull request
+# and then ran `pnpm install` and `pnpm run review:verify` inside it, so the
+# lockfile's lifecycle scripts, the resolved binaries, the package.json script
+# names, and `scripts/openspec-review-gate.mjs` itself all came from the pull
+# request. A branch could have replaced the gate with `process.exit(0)` and
+# "established" its own boundary. CodeQL flagged it as cache poisoning via
+# execution of untrusted code; the authorization consequence is worse.
+#
+# The answer is not "check it out more carefully" — it is not to check it out at
+# all. The threat model, stated precisely, because a vaguer claim would be
+# easier to write and would not survive reading the steps below:
+#
+#   CANDIDATE GIT TREE
+#     never checked out as a working tree; never installed; never executed as
+#     programs. No hook, filter, or lifecycle script of the candidate runs.
+#
+#   CANDIDATE OPENSPEC CHANGE BYTES
+#     ARE written to disk — deliberately. `openspec validate --strict` is a
+#     parser and needs files. They are materialised as regular 0644 data into an
+#     isolated workspace, and are then PARSED by the trusted implementation.
+#     The claim is not "nothing is written"; it is that what is written is inert
+#     data, and the only thing interpreting it is trusted code.
+#
+#   TRUSTED EXECUTABLE CODE
+#     the exact reviewed base commit, and nothing else: workflow definition,
+#     OpenSpec CLI, schemas, config, canonical specs, and the review gate.
+#
+# So there is no candidate-controlled executable content for a cache to be
+# poisoned from, and no path by which the candidate supplies the rules that
+# judge it.
+name: review boundary
+
+on:
+  repository_dispatch:
+    types: [review-boundary]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  # Never two boundary runs for one pull request: they could observe different
+  # repository states and both report success.
+  group: review-boundary-${{ github.event.client_payload.pr }}
+  cancel-in-progress: false
+
+jobs:
+  boundary:
+    name: establish the review boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Validate the dispatch inputs before anything uses them
+        # Inputs reach shell only through the environment, never through `${{ }}`
+        # interpolation into a command: an interpolated value is substituted
+        # BEFORE the shell parses the line, so a crafted input would be script,
+        # not an argument. They are also range-checked here, before being used
+        # as a path segment or a CLI argument.
+        env:
+          PR: ${{ github.event.client_payload.pr }}
+          CHANGE: ${{ github.event.client_payload.change }}
+        run: |
+          set -euo pipefail
+          case "$PR" in
+            ''|*[!0-9]*) echo "::error::pr must be a number: $PR"; exit 1 ;;
+          esac
+          case "$CHANGE" in
+            [a-z0-9]*) ;;
+            *) echo "::error::change must match ^[a-z0-9][a-z0-9-]*$: $CHANGE"; exit 1 ;;
+          esac
+          if printf '%s' "$CHANGE" | LC_ALL=C grep -q '[^a-z0-9-]'; then
+            echo "::error::change must match ^[a-z0-9][a-z0-9-]*$: $CHANGE"
+            exit 1
+          fi
+
+      - name: Read the pull request from GitHub
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.client_payload.pr }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          payload="$(gh api "repos/$REPO/pulls/$PR")"
+          head="$(printf '%s' "$payload" | jq -r .head.sha)"
+          base="$(printf '%s' "$payload" | jq -r .base.sha)"
+          state="$(printf '%s' "$payload" | jq -r .state)"
+          base_ref="$(printf '%s' "$payload" | jq -r .base.ref)"
+
+          for value in "$head" "$base"; do
+            case "$value" in
+              [0-9a-f][0-9a-f]*) ;;
+              *) echo "::error::GitHub returned no usable SHA ($value)"; exit 1 ;;
+            esac
+          done
+          if [ "$state" != "open" ]; then
+            echo "::error::pull request $PR is $state; a boundary is established on an open PR"
+            exit 1
+          fi
+
+          # ONE authority domain. The trusted schema, config, canonical specs,
+          # gate implementation, and OpenSpec dependency all come from the base
+          # commit below; if the pull request targets some other branch, the
+          # review would be bound to that branch's commit while being judged by
+          # the default branch's rules. Refuse rather than mix the two.
+          if [ "$base_ref" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::pull request $PR targets '$base_ref', not '$DEFAULT_BRANCH'."
+            echo "::error::The v2 boundary is default-branch-only: trusted tooling and the"
+            echo "::error::reviewed base must be the same commit."
+            exit 1
+          fi
+
+          # THE LIVE TIP, not the pull request's recorded base.
+          #
+          # `pull_request.base.sha` is the commit the target branch pointed at
+          # WHEN THE PULL REQUEST WAS OPENED. GitHub does not update it as the
+          # branch advances, so binding to it lets the boundary prove
+          # `X == X` while the branch has moved far past X — which would make
+          # "target-base advancement invalidates the old boundary" a rule the
+          # workflow never enforced. Proven on this repository: PR #109 recorded
+          # eb6e248 while main was at f9915e5.
+          live="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
+          case "$live" in
+            [0-9a-f]*) ;;
+            *) echo "::error::could not read the live $DEFAULT_BRANCH tip"; exit 1 ;;
+          esac
+
+          # GITHUB_SHA is the default-branch tip at dispatch. If it disagrees
+          # with the tip now, the branch moved between dispatch and this run and
+          # the boundary is already stale.
+          if [ "$live" != "$GITHUB_SHA" ]; then
+            echo "::error::$DEFAULT_BRANCH moved between dispatch ($GITHUB_SHA) and now ($live)."
+            echo "::error::Re-dispatch the boundary against the current tip."
+            exit 1
+          fi
+
+          if [ "$base" != "$live" ]; then
+            echo "::notice::the pull request records base $base; $DEFAULT_BRANCH is now $live."
+            echo "::notice::The live tip is the authority; a review pinned to the older base"
+            echo "::notice::will be refused and needs a fresh epoch."
+          fi
+
+          {
+            echo "head=$head"
+            echo "base=$live"
+            echo "recorded_base=$base"
+            echo "base_ref=$base_ref"
+          } >> "$GITHUB_OUTPUT"
+          echo "PR $PR: head=$head live-base=$live (recorded $base, branch $base_ref)"
+
+      - name: Check out the EXACT reviewed base — the only code that runs
+        # The exact SHA GitHub reported, not the branch name. A branch resolves
+        # at checkout time, so `ref: main` would let the trusted tooling, schema,
+        # config, and canonical specs come from a DIFFERENT commit than the one
+        # the review is bound to — an authority mismatch the workflow would
+        # never notice. Pinning the SHA collapses both into one identity.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.pr.outputs.base }}
+          persist-credentials: false
+
+      - name: Assert the trusted context IS the live base
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$BASE_SHA" ]; then
+            echo "::error::trusted checkout is $actual but the live base is $BASE_SHA"
+            exit 1
+          fi
+          echo "trusted tooling and reviewed base are both $BASE_SHA"
+
+      - name: Fetch the pull request as OBJECTS, never a working tree
+        # The pull request's commit is fetched into a ref. It is never checked
+        # out, so no file from it ever exists on this runner: nothing to
+        # execute, nothing to install from, nothing to poison a cache with.
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+          BASE_SHA: ${{ steps.pr.outputs.base }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin \
+            "+$HEAD_SHA:refs/boundary/head" \
+            "+$BASE_SHA:refs/boundary/base"
+          git rev-parse --verify refs/boundary/head^{commit} >/dev/null
+          git rev-parse --verify refs/boundary/base^{commit} >/dev/null
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          # No dependency cache: a cache populated in this context is
+          # restorable by later default-branch runs.
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install tooling from the default branch
+        run: pnpm install --frozen-lockfile
+
+      - name: Refuse if the default branch has no gate or OpenSpec CLI
+        # The boundary EXISTS to establish these proofs, so a missing tool is a
+        # failure, never a skip. A developer workstation may report an absent
+        # optional CLI; this runner may not.
+        run: |
+          set -euo pipefail
+          for required in \
+            scripts/openspec-review-gate.mjs \
+            scripts/openspec-candidate-workspace.mjs \
+            node_modules/.bin/openspec; do
+            if [ ! -e "$required" ]; then
+              echo "::error::$required is missing from the trusted context."
+              echo "::error::A boundary cannot be established with tooling taken from the pull request."
+              exit 1
+            fi
+          done
+
+      - name: Materialize the candidate change as inert data
+        # Trusted schema and config; the candidate's change directory read from
+        # git objects. Only regular blobs are written, always 0644, and symlink
+        # and submodule entries are refused — so what lands here is data the
+        # trusted parser reads, not programs this runner could execute, and
+        # nothing reaches outside the workspace.
+        env:
+          CHANGE: ${{ github.event.client_payload.change }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/candidate"
+          node scripts/openspec-candidate-workspace.mjs \
+            --ref refs/boundary/head \
+            --change "$CHANGE" \
+            --out "$RUNNER_TEMP/candidate"
+
+      - name: Strict OpenSpec validation of the exact candidate
+        # The proof the conformance suite cannot make. Those tests answer "is
+        # the v2 schema/tooling correct?"; this answers "is THIS candidate a
+        # valid OpenSpec change under the TRUSTED schema?" -- separate proofs,
+        # and apply requires both.
+        working-directory: ${{ runner.temp }}/candidate
+        env:
+          CHANGE: ${{ github.event.client_payload.change }}
+          OPENSPEC_TELEMETRY: '0'
+        run: |
+          set -euo pipefail
+          "$GITHUB_WORKSPACE/node_modules/.bin/openspec" validate "$CHANGE" --strict
+
+      - name: Review gate
+        # Only after strict validation succeeds. The gate reads every governed
+        # byte from git OBJECTS, so it verifies refs/boundary/head without that
+        # commit ever being checked out. --base and --base-sha are both the SHA
+        # GitHub reported, so the freshness proof comes from the API rather than
+        # a local ref that may be stale.
+        env:
+          CHANGE: ${{ github.event.client_payload.change }}
+          BASE: ${{ steps.pr.outputs.base }}
+        run: |
+          set -euo pipefail
+          node scripts/openspec-review-gate.mjs verify \
+            --change "$CHANGE" \
+            --ref refs/boundary/head \
+            --base refs/boundary/base \
+            --base-sha "$BASE"
+
+      - name: Re-read the pull request and refuse if anything moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.client_payload.pr }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_HEAD: ${{ steps.pr.outputs.head }}
+          EXPECTED_BASE: ${{ steps.pr.outputs.base }}
+        run: |
+          set -euo pipefail
+          # The boundary is only meaningful if the thing it authorized is still
+          # the thing that exists. A push to the branch, or a merge into the
+          # base, WHILE this job ran would otherwise leave a green boundary for
+          # a repository state that no longer exists.
+          payload="$(gh api "repos/$REPO/pulls/$PR")"
+          head="$(printf '%s' "$payload" | jq -r .head.sha)"
+          live="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH" --jq .commit.sha)"
+
+          if [ "$head" != "$EXPECTED_HEAD" ]; then
+            echo "::error::head moved during the boundary run: $EXPECTED_HEAD -> $head"
+            exit 1
+          fi
+          # The LIVE tip again, for the same reason it was the authority above:
+          # a merge into the target branch while this ran would leave a green
+          # boundary for a base that no longer exists.
+          if [ "$live" != "$EXPECTED_BASE" ]; then
+            echo "::error::$DEFAULT_BRANCH moved during the boundary run: $EXPECTED_BASE -> $live"
+            exit 1
+          fi
+          echo "boundary established: head=$head base=$live"

@@ -1,0 +1,245 @@
+name: governed-spec-driven-v2
+version: 2
+
+description: >
+  Governed spec-driven development workflow for secure-home-agent-platform.
+  Extends proposal/specs/design/tasks with a mandatory pre-implementation
+  assurance contract, explicit allocation of mutable facts to one canonical
+  authority, and a pinned independent review gate before implementation is
+  available. Review history remains evidence, never a current contract.
+
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: >
+      Change proposal owning motivation, capability scope, expected impact,
+      governance dependencies, and explicit non-goals.
+    template: proposal.md
+    instruction: |
+      Create the change proposal.
+
+      Explain WHY the change is needed and WHAT capability changes.
+
+      Identify:
+      - the observed problem or opportunity;
+      - affected capabilities and systems;
+      - evidence motivating the change;
+      - known trust, security, compatibility, or migration concerns;
+      - dependencies and explicit non-goals;
+      - unresolved decisions, separating implementation-gating decisions from
+        questions that are safe to answer later.
+
+      Include a Governance section that:
+      - names the governing ADRs from the docs/decisions/INDEX.md
+        "which ADRs apply" table;
+      - declares whether the change depends on an unresolved decision;
+      - states that the change proposes no ADR status change.
+
+      The proposal owns motivation and scope only. Do not place exact state
+      sets, classifier rows, JSON pointers, artifact inventories, digest
+      preimages, field projections, or implementation algorithms here.
+    requires: []
+
+  - id: specs
+    generates: 'specs/**/*.md'
+    description: >
+      Observable behavioral requirements and scenarios forming the normative
+      behavior contract for the change.
+    template: spec.md
+    instruction: |
+      Define the normative behavior using OpenSpec requirements and scenarios.
+
+      Requirements describe WHAT must hold, not implementation mechanics.
+      Author each spec as a delta against the main spec using the standard
+      ADDED, MODIFIED, REMOVED, and RENAMED operation headers.
+
+      Give every requirement a stable identifier. Include positive, negative,
+      refusal, and failure behavior where relevant. Distinguish
+      change-attributable behavior from environmental or operational failure.
+
+      Exact mutable facts such as enum members, state edges, response
+      partitions, JSON pointers, bounds, mappings, file inventories, and digest
+      preimages must have one canonical executable authority. Reference its
+      stable authority ID; do not duplicate its contents in prose.
+
+      Preserve the standard OpenSpec requirement/scenario structure so strict
+      validation, sync, and archive remain compatible.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: >
+      Technical architecture and implementation design, including trust
+      boundaries, authority boundaries, repository feasibility, alternatives,
+      and landing seams.
+    template: design.md
+    instruction: |
+      Create the technical design explaining HOW the accepted behavior will be
+      implemented.
+
+      Define:
+      - current and target architecture;
+      - component responsibilities;
+      - trust and authority boundaries;
+      - data and control flow;
+      - architectural state transitions;
+      - interfaces and contracts;
+      - failure-classification boundaries;
+      - compatibility and migration strategy;
+      - security implications;
+      - alternatives considered and rejected;
+      - atomic landing seams and deliberately deferred behavior.
+
+      Verify important assumptions against the current repository and record the
+      path, symbol, or contract inspected. Do not design against remembered
+      repository behavior.
+
+      Record decisions with stable IDs. For each exact mutable fact family, name
+      the intended canonical authority type and location; assurance.md owns the
+      complete allocation. A hand-authored prose table must not compete with a
+      schema, policy, typed table, fixture, or derivation function.
+    requires:
+      - proposal
+      # SERIALIZED DELIBERATELY. Governed technical design must be based on the
+      # normative behaviour it implements, not authored beside it: a design
+      # written in parallel with specs describes a system whose required
+      # behaviour was still moving.
+      - specs
+
+  - id: assurance
+    generates: assurance.md
+    description: >
+      Pre-implementation assurance contract owning risk classification,
+      invariants, mutable-authority allocation, proof obligations, hostile
+      coverage, landing evidence, and the architecture-review exit criteria.
+    template: assurance.md
+    instruction: |
+      Create the pre-implementation assurance contract from specs/** and
+      design.md. Do not invent new product requirements.
+
+      Include:
+      - risk classification;
+      - stable invariants;
+      - one canonical authority for every mutable fact family;
+      - state-space and cross-requirement interaction analysis;
+      - proof obligations;
+      - an executable-contract plan;
+      - property, hostile, and mutation coverage;
+      - traceability and landing plans;
+      - architecture-review and implementation-review boundaries;
+      - rollout/rollback;
+      - an explicit readiness and exit gate.
+
+      Exactness beyond invariant and scenario level must be assigned to a named
+      schema, policy, typed table, derivation function, fixture, mutation test,
+      or golden vector. If that authority does not yet exist, create a
+      contract-first task before any dependent functional task.
+
+      reviews/** is append-only historical evidence. It never defines current
+      behavior and must not be required reading to implement the accepted
+      change.
+    requires:
+      - specs
+      - design
+
+  - id: tasks
+    generates: tasks.md
+    description: >
+      Dependency-ordered implementation plan, traceable to requirements,
+      decisions, invariants, canonical authorities, and proof obligations.
+    template: tasks.md
+    instruction: |
+      Create the implementation plan from the accepted specs, design, and
+      assurance contract.
+
+      The Implementation Authorization section records external authority; it
+      never creates authority.
+
+      Every task must:
+      - have a stable identifier;
+      - identify the requirement, scenario, invariant, and design decision it
+        implements or proves;
+      - reference canonical authority IDs and paths without restating their
+        exact contents;
+      - identify affected paths and declared checks;
+      - identify required proof;
+      - respect atomic landing seams and explicit deferred work;
+      - be bounded to no more than one focused engineering day, or be split.
+
+      For trust-critical changes, contract-first tasks create schemas, policies,
+      state tables, fixtures, and golden vectors before functional tasks consume
+      them. Verification ships with the component it protects.
+
+      Task state is operational progress only. It cannot redefine behavior,
+      architecture, assurance, or implementation authorization.
+    requires:
+      - specs
+      - design
+      - assurance
+
+  - id: preimplementation-review
+    generates: preimplementation-review.md
+    description: >
+      Current independent review decision over the complete planning package,
+      pinned to repository state and exact planning-artifact bytes.
+    template: preimplementation-review.md
+    instruction: |
+      This artifact is the current apply gate, not another normative
+      specification.
+
+      It must be completed in a fresh, read-only, repository-aware review
+      session against one pinned commit after proposal.md, specs/**, design.md,
+      assurance.md, and tasks.md are complete.
+
+      Review the current package before reading historical reviews. Historical
+      reviews may then be consulted only for regression and disposition checks.
+
+      A P1 requires:
+      - a concrete in-scope failure trace;
+      - the violated invariant or architectural decision;
+      - exact repository or artifact evidence;
+      - concrete trust or correctness impact; and
+      - proof that closure requires changing an invariant, authority
+        allocation, trust boundary, prerequisite, or external identity model.
+
+      Implementation-grade defects in an already allocated codec, pointer,
+      enum, mapping, schema, or fixture are normally P2 and must become
+      executable regression evidence. Documentation-only defects are P3 unless
+      they leave two plausible normative implementations and one has P1 impact.
+
+      End with exactly one verdict:
+      - ARCHITECTURE_ACCEPTED
+      - FOCUSED_CLOSURE_REQUIRED
+      - ARCHITECTURE_REJECTED
+
+      ARCHITECTURE_ACCEPTED is permitted when no P1 remains and every P2/P3 is
+      assigned to a task, proof obligation, or explicit deferred landing. The
+      machine-readable gate records both counts.
+
+      Do not self-approve. If this file is scaffolded outside an independent
+      review session, retain REVIEW_REQUIRED in its machine-readable gate block.
+    requires:
+      - proposal
+      - specs
+      - design
+      - assurance
+      - tasks
+
+apply:
+  requires:
+    - preimplementation-review
+  tracks: tasks.md
+  instruction: |
+    Before changing any implementation or repository authority:
+
+    1. Run `openspec validate <change-name> --strict`.
+    2. Run
+       `node scripts/openspec-review-gate.mjs verify --change <change-name>`.
+    3. Verify tasks.md records external implementation authorization covering
+       the selected landing and task.
+
+    Stop on any failure. The existence of preimplementation-review.md alone is
+    not approval. Review history, task checkboxes, assurance completeness, an
+    accepted ADR, or an issue reference cannot substitute for the gate and
+    external authorization.

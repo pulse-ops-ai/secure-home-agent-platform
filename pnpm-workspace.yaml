@@ -67,6 +67,12 @@ catalog:
   globals: 17.9.0
   # Manifest governance.
   syncpack: 15.3.2
+  # The real OpenSpec implementation. Pinned exactly, never `latest`: this
+  # repository AUTHORS an OpenSpec workflow schema, so its structural checks
+  # must be confirmed by the parser that will actually read them rather than by
+  # grep and awk. A floating version would let an upstream change silently
+  # invalidate a schema the repository governs.
+  '@fission-ai/openspec': 1.11.0
   # Formatting. Prettier is the SINGLE formatting authority (#25); ESLint 10
   # ships no formatting rules in core and this workspace adds no stylistic
   # plugin, so the two cannot conflict.

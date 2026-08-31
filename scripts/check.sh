@@ -64,9 +64,15 @@ if command -v node >/dev/null 2>&1; then
   # Image lineage is stdlib-only for the same reason: the lock and its
   # invariants must be checkable before any workspace toolchain exists.
   run "image lineage"      node scripts/check-images.mjs
+  # Append-only review history is stdlib-only too, so it belongs here rather
+  # than behind the pnpm workspace gate: it must be checkable on a host with no
+  # workspace installed. `pnpm run check:review-history` remains the convenience
+  # command and the CI invocation.
+  run "openspec review history" node scripts/check-openspec-review-history.mjs
 else
   skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "openspec review history" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------
@@ -93,6 +99,9 @@ if command -v pnpm >/dev/null 2>&1; then
   # mechanism nothing calls is a mechanism nothing enforces.
   run "set releases"          pnpm run check:set-releases
   run "release history"       pnpm run check:release-history
+  # The real OpenSpec parser, against the schema this repository authors.
+  # Needs the workspace, so it belongs here rather than in the stdlib block.
+  run "openspec schema"       pnpm run check:openspec-schema
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

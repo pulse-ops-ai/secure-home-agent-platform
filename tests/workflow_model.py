@@ -62,3 +62,44 @@ def governance_jobs(workflow: str | None = None) -> dict[str, str]:
 def has_condition(section: str) -> bool:
     """Whether a job section carries a job-level ``if:``."""
     return any(line.startswith("    if:") for line in section.splitlines())
+
+
+#: A step begins at exactly six spaces followed by "- ", inside a `steps:` list.
+_STEP_START = re.compile(r"^      - (?:name|uses):", re.M)
+
+
+def workflow_steps(text: str, job: str) -> list[str]:
+    """Split one job's ``steps:`` list into per-step blocks.
+
+    Line-based for the same reason ``job_sections`` is: this repository does not
+    carry a YAML parser in the Python test environment, and a security assertion
+    that SKIPS when a parser is missing enforces nothing. ``steps_are_not_vacuous``
+    below is the guard that keeps this honest.
+    """
+    section = job_sections(text)[job]
+    body = section.split("\n    steps:\n", 1)[1]
+
+    starts = [match.start() for match in _STEP_START.finditer(body)]
+    if not starts:
+        return []
+    bounds = [*starts, len(body)]
+    return [body[bounds[i] : bounds[i + 1]] for i in range(len(starts))]
+
+
+def step_field(step: str, key: str) -> str | None:
+    """A scalar field of a step, ignoring occurrences inside comments."""
+    for line in step.splitlines():
+        stripped = line.strip().lstrip("- ").strip()
+        if stripped.startswith("#"):
+            continue
+        if stripped.startswith(f"{key}:"):
+            return stripped[len(key) + 1 :].strip().strip("'\"")
+    return None
+
+
+def step_run(step: str) -> str:
+    """Everything a step actually executes, with comment lines removed."""
+    if "run:" not in step:
+        return ""
+    after = step.split("run:", 1)[1]
+    return "\n".join(line for line in after.splitlines() if not line.strip().startswith("#"))

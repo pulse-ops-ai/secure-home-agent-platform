@@ -147,6 +147,29 @@ jobs:
       - name: Set releases
         run: pnpm run check:set-releases
 
+      - name: OpenSpec schema (real parser)
+        # This repository AUTHORS an OpenSpec schema, so the parser that will
+        # read it must accept it. validate-scaffold.sh is fast structural
+        # defence in depth and cannot make this claim.
+        run: pnpm run check:openspec-schema
+
+      - name: OpenSpec review history
+        # Append-only history is a two-revision repository property, so it runs
+        # here always. The PRE-APPLY review gate is deliberately NOT a CI step:
+        # it refuses repository change after the reviewed planning commit, which
+        # every implementation commit legitimately is. CI tests that mechanism
+        # in the governance suite instead of re-running the authorization.
+        env:
+          EVENT_BASE: >-
+            ${{ github.event_name == 'pull_request'
+                && github.event.pull_request.base.sha
+                || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          case "$base" in *[!0]*) ;; *) base="" ;; esac
+          REVIEW_HISTORY_BASE="$base" pnpm run check:review-history
+
       - name: Release history
         # CI knows the exact baseline; the script's local inference is for
         # developers, not for the gate. A SUPPLIED base is exclusive: if it does

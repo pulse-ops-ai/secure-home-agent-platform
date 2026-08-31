@@ -596,6 +596,137 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Staged governed-spec-driven-v2.
+#
+# v2 is selectable per change but is NOT the project default, so nothing else
+# exercises it on an ordinary change. Without these checks it can rot silently:
+# a template referenced by the schema could vanish, the artifact DAG could lose
+# its review dependency, or the companion gate could be deleted, and every v1
+# check would still pass.
+#
+# Structural only. Whether a v2 change is valid is `openspec validate --strict`,
+# and whether a review is accepted is scripts/openspec-review-gate.mjs.
+# ---------------------------------------------------------------------------
+
+section "OpenSpec governed-spec-driven-v2 (staged)"
+
+V2_DIR="openspec/schemas/governed-spec-driven-v2"
+V2_SCHEMA="$V2_DIR/schema.yaml"
+
+# There is deliberately NO parallel v2 configuration file. openspec/config.yaml
+# holds the shared project context for both workflows and stays on v1 during
+# staged adoption; a second config would duplicate project state and invite the
+# two to disagree.
+if [ -e openspec/config.v2.yaml ]; then
+  fail "openspec/config.v2.yaml exists — v2 has no separate project configuration"
+else
+  pass "no parallel v2 project configuration"
+fi
+
+if grep -q '^schema: governed-spec-driven-v1$' openspec/config.yaml 2>/dev/null; then
+  pass "openspec/config.yaml remains the v1 project default"
+else
+  fail "openspec/config.yaml no longer selects governed-spec-driven-v1"
+fi
+
+if [ -f "$V2_SCHEMA" ]; then
+  pass "$V2_SCHEMA exists"
+
+  for tpl in $(sed -n 's/^ *template: *//p' "$V2_SCHEMA" | sort -u); do
+    if [ -f "$V2_DIR/templates/$tpl" ]; then
+      pass "v2 template $tpl resolves"
+    else
+      fail "v2 schema references templates/$tpl, which does not exist"
+    fi
+  done
+
+  if awk '/- id: assurance/,/- id: tasks/' "$V2_SCHEMA" | grep -q -- '- specs' \
+    && awk '/- id: assurance/,/- id: tasks/' "$V2_SCHEMA" | grep -q -- '- design'; then
+    pass "v2 assurance requires specs and design"
+  else
+    fail "v2 assurance artifact no longer requires specs and design"
+  fi
+
+  # SERIALIZED: design must be based on the normative behaviour it implements.
+  # If this dependency disappears, design can be authored beside specs again.
+  if awk '/- id: design/,/- id: assurance/' "$V2_SCHEMA" | grep -q -- '- specs'; then
+    pass "v2 design requires specs (serialized, not parallel)"
+  else
+    fail "v2 design no longer requires specs — the DAG went back to parallel authoring"
+  fi
+
+  if awk '/- id: tasks/,/- id: preimplementation-review/' "$V2_SCHEMA" | grep -q -- '- assurance'; then
+    pass "v2 tasks requires assurance"
+  else
+    fail "v2 tasks artifact no longer requires assurance"
+  fi
+
+  # The review must sit downstream of the COMPLETE planning package: a review
+  # that could be written before the specs exist would review nothing.
+  v2_review="$(awk '/- id: preimplementation-review/,/^apply:/' "$V2_SCHEMA")"
+  v2_missing=""
+  for dep in proposal specs design assurance tasks; do
+    printf '%s' "$v2_review" | grep -q -- "- $dep" || v2_missing="$v2_missing $dep"
+  done
+  if [ -z "$v2_missing" ]; then
+    pass "v2 preimplementation-review requires the complete planning package"
+  else
+    fail "v2 preimplementation-review no longer requires:$v2_missing"
+  fi
+
+  if awk '/^apply:/,0' "$V2_SCHEMA" | grep -q -- '- preimplementation-review'; then
+    pass "v2 apply requires preimplementation-review"
+  else
+    fail "v2 apply phase no longer requires preimplementation-review"
+  fi
+else
+  fail "$V2_SCHEMA is missing"
+fi
+
+for tpl in "$V2_DIR"/templates/*.md; do
+  [ -f "$tpl" ] || continue
+  fences="$(grep -c '^[[:space:]]*```' "$tpl" || true)"
+  if [ $((fences % 2)) -eq 0 ]; then
+    pass "balanced code fences: v2 ${tpl##*/}"
+  else
+    fail "unbalanced code fences in $tpl ($fences markers)"
+  fi
+done
+
+if [ -f scripts/openspec-review-gate.mjs ]; then
+  pass "the v2 pre-apply review gate exists"
+else
+  fail "scripts/openspec-review-gate.mjs is missing — v2 apply has no gate"
+fi
+
+if [ -f scripts/check-openspec-review-history.mjs ]; then
+  pass "the append-only review-history checker exists"
+else
+  fail "scripts/check-openspec-review-history.mjs is missing"
+fi
+
+if grep -q 'review-scope' "$V2_DIR/templates/tasks.md" 2>/dev/null; then
+  pass "the v2 tasks template owns review-scope declaration"
+else
+  fail "the v2 tasks template lost its review-scope contract"
+fi
+
+if grep -q 'preimplementation-review-v2' "$V2_DIR/templates/preimplementation-review.md" 2>/dev/null; then
+  pass "the v2 review template declares the v2 review contract"
+else
+  fail "the v2 review template does not declare preimplementation-review-v2"
+fi
+
+# Staged adoption must be written down where an agent reads governance, or the
+# parallel config reads as an oversight rather than a decision.
+if grep -q 'governed-spec-driven-v2' openspec/AGENTS.md 2>/dev/null \
+  && grep -q 'project default' openspec/AGENTS.md 2>/dev/null; then
+  pass "openspec/AGENTS.md records staged v1/v2 adoption"
+else
+  fail "openspec/AGENTS.md does not distinguish the v1 default from staged v2"
+fi
+
+# ---------------------------------------------------------------------------
 
 section "Result"
 

@@ -22,6 +22,9 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
 | [`check-set-releases.mjs`](check-set-releases.mjs) | Hands **real release-manifest bytes** to the toolchain: canonical form, digest, review binding, family/version agreement. Deliberately **one revision** — it never re-derives a release from the catalog |
 | [`check-release-history.mjs`](check-release-history.mjs) | The **two-revision** properties, compared against the prior governed revision: no released identity deleted or re-identified, only `Released → Deprecated → Retired`, and a **new** release must satisfy the ADR-0019 §6 member preconditions |
+| [`openspec-review-gate.mjs`](openspec-review-gate.mjs) | The governed-spec-driven-v2 **pre-apply** review gate: binds an accepting review to one planning commit and the exact bytes of every planning artifact. Run **once**, immediately before the first implementation change — **never** as a continuous check, because it refuses repository change after the reviewed commit |
+| [`check-openspec-review-history.mjs`](check-openspec-review-history.mjs) | The **two-revision** companion: admitted `reviews/**` rounds are append-only. Adding is allowed; modifying, deleting, or renaming one is refused; a byte-identical move into `changes/archive/**` is allowed. Runs always |
+| [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
 | [`check-images.mjs`](check-images.mjs) | Image **lock and lineage** invariants (`deploy/images/image-lock.yaml`): closed lineage classes, immutable external pins, the base→derived digest chain, provider-neutral base/gates definitions, and image inertness. Structural only — real digests come from the governed images workflow |
 
 ## What belongs here
@@ -115,6 +118,12 @@ node scripts/check-knowledge.mjs       # knowledge registry conformance
 # first, or they fail with a module-resolution error instead of a verdict.
 node scripts/check-set-releases.mjs    # real release records and manifest bytes
 node scripts/check-release-history.mjs # what changed since the prior revision
+node scripts/check-openspec-review-history.mjs  # reviews/** are append-only
+#   (stdlib-only: check.sh runs it beside the other node checks, not behind pnpm)
+
+# Pre-apply only — once, before the first implementation change of a v2 change:
+pnpm run review:manifest -- --change <change-name>
+pnpm run review:verify   -- --change <change-name>
 node scripts/check-images.mjs          # image lock and lineage invariants
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
