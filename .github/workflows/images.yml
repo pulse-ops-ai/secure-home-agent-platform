@@ -186,13 +186,15 @@ jobs:
                     -f event=push \
                     -f status=success \
                     -f per_page=100 > "$runs"; then
-                    if node - "$runs" "$PUSH_BRANCH" <<'NODE'
-          const [path, branch] = process.argv.slice(2)
+                    if node - "$runs" "$PUSH_BRANCH" "$PUSH_PREVIOUS" <<'NODE'
+          const [path, branch, expectedSha] = process.argv.slice(2)
           const runs = JSON.parse(require('node:fs').readFileSync(path, 'utf8')).workflow_runs ?? []
           const proven = runs.some(
             (run) =>
               run.status === 'completed' &&
               run.conclusion === 'success' &&
+              run.event === 'push' &&
+              run.head_sha === expectedSha &&
               run.head_branch === branch,
           )
           process.exit(proven ? 0 : 1)

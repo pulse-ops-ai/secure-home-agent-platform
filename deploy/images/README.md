@@ -221,8 +221,12 @@ isolated PR head. The comparison origin is the live target-branch tip, unless a
 previous PR head both has a successful proof and already incorporates that live
 base — see [Previous-head fast path](#composed-tree-pr-proof). If nothing can be
 proved, the classifier emits `IMAGE_IMPACT_UNKNOWN` and the complete governed
-set builds. A push to the default branch compares its previous commit; a manual
-invocation has no transition to prove and therefore builds the complete set.
+set builds. A push to the default branch compares its previous commit only when
+that exact SHA has a completed successful `images.yml` **push** proof on the same
+branch. The returned run must repeat the expected SHA, event, and branch; a
+missing, failed, malformed, wrong-identity, or unavailable proof forces the
+complete governed set. A manual invocation has no transition to prove and
+therefore builds the complete set.
 
 Only pull-request runs share a cancellable concurrency group. Push and manual
 runs use the unique workflow run ID, so one governance event cannot cancel
@@ -247,9 +251,12 @@ anything potentially context-consuming but not modeled
 There is no silent skip. Concretely:
 
 - **`COPY`/`ADD` (local)** — JSON and shell forms, directories (prefix), globs
-  (whole-context prefix), `.dockerignore`, missing inputs, absolute/`..`/URL
-  sources, and unparseable forms are handled exactly as before (modeled or
-  refused).
+  (whole-context prefix), missing inputs, absolute/`..`/URL sources, and
+  unparseable forms are handled exactly as before (modeled or refused). Both
+  ignore authorities are exact inputs: the context-root `.dockerignore` and the
+  Dockerfile-specific `<Dockerfile>.dockerignore`, which BuildKit prefers when
+  present. Adding, modifying, deleting, or renaming either therefore rebuilds
+  the owning image (and its dependent closure).
 - **`COPY --from` / `ADD --from`** — a declared build stage, a numeric stage
   index, or the registered parent (which the build plan wires **only** as an
   OCI layout, never a local context) is internal and adds no repository input.
@@ -335,7 +342,8 @@ The classifier does not carry a second hand-maintained image inventory:
   locked identities come from [`image-lock.yaml`](image-lock.yaml), through
   the same strict parser as `check-images.mjs`;
 - local context inputs come from the registered Dockerfile's parsed
-  `COPY`/`ADD` sources, plus the Dockerfile and `.dockerignore` itself;
+  `COPY`/`ADD` sources, plus the Dockerfile, the context-root `.dockerignore`,
+  and its higher-precedence `<Dockerfile>.dockerignore`;
 - the gates-toolchain's repository-wide semantic version sources come from
   [`gates-toolchain/toolchain.json`](gates-toolchain/toolchain.json);
 - build/verification machinery and the shared Debian closure authority are
@@ -485,8 +493,9 @@ timing. The optimization PR records four cases before merge:
 | full governance/build change | all four images; both platforms | Actions `33313135341`: roots 4 min 18 s, children 5 min 20 s, 9 min 59 s job / 10 min 2 s workflow |
 
 The full build remains mandatory for global build/verification machinery,
-shared package-closure changes, inventory changes, manual invocation, and every
-unknown/unclassifiable state.
+shared package-closure changes, inventory changes, manual invocation, every
+unknown/unclassifiable state, and a push whose exact previous SHA lacks a
+successful same-branch `images.yml` push proof.
 
 The first optimization-PR run was the full-change/cold-population case. It
 exported all four image scopes to the GHA cache and verified every rebuilt OCI

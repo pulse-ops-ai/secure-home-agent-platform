@@ -299,6 +299,30 @@ def test_dockerfile_specific_ignore_change_selects_that_image(image_repo: Path) 
     assert result["affected"] == [CLAUDE]
 
 
+@pytest.mark.parametrize("operation", ["modify", "delete", "rename"])
+def test_dockerfile_specific_ignore_lifecycle_change_selects_that_image(
+    image_repo: Path,
+    operation: str,
+) -> None:
+    ignore = image_repo / "deploy/images/runner-claude/Dockerfile.dockerignore"
+    ignore.write_text("*.md\n")
+    _git(image_repo, "add", str(ignore.relative_to(image_repo)))
+    _git(image_repo, "commit", "-qm", "fixture Dockerfile-specific ignore")
+
+    if operation == "modify":
+        ignore.write_text("*.txt\n")
+    elif operation == "delete":
+        ignore.unlink()
+    else:
+        ignore.rename(ignore.with_name("retired.dockerignore"))
+
+    base, head = _commit(image_repo)
+    result = _impact(image_repo, base, head)
+    assert result["decision"] == "affected"
+    assert result["direct"] == [CLAUDE]
+    assert result["affected"] == [CLAUDE]
+
+
 def test_base_dockerfile_specific_ignore_change_selects_base_closure(image_repo: Path) -> None:
     def mutate(root: Path) -> None:
         (root / "deploy/images/runner-base/Dockerfile.dockerignore").write_text("*.md\n")
@@ -1168,6 +1192,9 @@ def test_push_incremental_base_requires_a_successful_image_proof() -> None:
     assert "-f event=push" in push
     assert '-f head_sha="$PUSH_PREVIOUS"' in push
     assert "push_prev_proven" in push
+    assert 'node - "$runs" "$PUSH_BRANCH" "$PUSH_PREVIOUS"' in push
+    assert "run.event === 'push'" in push
+    assert "run.head_sha === expectedSha" in push
     assert "run.head_branch === branch" in push
     # Proven -> incremental base; unproven/lookup-failure -> full build.
     assert 'base="$PUSH_PREVIOUS"' in push
@@ -1176,6 +1203,121 @@ def test_push_incremental_base_requires_a_successful_image_proof() -> None:
     # The only assignment of PUSH_PREVIOUS to the base is guarded by the proof:
     # it must appear after the proof gate opens, never before it.
     assert push.index("push_prev_proven") < push.index('base="$PUSH_PREVIOUS"')
+
+
+@pytest.mark.parametrize(
+    ("document", "expected"),
+    [
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "event": "push",
+                        "head_sha": "a" * 40,
+                        "head_branch": "main",
+                    }
+                ]
+            },
+            0,
+        ),
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "event": "push",
+                        "head_sha": "b" * 40,
+                        "head_branch": "main",
+                    }
+                ]
+            },
+            1,
+        ),
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "event": "pull_request",
+                        "head_sha": "a" * 40,
+                        "head_branch": "main",
+                    }
+                ]
+            },
+            1,
+        ),
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "success",
+                        "event": "push",
+                        "head_sha": "a" * 40,
+                        "head_branch": "release",
+                    }
+                ]
+            },
+            1,
+        ),
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "event": "push",
+                        "head_sha": "a" * 40,
+                        "head_branch": "main",
+                    }
+                ]
+            },
+            1,
+        ),
+        (
+            {
+                "workflow_runs": [
+                    {
+                        "status": "in_progress",
+                        "conclusion": None,
+                        "event": "push",
+                        "head_sha": "a" * 40,
+                        "head_branch": "main",
+                    }
+                ]
+            },
+            1,
+        ),
+        ({"workflow_runs": []}, 1),
+        ({}, 1),
+        ({"workflow_runs": {}}, 1),
+    ],
+)
+def test_push_proof_response_requires_exact_successful_push_identity(
+    tmp_path: Path,
+    document: dict[str, Any],
+    expected: int,
+) -> None:
+    workflow = WORKFLOW.read_text()
+    marker = 'if node - "$runs" "$PUSH_BRANCH" "$PUSH_PREVIOUS" <<\'NODE\''
+    start = workflow.index(marker) + len(marker)
+    end = workflow.index("\n          NODE", start)
+    script = workflow[start:end].strip()
+    response = tmp_path / "runs.json"
+    response.write_text(json.dumps(document))
+    result = subprocess.run(
+        ["node", "-", str(response), "main", "a" * 40],
+        cwd=REPO_ROOT,
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == expected
 
 
 def test_required_image_check_name_is_preserved() -> None:
