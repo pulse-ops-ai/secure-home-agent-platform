@@ -242,13 +242,14 @@ def test_plan_composes_without_ambient_git_identity(remote: Remote, tmp_path: Pa
     assert parents[1:] == [remote.base_sha, remote.h2]
 
 
-def test_synthetic_merge_sha_is_deterministic_across_ambient_clock(remote: Remote) -> None:
+def test_synthetic_merge_sha_is_deterministic_across_ambient_metadata(remote: Remote) -> None:
     """MUTATION P2: ``git commit-tree`` hashes the author AND committer dates, so
     a synthetic merge dated from the wall clock would yield a different MERGE_SHA
-    on every run for identical inputs, making it useless as an evidence identity.
-    Planning the same (live base, PR head) more than once must produce the same
-    merge tree AND the same merge commit SHA even when the ambient Git date
-    environment differs between runs — and when it is absent entirely."""
+    on every run for identical inputs. A non-UTF-8 ``i18n.commitEncoding`` also
+    adds an ambient ``encoding`` header to the commit object. Planning the same
+    (live base, PR head) more than once must therefore produce the same merge
+    tree AND merge commit SHA across different ambient dates and commit-encoding
+    settings — and when the date variables are absent entirely."""
 
     def merge_sha(date: str | None) -> str:
         env = os.environ.copy()
@@ -286,9 +287,12 @@ def test_synthetic_merge_sha_is_deterministic_across_ambient_clock(remote: Remot
         return cast(str, json.loads(result.stdout)["mergeSha"])
 
     first = merge_sha("2001-02-03T04:05:06 +0000")
+    _git(remote.work, "config", "i18n.commitEncoding", "ISO-8859-1")
     second = merge_sha("2020-11-12T13:14:15 +0000")
+    _git(remote.work, "config", "i18n.commitEncoding", "UTF-16")
     ambient = merge_sha(None)
     assert first == second == ambient
+    _git(remote.work, "config", "i18n.commitEncoding", "UTF-8")
     trees = {_git(remote.work, "rev-parse", f"{sha}^{{tree}}") for sha in (first, second, ambient)}
     assert len(trees) == 1
     # The pinned date is derived from the composed inputs, not the clock: the
@@ -296,6 +300,8 @@ def test_synthetic_merge_sha_is_deterministic_across_ambient_clock(remote: Remot
     head_epoch = int(_git(remote.work, "show", "--no-patch", "--format=%ct", remote.h2))
     merge_epoch = int(_git(remote.work, "show", "--no-patch", "--format=%ct", first))
     assert merge_epoch >= head_epoch
+    commit_headers = _git(remote.work, "cat-file", "commit", first).split("\n\n", 1)[0]
+    assert "\nencoding " not in commit_headers
 
 
 def test_merge_tree_includes_advanced_base_and_pr_changes(remote: Remote) -> None:

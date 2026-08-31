@@ -209,7 +209,10 @@ on. The structural test
 `tests/test_image_impact.py::test_every_global_build_input_has_an_outer_workflow_trigger`
 reads `GLOBAL_BUILD_INPUTS` from the classifier and fails if any entry is not
 covered by both the `pull_request` and `push` perimeters, so the next
-proof-support script cannot silently recreate this gap.
+proof-support script cannot silently recreate this gap. The assertion is
+anchored to the top-level `on:` mapping, honors GitHub's ordered `!` exclusions,
+and allows positive glob coverage only from the explicitly approved
+`deploy/images/**` perimeter; unmodeled exclusion syntax fails closed.
 
 [`../../scripts/image-impact.mjs`](../../scripts/image-impact.mjs) owns the
 inner decision, and for a pull request it runs against the **composed** tree
@@ -288,15 +291,18 @@ describe `image(LIVE_BASE + PR_HEAD)`. It fails closed: an unresolvable base or
 head, or a merge conflict, aborts the run — it never falls back to PR-head-only
 verification.
 
-`MERGE_SHA` is a deterministic evidence identity, not a wall-clock artifact. The
-ephemeral commit's author/committer name, email, **and** timestamps are all
-fixed: the identity is a constant, and the dates are derived from the composed
-inputs (the later of the two parents' committer instants, in UTC) rather than
-the ambient clock. `git commit-tree` hashes those timestamps, so pinning them is
-what makes identical `(LIVE_BASE_SHA, PR_HEAD_SHA)` inputs always produce the
-same `MERGE_SHA`. (The composed **tree** was already stable and is what the build
-consumes; pinning the dates makes the commit SHA equally reproducible so it can
-be quoted as evidence.)
+`MERGE_SHA` is a deterministic evidence identity, not a wall-clock or ambient
+Git-configuration artifact. The ephemeral commit's author/committer name, email,
+**and** timestamps are all fixed: the identity is a constant, and the dates are
+derived from the composed inputs (the later of the two parents' committer
+instants, in UTC) rather than the ambient clock. The commit encoding is forced
+to UTF-8 as well; otherwise an ambient non-UTF-8 `i18n.commitEncoding` adds an
+`encoding` header and changes the commit hash. `git commit-tree` hashes all of
+this metadata, so normalization is what makes identical
+`(LIVE_BASE_SHA, PR_HEAD_SHA)` inputs always produce the same `MERGE_SHA`. (The
+composed **tree** was already stable and is what the build consumes; normalizing
+the commit object makes its SHA equally reproducible so it can be quoted as
+evidence.)
 
 **Previous-head fast path.** The incremental optimisation is preserved but bound
 to base freshness. A previously proven PR head is a valid comparison origin only

@@ -23,6 +23,7 @@ CLASSIFIER = REPO_ROOT / "scripts" / "image-impact.mjs"
 PLANNER = REPO_ROOT / "deploy" / "images" / "scripts" / "build-plan.mjs"
 VERIFY = REPO_ROOT / "deploy" / "images" / "scripts" / "verify.sh"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "images.yml"
+APPROVED_ENCOMPASSING_IMAGE_TRIGGER_GLOBS = {"deploy/images/**"}
 
 BASE = "secure-home-runner-base"
 CLAUDE = "secure-home-runner-claude"
@@ -948,12 +949,30 @@ def _trigger_paths(workflow: str, event: str) -> list[str]:
     """The list under ``on.<event>.paths`` parsed structurally from the workflow.
 
     PyYAML is not a test dependency (and would fold the ``on:`` key to boolean
-    ``True``), so this walks the block by indentation.
+    ``True``), so this walks the top-level ``on:`` block by indentation. Merely
+    finding another two-space ``pull_request:``/``push:`` mapping elsewhere in
+    the document is not sufficient.
     """
+    lines = workflow.splitlines()
+    try:
+        on_start = next(index for index, line in enumerate(lines) if line == "on:")
+    except StopIteration:
+        return []
+
+    on_end = len(lines)
+    for index in range(on_start + 1, len(lines)):
+        line = lines[index]
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("#"):
+            continue
+        if len(line) - len(line.lstrip(" ")) == 0:
+            on_end = index
+            break
+
     paths: list[str] = []
     in_event = False
     in_paths = False
-    for line in workflow.splitlines():
+    for line in lines[on_start + 1 : on_end]:
         stripped = line.strip()
         indent = len(line) - len(line.lstrip(" "))
         if not in_event:
@@ -975,14 +994,75 @@ def _trigger_paths(workflow: str, event: str) -> list[str]:
     return paths
 
 
+def _plain_recursive_glob_matches(path: str, pattern: str) -> bool | None:
+    """Match the only encompassing glob shape admitted by this assertion.
+
+    ``None`` means the pattern contains syntax this small proof does not model.
+    A negative pattern in that state is treated conservatively as capable of
+    excluding the path.
+    """
+    if not pattern.endswith("/**"):
+        return None
+    prefix = pattern[: -len("**")]
+    if any(character in prefix for character in "*?["):
+        return None
+    return path.startswith(prefix)
+
+
 def _covered_by_trigger(path: str, patterns: list[str]) -> bool:
-    """True when ``path`` is listed exactly or subsumed by an approved
-    encompassing ``.../**`` glob already present in the trigger list."""
-    if path in patterns:
-        return True
-    return any(
-        pattern.endswith("/**") and path.startswith(pattern[: -len("**")]) for pattern in patterns
+    """Apply ordered GitHub path inclusion/exclusion conservatively.
+
+    Exact positive paths always establish coverage. Only explicitly approved
+    recursive globs may establish positive coverage. Exact or plain-recursive
+    negative patterns can remove it, and an unmodeled negative glob is assumed
+    capable of removing it. A later exact/approved positive may re-include it,
+    matching GitHub's ordered pattern semantics.
+    """
+    covered = False
+    for entry in patterns:
+        negated = entry.startswith("!")
+        pattern = entry[1:] if negated else entry
+        if pattern == path:
+            covered = not negated
+            continue
+
+        recursive_match = _plain_recursive_glob_matches(path, pattern)
+        if negated:
+            if recursive_match is True or (
+                recursive_match is None and any(character in pattern for character in "*?[")
+            ):
+                covered = False
+        elif pattern in APPROVED_ENCOMPASSING_IMAGE_TRIGGER_GLOBS and recursive_match is True:
+            covered = True
+    return covered
+
+
+def test_trigger_coverage_guard_is_anchored_ordered_and_fail_closed() -> None:
+    global_path = "deploy/images/scripts/build.sh"
+    assert _covered_by_trigger(global_path, ["deploy/images/**"])
+    assert not _covered_by_trigger(
+        global_path,
+        ["deploy/images/**", "!deploy/images/scripts/**"],
     )
+    assert _covered_by_trigger(
+        global_path,
+        ["deploy/images/**", "!deploy/images/scripts/**", global_path],
+    )
+    assert not _covered_by_trigger("scripts/pr-merge-plan.mjs", ["scripts/**"])
+
+    decoy = """
+name: decoy
+permissions:
+  pull_request:
+    paths:
+      - 'scripts/pr-merge-plan.mjs'
+on:
+  push:
+    paths:
+      - 'scripts/pr-merge-plan.mjs'
+"""
+    assert _trigger_paths(decoy, "pull_request") == []
+    assert _trigger_paths(decoy, "push") == ["scripts/pr-merge-plan.mjs"]
 
 
 def test_every_global_build_input_has_an_outer_workflow_trigger() -> None:

@@ -14,10 +14,11 @@
  *   BASE_REF       the PR target branch NAME
  *   LIVE_BASE_SHA  the CURRENT exact tip of BASE_REF, resolved from the remote
  *   MERGE_SHA      an ephemeral commit whose tree is the clean composition of
- *                  LIVE_BASE_SHA + PR_HEAD_SHA. Its author/committer identity
- *                  AND timestamps are fixed deterministically, so identical
- *                  (live base, PR head) inputs always produce the same MERGE_SHA
- *                  — a stable evidence identity, not a wall-clock artifact.
+ *                  LIVE_BASE_SHA + PR_HEAD_SHA. Its author/committer identity,
+ *                  timestamps, and commit encoding are fixed deterministically,
+ *                  so identical (live base, PR head) inputs always produce the
+ *                  same MERGE_SHA — a stable evidence identity, not a
+ *                  wall-clock or ambient-Git-configuration artifact.
  *
  * It fails closed. A base that cannot be resolved, a head that cannot be
  * resolved, a merge that conflicts or cannot be constructed, or a TOCTOU
@@ -54,7 +55,9 @@ const gitExecutable = () => process.env.PR_MERGE_GIT ?? process.env.IMAGE_IMPACT
 // config. The author/committer DATES are equally load-bearing for
 // determinism — git commit-tree hashes them — but they depend on the composed
 // inputs, so they are supplied per composition at the commit-tree call (see
-// deterministicMergeDate / composeMerge), not here.
+// deterministicMergeDate / composeMerge), not here. `i18n.commitEncoding` is
+// also normalized at that call because a non-UTF-8 ambient setting adds an
+// `encoding` header to the commit object and would otherwise change MERGE_SHA.
 const IDENTITY_ENV = {
   GIT_AUTHOR_NAME: 'secure-home image proof',
   GIT_AUTHOR_EMAIL: 'image-proof@secure-home.invalid',
@@ -162,7 +165,16 @@ const resolveTree = (root, commit) => {
 // from the already-resolved commit object, so it is independent of the ambient
 // clock and of any GIT_*_DATE in the environment.
 const commitEpoch = (root, commit) => {
-  const result = tryGit(root, ['show', '--no-patch', '--format=%ct', `${commit}^{commit}`])
+  const result = tryGit(root, [
+    '-c',
+    'i18n.commitEncoding=UTF-8',
+    '-c',
+    'i18n.logOutputEncoding=UTF-8',
+    'show',
+    '--no-patch',
+    '--format=%ct',
+    `${commit}^{commit}`,
+  ])
   if (!result.ok) throw new PlanFailure(`cannot read the commit time of ${commit}`)
   const seconds = Number.parseInt(result.out.trim(), 10)
   if (!Number.isInteger(seconds) || seconds < 0) {
@@ -219,6 +231,8 @@ const composeMerge = (root, liveBase, prHead) => {
   const commit = tryGit(
     root,
     [
+      '-c',
+      'i18n.commitEncoding=UTF-8',
       'commit-tree',
       tree,
       '-p',
