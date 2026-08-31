@@ -30,6 +30,14 @@ on:
       - '.github/workflows/images.yml'
       - 'scripts/check-images.mjs'
       - 'scripts/image-impact.mjs'
+      # Every repository-level global image-proof input (GLOBAL_BUILD_INPUTS in
+      # image-impact.mjs) must appear on this outer perimeter, or the proof
+      # machinery itself could change without its own governed verification
+      # running. Inputs under deploy/images/** are already subsumed by that
+      # glob; the standalone proof scripts are listed explicitly. The structural
+      # test tests/test_image_impact.py::
+      # test_every_global_build_input_has_an_outer_workflow_trigger enforces it.
+      - 'scripts/pr-merge-plan.mjs'
       # The gates-toolchain image mirrors selected semantic pins from the
       # governed gate environment. The classifier distinguishes those values
       # from unrelated edits in the same broad files.
@@ -43,6 +51,9 @@ on:
       - '.github/workflows/images.yml'
       - 'scripts/check-images.mjs'
       - 'scripts/image-impact.mjs'
+      # Mirror of the pull_request perimeter: every GLOBAL_BUILD_INPUTS entry
+      # not subsumed by deploy/images/** must be represented here too.
+      - 'scripts/pr-merge-plan.mjs'
       - '.github/workflows/checks.yml'
       - 'package.json'
       - 'scripts/check.sh'

@@ -34,7 +34,14 @@ const SENTINEL = 'pending-first-governed-build'
 const DIGEST = /^sha256:[0-9a-f]{64}$/
 const PLATFORMS = new Set(['linux/amd64', 'linux/arm64'])
 
-const GLOBAL_BUILD_INPUTS = new Set([
+// Repository-level inputs that affect governed build or verification behavior
+// for EVERY image: a change to any of them forces the complete governed set.
+// This set is also the authority the outer workflow perimeter must cover — a
+// global proof input that images.yml never triggers on is a checker that never
+// runs. It is exported so a structural test can prove that coverage instead of
+// duplicating the list. Inputs under deploy/images/** are additionally subsumed
+// by that glob in the workflow's paths filter.
+export const GLOBAL_BUILD_INPUTS = new Set([
   '.github/workflows/images.yml',
   'scripts/check-images.mjs',
   'scripts/image-impact.mjs',

@@ -928,6 +928,85 @@ def test_workflow_keeps_broad_paths_and_adds_semantic_classifier() -> None:
         assert workflow.count(f"'{path}'") >= 2 or path == "deploy/images/**"
 
 
+def _global_build_inputs() -> list[str]:
+    """The authoritative repository-level global image-proof inputs, read from
+    the classifier module itself rather than a duplicated literal, so the
+    coverage relationship has a single source of truth."""
+    env = os.environ.copy()
+    env["IMPACT_MODULE_URL"] = CLASSIFIER.as_uri()
+    reader = (
+        "import(process.env.IMPACT_MODULE_URL)"
+        ".then((m) => process.stdout.write(JSON.stringify([...m.GLOBAL_BUILD_INPUTS])))"
+        ".catch((error) => { console.error(String(error)); process.exit(3) })"
+    )
+    result = _run("node", "-e", reader, cwd=REPO_ROOT, env=env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return cast(list[str], json.loads(result.stdout))
+
+
+def _trigger_paths(workflow: str, event: str) -> list[str]:
+    """The list under ``on.<event>.paths`` parsed structurally from the workflow.
+
+    PyYAML is not a test dependency (and would fold the ``on:`` key to boolean
+    ``True``), so this walks the block by indentation.
+    """
+    paths: list[str] = []
+    in_event = False
+    in_paths = False
+    for line in workflow.splitlines():
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
+        if not in_event:
+            if indent == 2 and stripped == f"{event}:":
+                in_event = True
+            continue
+        if stripped == "" or stripped.startswith("#"):
+            continue
+        if indent <= 2:
+            break  # dedented out of the event block
+        if not in_paths:
+            if indent == 4 and stripped == "paths:":
+                in_paths = True
+            continue
+        if indent <= 4:
+            break  # dedented out of the paths list
+        if stripped.startswith("- "):
+            paths.append(stripped[2:].strip().strip("'\""))
+    return paths
+
+
+def _covered_by_trigger(path: str, patterns: list[str]) -> bool:
+    """True when ``path`` is listed exactly or subsumed by an approved
+    encompassing ``.../**`` glob already present in the trigger list."""
+    if path in patterns:
+        return True
+    return any(
+        pattern.endswith("/**") and path.startswith(pattern[: -len("**")]) for pattern in patterns
+    )
+
+
+def test_every_global_build_input_has_an_outer_workflow_trigger() -> None:
+    """Structural guard: every repository-level global image-proof input the
+    classifier recognises (``GLOBAL_BUILD_INPUTS``) must also appear on the outer
+    workflow perimeter — exactly, or subsumed by an approved encompassing glob
+    such as ``deploy/images/**``. Otherwise the proof machinery could change
+    without its own governed verification ever starting: a correct checker that
+    is never invoked. This mechanically prevents the next proof-support script
+    from silently recreating that gap."""
+    workflow = WORKFLOW.read_text()
+    inputs = _global_build_inputs()
+    # Sanity: the merge-composition proof planner is one of the global inputs.
+    assert "scripts/pr-merge-plan.mjs" in inputs
+    for event in ("pull_request", "push"):
+        patterns = _trigger_paths(workflow, event)
+        assert patterns, f"parsed no trigger paths for on.{event}.paths"
+        uncovered = sorted(path for path in inputs if not _covered_by_trigger(path, patterns))
+        assert not uncovered, (
+            f"on.{event}.paths omits global image-proof inputs "
+            f"(neither exact nor under an approved glob): {uncovered}"
+        )
+
+
 def test_no_impact_exits_before_qemu_or_buildx() -> None:
     workflow = WORKFLOW.read_text()
     no_build = workflow.index("- name: No governed build required")

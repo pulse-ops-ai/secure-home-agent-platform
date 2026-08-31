@@ -14,7 +14,10 @@
  *   BASE_REF       the PR target branch NAME
  *   LIVE_BASE_SHA  the CURRENT exact tip of BASE_REF, resolved from the remote
  *   MERGE_SHA      an ephemeral commit whose tree is the clean composition of
- *                  LIVE_BASE_SHA + PR_HEAD_SHA
+ *                  LIVE_BASE_SHA + PR_HEAD_SHA. Its author/committer identity
+ *                  AND timestamps are fixed deterministically, so identical
+ *                  (live base, PR head) inputs always produce the same MERGE_SHA
+ *                  — a stable evidence identity, not a wall-clock artifact.
  *
  * It fails closed. A base that cannot be resolved, a head that cannot be
  * resolved, a merge that conflicts or cannot be constructed, or a TOCTOU
@@ -48,7 +51,10 @@ const gitExecutable = () => process.env.PR_MERGE_GIT ?? process.env.IMAGE_IMPACT
 // does not configure one, so the module supplies its own deterministic
 // identity through the environment of every git subprocess. This labels only
 // the ephemeral merge commit; it mutates no branch and writes no repository
-// config.
+// config. The author/committer DATES are equally load-bearing for
+// determinism — git commit-tree hashes them — but they depend on the composed
+// inputs, so they are supplied per composition at the commit-tree call (see
+// deterministicMergeDate / composeMerge), not here.
 const IDENTITY_ENV = {
   GIT_AUTHOR_NAME: 'secure-home image proof',
   GIT_AUTHOR_EMAIL: 'image-proof@secure-home.invalid',
@@ -66,9 +72,9 @@ const git = (root, args, options = {}) =>
     env: { ...process.env, ...IDENTITY_ENV, ...(options.env ?? {}) },
   })
 
-const tryGit = (root, args) => {
+const tryGit = (root, args, options = {}) => {
   try {
-    return { ok: true, out: git(root, args) }
+    return { ok: true, out: git(root, args, options) }
   } catch (error) {
     return { ok: false, error }
   }
@@ -152,11 +158,39 @@ const resolveTree = (root, commit) => {
   return tree
 }
 
+// The committer instant of a commit, as integer seconds since the epoch. Read
+// from the already-resolved commit object, so it is independent of the ambient
+// clock and of any GIT_*_DATE in the environment.
+const commitEpoch = (root, commit) => {
+  const result = tryGit(root, ['show', '--no-patch', '--format=%ct', `${commit}^{commit}`])
+  if (!result.ok) throw new PlanFailure(`cannot read the commit time of ${commit}`)
+  const seconds = Number.parseInt(result.out.trim(), 10)
+  if (!Number.isInteger(seconds) || seconds < 0) {
+    throw new PlanFailure(`${commit} has an unexpected commit time`)
+  }
+  return seconds
+}
+
+// A deterministic author/committer date for the synthetic merge commit. git
+// commit-tree hashes the author and committer timestamps, so leaving them to
+// the ambient clock would make MERGE_SHA vary run-to-run for identical inputs
+// and contradict this module's deterministic-identity claim. Derive the date
+// from the composed inputs instead: the later of the two parents' committer
+// instants, in UTC. Identical (live base, PR head) => identical date => (with
+// the fixed tree, parents, message, and IDENTITY_ENV) identical MERGE_SHA. The
+// raw Git "@<epoch> <tz>" form is unambiguous and timezone-stable.
+const deterministicMergeDate = (root, liveBase, prHead) => {
+  const epoch = Math.max(commitEpoch(root, liveBase), commitEpoch(root, prHead))
+  return `@${epoch} +0000`
+}
+
 // Compose merge(liveBase, prHead) into an ephemeral commit, touching no branch
 // and no caller working tree. When the live base is already an ancestor of the
 // head the composition is exactly the head tree; otherwise a real three-way
 // merge is performed in a throwaway worktree so a genuine conflict fails
-// closed. Returns the ephemeral merge commit SHA.
+// closed. The commit's author/committer dates are pinned to a deterministic
+// value derived from the parents so the returned SHA is a stable evidence
+// identity. Returns the ephemeral merge commit SHA.
 const composeMerge = (root, liveBase, prHead) => {
   let tree
   if (isAncestor(root, liveBase, prHead)) {
@@ -181,16 +215,21 @@ const composeMerge = (root, liveBase, prHead) => {
       tryGit(root, ['worktree', 'prune'])
     }
   }
-  const commit = tryGit(root, [
-    'commit-tree',
-    tree,
-    '-p',
-    liveBase,
-    '-p',
-    prHead,
-    '-m',
-    'synthetic image-proof merge (LIVE_BASE + PR_HEAD)',
-  ])
+  const mergeDate = deterministicMergeDate(root, liveBase, prHead)
+  const commit = tryGit(
+    root,
+    [
+      'commit-tree',
+      tree,
+      '-p',
+      liveBase,
+      '-p',
+      prHead,
+      '-m',
+      'synthetic image-proof merge (LIVE_BASE + PR_HEAD)',
+    ],
+    { env: { GIT_AUTHOR_DATE: mergeDate, GIT_COMMITTER_DATE: mergeDate } },
+  )
   if (!commit.ok) throw new PlanFailure('cannot create the synthetic merge commit')
   return commit.out.trim()
 }

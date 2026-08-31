@@ -183,6 +183,7 @@ deploy/images/**
 .github/workflows/images.yml
 scripts/check-images.mjs
 scripts/image-impact.mjs
+scripts/pr-merge-plan.mjs
 .github/workflows/checks.yml
 package.json
 scripts/check.sh
@@ -194,6 +195,21 @@ can select `images.yml` even when the new commit changes only an unrelated
 review gate. Encoding semantic JSON/YAML fields into `paths` is impossible and
 would make a correctness-sensitive perimeter brittle, so the broad filter only
 decides whether the cheap classifier runs.
+
+This perimeter is not free-form. Every repository-level input the classifier
+treats as a **global** image-proof input — `GLOBAL_BUILD_INPUTS` in
+[`../../scripts/image-impact.mjs`](../../scripts/image-impact.mjs), which forces
+the complete governed set — must also appear here, either exactly or subsumed by
+an approved encompassing glob (`deploy/images/**` covers the governed build
+scripts). A global proof input the workflow never triggers on would be a correct
+checker that is never invoked: the proof machinery could change without its own
+governed verification running. That includes the proof machinery itself —
+`scripts/pr-merge-plan.mjs` composes the PR merge tree the whole proof is built
+on. The structural test
+`tests/test_image_impact.py::test_every_global_build_input_has_an_outer_workflow_trigger`
+reads `GLOBAL_BUILD_INPUTS` from the classifier and fails if any entry is not
+covered by both the `pull_request` and `push` perimeters, so the next
+proof-support script cannot silently recreate this gap.
 
 [`../../scripts/image-impact.mjs`](../../scripts/image-impact.mjs) owns the
 inner decision, and for a pull request it runs against the **composed** tree
@@ -271,6 +287,16 @@ plans, Dockerfiles, build scripts, OCI construction, and digest verification all
 describe `image(LIVE_BASE + PR_HEAD)`. It fails closed: an unresolvable base or
 head, or a merge conflict, aborts the run — it never falls back to PR-head-only
 verification.
+
+`MERGE_SHA` is a deterministic evidence identity, not a wall-clock artifact. The
+ephemeral commit's author/committer name, email, **and** timestamps are all
+fixed: the identity is a constant, and the dates are derived from the composed
+inputs (the later of the two parents' committer instants, in UTC) rather than
+the ambient clock. `git commit-tree` hashes those timestamps, so pinning them is
+what makes identical `(LIVE_BASE_SHA, PR_HEAD_SHA)` inputs always produce the
+same `MERGE_SHA`. (The composed **tree** was already stable and is what the build
+consumes; pinning the dates makes the commit SHA equally reproducible so it can
+be quoted as evidence.)
 
 **Previous-head fast path.** The incremental optimisation is preserved but bound
 to base freshness. A previously proven PR head is a valid comparison origin only

@@ -242,6 +242,62 @@ def test_plan_composes_without_ambient_git_identity(remote: Remote, tmp_path: Pa
     assert parents[1:] == [remote.base_sha, remote.h2]
 
 
+def test_synthetic_merge_sha_is_deterministic_across_ambient_clock(remote: Remote) -> None:
+    """MUTATION P2: ``git commit-tree`` hashes the author AND committer dates, so
+    a synthetic merge dated from the wall clock would yield a different MERGE_SHA
+    on every run for identical inputs, making it useless as an evidence identity.
+    Planning the same (live base, PR head) more than once must produce the same
+    merge tree AND the same merge commit SHA even when the ambient Git date
+    environment differs between runs — and when it is absent entirely."""
+
+    def merge_sha(date: str | None) -> str:
+        env = os.environ.copy()
+        for var in ("GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE"):
+            if date is None:
+                env.pop(var, None)
+            else:
+                env[var] = date
+        result = subprocess.run(
+            [
+                "node",
+                str(MODULE),
+                "plan",
+                "--root",
+                str(remote.work),
+                "--remote",
+                "origin",
+                "--base-ref",
+                "main",
+                "--pr-head",
+                remote.h2,
+                "--action",
+                "synchronize",
+                "--previous-proven",
+                "false",
+                "--json",
+            ],
+            cwd=remote.work,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return cast(str, json.loads(result.stdout)["mergeSha"])
+
+    first = merge_sha("2001-02-03T04:05:06 +0000")
+    second = merge_sha("2020-11-12T13:14:15 +0000")
+    ambient = merge_sha(None)
+    assert first == second == ambient
+    trees = {_git(remote.work, "rev-parse", f"{sha}^{{tree}}") for sha in (first, second, ambient)}
+    assert len(trees) == 1
+    # The pinned date is derived from the composed inputs, not the clock: the
+    # merge is dated no earlier than its newest parent.
+    head_epoch = int(_git(remote.work, "show", "--no-patch", "--format=%ct", remote.h2))
+    merge_epoch = int(_git(remote.work, "show", "--no-patch", "--format=%ct", first))
+    assert merge_epoch >= head_epoch
+
+
 def test_merge_tree_includes_advanced_base_and_pr_changes(remote: Remote) -> None:
     """MUTATION B: the proof must describe merge(B2, H), not H alone or B+H."""
     b2 = _advance_base(remote)
