@@ -396,7 +396,16 @@ const localBuildInputs = (root, revision, graph) => {
       throw new ImpactUnknown(`${name} definition ${definition} is missing at ${revision}`)
     }
 
-    const exact = new Set([definition, `${context}/.dockerignore`])
+    // BuildKit resolves TWO ignore files, and either one decides which context
+    // bytes are copied into the image: the context-root `.dockerignore` and a
+    // Dockerfile-specific `<dockerfile>.dockerignore` next to the Dockerfile,
+    // which TAKES PRECEDENCE over the root file when present. A change to either
+    // can add or drop copied bytes and alter the image digest without any
+    // Dockerfile edit, so both are exact inputs. Omitting the Dockerfile-specific
+    // ignore let a change to it fall through to the in-context "not copied by
+    // COPY/ADD" fallback and produce a false IMAGE_IMPACT_NONE. `${definition}`
+    // is the full Dockerfile path, so this generalises to any Dockerfile name.
+    const exact = new Set([definition, `${definition}.dockerignore`, `${context}/.dockerignore`])
     const prefixes = new Set()
     const instructions = dockerfileInstructions(dockerfile)
 

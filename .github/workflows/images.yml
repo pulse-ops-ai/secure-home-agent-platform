@@ -100,6 +100,7 @@ jobs:
           PR_PREVIOUS: ${{ github.event.before }}
           PUSH_HEAD: ${{ github.sha }}
           PUSH_PREVIOUS: ${{ github.event.before }}
+          PUSH_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ]; then
@@ -163,15 +164,50 @@ jobs:
             git checkout --quiet --detach "$merge_sha"
             echo "composed merge tree $merge_sha checked out"
           elif [ "$EVENT_NAME" = "push" ]; then
-            # The pushed commit is the actual repository state being proved.
+            # The pushed commit is the actual repository state being proved. Its
+            # immediately preceding commit is a valid incremental comparison base
+            # ONLY if this workflow already concluded successfully for that exact
+            # commit on this branch. Without that proof, a docs-only push B could
+            # inherit an UNVERIFIED or failed governed image change introduced by
+            # push A and skip it. Resolvable-but-unproven, unresolvable, or absent
+            # all fail closed to a full governed build — mirroring the PR
+            # previous-head proof gate above.
             base=""
             force_all=false
             note=""
             case "$PUSH_PREVIOUS" in
               *[!0]*)
                 if git cat-file -e "$PUSH_PREVIOUS^{commit}" 2>/dev/null; then
-                  base="$PUSH_PREVIOUS"
-                  note="prior default-branch commit"
+                  push_prev_proven=false
+                  runs="$RUNNER_TEMP/previous-push-image-runs.json"
+                  if gh api -X GET \
+                    "repos/$GITHUB_REPOSITORY/actions/workflows/images.yml/runs" \
+                    -f head_sha="$PUSH_PREVIOUS" \
+                    -f event=push \
+                    -f status=success \
+                    -f per_page=100 > "$runs"; then
+                    if node - "$runs" "$PUSH_BRANCH" <<'NODE'
+          const [path, branch] = process.argv.slice(2)
+          const runs = JSON.parse(require('node:fs').readFileSync(path, 'utf8')).workflow_runs ?? []
+          const proven = runs.some(
+            (run) =>
+              run.status === 'completed' &&
+              run.conclusion === 'success' &&
+              run.head_branch === branch,
+          )
+          process.exit(proven ? 0 : 1)
+          NODE
+                    then push_prev_proven=true; fi
+                  else
+                    echo "Image-run history lookup failed; push incremental base disabled." >&2
+                  fi
+                  if [ "$push_prev_proven" = "true" ]; then
+                    base="$PUSH_PREVIOUS"
+                    note="prior verified default-branch commit"
+                  else
+                    force_all=true
+                    note="prior default-branch commit has no successful image proof; full build"
+                  fi
                 else
                   force_all=true
                   note="push comparison commit cannot be resolved"

@@ -284,6 +284,41 @@ def test_gates_change_is_independent_of_runner_lineage(image_repo: Path) -> None
     assert BASE not in result["affected"]
 
 
+def test_dockerfile_specific_ignore_change_selects_that_image(image_repo: Path) -> None:
+    # A random uncopied file in this context yields NONE
+    # (test_file_inside_context_but_not_copied_requires_no_build), but BuildKit
+    # gives a Dockerfile-specific `<dockerfile>.dockerignore` PRECEDENCE over the
+    # root ignore, so changing it can add or drop copied bytes and alter the
+    # digest. It must therefore rebuild — never IMAGE_IMPACT_NONE.
+    def mutate(root: Path) -> None:
+        (root / "deploy/images/runner-claude/Dockerfile.dockerignore").write_text("*.md\n")
+
+    result = _mutated_impact(image_repo, mutate)
+    assert result["decision"] == "affected"
+    assert result["direct"] == [CLAUDE]
+    assert result["affected"] == [CLAUDE]
+
+
+def test_base_dockerfile_specific_ignore_change_selects_base_closure(image_repo: Path) -> None:
+    def mutate(root: Path) -> None:
+        (root / "deploy/images/runner-base/Dockerfile.dockerignore").write_text("*.md\n")
+
+    result = _mutated_impact(image_repo, mutate)
+    assert result["direct"] == [BASE]
+    assert result["affected"] == [BASE, CLAUDE, COPILOT]
+    assert GATES not in result["affected"]
+
+
+def test_root_context_dockerignore_change_still_selects_that_image(image_repo: Path) -> None:
+    # Regression guard for the context-root ignore file, which remains an input.
+    def mutate(root: Path) -> None:
+        (root / "deploy/images/runner-copilot/.dockerignore").write_text("*.md\n")
+
+    result = _mutated_impact(image_repo, mutate)
+    assert result["decision"] == "affected"
+    assert result["affected"] == [COPILOT]
+
+
 def test_package_manager_version_change_selects_gates(image_repo: Path) -> None:
     def mutate(root: Path) -> None:
         package = root / "package.json"
@@ -1116,6 +1151,31 @@ def test_pr_runs_cancel_but_push_and_dispatch_runs_do_not() -> None:
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
     assert "push:\n    branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
+
+
+def test_push_incremental_base_requires_a_successful_image_proof() -> None:
+    # A push's previous commit may be the incremental comparison base ONLY after
+    # a successful images.yml PUSH run for that exact commit on this branch —
+    # otherwise a docs-only push could inherit and skip an UNVERIFIED image change
+    # from the prior push. Mirrors the PR previous-head proof gate; fails closed.
+    workflow = WORKFLOW.read_text()
+    assert "PUSH_BRANCH: ${{ github.ref_name }}" in workflow
+    push_start = workflow.index('elif [ "$EVENT_NAME" = "push" ]; then')
+    push_end = workflow.index("A manual run has no repository transition", push_start)
+    push = workflow[push_start:push_end]
+    # The prior commit's proof is looked up before it can become the base.
+    assert "workflows/images.yml/runs" in push
+    assert "-f event=push" in push
+    assert '-f head_sha="$PUSH_PREVIOUS"' in push
+    assert "push_prev_proven" in push
+    assert "run.head_branch === branch" in push
+    # Proven -> incremental base; unproven/lookup-failure -> full build.
+    assert 'base="$PUSH_PREVIOUS"' in push
+    assert "no successful image proof" in push
+    assert "push incremental base disabled" in push
+    # The only assignment of PUSH_PREVIOUS to the base is guarded by the proof:
+    # it must appear after the proof gate opens, never before it.
+    assert push.index("push_prev_proven") < push.index('base="$PUSH_PREVIOUS"')
 
 
 def test_required_image_check_name_is_preserved() -> None:
