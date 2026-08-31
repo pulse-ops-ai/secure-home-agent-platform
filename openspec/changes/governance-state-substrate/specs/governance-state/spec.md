@@ -722,6 +722,7 @@ The complete `reviewed-spike-evidence-v1` evidence branch SHALL be exactly:
 ```json
 {
   "policy": "reviewed-spike-evidence-v1",
+  "openSpecApplicability": "not-applicable",
   "mergedEvidencePullRequest": {
     "type": "github-pull-request",
     "repository": "pulse-ops-ai/secure-home-agent-platform",
@@ -750,14 +751,20 @@ The complete `reviewed-spike-evidence-v1` evidence branch SHALL be exactly:
 }
 ```
 
-The spike branch has no optional fields and contains no `archivedOpenSpec`,
-`deliveredIdentity`, `deliveredScope`, or attestation member. The landing's
-typed `authorityAnchor` is the required authority issue and is not copied into
-the evidence branch. `mergedEvidencePullRequest` is supporting external
-provenance, not offline proof. The local merged commit must cover the complete
-evidence-root scope; the manifest and findings identities must be locally
-verified. The envelope attestation remains required. An arbitrary issue and PR
-pair cannot satisfy this branch.
+The spike branch has no optional fields. `openSpecApplicability` is mandatory
+and has exactly the one v1 value `not-applicable`; omission, aliases, `null`,
+booleans, or any other string SHALL fail closed. The branch contains no
+`archivedOpenSpec`, `deliveredIdentity`, `deliveredScope`, or nested attestation
+member. The landing's typed `authorityAnchor` is the required authority issue
+and is not copied into the evidence branch. `mergedEvidencePullRequest` is
+supporting external provenance, not offline proof. The local merged commit
+must cover the complete evidence-root scope; the manifest and findings
+identities must be locally verified. The envelope attestation remains required.
+An arbitrary issue and PR pair cannot satisfy this branch. A retrospective
+archive cannot replace this explicit no-OpenSpec applicability fact. Because
+the completion preimage includes the complete evidence branch,
+`openSpecApplicability` participates in `completionDigest`. Unknown fields,
+aliases, and fields belonging to another policy SHALL fail closed.
 
 The nested `archivedOpenSpec` object SHALL have exactly this closed shape:
 
@@ -805,33 +812,53 @@ archive subfile, unrelated archive root, or root whose declared `changeId` does
 not match its path SHALL be refused.
 
 `members` SHALL be the complete recursively enumerated set of regular, tracked,
-non-symlink files in the reviewed active package and the archived package. The
-set includes, when present, `.openspec.yaml`, `proposal.md`, every
-`specs/**/*.md` artifact, `design.md`, `assurance.md`, `tasks.md`, and every
-other tracked regular file under the package root; no present governed file may
-be omitted by an implementation-selected allowlist. Each member `path` is
-relative to `activeRoot`; the corresponding archive path is the same relative
-suffix under `archiveRoot`. Members SHALL be sorted lexicographically by
-canonical relative path and SHALL contain no duplicate paths. Every file in
-the reviewed active tree, the archived-package snapshot tree at
-`archivedPackageIdentity`, and the current checkout's archive root SHALL have
-one member, and every member SHALL have one file in each applicable tree.
-Missing, extra, or unmanifested files, non-regular entries, and symlinks SHALL
-be refused. Member paths SHALL be nonempty relative paths with no absolute form,
-traversal, empty segment, `.` or `..` component. Each `contentSha256` SHALL be
-recomputed over exact bytes after real-path containment is established. Every
-member in each observed tree SHALL have Git mode `100644`; symlink, gitlink,
-executable, and all other modes SHALL be refused. Mode is a fixed validity
-constraint, not an omitted route for a mode change.
+non-symlink files in the reviewed active package and the archived package. For
+ordinary post-genesis `reviewed-delivery-v1`, the package SHALL contain these
+required OpenSpec artifacts: `.openspec.yaml`, `proposal.md`, `design.md`,
+`assurance.md`, `tasks.md`, and at least one `specs/**/spec.md` file. Those
+required artifacts, together with every other tracked regular file under the
+package root, are the complete membership set; a correctly named package
+containing only arbitrary files or only a README SHALL be refused. Each
+required and additional member SHALL be present in the reviewed active tree,
+the archived-package snapshot, the current archive, and `members[]`, with
+identical bytes and Git mode `100644`. Each member `path` is relative to
+`activeRoot`; the corresponding archive path is the same relative suffix under
+`archiveRoot`. Members SHALL be sorted lexicographically by canonical relative
+path and SHALL contain no duplicate paths. Every file in the reviewed active
+tree, the archived-package snapshot tree at `archivedPackageIdentity`, and the
+current checkout's archive root SHALL have one member, and every member SHALL
+have one file in each applicable tree. Missing, extra, or unmanifested files,
+non-regular entries, and symlinks SHALL be refused. Historical genesis may use
+only its explicit human disposition for an older package shape; that
+disposition is not a generic post-genesis fallback. Member paths SHALL be
+nonempty relative paths with no absolute form, traversal, empty segment, `.` or
+`..` component. Each `contentSha256` SHALL be recomputed over exact bytes after
+real-path containment is established. Every member in each observed tree SHALL
+have Git mode `100644`; symlink, gitlink, executable, and all other modes SHALL
+be refused. Mode is a fixed validity constraint, not an omitted route for a
+mode change.
+
+Stage exclusivity is required in addition to membership equality. At
+`reviewedIdentity`, `activeRoot` SHALL exist with the complete required package
+and `archiveRoot` SHALL be absent. At `archivedPackageIdentity`, `archiveRoot`
+SHALL exist with the complete package and `activeRoot` SHALL be absent. The
+current snapshot SHALL likewise contain only the complete `archiveRoot` package
+and no `activeRoot`. The two local snapshot identities SHALL have different
+commit values. These are snapshot-shape rules only; they make no chronology or
+first-introduction claim.
 
 The required membership proof is three-way and exact: (1) the complete
 reviewed active-package tree at `reviewedIdentity`, (2) the complete current
 archive-root tree, and (3) the declared `members` set and bytes SHALL be equal
 after active-to-archive path normalization. `archivedPackageIdentity` is an
 additional snapshot observation whose complete scoped archive tree SHALL match
-the current archive tree and the same member bytes. This prevents a file added
-to the current archive, omitted from the manifest, or absent from either
-reviewed tree from being hidden by a partial declaration.
+the current archive tree and the same member bytes. The stage observations SHALL
+also show active-only at `reviewedIdentity`, archive-only at
+`archivedPackageIdentity`, and archive-only in the current snapshot; the two
+snapshot commit values SHALL differ. This prevents a file added to the current
+archive, omitted from the manifest, or absent from either reviewed tree from
+being hidden by a partial declaration or an active-to-archive copy that never
+removed the active package.
 
 `bundleSha256` SHALL be SHA-256 over the canonical serialization of exactly
 this preimage, excluding `bundleSha256`, `reviewedIdentity`, and
@@ -863,17 +890,21 @@ input and fail.
 
 `reviewedIdentity` and `archivedPackageIdentity` are supporting provenance
 separate from `bundleSha256`. For ordinary post-genesis completion, both have
-the only permitted class `local-git-commit` and both objects SHALL exist
-locally. `reviewedIdentity` names the commit whose complete active package was
-reviewed; its scoped tree SHALL match the member paths and bytes after
-normalization. `archivedPackageIdentity` names a commit whose complete archived
-package is locally observable; its scoped tree SHALL match the current archive
-tree and the same member bytes. It does not claim that the archive first
-appeared in that commit. An `external-git-commit`, missing object, incomplete
-scope, or byte mismatch is not local proof and SHALL fail closed. These checks
-prove repository bytes and scope, not that a human reviewer authenticated
-either commit. A commit is supporting provenance, not the landing's authority
-issue or an unrelated parent commit.
+the only permitted class `local-git-commit`, both objects SHALL exist locally,
+and their values SHALL differ. `reviewedIdentity` names the commit whose
+complete active package was reviewed; its active root SHALL be present, its
+archive root SHALL be absent, and its scoped tree SHALL match the member paths
+and bytes after normalization. `archivedPackageIdentity` names a different
+commit whose complete archived package is locally observable; its archive root
+SHALL be present, its active root SHALL be absent, and its scoped tree SHALL
+match the current archive tree and the same member bytes. It does not claim
+that the archive first appeared in that commit. An `external-git-commit`,
+missing object, incomplete scope, wrong-stage root presence, or byte mismatch is
+not local proof and SHALL fail closed. The Git-tree adapter supplies root
+presence/absence and tree observations; the shared model owns these stage rules.
+These checks prove repository bytes and scope, not that a human reviewer
+authenticated either commit. A commit is supporting provenance, not the
+landing's authority issue or an unrelated parent commit.
 
 The post-genesis completion preimage SHALL bind, together, `landingId`, the
 envelope's prior and target lifecycle, the landing's `authorityAnchor`, the
@@ -892,20 +923,32 @@ deliberately selects no stronger archive-internal machine binding.
 #### Scenario: A valid complete archived child change is accepted
 
 - **GIVEN** a reviewed-delivery-v1 completion whose reviewed active package,
-  selected archived-package snapshot, current archive, complete member set,
-  member bytes, bundle digest, local provenance, landing-owned authority anchor,
-  and human attestation all bind the same landing
+  selected archived-package snapshot, current archive, minimum OpenSpec package
+  structure, complete member set, member bytes, bundle digest, local provenance,
+  landing-owned authority anchor, and human attestation all bind the same
+  landing
 - **WHEN** the current checker validates the snapshot
 - **THEN** the machine-decidable archive evidence is accepted as completion
   evidence, subject to the human semantic-association control
 
 #### Scenario: An arbitrary document is not an archived child change
 
-- **GIVEN** an ADR, README, arbitrary file, or one file copied from an archive
-  is supplied as `archivedOpenSpec`
+- **GIVEN** an ADR, README, arbitrary file, one file copied from an archive,
+  or a correctly named package containing only arbitrary files is supplied as
+  `archivedOpenSpec`
 - **WHEN** the checker validates it
-- **THEN** it refuses the evidence because the canonical active/archive roots
-  and complete whole-change membership are absent
+- **THEN** it refuses the evidence because the canonical active/archive roots,
+  minimum OpenSpec package structure, or complete whole-change membership is
+  absent
+
+#### Scenario: Spike evidence declares no OpenSpec applicability explicitly
+
+- **GIVEN** a `reviewed-spike-evidence-v1` branch whose
+  `openSpecApplicability` is omitted, aliased, `null`, boolean, or any value
+  other than `not-applicable`
+- **WHEN** the checker validates the completion envelope
+- **THEN** it refuses the branch, and removing that field from the completion
+  preimage changes the expected digest
 
 #### Scenario: Active paths and mismatched archive identities are refused
 
@@ -940,6 +983,16 @@ deliberately selects no stronger archive-internal machine binding.
 - **WHEN** the checker validates ordinary completion
 - **THEN** it fails closed with external verification required; a recomputed
   envelope cannot make arbitrary identity bytes valid
+
+#### Scenario: Reviewed and archived package stages are exclusive snapshots
+
+- **GIVEN** the same commit is reused for both identities, `activeRoot` and
+  `archiveRoot` coexist at `reviewedIdentity`, `activeRoot` survives at
+  `archivedPackageIdentity`, `activeRoot` survives in the current snapshot, or
+  an archive is copied while the active package remains
+- **WHEN** the checker validates ordinary completion
+- **THEN** it refuses the evidence; reviewed is active-only, archived and
+  current are archive-only, and the two snapshot identities differ
 
 #### Scenario: Machine bindings and human association are distinct
 

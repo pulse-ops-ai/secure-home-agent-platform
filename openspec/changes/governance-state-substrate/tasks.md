@@ -151,6 +151,18 @@ OPENSPEC IDENTITY CONTRACT AMENDMENT ONLY`**. Further PR-1 implementation is
 refresh. PR #111 remains frozen and draft. No task checkbox is changed by this
 amendment.
 
+The owner authorization for this amendment is the exact issue #106 comment
+below. It authorizes this four-file planning correction only; it does not
+release PR-1:
+
+| Source | Stable comment ID | Created | Updated | Exact UTF-8 body SHA-256 |
+| --- | --- | --- | --- | --- |
+| [issue #106 comment](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5468720338) — `OWNER AUTHORIZATION — GOVERNANCE-STATE ARCHIVED OPENSPEC IDENTITY CONTRACT AMENDMENT ONLY` | `5468720338` | `2026-08-30T12:35:41Z` | `2026-08-30T12:35:41Z` | `9502342f7f770e7fced9c9c64a85ca304add09a7e8455dee326b4d8f9f415b60` |
+
+A later mismatch in that comment's exact UTF-8 body invalidates the recorded
+amendment provenance and requires renewed owner review. The comment is not
+copied into this change and is neither edited nor replaced here.
+
 If the amendment is merged and the owner separately refreshes PR-1 authority,
 only the previously named PR-1 tasks (`1.1`, `1.2`, `2.1`, `2.2`, `2.3`, `2.4`,
 `3.1`, `3.2`, `3.3`) and the PR-1 completion gate may become executable after
@@ -398,6 +410,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   ```json
   {
     "policy": "reviewed-spike-evidence-v1",
+    "openSpecApplicability": "not-applicable",
     "mergedEvidencePullRequest": {
       "type": "github-pull-request",
       "repository": "pulse-ops-ai/secure-home-agent-platform",
@@ -426,14 +439,19 @@ PR-1 must not contain — and review has completed on one frozen head.
   }
   ```
 
-  This spike branch has no optional fields and contains no
-  `archivedOpenSpec`, `deliveredIdentity`, `deliveredScope`, or attestation
-  member. The landing's typed `authorityAnchor` is the required authority issue
-  and is not copied into evidence. The PR reference is supporting external
-  provenance, not offline proof; the local merged commit, complete evidence
-  root scope, manifest bytes, findings bytes, and envelope attestation are
-  required. Unknown fields, aliases, and fields belonging to another policy
-  fail closed.
+  This spike branch has no optional fields. `openSpecApplicability` is
+  mandatory and has exactly the one v1 value `not-applicable`; omission,
+  aliases, `null`, booleans, or any other string fail closed. The branch
+  contains no `archivedOpenSpec`, `deliveredIdentity`, `deliveredScope`, or
+  nested attestation member. The landing's typed `authorityAnchor` is the
+  required authority issue and is not copied into evidence. The PR reference
+  is supporting external provenance, not offline proof; the local merged
+  commit, complete evidence-root scope, manifest bytes, findings bytes, and
+  envelope attestation are required. A retrospective archive cannot replace
+  this explicit no-OpenSpec applicability fact. Because the completion preimage
+  includes the complete evidence branch, `openSpecApplicability` participates
+  in `completionDigest`. Unknown fields, aliases, and fields belonging to
+  another policy fail closed.
 
   The nested `archivedOpenSpec` object is:
 
@@ -474,19 +492,32 @@ PR-1 must not contain — and review has completed on one frozen head.
   and exact suffix correspondence. The active root is the package location in
   the reviewed active-change commit; the archive root is the package location
   in the selected archived-package snapshot commit and current snapshot; the
-  contract makes no claim that that commit introduced the archive. `members` is the
-  complete recursively enumerated set of tracked regular non-symlink files in
-  both package trees, including every present `.openspec.yaml`, `proposal.md`,
-  `specs/**/*.md`, `design.md`, `assurance.md`, `tasks.md`, and every other
-  tracked regular file. Each member `path` is relative to `activeRoot`; the
-  archive path is the same relative suffix under `archiveRoot`. Members are
-  sorted lexicographically by canonical relative path and must be duplicate-
-  free, complete, and exact-byte bound. The reviewed active tree, current
-  archive tree, and declared member set must be equal in paths and bytes;
-  `archivedPackageIdentity`'s scoped tree must also match the current archive
-  tree. Every member in each observed tree must have Git mode `100644`; symlink,
-  gitlink, executable, and all other modes fail. Mode is a fixed validity
-  constraint rather than an unbound digest field.
+  contract makes no claim that that commit introduced the archive. For ordinary
+  post-genesis `reviewed-delivery-v1`, the package must contain `.openspec.yaml`,
+  `proposal.md`, `design.md`, `assurance.md`, `tasks.md`, and at least one
+  `specs/**/spec.md` file. Those required artifacts, together with every other
+  tracked regular file under the package root, are the complete membership set;
+  a correctly named package containing only arbitrary files or only a README is
+  refused. Each required and additional member must be present in the reviewed
+  active tree, the archived-package snapshot, the current archive, and
+  `members[]`, with identical bytes and Git mode `100644`. Each member `path` is
+  relative to `activeRoot`; the archive path is the same relative suffix under
+  `archiveRoot`. Members are sorted lexicographically by canonical relative path
+  and must be duplicate-free, complete, and exact-byte bound. Historical genesis
+  may use only its explicit human disposition for an older package shape; that
+  disposition is not a generic post-genesis fallback. Every member in each
+  observed tree must have Git mode `100644`; symlink, gitlink, executable, and
+  all other modes fail. Mode is a fixed validity constraint rather than an
+  unbound digest field.
+
+  Stage exclusivity is required in addition to membership equality. At
+  `reviewedIdentity`, `activeRoot` must exist with the complete required package
+  and `archiveRoot` must be absent. At `archivedPackageIdentity`, `archiveRoot`
+  must exist with the complete package and `activeRoot` must be absent. The
+  current snapshot must likewise contain only the complete `archiveRoot` package
+  and no `activeRoot`. The two local snapshot identities must have different
+  commit values. These are snapshot-shape rules only; they make no chronology or
+  first-introduction claim.
   Absolute paths, traversal, empty segments, symlinks, missing members, extra
   members, and non-regular files fail. An active completion, ADR, README,
   arbitrary file, archive subfile, path-unrelated archive root, or mismatched
@@ -532,21 +563,29 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G10` cycle · `ADV-G12` dangling reference · `ADV-G50` bare shorthand
     identifier refused as a dangling reference
   - `ADV-G26` arbitrary commit as completion evidence
-  - `ADV-G27` arbitrary issue + merged PR as spike evidence
+  - `ADV-G27` arbitrary issue + merged PR as spike evidence, or omitted,
+    aliased, null, boolean, or non-`not-applicable` `openSpecApplicability`
   - `ADV-G28` retrospective OpenSpec archive substituted
   - `ADV-G30` unknown / generic-legacy policy · `ADV-G33` absent local commit
-  - `ADV-G78` closed parent/nested shape and policy-specific substitution refusal
-  - `ADV-G79` complete three-way membership, path, symlink, mode, and exact-byte refusal
+  - `ADV-G78` closed parent/nested shape, minimum OpenSpec package structure,
+    and policy-specific substitution refusal, including an arbitrary-only
+    correctly named package
+  - `ADV-G79` complete three-way membership, stage exclusivity, path, symlink,
+    mode, and exact-byte refusal
   - `ADV-G80` bundle preimage and digest refusal
-  - `ADV-G81` reviewed-active and archived-package-snapshot local-proof refusal
+  - `ADV-G81` reviewed-active and archived-package-snapshot local-proof and
+    distinct-stage refusal
   - `ADV-G82` machine-decidable scope, authority-anchor, and stale-binding refusal;
     semantic association remains `MAN-G03`
   - `ADV-G84` real-path containment and traversal refusal
-  - `ADV-G85` reviewed-active/current-archive/manifest equality and mode refusal
-  - `EX-G29` valid complete archived child change with `MAN-G03` human association
+  - `ADV-G85` reviewed-active/current-archive/manifest equality, root absence,
+    distinct snapshot identities, and mode refusal
+  - `EX-G29` valid complete archived child change with minimum OpenSpec package
+    structure and `MAN-G03` human association
   - `MAN-G03` semantic archive-to-landing association is human-attested, not inferred
   - `PROP-G11` independent bundle field sensitivity
-  - `MUT-G15` weakened archive bundle/association guards are killed
+  - `MUT-G15` weakened archive bundle/association guards, stage guards, or the
+    spike no-OpenSpec applicability preimage are killed
   - `EX-G02` `Planned`/`InProgress` never satisfy a prerequisite
   - `MUT-G09` scope binding → bare hash accepted
 
@@ -603,9 +642,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   A thin entry point over the model, implementing **no** rule of its own. This
   task also owns the rules-free Git-tree observation adapter: given a local
   commit and repository-relative scope, it returns recursively enumerated tree
-  paths, entry modes, and blob bytes. The adapter applies no archive, identity,
-  lifecycle, or landing-association rule; task 2.3's shared model remains the
-  sole semantic owner.
+  paths, entry modes, blob bytes, and whether each requested stage root is
+  present or absent. The adapter applies no archive, identity, lifecycle, or
+  landing-association rule; task 2.3's shared model remains the sole semantic
+  owner.
 
   **Proof required** — `EX-G12` offline run; `MUT-G05` a predicate
   re-implemented in the entry point is detected; every current-revision `ADV-`
@@ -619,9 +659,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   `G30`, `G33`, `G38`, `G39`, **`G50`**, **`G65`**, **`G67`**, **`G68`** (bare shorthand refused — proven here, in
   the landing that owns reference resolution); **`G66`** (replacement graph,
   closure, identity and lifecycle); **`G78`**–**`G82`**, **`G84`** (closed
-  archived OpenSpec identity, complete membership, local proof, machine
-  bindings, and real-path containment); **`ADV-G85`** (three-way membership
-  equality and mode refusal); **`EX-G29`** (valid complete archive); `MAN-G03` remains the human
+  archived OpenSpec identity, minimum package structure, complete membership,
+  local proof, stage exclusivity, machine bindings, and real-path containment);
+  **`ADV-G85`** (three-way membership equality, root exclusivity, and mode
+  refusal); **`EX-G29`** (valid complete archive); `MAN-G03` remains the human
   semantic-association control; PR-2 may repeat these as integration coverage
 
 - [ ] **3.2 Property coverage**
