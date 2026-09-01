@@ -326,6 +326,12 @@ copies are not trusted merely because they implement the future boundary. Only a
 later candidate may claim a maintenance class after the trusted workflow and
 verifier have merged into the live predecessor.
 
+Accordingly, PR-B proves the protocol with executable fixtures and ordinary
+hosted CI but records no authoritative maintenance admission: a
+`repository_dispatch` definition cannot execute from the default branch before
+it has merged there. Every later maintenance candidate must provide the real
+predecessor-hosted boundary run as part of its own evidence.
+
 A missing or ambiguous predecessor, unreadable diff, malformed maintenance
 policy, missing predecessor verifier, candidate-controlled invocation, changed
 protected authority, unrelated lock movement, head/predecessor movement, or

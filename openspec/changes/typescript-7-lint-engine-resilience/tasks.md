@@ -943,6 +943,14 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   review/platform proof. PR-B's own candidate copy cannot authorize PR-B. Only a
   later maintenance candidate may use the merged default-branch boundary.
 
+  Because `repository_dispatch` executes only a workflow already present on the
+  default branch, PR-B cannot produce an authoritative maintenance-admission run
+  from the boundary it is still proposing. PR-B SHALL prove the complete
+  protocol through executable Git/API/workflow fixtures and ordinary hosted CI,
+  record that no maintenance admission was claimed, and land the genesis
+  atomically. The first later maintenance candidate SHALL provide the real
+  default-branch predecessor-hosted run evidence required by this authority.
+
   **Does not own**
 
   Maintenance-class allowed/protected rows, semantic policy, engine mappings,
@@ -970,9 +978,12 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     it do not change which verifier runs;
   - missing predecessor verifier/dependencies fails without candidate fallback;
   - head movement and predecessor movement are independently refused at the
-    final recheck; and
-  - exact hosted run evidence records candidate head, predecessor, workflow
-    execution SHA, verifier source identity, class, and result.
+    final recheck;
+  - PR-B hosted CI executes the complete fixture suite but cannot be represented
+    as an authoritative maintenance admission; and
+  - every later maintenance claim's real hosted run records candidate head,
+    predecessor, workflow execution SHA, verifier source identity, class, and
+    result.
 
   **Size and atomicity**
 
@@ -982,9 +993,11 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Completion**
 
-  Complete only when the candidate cannot provide, replace, delete, or skip the
-  executable authority that decides whether the candidate qualifies for
-  maintenance.
+  Genesis is complete only when executable fixtures prove the candidate cannot
+  provide, replace, delete, or skip the future executable authority, ordinary
+  hosted checks are green, and PR-B makes no self-admission claim. A real
+  authoritative invocation is a mandatory completion condition of each later
+  maintenance candidate, not of the unmerged genesis PR.
 
 ## PR-B Verification Net
 
@@ -1061,6 +1074,9 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 - [ ] Candidate-checker unconditional success/deletion/workflow-skip mutations
       fail, and independent candidate/predecessor movement tests refuse stale
       proof.
+- [ ] PR-B records `GENESIS_ONLY` (or an equivalent explicit state) and does not
+      claim an authoritative maintenance run before the boundary exists on the
+      default branch.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.

@@ -776,6 +776,13 @@ the candidate Git tree as objects or inert data, and refuses if either identity
 moves. A candidate copy of the workflow or checker may be tested as future code
 but has no authority over its own admission.
 
+PR-B can test and land this protocol but cannot truthfully produce its own
+authoritative `repository_dispatch` result: until merge, the workflow/verifier
+does not exist on the default branch. PR-B therefore records a genesis-only
+state and proves the boundary through executable fixtures and ordinary hosted
+checks. Each later maintenance candidate must supply the real default-branch
+predecessor-hosted run identity and result.
+
 The current inventory in this document is explicitly a pinned evidence snapshot,
 not a second policy authority.
 
