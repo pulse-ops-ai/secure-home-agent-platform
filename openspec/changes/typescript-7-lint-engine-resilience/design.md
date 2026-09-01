@@ -719,7 +719,8 @@ external system effect crosses these boundaries.
   command selection, timeouts, process cleanup, exit-code capture, hashing, and
   result-envelope construction outside candidate-writable paths.
   **Untrusted subject** executes candidate tools only in an isolated fresh
-  runner/hardened sandbox (D15); candidate Git objects are data and candidate
+  runner/hardened sandbox, with the candidate additionally isolated from the
+  trusted launcher (D15); candidate Git objects are data and candidate
   binaries are subjects under the predecessor-owned plan; its output is an
   untrusted result envelope.
   **Trusted verdict** runs in a fresh exact-predecessor context, verifies the
@@ -753,29 +754,53 @@ external system effect crosses these boundaries.
 
 ### D15: The untrusted subject domain has a precise isolation contract
 
-- **Decision:** candidate tools execute only in a fresh hosted runner or an
-  explicitly hardened sandbox that receives no secret, no usable `GITHUB_TOKEN`,
-  no persisted checkout credential, no shared writable cache, and no Docker
-  socket, and has no write access to the predecessor checkout, policy, verifier,
-  command plan, or verdict workspace, with only an isolated writable
-  scratch/output area. A container implementation is acceptable only with
-  read-only trusted mounts, an explicit network policy, a non-root user, all
-  capabilities dropped, `no-new-privileges`, process/time/CPU/memory limits, an
-  isolated writable scratch, and no host Docker socket or trusted-workspace path.
+- **Decision:** subject isolation is **two boundaries, both mandatory**, because
+  each answers a different question.
+
+  1. **Fresh subject trust domain.** Candidate tools execute only in a fresh
+     hosted runner or explicitly hardened sandbox that receives no secret, no
+     usable `GITHUB_TOKEN`, no persisted checkout credential, no shared writable
+     cache, and no Docker socket, and has no write access to the predecessor
+     checkout, policy, verifier, command plan, or verdict workspace, with only an
+     isolated writable scratch/output area. This separates the subject from
+     **control and verdict**.
+  2. **Candidate isolated from the trusted launcher.** The candidate process
+     SHALL run behind an explicit OS-level isolation boundary — container,
+     separate unprivileged UID, or equivalent — relative to the trusted host-side
+     launcher that owns timeout enforcement, process cleanup, exit-code capture,
+     artifact hashing, and result-envelope construction. Running the candidate
+     directly as the launcher's own user in the launcher's own filesystem
+     context is **not** an admissible topology, and the contract SHALL refuse it.
+
+  A container implementation is acceptable only with read-only trusted mounts, an
+  explicit network policy, a non-root user, all capabilities dropped,
+  `no-new-privileges`, process/time/CPU/memory limits, an isolated writable
+  scratch, and no host Docker socket or trusted-workspace path.
 - **Requirement(s):** `REQ-SC-007`, `REQ-SC-008`.
 - **Rationale:** the review's nine hostile behaviors (verifier/workspace
   overwrite, `GITHUB_ENV`/`GITHUB_OUTPUT` writes, forged result files,
   token/secret reads, background processes, cache poisoning, output-directory
   escape, command-plan edits, and head/base spoofing) all require exactly one of
   these capabilities; denying them or verifying the evidence kills the class.
+
+  The second boundary exists because the first does not imply it. A fresh runner
+  separates the subject from the control and verdict domains, and says nothing
+  about the relationship between the candidate binary and the launcher sharing
+  that runner. If both run as the same OS user in the same filesystem context,
+  the candidate can reach the launcher's own state — its timers, its captured
+  exit codes, the result envelope it is assembling — even though it can reach
+  nothing in the other two domains. "Outside candidate-writable paths" is then a
+  claim about a boundary that was never established.
 - **Alternatives considered:** run candidate tools with the trusted job's
   token/cache; trust the subject's self-reported result. Both re-open the tamper
   surface this decision removes.
 - **Trust consequence:** none of the hostile behaviors can change the emitted
-  maintenance result.
+  maintenance result, and the process that records the authoritative result is
+  not reachable by the process being measured.
 - **Canonical authority consequence:** creates `AUTH-MAINTENANCE-SUBJECT-ISOLATION`.
 - **Revisit trigger:** the hosted platform cannot provide a credential-free,
-  socket-free isolated execution context.
+  socket-free isolated execution context, or cannot isolate a child process from
+  the launcher that measures it.
 
 ### D16: A maintenance run is point-in-time evidence; merge freshness is an owner control
 

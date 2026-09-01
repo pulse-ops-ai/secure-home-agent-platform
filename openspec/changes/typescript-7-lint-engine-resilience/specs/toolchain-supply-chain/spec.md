@@ -346,7 +346,9 @@ boundary as executable authority.
    binaries, and input digests the subject domain must run.
 2. **Untrusted subject.** Candidate tools SHALL execute only in a separate
    fresh hosted runner or an explicitly hardened sandbox governed by
-   `REQ-SC-008`. That domain SHALL receive no secret, no usable `GITHUB_TOKEN`,
+   `REQ-SC-008`, **and** SHALL additionally be separated from the trusted
+   host-side launcher by the OS-level boundary that requirement mandates — the
+   fresh domain alone does not establish that second separation. That domain SHALL receive no secret, no usable `GITHUB_TOKEN`,
    no persisted checkout credential, no shared writable cache, and no Docker
    socket, and SHALL have no write access to the predecessor checkout, policy,
    verifier, command plan, or verdict workspace. Its output SHALL be treated as
@@ -468,14 +470,28 @@ feedback but SHALL NOT substitute for this authority.
 **Canonical authority references:** `AUTH-MAINTENANCE-SUBJECT-ISOLATION`,
 `AUTH-MAINTENANCE-VERIFIER`
 
-Candidate tools invoked during maintenance verification SHALL execute only in an
-isolated untrusted subject domain: a fresh hosted runner or an explicitly
-hardened sandbox. That domain SHALL NOT receive any secret, usable
-`GITHUB_TOKEN`, or persisted checkout credential, SHALL NOT mount a shared
-writable cache, and SHALL NOT expose a Docker socket. It SHALL have no write
-access to the predecessor checkout, policy, verifier, command plan, or verdict
-workspace, and SHALL be given only an isolated writable scratch/output area.
-Candidate output SHALL be treated as untrusted data.
+Candidate tool isolation SHALL be established by two boundaries, both mandatory.
+
+**Boundary 1 — the subject trust domain.** Candidate tools invoked during
+maintenance verification SHALL execute only in an isolated untrusted subject
+domain: a fresh hosted runner or an explicitly hardened sandbox. That domain
+SHALL NOT receive any secret, usable `GITHUB_TOKEN`, or persisted checkout
+credential, SHALL NOT mount a shared writable cache, and SHALL NOT expose a
+Docker socket. It SHALL have no write access to the predecessor checkout, policy,
+verifier, command plan, or verdict workspace, and SHALL be given only an isolated
+writable scratch/output area. Candidate output SHALL be treated as untrusted
+data.
+
+**Boundary 2 — the candidate is isolated from the trusted launcher.** Within that
+domain, the candidate process SHALL be separated from the trusted host-side
+launcher by an explicit OS-level isolation boundary — a container, a separate
+unprivileged UID, or an equivalent mechanism — so that the launcher's timeout
+state, process table, captured exit codes, artifact hashes, and result envelope
+are not reachable by the process being measured. A topology in which the
+candidate runs as the launcher's own user in the launcher's own filesystem
+context SHALL be refused, even when boundary 1 is fully satisfied: a fresh runner
+separates the subject from control and verdict, and establishes nothing about the
+candidate's relationship to the launcher sharing that runner.
 
 A container-based subject implementation SHALL be acceptable only when its
 contract includes read-only mounts of any trusted input, an explicit network
@@ -501,6 +517,28 @@ host Docker socket or any trusted workspace.
   present
 - **AND** a missing control SHALL refuse the run rather than execute candidate
   tools with weaker isolation
+
+#### Scenario: Candidate shares the launcher's execution context
+
+- **GIVEN** the subject domain is a fresh, secret-free runner satisfying every
+  boundary-1 control
+- **AND** the candidate binary is launched directly as the same OS user as the
+  trusted launcher, in the launcher's own filesystem context
+- **WHEN** the isolation contract is evaluated
+- **THEN** the topology SHALL be refused rather than admitted on the strength of
+  boundary 1
+- **AND** the refusal SHALL name the missing launcher-isolation boundary, not a
+  subject-domain control that is in fact present
+
+#### Scenario: Candidate attempts to alter launcher or result-envelope state
+
+- **GIVEN** an admissible topology in which the candidate is isolated from the
+  launcher
+- **WHEN** a candidate tool attempts to modify the launcher's timeout state,
+  process table, captured exit code, artifact hashes, or the result envelope
+  under construction
+- **THEN** the isolation boundary SHALL deny the action
+- **AND** the emitted maintenance result SHALL be unchanged
 
 #### Scenario: Subject has no write path to a trusted workspace
 

@@ -996,8 +996,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Scenarios: candidate checker unconditional success; candidate checker
     deleted; candidate workflow skips verification; subject tampering; subject
     forges result envelope; subject requests credential; containerized subject
-    omits a control; head movement; predecessor movement; merge-time freshness
-    movement; trusted verifier unavailable
+    omits a control; candidate shares the launcher's execution context; candidate
+    attempts to alter launcher or result-envelope state; head movement;
+    predecessor movement; merge-time freshness movement; trusted verifier
+    unavailable
   - Invariants: `INV-TS7-09`, `INV-TS7-10`, `INV-TS7-26`,
     `INV-TS7-27`, `INV-TS7-28`, `INV-TS7-29`, `INV-TS7-30`, `INV-TS7-32`
   - Decisions: `D13`, `D14`, `D15`, `D16`
@@ -1006,7 +1008,7 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Proofs: `EX-MAINT-002`, `EX-SUBJECT-001`, `PROP-MAINT-002`,
     `PROP-SUBJECT-001`, `PROP-MERGE-001`, `ADV-MAINT-002`, `ADV-MAINT-003`,
     `MUT-MAINT-004`, `MUT-MAINT-005`, `MUT-MAINT-006`, `MUT-MAINT-007`,
-    `MUT-MAINT-008`, `MUT-MERGE-001`
+    `MUT-MAINT-008`, `MUT-MAINT-009`, `MUT-MERGE-001`
 
   **Change**
 
@@ -1037,12 +1039,18 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   plan naming the exact commands, subject binaries, and input digests. A trusted
   host-side launcher owns command selection, timeouts, process cleanup,
   exit-code capture, artifact hashing, and result-envelope construction outside
-  candidate-writable paths. **Untrusted subject** executes candidate tools only
-  in a fresh secret-free runner or hardened sandbox governed by
-  `AUTH-MAINTENANCE-SUBJECT-ISOLATION` — no secret, `GITHUB_TOKEN`, persisted
+  candidate-writable paths. **Untrusted subject** executes candidate tools under
+  `AUTH-MAINTENANCE-SUBJECT-ISOLATION`'s **two mandatory boundaries**: a fresh
+  secret-free runner or hardened sandbox — no secret, `GITHUB_TOKEN`, persisted
   credential, Docker socket, shared writable cache, or trusted-workspace write,
-  and only isolated scratch; a containerized subject must use read-only mounts,
-  explicit network policy, non-root user, dropped capabilities,
+  and only isolated scratch — **and** an explicit OS-level boundary (container,
+  separate unprivileged UID, or equivalent) between the candidate process and the
+  trusted launcher, so "outside candidate-writable paths" names a boundary that
+  actually exists. A fresh runner separates the subject from control and verdict
+  and says nothing about the candidate's relationship to the launcher sharing
+  that runner; a topology running the candidate as the launcher's own user in the
+  launcher's own filesystem context is refused. A containerized subject must use
+  read-only mounts, explicit network policy, non-root user, dropped capabilities,
   `no-new-privileges`, and resource limits. **Trusted verdict** runs in a fresh
   exact-predecessor context and verifies the predecessor SHA, candidate SHA,
   subject-plan digest, command identities, result-envelope schema, and
@@ -1090,6 +1098,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - candidate tools run only in the isolated subject with no
     credential/secret/token/Docker socket/shared cache/trusted-workspace write,
     and the enumerated container controls hold when containerized;
+  - the candidate process is separated from the trusted launcher by an explicit
+    OS-level boundary, and a topology that runs it under the launcher's own UID
+    and filesystem context is refused with boundary 1 fully satisfied — proving
+    a fresh runner alone does not admit it (`MUT-MAINT-009`);
   - a subject that tampers (overwrite/env-write/cache/escape/plan-edit/head-spoof)
     or forges a result envelope does not change the trusted verdict;
   - the trusted verdict verifies subject-plan digest, command identities,
