@@ -265,9 +265,11 @@ launcher, no L9 physical enforcement, no credentials, no database connection.
 the foundational set on 2026-08-05, the implementation stack (ADR-0012) on
 2026-08-06, the runner effect-boundary and identity decisions (ADR-0017,
 ADR-0018) on 2026-08-17, ADR-0019 on 2026-08-21, and ADR-0021 on 2026-08-28.
-**ADR-0020 remains `Proposed`; the accepted set is intentionally
-non-contiguous.** Supersede, never edit, and **never change an ADR's status
-without an explicit human-acceptance task**.
+**ADR-0020 and ADR-0022 remain `Proposed`; the accepted set is intentionally
+non-contiguous.** ADR-0022's compiler/lint/tooling capability model is
+non-operative while Proposed, and its implementation scopes remain separately
+unauthorized. Supersede, never edit, and **never change an ADR's status without
+an explicit human-acceptance task**.
 
 ADR-0021 is accepted as the governance-state authority contract, but its future
 `governance/` registry, validators, renderer, query interface, and generated
