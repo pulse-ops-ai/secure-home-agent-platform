@@ -203,6 +203,16 @@ scopes. Each SHALL receive a fresh governed-spec-driven-v2 review epoch
 immediately before its first implementation or authority mutation, and each
 SHALL have explicit external implementation authorization.
 
+ADR-0022 acceptance SHALL occur in a dedicated acceptance-only vehicle (PR-A2)
+that lands between planning (PR-A) and the first implementation scope (PR-B).
+PR-A2 SHALL contain no implementation, SHALL be separately owner-authorized and
+independently reviewed, SHALL be bound to the exact accepted ADR byte digest,
+SHALL transition ADR-0022 `Proposed -> Accepted` only, and SHALL update the ADR
+status, `docs/decisions/INDEX.md`, and the current-state mirrors atomically.
+PR-A2 SHALL NOT by itself authorize PR-B. Scope 1 (PR-B) SHALL begin only from
+the exact post-PR-A2 `main` commit and only after a separate external
+implementation authorization, and SHALL NOT begin while ADR-0022 is `Proposed`.
+
 #### Scenario: Scope 1 has no accepted review or implementation authority
 
 - **GIVEN** this planning package lacks a current `ARCHITECTURE_ACCEPTED` review
@@ -210,6 +220,23 @@ SHALL have explicit external implementation authorization.
 - **WHEN** Scope 1 implementation is considered
 - **THEN** its status SHALL be `NOT_AUTHORIZED`
 - **AND** no dependency, configuration, source, or CI implementation edit may begin
+
+#### Scenario: Scope 1 is attempted while ADR-0022 is Proposed
+
+- **GIVEN** ADR-0022 has not yet been accepted through PR-A2
+- **WHEN** Scope 1 (PR-B) implementation is attempted
+- **THEN** the work SHALL be refused
+- **AND** the acceptance-only PR-A2 transition SHALL be required first
+
+#### Scenario: PR-A2 performs the acceptance-only transition
+
+- **GIVEN** the planning package and Proposed ADR-0022 are merged on `main`
+- **WHEN** the owner-authorized, independently reviewed PR-A2 lands
+- **THEN** it SHALL change only ADR-0022 `Proposed -> Accepted` and the required
+  index/current-state mirrors atomically, bound to the exact accepted ADR byte
+  digest
+- **AND** it SHALL introduce no implementation and SHALL NOT by itself authorize
+  PR-B
 
 #### Scenario: Scope 2 is attempted before Scope 1 completes
 

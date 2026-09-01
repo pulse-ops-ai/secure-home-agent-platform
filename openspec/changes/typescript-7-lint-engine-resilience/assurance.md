@@ -28,6 +28,25 @@ authority, performs no external system mutation, and handles no secret or
 household state. It remains high because it changes the mechanisms that judge
 untrusted code and preserve architectural dependency direction.
 
+### Trust-critical components
+
+While the change as a whole is classified `high`, a bounded set of components is
+**trust-critical**: it is the root of trust that decides whether a tool
+substitution preserved policy after the legacy ESLint oracle is gone, and it
+executes untrusted candidate tools. These components are marked trust-critical
+and their verification ships with them:
+
+- `AUTH-MAINTENANCE-VERIFIER` — the trusted-control/trusted-verdict execution root;
+- `AUTH-MAINTENANCE-SUBJECT-ISOLATION` — the untrusted-subject isolation contract;
+- task 1.16 — establishing the three-domain trusted maintenance boundary;
+- task 2.5 — the predecessor-bound maintenance transition proof; and
+- the retained Scope-2 maintenance proof (PR-C) that keeps the verifier and
+  subject isolation candidate-independent after ESLint retirement.
+
+Marking these trust-critical does not raise the whole change to `trust-critical`;
+it directs contract-first authoring, adversarial/mutation depth, and independent
+review attention to the components that constitute the maintenance root of trust.
+
 ## Critical Invariants
 
 | ID | Invariant | Class | Normative source | Primary proof |
@@ -60,6 +79,11 @@ untrusted code and preserve architectural dependency direction.
 | INV-TS7-26 | Candidate-local consistency never proves tool-maintenance continuity: the predecessor's maintenance class binds a closed allowed-delta set, protected semantic/config/corpus/harness projection, and derived package-lock closure; the separate trusted predecessor verifier applies it, and unknown state or candidate self-widening fails closed. | security / identity | REQ-SC-006, REQ-SC-007, D13/D14 | PROP-MAINT-001, PROP-MAINT-002, ADV-MAINT-001, MUT-MAINT-001, MUT-MAINT-002, MUT-MAINT-003 |
 | INV-TS7-27 | The candidate being judged never supplies the authoritative maintenance workflow, verifier executable, verifier dependencies, or invocation plan; those bytes come from the exact live predecessor, and the candidate is data or a subject under test only. | security / authority | REQ-SC-007, D14 | EX-MAINT-002, PROP-MAINT-002, MUT-MAINT-004, MUT-MAINT-005 |
 | INV-TS7-28 | A maintenance proof is bound to one exact candidate head and one exact live predecessor at both start and finish; movement of either identity refuses the proof. | identity / freshness | REQ-SC-007, D14 | PROP-MAINT-002, ADV-MAINT-002, MUT-MAINT-006 |
+| INV-TS7-29 | Candidate tools execute only in an isolated untrusted subject domain with no secret, `GITHUB_TOKEN`, persisted credential, Docker socket, shared writable cache, or write access to any trusted workspace; candidate output crosses back only as untrusted data. Trust-critical. | security / trust | REQ-SC-007, REQ-SC-008, D14/D15 | PROP-SUBJECT-001, ADV-MAINT-003, MUT-MAINT-007 |
+| INV-TS7-30 | The trusted verdict is computed in a fresh exact-predecessor context that verifies predecessor SHA, candidate SHA, subject-plan digest, command identities, result-envelope schema, and artifact digests before emitting a result; no subject-domain action can influence it. Trust-critical. | security / authority | REQ-SC-007, D14 | EX-MAINT-002, PROP-MAINT-002, MUT-MAINT-008 |
+| INV-TS7-31 | ADR-0022 transitions `Proposed -> Accepted` only in the dedicated PR-A2 acceptance-only vehicle; PR-B cannot begin while ADR-0022 is Proposed and begins only from the exact post-PR-A2 main plus separate implementation authorization. | governance | REQ-TA-005, D11/D17 | PROP-A2-001, MUT-A2-001 |
+| INV-TS7-32 | A successful maintenance run is point-in-time evidence, not machine-authoritative merge admission; merge consumption requires the owner control MAN-TS7-01 to reconfirm head, base, merge-tree, and protected-authority equality, and any movement invalidates it. | identity / governance | REQ-SC-007, MAN-TS7-01, D16 | PROP-MERGE-001, MUT-MERGE-001 |
+| INV-TS7-33 | Maintenance classes are a closed set; a candidate may not compose or union separate classes to widen authority, and coupled normal-compiler/typed-lint changes are admitted only through the closed composite class or routed to full review. | governance / trust | REQ-SC-006, D13 | PROP-COMPOSE-001, MUT-COMPOSE-001 |
 
 ## Authority Allocation
 
@@ -86,18 +110,19 @@ checked. Historical reviews are never authority.
 | AUTH-ENGINE-PINS | selected lint and compatibility package declarations | `pnpm-workspace.yaml#catalog` entries | package policy | dependency change | pnpm, version guards | exact; no duplicate member versions | planned entries |
 | AUTH-RESOLVED-GRAPH | exact transitive package and native artifact graph | `pnpm-lock.yaml` | lockfile | pnpm from catalog | frozen install / supply-chain checks | no hand-edited mirror | existing, updated each implementation scope |
 | AUTH-INSTALL-POLICY | install-script and engine-strict posture | `pnpm-workspace.yaml#onlyBuiltDependencies`, `.npmrc` | package-manager policy | repository governance | pnpm install/checks | must remain `[]`; no bypass flags | existing |
-| AUTH-TOOLCHAIN-BOUNDARIES-SCHEMA | shape of compatibility consumers, required platform set, and closed maintenance-class projections | `scripts/toolchain-boundaries.schema.json` | JSON Schema | PR-B contract-first task | boundary/maintenance validator | no prose mirror of exact lists | planned |
+| AUTH-TOOLCHAIN-BOUNDARIES-SCHEMA | shape of compatibility consumers, required platform set, closed maintenance-class projections, and the untrusted-subject isolation contract | `scripts/toolchain-boundaries.schema.json` | JSON Schema | PR-B contract-first task | boundary/maintenance validator | no prose mirror of exact lists | planned |
 | AUTH-TS6-CONSUMERS | exact admitted TS6 API consumer paths and allowed use | `scripts/toolchain-boundaries.json#typescript6Consumers` | machine-readable allowlist | reviewed tooling changes | `scripts/check-toolchain-boundaries.mjs` | import scan must equal allowlist; initial singleton | planned |
 | AUTH-PLATFORM-MATRIX | required native architectures and scope command packs | `scripts/toolchain-boundaries.json#platforms` | machine-readable policy | reviewed toolchain changes | CI matrix projection + validator | workflow rows drift-checked from policy | planned |
 | AUTH-MAINTENANCE-CLASSES | exact maintenance classes, implementation authorities allowed to differ, semantic/config/corpus/harness authorities required equal, and selected package roots with derived lock-closure rule | `scripts/toolchain-boundaries.json#maintenanceClasses` | machine-readable transition policy | reviewed toolchain-governance changes | trusted predecessor verifier plus two-revision tests/CI | candidate cannot widen its own class; unrelated lock movement or protected drift refuses | planned |
-| AUTH-MAINTENANCE-VERIFIER | trusted workflow trigger and execution identity, exact verifier/dependency source revision, candidate-as-data rule, predecessor-owned invocation plan, and start/end candidate/predecessor freshness | `.github/workflows/toolchain-maintenance-boundary.yml` plus `scripts/check-toolchain-boundaries.mjs#verifyMaintenance` as loaded from exact live predecessor | trusted execution protocol | repository owner through reviewed PR-B genesis; GitHub default-branch `repository_dispatch` executes it thereafter | future maintenance candidates and reviewers | workflow requires execution SHA = live predecessor, runs no candidate checker/workflow, and re-resolves both identities; candidate copy is protected data only | planned |
+| AUTH-MAINTENANCE-VERIFIER **(trust-critical)** | trusted-control + trusted-verdict execution identity, exact verifier/dependency source revision, read-only metadata credential, content-addressed subject plan, candidate-as-data rule, result-envelope schema/digest verification, and start/end candidate/predecessor freshness | `.github/workflows/toolchain-maintenance-boundary.yml` plus `scripts/check-toolchain-boundaries.mjs#verifyMaintenance` as loaded from exact live predecessor | trusted execution protocol (trust-critical) | repository owner through reviewed PR-B genesis; GitHub default-branch `repository_dispatch` executes it thereafter | future maintenance candidates and reviewers | workflow requires execution SHA = live predecessor, runs no candidate checker/workflow, verifies the subject envelope, and re-resolves both identities; candidate copy is protected data only | planned |
+| AUTH-MAINTENANCE-SUBJECT-ISOLATION **(trust-critical)** | untrusted-subject execution contract: forbidden credentials/secret/`GITHUB_TOKEN`/Docker socket/shared cache/trusted-workspace write, isolated scratch, and enumerated container controls | `scripts/toolchain-boundaries.json#subjectIsolation` | machine-readable isolation policy | reviewed toolchain-governance changes | maintenance workflow/subject runner + isolation tests | container/runner options are a checked projection; a missing control refuses the run | planned |
 | AUTH-TS-CONFIGS | compiler options and role inheritance | `packages/tsconfig/{base,library,service,application,test}.json` | JSON compiler config | tsconfig package | every member tsc and config tests | member configs extend by package path; no duplicated option table | existing |
 | AUTH-TS-CONFORMANCE | positive/negative compiler configuration and behavior fixtures | `packages/tsconfig/tests/**` | executable fixtures | reviewed compiler-policy changes | shared-config tests and maintenance checker | normal compiler updates require predecessor-identical policy fixtures unless separately reviewed | existing, strengthened in PR-B/C |
 | AUTH-TS-ENTRYPOINTS | member typecheck/build/generator commands | each owning `package.json#scripts` | executable package contract | each member | toolchain-boundary validator / workspace tests | validator asserts normal compiler and separation | existing, checked more strongly in PR-B/C |
 | AUTH-FORMAT-POLICY | exact formatting options and excluded file classes | `.prettierrc.json`, `.prettierignore`, root format scripts | formatter config | repository | Prettier and neutrality tests | lint manifest must carry no formatter rule | existing |
 | AUTH-ARCH-LAYERS | package taxonomy/layer relationships | `scripts/workspace-model.mjs` | trusted typed table/derivation | repository governance | workspace and source-import checks | dedicated tests; not copied to lint manifest | existing |
 | AUTH-ARCH-IMPORT-GATE | source import parsing/classification/refusal behavior | `scripts/check-source-imports.mjs` | trusted derivation | repository governance | CI/check.sh + `tests/test_source_imports.py` | behavior corpus; only API import changes | existing |
-| AUTH-REVIEW-SCOPES | implementation/release scope IDs and sequencing | `tasks.md` review-scope markers and landing sections | governed task plan | PR-A | v2 review gate | review artifact refers by ID only | planned in PR-A |
+| AUTH-REVIEW-SCOPES | implementation/release scope IDs, the `adr-0022-acceptance` transition marker, and sequencing | `tasks.md` review-scope markers and landing sections | governed task plan | PR-A | v2 review gate | review artifact refers by ID only | planned in PR-A |
 
 No current-scope authority row is `blocked`. Human ADR acceptance, independent
 review, and implementation authorization remain external gates rather than
@@ -107,7 +132,7 @@ mutable fact families this package can fill itself.
 
 | Artifact | Owns | Must not own |
 |---|---|---|
-| `proposal.md` | motivation, three-PR scope, impact, non-goals | exact rules, mappings, tasks, approval |
+| `proposal.md` | motivation, four-vehicle scope, impact, non-goals | exact rules, mappings, tasks, approval |
 | `specs/**` | observable required outcomes and refusals | algorithms or exact inventories |
 | `design.md` | architecture, current evidence, decisions, seams | future policy values |
 | `assurance.md` | invariants, authority allocation, proof matrix, readiness | implementation state |
@@ -143,6 +168,12 @@ mutable fact families this package can fill itself.
 | candidate replaces checker with `process.exit(0)` while deleting policy/fixture | exact predecessor verifier still runs and refuses protected drift | INV-TS7-27, MUT-MAINT-004 |
 | candidate deletes checker or edits workflow to skip it | default-branch workflow/predecessor checker remain authoritative; candidate copy has no effect | INV-TS7-27, MUT-MAINT-005 |
 | candidate head or live predecessor moves during maintenance proof | final equality check refuses stale evidence | INV-TS7-28, MUT-MAINT-006 |
+| candidate tool tampers inside the subject domain | isolation denies action or verdict rejects evidence; result unchanged | INV-TS7-29, ADV-MAINT-003, MUT-MAINT-007 |
+| subject forges a successful result envelope | trusted verdict recomputes digests/schema/identities and refuses | INV-TS7-30, MUT-MAINT-008 |
+| coupled compiler + typed-lint update | admitted only via closed composite class; arbitrary class union refused | INV-TS7-33, PROP-COMPOSE-001, MUT-COMPOSE-001 |
+| successful run then head/base/merge-tree moves before merge | owner control (MAN-TS7-01) invalidates evidence; new run required | INV-TS7-32, PROP-MERGE-001, MUT-MERGE-001 |
+| PR-A2 acceptance-only transition | ADR Proposed→Accepted only; index/mirrors atomic; PR-B still unauthorized | INV-TS7-31, PROP-A2-001 |
+| Scope 1 attempted while ADR-0022 Proposed | refused; PR-B requires exact post-PR-A2 main | INV-TS7-31, MUT-A2-001 |
 | vulnerability upgrade loses policy | rejected; current engine stays | INV-TS7-10, MUT-CVE-001 |
 | `onlyBuiltDependencies` widened | supply-chain guard fails | INV-TS7-12, MUT-INSTALL-002 |
 | PR #113 path appears in change | scope guard/review fails | INV-TS7-22, PROP-SCOPE-001 |
@@ -163,7 +194,10 @@ mutable fact families this package can fill itself.
 | EX-TS-001 | every current compiler entry point uses and reports TS7 7.0.2 | PR-C | typecheck/build/version evidence |
 | EX-ENTRY-001 | stable root/member lint, typecheck, build, import entry points execute independently | PR-B/C | command orchestration tests |
 | EX-MAINT-001 | Scope 1 two-revision fixtures establish a genesis class without self-admission; a later exact pin/mapping-only maintenance candidate preserves the trusted predecessor's protected semantic projection and passes the full proof net | PR-B onward | genesis assertion + two-revision maintenance fixture |
-| EX-MAINT-002 | PR-B proves the future trusted boundary through executable protocol fixtures without self-admission; every later maintenance candidate executes workflow/verifier/dependency bytes from exact live predecessor while candidate Git objects are data and any candidate implementation execution is predecessor-orchestrated subject testing | PR-B genesis + each later maintenance candidate | trusted-boundary integration fixtures; real predecessor-hosted run evidence only after genesis is on default branch |
+| EX-MAINT-002 | PR-B proves the future three-domain trusted boundary through executable protocol fixtures without self-admission: trusted control loads verifier/dependency bytes from the exact live predecessor and emits a content-addressed subject plan; the untrusted subject executes candidate tools in isolation; the trusted verdict verifies the result envelope by schema/digest and re-resolves identities | PR-B genesis + each later maintenance candidate | trusted-boundary integration fixtures; real predecessor-hosted run evidence only after genesis is on default branch |
+| EX-SUBJECT-001 | candidate tools run in an isolated subject with no credential/secret/token/Docker socket/shared cache/trusted-workspace write, only isolated scratch, and (if containerized) the enumerated container controls | PR-B onward | subject-isolation integration fixture + workflow/container-option inspection |
+| EX-TS-002 | for actually-emitted surfaces (library/service `.d.ts`, `.d.ts.map`, `.js.map`, and member `generate` output), TypeScript 7 output matches a normalized golden captured under TypeScript 6; absent surfaces carry no claim | PR-C | normalized golden/differential vectors |
+| EX-A2-001 | PR-A2 changes only ADR-0022 status Proposed→Accepted plus atomic index/current-state mirrors, is bound to the exact accepted ADR byte digest, and introduces no implementation | PR-A2 | acceptance-diff structural check + digest binding |
 
 ### Property proofs
 
@@ -182,7 +216,11 @@ mutable fact families this package can fill itself.
 | PROP-REV-001 | each implementation scope has unique marker and correct epoch sequencing | PR-A / each boundary | review-gate tests |
 | PROP-SCOPE-001 | no PR #113 branch/commit/path/content is part of this change | PR-A/B/C | git range/path review |
 | PROP-MAINT-001 | a maintenance candidate differs from an exact trusted predecessor only in its class's admitted implementation projections; all protected projections are equal | PR-B onward | two-revision Git fixtures + fail-closed checker |
-| PROP-MAINT-002 | authoritative workflow SHA, verifier source, dependencies, and command plan equal the exact live predecessor; candidate workflow/checker bytes never execute as admission authority; start/end head and predecessor identities match | PR-B onward | workflow structure + mocked GitHub API movement tests + hosted evidence |
+| PROP-MAINT-002 | authoritative workflow SHA, verifier source, dependencies, and command plan equal the exact live predecessor; the trusted verdict verifies subject-plan digest, command identities, envelope schema, and artifact digests; candidate workflow/checker bytes never execute as admission authority; start/end head and predecessor identities match | PR-B onward | workflow structure + mocked GitHub API movement tests + hosted evidence |
+| PROP-SUBJECT-001 | the untrusted subject domain provides none of {secret, `GITHUB_TOKEN`, persisted credential, Docker socket, shared writable cache, trusted-workspace write} and (if containerized) all enumerated container controls; a missing control refuses the run | PR-B onward | workflow/container-option structural assertion + negative test |
+| PROP-A2-001 | PR-A2 is an executable prerequisite between PR-A and PR-B: PR-B's pre-implementation gate fails while ADR-0022 is Proposed and passes only from the exact post-PR-A2 main | PR-A / PR-B gate | review-gate + ADR-status assertion |
+| PROP-MERGE-001 | recorded run evidence is treated as invalid when the candidate head, live base, or synthetic merge tree differs at merge time | PR-B onward | evidence-freshness assertion over identity triples |
+| PROP-COMPOSE-001 | maintenance classes are a closed set; the checker admits the closed composite class but refuses any union/composition that widens the admitted delta | PR-B onward | class-composition property test |
 
 ### Adversarial coverage
 
@@ -203,6 +241,7 @@ mutable fact families this package can fill itself.
 | ADV-TC-002 | TS7 accepts syntax containing governed import edges that the TS6 parser handles differently | edge extraction is equivalent or the gate fails closed; never silent acceptance | PR-C |
 | ADV-MAINT-001 | maintenance base/ref is missing, malformed, stale, unreadable, or disagrees unexpectedly | maintenance classification refuses; candidate-local checks cannot substitute | PR-B onward |
 | ADV-MAINT-002 | trusted workflow/verifier/dependency missing, candidate invocation offered as fallback, or candidate/predecessor moves | refuse maintenance evidence; never execute fallback or accept stale identity | PR-B onward |
+| ADV-MAINT-003 | candidate tool in the subject domain overwrites the verifier/predecessor workspace, writes `GITHUB_ENV`/`GITHUB_OUTPUT`, forges/replaces result files, reads a token/secret, leaves a background process, poisons a shared cache, escapes its output directory, modifies the command plan, or claims a different head/base | isolation denies the action or the trusted verdict rejects the evidence; none influences the result | PR-B onward |
 
 ### Mutation coverage
 
@@ -235,6 +274,12 @@ mutable fact families this package can fill itself.
 | MUT-MAINT-004 | change an engine pin, delete one policy row and its fixture, and replace the candidate checker with unconditional success | trusted predecessor verifier executes instead and refuses protected drift | PR-B onward |
 | MUT-MAINT-005 | delete the candidate checker path or alter the candidate workflow to skip verification | default-branch boundary still invokes predecessor checker; candidate workflow/checker has no authority | PR-B onward |
 | MUT-MAINT-006 | move candidate head or live predecessor after proof begins | final exact-identity recheck fails and a new run is required | PR-B onward |
+| MUT-MAINT-007 | grant the untrusted subject a credential, `GITHUB_TOKEN`, Docker socket, shared writable cache, or trusted-workspace write | subject-isolation contract test fails | PR-B onward |
+| MUT-MAINT-008 | make the trusted verdict trust the subject's self-reported result without recomputing subject-plan digest/command identities/schema/artifact digests | forged-envelope verdict test fails | PR-B onward |
+| MUT-A2-001 | authorize/begin PR-B while ADR-0022 is Proposed or from a pre-PR-A2 main | PR-B pre-implementation gate/authorization fails | PR-A2/PR-B |
+| MUT-MERGE-001 | consume a successful run as merge authorization after the head/base/merge-tree moved | merge-freshness (MAN-TS7-01) evidence-expiry test fails | PR-B onward |
+| MUT-COMPOSE-001 | union two separate maintenance classes (or edit the class set) to widen the admitted delta | closed-composition property test fails | PR-B onward |
+| MUT-TS-EMIT-001 | accept a changed `.d.ts`/`.d.ts.map`/`.js.map`/generator output under TS7 as passing | normalized golden/differential test fails | PR-C |
 
 ## Cross-Requirement Interaction Checks
 
@@ -264,6 +309,18 @@ mutable fact families this package can fill itself.
     verifier applies them. Candidate success cannot satisfy either authority.
 11. **Maintenance proof × movement:** cancellation is an optimization only;
     exact end-of-run candidate/predecessor re-resolution is the freshness proof.
+12. **Subject isolation × verdict:** candidate tools execute only in the isolated
+    untrusted subject; the trusted verdict never trusts self-reported subject
+    output and verifies it by schema, digest, and identity.
+13. **Run evidence × merge:** a successful run is point-in-time evidence;
+    MAN-TS7-01 re-confirms head/base/merge-tree/protected-authority freshness at
+    merge because no ruleset or merge queue enforces it.
+14. **Maintenance class × composition:** classes are a closed set; coupled
+    compiler/typed-lint changes use the single closed composite class and cannot
+    be widened by union or ad-hoc composition.
+15. **ADR acceptance × implementation:** PR-A2 accepts ADR-0022 in its own
+    vehicle; PR-B cannot begin while ADR-0022 is Proposed and only from the exact
+    post-PR-A2 main plus separate implementation authorization.
 
 ## Traceability
 
@@ -273,7 +330,7 @@ mutable fact families this package can fill itself.
 | REQ-TA-002 | D1/D6/D7/D8 | 06,07,14,20 | LINT-POLICY, FORMAT, ARCH, TS-CONFIGS | PROP-SEP-001/002, FMT-001 | PR-B/C |
 | REQ-TA-003 | D1/D3/D13/D14 | 02,09,10,16,24,25,26,27,28 | LINT-POLICY, ENGINE-MAPPINGS, CONFORMANCE, ENGINE-PINS, MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER | ADV-CVE-001, EX-MAINT-001/002, MUT-CVE-001, MUT-MAINT-001/004 | PR-B onward |
 | REQ-TA-004 | D5/D7 | 03,04,05,18 | TS6-CONSUMERS, ARCH-IMPORT | EX-ARCH-001, ADV-TS6-001, ADV-TS6-002 | PR-B/C |
-| REQ-TA-005 | D11 | 17,22 | REVIEW-SCOPES | PROP-REV-001, MUT-REV-001, PROP-SCOPE-001 | PR-A/B/C |
+| REQ-TA-005 | D11/D17 | 17,22,31 | REVIEW-SCOPES | PROP-REV-001, MUT-REV-001, PROP-SCOPE-001, PROP-A2-001, EX-A2-001, MUT-A2-001 | PR-A/A2/B/C |
 | REQ-LP-001 | D1/D13 | 02,19,25 | POLICY-SCHEMA, POLICY, ENGINE-MAPPINGS, LEGACY-EXTRACTOR | PROP-LP-001/003, PROP-MAP-001 | PR-B |
 | REQ-LP-002 | D2/D3 | 08,15,20 | POLICY, CONFIG, CONFORMANCE | EX-LP-001/002 | PR-B |
 | REQ-LP-003 | D2/D13 | 15,19,25 | POLICY, ENGINE-MAPPINGS, CONFORMANCE | ADV-LP-002/003/004, MUT-LP-003, MUT-MAP-001 | PR-B |
@@ -281,7 +338,7 @@ mutable fact families this package can fill itself.
 | REQ-LP-005 | D4 | 16,24 | POLICY, CONFIG | PROP-LP-002, ADV-LP-001 | PR-B/C |
 | REQ-LP-006 | D2/D11/D12 | 02,08,17,20 | POLICY, CONFORMANCE, ENGINE-PINS | MUT-LP-002/005 | PR-C |
 | REQ-TC-001 | D5/D11 | 01,05,17 | TS-CONFIGS, TS-ENTRYPOINTS | ADV-TC-001 | PR-C |
-| REQ-TC-002 | D5 | 01,11,13 | TS-PINS, TS-CONFIGS | EX-TS-001, EX-PLAT-001 | PR-C |
+| REQ-TC-002 | D5 | 01,11,13 | TS-PINS, TS-CONFIGS, TS-ENTRYPOINTS, TS6-CONSUMERS, TS-CONFORMANCE | EX-TS-001, EX-TS-002, EX-PLAT-001, MUT-TS6-001, MUT-TS-EMIT-001 | PR-C |
 | REQ-TC-003 | D5/D7 | 03,04,05,14 | TS6-CONSUMERS, ARCH-IMPORT | EX-ARCH-001, ADV-TC-002, MUT-ARCH-001, MUT-ARCH-002 | PR-B/C |
 | REQ-TC-004 | D6 | 07,14,20 | TS-ENTRYPOINTS, LINT-CONFIG | PROP-SEP-001, MUT-SEP-001 | PR-B/C |
 | REQ-TC-005 | D11 | 08,13,17 | PINS, POLICY, CONFORMANCE | completion/rollback evidence | PR-C |
@@ -290,16 +347,19 @@ mutable fact families this package can fill itself.
 | REQ-SC-003 | D10 | 13 | PLATFORM-MATRIX | EX-PLAT-001, MUT-PLAT-001 | PR-B/C |
 | REQ-SC-004 | D1/D9/D13/D14 | 09,10,23,26,27,28 | POLICY, ENGINE-MAPPINGS, CONFORMANCE, INSTALL, PLATFORM, MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER | ADV-CVE-001, ADV-MAINT-001/002, MUT-CVE-001, MUT-MAINT-001/004 | ongoing |
 | REQ-SC-005 | D1/D3/D5/D13/D14 | 01,09,10,24,26,27,28 | ENGINE-PINS, TS-PINS, POLICY, ENGINE-MAPPINGS, CONFORMANCE, MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER | EX-MAINT-001/002, ADV-CVE-001, MUT-CVE-001 | ongoing |
-| REQ-SC-006 | D13/D14 | 01,09,10,25,26,27,28 | MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER, POLICY, ENGINE-MAPPINGS, CONFORMANCE, TS-CONFIGS, TS-CONFORMANCE, TS6-CONSUMERS, FORMAT, ARCH, INSTALL, PLATFORM | EX-MAINT-001/002, PROP-MAINT-001/002, ADV-MAINT-001/002, MUT-MAINT-001/002/003/004/005/006 | PR-B onward |
-| REQ-SC-007 | D14 | 09,10,26,27,28 | MAINTENANCE-VERIFIER, MAINTENANCE-CLASSES | EX-MAINT-002, PROP-MAINT-002, ADV-MAINT-002, MUT-MAINT-004/005/006 | PR-B onward |
+| REQ-SC-006 | D13/D14 | 01,09,10,25,26,27,28,33 | MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER, POLICY, ENGINE-MAPPINGS, CONFORMANCE, TS-CONFIGS, TS-CONFORMANCE, TS6-CONSUMERS, FORMAT, ARCH, INSTALL, PLATFORM | EX-MAINT-001/002, PROP-MAINT-001/002, PROP-COMPOSE-001, ADV-MAINT-001/002, MUT-MAINT-001/002/003/004/005/006, MUT-COMPOSE-001 | PR-B onward |
+| REQ-SC-007 | D14/D15/D16 | 09,10,26,27,28,29,30,32 | MAINTENANCE-VERIFIER, MAINTENANCE-CLASSES, MAINTENANCE-SUBJECT-ISOLATION | EX-MAINT-002, EX-SUBJECT-001, PROP-MAINT-002, PROP-SUBJECT-001, PROP-MERGE-001, ADV-MAINT-002/003, MUT-MAINT-004/005/006/007/008, MUT-MERGE-001 | PR-B onward |
+| REQ-SC-008 | D14/D15 | 29 | MAINTENANCE-SUBJECT-ISOLATION, MAINTENANCE-VERIFIER | EX-SUBJECT-001, PROP-SUBJECT-001, ADV-MAINT-003, MUT-MAINT-007 | PR-B onward |
+| MAN-TS7-01 | D16 | 32 | MAINTENANCE-VERIFIER | PROP-MERGE-001, MUT-MERGE-001 | PR-B onward |
 
 ## Landing Plan
 
 | Landing | Ships | Authority posture | Required canonical authorities | Completion condition |
 |---|---|---|---|---|
 | PR-A | Proposed ADR-0022; proposal/specs/design/assurance/tasks/review placeholder | inert / proposed | AUTH-ADR-TS7, AUTH-REVIEW-SCOPES | strict validation and planning gates pass; independent review still required |
-| PR-B | semantic policy, separate engine mappings, legacy extraction, generated replacement config, complete corpus, predecessor-bound maintenance classes, trusted default-branch verifier boundary, dual blocking lint, TS6 seam/guard, native platform proof | lint policy authority moves to manifest; trusted verifier becomes future predecessor authority; compiler stays TS6; no self-admission is claimed before merge | POLICY-SCHEMA, POLICY, ENGINE-MAPPINGS, LEGACY-EXTRACTOR, CONFIG, CONFORMANCE, MEMBER-ROLES, MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER, TS6-CONSUMERS, PLATFORM-MATRIX, ENGINE-PINS | every Scope 1 proof/mutation green on x64/arm64; simulated allowed maintenance passes; candidate-checker bypass, co-deletion, protected drift, unknown base/verifier, and head/predecessor movement die; genesis-only state explicit; ESLint remains |
-| PR-C | TS7 pin/cutover, member replacement entrypoints, ESLint removal, retained seam, native proof | compiler authority moves to TS7; old engine retired | TS-PINS, TS-ENTRYPOINTS, existing policy/conformance/boundaries/platform | all Scope 2 proofs/mutations green; no ESLint residue; both platforms |
+| PR-A2 | acceptance-only ADR-0022 status flip plus atomic index/current-state mirror update | ADR `Proposed -> Accepted`; no implementation | AUTH-ADR-TS7, AUTH-REVIEW-SCOPES | owner-authorized, independently reviewed, digest-bound; PR-B still separately unauthorized |
+| PR-B | semantic policy, separate engine mappings, legacy extraction, generated replacement config, complete corpus, predecessor-bound maintenance classes (incl. composite), three-domain maintenance boundary with subject isolation, dual blocking lint, TS6 seam/guard, native platform proof | lint policy authority moves to manifest; trusted verifier + subject isolation become future predecessor authority; compiler stays TS6; no self-admission is claimed before merge | POLICY-SCHEMA, POLICY, ENGINE-MAPPINGS, LEGACY-EXTRACTOR, CONFIG, CONFORMANCE, MEMBER-ROLES, MAINTENANCE-CLASSES, MAINTENANCE-VERIFIER, MAINTENANCE-SUBJECT-ISOLATION, TS6-CONSUMERS, PLATFORM-MATRIX, ENGINE-PINS | ADR-0022 accepted via PR-A2 and exact post-PR-A2 main; every Scope 1 proof/mutation green on x64/arm64; simulated allowed maintenance (incl. composite) passes; candidate-checker bypass, subject tamper, forged envelope, co-deletion, protected drift, class-union widening, unknown base/verifier, and head/predecessor movement die; genesis-only state explicit; ESLint remains |
+| PR-C | TS7 pin/cutover, member replacement entrypoints, ESLint removal, retained seam, native proof | compiler authority moves to TS7; old engine retired | TS-PINS, TS-ENTRYPOINTS, existing policy/conformance/boundaries/platform | all Scope 2 proofs/mutations green incl. normalized emitted-output golden; no ESLint residue; both platforms |
 
 Every trust-sensitive authority and its verification lands atomically. There is
 no partial policy manifest without drift/fixture checks and no TypeScript 7
@@ -314,8 +374,13 @@ The PR-A independent review focuses on:
 - whether ADR-0022 allocates authority correctly;
 - completeness of the current policy/API/config inventories;
 - whether manifest/config/fixture ownership avoids competing truth;
-- whether maintenance classes and executable verifier authority are separate,
-  with candidate bytes unable to supply the deciding workflow/checker;
+- whether maintenance classes, the trusted execution verifier, and the
+  untrusted-subject isolation contract are separate authorities, with candidate
+  bytes unable to supply the deciding workflow/checker and candidate tools
+  unable to escape subject isolation or forge the verdict;
+- whether maintenance run evidence is correctly framed as point-in-time, with
+  merge freshness owned by MAN-TS7-01 rather than an overclaimed merge admission;
+- whether the acceptance-only PR-A2 vehicle correctly gates PR-B;
 - whether the dual-engine and two-epoch seams are independently safe;
 - supply-chain and platform prerequisites; and
 - whether any current unknown requires changing an invariant or authority.
@@ -327,18 +392,25 @@ not repeatedly redesign architecture.
 ### Implementation review
 
 PR-B reviews complete policy extraction, fixture attribution, dual execution,
-compatibility guard, trusted default-branch maintenance execution,
-candidate-checker bypass/freshness mutations, and both platforms. PR-C reviews
-repeat TS7 audit, compiler identity, ESLint removal completeness, retained
-parity/trusted verifier boundary, and both platforms.
+compatibility guard, three-domain maintenance execution (control/subject/verdict)
+with subject isolation, candidate-checker bypass, subject-tamper, forged-envelope,
+and freshness mutations, and both platforms. PR-C reviews repeat TS7 audit,
+compiler identity and entry-point resolution, normalized emitted-output golden
+evidence, ESLint removal completeness, retained parity/trusted verifier/subject
+isolation boundary, and both platforms.
 
 ### Historical review trail
 
 The first independent review is recorded in `preimplementation-review.md` with
-`FOCUSED_CLOSURE_REQUIRED` against `aaa0aaf...`. It is not an admitted accepted
-epoch. After the bounded planning correction, a fresh independent reviewer
-replaces the current report with a new epoch-1 manifest. Superseded accepted
-rounds, if any, follow the v2 append-only `reviews/<epoch>-<sha12>.md` protocol.
+`FOCUSED_CLOSURE_REQUIRED` against `aaa0aaf...`. A second controlling review
+(`pull/114#pullrequestreview-5074082616`, against head `700d798...`) raised the
+P1-1 (three trust domains / subject isolation), P1-2 (PR-A2 acceptance vehicle),
+and P1-3 (merge-freshness) findings addressed by this remedial correction; that
+review was submitted before PR #114 merged and was never applied on that branch.
+Neither review is an admitted accepted epoch. A fresh independent epoch-1 review
+of the corrected planning bytes is still required and must replace the current
+report with a new manifest. Superseded accepted rounds, if any, follow the v2
+append-only `reviews/<epoch>-<sha12>.md` protocol.
 
 ## Pre-Implementation Exit Gate
 

@@ -292,3 +292,30 @@ No admitted historical round exists. This focused report is not an accepted
 epoch. After the bounded correction, a fresh independent reviewer must replace
 the current report with a new epoch-1 manifest over the corrected planning
 commit. It must not rely on this report as current authority.
+
+## Subsequent review status (non-accepting addendum, 2026-09-01)
+
+This report remains the pinned first review over `aaa0aaf...` and is **not** an
+accepting gate. Two developments postdate it and are recorded here for accuracy;
+neither changes this verdict:
+
+1. A second controlling independent review
+   (`pull/114#pullrequestreview-5074082616`, over head `700d798...`) raised three
+   P1 findings — (P1-1) isolate candidate tool execution into three trust domains
+   (trusted control / untrusted subject / trusted verdict) with a precise subject
+   isolation contract; (P1-2) add a dedicated acceptance-only ADR vehicle (PR-A2);
+   and (P1-3) bind maintenance evidence to merge consumption via a bounded owner
+   control (`MAN-TS7-01`) — plus P2 corrections (trust-critical markings,
+   credential precision, `REQ-TC-002` refinement, a closed
+   `normal-compiler-and-typed-lint` composite class, and emitted-output golden
+   evidence).
+2. PR #114 (the PR-A vehicle) merged before that review was addressed. This
+   remedial planning-only correction applies those findings to the artifacts now
+   on `main`.
+
+Because the planning bytes have changed again since both `aaa0aaf...` and
+`700d798...`, the machine-readable gate above is intentionally stale and
+non-accepting. **A fresh independent epoch-1 review over the exact corrected head
+is required.** This addendum does not accept the architecture, does not record
+`ARCHITECTURE_ACCEPTED`, and creates no implementation eligibility. Apply
+eligibility remains `NO`.

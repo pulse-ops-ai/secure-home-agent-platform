@@ -4,7 +4,7 @@
 
 | Source | What it owns |
 |---|---|
-| `proposal.md` | motivation, three-PR scope, impact, non-goals |
+| `proposal.md` | motivation, four-vehicle scope, impact, non-goals |
 | `specs/**` | observable normative behavior |
 | `design.md` | architecture, decisions, verified feasibility, landing seams |
 | `assurance.md` | invariants, proof obligations, authority allocation, review exit |
@@ -27,7 +27,9 @@ Before any PR-B or PR-C implementation task begins:
   --base origin/main --remote origin/main` (or the trusted hosted boundary);
 - the verdict must be `ARCHITECTURE_ACCEPTED` with zero unresolved P1 and zero
   unassigned P2/P3;
-- ADR-0022 must be explicitly accepted by the repository owner; and
+- ADR-0022 must be explicitly accepted by the repository owner through the
+  dedicated PR-A2 acceptance-only vehicle, and PR-B must begin only from the
+  exact post-PR-A2 `main` commit; and
 - a new external task contract must authorize the selected implementation scope.
 
 Stop on any refusal. PR-A planning validation is not implementation authority.
@@ -49,14 +51,24 @@ This section records authority; it does not create it.
 | Owner | repository owner / task author |
 | Recorded at | base `70f23f43a6ca95f128de664c242187ad6026a67d`, 2026-08-31 |
 
+> **Remedial correction (2026-09-01).** PR #114 (the PR-A vehicle) merged before
+> its controlling review `pull/114#pullrequestreview-5074082616` was addressed.
+> This remedial planning-only correction lands that review's P1/P2 findings from
+> current `main` (`ce35fc9d...`). It authorizes **no** implementation, does
+> **not** accept ADR-0022, and does **not** authorize PR-A2, PR-B, or PR-C. The
+> four-vehicle sequence is PR-A → PR-A2 → PR-B → PR-C.
+
 ### Status
 
 **`NOT_AUTHORIZED`**
 
-Reason: the explicit task authorizes PR-A planning only; ADR-0022 is Proposed;
-the first independent review required focused closure and the corrected planning
-bytes have not yet received a fresh accepting review; neither implementation
-scope has an accepted review epoch or an external implementation task contract.
+Reason: the explicit task authorizes planning only; ADR-0022 is Proposed and can
+be accepted only through the dedicated PR-A2 vehicle; the independent reviews
+(first focused-closure, second controlling review `5074082616`) have not been
+succeeded by a fresh accepting epoch-1 review of the corrected planning bytes;
+neither implementation scope has an accepted review epoch or an external
+implementation task contract. PR-B additionally requires the exact post-PR-A2
+`main` commit.
 
 ---
 
@@ -65,10 +77,74 @@ scope has an accepted review epoch or an external implementation task contract.
 | Landing | Ships | Authority posture | Required canonical authorities | Completion condition |
 |---|---|---|---|---|
 | PR-A | Proposed ADR and complete v2 planning package | inert / proposed | AUTH-ADR-TS7, AUTH-REVIEW-SCOPES | planning validation green; independent review and owner acceptance still external |
-| PR-B | replacement authority / parity foundation | dual blocking lint; TypeScript 6 remains compiler | AUTH-LINT-POLICY-SCHEMA, AUTH-LINT-POLICY, AUTH-LEGACY-EXTRACTOR, AUTH-LINT-CONFIG, AUTH-LINT-CONFORMANCE, AUTH-MEMBER-ROLES, AUTH-TS6-CONSUMERS, AUTH-PLATFORM-MATRIX, AUTH-ENGINE-PINS | complete parity and native x64/arm64 proof; ESLint retained |
+| PR-A2 | acceptance-only ADR-0022 transition plus atomic index/current-state mirrors | ADR `Proposed -> Accepted`; no implementation | AUTH-ADR-TS7, AUTH-REVIEW-SCOPES | owner-authorized, independently reviewed, digest-bound; PR-B still separately unauthorized |
+| PR-B | replacement authority / parity foundation | dual blocking lint; TypeScript 6 remains compiler | AUTH-LINT-POLICY-SCHEMA, AUTH-LINT-POLICY, AUTH-LEGACY-EXTRACTOR, AUTH-LINT-CONFIG, AUTH-LINT-CONFORMANCE, AUTH-MEMBER-ROLES, AUTH-MAINTENANCE-CLASSES, AUTH-MAINTENANCE-VERIFIER, AUTH-MAINTENANCE-SUBJECT-ISOLATION, AUTH-TS6-CONSUMERS, AUTH-PLATFORM-MATRIX, AUTH-ENGINE-PINS | ADR accepted via PR-A2; exact post-PR-A2 main; complete parity and native x64/arm64 proof; ESLint retained |
 | PR-C | TypeScript 7 cutover / ESLint retirement | TS7 compiler authority; replacement lint only | AUTH-TS-PINS plus accepted PR-B authorities | repeated audit, native x64/arm64 proof, no ESLint residue, all gates green |
 
 PR-B and PR-C are the only independently releasable implementation scopes.
+PR-A2 is an acceptance transition vehicle, not an implementation scope.
+
+---
+
+# PR-A2 — acceptance-only ADR transition
+
+<!-- review-scope: adr-0022-acceptance -->
+
+## Purpose
+
+PR-A2 is the dedicated vehicle that transitions ADR-0022 `Proposed -> Accepted`.
+It is authored and reviewed **only after** an explicit repository-owner
+authorization and its own independent review. It is **not** authorized by this
+planning package, and this remedial correction does not open it.
+
+## A2. Acceptance-only tasks (NOT AUTHORIZED here)
+
+- [ ] **A2.1 Flip ADR-0022 status and mirrors atomically**
+  <!-- agent-task: A2.1 paths=docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md,docs/decisions/INDEX.md,AGENTS.md,docs/AGENTS.md,docs/README.md checks=adr-acceptance-atomicity risk=trust-critical prerequisites=PR-A-merged,owner-acceptance,independent-review -->
+
+  **Trust classification:** `trust-critical`
+
+  **Implements / proves**
+
+  - Requirements: `REQ-TA-005`
+  - Invariants: `INV-TS7-31`
+  - Decisions: `D11`, `D17`
+  - Authorities: `AUTH-ADR-TS7`, `AUTH-REVIEW-SCOPES`
+  - Proofs: `EX-A2-001`, `PROP-A2-001`, `MUT-A2-001`
+
+  **Change**
+
+  Change ADR-0022's `Status` from `Proposed` to `Accepted` (with the acceptance
+  date and decider), and update `docs/decisions/INDEX.md` plus the current-state
+  mirrors (`AGENTS.md`, `docs/AGENTS.md`, `docs/README.md`) atomically. Bind the
+  acceptance to the exact accepted ADR byte digest. Introduce no dependency,
+  configuration, source, workflow, or implementation change.
+
+  **Does not own**
+
+  Any Scope 1/Scope 2 implementation, and any authorization of PR-B. PR-B still
+  requires a separate external implementation task contract and must begin from
+  the exact post-PR-A2 `main`.
+
+  **Proof required**
+
+  Diff contains only ADR status/date and the required mirror updates; the
+  acceptance digest matches the reviewed ADR bytes; PR-B's pre-implementation
+  gate refuses while ADR-0022 is Proposed and passes only from post-PR-A2 main.
+
+  **Completion**
+
+  Complete only when ADR-0022 is `Accepted`, mirrors agree, and no implementation
+  byte changed. PR-A2 does not by itself authorize PR-B.
+
+## PR-A2 Completion Gate
+
+- [ ] Owner authorization and an independent review of PR-A2 exist.
+- [ ] ADR-0022 status is `Accepted`; date/decider recorded.
+- [ ] `docs/decisions/INDEX.md` and current-state mirrors updated atomically.
+- [ ] Acceptance is bound to the exact accepted ADR byte digest.
+- [ ] No implementation, dependency, config, workflow, or source change.
+- [ ] PR-B remains separately unauthorized.
 
 ---
 
@@ -118,8 +194,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   must key each legacy/replacement rule or parser mechanism to a stable policy
   ID and prohibit semantic-policy fields. Historical ESLint origin is bootstrap
   provenance in the legacy mapping/extractor, not permanent policy identity.
-  The boundary schema must express compatibility-consumer, platform, and closed
-  maintenance-class allowed/protected projections without package versions.
+  The boundary schema must express compatibility-consumer, platform, closed
+  maintenance-class allowed/protected projections (including the closed
+  `normal-compiler-and-typed-lint` composite class), and the untrusted-subject
+  isolation contract, without package versions.
 
   Add `packages/lint-config` to the existing layer-0/build-tooling model so
   production source cannot import it. The package-retirement task must remove
@@ -824,7 +902,7 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   - Scenarios: advisory replacement; patch upgrade; policy loss; row/fixture
     co-deletion; compiler-policy relaxation; unknown predecessor
   - Invariants: `INV-TS7-01`, `INV-TS7-09`, `INV-TS7-10`,
-    `INV-TS7-23`, `INV-TS7-24`, `INV-TS7-25`, `INV-TS7-26`
+    `INV-TS7-23`, `INV-TS7-24`, `INV-TS7-25`, `INV-TS7-26`, `INV-TS7-33`
   - Decisions: `D1`, `D3`, `D5`, `D9`, `D13`
   - Authorities: `AUTH-LINT-POLICY`, `AUTH-LINT-CONFORMANCE`,
     `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-ENGINE-PINS`,
@@ -832,7 +910,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     `AUTH-PLATFORM-MATRIX`
   - Proofs: `EX-MAINT-001`, `PROP-MAP-001`, `PROP-MAINT-001`,
     `ADV-CVE-001`, `ADV-MAINT-001`, `MUT-CVE-001`, `MUT-MAP-001`,
-    `MUT-MAINT-001`, `MUT-MAINT-002`, `MUT-MAINT-003`
+    `MUT-MAINT-001`, `MUT-MAINT-002`, `MUT-MAINT-003`,
+    `PROP-COMPOSE-001`, `MUT-COMPOSE-001`
 
   **Change**
 
@@ -855,7 +934,11 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   Document runtime dependency vs PR-byte parser vs local-only utility
   classification. Exercise changed engine and compatibility mappings/pins
   against unchanged protected authorities, and a later exact normal TypeScript
-  pin against unchanged compiler-policy/conformance authority.
+  pin against unchanged compiler-policy/conformance authority. Define the closed
+  `normal-compiler-and-typed-lint` composite class for changes that must move the
+  normal TypeScript pin and the matching `oxlint-tsgolint` typed-lint pin
+  together, and prove that maintenance classes are a closed set that a candidate
+  cannot widen by composition or union.
 
   **Does not own**
 
@@ -879,6 +962,9 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     under maintenance fails;
   - widening the candidate's maintenance class, changing trusted verifier
     authority, or changing an unrelated lockfile importer/package fails;
+  - a coupled normal-compiler + `oxlint-tsgolint` typed-lint update passes only
+    through the closed composite class, while an arbitrary union of separate
+    classes fails;
   - missing/malformed/unreadable predecessor identity fails closed; and
   - version changes rerun frozen install and native matrix rather than trusting
     registration.
@@ -894,8 +980,10 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   predecessor-bound executable command/corpus, not candidate-local prose or
   self-consistency.
 
-- [ ] **1.16 Establish the trusted maintenance-verification boundary**
-  <!-- agent-task: 1.16 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/check-toolchain-boundaries.mjs,tests/test_toolchain_maintenance_boundary.py,scripts/README.md checks=trusted-maintenance-verifier,candidate-as-data,maintenance-freshness risk=high prerequisites=1.15 -->
+- [ ] **1.16 Establish the three-domain trusted maintenance-verification boundary** — **trust-critical**
+  <!-- agent-task: 1.16 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/check-toolchain-boundaries.mjs,scripts/toolchain-boundaries.json,tests/test_toolchain_maintenance_boundary.py,scripts/README.md checks=trusted-maintenance-verifier,candidate-as-data,subject-isolation,trusted-verdict,maintenance-freshness risk=trust-critical prerequisites=1.15 -->
+
+  **Trust classification:** `trust-critical`
 
   **Task type**
 
@@ -904,17 +992,21 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   **Implements / proves**
 
   - Requirements: `REQ-SC-004`, `REQ-SC-005`, `REQ-SC-006`,
-    `REQ-SC-007`
+    `REQ-SC-007`, `REQ-SC-008`, `MAN-TS7-01`
   - Scenarios: candidate checker unconditional success; candidate checker
-    deleted; candidate workflow skips verification; head movement; predecessor
+    deleted; candidate workflow skips verification; subject tampering; subject
+    forges result envelope; subject requests credential; containerized subject
+    omits a control; head movement; predecessor movement; merge-time freshness
     movement; trusted verifier unavailable
   - Invariants: `INV-TS7-09`, `INV-TS7-10`, `INV-TS7-26`,
-    `INV-TS7-27`, `INV-TS7-28`
-  - Decisions: `D13`, `D14`
+    `INV-TS7-27`, `INV-TS7-28`, `INV-TS7-29`, `INV-TS7-30`, `INV-TS7-32`
+  - Decisions: `D13`, `D14`, `D15`, `D16`
   - Authorities: `AUTH-MAINTENANCE-CLASSES`,
-    `AUTH-MAINTENANCE-VERIFIER`
-  - Proofs: `EX-MAINT-002`, `PROP-MAINT-002`, `ADV-MAINT-002`,
-    `MUT-MAINT-004`, `MUT-MAINT-005`, `MUT-MAINT-006`
+    `AUTH-MAINTENANCE-VERIFIER`, `AUTH-MAINTENANCE-SUBJECT-ISOLATION`
+  - Proofs: `EX-MAINT-002`, `EX-SUBJECT-001`, `PROP-MAINT-002`,
+    `PROP-SUBJECT-001`, `PROP-MERGE-001`, `ADV-MAINT-002`, `ADV-MAINT-003`,
+    `MUT-MAINT-004`, `MUT-MAINT-005`, `MUT-MAINT-006`, `MUT-MAINT-007`,
+    `MUT-MAINT-008`, `MUT-MERGE-001`
 
   **Change**
 
@@ -939,12 +1031,31 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   default-branch tip and require exact equality with the starting identities.
   Movement fails the run.
 
+  Structure the boundary as three trust domains. **Trusted control** performs the
+  predecessor checkout/verifier load above using only a least-privilege
+  read-only GitHub metadata credential, and emits a content-addressed subject
+  plan naming the exact commands, subject binaries, and input digests. A trusted
+  host-side launcher owns command selection, timeouts, process cleanup,
+  exit-code capture, artifact hashing, and result-envelope construction outside
+  candidate-writable paths. **Untrusted subject** executes candidate tools only
+  in a fresh secret-free runner or hardened sandbox governed by
+  `AUTH-MAINTENANCE-SUBJECT-ISOLATION` — no secret, `GITHUB_TOKEN`, persisted
+  credential, Docker socket, shared writable cache, or trusted-workspace write,
+  and only isolated scratch; a containerized subject must use read-only mounts,
+  explicit network policy, non-root user, dropped capabilities,
+  `no-new-privileges`, and resource limits. **Trusted verdict** runs in a fresh
+  exact-predecessor context and verifies the predecessor SHA, candidate SHA,
+  subject-plan digest, command identities, result-envelope schema, and
+  artifact digests before emitting a result; the subject's self-report has no
+  authority. Record the successful run as point-in-time evidence and document the
+  `MAN-TS7-01` owner merge-freshness control (no ruleset/merge-queue exists).
+
   Scope 1 tests and lands this boundary as genesis under the ordinary full
   review/platform proof. PR-B's own candidate copy cannot authorize PR-B. Only a
   later maintenance candidate may use the merged default-branch boundary.
 
   Because `repository_dispatch` executes only a workflow already present on the
-  default branch, PR-B cannot produce an authoritative maintenance-admission run
+  default branch, PR-B cannot produce a trusted point-in-time maintenance-evidence run
   from the boundary it is still proposing. PR-B SHALL prove the complete
   protocol through executable Git/API/workflow fixtures and ordinary hosted CI,
   record that no maintenance admission was claimed, and land the genesis
@@ -976,11 +1087,20 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     checker with `process.exit(0)` is refused by the predecessor verifier;
   - deleting the candidate checker and altering the candidate workflow to skip
     it do not change which verifier runs;
+  - candidate tools run only in the isolated subject with no
+    credential/secret/token/Docker socket/shared cache/trusted-workspace write,
+    and the enumerated container controls hold when containerized;
+  - a subject that tampers (overwrite/env-write/cache/escape/plan-edit/head-spoof)
+    or forges a result envelope does not change the trusted verdict;
+  - the trusted verdict verifies subject-plan digest, command identities,
+    envelope schema, and artifact digests before emitting a result;
+  - recorded run evidence is invalidated when head, base, or merge tree moves
+    (MAN-TS7-01);
   - missing predecessor verifier/dependencies fails without candidate fallback;
   - head movement and predecessor movement are independently refused at the
     final recheck;
   - PR-B hosted CI executes the complete fixture suite but cannot be represented
-    as an authoritative maintenance admission; and
+    as trusted point-in-time maintenance evidence; and
   - every later maintenance claim's real hosted run records candidate head,
     predecessor, workflow execution SHA, verifier source identity, class, and
     result.
@@ -1034,14 +1154,18 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     `ADV-INSTALL-001`, `ADV-PLAT-001`, `MUT-INSTALL-001`, `MUT-INSTALL-002`,
     `MUT-PLAT-001`
 
-- [ ] **2.5 Predecessor-bound maintenance transition proof**
-  <!-- agent-task: 2.5 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,packages/lint-config/**,packages/tsconfig/tests/**,tests/test_toolchain_boundaries.py,tests/test_toolchain_maintenance_boundary.py checks=maintenance-predecessor-continuity,trusted-maintenance-verifier risk=high prerequisites=1.15,1.16,2.1,2.2,2.3,2.4 -->
+- [ ] **2.5 Predecessor-bound maintenance transition proof** — **trust-critical**
+  <!-- agent-task: 2.5 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,packages/lint-config/**,packages/tsconfig/tests/**,tests/test_toolchain_boundaries.py,tests/test_toolchain_maintenance_boundary.py checks=maintenance-predecessor-continuity,trusted-maintenance-verifier,subject-isolation,trusted-verdict,maintenance-freshness risk=trust-critical prerequisites=1.15,1.16,2.1,2.2,2.3,2.4 -->
+
+  **Trust classification:** `trust-critical`
 
   **Proves**
 
-  - `EX-MAINT-001/002`, `PROP-MAINT-001/002`,
-    `ADV-MAINT-001/002`, `MUT-MAINT-001/002/003/004/005/006`,
-    `MUT-CVE-001`
+  - `EX-MAINT-001/002`, `EX-SUBJECT-001`, `PROP-MAINT-001/002`,
+    `PROP-SUBJECT-001`, `PROP-MERGE-001`, `PROP-COMPOSE-001`,
+    `ADV-MAINT-001/002/003`,
+    `MUT-MAINT-001/002/003/004/005/006/007/008`,
+    `MUT-MERGE-001`, `MUT-COMPOSE-001`, `MUT-CVE-001`
 
 - [ ] **2.6 Scope 1 full gate and frozen-head review**
   <!-- agent-task: 2.6 paths=repository checks=bash-scripts-check,strict-openspec,hosted-checks risk=high prerequisites=2.5 -->
@@ -1071,6 +1195,14 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
       drift, and unknown predecessor mutations fail closed.
 - [ ] Default-branch workflow and verifier bytes come from the exact live
       predecessor; candidate workflow/checker bytes have no admission authority.
+- [ ] Candidate tools execute only in the isolated untrusted subject with no
+      credential/secret/token/Docker socket/shared cache/trusted-workspace write;
+      subject tamper and forged-envelope mutations do not change the trusted
+      verdict.
+- [ ] Maintenance classes are a closed set; the `normal-compiler-and-typed-lint`
+      composite admits the coupled update while class-union widening fails.
+- [ ] A successful run is recorded as point-in-time evidence; MAN-TS7-01
+      invalidates it on head/base/merge-tree/protected-authority movement.
 - [ ] Candidate-checker unconditional success/deletion/workflow-skip mutations
       fail, and independent candidate/predecessor movement tests refuse stale
       proof.
@@ -1155,18 +1287,29 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   **Implements / proves**
 
   - Requirements: `REQ-TA-001`, `REQ-TC-002`, `REQ-SC-001`
-  - Scenarios: Scope 2 authority; full typecheck/build; wrong compiler copy
-  - Invariants: `INV-TS7-01`, `INV-TS7-07`, `INV-TS7-11`, `INV-TS7-18`
+  - Scenarios: Scope 2 authority; full typecheck/build; wrong compiler copy;
+    normal entry points resolve one authoritative compiler; tsc6 cannot satisfy
+    an entry point; emitted declaration/map/generator output preserved
+  - Invariants: `INV-TS7-01`, `INV-TS7-03`, `INV-TS7-07`, `INV-TS7-11`,
+    `INV-TS7-18`
   - Decisions: `D5`, `D6`, `D9`
   - Authorities: `AUTH-TS-PINS`, `AUTH-RESOLVED-GRAPH`,
-    `AUTH-TS-CONFIGS`, `AUTH-TS-ENTRYPOINTS`
-  - Proofs: `EX-TS-001`, `MUT-TS-001`, `MUT-INSTALL-001`
+    `AUTH-TS-CONFIGS`, `AUTH-TS-ENTRYPOINTS`, `AUTH-TS6-CONSUMERS`,
+    `AUTH-TS-CONFORMANCE`
+  - Proofs: `EX-TS-001`, `EX-TS-002`, `MUT-TS-001`, `MUT-TS6-001`,
+    `MUT-TS-EMIT-001`, `MUT-INSTALL-001`
 
   **Change**
 
   Update the catalog and frozen graph to TypeScript 7.0.2; apply only audit-
   proven config/command fixes; strengthen version identity tests across every
-  member compiler entry point.
+  member compiler entry point so each resolves the one authoritative normal
+  `typescript` package/version and no ordinary `typecheck`/`build`/generator
+  entry point resolves `tsc6`. Capture normalized golden emitted output under
+  TypeScript 6 for the surfaces the repository actually emits — library/service
+  `.d.ts`, `.d.ts.map`, and `.js.map`, and any member `generate` output — and
+  require TypeScript 7 to match after neutralizing only version banners and
+  absolute paths; roles that emit nothing carry no golden claim.
 
   **Does not own**
 
@@ -1179,7 +1322,10 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   **Proof required**
 
   `pnpm typecheck`, `pnpm build`, generators, tsconfig fixtures, and version
-  identity all pass with normal compiler 7.0.2.
+  identity all pass with normal compiler 7.0.2; every ordinary entry point
+  resolves the one authoritative package and none resolves `tsc6`; and the
+  normalized golden/differential comparison of emitted declaration, map, and
+  generator output matches.
 
   **Size and atomicity**
 
@@ -1441,14 +1587,20 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   - all PR-B parity properties remain; `MUT-LP-002/003/005`,
     `MUT-CVE-001`, `MUT-ROLE-001`, `MUT-FMT-001`
 
-- [ ] **4.3 Compatibility and separation proof**
-  <!-- agent-task: 4.3 paths=scripts/**,tests/**,scripts/check.sh,.github/workflows/checks.yml,.github/workflows/toolchain-maintenance-boundary.yml checks=source-import,independent-gates,trusted-maintenance-verifier risk=high prerequisites=3.5 -->
+- [ ] **4.3 Compatibility, separation, and retained maintenance proof** — **trust-critical**
+  <!-- agent-task: 4.3 paths=scripts/**,tests/**,scripts/check.sh,.github/workflows/checks.yml,.github/workflows/toolchain-maintenance-boundary.yml checks=source-import,independent-gates,trusted-maintenance-verifier,subject-isolation,trusted-verdict,maintenance-freshness risk=trust-critical prerequisites=3.5 -->
+
+  **Trust classification:** `trust-critical` — this is the retained Scope-2
+  maintenance proof: the three-domain boundary and subject isolation must remain
+  candidate-independent after ESLint retirement.
 
   **Proves**
 
-  - `EX-ARCH-001`, `PROP-TS6-001`, `PROP-TS6-002`, `PROP-SEP-001`, `PROP-SEP-002`,
-    `PROP-MAINT-002`, `MUT-ARCH-001`, `MUT-ARCH-002`, `MUT-SEP-001`,
-    `MUT-ENTRY-001`, `MUT-MAINT-004/005/006`
+  - `EX-ARCH-001`, `EX-SUBJECT-001`, `PROP-TS6-001`, `PROP-TS6-002`,
+    `PROP-SEP-001`, `PROP-SEP-002`, `PROP-MAINT-002`, `PROP-SUBJECT-001`,
+    `PROP-MERGE-001`, `PROP-COMPOSE-001`, `MUT-ARCH-001`, `MUT-ARCH-002`,
+    `MUT-SEP-001`, `MUT-ENTRY-001`, `MUT-MAINT-004/005/006/007/008`,
+    `MUT-MERGE-001`, `MUT-COMPOSE-001`
 
 - [ ] **4.4 Native cutover proof**
   <!-- agent-task: 4.4 paths=.github/workflows/checks.yml,scripts/toolchain-boundaries.json,tests/** checks=amd64-arm64-full risk=high prerequisites=3.6 -->
@@ -1479,9 +1631,11 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
       seam.
 - [ ] `onlyBuiltDependencies: []` remains.
 - [ ] Native AMD64 and ARM64 full command packs pass.
-- [ ] Predecessor-bound maintenance proofs remain intact after ESLint retirement.
+- [ ] Predecessor-bound maintenance proofs remain intact after ESLint retirement
+      (trust-critical), including the closed composite maintenance class.
 - [ ] The trusted default-branch maintenance verifier remains candidate-independent
-      and retains final head/predecessor freshness refusal.
+      (trust-critical): trusted control/verdict, isolated untrusted subject, final
+      head/predecessor freshness refusal, and MAN-TS7-01 merge-freshness all hold.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.
@@ -1490,16 +1644,19 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
 ## Review scopes
 
-This file owns exactly two implementation scopes:
+This file owns exactly two implementation scopes plus one acceptance transition:
 
-- `replacement-authority-parity` — PR-B;
-- `typescript7-cutover` — PR-C.
+- `replacement-authority-parity` — PR-B (implementation scope);
+- `typescript7-cutover` — PR-C (implementation scope);
+- `adr-0022-acceptance` — PR-A2 (acceptance transition, not an implementation
+  scope ordinal).
 
 An epoch number is not a scope ordinal. Base movement may require another epoch
 for the same scope. The current review file targets
 `replacement-authority-parity`, records focused closure against the original
-planning commit, and must be replaced by a fresh independent epoch-1 review of
-the corrected planning bytes.
+planning commit, and — together with the second controlling review
+`5074082616` — must be replaced by a fresh independent epoch-1 review of the
+corrected planning bytes.
 
 ## Program stopping rules
 
