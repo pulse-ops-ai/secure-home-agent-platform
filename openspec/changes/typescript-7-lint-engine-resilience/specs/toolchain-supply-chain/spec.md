@@ -127,7 +127,7 @@ architecture gate, and tests.
 **Canonical authority references:** `AUTH-LINT-POLICY`,
 `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFORMANCE`,
 `AUTH-INSTALL-POLICY`, `AUTH-PLATFORM-MATRIX`,
-`AUTH-MAINTENANCE-CLASSES`
+`AUTH-MAINTENANCE-CLASSES`, `AUTH-MAINTENANCE-VERIFIER`
 
 Dependency vulnerability response SHALL classify tooling by exposure:
 
@@ -164,7 +164,7 @@ relevant. No response SLA is created by this requirement.
 
 **Canonical authority references:** `AUTH-ENGINE-PINS`, `AUTH-LINT-POLICY`,
 `AUTH-LINT-ENGINE-MAPPINGS`, `AUTH-LINT-CONFORMANCE`,
-`AUTH-MAINTENANCE-CLASSES`
+`AUTH-MAINTENANCE-CLASSES`, `AUTH-MAINTENANCE-VERIFIER`
 
 A reviewed package-version update or engine substitution MAY occur without a new
 architecture decision when it preserves the accepted authority model, is
@@ -203,29 +203,31 @@ require the appropriate architecture or policy review.
 **Requirement ID:** `REQ-SC-006`
 
 **Canonical authority references:** `AUTH-MAINTENANCE-CLASSES`,
+`AUTH-MAINTENANCE-VERIFIER`,
 `AUTH-LINT-POLICY`, `AUTH-LINT-ENGINE-MAPPINGS`,
 `AUTH-LINT-CONFORMANCE`, `AUTH-TS-CONFIGS`, `AUTH-TS-CONFORMANCE`,
 `AUTH-TS6-CONSUMERS`, `AUTH-FORMAT-POLICY`, `AUTH-ARCH-LAYERS`,
 `AUTH-ARCH-IMPORT-GATE`, `AUTH-INSTALL-POLICY`, `AUTH-PLATFORM-MATRIX`
 
 A tool-only security-maintenance claim SHALL compare the candidate with a
-trusted predecessor selected by the repository workflow. The maintenance
-authority SHALL define a closed set of maintenance classes, the exact
-implementation authorities each class may change, and the semantic/config/
-conformance authorities each class must preserve.
+trusted predecessor selected by the trusted maintenance boundary. The
+maintenance-class authority SHALL define a closed set of maintenance classes,
+the exact implementation authorities each class may change, and the
+semantic/config/conformance authorities each class must preserve.
 
-The predecessor's maintenance-class definition and verification contract SHALL
-govern the comparison. The candidate SHALL NOT widen its own admitted delta,
-change the class/checker under the same maintenance claim, or treat the whole
-lockfile as freely mutable. Resolved-graph change SHALL be limited to the
-selected exact package roots and their deterministically derived transitive
+The predecessor's maintenance-class definition SHALL govern the allowed and
+protected data projections; the separate trusted execution contract in
+`REQ-SC-007` SHALL apply it. The candidate SHALL NOT widen its own admitted
+delta, change the class or verifier under the same maintenance claim, or treat
+the whole lockfile as freely mutable. Resolved-graph change SHALL be limited to
+the selected exact package roots and their deterministically derived transitive
 closure; unrelated importer or package movement SHALL fail.
 
 Scope 1 SHALL establish the initial maintenance authority under the complete
 dual-engine and platform proof. That genesis landing SHALL NOT classify itself
 as a maintenance update. Maintenance classification is available only to a
 later candidate whose trusted predecessor already contains the accepted class
-and verification contract.
+and trusted verification contract.
 
 Candidate-local schema validity, fixture referential integrity, generated-config
 drift, and a green candidate corpus SHALL be necessary but SHALL NOT be
@@ -294,13 +296,98 @@ authority.
 - **AND** the candidate's widened class SHALL have no authority over its own
   admission
 
+### Requirement: Maintenance admission executes trusted verifier bytes
+
+**Requirement ID:** `REQ-SC-007`
+
+**Canonical authority references:** `AUTH-MAINTENANCE-VERIFIER`,
+`AUTH-MAINTENANCE-CLASSES`
+
+The authoritative maintenance-admission decision SHALL execute through a
+default-branch invocation boundary whose workflow definition, verifier
+executable, verifier dependencies, maintenance classes, and command plan all
+come from one exact live predecessor commit.
+
+The candidate SHALL be supplied to that verifier as Git-object data or as
+regular non-executable files materialized from those objects. Symlinks,
+submodules, path escapes, and other non-regular candidate entries SHALL be
+refused rather than materialized. The candidate's workflow, checker, package
+scripts, helpers, or altered invocation path SHALL NOT decide whether the
+candidate qualifies for maintenance.
+
+A candidate implementation binary MAY execute only as an explicitly selected
+subject under test launched and interpreted by the predecessor-owned command
+plan after structural admission. Its success SHALL NOT prove that the trusted
+verifier ran or authorize skipping any predecessor-owned check.
+
+At the beginning of the run, the boundary SHALL resolve the exact candidate head
+and the current exact tip of the default target branch and SHALL require the
+workflow execution identity to equal that live predecessor. At the end, it SHALL
+re-resolve both identities. If either moved, the proof SHALL fail as stale.
+
+Missing trusted workflow/verifier bytes, failure to resolve either identity,
+candidate-controlled execution, unreadable candidate objects, or any start/end
+identity disagreement SHALL fail closed. An ordinary candidate workflow or
+local checker run MAY provide developer feedback but SHALL NOT substitute for
+this authority.
+
+#### Scenario: Candidate replaces its checker with unconditional success
+
+- **GIVEN** the trusted predecessor checker rejects protected policy drift
+- **WHEN** the candidate changes an engine pin, deletes one policy row and its
+  only fixture, and changes its own checker to exit successfully
+- **THEN** the predecessor's verifier SHALL still execute
+- **AND** the maintenance claim SHALL be refused for protected drift
+- **AND** the candidate checker's exit status SHALL have no authority
+
+#### Scenario: Candidate deletes the checker path
+
+- **GIVEN** the exact live predecessor contains the trusted checker
+- **WHEN** the candidate deletes that path
+- **THEN** the trusted predecessor checker SHALL still execute from the
+  predecessor checkout
+- **AND** the candidate deletion SHALL be classified as protected drift or an
+  otherwise non-maintenance change
+
+#### Scenario: Candidate workflow skips verification
+
+- **GIVEN** the candidate changes or removes its copy of the maintenance
+  workflow
+- **WHEN** authoritative maintenance verification is dispatched
+- **THEN** the default branch's workflow definition SHALL run
+- **AND** the candidate workflow SHALL NOT suppress or replace the trusted
+  invocation
+
+#### Scenario: Candidate head moves during verification
+
+- **GIVEN** verification began for exact candidate head H1
+- **WHEN** the pull-request head advances to H2 before the final identity check
+- **THEN** the run SHALL fail as stale
+- **AND** a new run SHALL be required for H2
+
+#### Scenario: Live predecessor moves during verification
+
+- **GIVEN** verification began against exact live predecessor B1
+- **WHEN** the default target branch advances to B2 before the final identity
+  check
+- **THEN** the run SHALL fail as stale
+- **AND** a new run SHALL be required against B2
+
+#### Scenario: Trusted verifier is unavailable
+
+- **GIVEN** the default-branch workflow cannot load the verifier or its required
+  dependencies from the exact live predecessor
+- **WHEN** maintenance admission is attempted
+- **THEN** the run SHALL fail closed
+- **AND** it MUST NOT fall back to the candidate's checker or package scripts
+
 ## Failure Semantics
 
 | Condition class | Requirement / scenario | Required observable outcome |
 |---|---|---|
 | change-attributable | range, missing platform package, install exception, or policy loss | deterministic refusal |
 | environmental / operational | native runner unavailable | proof incomplete; retry later, do not claim support |
-| ambiguous / undecidable | dependency exposure class, resolved identity, or trusted predecessor unknown | treat as security-relevant / fail closed pending evidence |
+| ambiguous / undecidable | dependency exposure class, resolved identity, trusted predecessor/verifier unknown, or head/predecessor movement | treat as security-relevant / fail closed pending evidence |
 
 ## Compatibility
 

@@ -33,6 +33,8 @@ security replacement a conformance exercise rather than an architecture rewrite.
 - Prove required execution natively on Linux AMD64 and ARM64.
 - Bind tool-only security maintenance to a trusted predecessor and a closed
   allowed-delta class so deleting policy and evidence together cannot pass.
+- Execute maintenance admission through workflow/verifier bytes from that exact
+  predecessor, with the candidate treated as data and both identities rechecked.
 - Land exactly PR-A (planning), PR-B (parity foundation), and PR-C (cutover),
   unless an explicit owner acceptance process requires a separate ADR transition
   or Scope 1 proves a policy cannot be preserved.
@@ -68,7 +70,16 @@ packages/eslint-config
 Prettier                             formatting authority
 check-workspace.mjs                  manifest architecture
 check-source-imports.mjs             source architecture
+
+maintenance verification             not implemented
+trusted maintenance invocation        not implemented
 ```
+
+The repository has a proven candidate-independent execution pattern in
+`.github/workflows/review-boundary.yml`, but no maintenance-specific boundary
+exists. GitHub currently reports zero repository rulesets and an unprotected
+`main`, so no external merge control can be treated as the missing verifier
+authority.
 
 ### Current lint configuration topology
 
@@ -411,9 +422,12 @@ normal `typescript` package                 @typescript/typescript6
 Prettier ------------------------------------------------ formatting authority
 check-workspace.mjs + workspace model ------------------ manifest architecture
 
-trusted predecessor + AUTH-MAINTENANCE-CLASSES
-  -> classify admitted implementation-only deltas
-  -> protected policy/config/corpus drift or unknown base = REFUSE
+repository_dispatch definition from default branch
+  -> exact LIVE_PREDECESSOR_SHA == workflow execution SHA
+  -> predecessor checkout owns verifier + dependencies + command plan
+  -> AUTH-MAINTENANCE-CLASSES says what may differ
+  -> candidate Git tree is data / implementation is subject under test
+  -> protected drift, candidate verifier, or identity movement = REFUSE
 ```
 
 ### Component responsibilities
@@ -428,7 +442,8 @@ trusted predecessor + AUTH-MAINTENANCE-CLASSES
 | generated Oxlint config (planned) | engine-specific mirror with all categories/defaults neutralized | policy |
 | lint conformance harness and fixtures (planned) | executable accept/reject parity evidence | policy definition |
 | `scripts/toolchain-boundaries.json` (planned) | exact TS6 consumer allowlist, required native platform set, and closed maintenance classes with allowed/protected authority projections | package versions or policy values |
-| `scripts/check-toolchain-boundaries.mjs` (planned) | validates compiler identity, compatibility imports, entry-point separation, platform/workflow projection, trusted predecessor resolution, and maintenance deltas | architecture layers or lint semantics |
+| `scripts/check-toolchain-boundaries.mjs` (planned) | ordinary candidate feedback; when loaded from the exact live predecessor by the trusted boundary, performs authoritative compiler/import/separation/maintenance verification over candidate Git-object data | architecture layers, lint semantics, or its own invocation authority |
+| `.github/workflows/toolchain-maintenance-boundary.yml` (planned) | default-branch-only `repository_dispatch` invocation, exact live-predecessor checkout, predecessor verifier execution, candidate-as-data handling, and final head/predecessor freshness check | maintenance classes or policy semantics |
 | pnpm catalog/lock | exact selected implementation versions and resolved graph | lint policy |
 | `packages/tsconfig/*.json` | compiler options and role inheritance | lint policy |
 | `check-source-imports.mjs` | source dependency architecture | general lint or type correctness |
@@ -445,7 +460,7 @@ trusted predecessor + AUTH-MAINTENANCE-CLASSES
 | TB-TS7-5 normal compiler → compatibility API | TypeScript 7 compiler lane | legacy TS6 API | parser capability only | exact allowlist; no `tsc6` entry point in build/typecheck |
 | TB-TS7-6 lint → architecture gate | separate repository commands | shared parser technology | no authority crossing permitted | independent commands/tests; lint cannot satisfy import gate |
 | TB-TS7-7 AMD64 evidence → ARM64 claim | native ARM64 runner | package metadata/cross artifact | support claim | native frozen install and command execution |
-| TB-TS7-8 trusted predecessor → maintenance candidate | live repository-selected predecessor | candidate-authored pins, mappings, policy, config, and fixtures | claim that policy/config/corpus continuity was preserved | exact predecessor identity; closed allowed/protected authority projections; unreadable/ambiguous state fails closed |
+| TB-TS7-8 trusted maintenance boundary → candidate | default-branch `repository_dispatch` definition plus verifier/dependencies from exact live predecessor | candidate-authored workflow, checker, pins, mappings, policy, config, fixtures, and scripts | authoritative maintenance-admission decision | require workflow SHA = live predecessor; execute predecessor checker only; fetch candidate as Git objects/data; predecessor classes govern; re-resolve head and predecessor; no fallback to candidate code |
 
 No credential, production data, runtime authorization, or external system effect
 crosses these boundaries.
@@ -643,11 +658,12 @@ crosses these boundaries.
   the candidate with an exact trusted predecessor. A closed machine-readable
   maintenance class names the implementation authorities that may change and
   the semantic/config/conformance authorities that must remain equal. Unknown
-  predecessor or protected drift fails closed. The predecessor class/checker,
-  not the candidate's edited copy, governs the comparison; lockfile movement is
-  limited to the selected package roots and their derived transitive closure.
-  PR-B creates the genesis class under full dual-engine review; it does not
-  authorize itself as maintenance.
+  predecessor or protected drift fails closed. The predecessor class, not the
+  candidate's edited copy, governs the allowed/protected data projection;
+  lockfile movement is limited to the selected package roots and their derived
+  transitive closure. D14 separately owns which executable verifier applies the
+  class. PR-B creates the genesis class under full dual-engine review; it does
+  not authorize itself as maintenance.
 - **Requirement(s):** `REQ-TA-001`, `REQ-TA-003`, `REQ-SC-004`,
   `REQ-SC-005`, `REQ-SC-006`.
 - **Rationale:** after ESLint retirement, candidate-local schema and fixtures can
@@ -661,10 +677,43 @@ crosses these boundaries.
   or predecessor against which it is judged.
 - **Canonical authority consequence:** adds `AUTH-MAINTENANCE-CLASSES` under the
   toolchain-boundary document and keeps `AUTH-LINT-ENGINE-MAPPINGS` separate from
-  semantic policy.
+  semantic policy. Every maintenance class protects
+  `AUTH-MAINTENANCE-VERIFIER`; no class may admit changes to the authority that
+  will judge it.
 - **Revisit trigger:** repository CI cannot supply an exact trustworthy
   predecessor or an implementation requires changing a protected authority; the
   change is then routed to explicit policy/architecture review.
+
+### D14: The candidate is data, not the maintenance verifier
+
+- **Decision:** authoritative maintenance admission runs through a
+  `repository_dispatch` workflow definition from the default branch. It resolves
+  the exact live default-branch predecessor and exact candidate head, requires
+  the workflow execution SHA to equal that predecessor, checks out only the
+  predecessor as executable code, and runs the predecessor's verifier,
+  dependencies, maintenance classes, and command plan. Candidate Git objects may
+  be parsed as data; candidate implementation binaries may be launched only as
+  subjects under the predecessor-owned test plan. Candidate workflows, checkers,
+  helpers, and package scripts never decide admission. Both identities are
+  re-resolved at the end and movement refuses the proof.
+- **Requirement(s):** `REQ-SC-004`, `REQ-SC-005`, `REQ-SC-006`,
+  `REQ-SC-007`.
+- **Rationale:** trusted predecessor data evaluated by a candidate-controlled
+  checker is still self-authorization. The candidate can replace its checker
+  with unconditional success or skip it in its own workflow.
+- **Alternatives considered:** protect the checker path but execute the candidate
+  copy; rely on ordinary pull-request CI; require reviewer inspection of the
+  checker diff. All leave the candidate or an informal process in control of the
+  deciding executable bytes.
+- **Trust consequence:** the candidate cannot influence whether the authoritative
+  verifier ran, which code interpreted the comparison, or which head/predecessor
+  identities the result describes.
+- **Canonical authority consequence:** creates `AUTH-MAINTENANCE-VERIFIER`,
+  separate from `AUTH-MAINTENANCE-CLASSES`. The former owns who/what decides; the
+  latter owns what differences are admissible.
+- **Revisit trigger:** GitHub no longer guarantees default-branch execution for
+  `repository_dispatch`, or a future trusted platform replaces this boundary
+  with equivalent candidate-independent execution and identity proof.
 
 ## Repository Feasibility
 
@@ -687,6 +736,9 @@ crosses these boundaries.
 | native hosted ARM64 is available | public repository; GitHub standard `ubuntu-24.04-arm` | verified availability | use existing hosted trust model |
 | current member lint role uses `/test` export | all member config imports inspected | mismatch: no consumer | manifest separates export contract from assignments |
 | candidate-local maintenance conformance proves predecessor continuity | planned candidate-only policy/schema/corpus checks | absent | D13 and Scope 1 add trusted-predecessor comparison plus co-deletion/tsconfig-relaxation mutations |
+| predecessor data plus candidate checker establishes maintenance trust | pre-correction plan anchored the predecessor data but did not separately anchor the executable checker/invocation bytes | absent | D14 adds default-branch invocation and exact-predecessor executable authority |
+| repository already has a candidate-independent boundary pattern | `.github/workflows/review-boundary.yml` uses `repository_dispatch`, exact live-base checkout, candidate Git objects/inert data, and final head/base recheck | verified precedent | reuse the trust topology without changing the OpenSpec review boundary |
+| branch/ruleset independently preserves maintenance freshness | GitHub API on 2026-09-01 reports zero repository rulesets and `main` is not branch-protected | absent | promise one exact run-boundary proof only; do not claim continuing merge-time freshness |
 
 ### Upstream sources verified 2026-08-31
 
@@ -717,6 +769,13 @@ The predecessor's class governs; the candidate does not define or widen that
 comparison ad hoc. Scope 1 is the genesis authority landing and is reviewed by
 the ordinary full scope proof rather than by the maintenance shortcut it creates.
 
+`AUTH-MAINTENANCE-VERIFIER` separately owns the executable root of trust. Its
+default-branch workflow resolves the exact live predecessor and candidate,
+executes only verifier/dependency/invocation bytes from that predecessor, treats
+the candidate Git tree as objects or inert data, and refuses if either identity
+moves. A candidate copy of the workflow or checker may be tested as future code
+but has no authority over its own admission.
+
 The current inventory in this document is explicitly a pinned evidence snapshot,
 not a second policy authority.
 
@@ -731,6 +790,8 @@ not a second policy authority.
 | security upgrade | predecessor-protected policy/config/corpus plus platform/install proofs pass | implementation update may proceed without new ADR | D1/D9/D13 |
 | security upgrade requires policy deletion | no conforming mapping | reject or open explicit policy/architecture review | D1/D3 |
 | security candidate deletes policy row + fixture | candidate remains internally consistent but predecessor semantic projection differs | refuse maintenance classification | D13 / INV-TS7-25 |
+| security candidate also replaces checker with `exit 0` | candidate checker reports success | predecessor verifier still runs and refuses protected drift | D14 / INV-TS7-27 |
+| candidate or live predecessor moves during trusted run | final identities differ from start | refuse stale proof; require a new run | D14 / INV-TS7-28 |
 | compiler security update preserves normal authority and predecessor config/corpus | exact pin/graph/version expectation change only plus complete proof | maintenance update may proceed without replacing compiler authority | D5/D13 |
 
 ## Interfaces and Contracts
@@ -746,6 +807,7 @@ not a second policy authority.
 | platform matrix | toolchain boundary policy | hosted workflow/tests | package metadata → support claim | native execution required | `AUTH-PLATFORM-MATRIX` |
 | compiler entry points | package scripts/shared config | CI/local aggregate | package resolution → compiler authority | normal package only | `AUTH-TS-ENTRYPOINTS` |
 | maintenance class and predecessor comparison | toolchain boundary policy + repository-selected exact base | maintenance checker | predecessor → candidate continuity claim | closed allowed/protected projections; unknown fails | `AUTH-MAINTENANCE-CLASSES` |
+| trusted maintenance invocation | default-branch workflow plus exact predecessor verifier/dependencies | repository owner/reviewer consuming the run evidence | trusted executable → candidate data | run-boundary only; start/end identities exact | `AUTH-MAINTENANCE-VERIFIER` |
 
 ## Failure Classification Boundaries
 
@@ -757,7 +819,8 @@ not a second policy authority.
 | compatibility import | boundary checker | unapproved import or tsc6 entry point | package unavailable | architecture gate fails |
 | package install | pnpm policy/lock | range, lock drift, install script, missing native package | registry/runner outage | no support claim; retry later |
 | platform support | native matrix | architecture-specific functional failure | hosted runner unavailable | incomplete, never infer from metadata |
-| maintenance continuity | toolchain-boundary checker | protected semantic/config/corpus drift | predecessor unavailable/unreadable | refuse maintenance classification; candidate-only success is insufficient |
+| maintenance continuity | predecessor toolchain-boundary checker | protected semantic/config/corpus drift | predecessor unavailable/unreadable | refuse maintenance classification; candidate-only success is insufficient |
+| maintenance verifier execution | default-branch trusted boundary | candidate checker/workflow substitution | trusted workflow/verifier unavailable or head/predecessor moves | refuse; never fall back to candidate invocation or stale identity |
 
 ## Shared vs Independent Logic
 
@@ -779,6 +842,10 @@ Must remain independent:
 For maintenance, the semantic policy/corpus projection and per-engine mapping
 projection are intentionally distinct. A lint-engine update may alter the latter
 while the former remains predecessor-identical.
+
+The maintenance class and maintenance verifier are also intentionally distinct.
+The class describes admissible data differences; the verifier provides the
+candidate-independent execution authority that applies that class.
 
 Tests must fail if a wrapper collapses these into one process result or lets one
 success satisfy another required command.
@@ -809,6 +876,9 @@ success satisfy another required command.
 - predecessor-bound maintenance classification proves an admitted mapping/pin
   update passes and policy-row-plus-fixture deletion, compiler-policy relaxation,
   protected-corpus drift, and unknown predecessor fail.
+- the default-branch maintenance boundary executes the exact live predecessor's
+  checker and dependencies over candidate Git-object data, ignores candidate
+  workflow/checker attempts, and fails if the head or predecessor moves.
 
 ### PR-C — Scope 2: TypeScript 7 cutover / ESLint retirement
 
@@ -830,8 +900,9 @@ activation and no production data migration.
 
 Positive: security remediation can replace a parser without deleting policy;
 PR-controlled bytes remain behind exact pinned tools and fail-closed checks;
-legacy API spread is mechanically prevented; and native package/install
-properties are explicit.
+legacy API spread is mechanically prevented; candidate code cannot provide the
+maintenance-admission verifier; and native package/install properties are
+explicit.
 
 Risk: the compiler and linters are native executables parsing hostile source.
 The package-manager and CI runner become the supply-chain execution boundary.
@@ -846,7 +917,7 @@ admission.
 | Landing | Atomic seam | Remains inert until | Proof landing with seam | Authority change |
 |---|---|---|---|---|
 | PR-A | Proposed ADR + full v2 planning package | explicit human acceptance/review and implementation authorization | strict OpenSpec + repository planning gates | none; proposed only |
-| PR-B | semantic policy/schema, separate engine mappings, legacy drift, generated replacement config, dual runners, complete corpus, predecessor-bound maintenance classifier, TS6 allowlist seam, native matrix | Scope 1 review epoch accepted | parity/property/adversarial/mutation + maintenance co-deletion refusal + AMD64/ARM64 | lint policy moves from engine config to manifest; compiler remains TS6 |
+| PR-B | semantic policy/schema, separate engine mappings, legacy drift, generated replacement config, dual runners, complete corpus, predecessor-bound maintenance classes, trusted default-branch verifier boundary, TS6 allowlist seam, native matrix | Scope 1 review epoch accepted | parity/property/adversarial/mutation + candidate-checker bypass/freshness refusal + AMD64/ARM64 | lint policy moves from engine config to manifest; trusted maintenance verifier becomes future predecessor authority; compiler remains TS6 |
 | PR-C | TS7 pin, member entrypoints, ESLint removal, retained seam, native matrix | Scope 2 review epoch accepted after PR-B | compiler/build/full tests + parity regression + both platforms | compiler becomes TS7; ESLint implementation retired |
 
 No additional implementation PR is justified by current evidence. A separate ADR
@@ -864,6 +935,7 @@ sequence rather than be hidden.
 | GQ-TS7-004 | three-PR ADR acceptance path | repository owner | PR-A merge / PR-B authorization | resolved conditionally by D11; owner action required |
 | GQ-TS7-005 | parity gap behavior | implementation reviewer | PR-B completion | resolved: stop and retain enforcement |
 | GQ-TS7-006 | predecessor proof for tool-only security maintenance | architecture review | PR-B | resolved by D13; exact class rows are contract-first implementation data |
+| GQ-TS7-007 | trusted executable authority for maintenance admission | architecture review | PR-B | resolved by D14; default-branch repository_dispatch executes exact live-predecessor verifier and treats candidate as data |
 
 No open technical gating decision remains. Owner acceptance and implementation
 authorization are external prerequisites, not facts this design may manufacture.
@@ -877,6 +949,7 @@ authorization are external prerequisites, not facts this design may manufacture.
 | NQ-TS7-003 | fixture source sharing | PR-B conformance task | each manifest entry still has explicit intended proof |
 | NQ-TS7-004 | exact normalization for default-equivalent engine options | PR-B engine adapter task | fixture parity decides equivalence; mismatch stops |
 | NQ-TS7-005 | exact Git/API plumbing for trusted maintenance predecessor | PR-B boundary task | exact identity, fail-closed resolution, and allowed/protected projections are fixed by D13 |
+| NQ-TS7-006 | direct Git-object reads versus inert 0644 candidate materialization | PR-B trusted-boundary task | either is acceptable only when candidate executables/invocation remain non-authoritative and predecessor code owns interpretation |
 
 ## Promotion Determination
 

@@ -17,7 +17,8 @@ authorities allocated in `assurance.md`.
 
 **Requirement ID:** `REQ-TA-001`
 
-**Canonical authority references:** `AUTH-TS-PINS`, `AUTH-TS-CONFIGS`
+**Canonical authority references:** `AUTH-TS-PINS`, `AUTH-TS-CONFIGS`,
+`AUTH-MAINTENANCE-VERIFIER`
 
 At the compiler cutover, the repository SHALL have exactly one authoritative
 compiler version: TypeScript 7.0.2 from the normal `typescript` package. Every
@@ -31,9 +32,10 @@ generator entry points.
 After that initial cutover, the repository SHALL continue to have exactly one
 exact normal compiler pin. A later exact TypeScript version MAY replace 7.0.2
 without changing compiler authority only through the predecessor-bound
-maintenance behavior in `REQ-SC-006`. Changing the authority from the normal
-`typescript` package to `tsc6`, a lint type-check mode, or another implementation
-outside that contract SHALL require architecture review.
+maintenance behavior in `REQ-SC-006` and the trusted execution boundary in
+`REQ-SC-007`. Changing the authority from the normal `typescript` package to
+`tsc6`, a lint type-check mode, or another implementation outside that contract
+SHALL require architecture review.
 
 #### Scenario: Scope 1 keeps the current compiler authority
 
@@ -115,7 +117,8 @@ Sharing parser technology SHALL NOT merge the lint and architecture gates.
 **Requirement ID:** `REQ-TA-003`
 
 **Canonical authority references:** `AUTH-LINT-POLICY`, `AUTH-LINT-CONFORMANCE`,
-`AUTH-ENGINE-PINS`
+`AUTH-ENGINE-PINS`, `AUTH-MAINTENANCE-CLASSES`,
+`AUTH-MAINTENANCE-VERIFIER`
 
 The lint policy SHALL be owned by a repository-controlled machine-readable
 contract. ESLint, Oxlint, tsgolint, and any future linter SHALL be replaceable
@@ -123,7 +126,8 @@ implementations of that contract rather than architectural authorities.
 
 A tooling implementation MAY be upgraded or substituted for security
 remediation without reopening the architectural decision only when the same
-policy-conformance, installation, and platform proofs pass.
+policy-conformance, installation, and platform proofs pass through the
+candidate-independent trusted maintenance boundary.
 
 #### Scenario: Oxlint receives a security advisory
 
@@ -132,6 +136,8 @@ policy-conformance, installation, and platform proofs pass.
 - **THEN** it SHALL execute the same positive and negative policy corpus
 - **AND** every canonical policy entry SHALL retain an enforcing disposition
 - **AND** frozen-install and supported-platform proof SHALL pass before adoption
+- **AND** the candidate's checker or workflow SHALL NOT decide that these
+  conditions were satisfied
 
 #### Scenario: A replacement cannot express a required policy
 

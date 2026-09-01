@@ -841,13 +841,15 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   dual-engine/review/platform proof; it must not classify PR-B itself as
   maintenance.
 
-  The checker resolves one exact trusted predecessor through the repository/CI
-  boundary, loads the closed class/checker contract from the predecessor,
-  permits only its implementation-specific projections, and requires every
-  protected semantic/config/corpus/harness projection to match. Candidate edits
-  cannot widen their own class. Lockfile change is restricted to the selected
+  Implement the classifier as a deterministic operation over explicit
+  predecessor/candidate commit identities supplied by its caller. It loads the
+  closed maintenance class from the predecessor commit, permits only its
+  implementation-specific projections, and requires every protected
+  semantic/config/corpus/harness projection to match. Candidate edits cannot
+  widen their own class, and every class protects
+  `AUTH-MAINTENANCE-VERIFIER`. Lockfile change is restricted to the selected
   package roots and their deterministically derived transitive closure. Missing
-  base, unreadable diff, malformed class, unrelated graph movement, or
+  commit, unreadable diff, malformed class, unrelated graph movement, or
   unexpected protected drift fails closed.
 
   Document runtime dependency vs PR-byte parser vs local-only utility
@@ -857,8 +859,9 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
 
   **Does not own**
 
-  Response SLAs, merge-time freshness policy, or permission to delete policy
-  during an emergency.
+  Trusted live-predecessor selection, authoritative workflow execution,
+  start/end freshness, response SLAs, merge-time freshness policy, or permission
+  to delete policy during an emergency. Task 1.16 owns the execution boundary.
 
   **Affected paths**
 
@@ -874,8 +877,8 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     fixture fails;
   - changing platform, install, format, architecture, or TS6-consumer authority
     under maintenance fails;
-  - widening the candidate's maintenance class/checker or changing an unrelated
-    lockfile importer/package fails;
+  - widening the candidate's maintenance class, changing trusted verifier
+    authority, or changing an unrelated lockfile importer/package fails;
   - missing/malformed/unreadable predecessor identity fails closed; and
   - version changes rerun frozen install and native matrix rather than trusting
     registration.
@@ -890,6 +893,98 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
   Complete only when the answer to “what proves replacement Y?” is one
   predecessor-bound executable command/corpus, not candidate-local prose or
   self-consistency.
+
+- [ ] **1.16 Establish the trusted maintenance-verification boundary**
+  <!-- agent-task: 1.16 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/check-toolchain-boundaries.mjs,tests/test_toolchain_maintenance_boundary.py,scripts/README.md checks=trusted-maintenance-verifier,candidate-as-data,maintenance-freshness risk=high prerequisites=1.15 -->
+
+  **Task type**
+
+  `contract-first | implementation | proof`
+
+  **Implements / proves**
+
+  - Requirements: `REQ-SC-004`, `REQ-SC-005`, `REQ-SC-006`,
+    `REQ-SC-007`
+  - Scenarios: candidate checker unconditional success; candidate checker
+    deleted; candidate workflow skips verification; head movement; predecessor
+    movement; trusted verifier unavailable
+  - Invariants: `INV-TS7-09`, `INV-TS7-10`, `INV-TS7-26`,
+    `INV-TS7-27`, `INV-TS7-28`
+  - Decisions: `D13`, `D14`
+  - Authorities: `AUTH-MAINTENANCE-CLASSES`,
+    `AUTH-MAINTENANCE-VERIFIER`
+  - Proofs: `EX-MAINT-002`, `PROP-MAINT-002`, `ADV-MAINT-002`,
+    `MUT-MAINT-004`, `MUT-MAINT-005`, `MUT-MAINT-006`
+
+  **Change**
+
+  Add a `repository_dispatch` workflow whose definition is always loaded from
+  the default branch. Validate the dispatch PR input as data, read the open pull
+  request from GitHub, require its target to be the default branch, resolve its
+  exact head and the exact current default-branch tip, and require the workflow
+  execution SHA to equal that live predecessor.
+
+  Check out only the exact predecessor as executable code. Install only its
+  frozen dependencies. Load `scripts/check-toolchain-boundaries.mjs`, the
+  maintenance classes, and every helper/command-plan byte from that predecessor.
+  Fetch the candidate as Git objects and either read blobs directly or
+  materialize only regular `0644` files in an isolated data workspace. Refuse
+  symlinks, submodules, path escapes, and other non-regular entries. Never
+  execute the candidate's workflow, checker, helper, package script, hook,
+  filter, or lifecycle script to decide maintenance admission.
+
+  Candidate engine/compiler binaries may execute later only as explicitly named
+  subjects under the predecessor-owned command plan; their results are evidence,
+  not invocation authority. At the end, re-read the pull-request head and live
+  default-branch tip and require exact equality with the starting identities.
+  Movement fails the run.
+
+  Scope 1 tests and lands this boundary as genesis under the ordinary full
+  review/platform proof. PR-B's own candidate copy cannot authorize PR-B. Only a
+  later maintenance candidate may use the merged default-branch boundary.
+
+  **Does not own**
+
+  Maintenance-class allowed/protected rows, semantic policy, engine mappings,
+  branch protection/rulesets, or a merge-time freshness guarantee after the run
+  boundary.
+
+  **Affected paths**
+
+  - `.github/workflows/toolchain-maintenance-boundary.yml`
+  - trusted verifier invocation in `scripts/check-toolchain-boundaries.mjs`
+  - focused workflow/Git fixture tests
+  - operator documentation
+
+  **Proof required**
+
+  - workflow source identity and checked-out verifier identity both equal the
+    exact live predecessor;
+  - candidate bytes are fetched as objects/data and no candidate checker,
+    workflow, helper, or package script supplies admission;
+  - an admitted pin/mapping-only fixture succeeds under the predecessor
+    verifier;
+  - a candidate that deletes policy row R and fixture F while replacing its
+    checker with `process.exit(0)` is refused by the predecessor verifier;
+  - deleting the candidate checker and altering the candidate workflow to skip
+    it do not change which verifier runs;
+  - missing predecessor verifier/dependencies fails without candidate fallback;
+  - head movement and predecessor movement are independently refused at the
+    final recheck; and
+  - exact hosted run evidence records candidate head, predecessor, workflow
+    execution SHA, verifier source identity, class, and result.
+
+  **Size and atomicity**
+
+  One focused day: trusted workflow, predecessor invocation, candidate-data
+  materialization/object reads, freshness checks, and decisive mutations land
+  together.
+
+  **Completion**
+
+  Complete only when the candidate cannot provide, replace, delete, or skip the
+  executable authority that decides whether the candidate qualifies for
+  maintenance.
 
 ## PR-B Verification Net
 
@@ -927,12 +1022,13 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
     `MUT-PLAT-001`
 
 - [ ] **2.5 Predecessor-bound maintenance transition proof**
-  <!-- agent-task: 2.5 paths=scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,packages/lint-config/**,packages/tsconfig/tests/**,tests/test_toolchain_boundaries.py checks=maintenance-predecessor-continuity risk=high prerequisites=1.15,2.1,2.2,2.3,2.4 -->
+  <!-- agent-task: 2.5 paths=.github/workflows/toolchain-maintenance-boundary.yml,scripts/toolchain-boundaries.json,scripts/check-toolchain-boundaries.mjs,packages/lint-config/**,packages/tsconfig/tests/**,tests/test_toolchain_boundaries.py,tests/test_toolchain_maintenance_boundary.py checks=maintenance-predecessor-continuity,trusted-maintenance-verifier risk=high prerequisites=1.15,1.16,2.1,2.2,2.3,2.4 -->
 
   **Proves**
 
-  - `EX-MAINT-001`, `PROP-MAINT-001`, `ADV-MAINT-001`,
-    `MUT-MAINT-001/002/003`, `MUT-CVE-001`
+  - `EX-MAINT-001/002`, `PROP-MAINT-001/002`,
+    `ADV-MAINT-001/002`, `MUT-MAINT-001/002/003/004/005/006`,
+    `MUT-CVE-001`
 
 - [ ] **2.6 Scope 1 full gate and frozen-head review**
   <!-- agent-task: 2.6 paths=repository checks=bash-scripts-check,strict-openspec,hosted-checks risk=high prerequisites=2.5 -->
@@ -960,6 +1056,11 @@ packs pass. TypeScript remains 6.0.3 and ESLint remains installed.
       predecessor.
 - [ ] Row-plus-fixture deletion, compiler-policy relaxation, protected-authority
       drift, and unknown predecessor mutations fail closed.
+- [ ] Default-branch workflow and verifier bytes come from the exact live
+      predecessor; candidate workflow/checker bytes have no admission authority.
+- [ ] Candidate-checker unconditional success/deletion/workflow-skip mutations
+      fail, and independent candidate/predecessor movement tests refuse stale
+      proof.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.
@@ -1325,12 +1426,13 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
     `MUT-CVE-001`, `MUT-ROLE-001`, `MUT-FMT-001`
 
 - [ ] **4.3 Compatibility and separation proof**
-  <!-- agent-task: 4.3 paths=scripts/**,tests/**,scripts/check.sh,.github/workflows/checks.yml checks=source-import,independent-gates risk=high prerequisites=3.5 -->
+  <!-- agent-task: 4.3 paths=scripts/**,tests/**,scripts/check.sh,.github/workflows/checks.yml,.github/workflows/toolchain-maintenance-boundary.yml checks=source-import,independent-gates,trusted-maintenance-verifier risk=high prerequisites=3.5 -->
 
   **Proves**
 
   - `EX-ARCH-001`, `PROP-TS6-001`, `PROP-TS6-002`, `PROP-SEP-001`, `PROP-SEP-002`,
-    `MUT-ARCH-001`, `MUT-ARCH-002`, `MUT-SEP-001`, `MUT-ENTRY-001`
+    `PROP-MAINT-002`, `MUT-ARCH-001`, `MUT-ARCH-002`, `MUT-SEP-001`,
+    `MUT-ENTRY-001`, `MUT-MAINT-004/005/006`
 
 - [ ] **4.4 Native cutover proof**
   <!-- agent-task: 4.4 paths=.github/workflows/checks.yml,scripts/toolchain-boundaries.json,tests/** checks=amd64-arm64-full risk=high prerequisites=3.6 -->
@@ -1362,6 +1464,8 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 - [ ] `onlyBuiltDependencies: []` remains.
 - [ ] Native AMD64 and ARM64 full command packs pass.
 - [ ] Predecessor-bound maintenance proofs remain intact after ESLint retirement.
+- [ ] The trusted default-branch maintenance verifier remains candidate-independent
+      and retains final head/predecessor freshness refusal.
 - [ ] Required mutations are killed.
 - [ ] Full deterministic repository gates pass.
 - [ ] Implementation review completed against one frozen head.

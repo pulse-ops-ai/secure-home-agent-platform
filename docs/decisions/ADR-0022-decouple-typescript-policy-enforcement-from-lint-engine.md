@@ -107,6 +107,11 @@ Package/source architectural direction
 
 Traditional TypeScript compiler API
     -> bounded compatibility dependency for admitted repository tooling only
+
+Tool-maintenance shortcut admission
+    -> default-branch invocation authority
+    -> verifier executable loaded from the exact live predecessor
+    -> candidate tree supplied as data, never as the deciding verifier
 ```
 
 An engine config is a projection of policy. It is not the policy's architectural
@@ -262,6 +267,8 @@ new architecture decision when all of these remain true:
 
 - the maintenance claim is compared with a trusted predecessor selected by the
   repository workflow, not only with candidate-authored state;
+- the authoritative admission decision executes workflow and verifier bytes from
+  that exact predecessor, never from the candidate being judged;
 - positive policy fixtures pass;
 - negative policy fixtures fail for the intended policy;
 - required compiler/lint/architecture commands remain separate;
@@ -274,26 +281,57 @@ The maintenance transition is a closed, fail-closed classification:
 
 | Maintenance class | Candidate may change | Candidate must preserve from the trusted predecessor |
 |---|---|---|
-| lint engine | exact engine pins, only their derived transitive lock subgraph, the selected engine's mapping, generated engine config/adapter | semantic lint policy, roles/options/blocking posture, conformance fixture bytes and harness, compiler policy, formatter, architecture gates, install posture, platform set, and the predecessor maintenance class/checker |
-| normal TypeScript compiler | exact normal-compiler pin, only its derived transitive lock subgraph, version expectations, audit evidence/adapter required by the new compiler | shared compiler configuration, compiler conformance fixtures/harness, lint policy/corpus, TS6 consumer boundary, formatter, architecture gates, install posture, platform set, and the predecessor maintenance class/checker |
-| TS6 compatibility parser | exact compatibility-package pin, only its derived transitive lock subgraph, expected resolved API identity, and the bounded package-import adapter | admitted consumer allowlist, source-import semantics/corpus/harness, normal compiler authority, lint policy/corpus, install posture, platform set, and the predecessor maintenance class/checker |
+| lint engine | exact engine pins, only their derived transitive lock subgraph, the selected engine's mapping, generated engine config/adapter | semantic lint policy, roles/options/blocking posture, conformance fixture bytes and harness, compiler policy, formatter, architecture gates, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
+| normal TypeScript compiler | exact normal-compiler pin, only its derived transitive lock subgraph, version expectations, audit evidence/adapter required by the new compiler | shared compiler configuration, compiler conformance fixtures/harness, lint policy/corpus, TS6 consumer boundary, formatter, architecture gates, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
+| TS6 compatibility parser | exact compatibility-package pin, only its derived transitive lock subgraph, expected resolved API identity, and the bounded package-import adapter | admitted consumer allowlist, source-import semantics/corpus/harness, normal compiler authority, lint policy/corpus, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
 
 The exact allowed/protected authority sets are machine-readable and
 history-checked. The predecessor's maintenance class defines the comparison; a
-candidate may not widen its own allowed set or weaken the checker. Lockfile
-change is limited to the selected package roots and their deterministically
-derived transitive closure; unrelated graph movement fails.
+candidate may not widen its own allowed set or alter the trusted verifier
+authority. Lockfile change is limited to the selected package roots and their
+deterministically derived transitive closure; unrelated graph movement fails.
+
+The verifier is a separate authority from those classes:
+
+```text
+repository_dispatch
+        -> workflow definition from the default branch
+        -> resolve exact candidate head + exact live default-branch predecessor
+        -> require dispatch workflow SHA == live predecessor SHA
+        -> check out only that predecessor as executable code
+        -> execute its verifier and dependencies
+        -> supply candidate Git objects / inert materialized files as data
+        -> re-resolve candidate head + live predecessor
+        -> movement or disagreement = REFUSE
+```
+
+The candidate's workflow, checker, package scripts, and helper programs have no
+authority over this admission decision. A candidate may contain a changed
+`scripts/check-toolchain-boundaries.mjs` or a workflow that exits successfully;
+the trusted boundary does not execute either copy. If candidate implementation
+binaries must run for conformance, the predecessor-owned command plan launches
+them only as subjects under test after structural admission; their output cannot
+decide whether the trusted verifier ran.
+
+The trusted boundary is a run-boundary proof. It records one exact predecessor
+and one exact candidate head and refuses if either moves while it runs. The
+repository currently has no ruleset or branch protection that preserves that
+freshness indefinitely after success; merge-time freshness remains an external
+repository-policy concern rather than a promise of this ADR.
 
 Scope 1 creates this maintenance authority under the full dual-engine,
 architecture-review, and native-platform proof. It is the genesis contract and
-does not self-classify PR-B as maintenance. Only a later candidate may claim a
-maintenance class against the merged predecessor authority.
+does not self-classify PR-B as maintenance. Its candidate workflow/verifier
+copies are not trusted merely because they implement the future boundary. Only a
+later candidate may claim a maintenance class after the trusted workflow and
+verifier have merged into the live predecessor.
 
 A missing or ambiguous predecessor, unreadable diff, malformed maintenance
-policy, changed protected authority, unrelated lock movement, or candidate that
-deletes a policy row together with its fixture is **not** a successful
-maintenance update. It fails closed and is routed to the separately reviewed
-policy or architecture path.
+policy, missing predecessor verifier, candidate-controlled invocation, changed
+protected authority, unrelated lock movement, head/predecessor movement, or
+candidate that deletes a policy row together with its fixture is **not** a
+successful maintenance update. It fails closed and is routed to the separately
+reviewed policy or architecture path.
 
 The initial TypeScript 7.0.2 cutover is still mandatory for this program.
 Subsequent exact compiler updates do not reopen the authority decision when the
@@ -413,6 +451,16 @@ maintenance claim must therefore bind protected policy/config/corpus bytes to a
 trusted predecessor and permit only the implementation-specific deltas declared
 for that maintenance class.
 
+### Execute the candidate's checker against trusted predecessor data
+
+Rejected. Trusting the predecessor data while executing a candidate-controlled
+checker leaves the candidate in charge of its own admission. It can replace the
+checker with unconditional success, delete policy and evidence together, and
+have its own workflow skip the real comparison. The workflow definition,
+verifier executable, its dependencies, and invocation plan must come from the
+exact live predecessor; the candidate is data and a subject under test, never
+the maintenance-admission authority.
+
 ### Make Oxlint configuration the policy authority
 
 Rejected. Engine defaults, rule names, and option schemas would become
@@ -462,7 +510,9 @@ newly discovered independent release boundary, not task size alone.
 
 This decision strengthens a CI trust boundary: untrusted candidate bytes are
 parsed only by exact, frozen, platform-proven tools whose output is checked
-against repository policy.
+against repository policy. For the maintenance shortcut specifically, the
+default-branch workflow and exact live-predecessor verifier decide admission;
+the candidate cannot authorize its own checker or invocation path.
 
 The key risk is native parser execution. A compromised compiler/linter can read
 the checkout and influence merge admission. Exact pins and no-install-script
@@ -508,8 +558,10 @@ This ADR may be accepted when a reviewer and repository owner agree that:
    authority;
 7. security-remediation substitution is predecessor-bound and cannot remove a
    policy together with its evidence;
-8. the two implementation scopes and review epochs are the correct atomic seams;
-9. no unrelated ADR, unresolved decision, runtime, or PR #113 scope is changed.
+8. the candidate being judged cannot supply the authoritative maintenance
+   verifier or invocation boundary, and head/predecessor movement is refused;
+9. the two implementation scopes and review epochs are the correct atomic seams;
+10. no unrelated ADR, unresolved decision, runtime, or PR #113 scope is changed.
 
 ## Validation and follow-up obligations
 
@@ -521,25 +573,30 @@ This ADR may be accepted when a reviewer and repository owner agree that:
 4. PR-B lands the engine-neutral policy schema/manifest, separate per-engine
    mappings, full current-policy extraction, generated replacement config,
    complete fixture corpus, dual blocking engines, predecessor-bound maintenance
-   classifier, bounded TS6 seam, and native AMD64/ARM64 proof while retaining
-   TypeScript 6 and ESLint.
+   classifier, trusted default-branch maintenance-verification boundary, bounded
+   TS6 seam, and native AMD64/ARM64 proof while retaining TypeScript 6 and
+   ESLint.
 5. If any current policy lacks semantic parity, PR-B stops; ESLint remains and
    PR-C is not authorized.
 6. PR-B proves an allowed
    pin/mapping-only update passes while row-plus-fixture deletion,
    shared-tsconfig relaxation, protected-corpus drift, and unresolved predecessor
    identity fail.
-7. PR-C repeats the TS7 audit against current main, establishes TS7 compiler
+7. PR-B proves that replacing the candidate checker with unconditional success,
+   deleting its path, or editing the candidate workflow cannot bypass the
+   predecessor verifier, and that candidate/predecessor movement refuses the
+   run.
+8. PR-C repeats the TS7 audit against current main, establishes TS7 compiler
    identity, removes all ESLint residue atomically, retains the compatibility
    seam, and proves native AMD64/ARM64 full commands.
-8. Every future tooling security substitution executes the same policy,
+9. Every future tooling security substitution executes the same policy,
    installation, platform, separation, and predecessor-continuity contract.
-9. `onlyBuiltDependencies: []` remains; any exception requires separate review.
-10. Promotion determination: this ADR is the canonical architectural home. After
+10. `onlyBuiltDependencies: []` remains; any exception requires separate review.
+11. Promotion determination: this ADR is the canonical architectural home. After
    acceptance, existing portable implementation/review knowledge may be updated
    as a subordinate projection under a separately authorized change; no new
    module is required by this proposal.
-11. This ADR resolves no item in `unresolved-decisions.md` and authorizes no
+12. This ADR resolves no item in `unresolved-decisions.md` and authorizes no
     deployment, credential, or device access.
 
 ## Links

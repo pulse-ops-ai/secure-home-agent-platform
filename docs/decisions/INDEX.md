@@ -180,7 +180,7 @@ action in its own change.
 | ADR | Title | Status | Would govern | Would decide |
 |---|---|---|---|---|
 | [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
-| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | **Proposed** | TypeScript compiler/lint/format/architecture tooling across the pnpm workspace and CI | engine-independent policy authority, bounded TS6 API compatibility, parity-before-retirement, supply-chain substitution, and native toolchain platform proof |
+| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | **Proposed** | TypeScript compiler/lint/format/architecture tooling across the pnpm workspace and CI | engine-independent policy authority, bounded TS6 API compatibility, parity-before-retirement, candidate-independent maintenance verification, supply-chain substitution, and native toolchain platform proof |
 
 > **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
 > **still open**, and L9 (#57) remains gated. It selects a deployment topology
@@ -194,7 +194,10 @@ action in its own change.
 > portions of accepted ADR-0012: policy belongs to the repository, engines are
 > replaceable, TypeScript compiler diagnostics remain independent, Prettier
 > remains the formatter, and dedicated architecture gates retain their own
-> authority. It changes no dependency, command, gate, or source while Proposed.
+> authority. Its maintenance shortcut would execute a verifier from the exact
+> live predecessor through a default-branch boundary; candidate checker/workflow
+> bytes would be data only. It changes no dependency, command, gate, or source
+> while Proposed.
 > The two implementation scopes in
 > [`openspec/changes/typescript-7-lint-engine-resilience/`](../../openspec/changes/typescript-7-lint-engine-resilience/)
 > remain `NOT_AUTHORIZED` pending independent v2 review, explicit owner

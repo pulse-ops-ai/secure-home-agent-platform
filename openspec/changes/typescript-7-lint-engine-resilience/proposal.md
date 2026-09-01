@@ -63,6 +63,9 @@ lint execution mapping           -> repository-owned engine adapters
 lint execution                   -> replaceable engine implementation(s)
 package/source architecture      -> dedicated repository gates
 traditional TypeScript AST API   -> bounded compatibility seam for admitted tooling
+maintenance shortcut admission   -> default-branch invocation
+                                 -> exact live-predecessor verifier
+                                 -> candidate tree as data
 ```
 
 The selected implementation is Oxlint plus `oxlint-tsgolint`. TypeScript 7.0.2
@@ -83,6 +86,9 @@ permitted only for an explicit allowlist of repository tooling, initially
 - Establish executable security-remediation requirements so future tool
   replacement cannot silently remove policy, including by deleting a policy row
   together with the only fixture that would have exposed its loss.
+- Establish a trusted maintenance-verification boundary so the candidate cannot
+  supply the checker or workflow that decides whether its own changes qualify
+  for the shortcut.
 - Keep PR #113 frozen and outside every branch, task, authority, and proof in
   this change.
 
@@ -97,9 +103,10 @@ This governed change defines three merge-order pull requests:
 2. **PR-B — replacement authority / parity foundation:** retain TypeScript 6 and
    ESLint, add the engine-independent policy authority, Oxlint plus typed lint,
    separate per-engine mappings, the genesis predecessor-bound maintenance
-   contract, the TS6 compatibility seam, complete parity evidence, and native
-   Linux AMD64/ARM64 proof. Both legacy and replacement lint paths must pass;
-   PR-B does not self-classify through the maintenance shortcut it creates.
+   contract, a default-branch boundary executing verifier bytes from the exact
+   live predecessor, the TS6 compatibility seam, complete parity evidence, and
+   native Linux AMD64/ARM64 proof. Both legacy and replacement lint paths must
+   pass; PR-B does not self-classify through the maintenance shortcut it creates.
 3. **PR-C — TypeScript 7 cutover / ESLint retirement:** make TypeScript 7.0.2
    authoritative, preserve the bounded compatibility seam, move every member
    lint entry point to the replacement policy path, and remove ESLint only after
@@ -109,7 +116,8 @@ The change also defines the future security-remediation contract for substitutin
 one lint/tooling implementation with another without changing repository policy.
 That maintenance path is bound to a trusted predecessor: candidate-local schema
 and fixture consistency is necessary but not sufficient evidence that policy was
-preserved.
+preserved. The candidate is also input, not verifier: its workflow/checker bytes
+cannot supply the authoritative invocation or decision.
 
 ### Out of scope
 
@@ -139,7 +147,9 @@ verification surface:
 - `packages/tsconfig`, every member tsconfig, and every `tsc` invocation as an
   audited compatibility surface; and
 - policy fixtures, architecture-gate tests, install-policy tests, and native
-  Linux platform proof.
+  Linux platform proof; and
+- a trusted default-branch maintenance-boundary workflow plus verifier,
+  candidate-data, and head/predecessor freshness tests.
 
 No runtime application API, persisted data, profile, runner, image, credential,
 or deployment surface changes.
@@ -179,6 +189,12 @@ The security boundary is:
 untrusted candidate source/config
         -> compiler / static linter / typed linter / architecture parser
         -> governed accept or reject decision
+
+maintenance candidate Git tree
+        -> trusted default-branch workflow
+        -> verifier and dependencies from exact live predecessor
+        -> candidate parsed as data / implementation exercised as subject
+        -> maintenance admit or refuse
 ```
 
 A parser crash, missing rule, default-rule drift, unproven platform binary, or
@@ -195,7 +211,7 @@ make such a parser security-neutral.
 
 | Evidence | Location / identity | What it establishes | Confidence / limitation |
 |---|---|---|---|
-| Exact base | `70f23f43a6ca95f128de664c242187ad6026a67d` from live `refs/heads/main` on 2026-08-31 | PR-A starts from current remote main, not PR #113 | Point-in-time; base freshness must be rechecked before review/merge |
+| Exact base | `70f23f43a6ca95f128de664c242187ad6026a67d` from live `refs/heads/main` on 2026-08-31, re-resolved unchanged on 2026-09-01 | PR-A starts from current remote main, not PR #113 | Point-in-time; base freshness must be rechecked before review/merge |
 | Current versions | `pnpm-workspace.yaml#catalog` | TS 6.0.3; ESLint 10.8.0; `@eslint/js` 10.0.1; `typescript-eslint` 8.66.0; globals 17.9.0 | Current-main fact, not future authority |
 | Effective lint inventory | ESLint 10.8 API over current role configs | 117 enabled rule identities across all file/role modes: 46 TypeScript rules, 53 core rules effective on production TS, 18 additional JS-config rules | Registration/options do not prove replacement semantic parity |
 | Existing lint fixtures | `packages/eslint-config/tests/` | Valid fixture plus four negative rules; role, framework-neutrality, and formatting-neutrality assertions | Deliberately insufficient for engine retirement |
@@ -205,6 +221,8 @@ make such a parser security-neutral.
 | Package install probe | exact npm packages in a temporary pnpm workspace with `onlyBuiltDependencies: []` | frozen install succeeds; selected and native platform packages declare no install lifecycle scripts | Linux AMD64 execution only |
 | Oxlint rule-registration probe | Oxlint 1.80.0 `--type-aware --print-config` | 115 current rule mappings register; `no-dupe-args` and `no-octal` are parser diagnostics; one materialized ESLint default option needs an engine-specific normalization | Rule registration is not fixture parity |
 | Maintenance falsification | review of planned post-ESLint checks | deleting a policy row and its fixture together would leave the candidate policy/config/corpus internally consistent | Requires a trusted-predecessor and admitted-delta authority in Scope 1 |
+| Trusted-boundary precedent | `.github/workflows/review-boundary.yml` and `scripts/openspec-candidate-workspace.mjs` | repository already proves a default-branch `repository_dispatch` workflow can execute trusted base tooling while materializing candidate Git objects only as inert data | Maintenance boundary must use the same trust shape, not the candidate checkout |
+| Current merge controls | GitHub API: zero repository rulesets; `main` branch protection endpoint reports unprotected | no external rule independently anchors candidate workflow/verifier bytes or preserves a green result after branch movement | trusted run-boundary identity/freshness must be explicit; no merge-time-freshness overclaim |
 | Native package inventory | npm registry manifests and downloaded tarballs | TS7, Oxlint, and tsgolint publish Linux x64 and ARM64 artifacts; binary formats match each architecture | ARM64 artifacts were inspected, not executed locally |
 | Hosted ARM64 path | repository is public; GitHub-hosted standard runner docs list `ubuntu-24.04-arm` | native ARM64 proof can use the repository's existing GitHub-hosted trust model without self-hosted infrastructure | Must be exercised in PR-B and PR-C |
 
@@ -232,6 +250,8 @@ evidence:
 - whether an engine upgrade or substitution preserves every accept/reject case;
 - whether the candidate preserved the trusted predecessor's policy/config/corpus
   rather than presenting a smaller self-consistent replacement;
+- which exact workflow and verifier bytes made that decision, and why the
+  candidate could not replace or skip them;
 - why the architecture import gate remains independent and fail-closed;
 - where the temporary TypeScript 6 API may be imported;
 - whether frozen installation and required commands work on Linux AMD64 and
@@ -258,6 +278,7 @@ resolve any unrelated architectural decision or alter PR #113.
 | GQ-TS7-004 | How can the three-PR sequence respect explicit ADR acceptance? | repository owner | before PR-A merge / PR-B authorization | closed conditionally: PR-A starts Proposed and is the reviewed acceptance vehicle; only explicit owner action may accept it. If the owner requires a separate PR, the three-PR constraint is unsafe and work stops |
 | GQ-TS7-005 | What happens if any current rule or option lacks semantic parity? | implementation reviewer | PR-B completion | closed: PR-B stops, ESLint remains, PR-C is not authorized, and architecture is revisited only if no engine/repository/compiler allocation can preserve the policy |
 | GQ-TS7-006 | What proves a tool-only security update preserved the predecessor's contract after the legacy oracle is gone? | architecture review | PR-B | closed by design: semantic policy/corpus and other protected authorities are compared with a trusted predecessor; only maintenance-class implementation deltas are admitted; unknown base or protected drift fails closed |
+| GQ-TS7-007 | Whose executable bytes decide whether a candidate qualifies for maintenance? | architecture review | PR-B | closed by design: a `repository_dispatch` definition from the default branch resolves the exact live predecessor, executes that predecessor's verifier/dependencies, supplies the candidate as Git-object data, and refuses candidate/predecessor movement |
 
 ### Non-gating questions
 
@@ -267,12 +288,13 @@ resolve any unrelated architectural decision or alter PR #113.
 | NQ-TS7-002 | Whether member lint commands call a wrapper directly or through a root script | PR-B/PR-C entry-point tasks | `pnpm lint`, role coverage, dual-run, and separation outcomes are fixed |
 | NQ-TS7-003 | Whether individual equivalent fixtures share a source file | PR-B fixture task | every policy-to-proof mapping remains explicit and executable |
 | NQ-TS7-004 | Exact Git plumbing/API used to resolve the maintenance comparison base | PR-B maintenance-boundary task | trusted predecessor identity, fail-closed resolution, protected semantic projections, and allowed deltas are fixed |
+| NQ-TS7-005 | Whether candidate data is streamed directly from Git objects or materialized as regular non-executable files | PR-B trusted-boundary task | candidate cannot supply executable verifier/invocation bytes either way; only predecessor code interprets it |
 
 ## Exactness Excluded from This Artifact
 
 This proposal does not own the future policy-entry schema, engine mapping rows,
-fixture inventory, maintenance-class rows, package lock resolution, member-path
-inventory, or CI matrix. `assurance.md` allocates those exact facts to one
-authority and `tasks.md` creates them contract-first. `design.md` records
-current-main evidence only and labels it as a snapshot, not a future policy
-source.
+fixture inventory, maintenance-class rows, trusted-boundary implementation
+details, package lock resolution, member-path inventory, or CI matrix.
+`assurance.md` allocates those exact facts to one authority and `tasks.md`
+creates them contract-first. `design.md` records current-main evidence only and
+labels it as a snapshot, not a future policy source.
