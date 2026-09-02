@@ -109,9 +109,11 @@ Traditional TypeScript compiler API
     -> bounded compatibility dependency for admitted repository tooling only
 
 Tool-maintenance shortcut admission
-    -> default-branch invocation authority
-    -> verifier executable loaded from the exact live predecessor
-    -> candidate tree supplied as data, never as the deciding verifier
+    -> trusted control: default-branch invocation, verifier loaded from the exact
+       live predecessor, read-only metadata credential, content-addressed subject plan
+    -> untrusted subject: isolated, credential-free candidate-tool execution
+    -> trusted verdict: identity/digest/schema verification of subject evidence
+    -> point-in-time evidence; owner re-confirms freshness at merge (MAN-TS7-01)
 ```
 
 An engine config is a projection of policy. It is not the policy's architectural
@@ -267,8 +269,8 @@ new architecture decision when all of these remain true:
 
 - the maintenance claim is compared with a trusted predecessor selected by the
   repository workflow, not only with candidate-authored state;
-- the authoritative admission decision executes workflow and verifier bytes from
-  that exact predecessor, never from the candidate being judged;
+- the trusted point-in-time evidence is produced by workflow and verifier bytes
+  from that exact predecessor, never from the candidate being judged;
 - positive policy fixtures pass;
 - negative policy fixtures fail for the intended policy;
 - required compiler/lint/architecture commands remain separate;
@@ -284,6 +286,7 @@ The maintenance transition is a closed, fail-closed classification:
 | lint engine | exact engine pins, only their derived transitive lock subgraph, the selected engine's mapping, generated engine config/adapter | semantic lint policy, roles/options/blocking posture, conformance fixture bytes and harness, compiler policy, formatter, architecture gates, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
 | normal TypeScript compiler | exact normal-compiler pin, only its derived transitive lock subgraph, version expectations, audit evidence/adapter required by the new compiler | shared compiler configuration, compiler conformance fixtures/harness, lint policy/corpus, TS6 consumer boundary, formatter, architecture gates, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
 | TS6 compatibility parser | exact compatibility-package pin, only its derived transitive lock subgraph, expected resolved API identity, and the bounded package-import adapter | admitted consumer allowlist, source-import semantics/corpus/harness, normal compiler authority, lint policy/corpus, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
+| normal-compiler-and-typed-lint (composite) | the normal TypeScript pin **and** the matching `oxlint-tsgolint` typed-lint pin together, plus only their derived transitive lock subgraphs and the required adapters | every protected authority of both the normal-compiler and lint-engine classes: semantic lint policy, roles/options/blocking posture, conformance fixtures/harness, shared compiler configuration and conformance, TS6 consumer boundary, formatter, architecture gates, install posture, platform set, predecessor maintenance classes, and trusted verifier authority |
 
 The exact allowed/protected authority sets are machine-readable and
 history-checked. The predecessor's maintenance class defines the comparison; a
@@ -291,33 +294,60 @@ candidate may not widen its own allowed set or alter the trusted verifier
 authority. Lockfile change is limited to the selected package roots and their
 deterministically derived transitive closure; unrelated graph movement fails.
 
+The maintenance classes are a **closed set**. A candidate may not compose or
+union two or more classes to widen its admitted delta. Changes that must move
+more than one implementation authority together — for example a normal-compiler
+update that requires the matching typed-lint (`oxlint-tsgolint`) pin — are
+admitted only through the single closed composite class above, or routed to full
+policy/architecture review. The composite class still preserves every protected
+authority of each contributing class.
+
 The verifier is a separate authority from those classes:
 
 ```text
-repository_dispatch
+repository_dispatch  (three trust domains)
+  TRUSTED CONTROL
         -> workflow definition from the default branch
         -> resolve exact candidate head + exact live default-branch predecessor
         -> require dispatch workflow SHA == live predecessor SHA
         -> check out only that predecessor as executable code
-        -> execute its verifier and dependencies
-        -> supply candidate Git objects / inert materialized files as data
+        -> execute its verifier/dependencies with a read-only metadata credential
+        -> emit a content-addressed subject plan
+  UNTRUSTED SUBJECT
+        -> execute candidate tools in an isolated, credential-free runner/sandbox
+           (no secret/token/Docker socket/shared cache/trusted-workspace write)
+        -> candidate Git objects are data; output is an untrusted result envelope
+  TRUSTED VERDICT
+        -> in a fresh predecessor context, verify predecessor SHA, candidate SHA,
+           subject-plan digest, command identities, envelope schema, artifact digests
         -> re-resolve candidate head + live predecessor
-        -> movement or disagreement = REFUSE
+        -> movement, disagreement, or unverifiable evidence = REFUSE
 ```
 
 The candidate's workflow, checker, package scripts, and helper programs have no
 authority over this admission decision. A candidate may contain a changed
 `scripts/check-toolchain-boundaries.mjs` or a workflow that exits successfully;
-the trusted boundary does not execute either copy. If candidate implementation
-binaries must run for conformance, the predecessor-owned command plan launches
-them only as subjects under test after structural admission; their output cannot
-decide whether the trusted verifier ran.
+the trusted boundary does not execute either copy. Candidate tools run only in
+the isolated untrusted subject domain, which receives no secret, `GITHUB_TOKEN`,
+persisted credential, Docker socket, or shared writable cache and cannot write to
+any trusted workspace; a containerized subject additionally uses read-only
+mounts, an explicit network policy, a non-root user, dropped capabilities,
+`no-new-privileges`, and resource limits. If candidate implementation binaries
+must run for conformance, the predecessor-owned command plan launches them there
+only as subjects under test after structural admission; their output is verified
+by schema and digest and cannot decide whether the trusted verifier ran.
 
 The trusted boundary is a run-boundary proof. It records one exact predecessor
 and one exact candidate head and refuses if either moves while it runs. The
 repository currently has no ruleset or branch protection that preserves that
-freshness indefinitely after success; merge-time freshness remains an external
-repository-policy concern rather than a promise of this ADR.
+freshness indefinitely after success. The successful run is therefore
+**point-in-time evidence**, not machine-authoritative merge admission. Because no
+ruleset or merge queue enforces it, the bounded owner control `MAN-TS7-01`
+re-confirms — immediately before merge — that the candidate head, live `main`,
+synthetic merge tree, run-ID identities, and protected authorities are unchanged;
+any movement invalidates the evidence and requires a new run. Merge-time
+freshness remains an external repository-policy concern rather than a promise of
+this ADR unless such an enforceable mechanism is later adopted.
 
 Scope 1 creates this maintenance authority under the full dual-engine,
 architecture-review, and native-platform proof. It is the genesis contract and
@@ -327,7 +357,7 @@ later candidate may claim a maintenance class after the trusted workflow and
 verifier have merged into the live predecessor.
 
 Accordingly, PR-B proves the protocol with executable fixtures and ordinary
-hosted CI but records no authoritative maintenance admission: a
+hosted CI but records no trusted maintenance evidence from the future boundary: a
 `repository_dispatch` definition cannot execute from the default branch before
 it has merged there. Every later maintenance candidate must provide the real
 predecessor-hosted boundary run as part of its own evidence.
@@ -378,22 +408,25 @@ The repository is public and already trusts GitHub-hosted runners; the standard
 `ubuntu-24.04-arm` runner is the selected native ARM64 proof path. No self-hosted
 runner is introduced by this decision.
 
-### 13. The implementation sequence is three pull requests
+### 13. The implementation sequence is four merge-order vehicles
 
 ```text
-PR-A  planning + Proposed ADR (this change)
-  -> PR-B  Scope 1 parity foundation
-  -> PR-C  Scope 2 TypeScript 7 cutover / ESLint retirement
+PR-A   planning + Proposed ADR (this change)
+  -> PR-A2  acceptance-only ADR transition (Proposed -> Accepted)
+  -> PR-B   Scope 1 parity foundation
+  -> PR-C   Scope 2 TypeScript 7 cutover / ESLint retirement
 ```
 
-Each implementation scope gets its own governed-spec-driven-v2 review epoch and
-external authorization.
+Each implementation scope (PR-B, PR-C) gets its own governed-spec-driven-v2
+review epoch and external authorization.
 
-PR-A starts with this ADR Proposed. Only explicit repository-owner action may
-accept it. If the owner requires ADR acceptance in a separate pull request rather
-than within the reviewed PR-A vehicle, the three-PR constraint is no longer safe;
-the program stops and reports that governance prerequisite instead of hiding a
-fourth transition.
+PR-A starts with this ADR Proposed. Acceptance occurs only in PR-A2: a separate,
+explicitly owner-authorized, independently reviewed, implementation-free change
+that flips this ADR's status `Proposed -> Accepted`, is bound to the exact
+accepted ADR byte digest, and updates `docs/decisions/INDEX.md` and the
+current-state mirrors atomically. PR-A2 does not by itself authorize PR-B; PR-B
+begins only from the exact post-PR-A2 `main` and only after a separate external
+implementation authorization, and never while this ADR is Proposed.
 
 PR #113 is frozen and outside this sequence. It is rebased separately after the
 program, not used as input to it.
@@ -465,7 +498,23 @@ checker with unconditional success, delete policy and evidence together, and
 have its own workflow skip the real comparison. The workflow definition,
 verifier executable, its dependencies, and invocation plan must come from the
 exact live predecessor; the candidate is data and a subject under test, never
-the maintenance-admission authority.
+the maintenance-evidence authority.
+
+### Run candidate tools in the trusted verifier context
+
+Rejected. Even when the candidate does not "decide," a candidate tool that
+executes co-resident with the verifier, credentials, cache, or result files can
+tamper with the outcome. Candidate tools must run only in an isolated,
+credential-free untrusted subject whose output is verified by identity and
+digest before the trusted verdict accepts it.
+
+### Accept this ADR inside PR-A or PR-B
+
+Rejected. Accepting the ADR inside the planning vehicle is self-approval, and
+accepting it inside the parity implementation couples acceptance with code.
+Acceptance is a dedicated, owner-authorized, independently reviewed,
+implementation-free vehicle (PR-A2), after which PR-B may begin only from the
+exact post-PR-A2 main.
 
 ### Make Oxlint configuration the policy authority
 
@@ -565,8 +614,13 @@ This ADR may be accepted when a reviewer and repository owner agree that:
 7. security-remediation substitution is predecessor-bound and cannot remove a
    policy together with its evidence;
 8. the candidate being judged cannot supply the authoritative maintenance
-   verifier or invocation boundary, and head/predecessor movement is refused;
-9. the two implementation scopes and review epochs are the correct atomic seams;
+   verifier or invocation boundary; candidate tools execute only in an isolated,
+   credential-free subject; the trusted verdict verifies the subject evidence by
+   identity and digest; head/predecessor movement is refused; and a successful
+   run is point-in-time evidence whose merge consumption is gated by MAN-TS7-01;
+9. the four merge-order vehicles are correct — planning (PR-A), an acceptance-only
+   ADR transition (PR-A2), and the two implementation scopes/review epochs
+   (PR-B, PR-C) — with maintenance classes a closed set (including the composite);
 10. no unrelated ADR, unresolved decision, runtime, or PR #113 scope is changed.
 
 ## Validation and follow-up obligations
@@ -575,7 +629,11 @@ This ADR may be accepted when a reviewer and repository owner agree that:
    updates `docs/decisions/INDEX.md`, and opens as a draft. No implementation.
 2. An independent governed review evaluates the exact planning bytes. The
    author may not self-accept.
-3. Repository-owner acceptance is explicit and precedes PR-B authorization.
+3. Repository-owner acceptance is explicit, occurs only in the dedicated PR-A2
+   acceptance-only vehicle (implementation-free, independently reviewed, bound to
+   the exact accepted ADR byte digest, updating INDEX and current-state mirrors
+   atomically), and precedes PR-B authorization; PR-B begins only from the exact
+   post-PR-A2 main.
 4. PR-B lands the engine-neutral policy schema/manifest, separate per-engine
    mappings, full current-policy extraction, generated replacement config,
    complete fixture corpus, dual blocking engines, predecessor-bound maintenance
@@ -591,7 +649,10 @@ This ADR may be accepted when a reviewer and repository owner agree that:
 7. PR-B proves that replacing the candidate checker with unconditional success,
    deleting its path, or editing the candidate workflow cannot bypass the
    predecessor verifier, and that candidate/predecessor movement refuses the
-   run.
+   run; that candidate tools cannot escape the isolated subject or influence the
+   trusted verdict; that a forged result envelope is rejected by identity/digest
+   verification; and that head/base/merge-tree movement after the run invalidates
+   the point-in-time evidence (MAN-TS7-01).
 8. PR-C repeats the TS7 audit against current main, establishes TS7 compiler
    identity, removes all ESLint residue atomically, retains the compatibility
    seam, and proves native AMD64/ARM64 full commands.

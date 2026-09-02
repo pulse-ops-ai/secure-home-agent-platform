@@ -52,12 +52,25 @@ work.
 **Requirement ID:** `REQ-TC-002`
 
 **Canonical authority references:** `AUTH-TS-PINS`, `AUTH-TS-CONFIGS`,
-`AUTH-TS-ENTRYPOINTS`
+`AUTH-TS-ENTRYPOINTS`, `AUTH-TS6-CONSUMERS`, `AUTH-TS-CONFORMANCE`
 
-Scope 2 SHALL update the normal compiler to TypeScript 7.0.2 and SHALL preserve
-successful typecheck, build, declaration output, source/declaration maps,
-generator compilation, decorators where currently configured, tsconfig
-inheritance, rootDir/outDir resolution, and test-config no-emit behavior.
+Scope 2 SHALL update the normal compiler to TypeScript 7.0.2. Every ordinary
+typecheck, build, and generator entry point SHALL resolve the one authoritative
+normal `typescript` package and version. `@typescript/typescript6` SHALL be
+resolvable only through `AUTH-TS6-CONSUMERS`, and its `tsc6` binary SHALL NOT
+satisfy any typecheck, build, or generator compilation.
+
+Scope 2 SHALL preserve successful typecheck, build, decorators where currently
+configured, tsconfig inheritance, rootDir/outDir resolution, and test-config
+no-emit behavior. For the emitted surfaces the repository actually produces,
+Scope 2 SHALL prove preservation with normalized golden/differential evidence:
+declaration output (`.d.ts`), declaration maps (`.d.ts.map`), and source maps
+(`.js.map`) for the library and service roles, and the committed or consumed
+output of any member `generate` step. Roles that emit none of a surface — the
+application role for declarations and declaration maps, and the no-emit test
+role — SHALL NOT carry a preservation claim for that surface. Normalization
+SHALL neutralize only compiler-version banners and absolute path prefixes and
+SHALL NOT alter semantic content.
 
 #### Scenario: Full workspace typecheck and build
 
@@ -82,6 +95,42 @@ inheritance, rootDir/outDir resolution, and test-config no-emit behavior.
 - **WHEN** a member builds
 - **THEN** version-identity validation SHALL fail
 - **AND** the build MUST NOT be accepted based only on emitted output
+
+#### Scenario: Normal entry points resolve one authoritative compiler
+
+- **GIVEN** the cutover has landed
+- **WHEN** any ordinary `typecheck`, `build`, or `generate` entry point runs
+- **THEN** it SHALL resolve exactly the authoritative normal `typescript`
+  package and version
+- **AND** `@typescript/typescript6` SHALL be resolvable only from an
+  `AUTH-TS6-CONSUMERS` path
+
+#### Scenario: tsc6 cannot satisfy a compiler entry point
+
+- **GIVEN** the compatibility package's `tsc6` binary is installed
+- **WHEN** any `typecheck`, `build`, or generator compilation attempts to use it
+- **THEN** entry-point validation SHALL fail
+- **AND** `tsc6` SHALL NOT be accepted as the compiler for that entry point
+
+#### Scenario: Emitted declaration, map, and generator output are preserved
+
+- **GIVEN** library/service declaration output, declaration maps, and source
+  maps, and the output of any member `generate` step, captured under TypeScript 6
+- **WHEN** the same surfaces are emitted under TypeScript 7.0.2
+- **THEN** a normalized golden/differential comparison SHALL match, neutralizing
+  only version banners and absolute path prefixes
+- **AND** a semantic difference SHALL block the cutover rather than be accepted
+  because compilation exited successfully
+
+#### Scenario: A role that emits nothing carries no golden claim
+
+- **GIVEN** the application role emits no declarations/declaration maps and the
+  test role emits nothing
+- **WHEN** emitted-output preservation is evaluated
+- **THEN** no golden preservation claim SHALL be required for those absent
+  surfaces
+- **AND** the audit SHALL record them as not-applicable rather than fabricating
+  evidence
 
 ### Requirement: The source-import architecture gate survives cutover
 

@@ -229,6 +229,15 @@ as a maintenance update. Maintenance classification is available only to a
 later candidate whose trusted predecessor already contains the accepted class
 and trusted verification contract.
 
+The maintenance classes SHALL be a closed set. A candidate SHALL NOT compose or
+union two or more separate classes to widen its admitted delta. A change that
+requires more than one implementation authority to move together — for example a
+normal-compiler update that requires a matching typed-lint (`oxlint-tsgolint`)
+backend pin — SHALL be admitted only through a single closed composite
+maintenance class defined for that coupling, or SHALL be routed to full policy
+or architecture review. The composite class SHALL still preserve every protected
+authority of each contributing class.
+
 Candidate-local schema validity, fixture referential integrity, generated-config
 drift, and a green candidate corpus SHALL be necessary but SHALL NOT be
 sufficient evidence of continuity.
@@ -296,19 +305,66 @@ authority.
 - **AND** the candidate's widened class SHALL have no authority over its own
   admission
 
-### Requirement: Maintenance admission executes trusted verifier bytes
+#### Scenario: Coupled compiler and typed-lint update uses the closed composite class
+
+- **GIVEN** a trusted predecessor whose closed maintenance classes include a
+  `normal-compiler-and-typed-lint` composite class
+- **WHEN** a candidate changes the exact normal TypeScript pin together with the
+  matching `oxlint-tsgolint` typed-lint pin, their derived lock closures, and
+  the required adapters, while every protected semantic/config/corpus/harness
+  authority remains predecessor-identical
+- **THEN** the change MAY be classified under that single composite class
+- **AND** the full compiler, typed-lint, install, platform, and separation
+  proofs SHALL still run
+
+#### Scenario: Candidate unions two separate classes to widen authority
+
+- **GIVEN** a predecessor that defines separate lint-engine and normal-compiler
+  classes but no composite permitting both plus additional deltas
+- **WHEN** a candidate composes those classes to change compiler, typed-lint,
+  and a protected authority together
+- **THEN** maintenance classification SHALL fail closed
+- **AND** the coupled change SHALL be routed to full policy or architecture review
+
+### Requirement: Maintenance evidence executes trusted verifier bytes
 
 **Requirement ID:** `REQ-SC-007`
 
 **Canonical authority references:** `AUTH-MAINTENANCE-VERIFIER`,
-`AUTH-MAINTENANCE-CLASSES`
+`AUTH-MAINTENANCE-CLASSES`, `AUTH-MAINTENANCE-SUBJECT-ISOLATION`
 
-The authoritative maintenance-admission decision SHALL execute through a
-default-branch invocation boundary whose workflow definition, verifier
-executable, verifier dependencies, maintenance classes, and command plan all
-come from one exact live predecessor commit.
+Trusted point-in-time maintenance evidence SHALL be produced across three
+explicit trust domains, and no candidate-supplied byte SHALL cross a domain
+boundary as executable authority.
 
-The candidate SHALL be supplied to that verifier as Git-object data or as
+1. **Trusted control.** A default-branch `repository_dispatch` workflow
+   definition SHALL check out the exact live predecessor and load its verifier
+   executable, verifier dependencies, maintenance classes, and command plan
+   from that one predecessor commit. It MAY use only a least-privilege
+   read-only GitHub metadata credential to resolve identities. It SHALL compute
+   a content-addressed **subject plan** naming the exact commands, subject
+   binaries, and input digests the subject domain must run.
+2. **Untrusted subject.** Candidate tools SHALL execute only in a separate
+   fresh hosted runner or an explicitly hardened sandbox governed by
+   `REQ-SC-008`, **and** SHALL additionally be separated from the trusted
+   host-side launcher by the OS-level boundary that requirement mandates — the
+   fresh domain alone does not establish that second separation. That domain SHALL receive no secret, no usable `GITHUB_TOKEN`,
+   no persisted checkout credential, no shared writable cache, and no Docker
+   socket, and SHALL have no write access to the predecessor checkout, policy,
+   verifier, command plan, or verdict workspace. Its output SHALL be treated as
+   untrusted data — a **result envelope** written only inside its isolated
+   scratch/output area.
+3. **Trusted verdict.** A fresh exact-predecessor execution context SHALL
+   verify the predecessor SHA, candidate SHA, subject-plan digest, command
+   identities, result-envelope schema, and output-artifact digests, and SHALL
+   re-resolve the candidate head and live predecessor before emitting the
+   maintenance result. It SHALL treat candidate output only as evidence.
+
+A trusted host-side launcher owned by the trusted domains SHALL own command
+selection, timeout and process cleanup, exit-code capture, artifact hashing, and
+result-envelope construction outside any candidate-writable path.
+
+The candidate SHALL be supplied to the trusted domains as Git-object data or as
 regular non-executable files materialized from those objects. Symlinks,
 submodules, path escapes, and other non-regular candidate entries SHALL be
 refused rather than materialized. The candidate's workflow, checker, package
@@ -316,9 +372,10 @@ scripts, helpers, or altered invocation path SHALL NOT decide whether the
 candidate qualifies for maintenance.
 
 A candidate implementation binary MAY execute only as an explicitly selected
-subject under test launched and interpreted by the predecessor-owned command
-plan after structural admission. Its success SHALL NOT prove that the trusted
-verifier ran or authorize skipping any predecessor-owned check.
+subject under test in the untrusted subject domain, launched and interpreted by
+the predecessor-owned command plan after structural admission. Its exit status
+or emitted bytes SHALL NOT prove that the trusted verifier ran or authorize
+skipping any predecessor-owned check.
 
 At the beginning of the run, the boundary SHALL resolve the exact candidate head
 and the current exact tip of the default target branch and SHALL require the
@@ -327,9 +384,10 @@ re-resolve both identities. If either moved, the proof SHALL fail as stale.
 
 Missing trusted workflow/verifier bytes, failure to resolve either identity,
 candidate-controlled execution, unreadable candidate objects, or any start/end
-identity disagreement SHALL fail closed. An ordinary candidate workflow or
-local checker run MAY provide developer feedback but SHALL NOT substitute for
-this authority.
+identity disagreement, or any subject-produced envelope whose schema, subject-plan
+digest, command identity, or artifact digest does not verify SHALL fail closed.
+An ordinary candidate workflow or local checker run MAY provide developer
+feedback but SHALL NOT substitute for this authority.
 
 #### Scenario: Candidate replaces its checker with unconditional success
 
@@ -381,13 +439,171 @@ this authority.
 - **THEN** the run SHALL fail closed
 - **AND** it MUST NOT fall back to the candidate's checker or package scripts
 
+#### Scenario: Subject tampering cannot influence the verdict
+
+- **GIVEN** a candidate tool runs in the untrusted subject domain
+- **WHEN** it attempts any of: overwriting the verifier or predecessor
+  workspace; writing `GITHUB_ENV` or `GITHUB_OUTPUT`; forging or replacing
+  result-envelope files; reading a token or secret; leaving a background
+  process; poisoning a shared cache; escaping its allowed output directory;
+  modifying the command plan; or emitting a result that claims a different
+  head or base
+- **THEN** the isolation contract SHALL prevent the write/read/escape, or the
+  trusted verdict SHALL reject the resulting evidence
+- **AND** none of these actions SHALL change the emitted maintenance result
+
+#### Scenario: Subject forges a successful result envelope
+
+- **GIVEN** the subject domain emits a result envelope claiming every command
+  passed
+- **WHEN** the trusted verdict evaluates it
+- **THEN** the verdict SHALL recompute and require the predecessor SHA,
+  candidate SHA, subject-plan digest, command identities, envelope schema, and
+  output-artifact digests to match the trusted-control expectations
+- **AND** any mismatch SHALL refuse maintenance rather than trust the
+  subject's self-report
+
+### Requirement: Candidate tool execution is isolated
+
+**Requirement ID:** `REQ-SC-008`
+
+**Canonical authority references:** `AUTH-MAINTENANCE-SUBJECT-ISOLATION`,
+`AUTH-MAINTENANCE-VERIFIER`
+
+Candidate tool isolation SHALL be established by two boundaries, both mandatory.
+
+**Boundary 1 — the subject trust domain.** Candidate tools invoked during
+maintenance verification SHALL execute only in an isolated untrusted subject
+domain: a fresh hosted runner or an explicitly hardened sandbox. That domain
+SHALL NOT receive any secret, usable `GITHUB_TOKEN`, or persisted checkout
+credential, SHALL NOT mount a shared writable cache, and SHALL NOT expose a
+Docker socket. It SHALL have no write access to the predecessor checkout, policy,
+verifier, command plan, or verdict workspace, and SHALL be given only an isolated
+writable scratch/output area. Candidate output SHALL be treated as untrusted
+data.
+
+**Boundary 2 — the candidate is isolated from the trusted launcher.** Within that
+domain, the candidate process SHALL be separated from the trusted host-side
+launcher by an explicit OS-level isolation boundary — a container, a separate
+unprivileged UID, or an equivalent mechanism — so that the launcher's timeout
+state, process table, captured exit codes, artifact hashes, and result envelope
+are not reachable by the process being measured. A topology in which the
+candidate runs as the launcher's own user in the launcher's own filesystem
+context SHALL be refused, even when boundary 1 is fully satisfied: a fresh runner
+separates the subject from control and verdict, and establishes nothing about the
+candidate's relationship to the launcher sharing that runner.
+
+A container-based subject implementation SHALL be acceptable only when its
+contract includes read-only mounts of any trusted input, an explicit network
+policy, a non-root user, all Linux capabilities dropped, `no-new-privileges`,
+process/time/CPU/memory limits, an isolated writable scratch, and no path to the
+host Docker socket or any trusted workspace.
+
+#### Scenario: Subject requests a credential or secret
+
+- **GIVEN** a candidate tool in the subject domain attempts to read a token,
+  secret, or persisted checkout credential
+- **WHEN** the maintenance run executes
+- **THEN** no such credential SHALL be present in the subject domain
+- **AND** a command that requires one SHALL fail closed rather than acquire it
+
+#### Scenario: Containerized subject omits a required control
+
+- **GIVEN** the subject is implemented as a container
+- **WHEN** the isolation contract is evaluated
+- **THEN** read-only trusted mounts, explicit network policy, non-root user,
+  dropped capabilities, `no-new-privileges`, resource limits, isolated scratch,
+  and absence of the host Docker socket and trusted-workspace paths SHALL all be
+  present
+- **AND** a missing control SHALL refuse the run rather than execute candidate
+  tools with weaker isolation
+
+#### Scenario: Candidate shares the launcher's execution context
+
+- **GIVEN** the subject domain is a fresh, secret-free runner satisfying every
+  boundary-1 control
+- **AND** the candidate binary is launched directly as the same OS user as the
+  trusted launcher, in the launcher's own filesystem context
+- **WHEN** the isolation contract is evaluated
+- **THEN** the topology SHALL be refused rather than admitted on the strength of
+  boundary 1
+- **AND** the refusal SHALL name the missing launcher-isolation boundary, not a
+  subject-domain control that is in fact present
+
+#### Scenario: Candidate attempts to alter launcher or result-envelope state
+
+- **GIVEN** an admissible topology in which the candidate is isolated from the
+  launcher
+- **WHEN** a candidate tool attempts to modify the launcher's timeout state,
+  process table, captured exit code, artifact hashes, or the result envelope
+  under construction
+- **THEN** the isolation boundary SHALL deny the action
+- **AND** the emitted maintenance result SHALL be unchanged
+
+#### Scenario: Subject has no write path to a trusted workspace
+
+- **GIVEN** a candidate tool attempts to write outside its isolated scratch/output
+- **WHEN** it targets the predecessor checkout, verifier, command plan, or
+  verdict workspace
+- **THEN** the write SHALL be denied by the isolation boundary
+- **AND** the trusted verdict SHALL remain computed from trusted-domain state only
+
+### Requirement: Maintenance evidence is consumed under owner merge-freshness control
+
+**Requirement ID:** `MAN-TS7-01`
+
+**Canonical authority references:** `AUTH-MAINTENANCE-VERIFIER`,
+`AUTH-MAINTENANCE-CLASSES`
+
+A successful maintenance-boundary run SHALL be recorded as point-in-time
+evidence, not as a permanent merge authorization. The repository currently has
+no ruleset or merge-queue integration that preserves that freshness, so this
+contract SHALL NOT claim machine-authoritative merge admission.
+
+Immediately before merging a maintenance candidate, the repository owner SHALL
+verify that: the current candidate head equals the run's candidate head; the
+current `refs/heads/main` equals the run's predecessor; the successful run ID
+names those exact identities; the exact synthetic merge-tree identity matches the
+tree intended to merge; and no protected authority changed after the run. Any
+head, base, merge-tree, or protected-authority movement SHALL invalidate the
+evidence and require a new run.
+
+If the repository later adopts an enforceable no-bypass ruleset or merge-queue
+integration, that mechanism MAY replace this manual control; until then the
+manual control is the only freshness gate at merge time.
+
+#### Scenario: Evidence is still fresh at merge
+
+- **GIVEN** a successful maintenance run for candidate head H against live
+  predecessor B and synthetic merge tree T
+- **WHEN** the owner re-confirms H, B, T, the run ID identities, and unchanged
+  protected authorities immediately before merge
+- **THEN** the point-in-time evidence MAY be consumed for that merge
+
+#### Scenario: The target branch advanced after the run
+
+- **GIVEN** a successful maintenance run whose predecessor was B
+- **WHEN** `refs/heads/main` has advanced to B2 before merge
+- **THEN** the recorded evidence SHALL be treated as invalid
+- **AND** a new maintenance run against B2 SHALL be required before merge
+
+#### Scenario: The candidate head or merge tree moved after the run
+
+- **GIVEN** a successful maintenance run for candidate head H and merge tree T
+- **WHEN** the current candidate head is not H or the synthetic merge tree is
+  not T at merge time
+- **THEN** the recorded evidence SHALL be treated as invalid
+- **AND** a new maintenance run SHALL be required
+
 ## Failure Semantics
 
 | Condition class | Requirement / scenario | Required observable outcome |
 |---|---|---|
 | change-attributable | range, missing platform package, install exception, or policy loss | deterministic refusal |
+| change-attributable | missing subject-isolation control, forged/mismatched result envelope, or class composition widening authority | deterministic refusal; candidate output is evidence only |
 | environmental / operational | native runner unavailable | proof incomplete; retry later, do not claim support |
 | ambiguous / undecidable | dependency exposure class, resolved identity, trusted predecessor/verifier unknown, or head/predecessor movement | treat as security-relevant / fail closed pending evidence |
+| ambiguous / undecidable (merge time) | candidate head, live base, merge tree, or protected authority moved after a successful run | point-in-time evidence invalid; require a fresh run before merge (MAN-TS7-01) |
 
 ## Compatibility
 

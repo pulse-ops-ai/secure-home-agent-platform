@@ -20,6 +20,18 @@ engine can be replaced without weakening it.
 This change is ordered before PR #113. PR #113 is frozen and is not a base,
 dependency source, cherry-pick source, or edit target for this work.
 
+> **Remediation note (2026-09-01).** The original planning pull request
+> (PR #114 — the PR-A vehicle) merged at `2026-09-01T04:54:43Z`, eleven minutes
+> **before** its controlling independent review
+> (`pull/114#pullrequestreview-5074082616`, submitted `2026-09-01T04:43:21Z`)
+> could be addressed. A merged pull request cannot be reopened, returned to
+> draft, or amended, and its branch was deleted. This is therefore an
+> **exceptional remedial PR-A correction** that lands the review's bounded
+> P1/P2 findings against the planning artifacts now on `main`. It is **not**
+> PR-A2: PR-A2 remains the later acceptance-only ADR transition defined below.
+> The normative program is still the four-vehicle sequence
+> (PR-A → PR-A2 → PR-B → PR-C); this correction re-establishes that contract.
+
 ## Problem
 
 Today:
@@ -63,9 +75,17 @@ lint execution mapping           -> repository-owned engine adapters
 lint execution                   -> replaceable engine implementation(s)
 package/source architecture      -> dedicated repository gates
 traditional TypeScript AST API   -> bounded compatibility seam for admitted tooling
-maintenance shortcut admission   -> default-branch invocation
-                                 -> exact live-predecessor verifier
-                                 -> candidate tree as data
+maintenance shortcut admission   -> trusted control  (default-branch invocation,
+                                    exact live-predecessor verifier + classes,
+                                    read-only metadata credential, subject plan)
+                                 -> untrusted subject (isolated candidate-tool
+                                    execution: no secret/token/Docker socket/
+                                    shared cache/trusted-workspace write;
+                                    output is untrusted data)
+                                 -> trusted verdict  (fresh predecessor context
+                                    re-verifies identities, subject-plan digest,
+                                    command identities, envelope schema, and
+                                    artifact digests; candidate output is evidence)
 ```
 
 The selected implementation is Oxlint plus `oxlint-tsgolint`. TypeScript 7.0.2
@@ -78,6 +98,10 @@ permitted only for an explicit allowlist of repository tooling, initially
 
 - Add Proposed ADR-0022 and this complete planning/assurance contract without
   changing current toolchain behavior.
+- Sequence a separate acceptance-only ADR transition vehicle (PR-A2) between
+  planning (PR-A) and the first implementation scope (PR-B), so ADR acceptance
+  is an explicit, independently reviewed, implementation-free step rather than
+  a self-approval hidden inside the planning or parity work.
 - Plan a first implementation scope that establishes the engine-independent
   policy authority, dual ESLint/Oxlint parity, the bounded TS6 API seam, and
   native AMD64/ARM64 evidence while TypeScript 6 remains authoritative.
@@ -86,9 +110,16 @@ permitted only for an explicit allowlist of repository tooling, initially
 - Establish executable security-remediation requirements so future tool
   replacement cannot silently remove policy, including by deleting a policy row
   together with the only fixture that would have exposed its loss.
-- Establish a trusted maintenance-verification boundary so the candidate cannot
-  supply the checker or workflow that decides whether its own changes qualify
-  for the shortcut.
+- Establish a three-domain maintenance-verification boundary — trusted control,
+  isolated untrusted subject, and trusted verdict — so the candidate cannot
+  supply the checker, workflow, or invocation that decides whether its own
+  changes qualify for the shortcut, and so candidate tools execute only in an
+  isolated subject with no credential, secret, Docker socket, shared writable
+  cache, or write access to any trusted workspace.
+- Establish that a successful maintenance run is **point-in-time evidence**, not
+  a permanent merge authorization: absent an enforceable ruleset or merge queue,
+  a bounded owner merge-freshness control re-confirms head, base, merge-tree,
+  and protected-authority identity immediately before merge.
 - Keep PR #113 frozen and outside every branch, task, authority, and proof in
   this change.
 
@@ -96,18 +127,26 @@ permitted only for an explicit allowlist of repository tooling, initially
 
 ### In scope
 
-This governed change defines three merge-order pull requests:
+This governed change defines a **four-vehicle merge-order sequence**:
 
 1. **PR-A — planning and architecture (this change):** Proposed ADR-0022 and the
    complete governed-spec-driven-v2 contract. No toolchain behavior changes.
-2. **PR-B — replacement authority / parity foundation:** retain TypeScript 6 and
+2. **PR-A2 — acceptance-only ADR transition:** a separately owner-authorized,
+   independently reviewed, implementation-free change that transitions
+   ADR-0022 `Proposed -> Accepted` only, bound to the exact accepted ADR byte
+   digest, updating the ADR status, `docs/decisions/INDEX.md`, and the
+   current-state mirrors atomically. PR-A2 does not by itself authorize PR-B.
+3. **PR-B — replacement authority / parity foundation:** retain TypeScript 6 and
    ESLint, add the engine-independent policy authority, Oxlint plus typed lint,
    separate per-engine mappings, the genesis predecessor-bound maintenance
-   contract, a default-branch boundary executing verifier bytes from the exact
-   live predecessor, the TS6 compatibility seam, complete parity evidence, and
+   contract, a default-branch trusted-control/untrusted-subject/trusted-verdict
+   maintenance boundary, the TS6 compatibility seam, complete parity evidence, and
    native Linux AMD64/ARM64 proof. Both legacy and replacement lint paths must
    pass; PR-B does not self-classify through the maintenance shortcut it creates.
-3. **PR-C — TypeScript 7 cutover / ESLint retirement:** make TypeScript 7.0.2
+   PR-B may begin only from the exact post-PR-A2 `main` commit and only after a
+   separate external implementation authorization; it cannot begin while
+   ADR-0022 is `Proposed`.
+4. **PR-C — TypeScript 7 cutover / ESLint retirement:** make TypeScript 7.0.2
    authoritative, preserve the bounded compatibility seam, move every member
    lint entry point to the replacement policy path, and remove ESLint only after
    PR-B's complete parity gate is satisfied.
@@ -148,8 +187,11 @@ verification surface:
   audited compatibility surface; and
 - policy fixtures, architecture-gate tests, install-policy tests, and native
   Linux platform proof; and
-- a trusted default-branch maintenance-boundary workflow plus verifier,
-  candidate-data, and head/predecessor freshness tests.
+- a trusted default-branch maintenance-boundary workflow plus trusted-control
+  verifier, isolated untrusted-subject execution, trusted-verdict verification,
+  candidate-data, subject-isolation, and head/predecessor freshness tests; and
+- a documented owner merge-freshness control for consuming point-in-time
+  maintenance evidence.
 
 No runtime application API, persisted data, profile, runner, image, credential,
 or deployment surface changes.
@@ -172,9 +214,11 @@ or deployment surface changes.
   runner placement, credentials, authorization, or any other unresolved topic.
 
 This change proposes **no ADR status change**. It adds ADR-0022 as `Proposed` and
-must not self-accept it. PR-A is the human-reviewed architecture vehicle; any
-later acceptance transition requires explicit repository-owner instruction and
-its own reviewed commit before PR-B implementation can be authorized.
+must not self-accept it. PR-A is the human-reviewed architecture vehicle; the
+acceptance transition is a separate, explicitly owner-authorized,
+implementation-free vehicle (PR-A2) with its own independent review and its own
+reviewed commit. Neither PR-A nor this remedial correction accepts ADR-0022, and
+PR-B implementation cannot be authorized until PR-A2 has merged.
 
 ## Trust / Security / Data Considerations
 
@@ -191,10 +235,16 @@ untrusted candidate source/config
         -> governed accept or reject decision
 
 maintenance candidate Git tree
-        -> trusted default-branch workflow
-        -> verifier and dependencies from exact live predecessor
-        -> candidate parsed as data / implementation exercised as subject
-        -> maintenance admit or refuse
+        -> trusted control: default-branch workflow, exact live-predecessor
+           verifier/classes/command plan, read-only metadata credential,
+           content-addressed subject plan
+        -> untrusted subject: isolated runner/sandbox executes candidate tools
+           with no secret/token/Docker socket/shared cache/trusted-workspace
+           write; emits a result envelope as untrusted data
+        -> trusted verdict: fresh predecessor context re-verifies predecessor
+           SHA, candidate SHA, subject-plan digest, command identities, envelope
+           schema, and artifact digests, then admits or refuses
+        -> point-in-time maintenance evidence (owner re-confirms freshness at merge)
 ```
 
 A parser crash, missing rule, default-rule drift, unproven platform binary, or
@@ -230,7 +280,7 @@ make such a parser security-neutral.
 
 | Dependency | State | Why needed | Gating? | Evidence / owner |
 |---|---|---|---|---|
-| ADR-0022 acceptance | proposed | makes policy authority independent of lint engine | yes, before PR-B implementation | repository owner |
+| ADR-0022 acceptance (via PR-A2) | proposed | makes policy authority independent of lint engine | yes, before PR-B implementation | repository owner |
 | governed-spec-driven-v2 review epoch | implemented mechanism | pins planning bytes and scope before each implementation landing | yes | `openspec/AGENTS.md`, v2 schema, review gate |
 | TypeScript 7.0.2 | external, verified | authoritative compiler target | yes for PR-C | Microsoft npm distribution |
 | `@typescript/typescript6` 6.0.2 | external, verified | bounded traditional AST API seam | yes for PR-B | Microsoft package README and executable probe |
@@ -275,10 +325,12 @@ resolve any unrelated architectural decision or alter PR #113.
 | GQ-TS7-001 | Is policy or the selected lint binary authoritative? | ADR-0022 reviewer/owner | PR-A acceptance | closed: policy is authoritative; engines are replaceable |
 | GQ-TS7-002 | How does the source-import gate retain the traditional AST API? | architecture review | PR-B | closed: Microsoft `@typescript/typescript6`, allowlisted tooling only |
 | GQ-TS7-003 | What provides native ARM64 proof without new self-hosted infrastructure? | architecture review | PR-B | closed: standard GitHub-hosted `ubuntu-24.04-arm` in this public repository |
-| GQ-TS7-004 | How can the three-PR sequence respect explicit ADR acceptance? | repository owner | before PR-A merge / PR-B authorization | closed conditionally: PR-A starts Proposed and is the reviewed acceptance vehicle; only explicit owner action may accept it. If the owner requires a separate PR, the three-PR constraint is unsafe and work stops |
+| GQ-TS7-004 | How does the merge-order sequence respect explicit ADR acceptance? | repository owner | before PR-B authorization | closed: a dedicated acceptance-only vehicle (PR-A2) transitions ADR-0022 `Proposed -> Accepted` between PR-A and PR-B; PR-B may begin only from the exact post-PR-A2 `main` and only after separate implementation authorization |
 | GQ-TS7-005 | What happens if any current rule or option lacks semantic parity? | implementation reviewer | PR-B completion | closed: PR-B stops, ESLint remains, PR-C is not authorized, and architecture is revisited only if no engine/repository/compiler allocation can preserve the policy |
 | GQ-TS7-006 | What proves a tool-only security update preserved the predecessor's contract after the legacy oracle is gone? | architecture review | PR-B | closed by design: semantic policy/corpus and other protected authorities are compared with a trusted predecessor; only maintenance-class implementation deltas are admitted; unknown base or protected drift fails closed |
-| GQ-TS7-007 | Whose executable bytes decide whether a candidate qualifies for maintenance? | architecture review | PR-B | closed by design: a `repository_dispatch` definition from the default branch resolves the exact live predecessor, executes that predecessor's verifier/dependencies, supplies the candidate as Git-object data, and refuses candidate/predecessor movement |
+| GQ-TS7-007 | Whose executable bytes decide whether a candidate qualifies for maintenance? | architecture review | PR-B | closed by design: a trusted-control `repository_dispatch` definition from the default branch resolves the exact live predecessor, executes that predecessor's verifier/dependencies/command plan, and a trusted verdict re-verifies identities and digests; the candidate never supplies deciding bytes |
+| GQ-TS7-008 | Where do candidate tools execute, and what may they touch? | architecture review | PR-B | closed by design: candidate tools execute only in an isolated untrusted subject domain with no credential, secret, `GITHUB_TOKEN`, Docker socket, shared writable cache, or trusted-workspace write; their output crosses back only as verified untrusted data |
+| GQ-TS7-009 | Does a successful maintenance run authorize merge indefinitely? | repository owner | before each maintenance merge | closed: no; the run is point-in-time evidence, and a bounded owner merge-freshness control re-confirms head, base, merge-tree, and protected-authority identity at merge because no enforceable ruleset/merge-queue exists |
 
 ### Non-gating questions
 
