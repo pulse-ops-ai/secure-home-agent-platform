@@ -31,11 +31,21 @@ All governed documentation for this repository.
 - `decisions/` records **why**; `architecture/` records **what follows**. When
   they disagree, the ADR wins and the architecture document is the defect.
 - An accepted ADR is immutable. Reverse it with a superseding ADR.
-- **ADR-0001 through ADR-0019 and ADR-0021 are `Accepted`** and immutable
-  (foundational set 2026-08-05; ADR-0012 2026-08-06; ADR-0017 and ADR-0018
-  2026-08-17; ADR-0019 2026-08-21; ADR-0021 2026-08-28). ADR-0020 and
-  ADR-0022 remain `Proposed` and non-operative. A new ADR starts `Proposed`;
-  acceptance is a human decision, never an agent's.
+- **ADR-0001 through ADR-0019, ADR-0021, and ADR-0022 are `Accepted`** and
+  immutable (foundational set 2026-08-05; ADR-0012 2026-08-06; ADR-0017 and
+  ADR-0018 2026-08-17; ADR-0019 2026-08-21; ADR-0021 2026-08-28; ADR-0022
+  2026-09-01). ADR-0020 alone remains `Proposed` and non-operative. A new ADR
+  starts `Proposed`; acceptance is a human decision, never an agent's.
+- **Accepting ADR-0022 authorized no implementation.** TypeScript remains 6.0.3
+  and ESLint remains installed and current. Its parity foundation (PR-B) and
+  TypeScript 7 cutover (PR-C) both remain `NOT_AUTHORIZED`, but on **different**
+  prerequisites — the exact-base rule belongs to PR-B alone:
+  - **PR-B** requires merged PR-A2, the exact post-PR-A2 `main` as its starting
+    base, and a separate Scope-1 implementation authorization.
+  - **PR-C** stays blocked until PR-B is merged and its parity evidence is
+    accepted. It then requires a fresh Scope-2 review epoch and its own
+    authorization, and begins from the exact then-current post-PR-B `main` —
+    never from the post-PR-A2 commit (`INV-TS7-17`).
 - Both `architecture/` and `decisions/` are index-validated: every file must be
   in its `INDEX.md`, and every index entry must point at a file that exists.
   [`scripts/validate-scaffold.sh`](../scripts/validate-scaffold.sh) enforces

@@ -8,10 +8,11 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
-> **Current accepted set:** ADR-0001 through ADR-0019 and ADR-0021 are
-> `Accepted` and immutable. ADR-0020 and ADR-0022 remain `Proposed`; this
-> non-contiguous accepted set is intentional and must not be rendered as one
-> continuous range.
+> **Current accepted set:** ADR-0001 through ADR-0019, ADR-0021, **and
+> ADR-0022** are `Accepted` and immutable. **ADR-0020 alone remains
+> `Proposed`.** This non-contiguous accepted set is intentional and must not be
+> rendered as one continuous range: the accepted set is 0001–0019, 0021, 0022,
+> with 0020 excluded.
 >
 > **Neither foundational acceptance resolved anything in
 > [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
@@ -145,7 +146,28 @@ implementation-neutral. These decide how it is built.
 | [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
 | [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
 | [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | Accepted | future root-level `governance/` domain and its validation, history, projection, and query tooling |
+| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | Accepted | the TypeScript compiler/lint/format/architecture tooling program across the pnpm workspace and CI |
 
+> **ADR-0022 is `Accepted`** (2026-09-01) and **immutable**. See
+> [the ADR-0022 acceptance record](#adr-0022-acceptance-record). It **refines
+> ADR-0012 §§15, 19, and 20 only where they assign enforcement to a selected
+> lint implementation** — without editing it. ADR-0012 remains accepted and
+> immutable, and TypeScript, pnpm/catalog governance, the inward dependency
+> rule, the repository taxonomy, and the CI execution model are all preserved.
+>
+> **Acceptance decides the architecture, not the work.** Nothing executable
+> changed: no dependency, lockfile, catalog entry, command, gate, workflow, or
+> source. TypeScript remains 6.0.3, ESLint remains the installed and current
+> lint engine, and no Oxlint, `oxlint-tsgolint`, or `@typescript/typescript6`
+> package was introduced. The two implementation scopes in
+> [`openspec/changes/typescript-7-lint-engine-resilience/`](../../openspec/changes/typescript-7-lint-engine-resilience/)
+> remain **`NOT_AUTHORIZED`**, on **different** prerequisites. **PR-B** begins
+> only from the exact post-PR-A2 `main`, and only under a separate external
+> Scope-1 implementation authorization. **PR-C** is blocked until PR-B is merged
+> and its parity evidence accepted, then needs a fresh Scope-2 review epoch and
+> its own authorization, and begins from the exact **then-current post-PR-B**
+> `main` (`INV-TS7-17`). Acceptance of this ADR supplies neither authorization.
+>
 > **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
 > [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
 > ADR-0016 §7/§7a on the set side only** — the release transition and the
@@ -180,7 +202,6 @@ action in its own change.
 | ADR | Title | Status | Would govern | Would decide |
 |---|---|---|---|---|
 | [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
-| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | **Proposed** | TypeScript compiler/lint/format/architecture tooling across the pnpm workspace and CI | engine-independent policy authority, bounded TS6 API compatibility, parity-before-retirement, candidate-independent maintenance verification, supply-chain substitution, and native toolchain platform proof |
 
 > **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
 > **still open**, and L9 (#57) remains gated. It selects a deployment topology
@@ -189,19 +210,6 @@ action in its own change.
 > already define — it changes no accepted ADR and no contract. It surfaces one
 > contract question (whether execution-host placement should be a declared
 > profile property) and deliberately does **not** answer it.
->
-> **ADR-0022 is `Proposed`.** It refines only the lint-enforcement implementation
-> portions of accepted ADR-0012: policy belongs to the repository, engines are
-> replaceable, TypeScript compiler diagnostics remain independent, Prettier
-> remains the formatter, and dedicated architecture gates retain their own
-> authority. Its maintenance shortcut would execute a verifier from the exact
-> live predecessor through a default-branch boundary; candidate checker/workflow
-> bytes would be data only. It changes no dependency, command, gate, or source
-> while Proposed.
-> The two implementation scopes in
-> [`openspec/changes/typescript-7-lint-engine-resilience/`](../../openspec/changes/typescript-7-lint-engine-resilience/)
-> remain `NOT_AUTHORIZED` pending independent v2 review, explicit owner
-> acceptance, and a separate implementation task contract.
 
 ### ADR-0013 acceptance record
 
@@ -597,6 +605,63 @@ deploy anything. L9 remains not prerequisite-ready because L8 is outstanding;
 issue #57 remains its external authority anchor, and no authorization is
 inferred from that reference or from acceptance of this ADR.
 
+### ADR-0022 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-09-01 |
+| **Accepted by** | @mikegtech (repository owner) |
+| **Scope** | **ADR-0022 only.** The engine-independent policy authority; the separation of compiler typecheck, lint, Prettier formatting, and the dedicated architecture gates; the bounded TS6 compiler-API compatibility seam; parity-before-retirement; candidate-independent maintenance verification through a trusted default-branch boundary; predecessor-bound security substitution; and the native ARM64 toolchain platform obligation |
+| **Accepted ADR content SHA-256** | `f6709c12ae60d0285d588de717c21354a2e56b1577c8aae24c1fd5fe974088ab` — the exact accepted bytes |
+| **Reviewed ADR SHA-256 (pre-acceptance)** | `3e2f5876a9dd5607c7cdbc22f7c54b02c1b8326e79fe32213ac9cc87894b6d06` — identical at the reviewed commit and at the pre-acceptance `main`, so acceptance transitioned exactly the reviewed bytes |
+| **Architectural body SHA-256** | `d02174be0b13e445326ba62adfcfe944a9649173f60d27e0f44c6f33206a1f27` — **unchanged across the transition.** Preimage: the ADR text from the first `\n## Context\n` through the last `\n---\n` exclusive, which is every section from Context to References and excludes only the lifecycle metadata block and the closing status line. Recomputing it on both revisions is the mechanical proof that acceptance moved status and nothing else |
+| **Acceptance authority** | [PR #117](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/117) — the dedicated PR-A2 acceptance-only vehicle: implementation-free, independently reviewed, and merged by the repository owner. The content SHA-256 above is the causal byte binding; the containing commit and this pull request are supporting provenance only |
+| **Architecture review** | `replacement-authority-parity` epoch 1 — `ARCHITECTURE_ACCEPTED`, unresolved P1 = 0, unassigned P2/P3 = 0, invariant set unchanged, authority allocation complete. Reviewed planning commit `aae33fdd217d66de8d9127576f203c115abc37eb` against reviewed base `c0a2f5cbcccfaaaa00a2df897457eba48ec2f226`, landed by [PR #115](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/115) |
+| **Implementation authority** | **none** |
+| **Unresolved decisions resolved** | **NONE.** ADR-0022 closes no item in [`unresolved-decisions.md`](../architecture/unresolved-decisions.md); ADR-0020 remains `Proposed` and [U4](../architecture/unresolved-decisions.md#u4) remains open |
+
+**ADR acceptance is not implementation authorization.** These are two separate
+acts, and this record exists partly to keep them separate. Accepting ADR-0022
+settles *what the architecture is*. It grants no authority to change a
+dependency, a command, a gate, a workflow, or a line of source.
+
+**PR-B remains `NOT_AUTHORIZED`.** Beginning it requires all three of:
+
+1. this acceptance change **merged**;
+2. the **exact post-PR-A2 `main` commit** as its starting base; and
+3. a **separate external Scope-1 implementation task contract** — a GitHub issue
+   or an explicit owner task. Acceptance of this ADR is not that contract, and
+   none is created here.
+
+**PR-C remains `NOT_AUTHORIZED` on different terms, not the same ones.** Its
+base is **not** the post-PR-A2 commit. `INV-TS7-17` blocks Scope 2 until Scope 1
+is merged and its parity evidence accepted, and requires a fresh v2 review epoch
+covering Scope 2. PR-C therefore requires all four of:
+
+1. **PR-B merged**;
+2. PR-B's **parity evidence accepted** — if any current policy lacks semantic
+   parity, PR-B stops, ESLint remains, and PR-C is not authorized at all;
+3. a **fresh Scope-2 review epoch** and its own authorization; and
+4. the **exact then-current post-PR-B `main`** as its starting base.
+
+Reading PR-B's exact-base rule as covering both scopes would let PR-C branch
+from the post-PR-A2 commit and omit PR-B entirely — the one sequencing the
+architecture forbids.
+
+**What this acceptance changed.** Exactly five documentation paths: this ADR's
+lifecycle metadata, this index, and the three current-state mirrors
+([`AGENTS.md`](../../AGENTS.md), [`docs/AGENTS.md`](../AGENTS.md),
+[`docs/README.md`](../README.md)). The ADR's architectural body is byte-for-byte
+unchanged from the reviewed bytes; only its status metadata moved.
+
+**What this acceptance did NOT change.** No dependency, lockfile, pnpm catalog
+entry, ESLint or TypeScript configuration, script, CI workflow, package, service,
+app, or test. TypeScript remains 6.0.3. ESLint remains installed and current.
+Oxlint, `oxlint-tsgolint`, and `@typescript/typescript6` were not introduced. No
+byte of the accepted OpenSpec planning package or its epoch-1 review changed, and
+no new review epoch was minted. ADR-0020 was not accepted, U4 was not resolved,
+GATE-U4 was not satisfied, and PR #113 remains frozen and untouched.
+
 ## Which ADRs apply to what I am changing?
 
 | If you are touching… | Read at least |
@@ -619,7 +684,7 @@ inferred from that reference or from acceptance of this ADR.
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
-| the TypeScript compiler, lint policy/engine, formatting authority, compiler-API compatibility seam, or tooling vulnerability response | **ADR-0012** + **ADR-0022** (`Proposed` — decides nothing yet) |
+| the TypeScript compiler, lint policy/engine, formatting authority, compiler-API compatibility seam, or tooling vulnerability response | **ADR-0012** + **ADR-0022** (`Accepted` — architecture decided; both implementation scopes remain separately unauthorized) |
 | an OpenAPI, MCP, or metadata surface | **ADR-0012**, ADR-0004 |
 | anything touching persistence | **ADR-0012** + [U11](../architecture/unresolved-decisions.md#u11) |
 | runner orchestration crossing an asynchronous port | **ADR-0017** + ADR-0013 |
