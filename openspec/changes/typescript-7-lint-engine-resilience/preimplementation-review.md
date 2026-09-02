@@ -1,10 +1,11 @@
 # Pre-Implementation Review: TypeScript 7 and lint-engine resilience
 
 <!--
-This report is the first independent architecture review of the complete PR-A
-planning package. It is pinned to aaa0aaf1d86f39eb6546baf9aea6966307806e7b
-and records one bounded P1 closure question. It does not accept the architecture
-and it creates no implementation authority.
+This report is the accepting epoch-1 independent architecture review of the
+`replacement-authority-parity` scope. It is pinned to
+aae33fdd217d66de8d9127576f203c115abc37eb against base
+c0a2f5cbcccfaaaa00a2df897457eba48ec2f226. It accepts architecture only: it does
+not change ADR-0022 from Proposed and creates no implementation authority.
 -->
 
 <!-- openspec-review-gate
@@ -12,17 +13,17 @@ and it creates no implementation authority.
   "contract": "preimplementation-review-v2",
   "schema": "governed-spec-driven-v2",
   "rubric": "governed-preimplementation-review-v1",
-  "reviewed_commit": "aaa0aaf1d86f39eb6546baf9aea6966307806e7b",
-  "reviewed_base_commit": "70f23f43a6ca95f128de664c242187ad6026a67d",
+  "reviewed_commit": "aae33fdd217d66de8d9127576f203c115abc37eb",
+  "reviewed_base_commit": "c0a2f5cbcccfaaaa00a2df897457eba48ec2f226",
   "review_epoch": 1,
   "scope_id": "replacement-authority-parity",
-  "reviewed_at": "2026-08-31T22:15:42Z",
-  "reviewer": "Fugu worker agent — independent architecture review",
-  "verdict": "FOCUSED_CLOSURE_REQUIRED",
-  "unresolved_p1_count": 1,
+  "reviewed_at": "2026-09-01T23:47:38Z",
+  "reviewer": "GPT-5.6 Sol \u2014 independent architecture review",
+  "verdict": "ARCHITECTURE_ACCEPTED",
+  "unresolved_p1_count": 0,
   "unassigned_p2_p3_count": 0,
-  "invariant_set_changed": true,
-  "authority_allocation_complete": false,
+  "invariant_set_changed": false,
+  "authority_allocation_complete": true,
   "reviewed_artifacts": [
     {
       "path": ".openspec.yaml",
@@ -30,35 +31,35 @@ and it creates no implementation authority.
     },
     {
       "path": "proposal.md",
-      "sha256": "b58d7971b9a60e458a4683af1e1e072b1af35004d8dbb901b5d3e1ce8dd6dc4e"
+      "sha256": "2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8"
     },
     {
       "path": "specs/lint-policy-parity/spec.md",
-      "sha256": "50cfb1795e6ae1e14e490a2bcc7d3f1644692d434ee49c9e82a243c020276950"
+      "sha256": "f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268"
     },
     {
       "path": "specs/toolchain-authority/spec.md",
-      "sha256": "fc2832fdb79f17021fb650eee9ff52ed2a3939bfeb3f064790fde87c052c4501"
+      "sha256": "6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9"
     },
     {
       "path": "specs/toolchain-supply-chain/spec.md",
-      "sha256": "382ce564d46f6a67a39a7c75754d835d42fdd6251f30c559630397c22d032209"
+      "sha256": "591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6"
     },
     {
       "path": "specs/typescript-7-cutover/spec.md",
-      "sha256": "c15f305426a533b7985cb0d67284e2e11398219611cd01efd57b26c13107fd3f"
+      "sha256": "a6d03fa663d0298c58f94df68f9c2d15a8398d3674a1fec608f2caa147a07b45"
     },
     {
       "path": "design.md",
-      "sha256": "28f618907bcd2fbddb31b4cb9b1e2b1a1991a6f8605b950cf45f641051b5f1cb"
+      "sha256": "f849fedc56ee145baa2b22757ac878d1bb0562566fc9835c205984280e1f9da8"
     },
     {
       "path": "assurance.md",
-      "sha256": "9a3220709249a7f9a3bd432643e2e1168e518eb0ecb31d8e3c633f33468664e2"
+      "sha256": "2ae675fd430fe1a452be930721ff1dc1231f0b28aa6f96d5b2857d7d074de3a0"
     },
     {
       "path": "tasks.md",
-      "sha256": "7980f8cd93d54790c38f9bef61e6725ddc3bf9ae629275968bec5a8deff2ed60"
+      "sha256": "08a6691e0d6d8f9fe4af6ce304db081353c4b4db87612ff42cb847ed0cfe9c2a"
     }
   ]
 }
@@ -66,256 +67,331 @@ and it creates no implementation authority.
 
 ## Review Pin
 
-| Field | Value |
-|---|---|
-| Repository | `pulse-ops-ai/secure-home-agent-platform` |
-| Branch | `docs/typescript-7-lint-engine-resilience` |
-| Reviewed commit | `aaa0aaf1d86f39eb6546baf9aea6966307806e7b` |
-| Default branch / planning base | `main` / `70f23f43a6ca95f128de664c242187ad6026a67d`, re-resolved from `refs/heads/main` |
-| Worktree state | clean before this report; local and remote branch heads matched |
-| Review rubric | `governed-preimplementation-review-v1` |
-| Historical review consulted after blind pass | none present |
+| Field                          | Value                                               |
+| ------------------------------ | --------------------------------------------------- |
+| Repository                     | `pulse-ops-ai/secure-home-agent-platform`           |
+| Scope                          | `replacement-authority-parity`                      |
+| Reviewed commit                | `aae33fdd217d66de8d9127576f203c115abc37eb`          |
+| Default branch / reviewed base | `main` / `c0a2f5cbcccfaaaa00a2df897457eba48ec2f226` |
+| Review epoch                   | `1`                                                 |
+| Review rubric                  | `governed-preimplementation-review-v1`              |
+| Reviewer                       | `GPT-5.6 Sol — independent architecture review`     |
+| Reviewed at                    | `2026-09-01T23:47:38Z`                              |
 
-The reviewed commit contains the complete planning package. This report is the
-only worktree change made during the review pass.
+The reviewed head is rebased onto the current default-branch state containing PR #116. The reviewed planning package contains no implementation authority and ADR-0022 remains `Proposed`.
+
+The machine-readable review block is authoritative for the exact reviewed-artifact paths and SHA-256 values.
 
 ## Independent Review Statement
 
-The reviewer did not author the planning package in the same working context.
-The exact current package was read before searching for historical review
-material; none exists. The review was read-only except for this report.
+This review is a fresh independent epoch-1 review of the final corrected planning bytes.
 
-Repository claims were checked against the current ESLint configs and fixtures,
-all member lint entry points, `scripts/check-source-imports.mjs`,
-`scripts/workspace-model.mjs`, the v2 schema and review gate, package manifests,
-the live remote refs, npm package metadata, and prior repository ADR-acceptance
-history. No live external mutation was performed.
+The earlier `FOCUSED_CLOSURE_REQUIRED` review was never an admitted epoch. It is therefore superseded in place rather than copied into `reviews/`; accepted historical epochs only belong in that directory.
+
+The review evaluated the final architecture after closure of the prior findings concerning:
+
+1. predecessor-bound semantic-policy continuity;
+2. candidate-independent verifier authority;
+3. candidate native-tool isolation;
+4. launcher-versus-candidate process isolation;
+5. the dedicated ADR-acceptance transition;
+6. point-in-time maintenance evidence and merge freshness;
+7. normal TypeScript compiler authority versus the bounded TS6 API seam;
+8. coupled compiler / typed-lint maintenance;
+9. emitted-output compatibility evidence; and
+10. retained implementation proof ownership.
+
+No additional architecture correction is required by this review.
 
 ## Reviewed Artifact Manifest
 
-The machine-readable block is authoritative for exact paths and SHA-256 values.
+The machine-readable block above is authoritative for the exact reviewed
+paths and SHA-256 values; this table restates it.
 
-| Path | SHA-256 | Read completely? |
-|---|---|---|
-| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` | yes |
-| `proposal.md` | `b58d7971b9a60e458a4683af1e1e072b1af35004d8dbb901b5d3e1ce8dd6dc4e` | yes |
-| `specs/lint-policy-parity/spec.md` | `50cfb1795e6ae1e14e490a2bcc7d3f1644692d434ee49c9e82a243c020276950` | yes |
-| `specs/toolchain-authority/spec.md` | `fc2832fdb79f17021fb650eee9ff52ed2a3939bfeb3f064790fde87c052c4501` | yes |
-| `specs/toolchain-supply-chain/spec.md` | `382ce564d46f6a67a39a7c75754d835d42fdd6251f30c559630397c22d032209` | yes |
-| `specs/typescript-7-cutover/spec.md` | `c15f305426a533b7985cb0d67284e2e11398219611cd01efd57b26c13107fd3f` | yes |
-| `design.md` | `28f618907bcd2fbddb31b4cb9b1e2b1a1991a6f8605b950cf45f641051b5f1cb` | yes |
-| `assurance.md` | `9a3220709249a7f9a3bd432643e2e1168e518eb0ecb31d8e3c633f33468664e2` | yes |
-| `tasks.md` | `7980f8cd93d54790c38f9bef61e6725ddc3bf9ae629275968bec5a8deff2ed60` | yes |
+| Path | SHA-256 |
+|---|---|
+| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` |
+| `proposal.md` | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` |
+| `specs/lint-policy-parity/spec.md` | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` |
+| `specs/toolchain-authority/spec.md` | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` |
+| `specs/toolchain-supply-chain/spec.md` | `591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6` |
+| `specs/typescript-7-cutover/spec.md` | `a6d03fa663d0298c58f94df68f9c2d15a8398d3674a1fec608f2caa147a07b45` |
+| `design.md` | `f849fedc56ee145baa2b22757ac878d1bb0562566fc9835c205984280e1f9da8` |
+| `assurance.md` | `2ae675fd430fe1a452be930721ff1dc1231f0b28aa6f96d5b2857d7d074de3a0` |
+| `tasks.md` | `08a6691e0d6d8f9fe4af6ce304db081353c4b4db87612ff42cb847ed0cfe9c2a` |
 
 Historical reviews and this report are not members of the planning-byte
 manifest.
-
 ## Review Method
 
-### Pass A — blind current-state review
+### Pass A — final-current-state architecture review
 
-The review independently reconstructed:
+The review evaluated the exact final planning package at
+`aae33fdd217d66de8d9127576f203c115abc37eb` as a complete architecture rather
+than carrying forward the disposition of either earlier non-accepting review.
 
-1. the complete current lint topology and 117-rule effective union;
-2. the singleton traditional TypeScript compiler-API consumer;
-3. compiler, lint, format, architecture, package-install, and platform
+The current bytes were used to reconstruct and test:
+
+1. the complete 117-rule lint-policy migration model and its separation from
+   per-engine mappings;
+2. compiler, lint, formatting, architecture, package-install, and compatibility
    authority boundaries;
-4. the two implementation-scope transition;
-5. every `AUTH-*` allocation and its planned producer/verifier;
-6. positive, property, adversarial, and mutation obligations; and
-7. future vulnerability-remediation behavior after the legacy oracle is gone.
+3. the TypeScript 6 compatibility seam and the prohibition on `tsc6` becoming a
+   normal compiler entry point;
+4. the two implementation scopes and the distinct PR-A2 ADR-acceptance
+   transition;
+5. every current `AUTH-*` allocation and the task that creates or verifies it;
+6. predecessor-bound tool-maintenance classes, including the closed
+   `normal-compiler-and-typed-lint` composite class;
+7. the trusted-control / untrusted-subject / trusted-verdict maintenance
+   topology;
+8. both mandatory candidate-execution isolation boundaries: separation of the
+   subject domain from trusted control/verdict and separation of the candidate
+   process from the trusted host-side launcher;
+9. point-in-time maintenance-evidence identity and the `MAN-TS7-01` merge
+   consumption control;
+10. positive, property, adversarial, mutation, platform, and emitted-output proof
+    obligations; and
+11. the PR-B genesis rule that prevents the newly introduced maintenance
+    boundary from authorizing the PR that creates it.
 
-The last step found the P1 below: candidate-local policy and candidate-local
-fixtures cannot prove that an engine-only maintenance change preserved the
-trusted predecessor's policy.
+The current-state pass found no unresolved authority, invariant, prerequisite,
+trust-boundary, or identity defect requiring another planning correction.
 
-### Pass B — regression and history review
+### Pass B — prior-finding regression and falsification review
 
-No historical `reviews/**` records exist. Repository history was consulted only
-after the current-byte pass to confirm ADR status/acceptance conventions and
-that no earlier review disposition supplied the missing predecessor-bound
-maintenance proof.
+After the current-state model was reconstructed, the review traced every
+material finding from the earlier non-accepting reviews into the final planning
+package and required an executable disposition rather than relying on prose
+closure.
+
+That regression pass specifically re-tested the design against these failure
+shapes:
+
+- delete a semantic policy row together with its only fixture during a tool
+  update;
+- relax shared compiler policy while changing the compiler;
+- replace or delete the candidate checker;
+- alter the candidate workflow to skip verification;
+- run malicious candidate-native tooling beside the deciding verifier;
+- run the candidate directly under the trusted launcher's UID/filesystem
+  context;
+- forge or tamper with the subject result envelope;
+- expose a token, secret, Docker socket, shared writable cache, or trusted
+  workspace to the subject;
+- move the candidate head or trusted predecessor during verification;
+- reuse successful evidence after the head, base, protected authority, or
+  synthetic merge tree changes;
+- begin Scope 1 while ADR-0022 is still `Proposed`;
+- resolve a normal compiler entry point through `tsc6`;
+- self-compose maintenance classes to widen the admitted delta; and
+- accept TypeScript 7 merely because compilation succeeds while governed emitted
+  output changes.
+
+Each failure shape now has a fail-closed rule and an assigned executable
+regression, adversarial case, mutation, or differential proof in PR-B or PR-C.
+
+The prior `FOCUSED_CLOSURE_REQUIRED` review was non-accepting and therefore was
+never an admitted review epoch. No accepted historical `reviews/**` record exists
+for this scope. This review is the first admitted epoch if and only if the
+current review gate verifies the exact manifest and verdict.
 
 ## Architecture Acceptance Checks
 
-| Check | Result | Evidence |
-|---|---|---|
-| Scope and non-goals are explicit | pass | proposal Scope/Non-Goals; design Goals/Non-Goals |
-| Current-scope requirements are observable and scenario-backed | pass | 21 requirements across four delta specs |
-| Trust boundaries and external effects are explicit | pass | design TB-TS7-1 through TB-TS7-7 |
-| Current-scope gating decisions are closed | fail | engine-maintenance policy continuity has no trusted predecessor boundary |
-| Invariants are stable, concise, and traceable | fail | INV-TS7-09/10 need predecessor-bound semantics; initial TS7 cutover identity must be distinguished from later conforming maintenance |
-| Every mutable fact family has exactly one canonical authority | fail | engine mapping is mixed into semantic policy and no authority owns maintenance transition admissibility |
-| Planned authorities have contract-first tasks before consumers | pass for allocated authorities | tasks 1.1–1.4 and 1.13–1.15 |
-| Repository assumptions were verified | pass | effective ESLint API probe, tracked-source scan, npm metadata, v2 gate, live refs |
-| Landing seams are atomic and safely ordered | pass for PR-A/B/C | design Landing Seams; tasks Completion Gates |
-| Proof obligations and hostile cases have due landings | fail | delete-policy-row-plus-fixture mutation has no killing evidence |
-| Tasks are bounded and do not restate canonical data | pass | tasks 1.1–4.5 |
-| Material prior findings have executable regression dispositions | not applicable | no prior review |
+| Check                                           | Result | Basis                                                                                                    |
+| ----------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| Scope and non-goals are explicit                | pass   | planning package remains bounded to the TypeScript/lint-engine resilience program                        |
+| Requirements are observable and scenario-backed | pass   | final normative specs include positive, refusal, hostile, and maintenance cases                          |
+| Trust boundaries are explicit                   | pass   | trusted control / untrusted subject / trusted verdict plus merge-consumption boundary                    |
+| Candidate executable isolation is complete      | pass   | fresh subject domain and independent launcher/process OS boundary are both mandatory                     |
+| Candidate cannot self-authorize maintenance     | pass   | predecessor owns verifier, classes, command plan, and trusted verdict                                    |
+| Maintenance continuity is predecessor-bound     | pass   | protected semantic/config/corpus authorities cannot be deleted with their evidence                       |
+| Merge freshness is honestly modeled             | pass   | maintenance run is point-in-time evidence; `MAN-TS7-01` owns pre-merge freshness                         |
+| ADR acceptance sequencing is executable         | pass   | PR-A2 is an explicit acceptance-only transition before PR-B                                              |
+| Compiler authority is singular                  | pass   | normal entry points use the authoritative TypeScript package; `tsc6` is confined to the bounded API seam |
+| Coupled maintenance cannot self-widen           | pass   | maintenance classes are closed; compiler + typed-lint coupling has one explicit composite class          |
+| Emitted-output preservation is executable       | pass   | differential/golden evidence is assigned for actual governed output surfaces                             |
+| Every mutable fact family has a canonical owner | pass   | authority allocation is complete                                                                         |
+| Proof obligations have due landings             | pass   | P1/P2 closures are assigned to PR-B/PR-C tasks and mutation evidence                                     |
+| PR #113 remains outside the program             | pass   | no #113 content or authority is imported                                                                 |
 
 ## Severity Calibration
 
-P1 is reserved for a concrete failure that changes an invariant, authority
-allocation, trust boundary, prerequisite, or external identity model. P2 covers
-bounded implementation details inside those allocations; P3 covers clarity.
+P1 is reserved for a concrete defect that requires changing an invariant,
+canonical-authority allocation, trust boundary, prerequisite, or external
+identity model in order for implementation to be safe.
 
-The policy-deletion trace below is P1 because fixing it requires both an
-authority split and a trusted predecessor identity for maintenance transitions.
-The remaining findings fit existing tasks and proofs and are P2.
+P2 covers a bounded implementation or proof obligation that fits entirely within
+an already-correct authority and invariant model. P3 covers non-material
+clarity, maintainability, or documentation issues.
+
+Earlier review rounds correctly classified predecessor-policy continuity,
+candidate-controlled verifier authority, candidate executable co-residency,
+ADR-acceptance sequencing, and merge-evidence freshness as P1 when those
+boundaries were missing or incomplete. The final planning bytes now contain the
+required authorities, invariants, trust boundaries, prerequisites, and
+fail-closed identity model.
+
+The remaining implementation obligations — including workspace classification,
+blocking/fix semantics, TS7-versus-TS6 parser differential evidence, native
+platform execution, subject-isolation mutations, and emitted-output
+differentials — are explicitly assigned to PR-B or PR-C and do not require an
+additional architecture change.
+
+Accordingly, this review records:
+
+- unresolved P1 findings: none;
+- unassigned P2/P3 findings: zero; and
+- no new finding requiring another planning correction.
 
 ## Findings
 
 ### P1 findings
 
-**Unresolved P1 findings:** `1`
+**Unresolved P1 findings:** `none`
 
-| ID | Title | Invariant / decision | Concrete failure trace | Evidence | Impact | Architecture change required |
-|---|---|---|---|---|---|---|
-| P1-001 | Security-remediation parity is candidate-self-consistent, not predecessor-bound | `INV-TS7-02`, `INV-TS7-09`, `INV-TS7-10`, `INV-TS7-19`; D1/D3 | After Scope 2 removes ESLint and `AUTH-LEGACY-EXTRACTOR`, a CVE update deletes policy row R and its only fixture F, changes the engine pin/mapping, regenerates config, and runs the remaining candidate corpus. Schema, no-orphan, config, install, platform, and remaining conformance checks can all pass because every input they compare is supplied by the same candidate. | `assurance.md` AUTH-LINT-POLICY/CONFORMANCE rows, `MUT-CVE-001`; tasks 1.3, 1.15, 3.4; ADR-0022 §§6,10 | The repository can report that replacement Y preserves policy although R and the evidence that would expose its loss disappeared together. The same shape permits a compiler update to relax shared tsconfig/conformance bytes while retaining a green candidate-only run. | Separate engine-neutral policy/conformance authority from engine mappings, and add a fail-closed maintenance-transition authority that binds protected semantic inputs to a trusted predecessor. Engine-only maintenance may change only admitted implementation identities/mappings/generated projections. Unresolvable predecessor identity or any protected-policy/config/corpus drift must refuse maintenance classification and require the separately reviewed policy/architecture path. |
+All previously identified P1 architecture defects are closed in the reviewed planning bytes.
 
-### P2 findings
+In particular, candidate tooling is now separated from the maintenance root of trust by two mandatory isolation boundaries:
 
-| ID | Title | Evidence | Required executable closure | Owning task / landing |
-|---|---|---|---|---|
-| P2-001 | New and retired lint packages need explicit workspace-architecture projection | `scripts/workspace-model.mjs` currently names `packages/eslint-config` in both `LAYERS` and `BUILD_TOOLING_PACKAGES`; tasks 1.1/3.4 do not name that projection | Add `packages/lint-config` as build tooling/layer 0 with source-import mutation coverage; remove the retired package from both maps atomically in Scope 2 | tasks 1.1, 1.3, 3.4; `PROP-SEP-002` |
-| P2-002 | Blocking severity and fix-option semantics need explicit fixture evidence | every active current rule resolves at severity 2; `consistent-type-imports.fixStyle=inline-type-imports` affects fix output, not only accept/reject | Require generated enforcement to remain blocking, assert negative-command exit status, and use a fix-output golden case where an existing option governs observable fix behavior | tasks 1.1, 1.3, 1.7, 1.8, 1.12; `ADV-LP-002` |
-| P2-003 | The TS6 parser seam needs TS7-language compatibility falsification | `scripts/check-source-imports.mjs` will parse compiler-authoritative TS7 source with TS6 `createSourceFile`; current-base source passing is not a syntax-delta proof | Compile representative TS7-accepted syntax with the authoritative compiler, then require the TS6-backed gate either to extract all import edges equivalently or fail closed; include a forbidden-edge mutation | tasks 3.1, 3.5; `EX-ARCH-001`, `ADV-TC-001` |
+- the candidate runs in a fresh secret-free untrusted subject domain; and
+- the candidate process is separated from the trusted launcher by an explicit OS-level boundary.
 
-### P3 findings
+A same-UID / same-filesystem launcher topology is explicitly inadmissible and is assigned mutation coverage.
 
-None.
+### P2/P3 findings
 
 **Unassigned P2/P3 findings:** `0`
 
+Previously identified implementation-level obligations remain explicitly assigned to their owning implementation tasks, including:
+
+- `packages/lint-config` workspace/build-tooling classification and later ESLint-package retirement;
+- blocking severity and fix-output parity;
+- TS7-language / TS6-parser architecture-gate falsification;
+- candidate-subject and launcher isolation mutations;
+- native AMD64/ARM64 execution;
+- composite compiler/typed-lint maintenance; and
+- emitted compiler-output differential proof.
+
+Those obligations are implementation work within the accepted architecture and do not require another planning correction.
+
 ## Authority Allocation Assessment
 
-| AUTH ID | Result | Evidence / finding |
-|---|---|---|
-| AUTH-ADR-TS7 | pass | Proposed ADR is explicit and non-operative |
-| AUTH-LINT-POLICY-SCHEMA | focused correction required | schema must distinguish semantic policy from engine mapping |
-| AUTH-LINT-POLICY | fail — P1-001 | currently owns both semantic policy and replacement mapping |
-| AUTH-LEGACY-EXTRACTOR | pass for Scope 1 | independent bootstrap oracle, explicitly temporary |
-| AUTH-LINT-CONFIG | pass | generated engine projection |
-| AUTH-LINT-CONFORMANCE | fail — P1-001 | candidate corpus has no trusted-predecessor continuity proof |
-| AUTH-MEMBER-ROLES | pass | one policy subsection owns exact assignments |
-| AUTH-TS-PINS | focused correction required | initial 7.0.2 cutover and later conforming maintenance need distinct temporal semantics |
-| AUTH-ENGINE-PINS | pass | exact catalog declarations |
-| AUTH-RESOLVED-GRAPH | pass | frozen lock owns resolution |
-| AUTH-INSTALL-POLICY | pass | current empty install-script posture is explicit |
-| AUTH-TOOLCHAIN-BOUNDARIES-SCHEMA | pass | closed shape planned contract-first |
-| AUTH-TS6-CONSUMERS | pass | singleton allowlist plus equality guard planned |
-| AUTH-PLATFORM-MATRIX | pass | exact native rows and command packs have one owner |
-| AUTH-TS-CONFIGS | focused correction required | maintenance path must bind compiler-policy config to predecessor |
-| AUTH-TS-ENTRYPOINTS | pass | each member owns executable compiler entry points |
-| AUTH-FORMAT-POLICY | pass | existing Prettier config remains sole authority |
-| AUTH-ARCH-LAYERS | pass with P2-001 | authority exists; package projection is an implementation assignment |
-| AUTH-ARCH-IMPORT-GATE | pass with P2-003 | existing behavior owner remains independent |
-| AUTH-REVIEW-SCOPES | pass | exactly two implementation scopes are declared |
-| Missing maintenance-transition authority | fail — P1-001 | no owner selects trusted predecessor or admitted authority deltas |
+The final package establishes one canonical owner for each load-bearing mutable fact family.
 
-**Authority allocation complete:** `NO`
+The principal authority split is coherent:
+
+- repository semantic lint policy owns policy;
+- per-engine mappings own implementation translation;
+- TypeScript owns compiler/type correctness;
+- Prettier owns formatting;
+- dedicated repository gates own package/source architecture;
+- `AUTH-TS6-CONSUMERS` owns the bounded compatibility API seam;
+- `AUTH-MAINTENANCE-CLASSES` owns what tool-only maintenance may change;
+- `AUTH-MAINTENANCE-VERIFIER` owns trusted control and trusted verdict;
+- `AUTH-MAINTENANCE-SUBJECT-ISOLATION` owns candidate executable isolation;
+- `MAN-TS7-01` owns merge-time consumption of point-in-time maintenance evidence; and
+- `AUTH-REVIEW-SCOPES` owns the PR-A2 / PR-B / PR-C governance sequence.
+
+No candidate-controlled policy, verifier, workflow, maintenance class, launcher context, or result envelope can independently establish its own admissibility.
+
+**Authority allocation complete:** `YES`
 
 ## Repository Feasibility
 
-| Claim | Repository evidence inspected | Result | Finding / consequence |
-|---|---|---|---|
-| Current lint union is 117 identities with the stated role counts | real ESLint 10.8 `calculateConfigForFile` over library/service/application/adapter/config/test modes | verified | 99/96/96/99/96/88/99/91; union 117 |
-| Active rule severity is blocking | effective configs | verified | all enabled settings resolve to severity 2 |
-| Traditional compiler API has one direct owned consumer | tracked import/API-symbol scan | verified | only `scripts/check-source-imports.mjs` |
-| Current TypeScript configuration count is 35 | tracked files whose basename matches `tsconfig*.json` | verified | shared configs plus members/fixture |
-| Exact proposed packages exist with stated distribution shapes | npm registry metadata for TS 7.0.2, Oxlint 1.80.0, oxlint-tsgolint 7.0.2001, and typescript6 6.0.2 | verified | x64/arm64 package publication; execution remains implementation proof |
-| `onlyBuiltDependencies` is exactly empty | `pnpm-workspace.yaml` | verified | no exception authorized |
-| v2 manifest binds current planning bytes and live base | repository review manifest command with `--remote origin/main` | verified | exact manifest above |
-| Maintenance path proves predecessor policy unchanged | specs/design/assurance/tasks | absent | P1-001 |
+| Claim | Repository / package evidence inspected | Result | Finding / consequence |
+| --- | --- | --- | --- |
+| Current lint union is 117 effective identities with the recorded role-specific counts | effective ESLint configuration resolution across the repository roles | verified | union remains 117; recorded modes resolve to 99/96/96/99/96/88/99/91 |
+| Active current lint policy is blocking | resolved effective ESLint rule settings | verified | every enabled current rule resolves at severity 2; replacement proof must preserve blocking behavior |
+| Traditional TypeScript compiler API has one direct repository-owned consumer | tracked imports/API-symbol usage | verified | `scripts/check-source-imports.mjs` is the bounded initial `AUTH-TS6-CONSUMERS` member |
+| Current TypeScript configuration inventory contains 35 tracked `tsconfig*.json` files | tracked repository configuration inventory | verified | Scope 2 audit must cover the complete set and its entry points rather than a hand-selected subset |
+| Selected future package identities exist with the audited distribution shape | TypeScript `7.0.2`, Oxlint `1.80.0`, `oxlint-tsgolint` `7.0.2001`, `@typescript/typescript6` `6.0.2` package evidence | verified for package availability/distribution | native execution and semantic conformance remain implementation proof; package publication alone is insufficient |
+| `onlyBuiltDependencies` remains exactly empty | `pnpm-workspace.yaml` and planned supply-chain contract | verified | no install-script exception is authorized by this architecture |
+| The governed v2 review mechanism can bind the final planning bytes to the current live base | exact review manifest/verification path using the final head and `--remote origin/main` | verified | first admitted review can remain epoch 1 because the earlier non-accepting round was never admitted |
+| The planned maintenance path can preserve predecessor policy without candidate self-authorization | final ADR/spec/design/assurance/tasks allocation for `AUTH-MAINTENANCE-CLASSES`, `AUTH-MAINTENANCE-VERIFIER`, `AUTH-MAINTENANCE-SUBJECT-ISOLATION`, and `MAN-TS7-01` | verified as an implementation-feasible architecture contract | PR-B must implement the predecessor-owned classes/verifier, two-boundary subject isolation, trusted result verification, and required mutations as genesis; PR-B cannot self-admit through the boundary it creates |
+
+The feasibility result does not claim that PR-B or PR-C implementation evidence
+already exists. It establishes that the final architecture has an executable,
+repository-compatible path to produce that evidence without weakening the
+current policy or trust model.
 
 ## Invariant Stability
 
-- Invariant set before review: `INV-TS7-01` through `INV-TS7-24`
-- Invariant set after review: focused closure must add predecessor-bound
-  maintenance continuity and distinguish the initial TS7 cutover pin from later
-  conforming compiler maintenance
-- New invariant required by this review: yes — exact IDs assigned by closure
-- Existing invariant removed or materially changed: `INV-TS7-01`,
-  `INV-TS7-09`, and `INV-TS7-10` require temporal/transition clarification
+The final planning package contains the corrected invariant set, including the two-boundary subject-isolation semantics in `INV-TS7-29`.
 
-**Invariant set changed by this review:** `YES`
+This accepting review does not add, remove, split, merge, or otherwise require modification of an invariant. The prior corrective commits occurred before this review and are the bytes being reviewed.
+
+**Invariant set changed by this review:** `NO`
 
 ## Review-Finding Regression Promotion
 
-| Finding | Canonical authority changed | Executable regression evidence | Owning task / existing path |
-|---|---|---|---|
-| P1-001 | add engine-mapping and maintenance-transition authorities; narrow semantic policy authority | delete one policy row and its only fixture while changing an engine pin; maintenance classification must fail against trusted predecessor. Repeat with shared-tsconfig relaxation during a compiler update and with an unresolvable predecessor. | bounded correction to assurance/tasks; implementation in Scope 1 |
-| P2-001 | AUTH-ARCH-LAYERS | production import of `@secure-home/lint-config` must fail; retired package residue must fail | tasks 1.1/3.4 |
-| P2-002 | AUTH-LINT-POLICY-SCHEMA / AUTH-LINT-CONFORMANCE | warning-only mapping and wrong fix output must fail | tasks 1.3/1.7/1.8/1.12 |
-| P2-003 | AUTH-ARCH-IMPORT-GATE | TS7-accepted syntax containing forbidden import edge cannot pass unseen | tasks 3.1/3.5 |
+| Prior finding / seam | Final disposition | Executable regression promoted into the contract | Owning landing |
+| --- | --- | --- | --- |
+| Candidate-local maintenance could delete policy row R together with its only fixture | closed by predecessor-bound semantic/config/corpus protection and separate engine mappings | engine-pin change + row/fixture co-deletion must fail against the trusted predecessor; compiler-pin change + shared-tsconfig/fixture relaxation must likewise fail | PR-B tasks 1.15 / 2.5; `MUT-MAINT-001/002/003` |
+| Candidate could replace its own maintenance checker or workflow with success | closed by exact-predecessor workflow/verifier/invocation authority | checker changed to unconditional success, checker deleted, and candidate workflow skip must not affect which verifier executes or the resulting refusal | PR-B task 1.16 / 2.5; `MUT-MAINT-004/005` |
+| Candidate native tooling could execute in the verifier's trust domain | closed by trusted control / untrusted subject / trusted verdict separation | subject attempts verifier/workspace overwrite, environment/output-file write, credential read, cache poisoning, path escape, background survival, command-plan edit, or result forgery must be denied or rejected | PR-B task 1.16 / 2.5; `ADV-MAINT-003`, `MUT-MAINT-007/008` |
+| Fresh runner did not mechanically isolate the candidate from the trusted launcher | closed by the second mandatory OS-level launcher boundary in `INV-TS7-29` / `REQ-SC-008` | same-UID / same-filesystem candidate-launcher topology must be refused even with every outer subject-domain control satisfied; launcher/result-envelope tampering must be unreachable | PR-B task 1.16 / 2.5; `MUT-MAINT-009` |
+| ADR-0022 could remain Proposed while PR-B was next in sequence | closed by dedicated acceptance-only PR-A2 | attempting Scope 1 while ADR is Proposed or from pre-PR-A2 main must fail; PR-A2 containing implementation must not qualify as the acceptance transition | PR-A2 / PR-B pre-implementation gate; `EX-A2-001`, `PROP-A2-001`, `MUT-A2-001` |
+| Successful maintenance evidence could become stale before merge | closed by point-in-time evidence semantics plus `MAN-TS7-01` | candidate-head, base, protected-authority, run-identity, or synthetic-merge-tree movement after success invalidates the evidence and requires a new run | PR-B onward; `PROP-MERGE-001`, `MUT-MERGE-001` |
+| `packages/lint-config` / retired ESLint tooling could escape the architecture model | assigned within existing architecture authority | production import of `@secure-home/lint-config` must fail; `packages/eslint-config` layer/build-tooling residue must fail when retirement occurs | PR-B task 1.1 and PR-C retirement task; `MUT-ARCH-003` |
+| Blocking severity and fix-bearing option semantics could be lost while diagnostics still appear | assigned within lint-policy/conformance authority | warning-only enforcement must fail parity; an option affecting automatic fix output must match deterministic expected output | PR-B parity/conformance tasks; `ADV-LP-004` and assigned fixed-output proof |
+| TS7 source could be accepted while the retained TS6 parser silently misses a governed import edge | assigned within the existing architecture-import authority | TS7-accepted syntax containing governed import edges must be extracted equivalently by the TS6 seam or fail closed; a forbidden edge may never disappear through parser recovery | PR-C audit/import-gate tasks; `ADV-TC-002` plus architecture mutation evidence |
+| Normal compiler identity could be confused with the retained TS6 API copy | closed in the compiler-authority contract | ordinary `typecheck`, `build`, and generator entry points resolving `tsc6` must fail, while the admitted source-import tooling path may use the TS6 API | PR-B/C boundary and Scope-2 cutover proof; `MUT-TS6-001` |
+| Compiler and typed-lint updates may need to move together | closed by one predecessor-owned composite maintenance class | admitted `normal-compiler-and-typed-lint` composite may move the coupled pins; candidate-defined union/composition of classes must fail | PR-B task 1.15 / 2.5; `PROP-COMPOSE-001`, `MUT-COMPOSE-001` |
+| TypeScript 7 build success alone could hide governed emitted-output drift | closed by normalized differential/golden proof allocation | semantic change to `.d.ts`, `.d.ts.map`, `.js.map`, or consumed generator output must fail even when compilation exits successfully | PR-C compiler cutover proof; `EX-TS-002`, `MUT-TS-EMIT-001` |
 
-## Focused Closure Required
+Every material prior review finding therefore has one of two acceptable final
+dispositions:
 
-| Closure question | Required evidence | Re-review scope | Stop condition |
-|---|---|---|---|
-| Can a tooling-security maintenance change alter implementation identity/mapping while proving that semantic policy, conformance fixtures, compiler-policy config, platform requirements, install posture, formatting authority, and architecture gates are unchanged from a trusted predecessor? | Separate semantic policy from engine mappings; allocate a trusted predecessor/allowed-delta authority; add fail-closed unresolved-base behavior; add row+fixture deletion, tsconfig relaxation, protected-corpus edit, and allowed mapping-only mutations with bounded tasks/proofs | ADR-0022 §§1/2/6/10, REQ-LP-001/003, REQ-SC-004/005, design D1/D3/D5, assurance authority/proof tables, Scope 1 tasks | one bounded planning correction defines the transition authority and mutations without changing the selected engines, two implementation scopes, TS6 seam, platform set, or PR #113 boundary; then a fresh independent review of the corrected bytes |
+1. the architecture was corrected and the failure shape was promoted to
+   executable regression evidence; or
+2. the architecture already owned the concern and the bounded implementation
+   proof was explicitly assigned to its landing task.
 
-Do not reopen the complete architecture. The compiler/lint/format/architecture
-separation, dual-engine parity scope, TS7 cutover scope, TS6 compatibility seam,
-exact package audit, native platforms, and PR #113 freeze remain accepted review
-premises for the focused re-review.
+No material prior finding remains dependent on reviewer memory or prose-only
+follow-up.
 
 ## Verdict
 
-**FOCUSED_CLOSURE_REQUIRED**
+**ARCHITECTURE_ACCEPTED**
 
-### Verdict rationale
+The `replacement-authority-parity` architecture is sufficiently closed to proceed to the separately governed ADR-acceptance transition.
 
-The architecture is otherwise complete and repository-feasible, but its
-vulnerability-remediation promise is not yet authoritative: after legacy
-retirement, the candidate currently supplies both the policy being claimed and
-the evidence used to claim it. One bounded authority/transition correction is
-required. No implementation is authorized.
+This verdict accepts architecture only.
+
+It does **not**:
+
+- change ADR-0022 from `Proposed`;
+- authorize PR-B implementation;
+- authorize PR-C implementation;
+- authorize dependency or compiler changes;
+- authorize ESLint retirement; or
+- modify the freeze on PR #113.
+
+The next merge-order vehicle remains PR-A2, the acceptance-only ADR-0022 transition. PR-B remains blocked until PR-A2 is merged and a separate external Scope-1 implementation authorization exists.
 
 ## Apply Eligibility
 
-- Review gate metadata valid: yes for a focused finding; not an accepting gate
-- Reviewed artifact digests current: yes for reviewed commit `aaa0aaf...`
-- Repository state unchanged except this report and `reviews/**`: yes
-- Strict OpenSpec validation passed: yes at the reviewed commit
-- Verdict is `ARCHITECTURE_ACCEPTED`: no
-- Unresolved P1 count is zero: no
-- Invariant set unchanged by the accepting review: no
-- Authority allocation complete: no
-- External implementation authorization recorded and scope-covering: no
+- Review gate metadata: valid
+- Exact reviewed head: `aae33fdd217d66de8d9127576f203c115abc37eb`
+- Exact reviewed base: `c0a2f5cbcccfaaaa00a2df897457eba48ec2f226`
+- Review epoch: `1`
+- Verdict: `ARCHITECTURE_ACCEPTED`
+- Unresolved P1: none
+- Unassigned P2/P3: zero
+- Invariant set changed by this review: no
+- Authority allocation complete: yes
+- ADR-0022 accepted: no — remains a separate PR-A2 transition
+- Scope-1 implementation authorization: no — remains externally required
 
-**Apply eligible:** `NO`
+**Apply eligible:** `YES`
+
+`Apply eligible` here means the governed architecture review itself satisfies the v2 review gate. It does not override the separate ADR-acceptance and external implementation-authorization prerequisites recorded in `tasks.md`.
 
 ## Review History
 
-No admitted historical round exists. This focused report is not an accepted
-epoch. After the bounded correction, a fresh independent reviewer must replace
-the current report with a new epoch-1 manifest over the corrected planning
-commit. It must not rely on this report as current authority.
+The earlier `FOCUSED_CLOSURE_REQUIRED` review was non-accepting and therefore never became an admitted epoch. It is superseded by this epoch-1 accepted review.
 
-## Subsequent review status (non-accepting addendum, 2026-09-01)
+No `reviews/**` history entry is created for that non-admitted round.
 
-This report remains the pinned first review over `aaa0aaf...` and is **not** an
-accepting gate. Two developments postdate it and are recorded here for accuracy;
-neither changes this verdict:
-
-1. A second controlling independent review
-   (`pull/114#pullrequestreview-5074082616`, over head `700d798...`) raised three
-   P1 findings — (P1-1) isolate candidate tool execution into three trust domains
-   (trusted control / untrusted subject / trusted verdict) with a precise subject
-   isolation contract; (P1-2) add a dedicated acceptance-only ADR vehicle (PR-A2);
-   and (P1-3) bind maintenance evidence to merge consumption via a bounded owner
-   control (`MAN-TS7-01`) — plus P2 corrections (trust-critical markings,
-   credential precision, `REQ-TC-002` refinement, a closed
-   `normal-compiler-and-typed-lint` composite class, and emitted-output golden
-   evidence).
-2. PR #114 (the PR-A vehicle) merged before that review was addressed. This
-   remedial planning-only correction applies those findings to the artifacts now
-   on `main`.
-
-Because the planning bytes have changed again since both `aaa0aaf...` and
-`700d798...`, the machine-readable gate above is intentionally stale and
-non-accepting. **A fresh independent epoch-1 review over the exact corrected head
-is required.** This addendum does not accept the architecture, does not record
-`ARCHITECTURE_ACCEPTED`, and creates no implementation eligibility. Apply
-eligibility remains `NO`.
+A separate process/documentation mismatch remains in the governed-v2 review-history README: its unconditional instruction to archive a superseded current review is incompatible with the gate's rule that historical entries must themselves be accepted reviews. That infrastructure/documentation issue is outside PR #115 and is not an architecture blocker for this change.
