@@ -161,9 +161,12 @@ implementation-neutral. These decide how it is built.
 > lint engine, and no Oxlint, `oxlint-tsgolint`, or `@typescript/typescript6`
 > package was introduced. The two implementation scopes in
 > [`openspec/changes/typescript-7-lint-engine-resilience/`](../../openspec/changes/typescript-7-lint-engine-resilience/)
-> remain **`NOT_AUTHORIZED`**. Each begins only from the exact post-acceptance
-> `main` and only under a **separate external implementation task contract**;
-> acceptance of this ADR is not that contract.
+> remain **`NOT_AUTHORIZED`**, on **different** prerequisites. **PR-B** begins
+> only from the exact post-PR-A2 `main`, and only under a separate external
+> Scope-1 implementation authorization. **PR-C** is blocked until PR-B is merged
+> and its parity evidence accepted, then needs a fresh Scope-2 review epoch and
+> its own authorization, and begins from the exact **then-current post-PR-B**
+> `main` (`INV-TS7-17`). Acceptance of this ADR supplies neither authorization.
 >
 > **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
 > [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
@@ -625,13 +628,25 @@ dependency, a command, a gate, a workflow, or a line of source.
 **PR-B remains `NOT_AUTHORIZED`.** Beginning it requires all three of:
 
 1. this acceptance change **merged**;
-2. the **exact post-acceptance `main` commit** as its starting base; and
-3. a **separate external implementation task contract** — a GitHub issue or an
-   explicit owner task. Acceptance of this ADR is not that contract, and none is
-   created here.
+2. the **exact post-PR-A2 `main` commit** as its starting base; and
+3. a **separate external Scope-1 implementation task contract** — a GitHub issue
+   or an explicit owner task. Acceptance of this ADR is not that contract, and
+   none is created here.
 
-**PR-C remains `NOT_AUTHORIZED`** on the same terms, and additionally follows
-PR-B in the merge order.
+**PR-C remains `NOT_AUTHORIZED` on different terms, not the same ones.** Its
+base is **not** the post-PR-A2 commit. `INV-TS7-17` blocks Scope 2 until Scope 1
+is merged and its parity evidence accepted, and requires a fresh v2 review epoch
+covering Scope 2. PR-C therefore requires all four of:
+
+1. **PR-B merged**;
+2. PR-B's **parity evidence accepted** — if any current policy lacks semantic
+   parity, PR-B stops, ESLint remains, and PR-C is not authorized at all;
+3. a **fresh Scope-2 review epoch** and its own authorization; and
+4. the **exact then-current post-PR-B `main`** as its starting base.
+
+Reading PR-B's exact-base rule as covering both scopes would let PR-C branch
+from the post-PR-A2 commit and omit PR-B entirely — the one sequencing the
+architecture forbids.
 
 **What this acceptance changed.** Exactly five documentation paths: this ADR's
 lifecycle metadata, this index, and the three current-state mirrors

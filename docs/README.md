@@ -38,8 +38,14 @@ All governed documentation for this repository.
   starts `Proposed`; acceptance is a human decision, never an agent's.
 - **Accepting ADR-0022 authorized no implementation.** TypeScript remains 6.0.3
   and ESLint remains installed and current. Its parity foundation (PR-B) and
-  TypeScript 7 cutover (PR-C) remain `NOT_AUTHORIZED`, each requiring the exact
-  post-acceptance `main` as its base and a separate external task contract.
+  TypeScript 7 cutover (PR-C) both remain `NOT_AUTHORIZED`, but on **different**
+  prerequisites — the exact-base rule belongs to PR-B alone:
+  - **PR-B** requires merged PR-A2, the exact post-PR-A2 `main` as its starting
+    base, and a separate Scope-1 implementation authorization.
+  - **PR-C** stays blocked until PR-B is merged and its parity evidence is
+    accepted. It then requires a fresh Scope-2 review epoch and its own
+    authorization, and begins from the exact then-current post-PR-B `main` —
+    never from the post-PR-A2 commit (`INV-TS7-17`).
 - Both `architecture/` and `decisions/` are index-validated: every file must be
   in its `INDEX.md`, and every index entry must point at a file that exists.
   [`scripts/validate-scaffold.sh`](../scripts/validate-scaffold.sh) enforces

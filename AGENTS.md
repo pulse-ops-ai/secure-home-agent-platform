@@ -274,9 +274,12 @@ ADR-0022 is accepted as the compiler/lint/tooling authority contract, but
 it: TypeScript remains 6.0.3, ESLint remains the installed and current lint
 engine, and Oxlint, `oxlint-tsgolint`, and `@typescript/typescript6` do not exist
 in this workspace. Its two implementation scopes — the parity foundation (PR-B)
-and the TypeScript 7 cutover (PR-C) — remain **`NOT_AUTHORIZED`**. PR-B begins
-only from the exact post-acceptance `main`, and only under a separate external
-implementation task contract.
+and the TypeScript 7 cutover (PR-C) — remain **`NOT_AUTHORIZED`** on
+**different** prerequisites. PR-B begins only from the exact post-PR-A2 `main`,
+and only under a separate external Scope-1 authorization. **PR-C's base is not
+that commit:** it is blocked until PR-B is merged and its parity evidence
+accepted, needs its own Scope-2 review epoch and authorization, and starts from
+the then-current post-PR-B `main` (`INV-TS7-17`).
 
 ADR-0021 is accepted as the governance-state authority contract, but its future
 `governance/` registry, validators, renderer, query interface, and generated
