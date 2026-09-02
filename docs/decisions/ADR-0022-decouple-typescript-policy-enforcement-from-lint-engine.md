@@ -1,8 +1,9 @@
 # ADR-0022: Decouple TypeScript policy enforcement from the lint engine
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-31
-- **Deciders:** @mikegtech (repository owner) — acceptance is a separate explicit human act
+- **Accepted:** 2026-09-01
+- **Deciders:** @mikegtech (repository owner)
 - **Refines in part:** [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) §§15, 19, and 20 **only where they assign enforcement to a selected lint implementation**. It preserves TypeScript as the primary language, pnpm/catalog/frozen-lock governance, the inward dependency rule, repository taxonomy, dedicated source/manifest checks, and the CI execution model
 - **Supersedes:** no ADR in full. ADR-0012 remains accepted and immutable
 - **Preserves:** [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) — policy and vulnerability-response truths have a provider-neutral canonical home
@@ -678,5 +679,6 @@ This ADR may be accepted when a reviewer and repository owner agree that:
 
 ---
 
-**Proposed only.** It decides nothing until an explicit human acceptance change.
+**Accepted 2026-09-01.** Acceptance decides the architecture; it authorizes no
+implementation.
 Do not implement either scope from this file or its OpenSpec package alone.
