@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secure-home.local/schemas/toolchain-boundaries.schema.json",
+  "title": "Toolchain boundaries",
+  "description": "The bounded seams of the TypeScript/lint toolchain: who may import the legacy compiler API, which platforms must be proved natively, which tool-maintenance changes are admissible, and how an untrusted candidate is isolated while it is judged. It carries no package versions: the workspace catalog is the single version authority, and duplicating a pin here would create a second one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "compatibilityConsumers",
+    "platforms",
+    "maintenanceClasses",
+    "subjectIsolation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "compatibilityConsumers": {
+      "description": "The closed allowlist of repository files permitted to import the bounded TypeScript 6 compatibility API. Widening it is a reviewed change, never an implementation detail.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" }
+    },
+    "normalCompilerEntryPoints": {
+      "description": "Entry points that must resolve the NORMAL compiler. The compatibility package may never satisfy one of these.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "platforms": {
+      "description": "Platforms whose command pack must execute NATIVELY. Cross-compilation, emulation, or metadata inspection is not proof.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "enum": ["ubuntu-24.04", "ubuntu-24.04-arm"] }
+    },
+    "installPosture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onlyBuiltDependencies"],
+      "properties": {
+        "onlyBuiltDependencies": {
+          "description": "Must remain empty. A package needing an install lifecycle script is a stop, not an exception to grant here.",
+          "type": "array",
+          "maxItems": 0,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "maintenanceClasses": {
+      "description": "The CLOSED set of admissible tool-maintenance changes. A candidate may not union two classes to widen its admitted delta; the composite class exists precisely so a coupled change has one named, reviewed identity.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/maintenanceClass" }
+    },
+    "protectedAuthorities": {
+      "description": "Predecessor-bound authorities. A maintenance claim that changes one of these is refused unless its class explicitly admits it.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "subjectIsolation": {
+      "description": "The contract for executing candidate tools as subjects under test. Two INDEPENDENT boundaries are required: a trust-domain boundary and an OS-level process boundary. A fresh runner alone satisfies neither.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deniedToSubject", "processBoundary", "containerControls"],
+      "properties": {
+        "deniedToSubject": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "processBoundary": {
+          "description": "Running the candidate as the launcher's own UID in the launcher's filesystem context is inadmissible and must be refused BEFORE execution.",
+          "enum": ["container", "separate-uid"]
+        },
+        "containerControls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "genesisState": {
+      "description": "GENESIS_ONLY while the maintenance boundary exists but has never produced authoritative evidence, because the default branch did not contain it until this landing merged.",
+      "enum": ["GENESIS_ONLY", "OPERATIONAL"]
+    }
+  },
+  "$defs": {
+    "maintenanceClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "allows"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+        "composite": {
+          "description": "True for a class that admits a coupled change which its parts could not admit separately.",
+          "type": "boolean"
+        },
+        "allows": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

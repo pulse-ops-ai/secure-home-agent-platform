@@ -1,0 +1,34 @@
+{
+  "name": "@secure-home/lint-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Engine-neutral lint-policy authority, per-engine mappings, and the dual-engine runner for the workspace.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./policy": "./policy.json",
+    "./engine-mappings": "./engine-mappings.json",
+    "./policy.schema": "./policy.schema.json",
+    "./engine-mappings.schema": "./engine-mappings.schema.json"
+  },
+  "files": [
+    "policy.json",
+    "engine-mappings.json",
+    "policy.schema.json",
+    "engine-mappings.schema.json",
+    "validate-schema.mjs"
+  ],
+  "scripts": {
+    "lint": "node -e \"console.log('no lint: JSON/data authority package; validated by test')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node -e \"console.log('no build: policy-authority package, consumed as-is')\""
+  },
+  "devDependencies": {
+    "@secure-home/testing": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

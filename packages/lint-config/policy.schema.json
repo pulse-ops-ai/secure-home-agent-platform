@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secure-home.local/schemas/lint-policy.schema.json",
+  "title": "Engine-neutral semantic lint policy",
+  "description": "The repository's lint policy, stated in terms the repository owns. A row says WHAT is enforced, for WHICH roles, at WHAT blocking posture, and WHERE its executable proof lives. It deliberately cannot say WHICH ENGINE enforces it: vendor rule identities live in engine-mappings.json, so replacing an engine never rewrites policy identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "policies"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "policies": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/policy" }
+    }
+  },
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "intent", "roles", "blocking", "disposition", "proof"],
+      "properties": {
+        "id": {
+          "description": "Stable repository-owned identity. Never a vendor rule ID: an engine change must not change it.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "minLength": 3,
+          "maxLength": 80
+        },
+        "intent": {
+          "description": "What this policy protects, in repository terms.",
+          "type": "string",
+          "minLength": 12
+        },
+        "roles": {
+          "description": "The member roles the policy applies to. Applicability is policy, not engine configuration.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/role" }
+        },
+        "blocking": {
+          "description": "Whether a violation fails the build. Every currently active policy resolves blocking, and a mutant that relaxes one must fail.",
+          "type": "boolean"
+        },
+        "options": {
+          "description": "Engine-neutral semantic options. Values an engine needs but the repository does not mean belong in the mapping.",
+          "type": "object"
+        },
+        "fixOutput": {
+          "description": "Present when the policy's governed automatic fix is part of its meaning. Both engines must then produce the recorded output, so 'both reject the same source' is not accepted as parity.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["golden"],
+          "properties": {
+            "golden": { "type": "string", "minLength": 1 }
+          }
+        },
+        "disposition": { "$ref": "#/$defs/disposition" },
+        "proof": {
+          "description": "Executable evidence. A row without both a positive and a negative case is not proved, only asserted.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["shard", "valid", "invalid"],
+          "properties": {
+            "shard": { "$ref": "#/$defs/shard" },
+            "valid": { "type": "string", "minLength": 1 },
+            "invalid": { "type": "string", "minLength": 1 }
+          }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "role": {
+      "enum": ["library", "service", "application", "test", "config-file", "js-config"]
+    },
+    "shard": {
+      "enum": [
+        "parser-syntax",
+        "core-control",
+        "core-policy",
+        "typescript-static",
+        "typescript-typed-control",
+        "typescript-typed-unsafe",
+        "roles-exceptions"
+      ]
+    },
+    "disposition": {
+      "description": "Exactly one allowed outcome. DROPPED is deliberately absent: Scope 1 preserves the complete policy, so 'the replacement engine cannot express it' is a REPLACEMENT_UNAVAILABLE row that keeps ESLint, never a licence to delete the policy.",
+      "enum": [
+        "PRESERVED_NATIVE",
+        "PRESERVED_VIA_OPTIONS",
+        "PRESERVED_BY_COMPILER",
+        "PRESERVED_BY_DEDICATED_GATE",
+        "REPLACEMENT_UNAVAILABLE"
+      ]
+    }
+  }
+}

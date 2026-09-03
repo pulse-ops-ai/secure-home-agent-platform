@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secure-home.local/schemas/lint-engine-mappings.schema.json",
+  "title": "Per-engine lint mappings",
+  "description": "How each engine implements a repository policy. This file is a translation table and nothing else: it may not restate intent, applicability, blocking posture, semantic options, or fixture meaning, because a second copy of those would be a second policy authority that an engine change could silently move.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "engines", "mappings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "engines": {
+      "description": "The engines this table translates for. Version pins are NOT here: they belong to the workspace catalog, which is the single version authority.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/engine" }
+    },
+    "mappings": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/mapping" }
+    }
+  },
+  "$defs": {
+    "engine": { "enum": ["legacy", "replacement"] },
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "engine", "mechanism"],
+      "properties": {
+        "policy": {
+          "description": "The stable policy id this row implements. Exactly one; an orphan or a duplicate is refused.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        },
+        "engine": { "$ref": "#/$defs/engine" },
+        "mechanism": {
+          "description": "How the engine realises the policy.",
+          "enum": ["rule", "parser", "compiler", "dedicated-gate", "unavailable"]
+        },
+        "ruleId": {
+          "description": "The vendor rule identity. Bootstrap provenance and engine detail, never policy identity.",
+          "type": "string",
+          "minLength": 1
+        },
+        "engineOptions": {
+          "description": "Verbatim options this engine needs to realise the policy. Not semantics: the repository's meaning is in policy.json.",
+          "type": "object"
+        },
+        "unavailableReason": {
+          "description": "Required when mechanism is 'unavailable'. Records why the engine cannot express the policy, which keeps the legacy engine rather than dropping the policy.",
+          "type": "string",
+          "minLength": 12
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mechanism": { "const": "rule" } }, "required": ["mechanism"] },
+          "then": { "required": ["ruleId"] }
+        },
+        {
+          "if": {
+            "properties": { "mechanism": { "const": "unavailable" } },
+            "required": ["mechanism"]
+          },
+          "then": { "required": ["unavailableReason"] }
+        }
+      ]
+    }
+  }
+}

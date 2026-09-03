@@ -92,11 +92,13 @@ def _base(tmp_path: Path, name: str = "ws") -> Workspace:
         "@secure-home/contracts",
         devDependencies={
             "@secure-home/eslint-config": "workspace:*",
+            "@secure-home/lint-config": "workspace:*",
             "@secure-home/logging": "workspace:*",
             "@secure-home/testing": "workspace:*",
         },
     )
     ws.member("packages/eslint-config", "@secure-home/eslint-config")
+    ws.member("packages/lint-config", "@secure-home/lint-config")
     ws.member("packages/logging", "@secure-home/logging")
     ws.member("packages/observability", "@secure-home/observability")
     ws.member("packages/testing", "@secure-home/testing")
@@ -300,6 +302,43 @@ def test_build_tooling_may_not_be_imported_from_production_source(tmp_path: Path
     result = _imports(ws.root)
     assert result.returncode != 0
     assert "build-tooling package" in _output(result)
+
+
+def test_the_lint_policy_authority_may_not_be_imported_from_production_source(
+    tmp_path: Path,
+) -> None:
+    """`@secure-home/lint-config` is build tooling, exactly like the engine config.
+
+    It holds the policy manifest, the engine mappings, and the dual-engine
+    runner. Nothing resolves any of that at runtime, so a production import
+    would drag lint machinery into a deployed artifact -- and its layer (0)
+    would otherwise permit it, because layering answers direction, not role.
+
+    This matters more than for the ESLint config it will outlive: Scope 2
+    retires `packages/eslint-config`, and this package is what remains.
+    """
+    ws = _base(tmp_path)
+    ws.source(
+        "packages/contracts/src/index.ts",
+        "import policy from '@secure-home/lint-config/policy'\nexport default policy",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0
+    assert "build-tooling package" in _output(result)
+
+
+def test_a_lint_config_import_from_a_build_config_remains_allowed(tmp_path: Path) -> None:
+    """The boundary of the rule. Refusing production imports must not refuse the
+    build-time use the package exists for."""
+    ws = _base(tmp_path)
+    ws.source(
+        "packages/contracts/eslint.config.js",
+        "import policy from '@secure-home/lint-config/policy'\nexport default policy",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
 
 
 # --- what must remain allowed -----------------------------------------------
