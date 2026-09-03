@@ -235,30 +235,36 @@ export function checkReferentialIntegrity(policy, mappings) {
  * re-derives is a comment. Deleting or re-scoping a rule in eslint-config
  * without regenerating shows up here as drift rather than as silence.
  */
-export function checkPolicyDrift(policy, mappings, liveRows) {
+export function checkPolicyDrift(policy, mappings, liveRows, deriveId) {
   const problems = []
-  const legacyById = new Map(
-    mappings.mappings.filter((m) => m.engine === 'legacy').map((m) => [m.policy, m.ruleId]),
-  )
 
-  const manifestRules = new Set(legacyById.values())
-  const liveRules = new Set(liveRows.map((r) => r.ruleId))
-
-  for (const ruleId of liveRules) {
-    if (!manifestRules.has(ruleId)) {
-      problems.push(`the engine enforces "${ruleId}" but no policy row claims it`)
-    }
-  }
-  for (const ruleId of manifestRules) {
-    if (!liveRules.has(ruleId)) {
-      problems.push(`policy claims "${ruleId}" but the engine no longer enforces it`)
-    }
+  // Keyed on the DERIVED policy identity, not on a legacy rule id. Five
+  // policies are realised by the parser on both engines and carry no rule to
+  // key on, and keying on one would have made them look unclaimed -- which is
+  // exactly what happened when they were first reclassified.
+  const taken = new Set()
+  const liveById = new Map()
+  for (const row of liveRows) {
+    const id = deriveId(row.ruleId, taken)
+    taken.add(id)
+    liveById.set(id, row)
   }
 
-  const liveByRule = new Map(liveRows.map((r) => [r.ruleId, r]))
+  const declared = new Set(policy.policies.map((p) => p.id))
+
+  for (const [id, row] of liveById) {
+    if (!declared.has(id)) {
+      problems.push(`the engine enforces "${row.ruleId}" but no policy row claims it`)
+    }
+  }
+  for (const id of declared) {
+    if (!liveById.has(id)) {
+      problems.push(`policy claims "${id}" but the engine no longer enforces it`)
+    }
+  }
+
   for (const row of policy.policies) {
-    const ruleId = legacyById.get(row.id)
-    const live = ruleId === undefined ? undefined : liveByRule.get(ruleId)
+    const live = liveById.get(row.id)
     if (live === undefined) continue
     const declared = [...row.roles].sort().join(',')
     const actual = [...live.roles].sort().join(',')

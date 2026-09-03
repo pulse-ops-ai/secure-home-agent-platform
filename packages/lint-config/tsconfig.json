@@ -4,5 +4,6 @@
     "allowJs": true,
     "types": ["node"]
   },
-  "include": ["tests", "src", "*.js"]
+  "include": ["tests", "src", "*.js", "*.mjs"],
+  "exclude": ["tests/fixtures"]
 }

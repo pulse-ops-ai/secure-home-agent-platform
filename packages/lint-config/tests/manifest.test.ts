@@ -10,7 +10,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 // @ts-ignore -- dependency-free .mjs modules, deliberately untyped
-import { extractEffectivePolicy } from '../src/extract-legacy-policy.mjs'
+import { extractEffectivePolicy, policyIdFor } from '../src/extract-legacy-policy.mjs'
 // @ts-ignore
 import { buildManifests, shardFor } from '../src/build-manifest.mjs'
 // @ts-ignore
@@ -92,7 +92,7 @@ describe('regeneration is deterministic and matches the engine', () => {
   })
 
   it('finds no drift against the live configuration', () => {
-    expect(checkPolicyDrift(POLICY, MAPPINGS, rows)).toEqual([])
+    expect(checkPolicyDrift(POLICY, MAPPINGS, rows, policyIdFor)).toEqual([])
   })
 
   it('derives type-awareness from the engine rather than a hand list', () => {
@@ -119,14 +119,14 @@ describe('regeneration is deterministic and matches the engine', () => {
 describe('drift the manifest must catch', () => {
   it('sees a rule the engine enforces that no policy claims', () => {
     const extra = [...rows, { ruleId: 'newly-enabled-rule', roles: ['library'], options: {} }]
-    expect(checkPolicyDrift(POLICY, MAPPINGS, extra).join('\n')).toMatch(
+    expect(checkPolicyDrift(POLICY, MAPPINGS, extra, policyIdFor).join('\n')).toMatch(
       /the engine enforces "newly-enabled-rule" but no policy row claims it/,
     )
   })
 
   it('sees a policy the engine no longer enforces', () => {
     const fewer = rows.filter((r: any) => r.ruleId !== 'no-console')
-    expect(checkPolicyDrift(POLICY, MAPPINGS, fewer).join('\n')).toMatch(
+    expect(checkPolicyDrift(POLICY, MAPPINGS, fewer, policyIdFor).join('\n')).toMatch(
       /policy claims "no-console" but the engine no longer enforces it/,
     )
   })
@@ -135,7 +135,7 @@ describe('drift the manifest must catch', () => {
     const moved = clone(rows)
     const target = moved.find((r: any) => r.ruleId === 'no-console')
     target.roles = ['library']
-    expect(checkPolicyDrift(POLICY, MAPPINGS, moved).join('\n')).toMatch(
+    expect(checkPolicyDrift(POLICY, MAPPINGS, moved, policyIdFor).join('\n')).toMatch(
       /claims roles \[.*\] but the engine blocks it in \[library\]/,
     )
   })
@@ -143,7 +143,9 @@ describe('drift the manifest must catch', () => {
   it('sees a policy downgraded out of blocking', () => {
     const weakened = clone(POLICY)
     weakened.policies[0].blocking = false
-    expect(checkPolicyDrift(weakened, MAPPINGS, rows).join('\n')).toMatch(/is not blocking/)
+    expect(checkPolicyDrift(weakened, MAPPINGS, rows, policyIdFor).join('\n')).toMatch(
+      /is not blocking/,
+    )
   })
 })
 
@@ -227,12 +229,12 @@ describe('replacement mappings are hypotheses, not evidence', () => {
   it('maps every policy to the replacement engine without claiming it works', () => {
     const replacement = MAPPINGS.mappings.filter((m: any) => m.engine === 'replacement')
     expect(replacement).toHaveLength(117)
-    // 115 through a rule, 2 through the parser. Both count as mapped.
+    // 112 through a rule, 5 through the parser. Both count as mapped.
     const byMechanism = replacement.reduce((acc: Record<string, number>, m: any) => {
       acc[m.mechanism] = (acc[m.mechanism] ?? 0) + 1
       return acc
     }, {})
-    expect(byMechanism).toEqual({ rule: 115, parser: 2 })
+    expect(byMechanism).toEqual({ rule: 112, parser: 5 })
     // Nothing in the manifest records a parity result. Only the fixture shards
     // can, and until they exist these rows are unproven by construction.
     expect(JSON.stringify(MAPPINGS)).not.toMatch(/proven|verified|parity/i)
@@ -246,8 +248,16 @@ describe('replacement mappings are hypotheses, not evidence', () => {
   })
 })
 
+const PARSE_ENFORCED = [
+  'no-dupe-args',
+  'no-octal',
+  'no-delete-var',
+  'no-nonoctal-decimal-escape',
+  'no-with',
+]
+
 describe('parse-level enforcement', () => {
-  it('maps the two strict-mode syntax policies to the parser, not a rule', () => {
+  it('maps the five strict-mode syntax policies to the parser, not a rule', () => {
     // Discovered behaviourally: the replacement engine has no `no-dupe-args` or
     // `no-octal` rule to configure, and reports both with ZERO rules enabled.
     // A registration probe alone would have read that as the policy being
@@ -260,18 +270,23 @@ describe('parse-level enforcement', () => {
     }
   })
 
-  it('keeps their legacy mappings as rules, because ESLint does use rules', () => {
-    for (const id of ['no-dupe-args', 'no-octal']) {
+  it('maps them to the parser on the LEGACY side too, because ESLint cannot fire them', () => {
+    // Every file here is an ES module, so strict mode, and all five are
+    // strict-mode syntax errors. ESLint reports a fatal parse error with no
+    // rule id: the rule exists in its registry but can never fire in this
+    // repository. Recording them as rules would claim an attribution the
+    // engine never produces -- which the first fixture exposed.
+    for (const id of PARSE_ENFORCED) {
       const row = MAPPINGS.mappings.find((m: any) => m.policy === id && m.engine === 'legacy')
-      expect(row.mechanism).toBe('rule')
-      expect(row.ruleId).toBe(id)
+      expect(row.mechanism).toBe('parser')
+      expect(row.parserMechanism).toBeTruthy()
     }
   })
 
   it('still allocates them to the lint engine, not to another disposition', () => {
     // Parse-level enforcement is HOW the engine realises the policy. It does not
     // move ownership to the compiler or a dedicated gate.
-    for (const id of ['no-dupe-args', 'no-octal']) {
+    for (const id of PARSE_ENFORCED) {
       const row = POLICY.policies.find((p: any) => p.id === id)
       expect(row.disposition).toBe('MIGRATED_TO_NEW_LINT_ENGINE')
     }

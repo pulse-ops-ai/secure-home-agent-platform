@@ -234,6 +234,11 @@ function sourceFiles(dir) {
       }
       if (stats.isDirectory()) {
         if (IGNORED_DIRS.has(entry) || entry.startsWith('.')) continue
+        // Lint FIXTURES are deliberately invalid -- several are syntax errors
+        // on purpose, so they cannot be parsed and have no imports to govern.
+        // The repository's lint, formatter, and compiler all skip them for the
+        // same reason; this is the fourth reader that must.
+        if (rel === 'tests/fixtures' || rel.endsWith('/tests/fixtures')) continue
         walk(full, rel)
       } else if (SOURCE_EXTENSIONS.includes(extname(entry))) {
         found.push(rel)

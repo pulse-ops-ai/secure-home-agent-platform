@@ -18,3 +18,8 @@ deploy/images/image-lock.yaml
 # Markdown is prose. Prettier reflows it in ways that fight hand-wrapped
 # documentation and Mermaid blocks, so it is left alone deliberately.
 *.md
+
+# Lint FIXTURES are deliberately invalid: their whole purpose is to make a rule
+# or the parser fire. Formatting them would repair the very violations they
+# exist to prove are caught -- which it did once, silently, before this entry.
+packages/lint-config/tests/fixtures/

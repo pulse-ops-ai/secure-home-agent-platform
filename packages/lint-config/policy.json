@@ -765,8 +765,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/constructor-super.ts",
-        "invalid": "core-control/invalid/constructor-super.ts"
+        "valid": "core-control/valid/constructor-super.js",
+        "invalid": "core-control/invalid/constructor-super.js"
       }
     },
     {
@@ -832,8 +832,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/getter-return.ts",
-        "invalid": "core-control/invalid/getter-return.ts"
+        "valid": "core-control/valid/getter-return.js",
+        "invalid": "core-control/invalid/getter-return.js"
       }
     },
     {
@@ -884,8 +884,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-class-assign.ts",
-        "invalid": "core-control/invalid/no-class-assign.ts"
+        "valid": "core-control/valid/no-class-assign.js",
+        "invalid": "core-control/invalid/no-class-assign.js"
       }
     },
     {
@@ -954,8 +954,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-const-assign.ts",
-        "invalid": "core-control/invalid/no-const-assign.ts"
+        "valid": "core-control/valid/no-const-assign.js",
+        "invalid": "core-control/invalid/no-const-assign.js"
       }
     },
     {
@@ -1080,8 +1080,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-dupe-args.ts",
-        "invalid": "parser-syntax/invalid/no-dupe-args.ts"
+        "valid": "parser-syntax/valid/no-dupe-args.js",
+        "invalid": "parser-syntax/invalid/no-dupe-args.js"
       }
     },
     {
@@ -1092,8 +1092,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-dupe-class-members.ts",
-        "invalid": "parser-syntax/invalid/no-dupe-class-members.ts"
+        "valid": "parser-syntax/valid/no-dupe-class-members.js",
+        "invalid": "parser-syntax/invalid/no-dupe-class-members.js"
       }
     },
     {
@@ -1124,8 +1124,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-dupe-keys.ts",
-        "invalid": "parser-syntax/invalid/no-dupe-keys.ts"
+        "valid": "parser-syntax/valid/no-dupe-keys.js",
+        "invalid": "parser-syntax/invalid/no-dupe-keys.js"
       }
     },
     {
@@ -1321,8 +1321,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-func-assign.ts",
-        "invalid": "core-control/invalid/no-func-assign.ts"
+        "valid": "core-control/valid/no-func-assign.js",
+        "invalid": "core-control/invalid/no-func-assign.js"
       }
     },
     {
@@ -1360,8 +1360,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-import-assign.ts",
-        "invalid": "core-control/invalid/no-import-assign.ts"
+        "valid": "core-control/valid/no-import-assign.js",
+        "invalid": "core-control/invalid/no-import-assign.js"
       }
     },
     {
@@ -1473,8 +1473,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-policy",
-        "valid": "core-policy/valid/no-new-native-nonconstructor.ts",
-        "invalid": "core-policy/invalid/no-new-native-nonconstructor.ts"
+        "valid": "core-policy/valid/no-new-native-nonconstructor.js",
+        "invalid": "core-policy/invalid/no-new-native-nonconstructor.js"
       }
     },
     {
@@ -1505,8 +1505,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-obj-calls.ts",
-        "invalid": "core-control/invalid/no-obj-calls.ts"
+        "valid": "core-control/valid/no-obj-calls.js",
+        "invalid": "core-control/invalid/no-obj-calls.js"
       }
     },
     {
@@ -1564,8 +1564,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-redeclare.ts",
-        "invalid": "parser-syntax/invalid/no-redeclare.ts"
+        "valid": "parser-syntax/valid/no-redeclare.js",
+        "invalid": "parser-syntax/invalid/no-redeclare.js"
       }
     },
     {
@@ -1669,8 +1669,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-setter-return.ts",
-        "invalid": "core-control/invalid/no-setter-return.ts"
+        "valid": "core-control/valid/no-setter-return.js",
+        "invalid": "core-control/invalid/no-setter-return.js"
       }
     },
     {
@@ -1728,8 +1728,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-this-before-super.ts",
-        "invalid": "core-control/invalid/no-this-before-super.ts"
+        "valid": "core-control/valid/no-this-before-super.js",
+        "invalid": "core-control/invalid/no-this-before-super.js"
       }
     },
     {
@@ -1767,8 +1767,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-undef.ts",
-        "invalid": "parser-syntax/invalid/no-undef.ts"
+        "valid": "parser-syntax/valid/no-undef.js",
+        "invalid": "parser-syntax/invalid/no-undef.js"
       }
     },
     {
@@ -1799,8 +1799,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-unreachable.ts",
-        "invalid": "core-control/invalid/no-unreachable.ts"
+        "valid": "core-control/valid/no-unreachable.js",
+        "invalid": "core-control/invalid/no-unreachable.js"
       }
     },
     {
@@ -1838,8 +1838,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
-        "valid": "core-control/valid/no-unsafe-negation.ts",
-        "invalid": "core-control/invalid/no-unsafe-negation.ts"
+        "valid": "core-control/valid/no-unsafe-negation.js",
+        "invalid": "core-control/invalid/no-unsafe-negation.js"
       }
     },
     {
@@ -2024,8 +2024,8 @@
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
-        "valid": "parser-syntax/valid/no-with.ts",
-        "invalid": "parser-syntax/invalid/no-with.ts"
+        "valid": "parser-syntax/valid/no-with.js",
+        "invalid": "parser-syntax/invalid/no-with.js"
       }
     },
     {

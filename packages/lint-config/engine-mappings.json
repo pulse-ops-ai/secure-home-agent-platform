@@ -737,20 +737,20 @@
     {
       "policy": "no-delete-var",
       "engine": "legacy",
-      "mechanism": "rule",
-      "ruleId": "no-delete-var"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode delete-of-a-binding rejection"
     },
     {
       "policy": "no-delete-var",
       "engine": "replacement",
-      "mechanism": "rule",
-      "ruleId": "no-delete-var"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode delete-of-a-binding rejection"
     },
     {
       "policy": "no-dupe-args",
       "engine": "legacy",
-      "mechanism": "rule",
-      "ruleId": "no-dupe-args"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode duplicate binding detection"
     },
     {
       "policy": "no-dupe-args",
@@ -989,14 +989,14 @@
     {
       "policy": "no-nonoctal-decimal-escape",
       "engine": "legacy",
-      "mechanism": "rule",
-      "ruleId": "no-nonoctal-decimal-escape"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode decimal escape rejection"
     },
     {
       "policy": "no-nonoctal-decimal-escape",
       "engine": "replacement",
-      "mechanism": "rule",
-      "ruleId": "no-nonoctal-decimal-escape"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode decimal escape rejection"
     },
     {
       "policy": "no-obj-calls",
@@ -1013,8 +1013,8 @@
     {
       "policy": "no-octal",
       "engine": "legacy",
-      "mechanism": "rule",
-      "ruleId": "no-octal"
+      "mechanism": "parser",
+      "parserMechanism": "legacy octal literal rejection"
     },
     {
       "policy": "no-octal",
@@ -1313,14 +1313,14 @@
     {
       "policy": "no-with",
       "engine": "legacy",
-      "mechanism": "rule",
-      "ruleId": "no-with"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode with-statement rejection"
     },
     {
       "policy": "no-with",
       "engine": "replacement",
-      "mechanism": "rule",
-      "ruleId": "no-with"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode with-statement rejection"
     },
     {
       "policy": "prefer-const",

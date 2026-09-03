@@ -156,7 +156,38 @@ export function replacementRuleId(ruleId) {
 export const PARSER_ENFORCED = new Map([
   ['no-dupe-args', 'strict-mode duplicate binding detection'],
   ['no-octal', 'legacy octal literal rejection'],
+  ['no-delete-var', 'strict-mode delete-of-a-binding rejection'],
+  ['no-nonoctal-decimal-escape', 'strict-mode decimal escape rejection'],
+  ['no-with', 'strict-mode with-statement rejection'],
 ])
+
+/**
+ * Policies the LEGACY engine also realises at parse level.
+ *
+ * Every source file in this repository is an ES module, so it is strict mode,
+ * and all five of these are strict-mode syntax errors. ESLint reports a fatal
+ * parse error with no rule id: the rule exists in its registry but cannot fire
+ * here. Recording them as rules would claim an attribution the engine never
+ * produces, and the first fixture would expose it -- which is how they were
+ * found.
+ */
+export const LEGACY_PARSER_ENFORCED = new Set([
+  'no-dupe-args',
+  'no-octal',
+  'no-delete-var',
+  'no-nonoctal-decimal-escape',
+  'no-with',
+])
+
+/**
+ * The language a policy must be proved in.
+ *
+ * Derived from applicability, not guessed: if the only role enforcing a policy
+ * is the JavaScript-config role, TypeScript source cannot demonstrate it.
+ */
+export function proofExtension(roles) {
+  return roles.length === 1 && roles[0] === 'js-config' ? '.js' : '.ts'
+}
 
 /** Options that are engine-neutral SEMANTICS, keyed by policy id. */
 function semanticOptions(row) {
@@ -195,12 +226,27 @@ export function buildManifests(rows) {
       disposition: 'MIGRATED_TO_NEW_LINT_ENGINE',
       proof: {
         shard,
-        valid: `${shard}/valid/${id}.ts`,
-        invalid: `${shard}/invalid/${id}.ts`,
+        // A policy that applies ONLY to the JavaScript-config role must be
+        // proved in JavaScript. typescript-eslint switches no-undef,
+        // no-redeclare and no-dupe-class-members off for TypeScript because the
+        // compiler already reports them, so a .ts fixture for one of those would
+        // exercise a rule that is not enabled and prove nothing.
+        valid: `${shard}/valid/${id}${proofExtension(row.roles)}`,
+        invalid: `${shard}/invalid/${id}${proofExtension(row.roles)}`,
       },
     })
 
-    mappings.push({ policy: id, engine: 'legacy', mechanism: 'rule', ruleId: row.ruleId })
+    const legacyParser = LEGACY_PARSER_ENFORCED.has(id)
+    mappings.push(
+      legacyParser
+        ? {
+            policy: id,
+            engine: 'legacy',
+            mechanism: 'parser',
+            parserMechanism: PARSER_ENFORCED.get(id) ?? 'strict-mode syntax rejection',
+          }
+        : { policy: id, engine: 'legacy', mechanism: 'rule', ruleId: row.ruleId },
+    )
 
     const parserMechanism = PARSER_ENFORCED.get(id)
     mappings.push(
