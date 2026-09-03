@@ -294,6 +294,154 @@ def test_an_inferred_baseline_is_never_head_itself(tmp_path: Path) -> None:
     assert "was modified" in result.stderr
 
 
+# ── nested rounds: the path set all three authorities share ─────────────────
+#
+# `REVIEW_RE` matches only direct children, and this loop used to `continue` on
+# everything else. `admittedEpochs` walks the subtree with `ls-tree -r` and takes
+# the basename, so `reviews/nested/1-<sha12>.md` counted as an epoch predecessor
+# HERE it was invisible -- an admitted round whose provenance was never proved.
+
+
+NESTED = "openspec/changes/demo/reviews/nested/1-abc123def456.md"
+
+
+def test_a_nested_round_born_directly_is_refused(tmp_path: Path) -> None:
+    """The defect itself: authored at a nested path, no archival transition."""
+    repo = _repo_with_round(tmp_path)
+    _write(repo, NESTED, "# round 1\n\nfindings\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round, no ceremony")
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+
+def test_a_nested_round_is_refused_even_with_a_real_prior_transition(
+    tmp_path: Path,
+) -> None:
+    """Doing the ceremony for a DIFFERENT round does not license a nested one."""
+    repo = _repo_with_round(tmp_path)
+    base = _git_out(repo, "rev-parse", "HEAD")
+    _archive_transition(repo, 2, "# round 2\n\nfindings\n")
+    _write(repo, NESTED, "# round 1\n\nfindings\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round alongside a real one")
+    _refused(_check(repo, base=base), "is nested inside a reviews/ directory")
+
+
+def test_modifying_a_nested_round_is_refused(tmp_path: Path) -> None:
+    repo = _repo_with_round(tmp_path)
+    _write(repo, NESTED, "# round 1\n\nfindings\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round")
+    _write(repo, NESTED, "# round 1\n\nedited\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "edit the nested round")
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+
+def test_deleting_a_nested_round_is_refused(tmp_path: Path) -> None:
+    repo = _repo_with_round(tmp_path)
+    _write(repo, NESTED, "# round 1\n\nfindings\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round")
+    (repo / NESTED).unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "delete the nested round")
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+
+def test_renaming_an_admitted_round_into_a_nested_path_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The rename route. A move INTO a nested path is as nested as one born
+    there, so both sides of the diff are tested."""
+    repo = _repo_with_round(tmp_path)
+    (repo / NESTED).parent.mkdir(parents=True, exist_ok=True)
+    (repo / ROUND).rename(repo / NESTED)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "move an admitted round into a subdirectory")
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+
+def test_a_nested_path_under_an_archived_change_is_refused(tmp_path: Path) -> None:
+    repo = _repo_with_round(tmp_path)
+    _write(
+        repo,
+        "openspec/changes/archive/2026-09-03-demo/reviews/nested/1-abc123def456.md",
+        "# round 1\n\nfindings\n",
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round inside an archived change")
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+
+def test_removing_the_nested_guard_reopens_the_hole(tmp_path: Path) -> None:
+    """A mutation test, so the nested cases cannot pass for an incidental reason.
+
+    The mutant is the checker with the nested guard removed -- which is exactly
+    the code that shipped before this fix, where the loop reached
+    `if (!REVIEW_RE.test(from)) continue` and skipped the nested path. It must
+    ACCEPT the same repository the real checker refuses. If it also refused,
+    the guard would not be what is doing the work and the nested tests would be
+    proving nothing.
+    """
+    source = SCRIPT.read_text()
+    start = source.index("    // Before any status handling")
+    end = source.index("    if (status.startsWith('R')) {")
+    mutated = source[:start] + source[end:]
+    assert mutated != source, "the guard was not located; the mutation is a no-op"
+    assert "if (!REVIEW_RE.test(from)) continue" in mutated, (
+        "the mutant must be the pre-fix behaviour, not merely different"
+    )
+    mutant = tmp_path / "mutant-check-review-history.mjs"
+    mutant.write_text(mutated)
+
+    repo = _repo_with_round(tmp_path)
+    _write(repo, NESTED, "# round 1\n\nfindings\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "nested round, no ceremony")
+
+    # The real checker refuses.
+    _refused(_check(repo), "is nested inside a reviews/ directory")
+
+    # The mutant does not: the nested round is invisible to it, exactly as
+    # reported. This is the defect, executed.
+    escaped = subprocess.run(
+        ["node", str(mutant), "--root", str(repo), "--base", "HEAD~1"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert escaped.returncode == 0, escaped.stdout + escaped.stderr
+    assert "0 added" in escaped.stdout, escaped.stdout
+
+
+def test_a_direct_child_round_is_still_the_valid_ceremony(tmp_path: Path) -> None:
+    """The positive control. Refusing nesting must not refuse the real thing."""
+    repo = _repo_with_round(tmp_path)
+    base = _git_out(repo, "rev-parse", "HEAD")
+    _archive_transition(repo, 2, "# round 2\n\nfindings\n")
+    result = _check(repo, base=base)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 added" in result.stdout
+
+
+def test_a_non_markdown_direct_child_is_still_ignored(tmp_path: Path) -> None:
+    """Nested means DEPTH, not file type.
+
+    Keying the rule off "does not match REVIEW_RE" would also catch a
+    direct-child `notes.txt`, refusing it here while the gate and the pin
+    enumerator both still skip it -- one path-set disagreement traded for
+    another.
+    """
+    repo = _repo_with_round(tmp_path)
+    _write(repo, "openspec/changes/demo/reviews/notes.txt", "scratch\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "a non-markdown file beside the rounds")
+    result = _check(repo)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_non_review_files_are_ignored(tmp_path: Path) -> None:
     """This checker owns review history only; other drift is other gates' work."""
     repo = _repo_with_round(tmp_path)

@@ -927,6 +927,65 @@ def test_a_fabricated_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -
     assert _refusal(_gate(repo, "manifest", epoch=2)) == "UNADMISSIBLE_REVIEW_HISTORY"
 
 
+def test_a_nested_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -> None:
+    """`ls-tree -r` walks the whole subtree, so the basename alone was enough.
+
+    `reviews/nested/1-<sha12>.md` was read as the round `1-<sha12>.md` and
+    admitted epoch 1 -- at a path the two-revision provenance checker matches
+    only as a direct child, so it never proved those bytes were the current
+    review immediately before archival. Admission is a state transition, not a
+    naming convention, so the nested path is REFUSED rather than ignored:
+    ignoring it would leave the round admissible here and invisible there.
+    """
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    round_one = _manifest(repo)
+    change = repo / "openspec" / "changes" / "demo"
+    nested = change / "reviews" / "nested"
+    nested.mkdir(parents=True)
+    (nested / f"1-{round_one['reviewed_commit'][:12]}.md").write_text(
+        _review_text(_accepted_gate(round_one))
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "a nested round")
+    _base(repo)
+
+    assert _refusal(_gate(repo, "manifest", epoch=2)) == "MALFORMED_REVIEW_HISTORY"
+    assert _refusal(_gate(repo, "verify")) == "MALFORMED_REVIEW_HISTORY"
+
+
+def test_a_nested_non_markdown_file_is_also_refused(tmp_path: Path) -> None:
+    """Nested is DEPTH. Skipping non-Markdown first would leave a subdirectory
+    that still looks like it holds rounds."""
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    nested = repo / "openspec" / "changes" / "demo" / "reviews" / "nested"
+    nested.mkdir(parents=True)
+    (nested / "notes.txt").write_text("scratch\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "a nested non-markdown file")
+    _base(repo)
+    assert _refusal(_gate(repo, "verify")) == "MALFORMED_REVIEW_HISTORY"
+
+
+def test_a_direct_child_non_markdown_file_is_still_skipped(tmp_path: Path) -> None:
+    """The boundary of the rule, so it does not quietly widen.
+
+    Nested is DEPTH, not file type: a direct-child `notes.txt` is skipped exactly
+    as before, and the gate still verifies.
+    """
+    repo = _planning_repo(tmp_path)
+    _accept(repo)
+    (repo / "openspec" / "changes" / "demo" / "reviews").mkdir(exist_ok=True)
+    (repo / "openspec" / "changes" / "demo" / "reviews" / "notes.txt").write_text("scratch\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "a non-markdown file beside the rounds")
+
+    result = _gate(repo, "verify")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "REVIEW_GATE_VALID" in result.stdout
+
+
 def test_an_ignored_history_file_cannot_manufacture_an_epoch(tmp_path: Path) -> None:
     """The same class the planning-artifact fix closed, on the history side."""
     repo = _planning_repo(tmp_path)

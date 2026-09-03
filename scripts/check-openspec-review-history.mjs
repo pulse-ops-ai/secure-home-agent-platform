@@ -41,6 +41,31 @@ const REVIEW_RE = /^openspec\/changes\/(?!archive\/)[^/]+\/reviews\/[^/]+\.md$/
 /** `openspec/changes/archive/YYYY-MM-DD-<change-name>/reviews/<file>.md` */
 const ARCHIVED_REVIEW_RE =
   /^openspec\/changes\/archive\/(\d{4}-\d{2}-\d{2})-([^/]+)\/reviews\/([^/]+\.md)$/
+/**
+ * ANY path inside a reviews/ directory, live or archived, at any depth.
+ *
+ * `REVIEW_RE` deliberately matches only direct children, and the loop below
+ * used to `continue` on everything else — so `reviews/nested/1-<sha12>.md` was
+ * simply invisible here while `admittedEpochs` counted it as an epoch
+ * predecessor. That let a round exist without its admission provenance ever
+ * being proved. Matching the whole subtree is what lets a nested path be
+ * REFUSED instead of skipped.
+ */
+const REVIEW_SUBTREE_RE = /^(openspec\/changes\/[^/]+(?:\/[^/]+)?\/reviews)\/(.+)$/
+/**
+ * Nested means DEPTH, not file type.
+ *
+ * Deriving it from "does not match REVIEW_RE" would conflate the two, because
+ * that pattern also requires `.md`: a direct-child `reviews/notes.txt` would be
+ * reported as nested, and refused here while the gate and the pin enumerator
+ * both still skip it — trading one path-set disagreement for another. The test
+ * is exactly the one those two apply: a separator in the path below reviews/.
+ */
+const isNestedReviewPath = (candidate) => {
+  if (candidate === undefined) return false
+  const match = REVIEW_SUBTREE_RE.exec(candidate)
+  return match !== null && match[2].includes('/')
+}
 
 /**
  * A whole-repository diff can be large, and the default 1 MB would surface as a
@@ -292,6 +317,20 @@ export function checkReviewHistory(root = DEFAULT_ROOT, explicitBase = undefined
     const status = parts[0]
     const from = parts[1]
     const to = parts[2]
+
+    // Before any status handling, so there is no alternate nested-path route
+    // through add, modify, delete, rename, or archive. Both sides are checked:
+    // a rename INTO a nested path is as much a nested round as one born there.
+    if (isNestedReviewPath(from) || isNestedReviewPath(to)) {
+      const offender = isNestedReviewPath(from) ? from : to
+      fail(
+        `review history "${offender}" is nested inside a reviews/ directory. An ` +
+          'admitted round is a direct child named <epoch>-<reviewed-sha12>.md, ' +
+          'because that is the only path whose admission provenance this check ' +
+          'can prove. A nested path is not a second supported representation',
+      )
+      continue
+    }
 
     if (status.startsWith('R')) {
       const live = REVIEW_RE.test(from)
