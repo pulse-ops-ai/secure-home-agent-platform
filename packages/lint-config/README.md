@@ -38,10 +38,22 @@ on.
 
 ## Dispositions
 
-Every policy row carries exactly one, and `DROPPED` is deliberately not
-available. Scope 1 preserves the complete policy set, so "the replacement
-engine cannot express this" is `REPLACEMENT_UNAVAILABLE` — a row that keeps the
-legacy engine — never a licence to delete the policy.
+Every policy row carries exactly one, from a closed set of three:
+
+```text
+MIGRATED_TO_NEW_LINT_ENGINE
+REPLACED_BY_TYPESCRIPT_COMPILER
+REPLACED_BY_DEDICATED_REPOSITORY_GATE
+```
+
+There is no `DROPPED`, and deliberately no "unavailable" value either. If a
+fixture proves a policy cannot be enforced equivalently, that is a **blocking
+conformance result**: the migration stops and ESLint keeps enforcing the policy.
+A row that could record unavailability would make a failed migration look like a
+decision somebody took.
+
+Whether the replacement engine realises a policy natively or through options is
+an engine implementation detail, so it lives in the mapping and not here.
 
 ## Layering
 

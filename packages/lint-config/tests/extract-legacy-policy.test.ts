@@ -3,13 +3,14 @@
  *
  * The policy is whatever the engine ACTUALLY enforces. `base.js` lists roughly
  * thirty rules and the effective set is 117, so a test that agreed with the
- * config source would be agreeing with the wrong thing. These assertions are
+ * config source would be agreeing with the wrong thing. Every assertion here is
  * against the resolved configuration, through the real ESLint API.
  */
 import { describe, expect, it } from 'vitest'
 
 // @ts-ignore -- dependency-free .mjs oracle, deliberately untyped
 import {
+  MEMBER_TEST_PROBE,
   ROLE_PROBES,
   extractEffectivePolicy,
   extractIgnores,
@@ -21,6 +22,7 @@ import {
 type Row = { ruleId: string; roles: string[]; options: Record<string, unknown[]> }
 
 const rows = (await extractEffectivePolicy()) as Row[]
+const rule = (id: string): Row | undefined => rows.find((r) => r.ruleId === id)
 
 describe('the effective blocking policy', () => {
   it('resolves 117 identities, the number the engine really enforces', () => {
@@ -35,7 +37,7 @@ describe('the effective blocking policy', () => {
 
   it('captures rules INHERITED from the recommended presets, not just authored ones', () => {
     // Nothing in base.js names these; they arrive through js.configs.recommended
-    // and recommendedTypeChecked. An extractor that read the config source would
+    // and recommendedTypeChecked. An extractor reading the config source would
     // miss every one of them.
     for (const inherited of ['no-empty', 'no-cond-assign', 'no-dupe-keys']) {
       expect(rows.map((r) => r.ruleId)).toContain(inherited)
@@ -43,60 +45,89 @@ describe('the effective blocking policy', () => {
   })
 
   it('captures explicitly authored rules with their exact options', () => {
-    const eqeqeq = rows.find((r) => r.ruleId === 'eqeqeq')
-    expect(eqeqeq?.options['library']).toEqual(['always', { null: 'ignore' }])
-  })
-
-  it('records every role a rule blocks in', () => {
-    const noConsole = rows.find((r) => r.ruleId === 'no-console')
-    // Off in the two CONFIG roles, because configFileOverrides turns it off.
-    // Still on for test files -- see the dead-export finding below.
-    expect(noConsole?.roles).toEqual(['application', 'library', 'service', 'test'])
+    expect(rule('eqeqeq')?.options['library']).toEqual(['always', { null: 'ignore' }])
   })
 
   it('keeps a rule out of the roles whose config turns it OFF', () => {
-    const boundary = rows.find(
-      (r) => r.ruleId === '@typescript-eslint/explicit-module-boundary-types',
-    )
-    // service and application both switch it off; the config roles do too.
-    expect(boundary?.roles).toEqual(['library', 'test'])
+    // service and application switch it off; both config roles do too. It
+    // survives at the adapter entry because that role relaxes only three rules,
+    // and this is not one of them.
+    expect(rule('@typescript-eslint/explicit-module-boundary-types')?.roles).toEqual([
+      'adapter-bin',
+      'library',
+    ])
   })
 
-  it('records that the authored `test` role is NOT in force anywhere', () => {
-    // A finding, asserted so it cannot be assumed away during the engine swap.
-    //
-    // `@secure-home/eslint-config/test` relaxes no-console, the unsafe-* rules,
-    // no-explicit-any, and the process restrictions for test files. NO member
-    // composes that export -- every eslint.config.js uses library, service, or
-    // application -- so test sources inherit the full role rules instead.
-    //
-    // The effective policy is therefore STRICTER than the config's own comments
-    // describe. Migrating the documented intent rather than the resolved
-    // behaviour would silently relax four rules on every test file in the
-    // repository, which is precisely the class of drift the manifest exists to
-    // prevent.
-    for (const stillOn of [
+  it('keeps type-aware rules out of the JavaScript-config role', () => {
+    expect(rule('@typescript-eslint/no-floating-promises')?.roles).not.toContain('js-config')
+  })
+
+  it('proves the js-config role is not redundant with config-file', () => {
+    // If these collapsed, the JavaScript-config behaviour would vanish entirely.
+    const jsOnly = rows.filter((r) => r.roles.includes('js-config') && !r.roles.includes('library'))
+    expect(jsOnly.length).toBeGreaterThan(0)
+  })
+})
+
+describe('member-role assignment and the exported test role are separate facts', () => {
+  it('resolves an ordinary test file to its MEMBER role, not the exported one', async () => {
+    // REQ-LP-004. No member composes `@secure-home/eslint-config/test`, so a
+    // `.test.ts` inside a library member gets EXACTLY the library rules.
+    // Asserted rather than assumed, because assuming it is how the exported
+    // role's relaxations would silently leak onto every test file.
+    const probe = MEMBER_TEST_PROBE as { member: string; file: string }
+    const asTest = (await extractEffectivePolicy({
+      probes: [{ role: 'probe', member: probe.member, file: probe.file }],
+      includeExportedTestRole: false,
+    })) as Row[]
+    const asSource = (await extractEffectivePolicy({
+      probes: [{ role: 'probe', member: probe.member, file: 'src/index.ts' }],
+      includeExportedTestRole: false,
+    })) as Row[]
+    expect(asTest.map((r) => r.ruleId).sort()).toEqual(asSource.map((r) => r.ruleId).sort())
+  })
+
+  it('models the exported test role as a real but unconsumed contract', () => {
+    // It IS more permissive -- that is the contract it exports. What it must
+    // not do is apply to anything, because nothing composes it.
+    expect(rows.filter((r) => r.roles.includes('exported-test'))).toHaveLength(91)
+    for (const relaxed of [
       'no-console',
       'no-restricted-globals',
       'no-restricted-properties',
       '@typescript-eslint/no-explicit-any',
       '@typescript-eslint/no-unsafe-assignment',
     ]) {
-      const row = rows.find((r) => r.ruleId === stillOn)
-      expect(row?.roles, `${stillOn} should still block on test sources`).toContain('test')
+      expect(rule(relaxed)?.roles, `${relaxed} is relaxed by the exported role`).not.toContain(
+        'exported-test',
+      )
+      expect(rule(relaxed)?.roles, `${relaxed} still blocks for library members`).toContain(
+        'library',
+      )
     }
   })
 
-  it('keeps type-aware rules out of the JavaScript-config role', () => {
-    const floating = rows.find((r) => r.ruleId === '@typescript-eslint/no-floating-promises')
-    expect(floating?.roles).not.toContain('js-config')
+  it('offers no bare `test` role, which would blur the two facts', () => {
+    expect(rows.flatMap((r) => r.roles)).not.toContain('test')
+  })
+})
+
+describe('the coding-adapter process entry', () => {
+  it('relaxes exactly the three rules its declared boundary needs', () => {
+    for (const relaxed of ['no-console', 'no-restricted-globals', 'no-restricted-properties']) {
+      expect(rule(relaxed)?.roles).not.toContain('adapter-bin')
+    }
+    expect(rows.filter((r) => r.roles.includes('adapter-bin'))).toHaveLength(96)
   })
 
-  it('proves the js-config role is not redundant with config-file', () => {
-    // If these collapsed, the JavaScript-config behaviour would vanish from the
-    // policy entirely.
-    const jsOnly = rows.filter((r) => r.roles.includes('js-config') && !r.roles.includes('library'))
-    expect(jsOnly.length).toBeGreaterThan(0)
+  it('keeps every other library restriction in force at that entry', () => {
+    for (const stillOn of [
+      '@typescript-eslint/no-floating-promises',
+      '@typescript-eslint/no-explicit-any',
+      'eqeqeq',
+    ]) {
+      expect(rule(stillOn)?.roles).toContain('adapter-bin')
+    }
   })
 })
 
@@ -151,33 +182,33 @@ describe('severity and options normalization', () => {
 
 describe('what is not linted is also policy', () => {
   it('agrees with the engine on every ignore probe', async () => {
-    const rows = (await extractIgnores()) as {
+    const probes = (await extractIgnores()) as {
       path: string
       ignored: boolean
       actual: boolean
       why: string
     }[]
-    for (const row of rows) {
-      expect(row.actual, `${row.path} (${row.why})`).toBe(row.ignored)
+    for (const probe of probes) {
+      expect(probe.actual, `${probe.path} (${probe.why})`).toBe(probe.ignored)
     }
   })
 
   it('covers both sides, so an ignore-everything engine would fail it', async () => {
-    const rows = (await extractIgnores()) as { ignored: boolean }[]
-    expect(rows.some((r) => r.ignored)).toBe(true)
-    expect(rows.some((r) => !r.ignored)).toBe(true)
+    const probes = (await extractIgnores()) as { ignored: boolean }[]
+    expect(probes.some((p) => p.ignored)).toBe(true)
+    expect(probes.some((p) => !p.ignored)).toBe(true)
   })
 })
 
 describe('the probe set', () => {
-  it('covers every role the policy schema admits', () => {
+  it('covers every member role plus the adapter entry', () => {
     expect((ROLE_PROBES as { role: string }[]).map((p) => p.role).sort()).toEqual([
+      'adapter-bin',
       'application',
       'config-file',
       'js-config',
       'library',
       'service',
-      'test',
     ])
   })
 })

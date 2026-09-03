@@ -20,8 +20,10 @@
  *
  * Dependency-free apart from the engine it interrogates.
  */
+import { mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { ESLint } from 'eslint'
 
@@ -39,10 +41,31 @@ export const ROLE_PROBES = [
   { role: 'library', member: 'packages/contracts', file: 'src/index.ts' },
   { role: 'service', member: 'services/runner-control', file: 'src/index.ts' },
   { role: 'application', member: 'apps/web', file: 'src/index.ts' },
-  { role: 'test', member: 'packages/contracts', file: 'tests/probe.test.ts' },
   { role: 'config-file', member: 'packages/contracts', file: 'vitest.config.ts' },
   { role: 'js-config', member: 'packages/contracts', file: 'eslint.config.js' },
+  { role: 'adapter-bin', member: 'agents/adapters/coding/claude-code', file: 'src/bin.ts' },
 ]
+
+/**
+ * ORDINARY TEST FILES ARE NOT A ROLE.
+ *
+ * A `.test.ts` inside a library member resolves to EXACTLY the library
+ * configuration -- asserted below, not assumed. No member composes
+ * `@secure-home/eslint-config/test`, so nothing assigns a test file to the
+ * exported role, and inventing a `test` role here would record an assignment
+ * the repository does not make.
+ *
+ * REQ-LP-004 requires the two to be separate facts, so the exported role is
+ * probed on its own and never merged into a member role.
+ */
+export const MEMBER_TEST_PROBE = {
+  member: 'packages/contracts',
+  file: 'tests/probe.test.ts',
+  resolvesAs: 'library',
+}
+
+/** The separately exported, currently unconsumed test-role contract. */
+export const EXPORTED_TEST_ROLE = 'exported-test'
 
 /** ESLint severity, normalized. Only `error` is blocking policy. */
 export function severityOf(entry) {
@@ -87,11 +110,18 @@ export function policyIdFor(ruleId, taken = new Set()) {
  * keeping the two steps separate is what stops vendor identity leaking into
  * `policy.json`.
  */
-export async function extractEffectivePolicy({ repoRoot = REPO_ROOT, probes = ROLE_PROBES } = {}) {
+export async function extractEffectivePolicy({
+  repoRoot = REPO_ROOT,
+  probes = ROLE_PROBES,
+  includeExportedTestRole = true,
+} = {}) {
   const byRule = new Map()
+  const all = includeExportedTestRole
+    ? [...probes, await exportedTestRoleProbe(repoRoot)]
+    : [...probes]
 
-  for (const { role, member, file } of probes) {
-    const cwd = path.join(repoRoot, member)
+  for (const { role, member, file, cwd: explicitCwd } of all) {
+    const cwd = explicitCwd ?? path.join(repoRoot, member)
     const eslint = new ESLint({ cwd })
     const config = await eslint.calculateConfigForFile(file)
 
@@ -133,4 +163,24 @@ export async function extractIgnores({ repoRoot = REPO_ROOT, member = 'packages/
     rows.push({ ...probe, actual: await eslint.isPathIgnored(probe.path) })
   }
   return rows
+}
+
+/**
+ * Materialize a throwaway workspace whose config composes the exported test
+ * role, so its contract resolves through the same engine path as every other
+ * role.
+ *
+ * The config is written to a scratch directory rather than committed: a
+ * committed one would look like a member that composes the export, which is
+ * exactly the fact this must not fabricate.
+ */
+export async function exportedTestRoleProbe(repoRoot = REPO_ROOT) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'exported-test-role-'))
+  const href = pathToFileURL(path.join(repoRoot, 'packages/eslint-config/test.js')).href
+  await writeFile(
+    path.join(dir, 'eslint.config.js'),
+    `import { test } from ${JSON.stringify(href)}\nexport default test\n`,
+  )
+  await writeFile(path.join(dir, 'probe.test.ts'), 'export const probe = 1\n')
+  return { role: EXPORTED_TEST_ROLE, cwd: dir, file: 'probe.test.ts' }
 }

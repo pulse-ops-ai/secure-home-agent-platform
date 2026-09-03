@@ -35,8 +35,8 @@
         },
         "engine": { "$ref": "#/$defs/engine" },
         "mechanism": {
-          "description": "How the engine realises the policy.",
-          "enum": ["rule", "parser", "compiler", "dedicated-gate", "unavailable"]
+          "description": "How the LINT ENGINE realises the policy. Only these two: compiler and dedicated-gate ownership are semantic dispositions in policy.json, outside lint-engine translation, and unavailability is a blocking conformance result rather than an accepted mapping.",
+          "enum": ["rule", "parser"]
         },
         "ruleId": {
           "description": "The vendor rule identity. Bootstrap provenance and engine detail, never policy identity.",
@@ -47,10 +47,10 @@
           "description": "Verbatim options this engine needs to realise the policy. Not semantics: the repository's meaning is in policy.json.",
           "type": "object"
         },
-        "unavailableReason": {
-          "description": "Required when mechanism is 'unavailable'. Records why the engine cannot express the policy, which keeps the legacy engine rather than dropping the policy.",
+        "parserMechanism": {
+          "description": "Required when mechanism is 'parser'. Names the parse-level facility that realises the policy, for engines that enforce it before any rule runs.",
           "type": "string",
-          "minLength": 12
+          "minLength": 3
         }
       },
       "allOf": [
@@ -59,11 +59,8 @@
           "then": { "required": ["ruleId"] }
         },
         {
-          "if": {
-            "properties": { "mechanism": { "const": "unavailable" } },
-            "required": ["mechanism"]
-          },
-          "then": { "required": ["unavailableReason"] }
+          "if": { "properties": { "mechanism": { "const": "parser" } }, "required": ["mechanism"] },
+          "then": { "required": ["parserMechanism"] }
         }
       ]
     }

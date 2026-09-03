@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@secure-home/eslint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",

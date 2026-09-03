@@ -35,7 +35,7 @@ const policyRow = (over: Record<string, unknown> = {}): Record<string, unknown> 
   intent: 'An unawaited promise surfaces as an unhandled rejection in production.',
   roles: ['library', 'service'],
   blocking: true,
-  disposition: 'PRESERVED_NATIVE',
+  disposition: 'MIGRATED_TO_NEW_LINT_ENGINE',
   proof: {
     shard: 'typescript-typed-control',
     valid: 'valid/awaited.ts',
@@ -130,10 +130,38 @@ describe('mapping authority may not carry policy semantics', () => {
     expect(errors(doc, MAPPING_SCHEMA)).toContain('<root>.mappings[0]: missing required "ruleId"')
   })
 
-  it('requires an unavailable mapping to say why, so it cannot be a silent drop', () => {
-    const doc = mappingDoc([{ policy: 'p-one', engine: 'replacement', mechanism: 'unavailable' }])
+  it('requires a parser mapping to name its parse-level facility', () => {
+    const doc = mappingDoc([{ policy: 'p-one', engine: 'replacement', mechanism: 'parser' }])
     expect(errors(doc, MAPPING_SCHEMA)).toContain(
-      '<root>.mappings[0]: missing required "unavailableReason"',
+      '<root>.mappings[0]: missing required "parserMechanism"',
+    )
+  })
+
+  it.each(['compiler', 'dedicated-gate', 'unavailable'])(
+    'refuses the mechanism %s, which is not lint-engine translation',
+    (mechanism) => {
+      // compiler and dedicated-gate ownership are semantic dispositions in
+      // policy.json; unavailability is a blocking conformance result. Allowing
+      // any of them here would let the mapping table decide policy ownership.
+      const doc = mappingDoc([{ policy: 'p-one', engine: 'replacement', mechanism }])
+      expect(errors(doc, MAPPING_SCHEMA).join('\n')).toMatch(
+        new RegExp(`"${mechanism}" is not one of`),
+      )
+    },
+  )
+
+  it('refuses an unavailableReason field outright', () => {
+    const doc = mappingDoc([
+      {
+        policy: 'p-one',
+        engine: 'replacement',
+        mechanism: 'rule',
+        ruleId: 'r',
+        unavailableReason: 'oxlint has no equivalent',
+      },
+    ])
+    expect(errors(doc, MAPPING_SCHEMA)).toContain(
+      '<root>.mappings[0]: unknown field "unavailableReason"',
     )
   })
 
@@ -154,10 +182,44 @@ describe('disposition is exactly one allowed outcome', () => {
     )
   })
 
+  it('accepts each of the three accepted allocations', () => {
+    for (const d of [
+      'MIGRATED_TO_NEW_LINT_ENGINE',
+      'REPLACED_BY_TYPESCRIPT_COMPILER',
+      'REPLACED_BY_DEDICATED_REPOSITORY_GATE',
+    ]) {
+      expect(errors(policyDoc([policyRow({ disposition: d })]), POLICY_SCHEMA)).toEqual([])
+    }
+  })
+
   it('refuses DROPPED, which Scope 1 does not permit at all', () => {
     const doc = policyDoc([policyRow({ disposition: 'DROPPED' })])
     expect(errors(doc, POLICY_SCHEMA).join('\n')).toMatch(/"DROPPED" is not one of/)
   })
+
+  it.each(['PRESERVED_NATIVE', 'PRESERVED_VIA_OPTIONS'])(
+    'refuses %s, an engine implementation detail rather than a semantic disposition',
+    (value) => {
+      const doc = policyDoc([policyRow({ disposition: value })])
+      expect(errors(doc, POLICY_SCHEMA).join('\n')).toMatch(new RegExp(`"${value}" is not one of`))
+    },
+  )
+
+  it('refuses REPLACEMENT_UNAVAILABLE, because that is a blocking result not a row', () => {
+    // Inability to enforce a policy equivalently STOPS the migration and keeps
+    // ESLint. If a row could carry it, a failed migration would look like a
+    // recorded decision instead of the failure it is.
+    const doc = policyDoc([policyRow({ disposition: 'REPLACEMENT_UNAVAILABLE' })])
+    expect(errors(doc, POLICY_SCHEMA).join('\n')).toMatch(/"REPLACEMENT_UNAVAILABLE" is not one of/)
+  })
+
+  it.each(['PRESERVED_BY_COMPILER', 'PRESERVED_BY_DEDICATED_GATE'])(
+    'refuses the superseded spelling %s',
+    (value) => {
+      const doc = policyDoc([policyRow({ disposition: value })])
+      expect(errors(doc, POLICY_SCHEMA).join('\n')).toMatch(new RegExp(`"${value}" is not one of`))
+    },
+  )
 
   it('refuses two dispositions, since a JSON object cannot hold a duplicate key', () => {
     // The schema-level guarantee is that `disposition` is a single enum value,
@@ -199,6 +261,18 @@ describe('every policy row must reference executable proof', () => {
     expect(
       errors(policyDoc([policyRow({ roles: ['backend'] })]), POLICY_SCHEMA).join('\n'),
     ).toMatch(/"backend" is not one of/)
+  })
+
+  it('models member roles and the exported test role as separate facts', () => {
+    // REQ-LP-004: the existence of `/test` must not imply that an ordinary test
+    // file consumes it. A bare `test` role would blur exactly that distinction,
+    // so the vocabulary does not offer one.
+    expect(errors(policyDoc([policyRow({ roles: ['test'] })]), POLICY_SCHEMA).join('\n')).toMatch(
+      /"test" is not one of/,
+    )
+    for (const role of ['library', 'service', 'application', 'exported-test', 'adapter-bin']) {
+      expect(errors(policyDoc([policyRow({ roles: [role] })]), POLICY_SCHEMA)).toEqual([])
+    }
   })
 })
 

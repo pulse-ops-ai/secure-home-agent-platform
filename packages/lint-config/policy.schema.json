@@ -72,7 +72,16 @@
       }
     },
     "role": {
-      "enum": ["library", "service", "application", "test", "config-file", "js-config"]
+      "description": "Applicability. MEMBER-ROLE assignment and the EXPORTED test-role contract are separate facts (REQ-LP-004): an ordinary test file resolves under its member's role, and the existence of `exported-test` does not assign any file to it. `adapter-bin` is the one admitted coding-adapter process entry.",
+      "enum": [
+        "library",
+        "service",
+        "application",
+        "exported-test",
+        "config-file",
+        "js-config",
+        "adapter-bin"
+      ]
     },
     "shard": {
       "enum": [
@@ -86,13 +95,11 @@
       ]
     },
     "disposition": {
-      "description": "Exactly one allowed outcome. DROPPED is deliberately absent: Scope 1 preserves the complete policy, so 'the replacement engine cannot express it' is a REPLACEMENT_UNAVAILABLE row that keeps ESLint, never a licence to delete the policy.",
+      "description": "Exactly one allocated outcome, from the accepted set. DROPPED is deliberately absent, and so is any 'unavailable' value: inability to enforce a policy equivalently is a BLOCKING CONFORMANCE RESULT that stops the migration and keeps ESLint, not a disposition a row may quietly carry. Engine implementation detail -- whether the replacement realises a policy natively or through options -- is not a semantic disposition and lives in the mapping.",
       "enum": [
-        "PRESERVED_NATIVE",
-        "PRESERVED_VIA_OPTIONS",
-        "PRESERVED_BY_COMPILER",
-        "PRESERVED_BY_DEDICATED_GATE",
-        "REPLACEMENT_UNAVAILABLE"
+        "MIGRATED_TO_NEW_LINT_ENGINE",
+        "REPLACED_BY_TYPESCRIPT_COMPILER",
+        "REPLACED_BY_DEDICATED_REPOSITORY_GATE"
       ]
     }
   }
