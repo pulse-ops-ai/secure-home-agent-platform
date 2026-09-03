@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "adrs": [
+    {
+      "id": "ADR-0001",
+      "path": "adr.md",
+      "title": "Fixture decision",
+      "lifecycle": "Proposed",
+      "proposedOn": "2026-08-30",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": null
+    }
+  ],
+  "questions": [
+    {
+      "id": "U4",
+      "anchor": "unresolved.md#u4",
+      "title": "Fixture question",
+      "severity": "medium"
+    }
+  ],
+  "gates": [
+    {
+      "id": "runner/GATE-U4",
+      "kind": "gate",
+      "predicate": {
+        "name": "exactly-one-current-accepted-resolver",
+        "question": "U4"
+      },
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 9
+      },
+      "sources": ["adr.md#decision"],
+      "replaces": null,
+      "replacement": null
+    }
+  ],
+  "landings": [
+    {
+      "id": "runner/L8",
+      "kind": "implementation-landing",
+      "requires": [],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 56
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Planned",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": null,
+        "withdrawal": null
+      }
+    }
+  ],
+  "externalReferences": [],
+  "attestations": {
+    "genesis": {}
+  }
+}
