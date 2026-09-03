@@ -14,14 +14,21 @@ import { extractEffectivePolicy, policyIdFor } from '../src/extract-legacy-polic
 // @ts-ignore
 import { buildManifests, shardFor } from '../src/build-manifest.mjs'
 // @ts-ignore
-import { checkPolicyDrift, checkReferentialIntegrity } from '../src/check-policy.mjs'
+import {
+  checkGeneratedDrift,
+  checkPolicyDrift,
+  checkReferentialIntegrity,
+} from '../src/check-policy.mjs'
 // @ts-ignore
 import { validate } from '../validate-schema.mjs'
 // @ts-ignore
 import { GENERATED_ROLES, generateAll } from '../src/generate-oxlint-config.mjs'
+// @ts-ignore
+import { canonicalJson } from '../src/canonical.mjs'
 
 const HERE = import.meta.dirname
 const load = (p: string): any => JSON.parse(readFileSync(path.join(HERE, '..', p), 'utf8'))
+const readCommitted = (p: string): string => readFileSync(path.join(HERE, '..', p), 'utf8')
 
 const POLICY = load('policy.json')
 const MAPPINGS = load('engine-mappings.json')
@@ -85,7 +92,62 @@ describe('the committed manifests', () => {
 })
 
 describe('regeneration is deterministic and matches the engine', () => {
-  it('reproduces the committed bytes exactly', () => {
+  const generatedEntries = (): { path: string; value: unknown; committed: string }[] => {
+    const built = generateAll(POLICY, MAPPINGS)
+    const manifests = buildManifests(rows)
+    return [
+      { path: 'policy.json', value: manifests.policy, committed: readCommitted('policy.json') },
+      {
+        path: 'engine-mappings.json',
+        value: manifests.mappings,
+        committed: readCommitted('engine-mappings.json'),
+      },
+      ...(GENERATED_ROLES as string[]).map((role) => ({
+        path: `generated/oxlintrc.${role}.json`,
+        value: built[role],
+        committed: readCommitted(`generated/oxlintrc.${role}.json`),
+      })),
+    ]
+  }
+
+  it('passes the byte-identity check for every generated authority', async () => {
+    expect(await checkGeneratedDrift(generatedEntries(), canonicalJson)).toEqual([])
+  })
+
+  it('REPORTS a formatting-only edit, which object equality cannot see', async () => {
+    const entries = generatedEntries()
+    const target = entries.find((e) => e.path === 'generated/oxlintrc.library.json')!
+    const reformatted = JSON.stringify(JSON.parse(target.committed), null, 4)
+    expect(JSON.parse(reformatted)).toEqual(JSON.parse(target.committed))
+    const problems = await checkGeneratedDrift(
+      [{ ...target, committed: reformatted }],
+      canonicalJson,
+    )
+    expect(problems.join('\n')).toMatch(/is not byte-identical to generator output/)
+  })
+
+  it('REPORTS a key-order edit, which also parses identically', async () => {
+    const entries = generatedEntries()
+    const target = entries.find((e) => e.path === 'generated/oxlintrc.library.json')!
+    const parsed = JSON.parse(target.committed)
+    const reordered = JSON.stringify(Object.fromEntries(Object.entries(parsed).reverse()), null, 2)
+    expect(JSON.parse(reordered)).toEqual(parsed)
+    const problems = await checkGeneratedDrift([{ ...target, committed: reordered }], canonicalJson)
+    expect(problems).toHaveLength(1)
+  })
+
+  it('reproduces the committed manifests BYTE for byte', async () => {
+    // Byte identity, not object equality. AUTH-LINT-CONFIG must be
+    // byte-identical to generator output, and an object comparison accepts
+    // whitespace and key-order changes -- so a committed authority could be
+    // edited into something the generator would never emit and still report
+    // clean. That is the check this test previously failed to be.
+    const built = buildManifests(rows)
+    expect(await canonicalJson(built.policy)).toBe(readCommitted('policy.json'))
+    expect(await canonicalJson(built.mappings)).toBe(readCommitted('engine-mappings.json'))
+  })
+
+  it('reproduces the same semantic content, so a byte failure is a real one', () => {
     const built = buildManifests(rows)
     expect(built.policy).toEqual(POLICY)
     expect(built.mappings).toEqual(MAPPINGS)
@@ -294,11 +356,40 @@ describe('parse-level enforcement', () => {
 })
 
 describe('the generated engine configuration', () => {
-  it('is reproducible from the authorities alone', () => {
+  it('is reproducible from the authorities alone, BYTE for byte', async () => {
     const built = generateAll(POLICY, MAPPINGS)
     for (const role of GENERATED_ROLES as string[]) {
-      expect(built[role]).toEqual(load(`generated/oxlintrc.${role}.json`))
+      expect(
+        await canonicalJson(built[role]),
+        `generated/oxlintrc.${role}.json is not the generator's output`,
+      ).toBe(readCommitted(`generated/oxlintrc.${role}.json`))
     }
+  })
+
+  it('fails on a formatting-only edit, where semantic equality would pass', async () => {
+    // The hostile case for byte identity. The JSON parses to exactly the same
+    // object; only whitespace moved. Object comparison cannot see this.
+    const committed = readCommitted('generated/oxlintrc.library.json')
+    const reformatted = JSON.stringify(JSON.parse(committed), null, 4)
+    expect(JSON.parse(reformatted)).toEqual(JSON.parse(committed))
+    expect(reformatted).not.toBe(committed)
+
+    const built = await canonicalJson(generateAll(POLICY, MAPPINGS)['library'])
+    expect(built).toBe(committed)
+    expect(built).not.toBe(reformatted)
+  })
+
+  it('fails on a key-order edit, which also parses identically', async () => {
+    const committed = readCommitted('generated/oxlintrc.library.json')
+    const parsed = JSON.parse(committed)
+    const reordered = JSON.stringify(Object.fromEntries(Object.entries(parsed).reverse()), null, 2)
+    expect(JSON.parse(reordered)).toEqual(parsed)
+    expect(await canonicalJson(parsed)).not.toBe(reordered)
+  })
+
+  it('serializes idempotently, so the canonical form is a fixed point', async () => {
+    const committed = readCommitted('generated/oxlintrc.library.json')
+    expect(await canonicalJson(JSON.parse(committed))).toBe(committed)
   })
 
   it('disables ambient engine defaults in every role', () => {

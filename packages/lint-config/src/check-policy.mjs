@@ -314,3 +314,33 @@ if (invokedDirectly) {
       `${members(REPO_ROOT).length} members on their projected roles`,
   )
 }
+
+// ── generated-authority byte identity ───────────────────────────────────────
+
+/**
+ * Every generated authority must be BYTE-identical to generator output.
+ *
+ * Not object-identical. `AUTH-LINT-CONFIG` is a generated file, and comparing
+ * parsed objects accepts whitespace and key-order changes -- so a committed
+ * config could be edited into something the generator would never emit and
+ * still report clean. Byte identity is the only comparison that makes
+ * "generated" mean anything.
+ *
+ * Lives here rather than in a test so that removing the comparison is a change
+ * to checked code, which the suite then catches. A check that exists only
+ * inside its own test cannot be regression-tested at all.
+ */
+export async function checkGeneratedDrift(entries, canonicalize) {
+  const problems = []
+  for (const { path: repoPath, value, committed } of entries) {
+    const expected = await canonicalize(value)
+    if (expected !== committed) {
+      problems.push(
+        `${repoPath} is not byte-identical to generator output. It is a GENERATED ` +
+          `authority: regenerate it rather than editing it, and never reformat it ` +
+          `by hand`,
+      )
+    }
+  }
+  return problems
+}
