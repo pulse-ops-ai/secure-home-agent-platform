@@ -310,6 +310,7 @@ describe('replacement mappings are hypotheses, not evidence', () => {
   })
 })
 
+/** Parser-enforced on the REPLACEMENT engine. */
 const PARSE_ENFORCED = [
   'no-dupe-args',
   'no-octal',
@@ -318,8 +319,11 @@ const PARSE_ENFORCED = [
   'no-with',
 ]
 
+/** Parser-enforced on the LEGACY engine too. A strict subset -- see below. */
+const LEGACY_PARSE_ENFORCED = ['no-dupe-args', 'no-octal', 'no-nonoctal-decimal-escape', 'no-with']
+
 describe('parse-level enforcement', () => {
-  it('maps the five strict-mode syntax policies to the parser, not a rule', () => {
+  it('maps the strict-mode syntax policies to the replacement parser, not a rule', () => {
     // Discovered behaviourally: the replacement engine has no `no-dupe-args` or
     // `no-octal` rule to configure, and reports both with ZERO rules enabled.
     // A registration probe alone would have read that as the policy being
@@ -333,12 +337,17 @@ describe('parse-level enforcement', () => {
   })
 
   it('maps them to the parser on the LEGACY side too, because ESLint cannot fire them', () => {
-    // Every file here is an ES module, so strict mode, and all five are
-    // strict-mode syntax errors. ESLint reports a fatal parse error with no
-    // rule id: the rule exists in its registry but can never fire in this
-    // repository. Recording them as rules would claim an attribution the
-    // engine never produces -- which the first fixture exposed.
-    for (const id of PARSE_ENFORCED) {
+    // Four of the five, not all of them. These are strict-mode syntax errors
+    // that ESLint reports as a fatal parse error with no rule id, so recording
+    // them as rules would claim an attribution the engine never produces.
+    //
+    // no-delete-var is the exception, and it is the interesting one: the
+    // repository parses .ts with the TypeScript parser, which ACCEPTS
+    // `delete localBinding` and lets the rule fire normally. The replacement
+    // engine still rejects it at parse time. So one policy is a rule on one
+    // engine and a parser fact on the other, which is why mechanism is a
+    // per-engine field rather than a property of the policy.
+    for (const id of LEGACY_PARSE_ENFORCED) {
       const row = MAPPINGS.mappings.find((m: any) => m.policy === id && m.engine === 'legacy')
       expect(row.mechanism).toBe('parser')
       expect(row.parserMechanism).toBeTruthy()

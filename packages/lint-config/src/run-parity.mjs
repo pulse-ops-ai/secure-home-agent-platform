@@ -29,6 +29,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { ESLint } from 'eslint'
+import tseslint from 'typescript-eslint'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const FIXTURE_ROOT = path.join(PACKAGE_ROOT, 'tests', 'fixtures')
@@ -65,6 +66,22 @@ export function configForRole(role) {
  * those to disk would either commit them or place them outside the lint root,
  * where `lintFiles` declines to look.
  */
+/**
+ * The parser the legacy engine must use for a fixture.
+ *
+ * TypeScript fixtures need the TypeScript parser. Without it every `.ts`
+ * fixture fails to parse under the default one, the rule never runs, and the
+ * harness reports "the policy did not fire" for a reason that has nothing to do
+ * with the policy. That is what the first run of the core-control shard showed:
+ * fourteen legacy failures whose Oxlint side was already correct.
+ */
+function languageOptionsFor(file) {
+  const parserOptions = { ecmaVersion: 2023, sourceType: 'module' }
+  return file.endsWith('.ts') || file.endsWith('.tsx')
+    ? { parser: tseslint.parser, parserOptions }
+    : { parserOptions }
+}
+
 export async function legacyDiagnosticsForText(text, filePath, ruleId, options) {
   const rules =
     ruleId === undefined
@@ -75,7 +92,7 @@ export async function legacyDiagnosticsForText(text, filePath, ruleId, options) 
     overrideConfigFile: true,
     overrideConfig: {
       files: ['**/*.ts', '**/*.js'],
-      languageOptions: { parserOptions: { ecmaVersion: 2023, sourceType: 'module' } },
+      languageOptions: languageOptionsFor(filePath),
       rules,
     },
   })
@@ -106,7 +123,7 @@ export async function legacyDiagnostics(file, ruleId, options) {
     overrideConfigFile: true,
     overrideConfig: {
       files: ['**/*.ts', '**/*.js'],
-      languageOptions: { parserOptions: { ecmaVersion: 2023, sourceType: 'module' } },
+      languageOptions: languageOptionsFor(file),
       rules,
     },
   })

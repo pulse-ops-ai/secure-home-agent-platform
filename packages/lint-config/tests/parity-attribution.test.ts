@@ -44,8 +44,12 @@ const PARSER_POLICIES = policy.policies.filter(
 )
 
 describe('every parser mapping declares an expected diagnostic', () => {
-  it('covers all five, on both engines', () => {
-    expect(PARSER_POLICIES).toHaveLength(5)
+  it('covers every legacy parser policy on both engines', () => {
+    // Four, not five. no-delete-var is parser-enforced on the REPLACEMENT only:
+    // the repository parses .ts with the TypeScript parser, which accepts
+    // `delete localBinding` and lets the rule fire instead. Mechanism is a
+    // per-engine fact, and this is the case that proves it.
+    expect(PARSER_POLICIES).toHaveLength(4)
     for (const row of PARSER_POLICIES) {
       expect(mappingOf(legacy, row.id).diagnosticPattern, `${row.id} legacy`).toBeTruthy()
       expect(mappingOf(replacement, row.id).diagnosticPattern, `${row.id} replacement`).toBeTruthy()

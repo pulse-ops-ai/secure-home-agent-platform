@@ -737,9 +737,8 @@
     {
       "policy": "no-delete-var",
       "engine": "legacy",
-      "mechanism": "parser",
-      "parserMechanism": "strict-mode delete-of-a-binding rejection",
-      "diagnosticPattern": "Deleting local variable in strict mode"
+      "mechanism": "rule",
+      "ruleId": "no-delete-var"
     },
     {
       "policy": "no-delete-var",
@@ -995,7 +994,7 @@
       "engine": "legacy",
       "mechanism": "parser",
       "parserMechanism": "strict-mode decimal escape rejection",
-      "diagnosticPattern": "Invalid escape sequence"
+      "diagnosticPattern": "Escape sequence '\\8' is not allowed"
     },
     {
       "policy": "no-nonoctal-decimal-escape",
@@ -1021,7 +1020,7 @@
       "engine": "legacy",
       "mechanism": "parser",
       "parserMechanism": "legacy octal literal rejection",
-      "diagnosticPattern": "Invalid number"
+      "diagnosticPattern": "Octal literals are not allowed"
     },
     {
       "policy": "no-octal",

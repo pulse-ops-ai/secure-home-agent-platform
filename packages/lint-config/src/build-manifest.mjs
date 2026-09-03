@@ -164,12 +164,17 @@ export const PARSER_ENFORCED = new Map([
 /**
  * Policies the LEGACY engine also realises at parse level.
  *
- * Every source file in this repository is an ES module, so it is strict mode,
- * and all five of these are strict-mode syntax errors. ESLint reports a fatal
- * parse error with no rule id: the rule exists in its registry but cannot fire
- * here. Recording them as rules would claim an attribution the engine never
- * produces, and the first fixture would expose it -- which is how they were
- * found.
+ * Every source file here is an ES module, so strict mode, and these are
+ * strict-mode syntax errors that ESLint reports as a fatal parse error with no
+ * rule id. Recording them as rules would claim an attribution the engine never
+ * produces.
+ *
+ * THE PARSER DECIDES, AND THE ROLE DECIDES THE PARSER. `no-delete-var` is
+ * deliberately absent: the repository parses `.ts` with the TypeScript parser,
+ * which accepts `delete localBinding` and lets the RULE fire instead. On the
+ * replacement engine it is still a parse error. The two engines genuinely
+ * differ in mechanism for the same policy, which is why mechanism is a
+ * per-engine field and not a property of the policy.
  */
 /**
  * The exact diagnostic each engine emits, per policy.
@@ -182,17 +187,14 @@ export const PARSER_ENFORCED = new Map([
  */
 export const PARSER_DIAGNOSTICS = new Map([
   ['no-dupe-args', { legacy: 'Argument name clash', replacement: 'already been declared' }],
-  ['no-octal', { legacy: 'Invalid number', replacement: "'0'-prefixed octal literals" }],
   [
-    'no-delete-var',
-    {
-      legacy: 'Deleting local variable in strict mode',
-      replacement: 'Delete of an unqualified identifier',
-    },
+    'no-octal',
+    { legacy: 'Octal literals are not allowed', replacement: "'0'-prefixed octal literals" },
   ],
+  ['no-delete-var', { legacy: undefined, replacement: 'Delete of an unqualified identifier' }],
   [
     'no-nonoctal-decimal-escape',
-    { legacy: 'Invalid escape sequence', replacement: '\\8 and \\9 are not allowed' },
+    { legacy: "Escape sequence '\\8' is not allowed", replacement: '\\8 and \\9 are not allowed' },
   ],
   [
     'no-with',
@@ -203,7 +205,6 @@ export const PARSER_DIAGNOSTICS = new Map([
 export const LEGACY_PARSER_ENFORCED = new Set([
   'no-dupe-args',
   'no-octal',
-  'no-delete-var',
   'no-nonoctal-decimal-escape',
   'no-with',
 ])
