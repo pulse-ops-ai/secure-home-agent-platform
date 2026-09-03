@@ -170,6 +170,13 @@ jobs:
           case "$base" in *[!0]*) ;; *) base="" ;; esac
           REVIEW_HISTORY_BASE="$base" pnpm run check:review-history
 
+      - name: Lint policy integrity
+        # The engine-neutral policy manifest, its per-engine mappings, and the
+        # repository-wide member-role projection. Unconditional: a role
+        # reassignment changes which policies block for a member, and the
+        # representative probes in the package's own suite cannot see that.
+        run: pnpm run check:lint-policy
+
       - name: Release history
         # CI knows the exact baseline; the script's local inference is for
         # developers, not for the gate. A SUPPLIED base is exclusive: if it does

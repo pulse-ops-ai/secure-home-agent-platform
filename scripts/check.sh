@@ -69,10 +69,15 @@ if command -v node >/dev/null 2>&1; then
   # workspace installed. `pnpm run check:review-history` remains the convenience
   # command and the CI invocation.
   run "openspec review history" node scripts/check-openspec-review-history.mjs
+  # Lint-policy authority: manifest/mapping referential integrity and the
+  # repository-wide member-role projection. Stdlib-only, so it runs beside the
+  # other governance gates rather than behind the workspace toolchain.
+  run "lint policy integrity" node packages/lint-config/src/check-policy.mjs
 else
   skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "openspec review history" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "lint policy integrity" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------

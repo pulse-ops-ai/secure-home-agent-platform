@@ -274,3 +274,37 @@ export function checkPolicyDrift(policy, mappings, liveRows) {
 
   return problems
 }
+
+// ── CLI ─────────────────────────────────────────────────────────────────────
+
+const invokedDirectly = (() => {
+  try {
+    return process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]
+  } catch {
+    return false
+  }
+})()
+
+if (invokedDirectly) {
+  const here = fileURLToPath(new URL('..', import.meta.url))
+  const read = (name) => JSON.parse(readFileSync(path.join(here, name), 'utf8'))
+
+  const problems = [
+    ...checkMemberRoles(REPO_ROOT),
+    ...checkReferentialIntegrity(read('policy.json'), read('engine-mappings.json')),
+  ]
+
+  // Drift needs the engine, which needs an install. It is checked in the
+  // package's own test run, where the toolchain is guaranteed present; running
+  // it here too would make this gate depend on a resolved workspace.
+  if (problems.length > 0) {
+    console.error(`✗ lint policy integrity — ${problems.length} problem(s)\n`)
+    for (const problem of problems) console.error(`    ${problem}`)
+    process.exit(1)
+  }
+  const policy = read('policy.json')
+  console.log(
+    `✓ lint policy integrity — ${policy.policies.length} policies, ` +
+      `${members(REPO_ROOT).length} members on their projected roles`,
+  )
+}
