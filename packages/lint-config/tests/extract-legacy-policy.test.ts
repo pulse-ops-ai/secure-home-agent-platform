@@ -26,7 +26,36 @@ const rule = (id: string): Row | undefined => rows.find((r) => r.ruleId === id)
 
 describe('the effective blocking policy', () => {
   it('resolves 117 identities, the number the engine really enforces', () => {
+    // 117 is the UNION across roles. No single role enforces 117, and reading
+    // it as the library count overstates every role by between 18 and 29 rules.
     expect(rows).toHaveLength(117)
+  })
+
+  it.each([
+    ['library', 99],
+    ['service', 96],
+    ['application', 96],
+    ['adapter-bin', 96],
+    ['config-file', 95],
+    ['exported-test', 91],
+    ['js-config', 88],
+  ])('blocks exactly %d rules in the %s role', (role, expected) => {
+    expect(rows.filter((r) => r.roles.includes(role as string))).toHaveLength(expected as number)
+  })
+
+  it('has no role that enforces the whole union', () => {
+    // The guard against the mistake itself: if some role ever equalled 117, the
+    // union and that role would be indistinguishable and the counts above could
+    // drift into agreeing by accident.
+    const roles = [...new Set(rows.flatMap((r) => r.roles))]
+    for (const role of roles) {
+      expect(rows.filter((r) => r.roles.includes(role)).length).toBeLessThan(rows.length)
+    }
+  })
+
+  it('is the union of its roles and nothing more', () => {
+    const covered = new Set(rows.filter((r) => r.roles.length > 0).map((r) => r.ruleId))
+    expect(covered.size).toBe(rows.length)
   })
 
   it('splits 46 type-aware and 71 core, which the config source alone cannot tell you', () => {
