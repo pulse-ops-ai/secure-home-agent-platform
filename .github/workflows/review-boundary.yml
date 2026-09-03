@@ -61,9 +61,18 @@
 #     The claim is not "nothing is written"; it is that what is written is inert
 #     data, and the only thing interpreting it is trusted code.
 #
+#   HISTORICAL REVIEWED COMMITS
+#     fetched as objects into refs/boundary/reviews/*, never checked out, so no
+#     file from one exists here. They are needed because the gate proves an
+#     archived round cites a REAL commit, and a squash merge leaves that commit
+#     outside the default branch — absent on a fresh runner that fetched only
+#     head and base. Their identity is the entire contribution; not one byte of
+#     their content is read as workflow, schema, or gate authority.
+#
 #   TRUSTED EXECUTABLE CODE
 #     the exact reviewed base commit, and nothing else: workflow definition,
-#     OpenSpec CLI, schemas, config, canonical specs, and the review gate.
+#     OpenSpec CLI, schemas, config, canonical specs, the review gate, and the
+#     review-pin enumerator.
 #
 # So there is no candidate-controlled executable content for a cache to be
 # poisoned from, and no path by which the candidate supplies the rules that
@@ -249,6 +258,7 @@ jobs:
           for required in \
             scripts/openspec-review-gate.mjs \
             scripts/openspec-candidate-workspace.mjs \
+            scripts/openspec-review-pins.mjs \
             node_modules/.bin/openspec; do
             if [ ! -e "$required" ]; then
               echo "::error::$required is missing from the trusted context."
@@ -256,6 +266,69 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Prefetch historical review pins as OBJECTS, never a working tree
+        # WHY. The gate admits an archived round only if its `reviewed_commit`
+        # resolves to a real commit here. That check is about the OBJECT
+        # DATABASE, and this runner's is deliberately minimal: the live base,
+        # plus the candidate head. After a SQUASH merge that is not enough — the
+        # reviewed commit stops being an ancestor of the default branch, so
+        # `cat-file -e` finds nothing and a valid historical round is refused for
+        # a reason that has nothing to do with its content. A developer checkout
+        # can pass the same gate purely because someone once fetched that SHA by
+        # hand; a trust boundary must not depend on accidental local objects.
+        #
+        # WHAT IS TRUSTED. The enumerator is the DEFAULT BRANCH's, checked out
+        # above and verified present in the previous step. It reads the
+        # candidate's committed review history from git objects and returns only
+        # 40-hex commit identities — data, never code. The SHAs are re-validated
+        # here, in the step that actually calls git, before any refspec is built.
+        #
+        # WHAT IS NOT TRUSTED. The commits themselves. They are fetched into an
+        # inert namespace and never checked out, so no file from a historical
+        # reviewed commit exists on this runner: no hook, lifecycle script,
+        # workflow, schema, or gate byte from one can run or be read as
+        # authority. Their only use is to let the gate's existing identity proof
+        # succeed. Fetch failure is a REFUSAL, never a skip: an admitted round
+        # must cite a commit this repository can still serve, and falling back
+        # to the review's own assertion would delete the proof.
+        env:
+          CHANGE: ${{ github.event.client_payload.change }}
+        run: |
+          set -euo pipefail
+
+          # stdout is the machine contract: sorted, unique, one full SHA per
+          # line, empty when the candidate has archived no history yet.
+          pins="$(node scripts/openspec-review-pins.mjs \
+            --ref refs/boundary/head \
+            --change "$CHANGE")"
+
+          if [ -z "$pins" ]; then
+            echo "no archived review history at the candidate head: nothing to prefetch"
+            exit 0
+          fi
+
+          count=0
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            if ! printf '%s' "$sha" | LC_ALL=C grep -Eq '^[0-9a-f]{40}$'; then
+              echo "::error::refusing to fetch a malformed review pin: $sha"
+              exit 1
+            fi
+            if ! git fetch --no-tags --quiet origin "+$sha:refs/boundary/reviews/$sha"; then
+              echo "::error::could not fetch historical reviewed commit $sha."
+              echo "::error::An admitted review round must cite a commit this repository"
+              echo "::error::can still serve. Refusing rather than trusting the assertion."
+              exit 1
+            fi
+            git rev-parse --verify "refs/boundary/reviews/$sha^{commit}" >/dev/null
+            count=$((count + 1))
+            echo "prefetched historical reviewed commit $sha"
+          done <<PINS
+          $pins
+          PINS
+
+          echo "prefetched $count historical reviewed commit(s) as inert objects"
 
       - name: Materialize the candidate change as inert data
         # Trusted schema and config; the candidate's change directory read from
