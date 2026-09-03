@@ -171,6 +171,35 @@ export const PARSER_ENFORCED = new Map([
  * produces, and the first fixture would expose it -- which is how they were
  * found.
  */
+/**
+ * The exact diagnostic each engine emits, per policy.
+ *
+ * A parse error alone is not attribution. Without a pattern, a fixture that
+ * stopped violating the intended rule but contained ANY other syntax error
+ * would still be "rejected by both engines" and would pass parity while
+ * proving nothing. These are engine-specific raw strings, which is why they
+ * live in the mapping and not in policy.json.
+ */
+export const PARSER_DIAGNOSTICS = new Map([
+  ['no-dupe-args', { legacy: 'Argument name clash', replacement: 'already been declared' }],
+  ['no-octal', { legacy: 'Invalid number', replacement: "'0'-prefixed octal literals" }],
+  [
+    'no-delete-var',
+    {
+      legacy: 'Deleting local variable in strict mode',
+      replacement: 'Delete of an unqualified identifier',
+    },
+  ],
+  [
+    'no-nonoctal-decimal-escape',
+    { legacy: 'Invalid escape sequence', replacement: '\\8 and \\9 are not allowed' },
+  ],
+  [
+    'no-with',
+    { legacy: "'with' in strict mode", replacement: "'with' statements are not allowed" },
+  ],
+])
+
 export const LEGACY_PARSER_ENFORCED = new Set([
   'no-dupe-args',
   'no-octal',
@@ -237,6 +266,7 @@ export function buildManifests(rows) {
     })
 
     const legacyParser = LEGACY_PARSER_ENFORCED.has(id)
+    const diagnostics = PARSER_DIAGNOSTICS.get(id)
     mappings.push(
       legacyParser
         ? {
@@ -244,6 +274,7 @@ export function buildManifests(rows) {
             engine: 'legacy',
             mechanism: 'parser',
             parserMechanism: PARSER_ENFORCED.get(id) ?? 'strict-mode syntax rejection',
+            diagnosticPattern: diagnostics.legacy,
           }
         : { policy: id, engine: 'legacy', mechanism: 'rule', ruleId: row.ruleId },
     )
@@ -257,7 +288,13 @@ export function buildManifests(rows) {
             mechanism: 'rule',
             ruleId: replacementRuleId(row.ruleId),
           }
-        : { policy: id, engine: 'replacement', mechanism: 'parser', parserMechanism },
+        : {
+            policy: id,
+            engine: 'replacement',
+            mechanism: 'parser',
+            parserMechanism,
+            diagnosticPattern: diagnostics.replacement,
+          },
     )
   }
 

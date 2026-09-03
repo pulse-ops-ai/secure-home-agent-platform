@@ -51,6 +51,11 @@
           "description": "Required when mechanism is 'parser'. Names the parse-level facility that realises the policy, for engines that enforce it before any rule runs.",
           "type": "string",
           "minLength": 3
+        },
+        "diagnosticPattern": {
+          "description": "Required when mechanism is 'parser'. The engine-specific text a matching parse diagnostic must contain. Without it a parse error is not ATTRIBUTION: any unrelated syntax error would satisfy the policy, and a fixture that stopped violating the intended rule would still pass. Raw engine diagnostic text belongs here, in the per-engine mapping, and never in semantic policy.",
+          "type": "string",
+          "minLength": 4
         }
       },
       "allOf": [
@@ -60,7 +65,7 @@
         },
         {
           "if": { "properties": { "mechanism": { "const": "parser" } }, "required": ["mechanism"] },
-          "then": { "required": ["parserMechanism"] }
+          "then": { "required": ["parserMechanism", "diagnosticPattern"] }
         }
       ]
     }

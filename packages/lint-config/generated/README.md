@@ -18,6 +18,14 @@ the first, which is precisely what
 separates policy from engine to prevent. The package's test suite regenerates
 and compares, so an edit here fails rather than persists.
 
+## Formatting
+
+The generator emits `JSON.stringify(…, null, 2)`; Prettier then collapses short
+arrays. Both are committed-clean because the drift check compares **parsed
+objects**, not bytes — so a formatting pass cannot make a faithful config look
+like drift, and real drift cannot hide behind a reformat. After regenerating,
+run `pnpm format`.
+
 ## What these files deliberately contain
 
 - **`categories: {}`** — every ambient engine default is off. An engine default

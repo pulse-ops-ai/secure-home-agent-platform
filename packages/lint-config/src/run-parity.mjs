@@ -23,7 +23,8 @@
  * still rejected, and rejected earlier.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -56,6 +57,44 @@ export function configForRole(role) {
  * `tests/fixtures/**` is ignored by the repository's own lint — deliberately,
  * since these files are invalid on purpose.
  */
+/**
+ * The same judgement applied to SOURCE TEXT rather than a committed file.
+ *
+ * Hostile cases need sources this repository must not contain -- a fixture with
+ * its violation removed and an unrelated syntax error put in its place. Writing
+ * those to disk would either commit them or place them outside the lint root,
+ * where `lintFiles` declines to look.
+ */
+export async function legacyDiagnosticsForText(text, filePath, ruleId, options) {
+  const rules =
+    ruleId === undefined
+      ? {}
+      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
+  const eslint = new ESLint({
+    cwd: PACKAGE_ROOT,
+    overrideConfigFile: true,
+    overrideConfig: {
+      files: ['**/*.ts', '**/*.js'],
+      languageOptions: { parserOptions: { ecmaVersion: 2023, sourceType: 'module' } },
+      rules,
+    },
+  })
+  const [result] = await eslint.lintText(text, { filePath })
+  const messages = result?.messages ?? []
+  return {
+    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
+    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
+  }
+}
+
+/** The replacement engine's verdict on source text, via a scratch file. */
+export function replacementDiagnosticsForText(text, extension, configPath) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'parity-text-'))
+  const file = path.join(dir, `subject${extension}`)
+  writeFileSync(file, text)
+  return replacementDiagnostics(file, configPath)
+}
+
 export async function legacyDiagnostics(file, ruleId, options) {
   // A parser-enforced policy has no rule to enable; the parse itself decides.
   const rules =
@@ -72,9 +111,13 @@ export async function legacyDiagnostics(file, ruleId, options) {
     },
   })
   const [result] = await eslint.lintFiles([file])
+  const messages = result?.messages ?? []
   return {
-    rules: (result?.messages ?? []).filter((m) => m.ruleId !== null).map((m) => m.ruleId),
-    fatal: (result?.messages ?? []).some((m) => m.fatal === true),
+    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
+    // The TEXT, not merely "was there a parse error". A boolean cannot tell
+    // the intended violation from an unrelated typo, so it would let any
+    // syntax error satisfy any parser-enforced policy.
+    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
   }
 }
 
@@ -94,6 +137,19 @@ export function replacementDiagnostics(file, configPath) {
     parseErrors: [...out.matchAll(/^.*: error: (?!\w+\()(.+)$/gm)].map((m) => m[1].trim()),
     raw: out,
   }
+}
+
+/**
+ * Attribution for a parse-level policy.
+ *
+ * The expected diagnostic must actually appear. "Some parse error occurred" is
+ * not parity: a fixture whose intended violation was removed and replaced by an
+ * unrelated syntax error would still be rejected by both engines, and would
+ * pass while proving nothing.
+ */
+export function matches(diagnostics, pattern) {
+  if (pattern === undefined) return false
+  return diagnostics.some((message) => message.includes(pattern))
 }
 
 export function fixturePath(relative) {
@@ -133,19 +189,19 @@ export async function parityFor(policy, legacy, replacement, configPath) {
     id: policy.id,
     legacyRejects:
       legacy.mechanism === 'parser'
-        ? legacyInvalid.fatal
+        ? matches(legacyInvalid.fatalMessages, legacy.diagnosticPattern)
         : legacyInvalid.rules.includes(legacy.ruleId),
     legacyAccepts:
       legacy.mechanism === 'parser'
-        ? !legacyValid.fatal
+        ? !matches(legacyValid.fatalMessages, legacy.diagnosticPattern)
         : !legacyValid.rules.includes(legacy.ruleId),
     replacementRejects:
       replacement.mechanism === 'parser'
-        ? replacementInvalid.parseErrors.length > 0
+        ? matches(replacementInvalid.parseErrors, replacement.diagnosticPattern)
         : replacementInvalid.rules.includes(bare),
     replacementAccepts:
       replacement.mechanism === 'parser'
-        ? replacementValid.parseErrors.length === 0
+        ? !matches(replacementValid.parseErrors, replacement.diagnosticPattern)
         : !replacementValid.rules.includes(bare),
     detail: { legacyInvalid, legacyValid, replacementInvalid, replacementValid },
   }
