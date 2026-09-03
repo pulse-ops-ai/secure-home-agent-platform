@@ -17,6 +17,8 @@ import { buildManifests, shardFor } from '../src/build-manifest.mjs'
 import { checkPolicyDrift, checkReferentialIntegrity } from '../src/check-policy.mjs'
 // @ts-ignore
 import { validate } from '../validate-schema.mjs'
+// @ts-ignore
+import { GENERATED_ROLES, generateAll } from '../src/generate-oxlint-config.mjs'
 
 const HERE = import.meta.dirname
 const load = (p: string): any => JSON.parse(readFileSync(path.join(HERE, '..', p), 'utf8'))
@@ -222,9 +224,15 @@ describe('referential integrity between the two authorities', () => {
 })
 
 describe('replacement mappings are hypotheses, not evidence', () => {
-  it('names an engine rule for every policy without claiming it works', () => {
+  it('maps every policy to the replacement engine without claiming it works', () => {
     const replacement = MAPPINGS.mappings.filter((m: any) => m.engine === 'replacement')
     expect(replacement).toHaveLength(117)
+    // 115 through a rule, 2 through the parser. Both count as mapped.
+    const byMechanism = replacement.reduce((acc: Record<string, number>, m: any) => {
+      acc[m.mechanism] = (acc[m.mechanism] ?? 0) + 1
+      return acc
+    }, {})
+    expect(byMechanism).toEqual({ rule: 115, parser: 2 })
     // Nothing in the manifest records a parity result. Only the fixture shards
     // can, and until they exist these rows are unproven by construction.
     expect(JSON.stringify(MAPPINGS)).not.toMatch(/proven|verified|parity/i)
@@ -235,5 +243,97 @@ describe('replacement mappings are hypotheses, not evidence', () => {
       (m: any) => m.policy === 'no-floating-promises' && m.engine === 'replacement',
     )
     expect(row.ruleId).toBe('typescript/no-floating-promises')
+  })
+})
+
+describe('parse-level enforcement', () => {
+  it('maps the two strict-mode syntax policies to the parser, not a rule', () => {
+    // Discovered behaviourally: the replacement engine has no `no-dupe-args` or
+    // `no-octal` rule to configure, and reports both with ZERO rules enabled.
+    // A registration probe alone would have read that as the policy being
+    // unavailable, when it is in fact enforced before any rule runs.
+    for (const id of ['no-dupe-args', 'no-octal']) {
+      const row = MAPPINGS.mappings.find((m: any) => m.policy === id && m.engine === 'replacement')
+      expect(row.mechanism).toBe('parser')
+      expect(row.parserMechanism).toBeTruthy()
+      expect(row.ruleId).toBeUndefined()
+    }
+  })
+
+  it('keeps their legacy mappings as rules, because ESLint does use rules', () => {
+    for (const id of ['no-dupe-args', 'no-octal']) {
+      const row = MAPPINGS.mappings.find((m: any) => m.policy === id && m.engine === 'legacy')
+      expect(row.mechanism).toBe('rule')
+      expect(row.ruleId).toBe(id)
+    }
+  })
+
+  it('still allocates them to the lint engine, not to another disposition', () => {
+    // Parse-level enforcement is HOW the engine realises the policy. It does not
+    // move ownership to the compiler or a dedicated gate.
+    for (const id of ['no-dupe-args', 'no-octal']) {
+      const row = POLICY.policies.find((p: any) => p.id === id)
+      expect(row.disposition).toBe('MIGRATED_TO_NEW_LINT_ENGINE')
+    }
+  })
+})
+
+describe('the generated engine configuration', () => {
+  it('is reproducible from the authorities alone', () => {
+    const built = generateAll(POLICY, MAPPINGS)
+    for (const role of GENERATED_ROLES as string[]) {
+      expect(built[role]).toEqual(load(`generated/oxlintrc.${role}.json`))
+    }
+  })
+
+  it('disables ambient engine defaults in every role', () => {
+    // An engine default is not repository policy. If a rule is not in
+    // policy.json nobody decided it, and a failure nobody decided is
+    // indistinguishable from a bug in the gate.
+    for (const role of GENERATED_ROLES as string[]) {
+      expect(load(`generated/oxlintrc.${role}.json`).categories).toEqual({})
+    }
+  })
+
+  it('enables exactly the rule-mapped policies of each role', () => {
+    for (const role of GENERATED_ROLES as string[]) {
+      const expected = POLICY.policies.filter(
+        (p: any) =>
+          p.roles.includes(role) &&
+          MAPPINGS.mappings.find((m: any) => m.policy === p.id && m.engine === 'replacement')
+            .mechanism === 'rule',
+      ).length
+      expect(Object.keys(load(`generated/oxlintrc.${role}.json`).rules)).toHaveLength(expected)
+    }
+  })
+
+  it('takes severity from the policy, never from the engine default', () => {
+    const cfg = load('generated/oxlintrc.library.json')
+    expect(new Set(Object.values(cfg.rules))).toEqual(new Set(['error']))
+  })
+
+  it('carries no formatting rule, because Prettier is the sole authority', () => {
+    for (const role of GENERATED_ROLES as string[]) {
+      const rules = Object.keys(load(`generated/oxlintrc.${role}.json`).rules)
+      for (const formatting of ['indent', 'quotes', 'semi', 'comma-dangle', 'max-len']) {
+        expect(rules).not.toContain(formatting)
+      }
+    }
+  })
+
+  it('refuses to generate when a policy has no replacement mapping', () => {
+    const orphaned = clone(MAPPINGS)
+    orphaned.mappings = orphaned.mappings.filter((m: any) => m.engine !== 'replacement')
+    expect(() => generateAll(POLICY, orphaned)).toThrow(/has no replacement mapping/)
+  })
+
+  it('drifts visibly when a mapping changes', () => {
+    const changed = clone(MAPPINGS)
+    const row = changed.mappings.find(
+      (m: any) => m.policy === 'no-console' && m.engine === 'replacement',
+    )
+    row.ruleId = 'renamed-by-the-engine'
+    const built = generateAll(POLICY, changed)
+    expect(built['library']).not.toEqual(load('generated/oxlintrc.library.json'))
   })
 })

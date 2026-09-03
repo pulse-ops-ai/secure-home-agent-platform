@@ -138,6 +138,26 @@ export function replacementRuleId(ruleId) {
     : ruleId
 }
 
+/**
+ * Policies the replacement engine enforces at PARSE level, not through a rule.
+ *
+ * Both are strict-mode syntax errors in an ES module, so a parser that handles
+ * modules correctly rejects them before any rule runs. Oxlint does: with zero
+ * rules configured it still reports "Identifier `a` has already been declared"
+ * and the deprecated octal literal.
+ *
+ * Discovered behaviourally. The engine has no `no-dupe-args` or `no-octal` rule
+ * to configure, and a registration probe alone would have read that as the
+ * policy being unavailable -- when the policy is in fact enforced more strongly
+ * than a rule could enforce it. This is the mechanism the mapping schema exists
+ * to express, and the reason unavailability is a conformance RESULT rather than
+ * something a mapping row may assert.
+ */
+export const PARSER_ENFORCED = new Map([
+  ['no-dupe-args', 'strict-mode duplicate binding detection'],
+  ['no-octal', 'legacy octal literal rejection'],
+])
+
 /** Options that are engine-neutral SEMANTICS, keyed by policy id. */
 function semanticOptions(row) {
   const values = Object.values(row.options).filter((v) => v.length > 0)
@@ -181,12 +201,18 @@ export function buildManifests(rows) {
     })
 
     mappings.push({ policy: id, engine: 'legacy', mechanism: 'rule', ruleId: row.ruleId })
-    mappings.push({
-      policy: id,
-      engine: 'replacement',
-      mechanism: 'rule',
-      ruleId: replacementRuleId(row.ruleId),
-    })
+
+    const parserMechanism = PARSER_ENFORCED.get(id)
+    mappings.push(
+      parserMechanism === undefined
+        ? {
+            policy: id,
+            engine: 'replacement',
+            mechanism: 'rule',
+            ruleId: replacementRuleId(row.ruleId),
+          }
+        : { policy: id, engine: 'replacement', mechanism: 'parser', parserMechanism },
+    )
   }
 
   return {

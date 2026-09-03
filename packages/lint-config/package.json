@@ -32,6 +32,8 @@
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "globals": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vitest": "catalog:"

@@ -755,8 +755,8 @@
     {
       "policy": "no-dupe-args",
       "engine": "replacement",
-      "mechanism": "rule",
-      "ruleId": "no-dupe-args"
+      "mechanism": "parser",
+      "parserMechanism": "strict-mode duplicate binding detection"
     },
     {
       "policy": "no-dupe-class-members",
@@ -1019,8 +1019,8 @@
     {
       "policy": "no-octal",
       "engine": "replacement",
-      "mechanism": "rule",
-      "ruleId": "no-octal"
+      "mechanism": "parser",
+      "parserMechanism": "legacy octal literal rejection"
     },
     {
       "policy": "no-prototype-builtins",
