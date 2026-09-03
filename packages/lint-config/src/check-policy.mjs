@@ -172,3 +172,105 @@ export function checkMemberRoles(repoRoot = REPO_ROOT) {
 
   return problems
 }
+
+// ── referential integrity between the two authorities ───────────────────────
+
+/**
+ * The properties neither schema can express, because each validates one file.
+ *
+ * A schema proves a mapping row is well formed. Only a cross-file check proves
+ * it points at a policy that exists, that no policy was left without an engine,
+ * and that no vendor identity leaked into the semantic side.
+ */
+export function checkReferentialIntegrity(policy, mappings) {
+  const problems = []
+  const ids = new Set()
+
+  for (const row of policy.policies) {
+    if (ids.has(row.id)) problems.push(`policy "${row.id}" is declared more than once`)
+    ids.add(row.id)
+
+    if (/^@|\//.test(row.id)) {
+      problems.push(`policy "${row.id}" carries a vendor-shaped identity`)
+    }
+    if (new Set(row.roles).size !== row.roles.length) {
+      problems.push(`policy "${row.id}" repeats a role, so its applicability is ambiguous`)
+    }
+    const { shard, valid, invalid } = row.proof
+    if (!valid.startsWith(`${shard}/`) || !invalid.startsWith(`${shard}/`)) {
+      problems.push(`policy "${row.id}" points at proof outside its own shard "${shard}"`)
+    }
+    if (valid === invalid) {
+      problems.push(`policy "${row.id}" uses one file as both its positive and negative case`)
+    }
+  }
+
+  const seen = new Map()
+  for (const row of mappings.mappings) {
+    const key = `${row.policy}::${row.engine}`
+    if (seen.has(key)) {
+      problems.push(`policy "${row.policy}" has more than one ${row.engine} mapping`)
+    }
+    seen.set(key, row)
+    if (!ids.has(row.policy)) {
+      problems.push(`mapping for "${row.policy}" (${row.engine}) references no known policy`)
+    }
+  }
+
+  for (const id of ids) {
+    for (const engine of mappings.engines) {
+      if (!seen.has(`${id}::${engine}`)) {
+        problems.push(`policy "${id}" has no ${engine} mapping, so one engine would not enforce it`)
+      }
+    }
+  }
+
+  return problems
+}
+
+/**
+ * The manifest must still describe the engine's real behaviour.
+ *
+ * Committed policy is a claim about a live configuration, and a claim nobody
+ * re-derives is a comment. Deleting or re-scoping a rule in eslint-config
+ * without regenerating shows up here as drift rather than as silence.
+ */
+export function checkPolicyDrift(policy, mappings, liveRows) {
+  const problems = []
+  const legacyById = new Map(
+    mappings.mappings.filter((m) => m.engine === 'legacy').map((m) => [m.policy, m.ruleId]),
+  )
+
+  const manifestRules = new Set(legacyById.values())
+  const liveRules = new Set(liveRows.map((r) => r.ruleId))
+
+  for (const ruleId of liveRules) {
+    if (!manifestRules.has(ruleId)) {
+      problems.push(`the engine enforces "${ruleId}" but no policy row claims it`)
+    }
+  }
+  for (const ruleId of manifestRules) {
+    if (!liveRules.has(ruleId)) {
+      problems.push(`policy claims "${ruleId}" but the engine no longer enforces it`)
+    }
+  }
+
+  const liveByRule = new Map(liveRows.map((r) => [r.ruleId, r]))
+  for (const row of policy.policies) {
+    const ruleId = legacyById.get(row.id)
+    const live = ruleId === undefined ? undefined : liveByRule.get(ruleId)
+    if (live === undefined) continue
+    const declared = [...row.roles].sort().join(',')
+    const actual = [...live.roles].sort().join(',')
+    if (declared !== actual) {
+      problems.push(
+        `policy "${row.id}" claims roles [${declared}] but the engine blocks it in [${actual}]`,
+      )
+    }
+    if (row.blocking !== true) {
+      problems.push(`policy "${row.id}" is not blocking, yet every current policy blocks`)
+    }
+  }
+
+  return problems
+}

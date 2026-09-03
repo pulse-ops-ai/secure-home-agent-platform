@@ -1,0 +1,1410 @@
+{
+  "schemaVersion": 1,
+  "engines": ["legacy", "replacement"],
+  "mappings": [
+    {
+      "policy": "await-thenable",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/await-thenable"
+    },
+    {
+      "policy": "await-thenable",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/await-thenable"
+    },
+    {
+      "policy": "ban-ts-comment",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/ban-ts-comment"
+    },
+    {
+      "policy": "ban-ts-comment",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/ban-ts-comment"
+    },
+    {
+      "policy": "consistent-type-imports",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/consistent-type-imports"
+    },
+    {
+      "policy": "consistent-type-imports",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/consistent-type-imports"
+    },
+    {
+      "policy": "explicit-module-boundary-types",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/explicit-module-boundary-types"
+    },
+    {
+      "policy": "explicit-module-boundary-types",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/explicit-module-boundary-types"
+    },
+    {
+      "policy": "no-array-constructor",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-array-constructor"
+    },
+    {
+      "policy": "no-array-constructor",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-array-constructor"
+    },
+    {
+      "policy": "no-array-delete",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-array-delete"
+    },
+    {
+      "policy": "no-array-delete",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-array-delete"
+    },
+    {
+      "policy": "no-base-to-string",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-base-to-string"
+    },
+    {
+      "policy": "no-base-to-string",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-base-to-string"
+    },
+    {
+      "policy": "no-duplicate-enum-values",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-duplicate-enum-values"
+    },
+    {
+      "policy": "no-duplicate-enum-values",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-duplicate-enum-values"
+    },
+    {
+      "policy": "no-duplicate-type-constituents",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-duplicate-type-constituents"
+    },
+    {
+      "policy": "no-duplicate-type-constituents",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-duplicate-type-constituents"
+    },
+    {
+      "policy": "no-empty-object-type",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-empty-object-type"
+    },
+    {
+      "policy": "no-empty-object-type",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-empty-object-type"
+    },
+    {
+      "policy": "no-explicit-any",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-explicit-any"
+    },
+    {
+      "policy": "no-explicit-any",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-explicit-any"
+    },
+    {
+      "policy": "no-extra-non-null-assertion",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-extra-non-null-assertion"
+    },
+    {
+      "policy": "no-extra-non-null-assertion",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-extra-non-null-assertion"
+    },
+    {
+      "policy": "no-floating-promises",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-floating-promises"
+    },
+    {
+      "policy": "no-floating-promises",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-floating-promises"
+    },
+    {
+      "policy": "no-for-in-array",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-for-in-array"
+    },
+    {
+      "policy": "no-for-in-array",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-for-in-array"
+    },
+    {
+      "policy": "no-implied-eval",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-implied-eval"
+    },
+    {
+      "policy": "no-implied-eval",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-implied-eval"
+    },
+    {
+      "policy": "no-import-type-side-effects",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-import-type-side-effects"
+    },
+    {
+      "policy": "no-import-type-side-effects",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-import-type-side-effects"
+    },
+    {
+      "policy": "no-misused-new",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-misused-new"
+    },
+    {
+      "policy": "no-misused-new",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-misused-new"
+    },
+    {
+      "policy": "no-misused-promises",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-misused-promises"
+    },
+    {
+      "policy": "no-misused-promises",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-misused-promises"
+    },
+    {
+      "policy": "no-namespace",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-namespace"
+    },
+    {
+      "policy": "no-namespace",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-namespace"
+    },
+    {
+      "policy": "no-non-null-asserted-optional-chain",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-non-null-asserted-optional-chain"
+    },
+    {
+      "policy": "no-non-null-asserted-optional-chain",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-non-null-asserted-optional-chain"
+    },
+    {
+      "policy": "no-redundant-type-constituents",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-redundant-type-constituents"
+    },
+    {
+      "policy": "no-redundant-type-constituents",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-redundant-type-constituents"
+    },
+    {
+      "policy": "no-require-imports",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-require-imports"
+    },
+    {
+      "policy": "no-require-imports",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-require-imports"
+    },
+    {
+      "policy": "no-this-alias",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-this-alias"
+    },
+    {
+      "policy": "no-this-alias",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-this-alias"
+    },
+    {
+      "policy": "no-unnecessary-type-assertion",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unnecessary-type-assertion"
+    },
+    {
+      "policy": "no-unnecessary-type-assertion",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unnecessary-type-assertion"
+    },
+    {
+      "policy": "no-unnecessary-type-constraint",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unnecessary-type-constraint"
+    },
+    {
+      "policy": "no-unnecessary-type-constraint",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unnecessary-type-constraint"
+    },
+    {
+      "policy": "no-unsafe-argument",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-argument"
+    },
+    {
+      "policy": "no-unsafe-argument",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-argument"
+    },
+    {
+      "policy": "no-unsafe-assignment",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-assignment"
+    },
+    {
+      "policy": "no-unsafe-assignment",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-assignment"
+    },
+    {
+      "policy": "no-unsafe-call",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-call"
+    },
+    {
+      "policy": "no-unsafe-call",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-call"
+    },
+    {
+      "policy": "no-unsafe-declaration-merging",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-declaration-merging"
+    },
+    {
+      "policy": "no-unsafe-declaration-merging",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-declaration-merging"
+    },
+    {
+      "policy": "no-unsafe-enum-comparison",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-enum-comparison"
+    },
+    {
+      "policy": "no-unsafe-enum-comparison",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-enum-comparison"
+    },
+    {
+      "policy": "no-unsafe-function-type",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-function-type"
+    },
+    {
+      "policy": "no-unsafe-function-type",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-function-type"
+    },
+    {
+      "policy": "no-unsafe-member-access",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-member-access"
+    },
+    {
+      "policy": "no-unsafe-member-access",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-member-access"
+    },
+    {
+      "policy": "no-unsafe-return",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-return"
+    },
+    {
+      "policy": "no-unsafe-return",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-return"
+    },
+    {
+      "policy": "no-unsafe-unary-minus",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unsafe-unary-minus"
+    },
+    {
+      "policy": "no-unsafe-unary-minus",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unsafe-unary-minus"
+    },
+    {
+      "policy": "no-unused-expressions",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unused-expressions"
+    },
+    {
+      "policy": "no-unused-expressions",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unused-expressions"
+    },
+    {
+      "policy": "no-unused-vars",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-unused-vars"
+    },
+    {
+      "policy": "no-unused-vars",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-unused-vars"
+    },
+    {
+      "policy": "no-wrapper-object-types",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/no-wrapper-object-types"
+    },
+    {
+      "policy": "no-wrapper-object-types",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/no-wrapper-object-types"
+    },
+    {
+      "policy": "only-throw-error",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/only-throw-error"
+    },
+    {
+      "policy": "only-throw-error",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/only-throw-error"
+    },
+    {
+      "policy": "prefer-as-const",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/prefer-as-const"
+    },
+    {
+      "policy": "prefer-as-const",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/prefer-as-const"
+    },
+    {
+      "policy": "prefer-namespace-keyword",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/prefer-namespace-keyword"
+    },
+    {
+      "policy": "prefer-namespace-keyword",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/prefer-namespace-keyword"
+    },
+    {
+      "policy": "prefer-promise-reject-errors",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/prefer-promise-reject-errors"
+    },
+    {
+      "policy": "prefer-promise-reject-errors",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/prefer-promise-reject-errors"
+    },
+    {
+      "policy": "require-await",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/require-await"
+    },
+    {
+      "policy": "require-await",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/require-await"
+    },
+    {
+      "policy": "restrict-plus-operands",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/restrict-plus-operands"
+    },
+    {
+      "policy": "restrict-plus-operands",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/restrict-plus-operands"
+    },
+    {
+      "policy": "restrict-template-expressions",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/restrict-template-expressions"
+    },
+    {
+      "policy": "restrict-template-expressions",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/restrict-template-expressions"
+    },
+    {
+      "policy": "triple-slash-reference",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/triple-slash-reference"
+    },
+    {
+      "policy": "triple-slash-reference",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/triple-slash-reference"
+    },
+    {
+      "policy": "unbound-method",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "@typescript-eslint/unbound-method"
+    },
+    {
+      "policy": "unbound-method",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "typescript/unbound-method"
+    },
+    {
+      "policy": "constructor-super",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "constructor-super"
+    },
+    {
+      "policy": "constructor-super",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "constructor-super"
+    },
+    {
+      "policy": "eqeqeq",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "eqeqeq"
+    },
+    {
+      "policy": "eqeqeq",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "eqeqeq"
+    },
+    {
+      "policy": "for-direction",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "for-direction"
+    },
+    {
+      "policy": "for-direction",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "for-direction"
+    },
+    {
+      "policy": "getter-return",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "getter-return"
+    },
+    {
+      "policy": "getter-return",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "getter-return"
+    },
+    {
+      "policy": "no-async-promise-executor",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-async-promise-executor"
+    },
+    {
+      "policy": "no-async-promise-executor",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-async-promise-executor"
+    },
+    {
+      "policy": "no-case-declarations",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-case-declarations"
+    },
+    {
+      "policy": "no-case-declarations",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-case-declarations"
+    },
+    {
+      "policy": "no-class-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-class-assign"
+    },
+    {
+      "policy": "no-class-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-class-assign"
+    },
+    {
+      "policy": "no-compare-neg-zero",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-compare-neg-zero"
+    },
+    {
+      "policy": "no-compare-neg-zero",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-compare-neg-zero"
+    },
+    {
+      "policy": "no-cond-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-cond-assign"
+    },
+    {
+      "policy": "no-cond-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-cond-assign"
+    },
+    {
+      "policy": "no-console",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-console"
+    },
+    {
+      "policy": "no-console",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-console"
+    },
+    {
+      "policy": "no-const-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-const-assign"
+    },
+    {
+      "policy": "no-const-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-const-assign"
+    },
+    {
+      "policy": "no-constant-binary-expression",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-constant-binary-expression"
+    },
+    {
+      "policy": "no-constant-binary-expression",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-constant-binary-expression"
+    },
+    {
+      "policy": "no-constant-condition",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-constant-condition"
+    },
+    {
+      "policy": "no-constant-condition",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-constant-condition"
+    },
+    {
+      "policy": "no-control-regex",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-control-regex"
+    },
+    {
+      "policy": "no-control-regex",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-control-regex"
+    },
+    {
+      "policy": "no-debugger",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-debugger"
+    },
+    {
+      "policy": "no-debugger",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-debugger"
+    },
+    {
+      "policy": "no-delete-var",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-delete-var"
+    },
+    {
+      "policy": "no-delete-var",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-delete-var"
+    },
+    {
+      "policy": "no-dupe-args",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-args"
+    },
+    {
+      "policy": "no-dupe-args",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-args"
+    },
+    {
+      "policy": "no-dupe-class-members",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-class-members"
+    },
+    {
+      "policy": "no-dupe-class-members",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-class-members"
+    },
+    {
+      "policy": "no-dupe-else-if",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-else-if"
+    },
+    {
+      "policy": "no-dupe-else-if",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-else-if"
+    },
+    {
+      "policy": "no-dupe-keys",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-keys"
+    },
+    {
+      "policy": "no-dupe-keys",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-dupe-keys"
+    },
+    {
+      "policy": "no-duplicate-case",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-duplicate-case"
+    },
+    {
+      "policy": "no-duplicate-case",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-duplicate-case"
+    },
+    {
+      "policy": "no-empty",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-empty"
+    },
+    {
+      "policy": "no-empty",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-empty"
+    },
+    {
+      "policy": "no-empty-character-class",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-empty-character-class"
+    },
+    {
+      "policy": "no-empty-character-class",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-empty-character-class"
+    },
+    {
+      "policy": "no-empty-pattern",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-empty-pattern"
+    },
+    {
+      "policy": "no-empty-pattern",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-empty-pattern"
+    },
+    {
+      "policy": "no-empty-static-block",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-empty-static-block"
+    },
+    {
+      "policy": "no-empty-static-block",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-empty-static-block"
+    },
+    {
+      "policy": "no-ex-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-ex-assign"
+    },
+    {
+      "policy": "no-ex-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-ex-assign"
+    },
+    {
+      "policy": "no-extra-boolean-cast",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-extra-boolean-cast"
+    },
+    {
+      "policy": "no-extra-boolean-cast",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-extra-boolean-cast"
+    },
+    {
+      "policy": "no-fallthrough",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-fallthrough"
+    },
+    {
+      "policy": "no-fallthrough",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-fallthrough"
+    },
+    {
+      "policy": "no-func-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-func-assign"
+    },
+    {
+      "policy": "no-func-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-func-assign"
+    },
+    {
+      "policy": "no-global-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-global-assign"
+    },
+    {
+      "policy": "no-global-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-global-assign"
+    },
+    {
+      "policy": "no-import-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-import-assign"
+    },
+    {
+      "policy": "no-import-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-import-assign"
+    },
+    {
+      "policy": "no-invalid-regexp",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-invalid-regexp"
+    },
+    {
+      "policy": "no-invalid-regexp",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-invalid-regexp"
+    },
+    {
+      "policy": "no-irregular-whitespace",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-irregular-whitespace"
+    },
+    {
+      "policy": "no-irregular-whitespace",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-irregular-whitespace"
+    },
+    {
+      "policy": "no-loss-of-precision",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-loss-of-precision"
+    },
+    {
+      "policy": "no-loss-of-precision",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-loss-of-precision"
+    },
+    {
+      "policy": "no-misleading-character-class",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-misleading-character-class"
+    },
+    {
+      "policy": "no-misleading-character-class",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-misleading-character-class"
+    },
+    {
+      "policy": "no-new-native-nonconstructor",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-new-native-nonconstructor"
+    },
+    {
+      "policy": "no-new-native-nonconstructor",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-new-native-nonconstructor"
+    },
+    {
+      "policy": "no-nonoctal-decimal-escape",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-nonoctal-decimal-escape"
+    },
+    {
+      "policy": "no-nonoctal-decimal-escape",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-nonoctal-decimal-escape"
+    },
+    {
+      "policy": "no-obj-calls",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-obj-calls"
+    },
+    {
+      "policy": "no-obj-calls",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-obj-calls"
+    },
+    {
+      "policy": "no-octal",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-octal"
+    },
+    {
+      "policy": "no-octal",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-octal"
+    },
+    {
+      "policy": "no-prototype-builtins",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-prototype-builtins"
+    },
+    {
+      "policy": "no-prototype-builtins",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-prototype-builtins"
+    },
+    {
+      "policy": "no-redeclare",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-redeclare"
+    },
+    {
+      "policy": "no-redeclare",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-redeclare"
+    },
+    {
+      "policy": "no-regex-spaces",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-regex-spaces"
+    },
+    {
+      "policy": "no-regex-spaces",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-regex-spaces"
+    },
+    {
+      "policy": "no-restricted-globals",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-restricted-globals"
+    },
+    {
+      "policy": "no-restricted-globals",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-restricted-globals"
+    },
+    {
+      "policy": "no-restricted-properties",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-restricted-properties"
+    },
+    {
+      "policy": "no-restricted-properties",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-restricted-properties"
+    },
+    {
+      "policy": "no-self-assign",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-self-assign"
+    },
+    {
+      "policy": "no-self-assign",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-self-assign"
+    },
+    {
+      "policy": "no-setter-return",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-setter-return"
+    },
+    {
+      "policy": "no-setter-return",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-setter-return"
+    },
+    {
+      "policy": "no-shadow-restricted-names",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-shadow-restricted-names"
+    },
+    {
+      "policy": "no-shadow-restricted-names",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-shadow-restricted-names"
+    },
+    {
+      "policy": "no-sparse-arrays",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-sparse-arrays"
+    },
+    {
+      "policy": "no-sparse-arrays",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-sparse-arrays"
+    },
+    {
+      "policy": "no-this-before-super",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-this-before-super"
+    },
+    {
+      "policy": "no-this-before-super",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-this-before-super"
+    },
+    {
+      "policy": "no-unassigned-vars",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unassigned-vars"
+    },
+    {
+      "policy": "no-unassigned-vars",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unassigned-vars"
+    },
+    {
+      "policy": "no-undef",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-undef"
+    },
+    {
+      "policy": "no-undef",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-undef"
+    },
+    {
+      "policy": "no-unexpected-multiline",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unexpected-multiline"
+    },
+    {
+      "policy": "no-unexpected-multiline",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unexpected-multiline"
+    },
+    {
+      "policy": "no-unreachable",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unreachable"
+    },
+    {
+      "policy": "no-unreachable",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unreachable"
+    },
+    {
+      "policy": "no-unsafe-finally",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-finally"
+    },
+    {
+      "policy": "no-unsafe-finally",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-finally"
+    },
+    {
+      "policy": "no-unsafe-negation",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-negation"
+    },
+    {
+      "policy": "no-unsafe-negation",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-negation"
+    },
+    {
+      "policy": "no-unsafe-optional-chaining",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-optional-chaining"
+    },
+    {
+      "policy": "no-unsafe-optional-chaining",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unsafe-optional-chaining"
+    },
+    {
+      "policy": "no-unused-labels",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unused-labels"
+    },
+    {
+      "policy": "no-unused-labels",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unused-labels"
+    },
+    {
+      "policy": "no-unused-private-class-members",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-unused-private-class-members"
+    },
+    {
+      "policy": "no-unused-private-class-members",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-unused-private-class-members"
+    },
+    {
+      "policy": "no-useless-assignment",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-useless-assignment"
+    },
+    {
+      "policy": "no-useless-assignment",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-useless-assignment"
+    },
+    {
+      "policy": "no-useless-backreference",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-useless-backreference"
+    },
+    {
+      "policy": "no-useless-backreference",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-useless-backreference"
+    },
+    {
+      "policy": "no-useless-catch",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-useless-catch"
+    },
+    {
+      "policy": "no-useless-catch",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-useless-catch"
+    },
+    {
+      "policy": "no-useless-escape",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-useless-escape"
+    },
+    {
+      "policy": "no-useless-escape",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-useless-escape"
+    },
+    {
+      "policy": "no-var",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-var"
+    },
+    {
+      "policy": "no-var",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-var"
+    },
+    {
+      "policy": "no-with",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "no-with"
+    },
+    {
+      "policy": "no-with",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "no-with"
+    },
+    {
+      "policy": "prefer-const",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "prefer-const"
+    },
+    {
+      "policy": "prefer-const",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "prefer-const"
+    },
+    {
+      "policy": "prefer-rest-params",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "prefer-rest-params"
+    },
+    {
+      "policy": "prefer-rest-params",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "prefer-rest-params"
+    },
+    {
+      "policy": "prefer-spread",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "prefer-spread"
+    },
+    {
+      "policy": "prefer-spread",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "prefer-spread"
+    },
+    {
+      "policy": "preserve-caught-error",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "preserve-caught-error"
+    },
+    {
+      "policy": "preserve-caught-error",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "preserve-caught-error"
+    },
+    {
+      "policy": "require-yield",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "require-yield"
+    },
+    {
+      "policy": "require-yield",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "require-yield"
+    },
+    {
+      "policy": "use-isnan",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "use-isnan"
+    },
+    {
+      "policy": "use-isnan",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "use-isnan"
+    },
+    {
+      "policy": "valid-typeof",
+      "engine": "legacy",
+      "mechanism": "rule",
+      "ruleId": "valid-typeof"
+    },
+    {
+      "policy": "valid-typeof",
+      "engine": "replacement",
+      "mechanism": "rule",
+      "ruleId": "valid-typeof"
+    }
+  ]
+}
