@@ -1174,9 +1174,29 @@ function admittedEpochs(context, ref = 'HEAD') {
     fail('HEAD_TREE_UNREADABLE', 'could not read the committed review history')
   }
 
+  // A round is a DIRECT CHILD of reviews/. `ls-tree -r` walks the whole subtree,
+  // so taking the basename would read `reviews/nested/1-<sha12>.md` as the round
+  // `1-<sha12>.md` — an epoch predecessor at a path the two-revision provenance
+  // checker does not recognise, and therefore one whose bytes were never proved
+  // to have been the current review immediately before archival. Admission is a
+  // state transition, not a naming convention, so a nested path is REFUSED
+  // rather than ignored: ignoring it would leave the same round admissible here
+  // while invisible there.
+  const reviewsPrefix = `${context.changeRepoPath}/reviews/`
   const admitted = []
   for (const repoPath of listing.split('\0').filter(Boolean)) {
-    const name = repoPath.slice(repoPath.lastIndexOf('/') + 1)
+    const relative = repoPath.startsWith(reviewsPrefix)
+      ? repoPath.slice(reviewsPrefix.length)
+      : repoPath.slice(repoPath.lastIndexOf('/') + 1)
+    if (relative.includes('/')) {
+      fail(
+        'MALFORMED_REVIEW_HISTORY',
+        `reviews/${relative} is nested; an admitted round is a direct child of ` +
+          'reviews/ named <epoch>-<reviewed-sha12>.md. A nested path is not a ' +
+          'second supported representation',
+      )
+    }
+    const name = relative
     if (!name.endsWith('.md')) continue
 
     const named = /^(\d+)-([0-9a-f]{12})\.md$/.exec(name)

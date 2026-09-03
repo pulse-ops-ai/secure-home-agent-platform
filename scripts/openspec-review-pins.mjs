@@ -147,9 +147,23 @@ export function reviewPins({ repoRoot, ref, change }) {
     fail('REVIEW_PIN_TREE_UNREADABLE', `could not read ${reviewsPath} at ${ref}`)
   }
 
+  const reviewsPrefix = `${reviewsPath}/`
   const pins = new Map()
   for (const repoPath of listing.split('\0').filter(Boolean)) {
-    const name = repoPath.slice(repoPath.lastIndexOf('/') + 1)
+    // The same direct-child rule `admittedEpochs` enforces, for the same reason
+    // and at the same point: before the basename is interpreted. Refused here
+    // BEFORE a pin is extracted, a refspec is built, or git fetch is called.
+    const relative = repoPath.startsWith(reviewsPrefix)
+      ? repoPath.slice(reviewsPrefix.length)
+      : repoPath.slice(repoPath.lastIndexOf('/') + 1)
+    if (relative.includes('/')) {
+      fail(
+        'REVIEW_PIN_NESTED_ROUND',
+        `reviews/${relative} is nested; an admitted round is a direct child of ` +
+          'reviews/. No pin is read from a path the gate will refuse',
+      )
+    }
+    const name = relative
     if (!name.endsWith('.md')) continue
 
     const named = REVIEW_FILENAME.exec(name)

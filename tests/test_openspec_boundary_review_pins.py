@@ -345,8 +345,9 @@ def _history_repo(tmp_path: Path, filename: str, review_text: str) -> tuple[Path
     """A candidate whose reviews/ holds one attacker-chosen file."""
     upstream = _planning_repo(tmp_path)
     change = upstream.joinpath(*CHANGE_DIR)
-    (change / "reviews").mkdir(exist_ok=True)
-    (change / "reviews" / filename).write_text(review_text)
+    target = change / "reviews" / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(review_text)
     _git(upstream, "add", "-A")
     _git(upstream, "commit", "-qm", "history")
     head = _git(upstream, "rev-parse", "HEAD").strip()
@@ -419,6 +420,35 @@ def test_a_misnamed_history_file_is_refused(tmp_path: Path) -> None:
     text = _review_text(_accepted_gate({"reviewed_commit": "a" * 40}))
     consumer, _ = _history_repo(tmp_path, "round-one.md", text)
     assert _pin_refusal(_pins(consumer)) == "REVIEW_PIN_MALFORMED_FILENAME"
+
+
+def test_a_nested_round_is_refused_before_a_pin_is_produced(tmp_path: Path) -> None:
+    """The enumerator mirrors `admittedEpochs`, so it must mirror this too.
+
+    A nested round is refused BEFORE a pin is extracted, so no SHA reaches the
+    workflow, no refspec is built, and no fetch is attempted for a path the gate
+    will refuse anyway.
+    """
+    sha = "a" * 40
+    text = _review_text(_accepted_gate({"reviewed_commit": sha}))
+    consumer, _ = _history_repo(tmp_path, "nested/1-" + sha[:12] + ".md", text)
+
+    result = _pins(consumer)
+    assert _pin_refusal(result) == "REVIEW_PIN_NESTED_ROUND"
+    assert sha not in result.stdout, "no fetchable SHA may be emitted for a nested round"
+
+
+def test_a_nested_non_markdown_file_is_refused_by_the_enumerator(tmp_path: Path) -> None:
+    consumer, _ = _history_repo(tmp_path, "nested/notes.txt", "scratch\n")
+    assert _pin_refusal(_pins(consumer)) == "REVIEW_PIN_NESTED_ROUND"
+
+
+def test_a_direct_child_non_markdown_file_is_still_skipped(tmp_path: Path) -> None:
+    """The same boundary the gate keeps, so the two enumerate one path set."""
+    consumer, _ = _history_repo(tmp_path, "notes.txt", "scratch\n")
+    result = _pins(consumer)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == ""
 
 
 def test_shell_metacharacters_in_review_bytes_stay_inert(tmp_path: Path) -> None:
