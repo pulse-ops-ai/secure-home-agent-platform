@@ -597,6 +597,83 @@ export function checkFixtureProjection(repoRoot = REPO_ROOT) {
   return problems
 }
 
+// ── production lint wiring ──────────────────────────────────────────────────
+
+/** The capability every linting member must invoke. */
+export const LINT_CAPABILITY = 'secure-home-lint'
+
+/** Engines a member must never invoke directly. */
+export const ENGINE_BINARIES = ['eslint', 'oxlint', 'tsgolint']
+
+/**
+ * Members that must keep a prerequisite before linting.
+ *
+ * These declare a manifest check that has to pass first. Rewriting their lint
+ * script must not drop it, so the requirement is recorded rather than
+ * remembered.
+ */
+export const LINT_PREREQUISITES = new Map([
+  ['packages/events', 'pnpm run deps'],
+  ['packages/runner-core', 'pnpm run deps'],
+  ['services/runner-control', 'pnpm run deps'],
+  ['agents/adapters/coding/claude-code', 'pnpm run deps'],
+  ['agents/adapters/coding/copilot-cli', 'pnpm run deps'],
+])
+
+/**
+ * Every member reaches both engines through the capability, and none assembles
+ * its own combination.
+ *
+ * A member that called `eslint src` directly would run one engine and pass,
+ * which is exactly the state this landing replaces. A member that called
+ * `oxlint` directly would skip the typed backend and the role projection. Both
+ * look like working lint scripts, and neither enforces the contract, so the
+ * wiring is checked rather than trusted to stay put.
+ */
+export function checkLintWiring(repoRoot = REPO_ROOT) {
+  const problems = []
+
+  for (const rel of members(repoRoot)) {
+    const pkg = JSON.parse(readFileSync(path.join(repoRoot, rel, 'package.json'), 'utf8'))
+    const script = String(pkg.scripts?.lint ?? '')
+
+    if (NON_LINTING_MEMBERS.has(rel)) {
+      if (script.includes(LINT_CAPABILITY) || ENGINE_BINARIES.some((e) => script.includes(e))) {
+        problems.push(`${rel}: declared non-linting but its lint script runs an engine`)
+      }
+      continue
+    }
+
+    if (!script.includes(LINT_CAPABILITY)) {
+      problems.push(
+        `${rel}: lint does not go through ${LINT_CAPABILITY}. A member that invokes an ` +
+          'engine directly runs one half of the dual-engine contract and reports success',
+      )
+    }
+
+    for (const engine of ENGINE_BINARIES) {
+      // Word-boundary match so `secure-home-lint` is not read as `eslint`.
+      if (new RegExp(`(^|[\\s&|])${engine}([\\s]|$)`).test(script)) {
+        problems.push(
+          `${rel}: lint invokes "${engine}" directly. Command ownership belongs to the ` +
+            'capability, or the dual-engine contract drifts per package',
+        )
+      }
+    }
+
+    const prerequisite = LINT_PREREQUISITES.get(rel)
+    if (prerequisite !== undefined && !script.includes(prerequisite)) {
+      problems.push(`${rel}: lint no longer runs its "${prerequisite}" prerequisite first`)
+    }
+
+    if (!pkg.devDependencies?.['@secure-home/lint-config']) {
+      problems.push(`${rel}: uses ${LINT_CAPABILITY} without declaring the capability package`)
+    }
+  }
+
+  return problems
+}
+
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
 const invokedDirectly = (() => {

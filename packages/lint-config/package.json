@@ -12,10 +12,11 @@
     "./engine-mappings.schema": "./engine-mappings.schema.json"
   },
   "files": [
-    "policy.json",
     "engine-mappings.json",
-    "policy.schema.json",
     "engine-mappings.schema.json",
+    "policy.json",
+    "policy.schema.json",
+    "src",
     "validate-schema.mjs"
   ],
   "scripts": {
@@ -38,5 +39,8 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vitest": "catalog:"
+  },
+  "bin": {
+    "secure-home-lint": "./src/run-lint.mjs"
   }
 }

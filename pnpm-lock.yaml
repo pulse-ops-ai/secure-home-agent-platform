@@ -92,6 +92,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../../../../packages/eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../../../../packages/lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../../../../packages/testing
@@ -119,6 +122,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../../../../packages/eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../../../../packages/lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../../../../packages/testing
@@ -143,6 +149,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../../packages/lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../../packages/testing
@@ -164,6 +173,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -189,6 +201,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -216,6 +231,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -247,6 +265,9 @@ importers:
         specifier: 'catalog:'
         version: 8.66.0(eslint@10.8.0)(typescript@6.0.3)
     devDependencies:
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -275,6 +296,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -306,6 +330,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -372,6 +399,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -393,6 +423,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -414,6 +447,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -442,6 +478,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -466,6 +505,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -502,6 +544,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../testing
@@ -523,6 +568,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../../packages/lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../../packages/testing
@@ -569,6 +617,9 @@ importers:
       '@secure-home/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@secure-home/lint-config':
+        specifier: workspace:*
+        version: link:../../packages/lint-config
       '@secure-home/testing':
         specifier: workspace:*
         version: link:../../packages/testing
