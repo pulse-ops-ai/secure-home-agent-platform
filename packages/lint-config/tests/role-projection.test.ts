@@ -66,6 +66,34 @@ const countFor = (role: string): number => rows.filter((r) => r.roles.includes(r
 const { policy: POLICY, mappings: MAPPINGS } = loadAuthorities() as { policy: any; mappings: any }
 const GENERATED = loadGeneratedConfigs() as Record<string, any>
 
+const REPLACEMENT_MAPPING = new Map<string, any>(
+  MAPPINGS.mappings.filter((m: any) => m.engine === 'replacement').map((m: any) => [m.policy, m]),
+)
+
+/** The rules a role's generated config actually enables. */
+const enabledFor = (role: string): string[] => Object.keys(GENERATED[role].rules)
+
+/**
+ * The rules a role's config MUST enable, derived from the authorities.
+ *
+ * Policy rows applicable to the role, joined to the replacement mapping, kept
+ * where the engine realises them through a rule. A parser-realised policy has
+ * nothing to enable.
+ */
+const expectedFor = (role: string): string[] =>
+  POLICY.policies
+    .filter((p: any) => p.roles.includes(role))
+    .map((p: any) => REPLACEMENT_MAPPING.get(p.id))
+    .filter((m: any) => m !== undefined && m.mechanism === 'rule')
+    .map((m: any) => m.ruleId)
+
+/** Replacement rule ids for policies that need type information. */
+const TYPE_AWARE_REPLACEMENT_RULES: string[] = POLICY.policies
+  .filter((p: any) => p.proof.shard.startsWith('typescript-typed-'))
+  .map((p: any) => REPLACEMENT_MAPPING.get(p.id))
+  .filter((m: any) => m !== undefined && m.mechanism === 'rule')
+  .map((m: any) => m.ruleId)
+
 // ── the matrix: one source, every role, both engines ────────────────────────
 
 /** The roles a TypeScript source can be judged under; `js-config` is JavaScript only. */
@@ -301,13 +329,69 @@ describe('role behaviour is preserved per role, not on average', () => {
     expect(countFor(role as string)).toBe(expected as number)
   })
 
-  it('the generated replacement config differs per role by the same shape', () => {
-    // If every role generated the same config, the counts above would be
-    // preserved in policy while being erased in enforcement.
-    const sizes = (GENERATED_ROLES as string[]).map(
-      (role) => Object.keys(load(`generated/oxlintrc.${role}.json`).rules).length,
+  it('the generated replacement config reproduces each role set EXACTLY', () => {
+    // Cardinality is not the property. A generator defect could swap one
+    // enabled rule for another and preserve every count, so the sets are
+    // compared element by element rather than by size.
+    for (const role of GENERATED_ROLES as string[]) {
+      expect(new Set(enabledFor(role)), `${role} role set`).toEqual(new Set(expectedFor(role)))
+    }
+  })
+
+  it('the role sets are genuinely different from one another', () => {
+    // Exact equality alone would also hold for seven identical configs if the
+    // policy said so. This asserts the projection has real structure.
+    const shapes = (GENERATED_ROLES as string[]).map((role) =>
+      JSON.stringify([...enabledFor(role)].sort()),
     )
-    expect(new Set(sizes).size).toBeGreaterThan(1)
+    expect(new Set(shapes).size).toBeGreaterThan(1)
+  })
+
+  it('the library replacement config carries the library-only restrictions', () => {
+    const library = new Set(enabledFor('library'))
+    for (const id of [
+      'no-restricted-globals',
+      'no-restricted-properties',
+      'typescript/explicit-module-boundary-types',
+    ]) {
+      expect(library, `library must enforce ${id}`).toContain(id)
+    }
+  })
+
+  it.each(['service', 'application'])(
+    'the %s replacement config drops the library-only rules',
+    (role) => {
+      const enabled = new Set(enabledFor(role))
+      for (const id of [
+        'no-restricted-globals',
+        'no-restricted-properties',
+        'typescript/explicit-module-boundary-types',
+      ]) {
+        expect(enabled, `${role} must not enforce ${id}`).not.toContain(id)
+      }
+    },
+  )
+
+  it('the adapter replacement set is the library set minus exactly three rules', () => {
+    const library = new Set(enabledFor('library'))
+    const adapter = new Set(enabledFor('adapter-bin'))
+    expect([...library].filter((id) => !adapter.has(id)).sort()).toEqual([
+      'no-console',
+      'no-restricted-globals',
+      'no-restricted-properties',
+    ])
+    expect(
+      [...adapter].filter((id) => !library.has(id)),
+      'the adapter entry may not gain a rule the library lacks',
+    ).toEqual([])
+  })
+
+  it('the js-config replacement config enforces no type-aware policy', () => {
+    const enabled = new Set(enabledFor('js-config'))
+    for (const typed of TYPE_AWARE_REPLACEMENT_RULES) {
+      expect(enabled, `js-config must not enforce ${typed}`).not.toContain(typed)
+    }
+    expect(TYPE_AWARE_REPLACEMENT_RULES.length).toBeGreaterThan(20)
   })
 
   it('a library restricts process access where a service does not', () => {
