@@ -121,6 +121,25 @@ jobs:
         run: node packages/lint-config/src/check-install-posture.mjs --identities
 
       # The command pack. Every gate the toolchain owns, executed natively.
+      # TEMPORARY diagnostic: the parity suite fails here and not locally, with
+      # the replacement engine reporting nothing where it should report a parse
+      # error. This prints what the engine actually does on the runner.
+      - name: Diagnose the replacement engine on this runner
+        run: |
+          set -euo pipefail
+          cd packages/lint-config
+          echo "--- oxlint version ---"
+          ./node_modules/.bin/oxlint --version || true
+          echo "--- a committed invalid fixture ---"
+          ./node_modules/.bin/oxlint --config generated/oxlintrc.library.json \
+            tests/fixtures/core-policy/invalid/no-var.ts || true
+          echo "--- a deliberate syntax error ---"
+          mkdir -p tests/fixtures/probe && printf 'export const value = (\n' > tests/fixtures/probe/s.js
+          ./node_modules/.bin/oxlint --config generated/oxlintrc.library.json \
+            tests/fixtures/probe/s.js || true
+          echo "--- exit code was: $? ---"
+          rm -rf tests/fixtures/probe
+
       - name: Lint — dual engine, both blocking, typed backend included
         run: pnpm lint
 
