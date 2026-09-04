@@ -22,7 +22,7 @@
  * success imply things lint did not verify.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { accessSync, constants as fsConstants, existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -125,39 +125,122 @@ function run(command, args, cwd, env) {
 }
 
 /**
+ * The typed backend, owned by the CAPABILITY and nowhere else.
+ *
+ * Oxlint shells out to `tsgolint`. Measured on this workspace, an absent
+ * backend makes the engine print NOTHING and exit 0 -- so a runner that trusts
+ * the exit code enforces the static half of the contract and reports success.
+ * The 24 type-aware policies would simply stop being checked, silently, and
+ * the only signal would be their absence.
+ *
+ * So the executable is required BEFORE the engine is invoked, and it is
+ * required at the capability's own path. Accepting a member-owned or ambient
+ * PATH copy would let a member supply the toolchain that judges it, and would
+ * make the typed contract depend on whatever happened to be installed.
+ */
+export function resolveTypedBackend(packageRoot = PACKAGE_ROOT) {
+  const backend = path.join(packageRoot, 'node_modules', '.bin', 'tsgolint')
+  if (!existsSync(backend)) {
+    throw new LintEngineFailure(
+      'tsgolint',
+      `the typed backend is missing at ${backend}. Oxlint exits 0 without it, so the ` +
+        '24 type-aware policies would stop being enforced with no other signal',
+    )
+  }
+  try {
+    accessSync(backend, fsConstants.X_OK)
+  } catch {
+    throw new LintEngineFailure('tsgolint', `${backend} is present but not executable`)
+  }
+  return backend
+}
+
+/** Text an engine emits when its typed backend did not start. */
+export const TYPED_BACKEND_FAILURE =
+  /failed to find tsgolint|tsgolint.*not found|could not (?:find|start) tsgolint/i
+
+/**
+ * Whether a replacement run actually performed typed analysis.
+ *
+ * A second, independent defence. The preflight above is the primary one, but it
+ * checks the world before the run; this checks what the run said afterwards, so
+ * a future engine that reports the failure instead of staying silent is caught
+ * too. Neither depends on the exit code, because the exit code is precisely
+ * what proved untrustworthy here.
+ */
+export function typedAnalysisRan(output) {
+  return !TYPED_BACKEND_FAILURE.test(output ?? '')
+}
+
+/**
  * The environment the replacement engine needs to find its typed backend.
  *
- * Oxlint shells out to `tsgolint`, which lives with the capability package
- * rather than with the member being linted. Without it on PATH the engine
- * reports "Failed to find tsgolint executable" and typed policies do not run.
+ * The capability's bin directory goes FIRST, so the resolved backend is the one
+ * `resolveTypedBackend` verified rather than an ambient copy that happened to
+ * shadow it.
  */
 export function typedBackendEnv(base = process.env) {
   const bin = path.join(PACKAGE_ROOT, 'node_modules', '.bin')
   return { ...base, PATH: `${bin}${path.delimiter}${base.PATH ?? ''}` }
 }
 
-/** Both engines, in order, with neither able to mask the other. */
-export function lintMember({ memberDir, rel, paths = ['src'], repoRoot = REPO_ROOT }) {
+/**
+ * Both engines, in order, with neither able to mask the other.
+ *
+ * @param {{
+ *   memberDir: string,
+ *   rel: string,
+ *   paths?: string[],
+ *   repoRoot?: string,
+ *   execute?: (command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv) =>
+ *     { ok: boolean, output: string },
+ * }} options
+ */
+export function lintMember({
+  memberDir,
+  rel,
+  paths = ['src'],
+  repoRoot = REPO_ROOT,
+  // Injectable so the fail-closed path can be driven end to end. A stand-in
+  // engine that announces a dead backend and exits 0 is the case that matters,
+  // and it cannot be reached by calling the classifier directly -- which is how
+  // a mutation removing the classifier from this function survived once.
+  execute = run,
+} = {}) {
   const role = roleForMember(rel)
   if (role === undefined) return { skipped: true, rel }
 
   const eslintBin = resolveBin('eslint', memberDir, repoRoot)
   const oxlintBin = resolveBin('oxlint', memberDir, repoRoot)
 
+  // Before the engine runs, not after: an absent backend is silent.
+  resolveTypedBackend()
+
   const project = projectForMember(memberDir)
   // The member's OWN declared paths. A runner that linted `.` everywhere would
   // widen enforcement to files members deliberately exclude, and one that
   // hardcoded `src` would narrow it for members that lint more.
-  const legacy = run(eslintBin, [...paths], memberDir)
+  const legacy = execute(eslintBin, [...paths], memberDir)
   // --type-aware is not optional. Without it the typed policies silently do not
   // run and the engine exits 0, which is the one failure mode this contract
   // exists to prevent.
-  const replacement = run(
+  const replacementRun = execute(
     oxlintBin,
     ['--type-aware', '--tsconfig', project, '--config', configForRole(role), ...paths],
     memberDir,
     typedBackendEnv(),
   )
+  // A clean exit is not proof the typed half ran. If the output says the
+  // backend did not start, the result is a FAILURE whatever the exit code said.
+  const replacement = typedAnalysisRan(replacementRun.output)
+    ? replacementRun
+    : {
+        ok: false,
+        output:
+          `${replacementRun.output}\n` +
+          'the replacement engine reported that its typed backend did not start, so the ' +
+          'type-aware policies were not enforced',
+      }
 
   // BOTH are evaluated before either verdict is returned. Short-circuiting on
   // the legacy result would let a replacement failure go unreported whenever

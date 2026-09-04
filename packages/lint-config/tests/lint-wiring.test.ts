@@ -7,7 +7,9 @@
  * that does not run reports no violations, and at every layer above that is
  * indistinguishable from clean code.
  */
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -21,7 +23,14 @@ import {
   members,
 } from '../src/check-policy.mjs'
 // @ts-ignore
-import { LintEngineFailure, lintMember, roleForMember, typedBackendEnv } from '../src/run-lint.mjs'
+import {
+  LintEngineFailure,
+  lintMember,
+  resolveTypedBackend,
+  roleForMember,
+  typedAnalysisRan,
+  typedBackendEnv,
+} from '../src/run-lint.mjs'
 
 const HERE = import.meta.dirname
 const REPO_ROOT = path.join(HERE, '..', '..', '..')
@@ -213,5 +222,132 @@ describe('both engines actually execute', () => {
     } finally {
       rmSync(VIOLATION, { force: true })
     }
+  })
+})
+
+describe('a missing typed backend fails lint closed', () => {
+  // The seam this closes: measured on this workspace, Oxlint with an absent
+  // tsgolint prints NOTHING and exits 0. A runner that trusts the exit code
+  // enforces the static half of the contract and reports success, and the only
+  // signal would be 24 type-aware policies quietly no longer being checked.
+  const SUBJECT = path.join(HERE, 'lint-subject')
+
+  it('the engine really does exit 0 with no output when the backend is gone', () => {
+    // Asserted rather than assumed, because the whole defence is built on it.
+    const oxlint = path.join(HERE, '..', 'node_modules', '.bin', 'oxlint')
+    const nodeDir = path.dirname(process.execPath)
+    const result = spawnSync(
+      oxlint,
+      [
+        '--type-aware',
+        '--tsconfig',
+        'tsconfig.json',
+        '--config',
+        path.join(HERE, '..', 'generated', 'oxlintrc.library.json'),
+        'src',
+      ],
+      { cwd: SUBJECT, encoding: 'utf8', env: { PATH: `${nodeDir}:/usr/bin:/bin` } },
+    )
+    expect(result.status, 'the engine exits cleanly without its backend').toBe(0)
+  })
+
+  it('the capability refuses when its own tsgolint is missing', () => {
+    const absent = path.join(HERE, 'lint-subject')
+    expect(() => resolveTypedBackend(absent)).toThrow(LintEngineFailure as never)
+    expect(() => resolveTypedBackend(absent)).toThrow(/typed backend is missing/)
+  })
+
+  it('resolves the backend the CAPABILITY owns, not an ambient copy', () => {
+    // A member-owned or PATH-supplied backend would let the subject supply the
+    // toolchain that judges it.
+    const backend = resolveTypedBackend() as string
+    expect(backend).toBe(path.join(HERE, '..', 'node_modules', '.bin', 'tsgolint'))
+  })
+
+  it('lintMember refuses before invoking the engine at all', () => {
+    // Preflight, not post-hoc: there is no output to inspect afterwards.
+    const runner = readFileSync(path.join(HERE, '..', 'src', 'run-lint.mjs'), 'utf8')
+    const preflight = runner.indexOf('resolveTypedBackend()')
+    const invocation = runner.indexOf('--type-aware')
+    expect(preflight).toBeGreaterThan(0)
+    expect(preflight, 'the backend check must precede the engine call').toBeLessThan(invocation)
+  })
+})
+
+describe('a silently-lost typed backend is refused even on exit 0', () => {
+  it('output reporting a missing backend is a FAILURE whatever the exit code', () => {
+    // The nastier case: a process that announces the failure and exits
+    // successfully. The exit code is exactly what proved untrustworthy, so the
+    // classifier does not consult it.
+    expect(typedAnalysisRan('Failed to find tsgolint executable')).toBe(false)
+    expect(typedAnalysisRan('warning: tsgolint not found')).toBe(false)
+    expect(typedAnalysisRan('could not start tsgolint')).toBe(false)
+  })
+
+  it('ordinary output is not mistaken for a backend failure', () => {
+    expect(typedAnalysisRan('')).toBe(true)
+    expect(typedAnalysisRan('src/x.ts:1:1: error typescript(no-explicit-any): ...')).toBe(true)
+  })
+
+  it('a fake engine printing the failure and exiting 0 still fails the run', () => {
+    // End to end through the real classifier, with a stand-in process that
+    // behaves exactly as the hostile case describes.
+    const fake = path.join(mkdtempSync(path.join(tmpdir(), 'fake-engine-')), 'oxlint')
+    writeFileSync(fake, '#!/bin/sh\necho "Failed to find tsgolint executable"\nexit 0\n')
+    chmodSync(fake, 0o755)
+
+    const result = spawnSync(fake, [], { encoding: 'utf8' })
+    expect(result.status, 'the stand-in exits successfully').toBe(0)
+    expect(typedAnalysisRan(result.stdout), 'yet the run must be judged a failure').toBe(false)
+  })
+})
+
+describe('the fail-closed path, driven end to end', () => {
+  const SUBJECT = path.join(HERE, 'lint-subject')
+
+  /** A stand-in engine pair whose replacement announces a dead backend. */
+  const deadBackend = (command: string): { ok: boolean; output: string } =>
+    command.includes('oxlint')
+      ? { ok: true, output: 'Failed to find tsgolint executable' }
+      : { ok: true, output: '' }
+
+  it('a replacement that exits 0 with a dead backend fails the whole run', () => {
+    // Both stand-ins "succeed". Only the output betrays that the type-aware
+    // half never ran, and the run must still fail.
+    const result = lintMember({
+      memberDir: SUBJECT,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: deadBackend,
+    }) as { ok: boolean; replacement: { ok: boolean; output: string } }
+
+    expect(result.replacement.ok, 'the replacement result must be a failure').toBe(false)
+    expect(result.ok, 'and the member must fail lint').toBe(false)
+    expect(result.replacement.output).toMatch(/typed backend did not start/)
+  })
+
+  it('the same stand-ins pass when the replacement says nothing', () => {
+    // The control. Without it the test above would also pass if lintMember
+    // simply failed everything.
+    const result = lintMember({
+      memberDir: SUBJECT,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: () => ({ ok: true, output: '' }),
+    }) as { ok: boolean }
+    expect(result.ok).toBe(true)
+  })
+
+  it('a legacy failure alone still fails the run', () => {
+    const result = lintMember({
+      memberDir: SUBJECT,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: (command: string) =>
+        command.includes('oxlint')
+          ? { ok: true, output: '' }
+          : { ok: false, output: 'legacy violation' },
+    }) as { ok: boolean }
+    expect(result.ok).toBe(false)
   })
 })
