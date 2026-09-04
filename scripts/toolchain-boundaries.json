@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "compatibilityConsumers": ["scripts/check-source-imports.mjs"],
+  "normalCompilerEntryPoints": ["typecheck", "build", "generate"],
+  "platforms": ["ubuntu-24.04", "ubuntu-24.04-arm"],
+  "installPosture": { "onlyBuiltDependencies": [] },
+  "maintenanceClasses": [
+    {
+      "id": "lint-engine",
+      "allows": ["replacement engine pin", "per-engine mapping rows"]
+    }
+  ],
+  "protectedAuthorities": [
+    "packages/lint-config/policy.json",
+    "packages/lint-config/engine-mappings.json",
+    "scripts/toolchain-boundaries.json"
+  ],
+  "subjectIsolation": {
+    "deniedToSubject": ["GITHUB_TOKEN", "persisted credentials", "Docker socket"],
+    "processBoundary": "container",
+    "containerControls": ["non-root", "read-only trusted mounts", "no-new-privileges"]
+  },
+  "genesisState": "GENESIS_ONLY"
+}

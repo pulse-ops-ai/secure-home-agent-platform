@@ -674,6 +674,142 @@ export function checkLintWiring(repoRoot = REPO_ROOT) {
   return problems
 }
 
+// ── the bounded compatibility seam ──────────────────────────────────────────
+
+/** The compatibility package. NOT a compiler. */
+export const COMPATIBILITY_PACKAGE = '@typescript/typescript6'
+
+/** The normal compiler, which nothing here may displace. */
+export const NORMAL_COMPILER = 'typescript'
+
+/**
+ * The seam is bounded to a SINGLETON consumer, and cannot become a compiler.
+ *
+ * Two separate failures are possible and both are silent.
+ *
+ * A second consumer widens a parsing seam into a general-purpose compiler
+ * dependency. Nothing breaks; the boundary simply stops being one, and the next
+ * compiler cutover drags whatever adopted it.
+ *
+ * The other direction is worse: switching this file back to the normal compiler
+ * ERASES the seam. Everything still passes, because the traditional API and the
+ * current compiler agree today. The coupling only reappears at the cutover, by
+ * which time the boundary that was supposed to absorb it no longer exists. So
+ * the seam's PRESENCE is asserted, not merely its narrowness.
+ */
+export function checkCompatibilitySeam(repoRoot = REPO_ROOT) {
+  const problems = []
+  const boundariesPath = path.join(repoRoot, 'scripts', 'toolchain-boundaries.json')
+  if (!existsSync(boundariesPath)) {
+    problems.push('scripts/toolchain-boundaries.json is missing; the seam has no allowlist')
+    return problems
+  }
+  const boundaries = JSON.parse(readFileSync(boundariesPath, 'utf8'))
+  const allowed = new Set(boundaries.compatibilityConsumers ?? [])
+
+  if (allowed.size !== 1 || !allowed.has('scripts/check-source-imports.mjs')) {
+    problems.push(
+      `the compatibility allowlist must be exactly ["scripts/check-source-imports.mjs"]; ` +
+        `found [${[...allowed].join(', ')}]`,
+    )
+  }
+  for (const entry of allowed) {
+    if (entry.includes('*')) {
+      problems.push(`the compatibility allowlist entry "${entry}" is a glob; it must name a file`)
+    }
+  }
+
+  // Who actually imports it, read from the tree rather than from the allowlist.
+  const actual = []
+  for (const rel of scriptFiles(repoRoot)) {
+    const text = readFileSync(path.join(repoRoot, rel), 'utf8')
+    if (new RegExp(`from '${COMPATIBILITY_PACKAGE}'`).test(text)) actual.push(rel)
+  }
+  for (const rel of actual) {
+    if (!allowed.has(rel)) {
+      problems.push(
+        `${rel} imports ${COMPATIBILITY_PACKAGE} but is not an admitted consumer. The seam is ` +
+          'a bounded parsing surface, not a general compiler dependency',
+      )
+    }
+  }
+  for (const rel of allowed) {
+    if (!actual.includes(rel)) {
+      problems.push(
+        `${rel} is the admitted consumer but no longer imports ${COMPATIBILITY_PACKAGE}. ` +
+          'Reverting it to the normal compiler erases the seam silently: the two agree ' +
+          'today, and the coupling only reappears at the cutover',
+      )
+    }
+  }
+
+  return problems
+}
+
+/**
+ * The compatibility package may never satisfy a normal compiler entry point.
+ *
+ * `tsc6` is not an alternative compiler. If a package script typechecked,
+ * built, or generated through the compatibility API, the repository would have
+ * two compilers and the seam would have become the thing it exists to prevent.
+ */
+export function checkNormalCompilerAuthority(repoRoot = REPO_ROOT) {
+  const problems = []
+  const boundaries = JSON.parse(
+    readFileSync(path.join(repoRoot, 'scripts', 'toolchain-boundaries.json'), 'utf8'),
+  )
+  const guarded = boundaries.normalCompilerEntryPoints ?? []
+
+  const manifests = [
+    ['package.json', 'the repository root'],
+    ...members(repoRoot).map((rel) => [`${rel}/package.json`, rel]),
+  ]
+  for (const [rel, label] of manifests) {
+    const full = path.join(repoRoot, rel)
+    if (!existsSync(full)) continue
+    const pkg = JSON.parse(readFileSync(full, 'utf8'))
+    for (const [name, script] of Object.entries(pkg.scripts ?? {})) {
+      const guardedEntry = guarded.some((entry) => name === entry || name.startsWith(`${entry}:`))
+      if (!guardedEntry) continue
+      if (/tsc6|typescript6/.test(String(script))) {
+        problems.push(
+          `${label}: the "${name}" script reaches the compatibility API. It is a parsing ` +
+            'seam, not a compiler, and a normal entry point must resolve ' +
+            `${NORMAL_COMPILER}`,
+        )
+      }
+    }
+  }
+
+  // And the package itself must never be a dependency of anything but the root,
+  // where the single admitted consumer lives.
+  for (const rel of members(repoRoot)) {
+    const pkg = JSON.parse(readFileSync(path.join(repoRoot, rel, 'package.json'), 'utf8'))
+    for (const field of DEP_FIELDS_CHECKED) {
+      if (pkg[field]?.[COMPATIBILITY_PACKAGE]) {
+        problems.push(
+          `${rel} declares ${COMPATIBILITY_PACKAGE} in ${field}. Only the repository root ` +
+            'may, because only the root hosts the admitted consumer',
+        )
+      }
+    }
+  }
+
+  return problems
+}
+
+const DEP_FIELDS_CHECKED = ['dependencies', 'devDependencies', 'peerDependencies']
+
+/** Repository scripts, which is where a second consumer would appear. */
+function scriptFiles(repoRoot) {
+  const dir = path.join(repoRoot, 'scripts')
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.mjs'))
+    .sort()
+    .map((name) => `scripts/${name}`)
+}
+
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
 const invokedDirectly = (() => {

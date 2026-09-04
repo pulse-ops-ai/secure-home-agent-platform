@@ -750,16 +750,25 @@ def test_the_pre_install_checks_stay_dependency_free() -> None:
 def test_the_gate_takes_one_dependency_and_runs_after_install() -> None:
     """The parser is worth a dependency; the ordering that makes it safe is not optional.
 
-    Reading the AST instead of matching patterns costs one import, `typescript`.
+    Reading the AST instead of matching patterns costs one import. Since PR-B
+    task 1.13 that import is the BOUNDED COMPATIBILITY SEAM rather than the
+    normal compiler: this gate needs a parser, not compiler authority, and
+    importing `typescript` coupled the two so that a compiler cutover would
+    silently change how architecture is parsed.
+
     That is only sound if the gate runs after the lockfile install — so the
     ordering is asserted rather than assumed, in CI and in the aggregate check.
     """
-    assert _external_imports("check-source-imports.mjs") == ["typescript"], (
-        "the source import gate should need the TypeScript parser and nothing else"
+    assert _external_imports("check-source-imports.mjs") == ["@typescript/typescript6"], (
+        "the source import gate should need the bounded parsing seam and nothing else"
     )
 
     # Declared at the pinned catalog version, like every other external dependency.
     root_manifest = json.loads((REPO_ROOT / "package.json").read_text())
+    assert root_manifest["devDependencies"]["@typescript/typescript6"] == "catalog:"
+
+    # The normal compiler stays declared too, and stays the compiler: it is what
+    # `pnpm typecheck` and every build resolve. The seam did not replace it.
     assert root_manifest["devDependencies"]["typescript"] == "catalog:"
 
     governance = governance_jobs()["governance"]

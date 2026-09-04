@@ -38,6 +38,7 @@
   "devDependencies": {
     "@fission-ai/openspec": "catalog:",
     "@secure-home/knowledge-toolchain": "workspace:*",
+    "@typescript/typescript6": "catalog:",
     "prettier": "catalog:",
     "syncpack": "catalog:",
     "typescript": "catalog:"
