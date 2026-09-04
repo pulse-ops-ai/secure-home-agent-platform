@@ -50,7 +50,15 @@ export function generateForRole(policy, mappings, role) {
     // Severity comes from the POLICY's blocking posture, never from the engine
     // default: a rule the repository blocks on must block, whatever the engine
     // would have chosen.
-    rules[mapped.ruleId] = row.blocking ? 'error' : 'warn'
+    //
+    // Options travel with it. A rule such as `no-restricted-globals` with no
+    // restrictions declared is a rule that permits everything, so emitting the
+    // severity alone would produce a config that loads, reports nothing, and
+    // looks like the policy is enforced. Engine-specific overrides win where a
+    // mapping declares them; otherwise the policy's semantic options are used.
+    const severity = row.blocking ? 'error' : 'warn'
+    const options = mapped.engineOptions?.values ?? row.options?.values
+    rules[mapped.ruleId] = options === undefined ? severity : [severity, ...options]
   }
 
   return {

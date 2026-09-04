@@ -219,17 +219,27 @@ export function proofExtension(roles) {
   return roles.length === 1 && roles[0] === 'js-config' ? '.js' : '.ts'
 }
 
-/** Options that are engine-neutral SEMANTICS, keyed by policy id. */
-function semanticOptions(row) {
+/**
+ * Options that are engine-neutral SEMANTICS.
+ *
+ * Two filters, and both matter. Options must be the same in every role the
+ * policy applies to, because a per-role difference is engine configuration
+ * rather than repository meaning. And they must be AUTHORED here: a resolved
+ * config is full of defaults the engine supplied, which nobody decided and
+ * which the replacement engine does not necessarily accept. Oxlint rejects
+ * `preserve-caught-error`'s `errorClassNames` outright, an option this
+ * repository never wrote.
+ */
+function semanticOptions(row, baseline) {
   const values = Object.values(row.options).filter((v) => v.length > 0)
   if (values.length === 0) return undefined
   const first = JSON.stringify(values[0])
-  // Only lift options into semantic policy when every role agrees. A per-role
-  // difference is engine configuration, and belongs to the mapping.
-  return values.every((v) => JSON.stringify(v) === first) ? { values: values[0] } : undefined
+  if (!values.every((v) => JSON.stringify(v) === first)) return undefined
+  if (baseline?.get(row.ruleId) === first) return undefined
+  return { values: values[0] }
 }
 
-export function buildManifests(rows) {
+export function buildManifests(rows, baseline) {
   const jsConfig = new Set(rows.filter((r) => r.roles.includes('js-config')).map((r) => r.ruleId))
 
   const taken = new Set()
@@ -242,7 +252,7 @@ export function buildManifests(rows) {
 
     const typeAware = row.ruleId.startsWith('@typescript-eslint/') && !jsConfig.has(row.ruleId)
     const shard = shardFor(row.ruleId, { typeAware })
-    const options = semanticOptions(row)
+    const options = semanticOptions(row, baseline)
 
     policies.push({
       id,

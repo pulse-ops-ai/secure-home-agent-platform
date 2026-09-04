@@ -3,13 +3,19 @@
   "plugins": ["typescript"],
   "categories": {},
   "rules": {
-    "eqeqeq": "error",
+    "eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ],
     "for-direction": "error",
     "no-async-promise-executor": "error",
     "no-case-declarations": "error",
     "no-compare-neg-zero": "error",
     "no-cond-assign": "error",
-    "no-console": "error",
+    "no-console": ["error", {}],
     "no-constant-binary-expression": "error",
     "no-constant-condition": "error",
     "no-control-regex": "error",
@@ -30,8 +36,26 @@
     "no-misleading-character-class": "error",
     "no-prototype-builtins": "error",
     "no-regex-spaces": "error",
-    "no-restricted-globals": "error",
-    "no-restricted-properties": "error",
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "process",
+        "message": "A library must not read process state; take it as a parameter."
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "process",
+        "property": "exit",
+        "message": "A library must not exit the process."
+      },
+      {
+        "object": "process",
+        "property": "env",
+        "message": "A library must not read env; take configuration as a parameter."
+      }
+    ],
     "no-self-assign": "error",
     "no-shadow-restricted-names": "error",
     "no-sparse-arrays": "error",
@@ -52,8 +76,20 @@
     "preserve-caught-error": "error",
     "require-yield": "error",
     "typescript/await-thenable": "error",
-    "typescript/ban-ts-comment": "error",
-    "typescript/consistent-type-imports": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": "allow-with-description",
+        "ts-ignore": true
+      }
+    ],
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
+    ],
     "typescript/explicit-module-boundary-types": "error",
     "typescript/no-array-constructor": "error",
     "typescript/no-array-delete": "error",
@@ -86,7 +122,16 @@
     "typescript/no-unsafe-return": "error",
     "typescript/no-unsafe-unary-minus": "error",
     "typescript/no-unused-expressions": "error",
-    "typescript/no-unused-vars": "error",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ],
     "typescript/no-wrapper-object-types": "error",
     "typescript/only-throw-error": "error",
     "typescript/prefer-as-const": "error",

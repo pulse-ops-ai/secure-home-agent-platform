@@ -10,7 +10,11 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 // @ts-ignore -- dependency-free .mjs modules, deliberately untyped
-import { extractEffectivePolicy, policyIdFor } from '../src/extract-legacy-policy.mjs'
+import {
+  baselineOptions,
+  extractEffectivePolicy,
+  policyIdFor,
+} from '../src/extract-legacy-policy.mjs'
 // @ts-ignore
 import { buildManifests, shardFor } from '../src/build-manifest.mjs'
 // @ts-ignore
@@ -36,6 +40,7 @@ const POLICY_SCHEMA = load('policy.schema.json')
 const MAPPING_SCHEMA = load('engine-mappings.schema.json')
 
 const rows = await extractEffectivePolicy()
+const baseline = await baselineOptions()
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 
 describe('the committed manifests', () => {
@@ -94,7 +99,7 @@ describe('the committed manifests', () => {
 describe('regeneration is deterministic and matches the engine', () => {
   const generatedEntries = (): { path: string; value: unknown; committed: string }[] => {
     const built = generateAll(POLICY, MAPPINGS)
-    const manifests = buildManifests(rows)
+    const manifests = buildManifests(rows, baseline)
     return [
       { path: 'policy.json', value: manifests.policy, committed: readCommitted('policy.json') },
       {
@@ -142,13 +147,13 @@ describe('regeneration is deterministic and matches the engine', () => {
     // whitespace and key-order changes -- so a committed authority could be
     // edited into something the generator would never emit and still report
     // clean. That is the check this test previously failed to be.
-    const built = buildManifests(rows)
+    const built = buildManifests(rows, baseline)
     expect(await canonicalJson(built.policy)).toBe(readCommitted('policy.json'))
     expect(await canonicalJson(built.mappings)).toBe(readCommitted('engine-mappings.json'))
   })
 
   it('reproduces the same semantic content, so a byte failure is a real one', () => {
-    const built = buildManifests(rows)
+    const built = buildManifests(rows, baseline)
     expect(built.policy).toEqual(POLICY)
     expect(built.mappings).toEqual(MAPPINGS)
   })
@@ -424,7 +429,35 @@ describe('the generated engine configuration', () => {
 
   it('takes severity from the policy, never from the engine default', () => {
     const cfg = load('generated/oxlintrc.library.json')
-    expect(new Set(Object.values(cfg.rules))).toEqual(new Set(['error']))
+    // A rule is either a bare severity or [severity, ...options]. Every current
+    // policy blocks, so every entry must resolve to `error` either way.
+    const severities = Object.values(cfg.rules).map((entry) =>
+      Array.isArray(entry) ? entry[0] : entry,
+    )
+    expect(new Set(severities)).toEqual(new Set(['error']))
+  })
+
+  it('carries the authored options through to the engine', () => {
+    // Seven policies were authored with options here; the rest inherit engine
+    // defaults nobody decided. A rule such as no-restricted-globals with no
+    // restrictions permits everything, so dropping options would produce a
+    // config that loads, reports nothing, and looks enforced.
+    const withOptions = POLICY.policies.filter((p: any) => p.options !== undefined)
+    expect(withOptions).toHaveLength(7)
+
+    const cfg = load('generated/oxlintrc.library.json')
+    expect(Array.isArray(cfg.rules['no-restricted-globals'])).toBe(true)
+    expect(JSON.stringify(cfg.rules['no-restricted-globals'])).toMatch(/process/)
+  })
+
+  it('does not claim engine defaults as repository policy', () => {
+    // preserve-caught-error resolves with `errorClassNames`, an option this
+    // repository never wrote and which the replacement engine rejects outright.
+    // If a resolved default were lifted into the manifest, the generated config
+    // would fail to load -- which is how this was found.
+    const row = POLICY.policies.find((p: any) => p.id === 'preserve-caught-error')
+    expect(row.options).toBeUndefined()
+    expect(JSON.stringify(POLICY)).not.toMatch(/errorClassNames/)
   })
 
   it('carries no formatting rule, because Prettier is the sole authority', () => {

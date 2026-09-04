@@ -25,7 +25,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import js from '@eslint/js'
 import { ESLint } from 'eslint'
+import tseslint from 'typescript-eslint'
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
@@ -66,6 +68,39 @@ export const MEMBER_TEST_PROBE = {
 
 /** The separately exported, currently unconsumed test-role contract. */
 export const EXPORTED_TEST_ROLE = 'exported-test'
+
+/**
+ * The options the REPOSITORY authored, as opposed to the ones the engine filled
+ * in for itself.
+ *
+ * `calculateConfigForFile` returns RESOLVED options, including every default the
+ * engine supplied. Those are not repository policy: nobody decided them, and
+ * copying them into the manifest both overstates what was decided and breaks
+ * the replacement engine, whose option schema differs. Oxlint rejects
+ * `preserve-caught-error`'s `errorClassNames` outright -- an option this
+ * repository never wrote.
+ *
+ * So options are diffed against a baseline resolved from the SAME presets with
+ * none of the repository's own rules. What survives is what was actually
+ * chosen here.
+ */
+export async function baselineOptions({ repoRoot = REPO_ROOT } = {}) {
+  const eslint = new ESLint({
+    cwd: path.join(repoRoot, 'packages/contracts'),
+    overrideConfigFile: true,
+    overrideConfig: [
+      js.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
+      { files: ['**/*.ts'], languageOptions: { parserOptions: { projectService: false } } },
+    ],
+  })
+  const config = await eslint.calculateConfigForFile('src/index.ts')
+  const baseline = new Map()
+  for (const [ruleId, entry] of Object.entries(config.rules ?? {})) {
+    baseline.set(ruleId, JSON.stringify(optionsOf(entry)))
+  }
+  return baseline
+}
 
 /** ESLint severity, normalized. Only `error` is blocking policy. */
 export function severityOf(entry) {

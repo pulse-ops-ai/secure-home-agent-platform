@@ -189,8 +189,14 @@ export async function parityFor(policy, legacy, replacement, configPath) {
   const valid = fixturePath(policy.proof.valid)
   const invalid = fixturePath(policy.proof.invalid)
 
-  const legacyInvalid = await legacyDiagnostics(invalid, legacy.ruleId, legacy.engineOptions)
-  const legacyValid = await legacyDiagnostics(valid, legacy.ruleId, legacy.engineOptions)
+  // Semantic options come from the POLICY, and a rule that needs them does not
+  // fire without them. `no-restricted-globals` with no restrictions declared is
+  // a rule that permits everything: the fixture would be accepted and the
+  // harness would report that the policy is not enforced -- when what is not
+  // enforced is the empty configuration it was handed.
+  const options = legacy.engineOptions ?? policy.options?.values
+  const legacyInvalid = await legacyDiagnostics(invalid, legacy.ruleId, options)
+  const legacyValid = await legacyDiagnostics(valid, legacy.ruleId, options)
   const replacementInvalid = replacementDiagnostics(invalid, configPath)
   const replacementValid = replacementDiagnostics(valid, configPath)
 

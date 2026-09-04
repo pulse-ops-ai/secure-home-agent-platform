@@ -558,15 +558,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowShortCircuit": false,
-            "allowTaggedTemplates": false,
-            "allowTernary": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "typescript-static",
@@ -822,13 +813,6 @@
       "intent": "Preserve the behaviour the repository enforces as the \"getter-return\" policy.",
       "roles": ["js-config"],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowImplicit": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -921,9 +905,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": ["except-parens"]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -971,13 +952,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "checkRelationalComparisons": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -998,13 +972,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "checkLoops": "allExceptWhileTrue"
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1161,13 +1128,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowEmptyCatch": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-policy",
@@ -1208,13 +1168,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowObjectPatternsAsParameters": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1275,9 +1228,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [{}]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-policy",
@@ -1298,14 +1248,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowEmptyCase": false,
-            "reportUnusedFallthroughComment": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1338,13 +1280,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "exceptions": []
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1377,9 +1312,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [{}]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1400,17 +1332,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "skipComments": false,
-            "skipJSXText": false,
-            "skipRegExps": false,
-            "skipStrings": true,
-            "skipTemplates": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1451,13 +1372,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowEscape": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1554,13 +1468,6 @@
       "intent": "Preserve the behaviour the repository enforces as the \"no-redeclare\" policy.",
       "roles": ["js-config"],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "builtinGlobals": true
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1647,13 +1554,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "props": true
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1686,13 +1586,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "reportGlobalThis": true
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1757,13 +1650,6 @@
       "intent": "Preserve the behaviour the repository enforces as the \"no-undef\" policy.",
       "roles": ["js-config"],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "typeof": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -1828,13 +1714,6 @@
       "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-negation\" policy.",
       "roles": ["js-config"],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "enforceForOrderingRelations": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1855,13 +1734,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "disallowArithmeticOperators": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -1982,13 +1854,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "allowRegexCharacters": []
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",
@@ -2041,14 +1906,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "destructuring": "any",
-            "ignoreReadBeforeAssign": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-policy",
@@ -2093,14 +1950,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "requireCatchParameter": false,
-            "errorClassNames": []
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -2141,14 +1990,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "enforceForIndexOf": false,
-            "enforceForSwitchCase": true
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "core-control",
@@ -2169,13 +2010,6 @@
         "service"
       ],
       "blocking": true,
-      "options": {
-        "values": [
-          {
-            "requireStringLiterals": false
-          }
-        ]
-      },
       "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
       "proof": {
         "shard": "parser-syntax",

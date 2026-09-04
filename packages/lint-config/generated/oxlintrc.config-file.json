@@ -3,7 +3,13 @@
   "plugins": ["typescript"],
   "categories": {},
   "rules": {
-    "eqeqeq": "error",
+    "eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ],
     "for-direction": "error",
     "no-async-promise-executor": "error",
     "no-case-declarations": "error",
@@ -49,8 +55,20 @@
     "preserve-caught-error": "error",
     "require-yield": "error",
     "typescript/await-thenable": "error",
-    "typescript/ban-ts-comment": "error",
-    "typescript/consistent-type-imports": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": "allow-with-description",
+        "ts-ignore": true
+      }
+    ],
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
+    ],
     "typescript/no-array-constructor": "error",
     "typescript/no-array-delete": "error",
     "typescript/no-base-to-string": "error",
@@ -82,7 +100,16 @@
     "typescript/no-unsafe-return": "error",
     "typescript/no-unsafe-unary-minus": "error",
     "typescript/no-unused-expressions": "error",
-    "typescript/no-unused-vars": "error",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ],
     "typescript/no-wrapper-object-types": "error",
     "typescript/only-throw-error": "error",
     "typescript/prefer-as-const": "error",
