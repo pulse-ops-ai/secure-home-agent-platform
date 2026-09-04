@@ -87,8 +87,17 @@ describe('minimal valid documents', () => {
       normalCompilerEntryPoints: ['typecheck', 'build'],
       platforms: ['ubuntu-24.04', 'ubuntu-24.04-arm'],
       installPosture: { onlyBuiltDependencies: [] },
-      maintenanceClasses: [{ id: 'lint-engine', allows: ['engine pin'] }],
-      protectedAuthorities: ['packages/lint-config/policy.json'],
+      maintenanceClasses: [
+        {
+          id: 'lint-engine',
+          allows: ['engine pin'],
+          allowedProjections: [
+            { path: 'pnpm-workspace.yaml', projection: 'catalog-pins', packages: ['oxlint'] },
+          ],
+        },
+      ],
+      protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
+      maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
       subjectIsolation: {
         deniedToSubject: ['GITHUB_TOKEN'],
         processBoundary: 'container',
@@ -285,8 +294,17 @@ describe('toolchain boundaries', () => {
     normalCompilerEntryPoints: ['typecheck'],
     platforms: ['ubuntu-24.04', 'ubuntu-24.04-arm'],
     installPosture: { onlyBuiltDependencies: [] },
-    maintenanceClasses: [{ id: 'lint-engine', allows: ['engine pin'] }],
-    protectedAuthorities: ['policy'],
+    maintenanceClasses: [
+      {
+        id: 'lint-engine',
+        allows: ['engine pin'],
+        allowedProjections: [
+          { path: 'pnpm-workspace.yaml', projection: 'catalog-pins', packages: ['oxlint'] },
+        ],
+      },
+    ],
+    protectedProjections: [{ path: 'policy', projection: 'bytes' }],
+    maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
     subjectIsolation: {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',
@@ -325,5 +343,54 @@ describe('the validator refuses what it cannot check', () => {
     expect(() => validate({}, { type: 'object', minProperties: 1 })).toThrow(
       /unsupported schema keyword "minProperties"/,
     )
+  })
+})
+
+describe('maintenance classes must carry exact projections', () => {
+  const boundaryBase = (): Record<string, unknown> => ({
+    schemaVersion: 1,
+    compatibilityConsumers: ['scripts/check-source-imports.mjs'],
+    platforms: ['ubuntu-24.04', 'ubuntu-24.04-arm'],
+    protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
+    maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
+    subjectIsolation: {
+      deniedToSubject: ['GITHUB_TOKEN'],
+      processBoundary: 'container',
+      containerControls: ['non-root'],
+    },
+  })
+
+  it('refuses a class that declares only prose', () => {
+    // `allows` is a human summary. A class whose admitted delta exists only as
+    // prose cannot be checked, and an unchecked class admits everything.
+    const doc = { ...boundaryBase(), maintenanceClasses: [{ id: 'x', allows: ['whatever'] }] }
+    expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(/allowedProjections/)
+  })
+
+  it('refuses an unknown projection kind', () => {
+    const doc = {
+      ...boundaryBase(),
+      maintenanceClasses: [
+        {
+          id: 'x',
+          allows: ['p'],
+          allowedProjections: [{ path: 'a', projection: 'trust-me' }],
+        },
+      ],
+    }
+    expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(/projection/)
+  })
+
+  it('refuses a document with no protected floor', () => {
+    const doc: Record<string, unknown> = { ...boundaryBase(), maintenanceClasses: [] }
+    delete doc['protectedProjections']
+    expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(/protectedProjections/)
+  })
+
+  it('refuses a document that names no verifier authority', () => {
+    const doc: Record<string, unknown> = boundaryBase()
+    delete doc['maintenanceVerifierAuthorities']
+    doc['maintenanceClasses'] = []
+    expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(/maintenanceVerifierAuthorities/)
   })
 })

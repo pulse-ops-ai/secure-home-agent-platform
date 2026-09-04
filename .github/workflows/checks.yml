@@ -177,6 +177,9 @@ jobs:
         # representative probes in the package's own suite cannot see that.
         run: pnpm run check:lint-policy
 
+      - name: Toolchain boundary policy
+        run: pnpm run check:toolchain-boundaries
+
       - name: Release history
         # CI knows the exact baseline; the script's local inference is for
         # developers, not for the gate. A SUPPLIED base is exclusive: if it does

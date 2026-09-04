@@ -3,11 +3,129 @@
   "compatibilityConsumers": ["scripts/check-source-imports.mjs"],
   "normalCompilerEntryPoints": ["typecheck", "build", "generate"],
   "platforms": ["ubuntu-24.04", "ubuntu-24.04-arm"],
-  "installPosture": { "onlyBuiltDependencies": [] },
+  "installPosture": {
+    "onlyBuiltDependencies": []
+  },
   "maintenanceClasses": [
     {
       "id": "lint-engine",
-      "allows": ["replacement engine pin", "per-engine mapping rows"]
+      "allows": [
+        "replacement engine pin",
+        "per-engine mapping rows",
+        "derived lock closure",
+        "generated engine projection"
+      ],
+      "allowedProjections": [
+        {
+          "path": "packages/lint-config/engine-mappings.json",
+          "projection": "mapping-detail",
+          "engines": ["replacement"]
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins",
+          "packages": ["oxlint"]
+        },
+        {
+          "path": "packages/lint-config/generated",
+          "projection": "tree-bytes",
+          "note": "generated engine configs are a mirror, regenerated from unchanged policy"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-closure",
+          "packages": ["oxlint"]
+        }
+      ],
+      "protectedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins-except",
+          "packages": ["oxlint"],
+          "note": "the compiler and the legacy engine do not move under this class"
+        }
+      ],
+      "lockRoots": ["oxlint"]
+    },
+    {
+      "id": "normal-compiler",
+      "allows": ["exact normal TypeScript pin", "derived lock closure"],
+      "allowedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins",
+          "packages": ["typescript"]
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-closure",
+          "packages": ["typescript"]
+        }
+      ],
+      "protectedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins-except",
+          "packages": ["typescript"]
+        }
+      ],
+      "lockRoots": ["typescript"],
+      "notes": "The compiler AUTHORITY stays the normal `typescript` package. Replacing it with the compatibility package or a lint type-check mode is not a version update."
+    },
+    {
+      "id": "compatibility-parser",
+      "allows": ["exact compatibility package pin", "derived lock closure"],
+      "allowedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins",
+          "packages": ["@typescript/typescript6"]
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-closure",
+          "packages": ["@typescript/typescript6"]
+        }
+      ],
+      "protectedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins-except",
+          "packages": ["@typescript/typescript6"]
+        }
+      ],
+      "lockRoots": ["@typescript/typescript6"]
+    },
+    {
+      "id": "normal-compiler-and-typed-lint",
+      "composite": true,
+      "composedOf": ["normal-compiler", "lint-engine"],
+      "allows": [
+        "exact normal TypeScript pin",
+        "matching oxlint-tsgolint typed-lint pin",
+        "derived lock closure of both roots"
+      ],
+      "allowedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins",
+          "packages": ["typescript", "oxlint-tsgolint"]
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-closure",
+          "packages": ["typescript", "oxlint-tsgolint"]
+        }
+      ],
+      "protectedProjections": [
+        {
+          "path": "pnpm-workspace.yaml",
+          "projection": "catalog-pins-except",
+          "packages": ["typescript", "oxlint-tsgolint"]
+        }
+      ],
+      "lockRoots": ["typescript", "oxlint-tsgolint"],
+      "notes": "The typed backend reads the TypeScript it is paired with, so these two pins cannot move separately. This class exists so that coupling has one named reviewed identity rather than being reached by unioning two classes."
     }
   ],
   "protectedAuthorities": [
@@ -20,5 +138,63 @@
     "processBoundary": "container",
     "containerControls": ["non-root", "read-only trusted mounts", "no-new-privileges"]
   },
-  "genesisState": "GENESIS_ONLY"
+  "genesisState": "GENESIS_ONLY",
+  "protectedProjections": [
+    {
+      "path": "packages/lint-config/policy.json",
+      "projection": "bytes",
+      "note": "semantic policy: ids, roles, options, blocking posture, dispositions"
+    },
+    {
+      "path": "packages/lint-config/engine-mappings.json",
+      "projection": "mapping-coverage",
+      "note": "every policy keeps a mapping for BOTH engines; vendor detail may move, coverage may not"
+    },
+    {
+      "path": "packages/lint-config/tests/fixtures",
+      "projection": "tree-bytes",
+      "note": "the conformance corpus, including _negative-controls"
+    },
+    {
+      "path": "packages/lint-config/policy.schema.json",
+      "projection": "bytes"
+    },
+    {
+      "path": "packages/lint-config/engine-mappings.schema.json",
+      "projection": "bytes"
+    },
+    {
+      "path": "scripts/toolchain-boundaries.json",
+      "projection": "bytes",
+      "note": "a candidate cannot widen the class that judges it"
+    },
+    {
+      "path": "scripts/toolchain-boundaries.schema.json",
+      "projection": "bytes"
+    },
+    {
+      "path": "packages/tsconfig",
+      "projection": "tree-bytes",
+      "note": "compiler policy: a relaxed shared option is not maintenance"
+    },
+    {
+      "path": ".prettierrc.json",
+      "projection": "bytes",
+      "note": "formatter authority"
+    },
+    {
+      "path": "scripts/check-source-imports.mjs",
+      "projection": "bytes",
+      "note": "architecture import gate"
+    },
+    {
+      "path": ".github/workflows/toolchain-platform.yml",
+      "projection": "bytes",
+      "note": "the native platform requirement"
+    }
+  ],
+  "maintenanceVerifierAuthorities": [
+    "scripts/check-toolchain-boundaries.mjs",
+    ".github/workflows/toolchain-maintenance-boundary.yml"
+  ]
 }

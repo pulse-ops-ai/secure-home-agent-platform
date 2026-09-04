@@ -73,11 +73,17 @@ if command -v node >/dev/null 2>&1; then
   # repository-wide member-role projection. Stdlib-only, so it runs beside the
   # other governance gates rather than behind the workspace toolchain.
   run "lint policy integrity" node packages/lint-config/src/check-policy.mjs
+  # Maintenance-class authority: the closed set of admissible tool-maintenance
+  # differences must be internally consistent at rest. A class that contradicts
+  # the protected floor is caught when it is written, not when an advisory
+  # response first needs it.
+  run "toolchain boundaries" node scripts/check-toolchain-boundaries.mjs
 else
   skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "openspec review history" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "lint policy integrity" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "toolchain boundaries" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------

@@ -17,6 +17,7 @@
     "check:knowledge": "node scripts/check-knowledge.mjs",
     "check:knowledge-content": "node scripts/check-knowledge-content.mjs",
     "check:lint-policy": "node packages/lint-config/src/check-policy.mjs",
+    "check:toolchain-boundaries": "node scripts/check-toolchain-boundaries.mjs",
     "check:openspec-schema": "OPENSPEC_TELEMETRY=0 openspec schema validate governed-spec-driven-v2",
     "check:release-history": "node scripts/check-release-history.mjs",
     "check:review-history": "node scripts/check-openspec-review-history.mjs",

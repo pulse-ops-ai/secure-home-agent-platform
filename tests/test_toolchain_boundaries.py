@@ -1,0 +1,705 @@
+"""Static invariants of the predecessor-bound maintenance authority.
+
+THE CONTRADICTION THIS COVERS. A maintenance class and a protected-authority
+list can disagree without either one looking wrong on its own. The boundary
+policy protected ``engine-mappings.json`` as a whole file while the
+``lint-engine`` class existed precisely to let per-engine mapping rows move. Read
+separately both are reasonable; together they mean no lint-engine update can
+ever be admitted, and the failure would surface only the first time somebody
+tried to respond to an advisory.
+
+The resolution is not an exception carved around a path-level rule. A projection
+is a function over content, so the same file is protected under
+``mapping-coverage`` -- every policy keeps a mapping for both engines -- and
+permitted under ``mapping-detail``. These tests hold that shape in place.
+
+Behavioural two-revision classification lives in
+``packages/lint-config/tests/maintenance-class.test.ts``; this module covers the
+properties the policy must hold at rest, plus the fact that this repository
+cannot admit itself.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+POLICY_PATH = REPO / "scripts" / "toolchain-boundaries.json"
+CHECKER = REPO / "scripts" / "check-toolchain-boundaries.mjs"
+
+
+@pytest.fixture(scope="module")
+def policy() -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads(POLICY_PATH.read_text())
+    return loaded
+
+
+def _run_checker(policy_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    """Run the real checker, optionally against a mutated policy copy."""
+    if policy_text is None:
+        return subprocess.run(["node", str(CHECKER)], capture_output=True, text=True, cwd=REPO)
+    original = POLICY_PATH.read_text()
+    try:
+        POLICY_PATH.write_text(policy_text)
+        return subprocess.run(["node", str(CHECKER)], capture_output=True, text=True, cwd=REPO)
+    finally:
+        POLICY_PATH.write_text(original)
+
+
+def test_the_committed_policy_is_self_consistent() -> None:
+    result = _run_checker()
+    assert result.returncode == 0, result.stderr
+    assert "closed maintenance classes" in result.stdout
+
+
+def test_engine_mappings_is_protected_by_coverage_not_bytes(policy: dict[str, Any]) -> None:
+    """The exact contradiction this task resolves."""
+    floor = {(entry["path"], entry["projection"]) for entry in policy["protectedProjections"]}
+    mappings = "packages/lint-config/engine-mappings.json"
+    assert (mappings, "mapping-coverage") in floor
+    assert (mappings, "bytes") not in floor, (
+        "byte-protecting the mapping file contradicts the lint-engine class, "
+        "which exists to let per-engine rows move"
+    )
+
+
+def test_semantic_policy_is_protected_wholesale(policy: dict[str, Any]) -> None:
+    """Mapping detail may move; semantic policy may not."""
+    floor = {(entry["path"], entry["projection"]) for entry in policy["protectedProjections"]}
+    assert ("packages/lint-config/policy.json", "bytes") in floor
+    assert ("packages/lint-config/tests/fixtures", "tree-bytes") in floor
+
+
+def test_no_class_admits_a_change_to_its_own_verifier(policy: dict[str, Any]) -> None:
+    verifiers = set(policy["maintenanceVerifierAuthorities"])
+    assert verifiers, "the judging authority must be named"
+    for klass in policy["maintenanceClasses"]:
+        for spec in klass["allowedProjections"]:
+            assert spec["path"] not in verifiers, (
+                f"class {klass['id']} would admit a change to {spec['path']}, "
+                "which is the authority that judges it"
+            )
+
+
+def test_the_composite_class_preserves_every_contributing_protection(
+    policy: dict[str, Any],
+) -> None:
+    classes = {k["id"]: k for k in policy["maintenanceClasses"]}
+    composites = [k for k in policy["maintenanceClasses"] if k.get("composite")]
+    assert composites, "the coupled compiler/typed-lint case needs a named class"
+    for klass in composites:
+        assert len(klass.get("composedOf", [])) >= 2
+        for parent_id in klass["composedOf"]:
+            parent = classes[parent_id]
+            for spec in parent.get("protectedProjections", []):
+                kept = any(
+                    s["path"] == spec["path"] and s["projection"] == spec["projection"]
+                    for s in klass.get("protectedProjections", [])
+                )
+                assert kept, (
+                    f"composite {klass['id']} drops {spec['projection']} of "
+                    f"{spec['path']} which {parent_id} protects"
+                )
+
+
+def test_coupled_pins_are_reachable_only_through_the_composite(policy: dict[str, Any]) -> None:
+    """Neither single class may move both pins; that is what the composite is for."""
+    single = [
+        k
+        for k in policy["maintenanceClasses"]
+        if not k.get("composite") and k["id"] in {"normal-compiler", "lint-engine"}
+    ]
+    for klass in single:
+        moved = {
+            pkg
+            for spec in klass["allowedProjections"]
+            if spec["projection"] == "catalog-pins"
+            for pkg in spec.get("packages", [])
+        }
+        assert not {"typescript", "oxlint-tsgolint"} <= moved, (
+            f"{klass['id']} alone admits the coupled change"
+        )
+
+
+def test_this_repository_cannot_classify_itself_as_maintenance(policy: dict[str, Any]) -> None:
+    """PR-B creates this authority under the full proof; it does not use it."""
+    assert policy["genesisState"] == "GENESIS_ONLY"
+
+
+def test_every_protected_path_exists_or_is_the_planned_verifier(policy: dict[str, Any]) -> None:
+    planned = {".github/workflows/toolchain-maintenance-boundary.yml"}
+    for entry in policy["protectedProjections"]:
+        path = REPO / entry["path"]
+        assert path.exists() or entry["path"] in planned, (
+            f"the floor protects {entry['path']}, which does not exist"
+        )
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate"),
+    [
+        (
+            "a class admits a change to the verifier",
+            lambda p: p["maintenanceClasses"][0]["allowedProjections"].append(
+                {"path": "scripts/check-toolchain-boundaries.mjs", "projection": "bytes"}
+            ),
+        ),
+        (
+            "the floor byte-protects a file a class must move",
+            lambda p: p["protectedProjections"].append(
+                {
+                    "path": "packages/lint-config/engine-mappings.json",
+                    "projection": "bytes",
+                }
+            ),
+        ),
+        (
+            "the composite drops a contributing protection",
+            lambda p: p["maintenanceClasses"][3].__setitem__("protectedProjections", []),
+        ),
+        (
+            "a composite names a class that does not exist",
+            lambda p: p["maintenanceClasses"][3].__setitem__(
+                "composedOf", ["normal-compiler", "no-such-class"]
+            ),
+        ),
+        (
+            "no verifier authority is named",
+            lambda p: p.__setitem__("maintenanceVerifierAuthorities", []),
+        ),
+    ],
+)
+def test_the_checker_refuses_a_contradictory_policy(
+    label: str, mutate: Callable[[dict[str, Any]], None]
+) -> None:
+    """Each mutation must be REFUSED. A checker that passes them checks nothing."""
+    mutated = json.loads(POLICY_PATH.read_text())
+    mutate(mutated)
+    assert mutated != json.loads(POLICY_PATH.read_text()), (
+        f"{label}: the mutation did not change the policy, so it is not evidence"
+    )
+    result = _run_checker(json.dumps(mutated, indent=2))
+    assert result.returncode != 0, f"{label} survived: {result.stdout}"
+
+
+# --- two-revision classification -------------------------------------------
+#
+# Driven through the real CLI rather than by importing the module. `scripts/` is
+# not a workspace member, so a package test that reached into it would breach the
+# architecture import gate -- and a plan file is what the trusted boundary will
+# actually hand over in task 1.16: candidate content as inert data.
+
+LC = "packages/lint-config/"
+
+
+def _mappings(replacement_rule: str, rows: tuple[str, ...] = ("no-var",)) -> str:
+    return json.dumps(
+        {
+            "mappings": [
+                row
+                for policy in rows
+                for row in (
+                    {
+                        "policy": policy,
+                        "engine": "legacy",
+                        "mechanism": "rule",
+                        "ruleName": policy,
+                    },
+                    {
+                        "policy": policy,
+                        "engine": "replacement",
+                        "mechanism": "rule",
+                        "ruleName": replacement_rule,
+                    },
+                )
+            ]
+        }
+    )
+
+
+def _catalog(pins: dict[str, str]) -> str:
+    body = "\n".join(f"  {name}: {version}" for name, version in pins.items())
+    return f"packages:\n  - packages/*\n\ncatalog:\n{body}\n"
+
+
+def _lock(entries: dict[str, list[str]]) -> str:
+    lines = ['lockfileVersion: "9.0"', "snapshots:"]
+    for key, deps in entries.items():
+        if not deps:
+            lines.append(f"  {key}: {{}}")
+            continue
+        lines.append(f"  {key}:")
+        lines.append("    dependencies:")
+        for dep in deps:
+            at = dep.rfind("@")
+            lines.append(f"      {dep[:at]}: {dep[at + 1 :]}")
+    return "\n".join(lines)
+
+
+OPERATIONAL_POLICY: dict[str, Any] = {
+    "schemaVersion": 1,
+    "genesisState": "OPERATIONAL",
+    "maintenanceVerifierAuthorities": [
+        "scripts/check-toolchain-boundaries.mjs",
+        ".github/workflows/toolchain-maintenance-boundary.yml",
+    ],
+    "protectedProjections": [
+        {"path": f"{LC}policy.json", "projection": "bytes"},
+        {"path": f"{LC}engine-mappings.json", "projection": "mapping-coverage"},
+        {"path": f"{LC}tests/fixtures", "projection": "tree-bytes"},
+        {"path": "packages/tsconfig", "projection": "tree-bytes"},
+        {"path": "scripts/toolchain-boundaries.json", "projection": "bytes"},
+    ],
+    "maintenanceClasses": [
+        {
+            "id": "lint-engine",
+            "allows": ["engine pin", "mapping rows"],
+            "allowedProjections": [
+                {
+                    "path": f"{LC}engine-mappings.json",
+                    "projection": "mapping-detail",
+                    "engines": ["replacement"],
+                },
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins",
+                    "packages": ["oxlint"],
+                },
+                {
+                    "path": "pnpm-lock.yaml",
+                    "projection": "lock-closure",
+                    "packages": ["oxlint"],
+                },
+            ],
+            "protectedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins-except",
+                    "packages": ["oxlint"],
+                }
+            ],
+            "lockRoots": ["oxlint"],
+        },
+        {
+            "id": "normal-compiler",
+            "allows": ["compiler pin"],
+            "allowedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins",
+                    "packages": ["typescript"],
+                }
+            ],
+            "protectedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins-except",
+                    "packages": ["typescript"],
+                }
+            ],
+        },
+        {
+            "id": "normal-compiler-and-typed-lint",
+            "composite": True,
+            "composedOf": ["normal-compiler", "lint-engine"],
+            "allows": ["coupled pins"],
+            "allowedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins",
+                    "packages": ["typescript", "oxlint-tsgolint"],
+                }
+            ],
+            "protectedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins-except",
+                    "packages": ["typescript", "oxlint-tsgolint"],
+                }
+            ],
+        },
+    ],
+}
+
+
+def _base_files() -> dict[str, str]:
+    return {
+        "scripts/toolchain-boundaries.json": json.dumps(OPERATIONAL_POLICY),
+        f"{LC}policy.json": json.dumps({"policies": [{"id": "no-var", "roles": ["library"]}]}),
+        f"{LC}engine-mappings.json": _mappings("no-var"),
+        f"{LC}tests/fixtures/core-policy/invalid/no-var.ts": "var x = 1\n",
+        f"{LC}tests/fixtures/_negative-controls/invalid/no-var.ts": "var y = 2\n",
+        "packages/tsconfig/base.json": '{"compilerOptions":{"strict":true}}',
+        "pnpm-workspace.yaml": _catalog(
+            {"typescript": "6.0.3", "oxlint": "1.80.0", "eslint": "10.8.0"}
+        ),
+        "pnpm-lock.yaml": _lock(
+            {
+                "oxlint@1.80.0": ["oxc-parser@1.0.0"],
+                "oxc-parser@1.0.0": [],
+                "eslint@10.8.0": [],
+            }
+        ),
+        "scripts/check-toolchain-boundaries.mjs": "// verifier bytes\n",
+    }
+
+
+def _with(overrides: dict[str, str | None]) -> dict[str, str]:
+    files = _base_files()
+    for key, value in overrides.items():
+        if value is None:
+            files.pop(key, None)
+        else:
+            files[key] = value
+    return files
+
+
+def _classify(
+    tmp_path: Path,
+    candidate_files: dict[str, str],
+    class_id: str = "lint-engine",
+    predecessor_files: dict[str, str] | None = None,
+    universe: list[str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    predecessor = _base_files() if predecessor_files is None else predecessor_files
+    plan = {
+        "classId": class_id,
+        "predecessor": {"id": "predecessor", "files": predecessor},
+        "candidate": {"id": "candidate", "files": candidate_files},
+        "universe": sorted(set(predecessor) | set(candidate_files))
+        if universe is None
+        else universe,
+    }
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
+    return subprocess.run(
+        ["node", str(CHECKER), "--plan", str(plan_path)],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+
+def test_admits_an_engine_pin_with_a_legitimate_mapping_update(tmp_path: Path) -> None:
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {"typescript": "6.0.3", "oxlint": "1.81.0", "eslint": "10.8.0"}
+                ),
+                f"{LC}engine-mappings.json": _mappings("no-var-renamed"),
+                "pnpm-lock.yaml": _lock(
+                    {
+                        "oxlint@1.81.0": ["oxc-parser@1.1.0"],
+                        "oxc-parser@1.1.0": [],
+                        "eslint@10.8.0": [],
+                    }
+                ),
+            }
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["classId"] == "lint-engine"
+
+
+def test_admits_a_change_that_moves_nothing(tmp_path: Path) -> None:
+    result = _classify(tmp_path, _base_files())
+    assert result.returncode == 0, result.stderr
+
+
+def test_admits_the_coupled_change_only_through_the_composite(tmp_path: Path) -> None:
+    coupled = _with(
+        {
+            "pnpm-workspace.yaml": _catalog(
+                {
+                    "typescript": "7.0.3",
+                    "oxlint": "1.80.0",
+                    "eslint": "10.8.0",
+                    "oxlint-tsgolint": "7.0.2002",
+                }
+            )
+        }
+    )
+    for single in ("normal-compiler", "lint-engine"):
+        refused = _classify(tmp_path, coupled, class_id=single)
+        assert refused.returncode != 0, f"{single} alone admitted the coupled change"
+
+    admitted = _classify(tmp_path, coupled, class_id="normal-compiler-and-typed-lint")
+    assert admitted.returncode == 0, admitted.stderr
+    assert json.loads(admitted.stdout)["composite"] is True
+
+
+@pytest.mark.parametrize(
+    ("label", "candidate", "class_id", "expected_code"),
+    [
+        (
+            "policy row and its only fixture deleted together",
+            lambda: _with(
+                {
+                    f"{LC}policy.json": json.dumps({"policies": []}),
+                    f"{LC}engine-mappings.json": _mappings("no-var", ()),
+                    f"{LC}tests/fixtures/core-policy/invalid/no-var.ts": None,
+                    f"{LC}tests/fixtures/_negative-controls/invalid/no-var.ts": None,
+                }
+            ),
+            "lint-engine",
+            "UNDECLARED_CHANGE",
+        ),
+        (
+            "a policy loses its mapping while the file legitimately changes",
+            lambda: _with(
+                {
+                    f"{LC}engine-mappings.json": json.dumps(
+                        {
+                            "mappings": [
+                                {
+                                    "policy": "no-var",
+                                    "engine": "legacy",
+                                    "mechanism": "rule",
+                                    "ruleName": "no-var",
+                                }
+                            ]
+                        }
+                    )
+                }
+            ),
+            "lint-engine",
+            "PROTECTED_DRIFT",
+        ),
+        (
+            "a weakened semantic role assignment",
+            lambda: _with(
+                {f"{LC}policy.json": json.dumps({"policies": [{"id": "no-var", "roles": []}]})}
+            ),
+            "lint-engine",
+            "UNDECLARED_CHANGE",
+        ),
+        (
+            "a protected fixture byte changes",
+            lambda: _with({f"{LC}tests/fixtures/core-policy/invalid/no-var.ts": "let x = 1\n"}),
+            "lint-engine",
+            "UNDECLARED_CHANGE",
+        ),
+        (
+            "a compiler pin that also relaxes compiler policy",
+            lambda: _with(
+                {
+                    "pnpm-workspace.yaml": _catalog(
+                        {"typescript": "6.0.4", "oxlint": "1.80.0", "eslint": "10.8.0"}
+                    ),
+                    "packages/tsconfig/base.json": '{"compilerOptions":{"strict":false}}',
+                }
+            ),
+            "normal-compiler",
+            "UNDECLARED_CHANGE",
+        ),
+        (
+            "an unknown class",
+            _base_files,
+            "whatever-i-like",
+            "UNKNOWN_CLASS",
+        ),
+        (
+            "the candidate edits its own class to widen authority",
+            lambda: _with(
+                {
+                    "scripts/toolchain-boundaries.json": json.dumps(
+                        {
+                            **OPERATIONAL_POLICY,
+                            "maintenanceClasses": [
+                                {
+                                    **OPERATIONAL_POLICY["maintenanceClasses"][0],
+                                    "allowedProjections": [
+                                        *OPERATIONAL_POLICY["maintenanceClasses"][0][
+                                            "allowedProjections"
+                                        ],
+                                        {"path": f"{LC}policy.json", "projection": "bytes"},
+                                    ],
+                                },
+                                *OPERATIONAL_POLICY["maintenanceClasses"][1:],
+                            ],
+                        }
+                    ),
+                    f"{LC}policy.json": json.dumps({"policies": []}),
+                }
+            ),
+            "lint-engine",
+            "UNDECLARED_CHANGE",
+        ),
+        (
+            "lockfile movement outside the derived closure",
+            lambda: _with(
+                {
+                    "pnpm-workspace.yaml": _catalog(
+                        {"typescript": "6.0.3", "oxlint": "1.81.0", "eslint": "10.8.0"}
+                    ),
+                    "pnpm-lock.yaml": _lock(
+                        {
+                            "oxlint@1.81.0": ["oxc-parser@1.0.0"],
+                            "oxc-parser@1.0.0": [],
+                            "eslint@10.8.0": ["something-new@9.9.9"],
+                            "something-new@9.9.9": [],
+                        }
+                    ),
+                }
+            ),
+            "lint-engine",
+            "LOCK_MOVEMENT_OUTSIDE_CLOSURE",
+        ),
+        (
+            "a change to the authority that judges it",
+            lambda: _with({"scripts/check-toolchain-boundaries.mjs": "// rewritten\n"}),
+            "lint-engine",
+            "UNDECLARED_CHANGE",
+        ),
+    ],
+)
+def test_a_maintenance_claim_fails_closed(
+    tmp_path: Path,
+    label: str,
+    candidate: Callable[[], dict[str, str]],
+    class_id: str,
+    expected_code: str,
+) -> None:
+    result = _classify(tmp_path, candidate(), class_id=class_id)
+    assert result.returncode != 0, f"{label} was admitted"
+    assert json.loads(result.stderr)["code"] == expected_code, label
+
+
+def test_the_verifier_is_protected_even_if_the_caller_omits_it(tmp_path: Path) -> None:
+    """The caller supplies the universe, so a narrow one must not hide tampering."""
+    result = _classify(
+        tmp_path,
+        _with({"scripts/check-toolchain-boundaries.mjs": "// rewritten\n"}),
+        universe=[p for p in _base_files() if p != "scripts/check-toolchain-boundaries.mjs"],
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_an_unresolvable_predecessor_fails_closed(tmp_path: Path) -> None:
+    result = _classify(tmp_path, _base_files(), predecessor_files={})
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "UNREADABLE_AUTHORITY"
+
+
+def test_an_unreadable_predecessor_policy_fails_closed(tmp_path: Path) -> None:
+    result = _classify(
+        tmp_path,
+        _base_files(),
+        predecessor_files={"scripts/toolchain-boundaries.json": "{ not json"},
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "MALFORMED_AUTHORITY"
+
+
+def test_a_genesis_predecessor_admits_nothing(tmp_path: Path) -> None:
+    """PR-B creates this authority under the full proof; it does not use it."""
+    genesis = {**OPERATIONAL_POLICY, "genesisState": "GENESIS_ONLY"}
+    result = _classify(
+        tmp_path,
+        _base_files(),
+        predecessor_files={
+            **_base_files(),
+            "scripts/toolchain-boundaries.json": json.dumps(genesis),
+        },
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "GENESIS_ONLY"
+
+
+def test_roots_that_resolve_to_nothing_fail_closed(tmp_path: Path) -> None:
+    policy = json.loads(json.dumps(OPERATIONAL_POLICY))
+    policy["maintenanceClasses"][0]["lockRoots"] = ["not-a-real-package"]
+    predecessor = {**_base_files(), "scripts/toolchain-boundaries.json": json.dumps(policy)}
+    candidate = {
+        **predecessor,
+        "pnpm-lock.yaml": _lock({"oxlint@1.81.0": [], "eslint@10.8.0": []}),
+    }
+    result = _classify(tmp_path, candidate, predecessor_files=predecessor)
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "MALFORMED_AUTHORITY"
+
+
+# --- the readers, grounded in the repository's own lockfile -----------------
+
+
+@pytest.fixture(scope="module")
+def real_lock() -> dict[str, Any]:
+    result = subprocess.run(
+        [
+            "node",
+            str(CHECKER),
+            "--inspect-lock",
+            "pnpm-lock.yaml",
+            "--roots",
+            "oxlint,typescript,oxlint-tsgolint,@typescript/typescript6",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+    assert result.returncode == 0, result.stderr
+    parsed: dict[str, Any] = json.loads(result.stdout)
+    return parsed
+
+
+def test_the_real_lockfile_parses_with_no_dangling_edge(real_lock: dict[str, Any]) -> None:
+    """Synthetic fixtures hid an inline-empty snapshot form and an alias edge."""
+    assert real_lock["snapshots"] > 300
+    assert real_lock["dangling"] == []
+
+
+@pytest.mark.parametrize(
+    ("root", "expected_member"),
+    [
+        ("oxlint", "oxlint@1.80.0(oxlint-tsgolint@7.0.2001)"),
+        ("typescript", "typescript@6.0.3"),
+        ("oxlint-tsgolint", "oxlint-tsgolint@7.0.2001"),
+        ("@typescript/typescript6", "@typescript/typescript6@6.0.2"),
+    ],
+)
+def test_real_roots_derive_a_non_empty_closure(
+    real_lock: dict[str, Any], root: str, expected_member: str
+) -> None:
+    closure = real_lock["closure"][root]
+    assert closure, f"{root} resolved to nothing"
+    assert expected_member in closure
+
+
+def test_an_aliased_dependency_resolves_to_its_real_target(real_lock: dict[str, Any]) -> None:
+    """The compatibility package aliases the real compiler."""
+    assert real_lock["closure"]["@typescript/typescript6"] == [
+        "@typescript/typescript6@6.0.2",
+        "typescript@6.0.3",
+    ]
+
+
+def test_a_union_of_two_classes_is_refused(tmp_path: Path) -> None:
+    """Classes are a CLOSED set. A coupled change needs one named composite,
+    not two classes added together -- otherwise every protection is escapable
+    by naming a second class that happens to permit the thing the first forbids.
+    """
+    plan = {
+        "classId": ["lint-engine", "normal-compiler"],
+        "predecessor": {"id": "predecessor", "files": _base_files()},
+        "candidate": {"id": "candidate", "files": _base_files()},
+        "universe": sorted(_base_files()),
+    }
+    plan_path = tmp_path / "union.json"
+    plan_path.write_text(json.dumps(plan))
+    result = subprocess.run(
+        ["node", str(CHECKER), "--plan", str(plan_path)],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "CLASS_COMPOSITION_REFUSED"
