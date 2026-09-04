@@ -199,6 +199,9 @@ export function loadAuthorities(root = PACKAGE_ROOT) {
   }
 }
 
+/** Shards whose policies cannot be decided without type information. */
+export const TYPED_SHARDS = new Set(['typescript-typed-control', 'typescript-typed-unsafe'])
+
 /** Both engines, both fixtures, one policy. */
 export async function parityFor(policy, legacy, replacement, configPath) {
   const valid = fixturePath(policy.proof.valid)
@@ -210,10 +213,18 @@ export async function parityFor(policy, legacy, replacement, configPath) {
   // harness would report that the policy is not enforced -- when what is not
   // enforced is the empty configuration it was handed.
   const options = legacy.engineOptions ?? policy.options?.values
-  const legacyInvalid = await legacyDiagnostics(invalid, legacy.ruleId, options)
-  const legacyValid = await legacyDiagnostics(valid, legacy.ruleId, options)
-  const replacementInvalid = replacementDiagnostics(invalid, configPath)
-  const replacementValid = replacementDiagnostics(valid, configPath)
+
+  // Typed policies go through the TYPED backends on both sides. Falling back to
+  // the static path for either one would compare a typed answer against a
+  // no-answer and call the result parity.
+  const typed = TYPED_SHARDS.has(policy.proof.shard)
+  const legacyRun = typed ? legacyTypedDiagnostics : legacyDiagnostics
+  const replacementRun = typed ? replacementTypedDiagnostics : replacementDiagnostics
+
+  const legacyInvalid = await legacyRun(invalid, legacy.ruleId, options)
+  const legacyValid = await legacyRun(valid, legacy.ruleId, options)
+  const replacementInvalid = replacementRun(invalid, configPath)
+  const replacementValid = replacementRun(valid, configPath)
 
   const replacementRule = replacement.ruleId
   const bare =
@@ -292,4 +303,101 @@ export function replacementFixOutput(text, extension, configPath) {
     // written, and the written bytes are what this measures.
   }
   return readFileSync(file, 'utf8')
+}
+
+// ── typed execution ─────────────────────────────────────────────────────────
+
+/** The fixture corpus's own type environment, loaded only by this harness. */
+export const FIXTURE_TSCONFIG = path.join(FIXTURE_ROOT, 'tsconfig.json')
+
+export class TypedBackendUnavailable extends Error {}
+
+/**
+ * Legacy typed lint, with a REAL TypeScript program.
+ *
+ * A typed rule cannot be decided without types: `await-thenable` has to know
+ * whether the awaited value is a promise. Running it without a program does not
+ * produce a wrong answer, it produces NO answer -- and a rule that reports
+ * nothing is indistinguishable from a rule that found nothing.
+ *
+ * So a missing or unusable project is thrown, never absorbed. The suite must
+ * fail because typed execution disappeared, not quietly pass because the
+ * expected diagnostic did.
+ */
+export async function legacyTypedDiagnostics(file, ruleId, options) {
+  if (!existsSync(FIXTURE_TSCONFIG)) {
+    throw new TypedBackendUnavailable(
+      `the fixture type environment is missing at ${FIXTURE_TSCONFIG}; typed lint ` +
+        'cannot run, and a static fallback would report nothing while looking like a pass',
+    )
+  }
+  const rules =
+    ruleId === undefined
+      ? {}
+      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
+  const eslint = new ESLint({
+    cwd: FIXTURE_ROOT,
+    overrideConfigFile: true,
+    overrideConfig: {
+      files: ['**/*.ts'],
+      plugins: pluginsFor(ruleId),
+      languageOptions: {
+        parser: tseslint.parser,
+        parserOptions: {
+          ecmaVersion: 2023,
+          sourceType: 'module',
+          project: FIXTURE_TSCONFIG,
+          tsconfigRootDir: FIXTURE_ROOT,
+        },
+      },
+      rules,
+    },
+  })
+  const [result] = await eslint.lintFiles([file])
+  const messages = result?.messages ?? []
+  const fatal = messages.filter((m) => m.fatal === true).map((m) => m.message)
+  // A parser that could not build a program says so fatally. That is a backend
+  // failure, not a lint result.
+  if (fatal.some((m) => /project|tsconfig|program|type information/i.test(m))) {
+    throw new TypedBackendUnavailable(`typed lint could not initialize: ${fatal.join('; ')}`)
+  }
+  return {
+    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
+    fatalMessages: fatal,
+  }
+}
+
+/**
+ * Replacement typed lint, through the engine's own type-aware backend.
+ *
+ * `--type-aware` is required: without it the typed rules are simply not run,
+ * and the engine exits clean. Treating that as "no violations" would be the
+ * silent downgrade this whole harness exists to prevent, so absence of the
+ * backend is an error rather than an empty result.
+ */
+export function replacementTypedDiagnostics(file, configPath) {
+  let out = ''
+  let failed = false
+  try {
+    out = execFileSync(OXLINT, ['--type-aware', '--config', configPath, file], {
+      cwd: FIXTURE_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    failed = true
+    out = `${String(error.stdout ?? '')}${String(error.stderr ?? '')}`
+  }
+  if (
+    /tsgolint|type-aware|not (?:found|installed)/i.test(out) &&
+    /error|failed|cannot/i.test(out)
+  ) {
+    throw new TypedBackendUnavailable(`the replacement typed backend did not run: ${out.trim()}`)
+  }
+  void failed
+  return {
+    rules: [...out.matchAll(/\b(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)/g)].map((m) => m[1]),
+    parseErrors: [...out.matchAll(/^.*: error: (?!\w+\()(.+)$/gm)].map((m) => m[1].trim()),
+    raw: out,
+  }
 }
