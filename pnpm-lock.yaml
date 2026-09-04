@@ -398,7 +398,10 @@ importers:
         version: 8.66.0(eslint@10.8.0)(typescript@6.0.3)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.9.0))
+        version: 4.1.10(@types/node@24.10.1)(vite@8.2.0(@types/node@24.10.1)(yaml@2.8.2))
+      yaml:
+        specifier: 'catalog:'
+        version: 2.8.2
 
   packages/logging:
     devDependencies:
