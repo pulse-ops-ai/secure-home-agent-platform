@@ -281,40 +281,6 @@ export function checkPolicyDrift(policy, mappings, liveRows, deriveId) {
   return problems
 }
 
-// ── CLI ─────────────────────────────────────────────────────────────────────
-
-const invokedDirectly = (() => {
-  try {
-    return process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]
-  } catch {
-    return false
-  }
-})()
-
-if (invokedDirectly) {
-  const here = fileURLToPath(new URL('..', import.meta.url))
-  const read = (name) => JSON.parse(readFileSync(path.join(here, name), 'utf8'))
-
-  const problems = [
-    ...checkMemberRoles(REPO_ROOT),
-    ...checkReferentialIntegrity(read('policy.json'), read('engine-mappings.json')),
-  ]
-
-  // Drift needs the engine, which needs an install. It is checked in the
-  // package's own test run, where the toolchain is guaranteed present; running
-  // it here too would make this gate depend on a resolved workspace.
-  if (problems.length > 0) {
-    console.error(`✗ lint policy integrity — ${problems.length} problem(s)\n`)
-    for (const problem of problems) console.error(`    ${problem}`)
-    process.exit(1)
-  }
-  const policy = read('policy.json')
-  console.log(
-    `✓ lint policy integrity — ${policy.policies.length} policies, ` +
-      `${members(REPO_ROOT).length} members on their projected roles`,
-  )
-}
-
 // ── generated-authority byte identity ───────────────────────────────────────
 
 /**
@@ -343,4 +309,137 @@ export async function checkGeneratedDrift(entries, canonicalize) {
     }
   }
   return problems
+}
+
+// ── the conformance-fixture class, across every reader ──────────────────────
+
+/**
+ * Where the deliberately-invalid evidence corpus lives.
+ *
+ * `_negative-controls` is part of the class: it holds fixtures whose intended
+ * violation was REMOVED and replaced by an unrelated syntax error, so it is
+ * exactly as unfit for ordinary lint, formatting, and compilation as the rest.
+ */
+export const FIXTURE_CLASS = ['tests/fixtures', 'tests/fixtures/_negative-controls']
+
+/**
+ * Four readers exclude the corpus, for four DIFFERENT reasons, and a fifth
+ * consumes it deliberately.
+ *
+ * These are separate authorities, not duplicated ones: the formatter, the
+ * compiler, the lint engine, and the architecture scanner each have their own
+ * reason to skip a file that is invalid on purpose. That is why they are four
+ * strings rather than one setting.
+ *
+ * But four strings can silently diverge. Delete any one and the corpus starts
+ * failing a gate it was never meant to face, or -- worse -- the harness stops
+ * seeing the evidence and every parity result becomes vacuous while staying
+ * green. So the projection is checked rather than trusted.
+ */
+export function checkFixtureProjection(repoRoot = REPO_ROOT) {
+  const problems = []
+  const read = (rel) => {
+    const full = path.join(repoRoot, rel)
+    return existsSync(full) ? readFileSync(full, 'utf8') : undefined
+  }
+
+  const readers = [
+    {
+      name: 'lint discovery',
+      file: 'packages/eslint-config/base.js',
+      why: 'linting the corpus fails the build on the very violations it proves',
+      matches: (text) => /\*\*\/tests\/fixtures\/\*\*/.test(text),
+    },
+    {
+      name: 'Prettier',
+      file: '.prettierignore',
+      why: 'formatting repairs the violation and destroys the evidence',
+      matches: (text) => /packages\/lint-config\/tests\/fixtures\//.test(text),
+    },
+    {
+      name: 'the package compiler project',
+      file: 'packages/lint-config/tsconfig.json',
+      why: 'type-checking the corpus fails on deliberate type errors',
+      matches: (text) => {
+        const parsed = JSON.parse(text)
+        return (parsed.exclude ?? []).some((entry) => entry.startsWith('tests/fixtures'))
+      },
+    },
+    {
+      name: 'source-import scanning',
+      file: 'scripts/check-source-imports.mjs',
+      why: 'a deliberate syntax error has no parseable imports to govern',
+      matches: (text) => /tests\/fixtures/.test(text),
+    },
+  ]
+
+  for (const reader of readers) {
+    const text = read(reader.file)
+    if (text === undefined) {
+      problems.push(`${reader.name}: ${reader.file} is missing, so its exclusion cannot be checked`)
+      continue
+    }
+    if (!reader.matches(text)) {
+      problems.push(
+        `${reader.name} no longer excludes the conformance corpus (${reader.file}). ` +
+          `It must, because ${reader.why}`,
+      )
+    }
+  }
+
+  // The fifth reader, and the one that must NOT exclude it. A corpus nothing
+  // consumes proves nothing, and the failure is silent: every parity assertion
+  // would still pass, against no evidence.
+  const harness = read('packages/lint-config/src/run-parity.mjs')
+  if (harness === undefined) {
+    problems.push('the parity harness is missing, so nothing consumes the corpus')
+  } else if (!/'tests',\s*'fixtures'|tests\/fixtures/.test(harness)) {
+    problems.push(
+      'the parity harness no longer points at the conformance corpus. Every parity ' +
+        'result would still pass, against no evidence',
+    )
+  }
+
+  for (const rel of FIXTURE_CLASS) {
+    if (!existsSync(path.join(repoRoot, 'packages/lint-config', rel))) {
+      problems.push(`${rel} is part of the fixture class but does not exist`)
+    }
+  }
+
+  return problems
+}
+
+// ── CLI ─────────────────────────────────────────────────────────────────────
+
+const invokedDirectly = (() => {
+  try {
+    return process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]
+  } catch {
+    return false
+  }
+})()
+
+if (invokedDirectly) {
+  const here = fileURLToPath(new URL('..', import.meta.url))
+  const read = (name) => JSON.parse(readFileSync(path.join(here, name), 'utf8'))
+
+  const problems = [
+    ...checkMemberRoles(REPO_ROOT),
+    ...checkReferentialIntegrity(read('policy.json'), read('engine-mappings.json')),
+    ...checkFixtureProjection(REPO_ROOT),
+  ]
+
+  // Drift needs the engine, which needs an install. It is checked in the
+  // package's own test run, where the toolchain is guaranteed present; running
+  // it here too would make this gate depend on a resolved workspace.
+  if (problems.length > 0) {
+    console.error(`✗ lint policy integrity — ${problems.length} problem(s)\n`)
+    for (const problem of problems) console.error(`    ${problem}`)
+    process.exit(1)
+  }
+  const policy = read('policy.json')
+  console.log(
+    `✓ lint policy integrity — ${policy.policies.length} policies, ` +
+      `${members(REPO_ROOT).length} members on their projected roles`,
+  )
 }
