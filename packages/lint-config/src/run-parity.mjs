@@ -202,6 +202,176 @@ export function loadAuthorities(root = PACKAGE_ROOT) {
 /** Shards whose policies cannot be decided without type information. */
 export const TYPED_SHARDS = new Set(['typescript-typed-control', 'typescript-typed-unsafe'])
 
+// ── role behaviour ──────────────────────────────────────────────────────────
+
+/** The role fixtures: one source, judged under every role (task 1.11). */
+export const ROLE_FIXTURE_ROOT = path.join(FIXTURE_ROOT, 'roles')
+
+/**
+ * The legacy rule ids that cannot run without a program, by the rules' OWN
+ * declaration (`meta.docs.requiresTypeChecking`).
+ *
+ * Role behaviour is proved on the STATIC path: a role fixture is one file with
+ * no project behind it, so a typed rule would give no answer there rather than
+ * a wrong one. The typed policies' role differences are asserted from the
+ * oracle's resolved configuration instead; these ids are what the static role
+ * run leaves out, explicitly, so the omission is a list and not an accident.
+ *
+ * Not the typed SHARDS: shard allocation derives type-awareness from the
+ * oracle, and a static rule the JavaScript-config override switches off
+ * (`explicit-module-boundary-types`) lands in a typed shard that way. That is
+ * harmless for the shard, which runs with a program, and wrong for the role
+ * run, which would silently drop a static rule it must exercise.
+ */
+export function typedLegacyRuleIds(mappings) {
+  const typed = new Set()
+  for (const mapping of mappings.mappings) {
+    if (mapping.engine !== 'legacy' || mapping.ruleId === undefined) continue
+    if (!mapping.ruleId.startsWith('@typescript-eslint/')) continue
+    const rule = tseslint.plugin.rules[mapping.ruleId.slice('@typescript-eslint/'.length)]
+    if (rule?.meta?.docs?.requiresTypeChecking === true) typed.add(mapping.ruleId)
+  }
+  return typed
+}
+
+/**
+ * The legacy engine's static rule set for one role, from the oracle's rows.
+ *
+ * The rows are what `calculateConfigForFile` resolved for the role's
+ * representative file -- the same answer the linter gives that file -- so
+ * linting a fixture under them is linting it AS that role, minus the typed
+ * rules named above. Options travel with each rule: a restriction rule with
+ * no restrictions permits everything.
+ */
+export function legacyRulesForRole(rows, role, typed) {
+  const rules = {}
+  for (const row of rows) {
+    if (!row.roles.includes(role) || typed.has(row.ruleId)) continue
+    rules[row.ruleId] = ['error', ...(row.options?.[role] ?? [])]
+  }
+  return rules
+}
+
+/**
+ * Legacy diagnostics for one file under a whole rule set, as rule ids.
+ *
+ * The TypeScript parser for JavaScript too, with type checking off: that is
+ * what the repository's own JavaScript block does (`disableTypeChecked` keeps
+ * the parser and drops the program), and a static TypeScript rule that is
+ * enabled for the JavaScript-config role loads only against that parser.
+ */
+export async function legacyDiagnosticsForRules(file, rules) {
+  const plugins = Object.keys(rules).some((id) => id.startsWith('@typescript-eslint/'))
+    ? { '@typescript-eslint': tseslint.plugin }
+    : {}
+  const eslint = new ESLint({
+    cwd: PACKAGE_ROOT,
+    overrideConfigFile: true,
+    overrideConfig: {
+      files: ['**/*.ts', '**/*.js'],
+      plugins,
+      languageOptions: {
+        parser: tseslint.parser,
+        parserOptions: {
+          ecmaVersion: 2023,
+          sourceType: 'module',
+          project: false,
+          projectService: false,
+        },
+      },
+      rules,
+    },
+  })
+  const [result] = await eslint.lintFiles([file])
+  const messages = result?.messages ?? []
+  return {
+    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
+    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
+  }
+}
+
+/**
+ * One fixture under one role, both engines: did each engine report the
+ * policy? Keyed by POLICY id, with each engine's own rule id resolved through
+ * the mappings, exactly as the shard parity does.
+ */
+export async function roleObservation({
+  file,
+  role,
+  policyIds,
+  rows,
+  policy,
+  mappings,
+  legacyRules,
+  replacementConfig,
+}) {
+  const legacy = new Map(
+    mappings.mappings.filter((m) => m.engine === 'legacy').map((m) => [m.policy, m]),
+  )
+  const replacement = new Map(
+    mappings.mappings.filter((m) => m.engine === 'replacement').map((m) => [m.policy, m]),
+  )
+  const legacyOut = await legacyDiagnosticsForRules(
+    file,
+    legacyRules ?? legacyRulesForRole(rows, role, typedLegacyRuleIds(mappings)),
+  )
+  const replacementOut = replacementDiagnostics(file, replacementConfig ?? configForRole(role))
+  const observed = {}
+  for (const id of policyIds) {
+    const legacyRule = legacy.get(id)?.ruleId
+    const replacementRule = replacement.get(id)?.ruleId
+    const bare =
+      replacementRule === undefined
+        ? undefined
+        : replacementRule.includes('/')
+          ? replacementRule.slice(replacementRule.lastIndexOf('/') + 1)
+          : replacementRule
+    observed[id] = {
+      legacy: legacyOut.rules.includes(legacyRule),
+      replacement: replacementOut.rules.includes(bare),
+    }
+  }
+  return { file, role, observed, detail: { legacyOut, replacementOut } }
+}
+
+/**
+ * The matrix judgement, pure so it can be driven with a mutated observation.
+ *
+ * `expectations` maps a policy id to the roles that must REJECT the fixture;
+ * every other role in `roles` must accept it. A role that stops rejecting
+ * what it must (the process exception broadened beyond the adapter entry) and
+ * a role that starts rejecting what it must not (the library's restrictions
+ * leaking into a service) are both problems, on either engine.
+ */
+export function roleMatrixProblems(observations, expectations, roles) {
+  const problems = []
+  for (const [policyId, rejecting] of Object.entries(expectations)) {
+    for (const role of roles) {
+      const observation = observations.find((o) => o.role === role)
+      if (observation === undefined) {
+        problems.push(`${policyId}: no observation for the "${role}" role`)
+        continue
+      }
+      const seen = observation.observed[policyId]
+      if (seen === undefined) {
+        problems.push(`${policyId}: the "${role}" observation carries no verdict for it`)
+        continue
+      }
+      const mustReject = rejecting.includes(role)
+      for (const engine of ['legacy', 'replacement']) {
+        if (seen[engine] !== mustReject) {
+          problems.push(
+            `${policyId}: the ${engine} engine ${seen[engine] ? 'rejected' : 'accepted'} ` +
+              `${path.basename(observation.file)} under the "${role}" role, which must ` +
+              `${mustReject ? 'reject' : 'accept'} it`,
+          )
+        }
+      }
+    }
+  }
+  return problems
+}
+
 /** Both engines, both fixtures, one policy. */
 export async function parityFor(policy, legacy, replacement, configPath) {
   const valid = fixturePath(policy.proof.valid)

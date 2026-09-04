@@ -104,6 +104,33 @@ export function declaredRoleOf(repoRoot, rel) {
 }
 
 /**
+ * The local overrides a member config carries, parsed from its bytes.
+ *
+ * Each is the `files` list and the rules inside the same block. Parsing the
+ * source rather than resolving it keeps this dependency-free and, more to the
+ * point, catches the override as WRITTEN: a second glob entry or a fourth
+ * relaxed rule is a broadening whether or not any file matches it today.
+ */
+export function localOverridesOf(text) {
+  const overrides = []
+  const blocks = text.matchAll(/files:\s*\[([^\]]*)\](?:[^{}]*rules:\s*\{([^}]*)\})?/g)
+  for (const [, files, rules] of blocks) {
+    const globs = files
+      .split(',')
+      .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+      .filter((s) => s.length > 0)
+    const entries =
+      rules === undefined
+        ? undefined
+        : [...rules.matchAll(/['"]?([@\w/-]+)['"]?\s*:\s*(['"][\w-]+['"]|[\w[{]+)/g)].map(
+            ([, rule, value]) => ({ rule, value: value.replace(/^['"]|['"]$/g, '') }),
+          )
+    overrides.push({ globs, rules: entries })
+  }
+  return overrides
+}
+
+/**
  * Every member's assignment, checked against the projection.
  *
  * Returns problems rather than throwing, so one run reports the whole picture.
@@ -155,22 +182,176 @@ export function checkMemberRoles(repoRoot = REPO_ROOT) {
       )
     }
 
-    // The one admitted override. Anything else is an undeclared local policy.
-    const overrides = [...declared.text.matchAll(/files:\s*\[([^\]]*)\]/g)].map((m) => m[1])
-    for (const files of overrides) {
-      const isAdapterBin =
-        rel.startsWith(ADAPTER_BIN_OVERRIDE.prefix) && files.includes(ADAPTER_BIN_OVERRIDE.files)
-      if (!isAdapterBin) {
+    // The exported test role is consumed by NO member today. A member that
+    // starts composing it moves every one of its tests onto a more permissive
+    // contract, so that is a reviewed decision and never a quiet config edit
+    // (REQ-LP-004; ADV-ROLE-002).
+    if (/@secure-home\/eslint-config\/test\b/.test(declared.text)) {
+      problems.push(
+        `${rel}: eslint.config.js composes the exported test role. No member consumes it; ` +
+          `its relaxations reaching a member's tests is a reviewed decision, not a config edit`,
+      )
+    }
+
+    // The one admitted override, EXACTLY: the adapter's `src/bin.ts` and no
+    // other glob beside it, relaxing the three process-boundary rules and
+    // nothing else, to `off` and nothing else. A second glob entry or a fourth
+    // rule is a broadening whether or not anything matches it yet
+    // (ADV-ROLE-001).
+    for (const { globs, rules } of localOverridesOf(declared.text)) {
+      const files = globs.join(', ')
+      const isAdapterEntry =
+        rel.startsWith(ADAPTER_BIN_OVERRIDE.prefix) &&
+        globs.length === 1 &&
+        globs[0] === ADAPTER_BIN_OVERRIDE.files
+      if (!isAdapterEntry) {
         problems.push(
-          `${rel}: eslint.config.js carries a local override for ${files.trim()}. Policy is ` +
+          `${rel}: eslint.config.js carries a local override for ${files}. Policy is ` +
             `repository-wide; the only admitted local exception is the coding-adapter ` +
-            `${ADAPTER_BIN_OVERRIDE.files} process entry`,
+            `${ADAPTER_BIN_OVERRIDE.files} process entry, alone`,
         )
+        continue
+      }
+      if (rules === undefined) {
+        problems.push(`${rel}: the ${files} override's rules could not be read`)
+        continue
+      }
+      for (const { rule, value } of rules) {
+        if (!ADAPTER_BIN_OVERRIDE.relaxes.includes(rule)) {
+          problems.push(
+            `${rel}: the ${files} override touches "${rule}". The admitted exception relaxes ` +
+              `exactly ${ADAPTER_BIN_OVERRIDE.relaxes.join(', ')}`,
+          )
+        } else if (value !== 'off') {
+          problems.push(
+            `${rel}: the ${files} override sets "${rule}" to ${value}; the exception switches ` +
+              `it off, it does not re-configure it`,
+          )
+        }
       }
     }
   }
 
   return problems
+}
+
+// ── neutrality: no framework rule, no formatting rule ───────────────────────
+
+/**
+ * Rule families the repository does not enforce, on purpose.
+ *
+ * Framework rules belong to the issue that introduces the framework (ADR-0003,
+ * ADR-0012); formatting belongs to Prettier alone. Neither may arrive through
+ * a policy row, a mapping, or a generated engine config -- the three places a
+ * migration could quietly add one.
+ */
+export const FRAMEWORK_RULE =
+  /^(react|react-hooks|@next|next|vue|@angular|@nestjs|jest|vitest|jsx-a11y|import|n|node|unicorn|promise)\//
+export const FRAMEWORK_PLUGINS = new Set([
+  'react',
+  'react-hooks',
+  'next',
+  'vue',
+  'angular',
+  'nestjs',
+  'jest',
+  'vitest',
+  'jsx-a11y',
+  'import',
+  'node',
+  'n',
+  'unicorn',
+  'promise',
+])
+export const FORMATTING_RULES = new Set([
+  'indent',
+  'quotes',
+  'semi',
+  'comma-dangle',
+  'comma-spacing',
+  'max-len',
+  'linebreak-style',
+  'eol-last',
+  'no-trailing-spaces',
+  'no-mixed-spaces-and-tabs',
+  'space-before-function-paren',
+  'object-curly-spacing',
+  'array-bracket-spacing',
+  'arrow-parens',
+  'brace-style',
+  'key-spacing',
+  'keyword-spacing',
+  'padded-blocks',
+  'quote-props',
+])
+const FORMATTING_NAMESPACE = /^(@stylistic|stylistic|prettier|@prettier)\//
+
+const bareRule = (id) => (id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id)
+
+/** No framework-specific policy, mapping, or enabled plugin, anywhere. */
+export function checkFrameworkNeutrality(policy, mappings, generated) {
+  const problems = []
+  for (const row of policy.policies) {
+    if (FRAMEWORK_RULE.test(row.id)) problems.push(`policy "${row.id}" is a framework rule`)
+  }
+  for (const row of mappings.mappings) {
+    if (row.ruleId !== undefined && FRAMEWORK_RULE.test(row.ruleId)) {
+      problems.push(
+        `the ${row.engine} mapping for "${row.policy}" names framework rule ${row.ruleId}`,
+      )
+    }
+  }
+  for (const [role, config] of Object.entries(generated)) {
+    for (const plugin of config.plugins ?? []) {
+      if (FRAMEWORK_PLUGINS.has(plugin)) {
+        problems.push(`the generated ${role} config enables the framework plugin "${plugin}"`)
+      }
+    }
+    for (const ruleId of Object.keys(config.rules ?? {})) {
+      if (FRAMEWORK_RULE.test(ruleId)) {
+        problems.push(`the generated ${role} config enables framework rule ${ruleId}`)
+      }
+    }
+  }
+  return problems
+}
+
+/** No formatting or stylistic authority in policy or in any generated config. */
+export function checkFormattingNeutrality(policy, generated) {
+  const problems = []
+  const formatting = (id) => FORMATTING_RULES.has(bareRule(id)) || FORMATTING_NAMESPACE.test(id)
+  for (const row of policy.policies) {
+    if (formatting(row.id)) {
+      problems.push(`policy "${row.id}" is a formatting rule; Prettier is the formatting authority`)
+    }
+  }
+  for (const [role, config] of Object.entries(generated)) {
+    for (const plugin of config.plugins ?? []) {
+      if (FORMATTING_NAMESPACE.test(`${plugin}/`)) {
+        problems.push(`the generated ${role} config enables the formatting plugin "${plugin}"`)
+      }
+    }
+    for (const ruleId of Object.keys(config.rules ?? {})) {
+      if (formatting(ruleId)) {
+        problems.push(
+          `the generated ${role} config enables formatting rule ${ruleId}; Prettier is the ` +
+            `formatting authority`,
+        )
+      }
+    }
+  }
+  return problems
+}
+
+/** The committed generated configs, keyed by role, for the neutrality checks. */
+export function loadGeneratedConfigs(root = path.join(REPO_ROOT, 'packages/lint-config')) {
+  const dir = path.join(root, 'generated')
+  const configs = {}
+  for (const name of readdirSync(dir)) {
+    const match = /^oxlintrc\.([a-z-]+)\.json$/.exec(name)
+    if (match !== null) configs[match[1]] = JSON.parse(readFileSync(path.join(dir, name), 'utf8'))
+  }
+  return configs
 }
 
 // ── referential integrity between the two authorities ───────────────────────
@@ -320,7 +501,11 @@ export async function checkGeneratedDrift(entries, canonicalize) {
  * violation was REMOVED and replaced by an unrelated syntax error, so it is
  * exactly as unfit for ordinary lint, formatting, and compilation as the rest.
  */
-export const FIXTURE_CLASS = ['tests/fixtures', 'tests/fixtures/_negative-controls']
+export const FIXTURE_CLASS = [
+  'tests/fixtures',
+  'tests/fixtures/_negative-controls',
+  'tests/fixtures/roles',
+]
 
 /**
  * Four readers exclude the corpus, for four DIFFERENT reasons, and a fifth
@@ -390,10 +575,13 @@ export function checkFixtureProjection(repoRoot = REPO_ROOT) {
   // The fifth reader, and the one that must NOT exclude it. A corpus nothing
   // consumes proves nothing, and the failure is silent: every parity assertion
   // would still pass, against no evidence.
+  // Matched as CODE -- the fixture root's `path.join` -- not as any mention:
+  // a comment that still says "tests/fixtures" must not stand in for the
+  // harness actually pointing there.
   const harness = read('packages/lint-config/src/run-parity.mjs')
   if (harness === undefined) {
     problems.push('the parity harness is missing, so nothing consumes the corpus')
-  } else if (!/'tests',\s*'fixtures'|tests\/fixtures/.test(harness)) {
+  } else if (!/FIXTURE_ROOT\s*=\s*path\.join\([^)]*'tests',\s*'fixtures'\)/.test(harness)) {
     problems.push(
       'the parity harness no longer points at the conformance corpus. Every parity ' +
         'result would still pass, against no evidence',
@@ -423,10 +611,13 @@ if (invokedDirectly) {
   const here = fileURLToPath(new URL('..', import.meta.url))
   const read = (name) => JSON.parse(readFileSync(path.join(here, name), 'utf8'))
 
+  const generated = loadGeneratedConfigs()
   const problems = [
     ...checkMemberRoles(REPO_ROOT),
     ...checkReferentialIntegrity(read('policy.json'), read('engine-mappings.json')),
     ...checkFixtureProjection(REPO_ROOT),
+    ...checkFrameworkNeutrality(read('policy.json'), read('engine-mappings.json'), generated),
+    ...checkFormattingNeutrality(read('policy.json'), generated),
   ]
 
   // Drift needs the engine, which needs an install. It is checked in the

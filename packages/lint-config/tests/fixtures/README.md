@@ -11,8 +11,19 @@ authorities exclude them for four separate reasons:
 | the package `tsconfig.json`     | type-checking them fails on deliberate type errors |
 | `check-source-imports.mjs`      | a syntax error has no parseable imports to govern |
 
-Task 1.11 turns those four strings into a mechanically checked projection, so
-they cannot silently diverge.
+Those four strings are a mechanically checked projection
+(`checkFixtureProjection` in `src/check-policy.mjs`, task 1.11): each reader's
+exclusion is verified as written, the parity harness is verified to still point
+HERE, and the test mutates each projection alone so a lost exclusion — or the
+harness quietly losing the corpus — names the reader that changed. The class
+includes `_negative-controls/` and `roles/`.
+
+## `roles/`
+
+The rule shards prove each policy under one role. `roles/` holds sources that
+are linted under EVERY role on both engines against a matrix of which role must
+reject them — the behavioural proof that a policy reaches the right files and
+not the wrong ones. See `roles/README.md`.
 
 ## `tsconfig.json` in this directory
 

@@ -148,6 +148,73 @@ describe('local overrides', () => {
     })
     expect(problems(root).join('\n')).toMatch(/carries a local override/)
   })
+
+  // ADV-ROLE-001: the admitted exception is exactly one glob relaxing exactly
+  // three rules to `off`. Each broadening below is caught as WRITTEN, before
+  // any file matches it.
+  const admitted = `${composes('library')}export const extra = [{ files: ['src/bin.ts'], rules: { 'no-console': 'off', 'no-restricted-globals': 'off', 'no-restricted-properties': 'off' } }]\n`
+
+  it('admits the exception written out in full', () => {
+    const root = makeRoot()
+    member(root, 'agents/adapters/coding/claude-code', { config: admitted })
+    expect(problems(root)).toEqual([])
+  })
+
+  it('refuses a second glob beside the bin entry', () => {
+    const root = makeRoot()
+    member(root, 'agents/adapters/coding/claude-code', {
+      config: admitted.replace("['src/bin.ts']", "['src/bin.ts', 'src/**']"),
+    })
+    expect(problems(root).join('\n')).toMatch(
+      /carries a local override for src\/bin\.ts, src\/\*\*.*process entry, alone/s,
+    )
+  })
+
+  it('refuses a fourth relaxed rule at the bin entry', () => {
+    const root = makeRoot()
+    member(root, 'agents/adapters/coding/claude-code', {
+      config: admitted.replace("'no-console': 'off'", "'no-console': 'off', eqeqeq: 'off'"),
+    })
+    expect(problems(root).join('\n')).toMatch(
+      /override touches "eqeqeq"\. The admitted exception relaxes exactly no-console, no-restricted-globals, no-restricted-properties/,
+    )
+  })
+
+  it('refuses re-configuring a relaxed rule instead of switching it off', () => {
+    const root = makeRoot()
+    member(root, 'agents/adapters/coding/claude-code', {
+      config: admitted.replace("'no-console': 'off'", "'no-console': 'warn'"),
+    })
+    expect(problems(root).join('\n')).toMatch(
+      /sets "no-console" to warn; the exception switches it off/,
+    )
+  })
+
+  it('refuses an override whose rules cannot be read', () => {
+    const root = makeRoot()
+    member(root, 'agents/adapters/coding/claude-code', {
+      config: `${composes('library')}export const extra = [{ files: ['src/bin.ts'], ...shared }]\n`,
+    })
+    expect(problems(root).join('\n')).toMatch(/override's rules could not be read/)
+  })
+})
+
+describe('the exported test role (ADV-ROLE-002)', () => {
+  it('refuses a member composing it for its tests', () => {
+    const root = makeRoot()
+    member(root, 'packages/contracts', {
+      config: `import config from '@secure-home/eslint-config/library'\nimport { test } from '@secure-home/eslint-config/test'\nexport default [...config, ...test]\n`,
+    })
+    expect(problems(root).join('\n')).toMatch(
+      /packages\/contracts: eslint\.config\.js composes the exported test role\. No member consumes it/,
+    )
+  })
+
+  it('does not mistake a member role for it', () => {
+    const root = makeRoot()
+    member(root, 'packages/contracts', { config: composes('library') })
+    expect(problems(root)).toEqual([])
+  })
 })
 
 describe('the projection is a rule, not a list', () => {
