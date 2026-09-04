@@ -112,7 +112,7 @@ describe('production typed lint is really typed', () => {
   })
 
   it('points the engine at the MEMBER tsconfig, not the fixture corpus', () => {
-    expect(runner).toMatch(/'--tsconfig', project/)
+    expect(runner).toMatch(/'--tsconfig',\s*\n?\s*project/)
     expect(runner).not.toMatch(/FIXTURE_TSCONFIG/)
   })
 

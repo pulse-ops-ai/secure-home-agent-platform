@@ -132,6 +132,58 @@ export async function legacyDiagnosticsForText(text, filePath, ruleId, options) 
  * accommodating it. The directory is ignored by git and is already covered by
  * every exclusion that covers the corpus.
  */
+/**
+ * Turn the replacement engine's report into diagnostics.
+ *
+ * This asks for JSON and reads fields, deliberately. The engine picks a
+ * different human-readable reporter when it detects GitHub Actions, and its
+ * `github` form drops the ` error: ` marker that a text parser keyed on. The
+ * result was a harness that read "no parse errors" from a runner where the
+ * engine had in fact reported one -- the parity suite passed locally and failed
+ * on every hosted runner. A structural read cannot drift that way: a rule
+ * violation carries `code`, a parse error carries none.
+ *
+ * Unreadable output THROWS. Returning an empty result would restore exactly the
+ * failure being fixed here, where "the engine found nothing" and "the harness
+ * could not read the engine" were indistinguishable.
+ */
+export function parseReplacementReport(out) {
+  let report
+  try {
+    report = JSON.parse(out)
+  } catch {
+    throw new Error(
+      `the replacement engine did not emit readable JSON, so its verdict is unknown: ${out.trim()}`,
+    )
+  }
+  if (!Array.isArray(report?.diagnostics)) {
+    throw new Error(
+      `the replacement engine emitted JSON with no diagnostics array, so its verdict is unknown: ${out.trim()}`,
+    )
+  }
+  const rules = []
+  const parseErrors = []
+  for (const diagnostic of report.diagnostics) {
+    // `code` is the rule identity ("eslint(no-var)"). A diagnostic without one
+    // is the engine refusing the source rather than a policy firing.
+    const code = /^(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)$/.exec(diagnostic?.code ?? '')
+    if (code) {
+      rules.push(code[1])
+      continue
+    }
+    // `help` carries the specific reason ("\\8 and \\9 are not allowed"); the
+    // message alone is often generic ("Invalid escape sequence"). The engine's
+    // text reporter concatenates them, and the accepted per-engine
+    // diagnosticPattern values were derived from that concatenation, so the
+    // structural read must reconstruct the same text rather than the mapping
+    // being rewritten to fit a narrower field.
+    const message = String(diagnostic?.message ?? '').trim()
+    const help = String(diagnostic?.help ?? '').trim()
+    parseErrors.push(help ? `${message} help: ${help}` : message)
+  }
+  return { rules, parseErrors, raw: out }
+}
+
 export function replacementDiagnosticsForText(text, extension, configPath) {
   const dir = mkdtempSync(path.join(FIXTURE_ROOT, '.scratch-'))
   const file = path.join(dir, `subject${extension}`)
@@ -174,18 +226,16 @@ export async function legacyDiagnostics(file, ruleId, options) {
 export function replacementDiagnostics(file, configPath) {
   let out = ''
   try {
-    out = execFileSync(OXLINT, ['--config', configPath, file], {
+    // --format is pinned, never inherited: the engine selects a different
+    // reporter on a CI runner than on a workstation.
+    out = execFileSync(OXLINT, ['--format=json', '--config', configPath, file], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (error) {
     out = `${String(error.stdout ?? '')}${String(error.stderr ?? '')}`
   }
-  return {
-    rules: [...out.matchAll(/\b(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)/g)].map((m) => m[1]),
-    parseErrors: [...out.matchAll(/^.*: error: (?!\w+\()(.+)$/gm)].map((m) => m[1].trim()),
-    raw: out,
-  }
+  return parseReplacementReport(out)
 }
 
 /**
@@ -566,7 +616,7 @@ export function replacementTypedDiagnostics(file, configPath) {
   let out = ''
   let failed = false
   try {
-    out = execFileSync(OXLINT, ['--type-aware', '--config', configPath, file], {
+    out = execFileSync(OXLINT, ['--type-aware', '--format=json', '--config', configPath, file], {
       cwd: FIXTURE_ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -582,9 +632,5 @@ export function replacementTypedDiagnostics(file, configPath) {
     throw new TypedBackendUnavailable(`the replacement typed backend did not run: ${out.trim()}`)
   }
   void failed
-  return {
-    rules: [...out.matchAll(/\b(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)/g)].map((m) => m[1]),
-    parseErrors: [...out.matchAll(/^.*: error: (?!\w+\()(.+)$/gm)].map((m) => m[1].trim()),
-    raw: out,
-  }
+  return parseReplacementReport(out)
 }

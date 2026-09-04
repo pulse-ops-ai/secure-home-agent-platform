@@ -585,9 +585,23 @@ describe('Prettier remains the sole formatting authority', () => {
     expect(checkFormattingNeutrality(POLICY, GENERATED)).toEqual([])
   })
 
-  it('the replacement engine is never asked to format', () => {
+  it('the replacement engine is never asked to format, and its reporter is pinned', () => {
     const runner = readFileSync(path.join(HERE, '..', 'src', 'run-parity.mjs'), 'utf8')
-    expect(runner).not.toMatch(/--format\b/)
+    // The engine's `--format` selects an output REPORTER, not a code formatter:
+    // a flag-name collision. Banning the string outright also banned pinning
+    // the reporter -- and an unpinned reporter is not inert, because the engine
+    // emits a different one when it detects a CI runner. That silently blinded
+    // parse-error attribution on every hosted runner while passing locally.
+    // So this guards what it always meant, in both directions.
+    //
+    // Formatting authority: the engine must never rewrite source.
+    expect(runner).not.toMatch(/\boxfmt\b/)
+    // Reporter: every occurrence must be pinned to a machine-readable value,
+    // never left to the environment.
+    // Quoted, so this inspects argv literals rather than prose about them.
+    const reporters = [...runner.matchAll(/'--format(?:=([a-z]+))?'/g)].map((m) => m[1])
+    expect(reporters.length).toBeGreaterThan(0)
+    for (const reporter of reporters) expect(reporter).toBe('json')
   })
 
   it.each([

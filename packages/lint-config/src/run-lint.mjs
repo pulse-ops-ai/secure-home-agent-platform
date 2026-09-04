@@ -226,7 +226,18 @@ export function lintMember({
   // exists to prevent.
   const replacementRun = execute(
     oxlintBin,
-    ['--type-aware', '--tsconfig', project, '--config', configForRole(role), ...paths],
+    // --format is pinned rather than inherited. The engine picks a different
+    // reporter when it detects a CI runner, and the typed-backend verdict below
+    // reads this output.
+    [
+      '--type-aware',
+      '--format=default',
+      '--tsconfig',
+      project,
+      '--config',
+      configForRole(role),
+      ...paths,
+    ],
     memberDir,
     typedBackendEnv(),
   )

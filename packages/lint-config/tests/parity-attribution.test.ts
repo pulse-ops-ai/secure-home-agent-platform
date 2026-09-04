@@ -24,6 +24,7 @@ import {
   loadAuthorities,
   matches,
   parityFor,
+  parseReplacementReport,
   replacementDiagnostics,
   replacementDiagnosticsForText,
   roleFor,
@@ -202,4 +203,51 @@ describe('the real parity check rejects a decoy end to end', () => {
       expect(result.replacementRejects, 'Oxlint must not attribute an unrelated error').toBe(false)
     })
   }
+})
+
+// The parity harness once read the replacement engine's human-readable output.
+// That output is not stable: the engine emits its `github` reporter on a CI
+// runner, which drops the ` error: ` marker the text parser keyed on. Every
+// parser-attribution fixture then reported "no parse error" on hosted runners
+// while passing locally. These lock the properties that make that impossible.
+describe('the replacement report is read structurally, not as prose', () => {
+  it('reads a rule violation from its code field', () => {
+    const report = parseReplacementReport(
+      JSON.stringify({
+        diagnostics: [{ code: 'eslint(no-var)', message: 'Unexpected var', severity: 'error' }],
+      }),
+    )
+    expect(report.rules).toEqual(['no-var'])
+    expect(report.parseErrors).toEqual([])
+  })
+
+  it('reads a parse error from the ABSENCE of a code field', () => {
+    // The engine refusing the source carries no rule identity. This is the
+    // discriminator that survives a reporter change.
+    const report = parseReplacementReport(
+      JSON.stringify({
+        diagnostics: [{ message: 'Expected `)` but found `EOF`', severity: 'error' }],
+      }),
+    )
+    expect(report.parseErrors).toEqual(['Expected `)` but found `EOF`'])
+    expect(report.rules).toEqual([])
+  })
+
+  it('REFUSES output it cannot read rather than reporting nothing found', () => {
+    // The defect being fixed: "the engine found nothing" and "the harness could
+    // not read the engine" looked identical, so a broken harness read as a
+    // passing subject. Unreadable output must fail loudly.
+    expect(() => parseReplacementReport('oxlint: command not found')).toThrow(/verdict is unknown/)
+    expect(() => parseReplacementReport(JSON.stringify({ ok: true }))).toThrow(
+      /no diagnostics array/,
+    )
+  })
+
+  it('does not accept the human-readable reporter as if it were empty', () => {
+    // Verbatim bytes of the `github` reporter that the hosted runner produced.
+    const githubReporter =
+      '::error file=s.js,line=2,endLine=2,col=1,endColumn=1,title=eslint(no-var)::' +
+      's.js:2:1: Unexpected var, use let or const instead.'
+    expect(() => parseReplacementReport(githubReporter)).toThrow(/verdict is unknown/)
+  })
 })
