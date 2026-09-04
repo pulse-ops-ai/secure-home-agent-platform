@@ -75,6 +75,19 @@ export function configForRole(role) {
  * with the policy. That is what the first run of the core-control shard showed:
  * fourteen legacy failures whose Oxlint side was already correct.
  */
+/**
+ * The plugins a rule id needs before it can be enabled.
+ *
+ * A namespaced rule cannot be turned on without its plugin registered: ESLint
+ * refuses the whole config with `config-plugin-missing` rather than skipping
+ * the rule, which is the right behaviour and the reason this is explicit.
+ */
+function pluginsFor(ruleId) {
+  return ruleId !== undefined && ruleId.startsWith('@typescript-eslint/')
+    ? { '@typescript-eslint': tseslint.plugin }
+    : {}
+}
+
 function languageOptionsFor(file) {
   const parserOptions = { ecmaVersion: 2023, sourceType: 'module' }
   return file.endsWith('.ts') || file.endsWith('.tsx')
@@ -92,6 +105,7 @@ export async function legacyDiagnosticsForText(text, filePath, ruleId, options) 
     overrideConfigFile: true,
     overrideConfig: {
       files: ['**/*.ts', '**/*.js'],
+      plugins: pluginsFor(ruleId),
       languageOptions: languageOptionsFor(filePath),
       rules,
     },
@@ -123,6 +137,7 @@ export async function legacyDiagnostics(file, ruleId, options) {
     overrideConfigFile: true,
     overrideConfig: {
       files: ['**/*.ts', '**/*.js'],
+      plugins: pluginsFor(ruleId),
       languageOptions: languageOptionsFor(file),
       rules,
     },
@@ -228,4 +243,53 @@ export async function parityFor(policy, legacy, replacement, configPath) {
         : !replacementValid.rules.includes(bare),
     detail: { legacyInvalid, legacyValid, replacementInvalid, replacementValid },
   }
+}
+
+// ── option semantics ────────────────────────────────────────────────────────
+
+/**
+ * The FIXED OUTPUT a rule produces, not merely whether it fired.
+ *
+ * Some options change what the fix writes rather than whether a diagnostic
+ * appears. `consistent-type-imports` with `fixStyle: "inline-type-imports"`
+ * rejects the same source as the separate-import style and repairs it
+ * differently. Proving both engines reject a file therefore says nothing about
+ * whether the repository's chosen option survived the migration -- the two
+ * could agree on rejection and disagree on every byte they write.
+ */
+export async function legacyFixOutput(text, filePath, ruleId, options) {
+  const rules =
+    ruleId === undefined
+      ? {}
+      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
+  const eslint = new ESLint({
+    cwd: PACKAGE_ROOT,
+    fix: true,
+    overrideConfigFile: true,
+    overrideConfig: {
+      files: ['**/*.ts', '**/*.js'],
+      plugins: pluginsFor(ruleId),
+      languageOptions: languageOptionsFor(filePath),
+      rules,
+    },
+  })
+  const [result] = await eslint.lintText(text, { filePath })
+  return result?.output ?? text
+}
+
+/** The replacement engine's fixed output for the same source. */
+export function replacementFixOutput(text, extension, configPath) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'parity-fix-'))
+  const file = path.join(dir, `subject${extension}`)
+  writeFileSync(file, text)
+  try {
+    execFileSync(OXLINT, ['--config', configPath, '--fix', file], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch {
+    // A non-zero exit means unfixed diagnostics remain; the file is still
+    // written, and the written bytes are what this measures.
+  }
+  return readFileSync(file, 'utf8')
 }
