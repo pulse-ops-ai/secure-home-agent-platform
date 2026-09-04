@@ -23,7 +23,7 @@
  * still rejected, and rejected earlier.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -118,12 +118,29 @@ export async function legacyDiagnosticsForText(text, filePath, ruleId, options) 
   }
 }
 
-/** The replacement engine's verdict on source text, via a scratch file. */
+/**
+ * The replacement engine's verdict on source text, via a scratch file.
+ *
+ * The scratch file lives INSIDE the fixture root, not in the OS temp
+ * directory. The engine is invoked with the fixture root as its working
+ * directory, and a subject outside that tree is not reliably analysed: locally
+ * an absolute /tmp path worked, and on the hosted runner the same call returned
+ * no diagnostics at all — which read as "the engine accepted it" and made four
+ * hostile cases pass for the wrong reason.
+ *
+ * Keeping the subject under the root removes the difference rather than
+ * accommodating it. The directory is ignored by git and is already covered by
+ * every exclusion that covers the corpus.
+ */
 export function replacementDiagnosticsForText(text, extension, configPath) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'parity-text-'))
+  const dir = mkdtempSync(path.join(FIXTURE_ROOT, '.scratch-'))
   const file = path.join(dir, `subject${extension}`)
   writeFileSync(file, text)
-  return replacementDiagnostics(file, configPath)
+  try {
+    return replacementDiagnostics(file, configPath)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 export async function legacyDiagnostics(file, ruleId, options) {
