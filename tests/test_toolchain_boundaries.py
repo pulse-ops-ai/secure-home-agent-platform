@@ -703,3 +703,69 @@ def test_a_union_of_two_classes_is_refused(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert json.loads(result.stderr)["code"] == "CLASS_COMPOSITION_REFUSED"
+
+
+# --- the canonical instance is bound to its schema --------------------------
+#
+# A stale top-level ``protectedAuthorities`` from the superseded path-level model
+# survived an entire landing. The schema forbade it (``additionalProperties:
+# false``) and all 25 gates stayed green, because the checker parsed the JSON and
+# checked its internal consistency without ever validating it against the schema,
+# and the schema suite validated synthetic minimal documents instead of this one.
+
+
+def test_the_committed_document_validates_against_its_schema() -> None:
+    result = _run_checker()
+    assert result.returncode == 0, result.stderr
+
+
+def test_no_field_from_the_superseded_path_level_model_remains(policy: dict[str, Any]) -> None:
+    assert "protectedAuthorities" not in policy, (
+        "the path-level model is superseded; keeping the field recreates the "
+        "ambiguity that projections resolved, and 1.16's trusted verifier could "
+        "start consulting it"
+    )
+    assert "protectedProjections" in policy
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate", "expected"),
+    [
+        (
+            "an unknown top-level field is reintroduced",
+            lambda p: p.__setitem__("protectedAuthorities", ["packages/lint-config/policy.json"]),
+            "protectedAuthorities",
+        ),
+        (
+            "a required projection field is deleted",
+            lambda p: p["protectedProjections"][0].pop("projection"),
+            "projection",
+        ),
+        (
+            "an unknown projection property is added",
+            lambda p: p["protectedProjections"][0].__setitem__("exceptWhen", "convenient"),
+            "exceptWhen",
+        ),
+        (
+            "a class loses its exact projections",
+            lambda p: p["maintenanceClasses"][0].pop("allowedProjections"),
+            "allowedProjections",
+        ),
+        (
+            "an unknown projection kind is used",
+            lambda p: p["protectedProjections"][0].__setitem__("projection", "trust-me"),
+            "trust-me",
+        ),
+    ],
+)
+def test_the_checker_refuses_a_schema_invalid_instance(
+    label: str, mutate: Callable[[dict[str, Any]], None], expected: str
+) -> None:
+    mutated = json.loads(POLICY_PATH.read_text())
+    mutate(mutated)
+    assert mutated != json.loads(POLICY_PATH.read_text()), (
+        f"{label}: the mutation did not change the document, so it is not evidence"
+    )
+    result = _run_checker(json.dumps(mutated, indent=2))
+    assert result.returncode != 0, f"{label} was accepted"
+    assert expected in result.stderr, f"{label}: {result.stderr}"

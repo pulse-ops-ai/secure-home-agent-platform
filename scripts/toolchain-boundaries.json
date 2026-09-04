@@ -128,11 +128,6 @@
       "notes": "The typed backend reads the TypeScript it is paired with, so these two pins cannot move separately. This class exists so that coupling has one named reviewed identity rather than being reached by unioning two classes."
     }
   ],
-  "protectedAuthorities": [
-    "packages/lint-config/policy.json",
-    "packages/lint-config/engine-mappings.json",
-    "scripts/toolchain-boundaries.json"
-  ],
   "subjectIsolation": {
     "deniedToSubject": ["GITHUB_TOKEN", "persisted credentials", "Docker socket"],
     "processBoundary": "container",

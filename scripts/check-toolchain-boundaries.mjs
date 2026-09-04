@@ -479,6 +479,99 @@ export function classifyMaintenance({ classId, predecessor, candidate, universe 
   }
 }
 
+// --- the canonical instance must satisfy its own schema ---------------------
+
+export const SCHEMA_PATH = 'scripts/toolchain-boundaries.schema.json'
+
+/**
+ * Validate an instance against the subset of JSON Schema this schema uses.
+ *
+ * Driven BY the schema file rather than restating it, so this is not a second
+ * authority -- it is the same one, enforced on a host with no workspace
+ * installed. `pnpm test` additionally validates the same committed instance
+ * with Ajv, which covers the full vocabulary; the two are independent and
+ * either one alone still proves the binding.
+ *
+ * This exists because the canonical document carried a stale top-level
+ * `protectedAuthorities` from the superseded path-level model for an entire
+ * landing. The schema forbade it (`additionalProperties: false`) and every gate
+ * stayed green, because nothing ever checked the instance against the schema.
+ */
+export function validateAgainstSchema(instance, schema, root = schema, at = '') {
+  const problems = []
+  const where = at || '(root)'
+
+  if (schema.$ref) {
+    const target = schema.$ref.replace(/^#\//, '').split('/')
+    let resolved = root
+    for (const segment of target) resolved = resolved?.[segment]
+    if (!resolved) return [`${where}: unresolvable $ref ${schema.$ref}`]
+    return validateAgainstSchema(instance, resolved, root, at)
+  }
+
+  if (schema.const !== undefined && instance !== schema.const) {
+    problems.push(`${where}: must be ${JSON.stringify(schema.const)}`)
+  }
+  if (schema.enum && !schema.enum.includes(instance)) {
+    problems.push(`${where}: ${JSON.stringify(instance)} is not one of ${schema.enum.join(', ')}`)
+  }
+
+  if (schema.type === 'string') {
+    if (typeof instance !== 'string') return [`${where}: must be a string`]
+    if (schema.minLength !== undefined && instance.length < schema.minLength) {
+      problems.push(`${where}: shorter than ${schema.minLength}`)
+    }
+    if (schema.pattern && !new RegExp(schema.pattern).test(instance)) {
+      problems.push(`${where}: does not match ${schema.pattern}`)
+    }
+  }
+
+  if (schema.type === 'array') {
+    if (!Array.isArray(instance)) return [`${where}: must be an array`]
+    if (schema.minItems !== undefined && instance.length < schema.minItems) {
+      problems.push(`${where}: needs at least ${schema.minItems} item(s)`)
+    }
+    if (schema.maxItems !== undefined && instance.length > schema.maxItems) {
+      problems.push(`${where}: allows at most ${schema.maxItems} item(s)`)
+    }
+    if (schema.uniqueItems) {
+      const seen = new Set(instance.map((item) => JSON.stringify(item)))
+      if (seen.size !== instance.length) problems.push(`${where}: items must be unique`)
+    }
+    if (schema.items) {
+      instance.forEach((item, index) => {
+        problems.push(...validateAgainstSchema(item, schema.items, root, `${where}[${index}]`))
+      })
+    }
+  }
+
+  if (schema.type === 'object') {
+    if (instance === null || typeof instance !== 'object' || Array.isArray(instance)) {
+      return [`${where}: must be an object`]
+    }
+    for (const required of schema.required ?? []) {
+      if (!(required in instance)) problems.push(`${where}: missing required "${required}"`)
+    }
+    const declared = new Set(Object.keys(schema.properties ?? {}))
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(instance)) {
+        if (!declared.has(key)) {
+          problems.push(`${where}: unknown property "${key}" is not declared by the schema`)
+        }
+      }
+    }
+    for (const [key, subSchema] of Object.entries(schema.properties ?? {})) {
+      if (key in instance) {
+        problems.push(
+          ...validateAgainstSchema(instance[key], subSchema, root, at ? `${at}.${key}` : key),
+        )
+      }
+    }
+  }
+
+  return problems
+}
+
 // --- static invariants over the policy itself -------------------------------
 
 /**
@@ -617,7 +710,13 @@ function main() {
 
   const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
   const policy = JSON.parse(readFileSync(path.join(repoRoot, BOUNDARIES_PATH), 'utf8'))
-  const problems = checkBoundaryPolicy(policy)
+  const schema = JSON.parse(readFileSync(path.join(repoRoot, SCHEMA_PATH), 'utf8'))
+  // The COMMITTED instance, not a synthetic minimal document. A stale field
+  // survived a whole landing because only synthetic documents were validated.
+  const problems = [
+    ...validateAgainstSchema(policy, schema).map((p) => `${BOUNDARIES_PATH} ${p}`),
+    ...checkBoundaryPolicy(policy),
+  ]
   if (problems.length > 0) {
     for (const problem of problems) console.error(`✗ ${problem}`)
     process.exit(1)

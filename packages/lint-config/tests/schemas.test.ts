@@ -394,3 +394,73 @@ describe('maintenance classes must carry exact projections', () => {
     expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(/maintenanceVerifierAuthorities/)
   })
 })
+
+/** First element of a required array field, which the schema guarantees exists. */
+const at = (doc: Record<string, unknown>, key: string): Record<string, unknown> => {
+  const list = doc[key] as Record<string, unknown>[]
+  const first = list[0]
+  if (first === undefined) throw new Error(`${key} is empty, so this mutation is not evidence`)
+  return first
+}
+
+describe('the COMMITTED boundary document satisfies its own schema', () => {
+  // A stale top-level `protectedAuthorities` from the superseded path-level
+  // model survived an entire landing here. The schema forbade it
+  // (`additionalProperties: false`) and all 25 gates stayed green, because
+  // every existing case validated a synthetic minimal document instead of the
+  // canonical one. Validating a document you just built proves the schema
+  // parses; only the real instance proves the repository is consistent.
+  const BOUNDARY_INSTANCE = JSON.parse(
+    readFileSync(path.join(HERE, '..', '..', '..', 'scripts', 'toolchain-boundaries.json'), 'utf8'),
+  ) as Record<string, unknown>
+
+  it('validates with no errors', () => {
+    expect(errors(BOUNDARY_INSTANCE, BOUNDARY_SCHEMA)).toEqual([])
+  })
+
+  it('carries no field from the superseded path-level model', () => {
+    expect(BOUNDARY_INSTANCE['protectedAuthorities']).toBeUndefined()
+    expect(BOUNDARY_INSTANCE['protectedProjections']).toBeDefined()
+  })
+
+  it.each([
+    [
+      'an unknown top-level field is reintroduced',
+      (doc: Record<string, unknown>) => {
+        doc['protectedAuthorities'] = ['packages/lint-config/policy.json']
+      },
+      /protectedAuthorities/,
+    ],
+    [
+      'a required projection field is deleted',
+      (doc: Record<string, unknown>) => {
+        delete at(doc, 'protectedProjections')['projection']
+      },
+      /projection/,
+    ],
+    [
+      'an unknown projection property is added',
+      (doc: Record<string, unknown>) => {
+        at(doc, 'protectedProjections')['exceptWhen'] = 'convenient'
+      },
+      /exceptWhen/,
+    ],
+    [
+      'a class loses its exact projections',
+      (doc: Record<string, unknown>) => {
+        delete at(doc, 'maintenanceClasses')['allowedProjections']
+      },
+      /allowedProjections/,
+    ],
+  ])('REFUSES the committed document when %s', (_label, mutate, expected) => {
+    // Precondition, asserted per case: the UNMUTATED committed document is
+    // valid. A refusal case whose baseline was already invalid proves nothing,
+    // and this is also what stops the positive proof above from being quietly
+    // neutered while these keep passing.
+    expect(errors(BOUNDARY_INSTANCE, BOUNDARY_SCHEMA)).toEqual([])
+    const doc = JSON.parse(JSON.stringify(BOUNDARY_INSTANCE)) as Record<string, unknown>
+    mutate(doc)
+    expect(JSON.stringify(doc)).not.toBe(JSON.stringify(BOUNDARY_INSTANCE))
+    expect(errors(doc, BOUNDARY_SCHEMA).join('\n')).toMatch(expected)
+  })
+})
