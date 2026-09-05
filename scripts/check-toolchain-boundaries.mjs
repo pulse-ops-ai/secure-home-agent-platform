@@ -27,7 +27,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -620,7 +620,18 @@ function canonicalJson(value) {
  * plan is content-addressed so the verdict can prove the subject ran THIS plan
  * and not one it preferred.
  */
-export function buildSubjectPlan({ predecessorSha, candidateSha, classId, policy }) {
+/** The command pack a class owns, or undefined. */
+const packForClass = (policy, classId) =>
+  (policy?.subjectCommandPacks ?? []).find((entry) => entry?.classId === classId)?.commands
+
+export function buildSubjectPlan({
+  predecessorSha,
+  candidateSha,
+  classId,
+  policy,
+  candidatePins,
+  inputDigests,
+}) {
   for (const [label, sha] of [
     ['predecessor', predecessorSha],
     ['candidate', candidateSha],
@@ -639,20 +650,92 @@ export function buildSubjectPlan({ predecessorSha, candidateSha, classId, policy
   if (!classes.some((c) => c?.id === classId)) {
     refuse('UNKNOWN_CLASS', `"${classId}" is not one of the closed maintenance classes`)
   }
-  const commands = policy?.subjectCommands ?? []
-  if (commands.length === 0) {
-    refuse('MALFORMED_AUTHORITY', 'the predecessor policy names no subject commands')
+
+  // The pack is CLASS-SPECIFIC. A compiler update proved only by running the
+  // lint engine has not exercised the tool it changes.
+  const pack = packForClass(policy, classId)
+  if (!Array.isArray(pack) || pack.length === 0) {
+    refuse('MALFORMED_AUTHORITY', `class "${classId}" has no subject command pack`)
   }
+
+  const commands = pack.map((command) => {
+    // The binary is bound to the CANDIDATE's exact pin, so the plan names the
+    // bytes that will run. Without this the plan carries a bare name and any
+    // tool that happened to be on PATH would satisfy it.
+    const version = candidatePins?.[command.binary.package]
+    if (!version) {
+      refuse(
+        'UNRESOLVED_IDENTITY',
+        `the candidate declares no pin for "${command.binary.package}", so the subject binary ` +
+          `for "${command.id}" has no identity`,
+      )
+    }
+    // Inputs are pinned by PREDECESSOR digest, so the subject cannot answer an
+    // easier question than the one it was asked.
+    const inputs = {}
+    for (const input of command.inputs) {
+      const digest = inputDigests?.[input]
+      if (!digest) {
+        refuse('MALFORMED_AUTHORITY', `no predecessor digest for input "${input}"`)
+      }
+      inputs[input] = digest
+    }
+    return {
+      id: command.id,
+      binary: { ...command.binary, version },
+      argv: [...command.argv],
+      cwd: command.cwd,
+      inputs,
+      expect: { ...command.expect },
+    }
+  })
+
   const plan = {
     schemaVersion: PLAN_SCHEMA_VERSION,
     predecessorSha,
     candidateSha,
     classId,
-    commands: commands.map((c) => ({ id: c.id, argv: [...c.argv] })),
+    commands,
     isolation: policy.subjectIsolation,
     expectedArtifacts: commands.map((c) => `${c.id}.json`),
   }
   return { ...plan, digest: digestOf(plan) }
+}
+
+/**
+ * Digest one input path, file or directory.
+ *
+ * A directory digest covers the set of paths as well as their bytes, so
+ * deleting a fixture changes the digest exactly as editing one does.
+ */
+export function digestPathTree(root, relative) {
+  const absolute = path.join(root, relative)
+  let stat
+  try {
+    stat = statSync(absolute)
+  } catch {
+    return null
+  }
+  if (stat.isFile()) {
+    return createHash('sha256').update(readFileSync(absolute)).digest('hex')
+  }
+  const walk = (dir) =>
+    readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : 1))
+      .flatMap((entry) => {
+        const child = path.join(dir, entry.name)
+        if (entry.isDirectory()) return walk(child)
+        if (!entry.isFile()) return [] // never follow a symlink out of the tree
+        return [
+          [
+            path.relative(absolute, child),
+            createHash('sha256').update(readFileSync(child)).digest('hex'),
+          ],
+        ]
+      })
+  return createHash('sha256')
+    .update(canonicalJson(walk(absolute)))
+    .digest('hex')
 }
 
 /**
@@ -735,11 +818,39 @@ export function verifyResultEnvelope({ envelope, plan, artifactDigests }) {
   }
   for (const [index, result] of ran.entries()) {
     const planned = plan.commands[index]
-    if (planned && canonicalJson(result?.argv ?? []) !== canonicalJson(planned.argv)) {
+    if (!planned) continue
+    if (canonicalJson(result?.argv ?? []) !== canonicalJson(planned.argv)) {
       problems.push(`command "${planned.id}" ran different arguments than planned`)
     }
+    if (result?.cwd !== planned.cwd) {
+      problems.push(`command "${planned.id}" ran in "${result?.cwd}", not "${planned.cwd}"`)
+    }
+    // The binary that ran must be the one the plan named, at the candidate's
+    // pinned version.
+    if (canonicalJson(result?.binary ?? null) !== canonicalJson(planned.binary)) {
+      problems.push(`command "${planned.id}" did not run the planned binary identity`)
+    }
+    // Protected inputs must still be the predecessor's bytes.
+    if (canonicalJson(result?.inputs ?? null) !== canonicalJson(planned.inputs)) {
+      problems.push(`command "${planned.id}" ran against different inputs than planned`)
+    }
     if (typeof result?.exitCode !== 'number') {
-      problems.push(`command "${result?.id}" reported no exit code`)
+      problems.push(`command "${planned.id}" reported no exit code`)
+      continue
+    }
+    // THE OUTCOME ITSELF. Without this a candidate can fail every command and
+    // still be admitted, because classification proves admissible data
+    // difference, not that the new tool works.
+    const succeeded = result.exitCode === 0
+    const wanted = planned.expect?.outcome
+    if (wanted === 'success' && !succeeded) {
+      problems.push(`command "${planned.id}" was expected to succeed but exited ${result.exitCode}`)
+    }
+    if (wanted === 'rejection' && succeeded) {
+      problems.push(
+        `command "${planned.id}" was expected to REJECT its input but exited 0; the candidate ` +
+          'engine accepted something the predecessor refuses',
+      )
     }
   }
 
@@ -813,6 +924,38 @@ export function checkBoundaryPolicy(policy) {
           )
         }
       }
+    }
+  }
+
+  // Every class needs a pack, and every pack needs a class. A class with no
+  // pack would admit a maintenance claim without ever running the new tool.
+  const packs = policy.subjectCommandPacks ?? []
+  for (const klass of classes) {
+    const pack = packForClass(policy, klass.id)
+    if (!Array.isArray(pack) || pack.length === 0) {
+      problems.push(`class "${klass.id}" has no subject command pack`)
+      continue
+    }
+    // The pack must exercise a package the class is actually allowed to move.
+    const movable = new Set(
+      (klass.allowedProjections ?? [])
+        .filter((spec) => spec.projection === 'catalog-pins')
+        .flatMap((spec) => spec.packages ?? []),
+    )
+    if (movable.size > 0) {
+      const exercised = new Set(pack.map((command) => command.binary?.package))
+      const unproved = [...movable].filter((pkg) => !exercised.has(pkg))
+      if (unproved.length > 0) {
+        problems.push(
+          `class "${klass.id}" may move ${unproved.join(', ')} but its pack never runs ` +
+            'the tool, so the change would be admitted unexercised',
+        )
+      }
+    }
+  }
+  for (const entry of packs) {
+    if (!ids.has(entry.classId)) {
+      problems.push(`subject command pack "${entry.classId}" names no known class`)
     }
   }
 
@@ -924,8 +1067,38 @@ function runBoundaryOp(op, requestPath, repoRoot) {
             candidateSha: request.candidateSha,
             classId: request.classId,
             policy,
+            candidatePins: request.candidatePins,
+            inputDigests: request.inputDigests,
           }),
         })
+
+      // One predecessor-owned step, so the workflow carries no logic of its
+      // own. Candidate pins are read from candidate DATA; input digests are
+      // measured from the PREDECESSOR checkout this process is running in.
+      case 'prepare-plan': {
+        const candidateRoot = request.candidateRoot
+        const pins = parseCatalogPins(
+          readFileSync(path.join(candidateRoot, 'pnpm-workspace.yaml'), 'utf8'),
+          request.candidateSha,
+        )
+        const pack = packForClass(policy, request.classId) ?? []
+        const inputDigests = {}
+        for (const command of pack) {
+          for (const input of command.inputs) {
+            inputDigests[input] = digestPathTree(repoRoot, input)
+          }
+        }
+        return emit([], {
+          plan: buildSubjectPlan({
+            predecessorSha: request.predecessorSha,
+            candidateSha: request.candidateSha,
+            classId: request.classId,
+            policy,
+            candidatePins: pins,
+            inputDigests,
+          }),
+        })
+      }
       case 'check-isolation':
         return emit(checkSubjectIsolation(request, policy))
       case 'verify-envelope':

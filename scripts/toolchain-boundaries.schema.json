@@ -12,7 +12,7 @@
     "platforms",
     "protectedProjections",
     "schemaVersion",
-    "subjectCommands",
+    "subjectCommandPacks",
     "subjectIsolation"
   ],
   "properties": {
@@ -121,26 +121,26 @@
         "minLength": 1
       }
     },
-    "subjectCommands": {
-      "description": "The exact commands the untrusted subject runs, owned by the PREDECESSOR. Candidate content never selects, adds to, or reorders this pack -- otherwise the thing under test would choose its own exam.",
+    "subjectCommandPacks": {
+      "description": "The exact commands the untrusted subject runs, PER MAINTENANCE CLASS, owned by the predecessor. A class must exercise the tool it moves: a compiler update proved only by running the lint engine has not been proved at all. Candidate content never selects, adds to, or reorders a pack.",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "argv"],
+        "required": ["classId", "commands"],
         "properties": {
-          "id": {
+          "classId": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
           },
-          "argv": {
+          "commands": {
             "type": "array",
             "minItems": 1,
+            "uniqueItems": true,
             "items": {
-              "type": "string",
-              "minLength": 1
+              "$ref": "#/$defs/subjectCommand"
             }
           }
         }
@@ -256,6 +256,65 @@
         },
         "note": {
           "type": "string"
+        }
+      }
+    },
+    "subjectCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "binary", "argv", "cwd", "inputs", "expect"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        },
+        "binary": {
+          "description": "The tool identity being exercised. `package` is resolved to the CANDIDATE's exact pin so the plan names the bytes that will run; `bin` is the executable invoked.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package", "bin"],
+          "properties": {
+            "package": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bin": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "description": "Working directory, relative to the materialization root. Relative argv paths are meaningless without it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "inputs": {
+          "description": "Protected inputs whose PREDECESSOR digests the plan pins, so the subject cannot answer an easier question than the one asked.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "expect": {
+          "description": "The predecessor's expected result. Without it a subject can fail every command and still be admitted, because classification proves admissible DATA DIFFERENCE, not execution success.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome"],
+          "properties": {
+            "outcome": {
+              "enum": ["success", "rejection"]
+            }
+          }
         }
       }
     }

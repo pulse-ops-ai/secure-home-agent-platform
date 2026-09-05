@@ -206,20 +206,192 @@
     "scripts/check-toolchain-boundaries.mjs",
     ".github/workflows/toolchain-maintenance-boundary.yml"
   ],
-  "subjectCommands": [
+  "subjectCommandPacks": [
     {
-      "id": "replacement-conformance",
-      "argv": [
-        "oxlint",
-        "--format=json",
-        "--config",
-        "generated/oxlintrc.library.json",
-        "tests/fixtures"
+      "classId": "lint-engine",
+      "commands": [
+        {
+          "id": "replacement-identity",
+          "binary": {
+            "package": "oxlint",
+            "bin": "oxlint"
+          },
+          "argv": ["--version"],
+          "cwd": "packages/lint-config",
+          "inputs": ["packages/lint-config/package.json"],
+          "expect": {
+            "outcome": "success"
+          }
+        },
+        {
+          "id": "replacement-rejects-invalid",
+          "binary": {
+            "package": "oxlint",
+            "bin": "oxlint"
+          },
+          "argv": [
+            "--type-aware",
+            "--format=json",
+            "--config",
+            "generated/oxlintrc.library.json",
+            "tests/fixtures/core-policy/invalid"
+          ],
+          "cwd": "packages/lint-config",
+          "inputs": [
+            "packages/lint-config/generated",
+            "packages/lint-config/tests/fixtures/core-policy/invalid"
+          ],
+          "expect": {
+            "outcome": "rejection"
+          }
+        },
+        {
+          "id": "replacement-accepts-valid",
+          "binary": {
+            "package": "oxlint",
+            "bin": "oxlint"
+          },
+          "argv": [
+            "--type-aware",
+            "--format=json",
+            "--config",
+            "generated/oxlintrc.library.json",
+            "tests/fixtures/core-policy/valid"
+          ],
+          "cwd": "packages/lint-config",
+          "inputs": [
+            "packages/lint-config/generated",
+            "packages/lint-config/tests/fixtures/core-policy/valid"
+          ],
+          "expect": {
+            "outcome": "success"
+          }
+        }
       ]
     },
     {
-      "id": "replacement-version",
-      "argv": ["oxlint", "--version"]
+      "classId": "normal-compiler",
+      "commands": [
+        {
+          "id": "compiler-identity",
+          "binary": {
+            "package": "typescript",
+            "bin": "tsc"
+          },
+          "argv": ["--version"],
+          "cwd": ".",
+          "inputs": ["pnpm-workspace.yaml"],
+          "expect": {
+            "outcome": "success"
+          }
+        },
+        {
+          "id": "compiler-accepts-the-repository",
+          "binary": {
+            "package": "typescript",
+            "bin": "tsc"
+          },
+          "argv": ["--noEmit", "-p", "packages/lint-config/tsconfig.json"],
+          "cwd": ".",
+          "inputs": ["packages/tsconfig", "packages/lint-config/tsconfig.json"],
+          "expect": {
+            "outcome": "success"
+          }
+        }
+      ]
+    },
+    {
+      "classId": "compatibility-parser",
+      "commands": [
+        {
+          "id": "compatibility-parser-scans-every-source",
+          "binary": {
+            "package": "@typescript/typescript6",
+            "bin": "node"
+          },
+          "argv": ["scripts/check-source-imports.mjs"],
+          "cwd": ".",
+          "inputs": ["scripts/check-source-imports.mjs", "scripts/workspace-model.mjs"],
+          "expect": {
+            "outcome": "success"
+          }
+        }
+      ]
+    },
+    {
+      "classId": "normal-compiler-and-typed-lint",
+      "commands": [
+        {
+          "id": "compiler-identity",
+          "binary": {
+            "package": "typescript",
+            "bin": "tsc"
+          },
+          "argv": ["--version"],
+          "cwd": ".",
+          "inputs": ["pnpm-workspace.yaml"],
+          "expect": {
+            "outcome": "success"
+          }
+        },
+        {
+          "id": "compiler-accepts-the-repository",
+          "binary": {
+            "package": "typescript",
+            "bin": "tsc"
+          },
+          "argv": ["--noEmit", "-p", "packages/lint-config/tsconfig.json"],
+          "cwd": ".",
+          "inputs": ["packages/tsconfig", "packages/lint-config/tsconfig.json"],
+          "expect": {
+            "outcome": "success"
+          }
+        },
+        {
+          "id": "typed-backend-rejects-invalid",
+          "binary": {
+            "package": "oxlint-tsgolint",
+            "bin": "oxlint"
+          },
+          "argv": [
+            "--type-aware",
+            "--format=json",
+            "--config",
+            "generated/oxlintrc.library.json",
+            "tests/fixtures/core-policy/invalid"
+          ],
+          "cwd": "packages/lint-config",
+          "inputs": [
+            "packages/lint-config/generated",
+            "packages/lint-config/tests/fixtures/core-policy/invalid"
+          ],
+          "expect": {
+            "outcome": "rejection"
+          }
+        },
+        {
+          "id": "typed-backend-accepts-valid",
+          "binary": {
+            "package": "oxlint-tsgolint",
+            "bin": "oxlint"
+          },
+          "argv": [
+            "--type-aware",
+            "--format=json",
+            "--config",
+            "generated/oxlintrc.library.json",
+            "tests/fixtures/core-policy/valid"
+          ],
+          "cwd": "packages/lint-config",
+          "inputs": [
+            "packages/lint-config/generated",
+            "packages/lint-config/tests/fixtures/core-policy/valid"
+          ],
+          "expect": {
+            "outcome": "success"
+          }
+        }
+      ]
     }
   ]
 }

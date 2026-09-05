@@ -1,29 +1,38 @@
 # The three-domain maintenance boundary (AUTH-MAINTENANCE-VERIFIER).
 #
 # TRUST-CRITICAL. A tool-maintenance candidate is a SUBJECT here, never the
-# verifier. The candidate proposes new tool bytes; those bytes must run for the
-# claim to mean anything; and a candidate that ran as the verifier could simply
-# report that it passed. So the executable authority and the thing under test
-# are separated into three domains with an OS boundary between them.
+# verifier. Its new tool bytes must actually run for the claim to mean anything,
+# and a candidate that ran as the verifier could simply report that it passed.
 #
-#   TRUSTED CONTROL   exact live predecessor; builds a content-addressed plan;
-#                     candidate arrives only as Git object data
+#   TRUSTED CONTROL   exact live predecessor; candidate materialized as inert
+#                     data; class-specific content-addressed plan
 #          |
-#      OS BOUNDARY
-#          |
-#   UNTRUSTED SUBJECT candidate binaries only; no token, credentials, socket,
-#                     shared cache, or trusted write; isolated scratch
-#          |
+#   UNTRUSTED SUBJECT host job; a PREDECESSOR-OWNED launcher runs on the host
+#                     and starts the candidate under `docker run`
+#          |            +-- OS BOUNDARY created BENEATH the launcher
+#          |            +-- candidate: no network, no socket, no creds,
+#          |                read-only tree, isolated scratch
 #     result DATA
 #          |
-#   TRUSTED VERDICT   fresh predecessor context; verifies identity/digests and
-#                     RE-RUNS the predecessor's own classification
+#   TRUSTED VERDICT   fresh predecessor context; verifies identity, digests and
+#                     EXPECTED OUTCOMES, then re-runs classification
+#
+# WHY THE LAUNCHER IS NOT A JOB CONTAINER. Declaring this job with
+# `jobs.<job>.container` runs every `run` step INSIDE that container, so the code
+# owning timeouts, exit codes, hashes and the envelope would share a UID and
+# filesystem with the candidate it judges -- and a candidate that daemonizes
+# outlives its own process there. `--network none` is also ignored as a
+# job-level container option. The container must be created by the launcher,
+# beneath it, not around it.
 #
 # `repository_dispatch` is what makes the control domain trustworthy: GitHub
-# always runs the DEFAULT BRANCH definition of this file, so a candidate cannot
-# supply the workflow that judges it. That is also the bootstrap condition --
-# until this file is on the default branch there is no authoritative run, which
-# is why the landing that creates it cannot admit itself.
+# always runs the DEFAULT BRANCH definition, so a candidate cannot supply the
+# workflow that judges it. That is also the bootstrap condition -- until this
+# file is on the default branch there is no authoritative run, which is why the
+# landing that creates it cannot admit itself.
+#
+# Every action is pinned to a full commit SHA: a tag is mutable, and these are
+# executable dependencies of the root of trust.
 #
 # Governed by AGENTS.md, ADR-0022, D14, and scripts/toolchain-boundaries.json.
 name: toolchain maintenance boundary
@@ -32,7 +41,6 @@ on:
   repository_dispatch:
     types: [toolchain-maintenance]
 
-# Read-only metadata. The subject job drops even this.
 permissions:
   contents: read
   pull-requests: read
@@ -53,8 +61,8 @@ jobs:
       predecessor: ${{ steps.identity.outputs.predecessor }}
       plan_digest: ${{ steps.plan.outputs.digest }}
     steps:
-      # The payload is DATA. It names which PR to judge; it never names the
-      # code that does the judging.
+      # The payload is DATA. It names which PR to judge; it never names the code
+      # that does the judging.
       - name: Validate the dispatch payload as data
         env:
           PR: ${{ github.event.client_payload.pr }}
@@ -81,49 +89,54 @@ jobs:
           set -euo pipefail
           default_branch="$(gh api "repos/$REPO" --jq .default_branch)"
           predecessor="$(gh api "repos/$REPO/commits/$default_branch" --jq .sha)"
-
           state="$(gh api "repos/$REPO/pulls/$PR" --jq .state)"
           base="$(gh api "repos/$REPO/pulls/$PR" --jq .base.ref)"
           candidate="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
 
           [ "$state" = "open" ] || { echo "::error::PR #$PR is $state"; exit 1; }
           [ "$base" = "$default_branch" ] || { echo "::error::PR #$PR targets $base"; exit 1; }
-
           if [ "${{ github.sha }}" != "$predecessor" ]; then
             echo "::error::this run is $GITHUB_SHA but the live predecessor is $predecessor"
             exit 1
           fi
-
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
           echo "predecessor=$predecessor" >> "$GITHUB_OUTPUT"
 
       # PREDECESSOR bytes only. The candidate is never checked out.
-      - name: Check out the predecessor
-        uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.identity.outputs.predecessor }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
 
-      # The candidate enters as Git OBJECTS. Nothing from it is executed here,
-      # and it is materialized as regular 0644 files so no mode bit survives.
-      - name: Fetch the candidate as inert object data
+      # The candidate enters as Git objects and is materialized by a
+      # predecessor-owned program that admits only regular blobs, proves every
+      # destination stays under the root, and writes every file 0644. `tar -x`
+      # would restore whatever the candidate's archive described.
+      - name: Materialize the candidate as inert data
         env:
           CANDIDATE: ${{ steps.identity.outputs.candidate }}
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin "$CANDIDATE"
-          mkdir -p /tmp/candidate
-          git archive --format=tar "$CANDIDATE" | tar -x -C /tmp/candidate --no-same-permissions
-          find /tmp/candidate -type f -exec chmod 0644 {} +
-          find /tmp/candidate -type d -exec chmod 0755 {} +
+          node scripts/materialize-candidate.mjs "$CANDIDATE" /tmp/candidate
 
-      - name: Build the content-addressed subject plan
+      # Dependency resolution happens in the TRUSTED domain, with install
+      # lifecycle scripts disabled, so fetching the candidate's tools never
+      # executes them. `onlyBuiltDependencies` is empty for the same reason.
+      - name: Install the candidate's pinned tools without running them
+        working-directory: /tmp/candidate
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build the class-specific content-addressed plan
         id: plan
         env:
           CANDIDATE: ${{ steps.identity.outputs.candidate }}
@@ -132,121 +145,73 @@ jobs:
         run: |
           set -euo pipefail
           jq -n --arg p "$PREDECESSOR" --arg c "$CANDIDATE" --arg k "$CLASS_ID" \
-            '{predecessorSha:$p, candidateSha:$c, classId:$k}' > /tmp/plan-request.json
+            '{predecessorSha:$p, candidateSha:$c, classId:$k, candidateRoot:"/tmp/candidate"}' \
+            > /tmp/prepare.json
           node scripts/check-toolchain-boundaries.mjs \
-            --boundary plan-subject /tmp/plan-request.json > /tmp/plan-response.json
+            --boundary prepare-plan /tmp/prepare.json > /tmp/plan-response.json
           jq -r '.plan' /tmp/plan-response.json > /tmp/subject-plan.json
           echo "digest=$(jq -r '.plan.digest' /tmp/plan-response.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Refuse the run unless BOTH isolation boundaries are in place
-        run: |
-          set -euo pipefail
-          # Declared by the launcher, checked before any candidate byte runs.
-          # A perfect boundary 1 does not substitute for boundary 2.
-          jq -n '{
-            grantedToSubject: [],
-            canWriteTrustedWorkspace: false,
-            scratch: "isolated",
-            processBoundary: "container",
-            containerControls: [
-              "non-root", "read-only trusted mounts", "no-new-privileges",
-              "cap-drop-all", "explicit network policy", "resource limits",
-              "isolated scratch"
-            ]
-          }' > /tmp/isolation.json
-          node scripts/check-toolchain-boundaries.mjs --boundary check-isolation /tmp/isolation.json
+      - name: Package the candidate payload for the subject domain
+        run: tar -C /tmp -cf /tmp/candidate-payload.tar candidate
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: subject-plan
-          path: /tmp/subject-plan.json
+          name: subject-input
+          path: |
+            /tmp/subject-plan.json
+            /tmp/candidate-payload.tar
+          retention-days: 5
 
   untrusted-subject:
     name: untrusted subject
     needs: trusted-control
     runs-on: ubuntu-24.04
-    # BOUNDARY 1. No repository permissions at all: the subject receives no
-    # token, and therefore no credential to exfiltrate or reuse.
+    # BOUNDARY 1, at the job level: no token is minted for this job at all.
     permissions: {}
-    container:
-      image: node:24-bookworm-slim
-      # BOUNDARY 2. An OS boundary from the launcher, with the controls the
-      # policy enumerates. Running the candidate as the launcher's own UID in
-      # the launcher's filesystem is refused by check-isolation above.
-      options: >-
-        --user 10001:10001
-        --cap-drop ALL
-        --security-opt no-new-privileges
-        --read-only
-        --tmpfs /tmp:rw,noexec,nosuid,size=512m
-        --network none
-        --memory 2g
-        --cpus 2
-        --pids-limit 512
+    # NO job-level `container:`. The launcher must stay on the host, outside the
+    # boundary it creates for the candidate.
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Check out the PREDECESSOR launcher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: subject-plan
-          path: /tmp/plan
+          ref: ${{ needs.trusted-control.outputs.predecessor }}
+          persist-credentials: false
 
-      # The launcher owns timeouts, exit-code capture, artifact hashing, and
-      # envelope construction. The candidate process cannot reach any of them.
-      - name: Run the planned commands against candidate bytes
-        timeout-minutes: 20
-        run: |
-          set -uo pipefail
-          plan=/tmp/plan/subject-plan.json
-          results='[]'
-          for id in $(node -e "for (const c of require('$plan').commands) console.log(c.id)"); do
-            argv="$(node -e "console.log(JSON.stringify(require('$plan').commands.find(c=>c.id==='$id').argv))")"
-            # Exit code is captured by the launcher, not reported by the tool.
-            set +e
-            node -e "
-              const { spawnSync } = require('node:child_process')
-              const argv = $argv
-              const r = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8', timeout: 600000 })
-              require('node:fs').writeFileSync('/tmp/$id.json', JSON.stringify({
-                stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status
-              }))
-              process.exit(r.status === null ? 124 : r.status)
-            "
-            code=$?
-            set -e
-            results="$(node -e "
-              const r = $results
-              r.push({ id: '$id', argv: $argv, exitCode: $code })
-              console.log(JSON.stringify(r))
-            ")"
-          done
-          echo "$results" > /tmp/results.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Seal the result envelope
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: subject-input
+          path: /tmp/input
+
+      - name: Unpack the candidate payload
         run: |
           set -euo pipefail
-          node -e "
-            const fs = require('node:fs'), crypto = require('node:crypto')
-            const plan = require('/tmp/plan/subject-plan.json')
-            const artifacts = {}
-            for (const name of plan.expectedArtifacts) {
-              artifacts[name] = crypto.createHash('sha256')
-                .update(fs.readFileSync('/tmp/' + name)).digest('hex')
-            }
-            fs.writeFileSync('/tmp/envelope.json', JSON.stringify({
-              schemaVersion: 1,
-              planDigest: plan.digest,
-              predecessorSha: plan.predecessorSha,
-              candidateSha: plan.candidateSha,
-              results: require('/tmp/results.json'),
-              artifacts,
-            }))
-          "
+          mkdir -p /tmp/subject
+          tar -C /tmp/subject -xf /tmp/input/candidate-payload.tar
 
-      - uses: actions/upload-artifact@v4
+      # The launcher runs HERE, on the host. It starts each candidate command
+      # with `docker run` under the policy's controls, owns the timeout and the
+      # kill, captures exit status itself, hashes the artifacts it wrote, and
+      # builds the envelope. None of that state is reachable from the container.
+      - name: Run the candidate as a subject, beneath the launcher
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          node scripts/run-subject-launcher.mjs \
+            --plan /tmp/input/subject-plan.json \
+            --candidate-root /tmp/subject/candidate \
+            --out /tmp/subject-result
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
         with:
           name: subject-result
-          path: |
-            /tmp/envelope.json
-            /tmp/*.json
+          path: /tmp/subject-result
+          retention-days: 5
 
   trusted-verdict:
     name: trusted verdict
@@ -256,15 +221,14 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      # A FRESH predecessor context. Nothing from the subject job's environment
-      # carries into the domain that decides.
-      - name: Check out the predecessor
-        uses: actions/checkout@v5
+      # A FRESH predecessor context. Nothing from the subject job carries here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.trusted-control.outputs.predecessor }}
           persist-credentials: false
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
@@ -276,23 +240,26 @@ jobs:
           echo "::error::the subject job did not complete (${{ needs.untrusted-subject.result }})"
           exit 1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: subject-plan
-          path: /tmp/plan
-      - uses: actions/download-artifact@v4
+          name: subject-input
+          path: /tmp/input
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: subject-result
           path: /tmp/result
 
-      # Everything the subject could have chosen is checked against what the
-      # trusted control decided. Its claimed success has no authority here.
+      # Identities, plan digest, command identities, cwd, binary identity, input
+      # digests, artifact digests, AND the predecessor's expected outcome for
+      # every command. Without that last one a candidate could fail everything
+      # and still be admitted, because classification proves admissible data
+      # difference rather than that the new tool works.
       - name: Verify the envelope against the plan
         run: |
           set -euo pipefail
           node -e "
             const fs = require('node:fs'), crypto = require('node:crypto')
-            const plan = require('/tmp/plan/subject-plan.json')
+            const plan = JSON.parse(fs.readFileSync('/tmp/input/subject-plan.json', 'utf8'))
             const digests = {}
             for (const name of plan.expectedArtifacts) {
               const p = '/tmp/result/' + name
@@ -301,7 +268,9 @@ jobs:
                 : null
             }
             fs.writeFileSync('/tmp/verify.json', JSON.stringify({
-              plan, envelope: require('/tmp/result/envelope.json'), artifactDigests: digests,
+              plan,
+              envelope: JSON.parse(fs.readFileSync('/tmp/result/envelope.json', 'utf8')),
+              artifactDigests: digests,
             }))
           "
           node scripts/check-toolchain-boundaries.mjs --boundary verify-envelope /tmp/verify.json
@@ -310,8 +279,6 @@ jobs:
       # subject observed; it did not decide.
       - name: Re-run predecessor-owned maintenance classification
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           CANDIDATE: ${{ needs.trusted-control.outputs.candidate }}
           PREDECESSOR: ${{ needs.trusted-control.outputs.predecessor }}
           CLASS_ID: ${{ github.event.client_payload.class_id }}
@@ -323,9 +290,26 @@ jobs:
             > /tmp/classification-plan.json
           node scripts/check-toolchain-boundaries.mjs --plan /tmp/classification-plan.json
 
+      # The candidate's own native platform proof must exist for THIS candidate.
+      # A tool that runs on one architecture has not been shown to run on both.
+      - name: Require the candidate's native platform proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CANDIDATE: ${{ needs.trusted-control.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/$REPO/actions/runs?head_sha=$CANDIDATE" \
+            --jq '[.workflow_runs[] | select(.name=="toolchain platform")] | first | .conclusion')"
+          [ "$conclusion" = "success" ] || {
+            echo "::error::no successful native platform proof for $CANDIDATE (got $conclusion)"
+            exit 1
+          }
+
       # Point-in-time evidence. Either identity moving independently means what
       # was proved is not what would merge.
       - name: Re-resolve both identities and refuse movement
+        id: freshness
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -342,8 +326,40 @@ jobs:
             > /tmp/freshness.json
           node scripts/check-toolchain-boundaries.mjs --boundary check-freshness /tmp/freshness.json
 
-      - name: Record point-in-time maintenance evidence
+      # One canonical record. A later maintenance claim cites this, so the facts
+      # it rests on are written down rather than left in log prose.
+      - name: Emit point-in-time maintenance evidence
         run: |
-          echo "Maintenance evidence is POINT-IN-TIME."
-          echo "MAN-TS7-01 remains an owner control: re-confirm head, base, merge tree,"
-          echo "and protected authorities at merge. This run does not admit a merge."
+          set -euo pipefail
+          jq -n \
+            --arg candidate "${{ needs.trusted-control.outputs.candidate }}" \
+            --arg predecessor "${{ needs.trusted-control.outputs.predecessor }}" \
+            --arg execution "${{ github.sha }}" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg workflow "${{ github.workflow_ref }}" \
+            --arg class_id "${{ github.event.client_payload.class_id }}" \
+            --arg plan_digest "${{ needs.trusted-control.outputs.plan_digest }}" \
+            --slurpfile envelope /tmp/result/envelope.json \
+            '{
+               schemaVersion: 1,
+               result: "MAINTENANCE_ADMITTED",
+               candidateSha: $candidate,
+               predecessorSha: $predecessor,
+               executionSha: $execution,
+               runId: $run_id,
+               verifierWorkflow: $workflow,
+               classId: $class_id,
+               planDigest: $plan_digest,
+               commands: ($envelope[0].results | map({id, binary, cwd, exitCode, inputs})),
+               artifacts: $envelope[0].artifacts,
+               evidenceKind: "POINT_IN_TIME"
+             }' > maintenance-evidence.json
+          cat maintenance-evidence.json
+          echo "MAN-TS7-01 remains an owner control: re-confirm head, base, merge tree and"
+          echo "protected authorities at merge. This run does not admit a merge."
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maintenance-evidence
+          path: maintenance-evidence.json
+          retention-days: 90

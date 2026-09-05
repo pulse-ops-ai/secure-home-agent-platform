@@ -98,7 +98,21 @@ describe('minimal valid documents', () => {
       ],
       protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
       maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
-      subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
+      subjectCommandPacks: [
+        {
+          classId: 'lint-engine',
+          commands: [
+            {
+              id: 'replacement-version',
+              binary: { package: 'oxlint', bin: 'oxlint' },
+              argv: ['--version'],
+              cwd: '.',
+              inputs: ['package.json'],
+              expect: { outcome: 'success' },
+            },
+          ],
+        },
+      ],
       subjectIsolation: {
         deniedToSubject: ['GITHUB_TOKEN'],
         processBoundary: 'container',
@@ -305,7 +319,21 @@ describe('toolchain boundaries', () => {
     ],
     protectedProjections: [{ path: 'policy', projection: 'bytes' }],
     maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
-    subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
+    subjectCommandPacks: [
+      {
+        classId: 'lint-engine',
+        commands: [
+          {
+            id: 'replacement-version',
+            binary: { package: 'oxlint', bin: 'oxlint' },
+            argv: ['--version'],
+            cwd: '.',
+            inputs: ['package.json'],
+            expect: { outcome: 'success' },
+          },
+        ],
+      },
+    ],
     subjectIsolation: {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',
@@ -354,7 +382,21 @@ describe('maintenance classes must carry exact projections', () => {
     platforms: ['ubuntu-24.04', 'ubuntu-24.04-arm'],
     protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
     maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
-    subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
+    subjectCommandPacks: [
+      {
+        classId: 'lint-engine',
+        commands: [
+          {
+            id: 'replacement-version',
+            binary: { package: 'oxlint', bin: 'oxlint' },
+            argv: ['--version'],
+            cwd: '.',
+            inputs: ['package.json'],
+            expect: { outcome: 'success' },
+          },
+        ],
+      },
+    ],
     subjectIsolation: {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',

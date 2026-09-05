@@ -48,14 +48,34 @@ def _boundary(op: str, payload: dict[str, Any], tmp_path: Path) -> subprocess.Co
     )
 
 
+def _pack(policy: dict[str, Any], class_id: str) -> list[dict[str, Any]]:
+    entry = next(e for e in policy["subjectCommandPacks"] if e["classId"] == class_id)
+    commands: list[dict[str, Any]] = entry["commands"]
+    return commands
+
+
 @pytest.fixture(scope="module")
-def plan() -> dict[str, Any]:
+def policy() -> dict[str, Any]:
+    loaded: dict[str, Any] = json.loads(
+        (REPO / "scripts" / "toolchain-boundaries.json").read_text()
+    )
+    return loaded
+
+
+@pytest.fixture(scope="module")
+def plan(policy: dict[str, Any]) -> dict[str, Any]:
     """A real plan, built by the predecessor-owned planner."""
+    pack = _pack(policy, "lint-engine")
+    request = {
+        "predecessorSha": SHA_A,
+        "candidateSha": SHA_B,
+        "classId": "lint-engine",
+        "candidatePins": {c["binary"]["package"]: "9.9.9" for c in pack},
+        "inputDigests": {i: f"digest-of-{i}" for c in pack for i in c["inputs"]},
+    }
     result = subprocess.run(
         ["node", str(CHECKER), "--boundary", "plan-subject", "/dev/stdin"],
-        input=json.dumps(
-            {"predecessorSha": SHA_A, "candidateSha": SHA_B, "classId": "lint-engine"}
-        ),
+        input=json.dumps(request),
         capture_output=True,
         text=True,
         cwd=REPO,
@@ -66,13 +86,26 @@ def plan() -> dict[str, Any]:
 
 
 def _envelope(plan: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+    # Deep-copied on purpose: sharing the plan's dicts would let a mutation
+    # change the expectation as well as the claim, and every substitution test
+    # would pass vacuously.
+    plan = json.loads(json.dumps(plan))
     envelope = {
         "schemaVersion": 1,
         "planDigest": plan["digest"],
         "predecessorSha": plan["predecessorSha"],
         "candidateSha": plan["candidateSha"],
         "results": [
-            {"id": command["id"], "argv": command["argv"], "exitCode": 0}
+            {
+                "id": command["id"],
+                "argv": command["argv"],
+                "cwd": command["cwd"],
+                "binary": command["binary"],
+                "inputs": command["inputs"],
+                # The outcome the predecessor expects, so the baseline is a
+                # faithful run rather than an accidentally passing one.
+                "exitCode": 0 if command["expect"]["outcome"] == "success" else 1,
+            }
             for command in plan["commands"]
         ],
         "artifacts": {name: f"digest-of-{name}" for name in plan["expectedArtifacts"]},
@@ -94,11 +127,48 @@ def test_the_plan_is_content_addressed(plan: dict[str, Any]) -> None:
     assert plan["candidateSha"] == SHA_B
 
 
-def test_the_candidate_cannot_choose_the_commands(plan: dict[str, Any]) -> None:
-    """Commands come from the predecessor's policy, not the candidate."""
-    policy = json.loads((REPO / "scripts" / "toolchain-boundaries.json").read_text())
-    assert [c["id"] for c in plan["commands"]] == [c["id"] for c in policy["subjectCommands"]]
-    assert [c["argv"] for c in plan["commands"]] == [c["argv"] for c in policy["subjectCommands"]]
+def test_the_candidate_cannot_choose_the_commands(
+    plan: dict[str, Any], policy: dict[str, Any]
+) -> None:
+    """Commands come from the predecessor's CLASS pack, not the candidate."""
+    pack = _pack(policy, "lint-engine")
+    assert [c["id"] for c in plan["commands"]] == [c["id"] for c in pack]
+    assert [c["argv"] for c in plan["commands"]] == [c["argv"] for c in pack]
+
+
+def test_the_plan_binds_the_candidate_binary_identity(plan: dict[str, Any]) -> None:
+    """A bare tool name would be satisfied by anything on PATH."""
+    for command in plan["commands"]:
+        assert command["binary"]["version"] == "9.9.9"
+        assert command["binary"]["package"]
+        assert command["cwd"], "relative argv paths are meaningless without a cwd"
+
+
+def test_the_plan_pins_protected_input_digests(plan: dict[str, Any]) -> None:
+    for command in plan["commands"]:
+        assert command["inputs"], f"{command['id']} pins no inputs"
+        assert all(v for v in command["inputs"].values())
+
+
+def test_every_class_pack_exercises_the_tool_that_class_moves(
+    policy: dict[str, Any],
+) -> None:
+    """A compiler update proved by running the lint engine proves nothing."""
+    for klass in policy["maintenanceClasses"]:
+        movable = {
+            pkg
+            for spec in klass["allowedProjections"]
+            if spec["projection"] == "catalog-pins"
+            for pkg in spec.get("packages", [])
+        }
+        exercised = {c["binary"]["package"] for c in _pack(policy, klass["id"])}
+        assert movable <= exercised, f"{klass['id']} may move {movable - exercised} unexercised"
+
+
+def test_every_pack_command_declares_an_expected_outcome(policy: dict[str, Any]) -> None:
+    for entry in policy["subjectCommandPacks"]:
+        for command in entry["commands"]:
+            assert command["expect"]["outcome"] in {"success", "rejection"}, entry["classId"]
 
 
 @pytest.mark.parametrize(
@@ -386,19 +456,50 @@ def test_the_subject_job_receives_no_repository_permission() -> None:
     assert "permissions: {}" in _jobs()["untrusted-subject"]
 
 
-def test_the_subject_runs_behind_an_os_boundary_with_every_control() -> None:
+def test_the_subject_job_declares_no_job_level_container() -> None:
+    """The launcher must be OUTSIDE the boundary it creates.
+
+    A job-level ``container:`` runs every ordinary step inside that container,
+    so the code owning the timeout, the exit codes, the artifact hashes and the
+    envelope would share a UID and filesystem with the candidate it judges --
+    and a candidate that daemonizes outlives its own process there.
+    """
     subject = _jobs()["untrusted-subject"]
-    assert "container:" in subject
+    assert "\n    container:" not in subject
+    assert "run-subject-launcher.mjs" in subject
+
+
+def test_the_launcher_creates_the_boundary_beneath_itself() -> None:
+    """The controls live in the launcher, where docker actually enforces them.
+
+    ``--network`` in particular is NOT supported as a job-level container
+    option, so asserting it there would prove nothing about enforcement.
+    """
+    launcher = (REPO / "scripts" / "run-subject-launcher.mjs").read_text()
     for control in [
-        "--user 10001:10001",
-        "--cap-drop ALL",
-        "--security-opt no-new-privileges",
+        "--user=",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
         "--read-only",
-        "--network none",
-        "--memory",
-        "--pids-limit",
+        "--network=none",
+        "--memory=",
+        "--pids-limit=",
+        ":/subject:ro",
     ]:
-        assert control in subject, f"missing container control: {control}"
+        assert control in launcher, f"missing container control: {control}"
+
+
+def test_the_candidate_never_receives_the_docker_socket() -> None:
+    launcher = (REPO / "scripts" / "run-subject-launcher.mjs").read_text()
+    assert "docker.sock" not in launcher
+    assert "/var/run/docker" not in launcher
+
+
+def test_the_launcher_owns_timeout_exit_code_and_envelope() -> None:
+    launcher = (REPO / "scripts" / "run-subject-launcher.mjs").read_text()
+    assert "timeout: COMMAND_TIMEOUT_MS" in launcher
+    assert "run.status === null ? 124 : run.status" in launcher
+    assert "envelope.json" in launcher
 
 
 def test_the_control_domain_pins_itself_to_the_live_predecessor() -> None:
@@ -409,12 +510,54 @@ def test_the_control_domain_pins_itself_to_the_live_predecessor() -> None:
 
 
 def test_the_candidate_is_never_checked_out() -> None:
-    """It arrives as Git objects, materialized as regular files."""
+    """It arrives as Git objects, materialized by a predecessor-owned program.
+
+    ``tar -x`` is not this: tar restores whatever the archive describes, and the
+    archive is candidate-controlled.
+    """
     control = _jobs()["trusted-control"]
-    assert "git archive" in control
-    assert "chmod 0644" in control
+    assert "materialize-candidate.mjs" in control
+    assert "git archive" not in control
     assert "ref: ${{ steps.identity.outputs.predecessor }}" in control
     assert "ref: ${{ steps.identity.outputs.candidate }}" not in control
+
+
+def test_candidate_dependencies_are_installed_without_running_them() -> None:
+    control = _jobs()["trusted-control"]
+    assert "--ignore-scripts" in control
+
+
+def test_every_action_is_pinned_to_a_commit_sha() -> None:
+    """A tag is mutable, and these are executable dependencies of the root of trust."""
+    import re
+
+    for line in WORKFLOW.read_text().split("\n"):
+        if "uses:" not in line:
+            continue
+        ref = line.split("uses:")[1].strip().split("#")[0].strip()
+        assert re.search(r"@[0-9a-f]{40}$", ref), f"unpinned action: {ref}"
+
+
+def test_the_verdict_requires_the_candidates_native_platform_proof() -> None:
+    verdict = _jobs()["trusted-verdict"]
+    assert "toolchain platform" in verdict
+    assert "no successful native platform proof" in verdict
+
+
+def test_the_verdict_emits_canonical_point_in_time_evidence() -> None:
+    verdict = _jobs()["trusted-verdict"]
+    assert "maintenance-evidence.json" in verdict
+    for field in [
+        "candidateSha",
+        "predecessorSha",
+        "executionSha",
+        "runId",
+        "verifierWorkflow",
+        "classId",
+        "planDigest",
+        "POINT_IN_TIME",
+    ]:
+        assert field in verdict, f"evidence omits {field}"
 
 
 def test_no_job_checks_out_the_candidate_ref() -> None:
@@ -445,3 +588,178 @@ def test_the_verdict_re_runs_classification_rather_than_trusting_the_subject() -
 
 def test_the_run_is_recorded_as_point_in_time_evidence() -> None:
     assert "MAN-TS7-01" in _jobs()["trusted-verdict"]
+
+
+# --- the expected outcome is part of the verdict ----------------------------
+#
+# Classification proves admissible DATA DIFFERENCE. It says nothing about
+# whether the new tool works. Without an expected outcome a candidate could fail
+# every subject command and still be admitted, because every check downstream
+# was about the shape of the diff.
+
+
+def test_a_candidate_that_fails_every_command_is_refused(
+    tmp_path: Path, plan: dict[str, Any]
+) -> None:
+    envelope = _envelope(plan)
+    for result in envelope["results"]:
+        result["exitCode"] = 1
+    outcome = _boundary(
+        "verify-envelope",
+        {"plan": plan, "envelope": envelope, "artifactDigests": _digests(plan)},
+        tmp_path,
+    )
+    assert outcome.returncode != 0
+    assert "expected to succeed" in outcome.stderr
+
+
+def test_an_engine_that_accepts_what_the_predecessor_rejects_is_refused(
+    tmp_path: Path, plan: dict[str, Any]
+) -> None:
+    """The sharp regression: the candidate engine stops catching a violation.
+
+    Its exit code is 0 and every identity matches. Only the predecessor's
+    expected outcome distinguishes "passed" from "stopped enforcing".
+    """
+    envelope = _envelope(plan)
+    rejecting = [
+        index
+        for index, command in enumerate(plan["commands"])
+        if command["expect"]["outcome"] == "rejection"
+    ]
+    assert rejecting, "the lint-engine pack must contain a rejection case"
+    for index in rejecting:
+        envelope["results"][index]["exitCode"] = 0
+    outcome = _boundary(
+        "verify-envelope",
+        {"plan": plan, "envelope": envelope, "artifactDigests": _digests(plan)},
+        tmp_path,
+    )
+    assert outcome.returncode != 0
+    assert "expected to REJECT" in outcome.stderr
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate"),
+    [
+        (
+            "a different binary version ran",
+            lambda e: e["results"][0]["binary"].__setitem__("version", "0.0.0"),
+        ),
+        (
+            "a different package ran",
+            lambda e: e["results"][0]["binary"].__setitem__("package", "something-else"),
+        ),
+        (
+            "the command ran in a different directory",
+            lambda e: e["results"][0].__setitem__("cwd", "/"),
+        ),
+        (
+            "protected inputs were swapped",
+            lambda e: e["results"][0]["inputs"].__setitem__(
+                next(iter(e["results"][0]["inputs"])), "0" * 64
+            ),
+        ),
+    ],
+)
+def test_the_verdict_refuses_a_substituted_execution(
+    tmp_path: Path, plan: dict[str, Any], label: str, mutate: Any
+) -> None:
+    envelope = _envelope(plan)
+    before = json.dumps(envelope, sort_keys=True)
+    mutate(envelope)
+    assert json.dumps(envelope, sort_keys=True) != before, f"{label}: not evidence"
+    result = _boundary(
+        "verify-envelope",
+        {"plan": plan, "envelope": envelope, "artifactDigests": _digests(plan)},
+        tmp_path,
+    )
+    assert result.returncode != 0, f"{label} was accepted"
+
+
+# --- candidate materialization refuses non-regular entries ------------------
+
+MATERIALIZER = REPO / "scripts" / "materialize-candidate.mjs"
+
+
+def _repo_with(tmp_path: Path, build: Any, after_add: Any = None) -> Path:
+    root = tmp_path / "hostile"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "."], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
+    (root / "ok.txt").write_text("fine\n")
+    build(root)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    # Entries with no on-disk counterpart must be staged after `git add -A`,
+    # which would otherwise stage their removal.
+    if after_add is not None:
+        after_add(root)
+    subprocess.run(["git", "commit", "-qm", "candidate"], cwd=root, check=True)
+    return root
+
+
+def _materialize(root: Path, out: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(MATERIALIZER), "HEAD", str(out)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_a_clean_tree_materializes_as_regular_files(tmp_path: Path) -> None:
+    root = _repo_with(tmp_path, lambda r: (r / "sub").mkdir())
+    out = tmp_path / "out"
+    result = _materialize(root, out)
+    assert result.returncode == 0, result.stderr
+    for file in out.rglob("*"):
+        if file.is_file():
+            assert oct(file.stat().st_mode)[-3:] == "644"
+            assert not file.is_symlink()
+
+
+def test_a_symlink_refuses_the_whole_materialization(tmp_path: Path) -> None:
+    """A partial tree is not a safe subset of a hostile one."""
+
+    def build(root: Path) -> None:
+        (root / "sneaky").symlink_to("/etc/passwd")
+
+    root = _repo_with(tmp_path, build)
+    out = tmp_path / "out"
+    result = _materialize(root, out)
+    assert result.returncode != 0
+    assert "symlink" in result.stderr
+    assert not out.exists(), "nothing may be written when an entry is refused"
+
+
+def test_a_submodule_gitlink_is_refused(tmp_path: Path) -> None:
+    def build(root: Path) -> None:
+        # A gitlink entry written directly into the index, without needing a
+        # real submodule checkout.
+        subprocess.run(
+            ["git", "update-index", "--add", "--cacheinfo", f"160000,{'a' * 40},vendor"],
+            cwd=root,
+            check=True,
+        )
+
+    root = _repo_with(tmp_path, lambda r: None, after_add=build)
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "HEAD"], cwd=root, capture_output=True, text=True
+    ).stdout
+    assert "160000" in listing, f"the gitlink was not committed: {listing}"
+    result = _materialize(root, tmp_path / "out")
+    assert result.returncode != 0
+    assert "submodule" in result.stderr or "gitlink" in result.stderr
+
+
+def test_an_executable_bit_does_not_survive(tmp_path: Path) -> None:
+    def build(root: Path) -> None:
+        script = root / "tool.sh"
+        script.write_text("#!/bin/sh\necho hi\n")
+        script.chmod(0o755)
+
+    root = _repo_with(tmp_path, build)
+    out = tmp_path / "out"
+    assert _materialize(root, out).returncode == 0
+    assert oct((out / "tool.sh").stat().st_mode)[-3:] == "644"
