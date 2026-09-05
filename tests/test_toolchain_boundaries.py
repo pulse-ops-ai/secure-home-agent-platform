@@ -245,6 +245,7 @@ def _lock(
     catalog: dict[str, str] | None = None,
     integrity: dict[str, str] | None = None,
     settings: str = "  autoInstallPeers: true",
+    snapshots: dict[str, list[str]] | None = None,
 ) -> str:
     """A lockfile in real pnpm shape.
 
@@ -280,8 +281,12 @@ def _lock(
         digest = integrity.get(key, f"sha512-{key.replace('@', '-')}==")
         lines += [f"  {key}:", f"    resolution: {{integrity: {digest}}}"]
 
+    # `snapshots:` keys carry peer context and are NOT the `packages:` keys.
+    # A fixture that reuses one key for both cannot reproduce the real shape,
+    # which is why a root package's own integrity record being classified
+    # outside its own closure went unnoticed.
     lines += ["", "snapshots:"]
-    for key, deps in packages.items():
+    for key, deps in (snapshots if snapshots is not None else packages).items():
         if not deps:
             lines.append(f"  {key}: {{}}")
             continue
@@ -1134,3 +1139,91 @@ def test_tampering_with_the_native_identity_checker_is_refused(tmp_path: Path) -
     refusal = json.loads(result.stderr)
     assert refusal["code"] in {"UNDECLARED_CHANGE", "PROTECTED_DRIFT"}
     assert "check-install-posture" in refusal["message"]
+
+
+# --- peer-qualified snapshots vs plain package records ----------------------
+#
+# One package has two identities in a real lockfile: `packages:` keys it plainly
+# (`oxlint@1.80.0`) while `snapshots:` keys it with peer context
+# (`oxlint@1.80.0(oxlint-tsgolint@7.0.2001)`). A closure derived from snapshot
+# keys therefore does not contain the root's own package key, and protecting
+# that record would refuse the very bump that moved it.
+
+PEER = "oxlint-tsgolint@7.0.2001"
+GNU_BINDING = "@oxlint/binding-linux-x64-gnu"
+
+
+def _peer_qualified_lock(version: str, eslint_integrity: str | None = None) -> str:
+    packages: dict[str, list[str]] = {
+        f"oxlint@{version}": [],
+        f"{GNU_BINDING}@{version}": [],
+        PEER: [],
+        "eslint@10.8.0": [],
+    }
+    return _lock(
+        packages,
+        catalog={"oxlint": version, "oxlint-tsgolint": "7.0.2001", "eslint": "10.8.0"},
+        integrity=({"eslint@10.8.0": eslint_integrity} if eslint_integrity else None),
+        snapshots={
+            f"oxlint@{version}({PEER})": [f"{GNU_BINDING}@{version}", PEER],
+            f"{GNU_BINDING}@{version}": [],
+            PEER: [],
+            "eslint@10.8.0": [],
+        },
+    )
+
+
+def _peer_predecessor() -> dict[str, str]:
+    files = _base_files()
+    files["pnpm-lock.yaml"] = _peer_qualified_lock("1.80.0")
+    return files
+
+
+def test_a_bump_moves_the_root_package_record_and_its_peer_qualified_snapshot(
+    tmp_path: Path,
+) -> None:
+    """The realistic shape: root record, peer-qualified snapshot, native binding."""
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "6.0.3",
+                        "oxlint": "1.81.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
+                ),
+                "pnpm-lock.yaml": _peer_qualified_lock("1.81.0"),
+            }
+        ),
+        predecessor_files=_peer_predecessor(),
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_an_unrelated_integrity_change_still_refuses_in_the_peer_shape(
+    tmp_path: Path,
+) -> None:
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "6.0.3",
+                        "oxlint": "1.81.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
+                ),
+                "pnpm-lock.yaml": _peer_qualified_lock(
+                    "1.81.0", eslint_integrity="sha512-FORGEDFORGEDFORGED=="
+                ),
+            }
+        ),
+        predecessor_files=_peer_predecessor(),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"

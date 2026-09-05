@@ -284,8 +284,19 @@ export function parseLockDocument(text, revisionId = 'unknown') {
  * be scoped (`@oxlint/binding-linux-x64@1.80.0`), so neither the first nor the
  * last `@` is the separator on its own.
  */
+/**
+ * A resolved key without its peer context.
+ *
+ * `snapshots:` keys carry peer context (`oxlint@1.80.0(oxlint-tsgolint@7.0.2001)`)
+ * while the `packages:` record for the same package is keyed plainly
+ * (`oxlint@1.80.0`). They are two identities for one package, and treating them
+ * as one string is how the root's own integrity record ended up classified as
+ * outside its own closure.
+ */
+export const stripPeerSuffix = (key) => key.replace(/\(.*\)$/, '')
+
 export const packageNameOf = (key) => {
-  const withoutPeers = key.replace(/\(.*\)$/, '')
+  const withoutPeers = stripPeerSuffix(key)
   const at = withoutPeers.lastIndexOf('@')
   return at <= 0 ? withoutPeers : withoutPeers.slice(0, at)
 }
@@ -419,8 +430,14 @@ export function project(revision, spec) {
       const roots = new Set(spec.packages ?? [])
       const sorted = (entries) =>
         Object.fromEntries([...entries].sort(([a], [b]) => (a < b ? -1 : 1)))
-      const outsideClosure = (records) =>
-        sorted(Object.entries(records).filter(([key]) => !closure.has(key)))
+      // `packages:` and `snapshots:` key the same package differently, so the
+      // closure has to be expressed in each namespace. Comparing snapshots
+      // peer-qualified is deliberate -- peer context is real resolution
+      // information -- but the package RECORD for a closure member is the same
+      // package, and protecting it would refuse the bump that moved it.
+      const packageClosure = new Set([...closure].map(stripPeerSuffix))
+      const outsideClosure = (records, keys) =>
+        sorted(Object.entries(records).filter(([key]) => !keys.has(key)))
       // A pin move rewrites this package's own catalog and importer entries, so
       // those are the class's to change. Everything else in both sections is
       // not: an unrelated importer or an unrelated catalog resolution moving
@@ -437,8 +454,8 @@ export function project(revision, spec) {
           settings: document.settings,
           catalogs: notARoot(document.catalogs),
           importers: notARoot(document.importers),
-          packages: outsideClosure(document.packages),
-          snapshots: outsideClosure(document.snapshots),
+          packages: outsideClosure(document.packages, packageClosure),
+          snapshots: outsideClosure(document.snapshots, closure),
         },
       }
     }
