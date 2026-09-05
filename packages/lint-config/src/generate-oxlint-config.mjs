@@ -6,10 +6,17 @@
  * semantic policy that drifts from the first, which is the whole failure
  * ADR-0022 separates policy from engine to avoid.
  *
- * AMBIENT DEFAULTS ARE DISABLED. `categories: {}` switches off every rule the
- * engine would otherwise enable on its own. An Oxlint default is not repository
- * policy: if a rule is not in `policy.json`, nobody decided it, and a lint
- * failure nobody decided is indistinguishable from a bug in the gate.
+ * AMBIENT DEFAULTS ARE DISABLED, by naming every category and switching it off.
+ * An empty `categories: {}` does NOT do this -- it says nothing, and the engine
+ * keeps its own defaults, so `correctness` stayed on and rules nobody assigned
+ * to a role still fired. Measured: `no-dupe-keys`, a policy assigned only to
+ * `js-config`, fired under the library config where it is not listed.
+ *
+ * An Oxlint default is not repository policy: if a rule is not in `policy.json`
+ * for that role, nobody decided it, and a lint failure nobody decided is
+ * indistinguishable from a bug in the gate. Individual entries in `rules` still
+ * win over a category, so switching all of them off subtracts only what policy
+ * never authorized.
  *
  * NO FORMATTING. Prettier is the single formatting authority. Nothing here may
  * emit or fix formatting, and the generated config carries no formatting rule
@@ -64,12 +71,27 @@ export function generateForRole(policy, mappings, role) {
   return {
     $schema: './node_modules/oxlint/configuration_schema.json',
     plugins: [...plugins].sort(),
-    // Ambient defaults off. Every enabled rule below is a decision recorded in
-    // policy.json, and nothing else runs.
-    categories: {},
+    // Every category the engine knows, explicitly off. Listing them by name is
+    // the only form that actually subtracts the engine's own defaults.
+    categories: Object.fromEntries(OXLINT_CATEGORIES.map((name) => [name, 'off'])),
     rules: Object.fromEntries(Object.entries(rules).sort(([a], [b]) => (a < b ? -1 : 1))),
   }
 }
+
+/**
+ * Every category the engine defines, taken from its own configuration schema.
+ * A category missing from this list would keep its default, which is exactly
+ * the failure this list exists to prevent.
+ */
+export const OXLINT_CATEGORIES = [
+  'correctness',
+  'nursery',
+  'pedantic',
+  'perf',
+  'restriction',
+  'style',
+  'suspicious',
+]
 
 export const GENERATED_ROLES = [
   'library',

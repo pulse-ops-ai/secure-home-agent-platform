@@ -26,9 +26,10 @@ import {
 // @ts-ignore
 import { validate } from '../validate-schema.mjs'
 // @ts-ignore
-import { GENERATED_ROLES, generateAll } from '../src/generate-oxlint-config.mjs'
+import { GENERATED_ROLES, OXLINT_CATEGORIES, generateAll } from '../src/generate-oxlint-config.mjs'
 // @ts-ignore
 import { canonicalJson } from '../src/canonical.mjs'
+import { replacementDiagnosticsForText } from '../src/run-parity.mjs'
 
 const HERE = import.meta.dirname
 const load = (p: string): any => JSON.parse(readFileSync(path.join(HERE, '..', p), 'utf8'))
@@ -406,12 +407,44 @@ describe('the generated engine configuration', () => {
     expect(await canonicalJson(JSON.parse(committed))).toBe(committed)
   })
 
+  it('does not enforce a rule the role was never assigned', () => {
+    // THE PROOF THAT MATTERS, and the one that was missing. The structural
+    // assertion above passed for months while this property was false:
+    // `no-dupe-keys` is a policy assigned ONLY to `js-config`, is absent from
+    // the library config's `rules`, and still fired on a library subject
+    // because the engine's `correctness` category was never switched off.
+    //
+    // Reading the config cannot see this. Only running the engine can.
+    const unassigned = POLICY.policies.find(
+      (row: { id: string; roles: string[] }) =>
+        row.id === 'no-dupe-keys' && !row.roles.includes('library'),
+    )
+    expect(unassigned, 'no-dupe-keys must remain a js-config-only policy').toBeTruthy()
+
+    const config = path.join(HERE, '..', 'generated', 'oxlintrc.library.json')
+    const fired = replacementDiagnosticsForText(
+      'export const duplicated = { a: 1, a: 2 }\n',
+      '.ts',
+      config,
+    )
+    expect(fired.rules).not.toContain('no-dupe-keys')
+  })
+
   it('disables ambient engine defaults in every role', () => {
     // An engine default is not repository policy. If a rule is not in
     // policy.json nobody decided it, and a failure nobody decided is
     // indistinguishable from a bug in the gate.
+    //
+    // This asserted `categories: {}` and passed while the property was FALSE:
+    // an empty map says nothing, so the engine kept its own defaults and
+    // `correctness` stayed on. Every category must be named and switched off.
     for (const role of GENERATED_ROLES as string[]) {
-      expect(load(`generated/oxlintrc.${role}.json`).categories).toEqual({})
+      const categories = load(`generated/oxlintrc.${role}.json`).categories as Record<
+        string,
+        string
+      >
+      expect(Object.keys(categories).sort()).toEqual([...OXLINT_CATEGORIES].sort())
+      expect(Object.values(categories).every((value) => value === 'off')).toBe(true)
     }
   })
 
