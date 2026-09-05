@@ -182,6 +182,102 @@ export function parseLockGraph(text, revisionId = 'unknown') {
 }
 
 /**
+ * The lockfile as SECTIONS OF RECORDS, not just a dependency graph.
+ *
+ * `parseLockGraph` reads `snapshots:` edges, which is what a closure is derived
+ * from -- but it is not what gets fetched and installed. The `packages:`
+ * records carry resolution and integrity, `importers:` carries what each
+ * workspace member actually depends on, and the top-level settings decide how
+ * resolution behaves. None of that is dependency topology, so a candidate could
+ * repoint an unrelated package's integrity while leaving every edge untouched.
+ * That was harmless while nothing installed from candidate lock bytes; trusted
+ * control now does.
+ */
+export function parseLockDocument(text, revisionId = 'unknown') {
+  if (text === null) refuse('UNREADABLE_AUTHORITY', `pnpm-lock.yaml is missing at ${revisionId}`)
+  const document = {
+    settings: {},
+    catalogs: {},
+    importers: {},
+    packages: {},
+    snapshots: {},
+  }
+  const unquote = (s) => s.replace(/^['"]|['"]$/g, '')
+  const indentOf = (line) => line.length - line.trimStart().length
+
+  let section = null
+  let outer = null // catalog name, or importer path
+  let inner = null // dependency kind, inside an importer
+  let key = null
+
+  for (const line of text.split('\n')) {
+    if (line.trim() === '') continue
+
+    if (/^\S/.test(line)) {
+      const header = /^([A-Za-z0-9_-]+):\s*$/.exec(line)
+      section =
+        header && ['catalogs', 'importers', 'packages', 'snapshots'].includes(header[1])
+          ? header[1]
+          : 'settings'
+      outer = inner = key = null
+      if (section === 'settings') document.settings[line] = line
+      continue
+    }
+
+    if (section === 'settings') {
+      document.settings[line] = line
+      continue
+    }
+
+    const indent = indentOf(line)
+    const name = () => unquote(/^\s*(.*?):\s*(\S.*)?$/.exec(line)?.[1] ?? '')
+
+    // `catalogs:` and `importers:` are keyed per PACKAGE, two levels down,
+    // because a pin move rewrites individual dependency entries inside them.
+    // Storing a whole importer block as one record would make any authorized
+    // pin change look like unrelated drift.
+    if (section === 'catalogs') {
+      if (indent === 2) {
+        outer = name()
+        key = null
+      } else if (indent === 4) {
+        key = `${outer}|${name()}`
+        document.catalogs[key] = line
+      } else if (key !== null) {
+        document.catalogs[key] += `\n${line}`
+      }
+      continue
+    }
+
+    if (section === 'importers') {
+      if (indent === 2) {
+        outer = name()
+        inner = key = null
+      } else if (indent === 4) {
+        inner = name()
+        key = null
+      } else if (indent === 6) {
+        key = `${outer}|${inner}|${name()}`
+        document.importers[key] = line
+      } else if (key !== null) {
+        document.importers[key] += `\n${line}`
+      }
+      continue
+    }
+
+    // packages / snapshots: one record per resolved key, carrying resolution
+    // and integrity -- the bytes that decide what is actually fetched.
+    if (indent === 2) {
+      key = name()
+      document[section][key] = line
+    } else if (key !== null) {
+      document[section][key] += `\n${line}`
+    }
+  }
+  return document
+}
+
+/**
  * The package name inside a resolved key.
  *
  * Keys carry a peer suffix (`oxlint@1.80.0(oxlint-tsgolint@7.0.2001)`) and may
@@ -310,6 +406,41 @@ export function project(revision, spec) {
         return selected.has(name) ? `${entry[1]}${name}${entry[5]}<pin masked>` : line
       })
       return { kind: 'file-except-catalog-pins', value: masked.join('\n') }
+    }
+
+    case 'lock-except-closure': {
+      // Everything the allowed closure does NOT cover, in full: settings,
+      // importers, and the resolution/integrity record of every package
+      // outside it. Comparing dependency edges alone left the bytes that
+      // decide what is fetched completely unbound.
+      const text = revision.read(spec.path)
+      const document = parseLockDocument(text, revision.id)
+      const closure = deriveLockClosure(parseLockGraph(text, revision.id), spec.packages ?? [])
+      const roots = new Set(spec.packages ?? [])
+      const sorted = (entries) =>
+        Object.fromEntries([...entries].sort(([a], [b]) => (a < b ? -1 : 1)))
+      const outsideClosure = (records) =>
+        sorted(Object.entries(records).filter(([key]) => !closure.has(key)))
+      // A pin move rewrites this package's own catalog and importer entries, so
+      // those are the class's to change. Everything else in both sections is
+      // not: an unrelated importer or an unrelated catalog resolution moving
+      // under cover of an authorized bump is exactly what this refuses.
+      const notARoot = (records) =>
+        sorted(
+          Object.entries(records).filter(
+            ([key]) => !roots.has(key.slice(key.lastIndexOf('|') + 1)),
+          ),
+        )
+      return {
+        kind: 'lock-except-closure',
+        value: {
+          settings: document.settings,
+          catalogs: notARoot(document.catalogs),
+          importers: notARoot(document.importers),
+          packages: outsideClosure(document.packages),
+          snapshots: outsideClosure(document.snapshots),
+        },
+      }
     }
 
     case 'lock-closure': {
@@ -445,26 +576,7 @@ export function classifyMaintenance({ classId, predecessor, candidate, universe 
     )
   }
 
-  // 2. Every protected projection must be identical. The verifier authorities
-  //    are protected whatever the policy's floor happens to list.
-  const protectedSpecs = [
-    ...floor,
-    ...(klass.protectedProjections ?? []),
-    ...[...verifierAuthorities].map((p) => ({ path: p, projection: 'bytes' })),
-  ]
-  for (const spec of protectedSpecs) {
-    const before = project(predecessor, spec)
-    const after = project(candidate, spec)
-    if (stable(before.value) !== stable(after.value)) {
-      refuse(
-        'PROTECTED_DRIFT',
-        `${spec.projection} of ${spec.path} differs from the trusted predecessor` +
-          (spec.note ? ` (${spec.note})` : ''),
-      )
-    }
-  }
-
-  // 3. Resolved-graph movement is limited to the derived closure of the
+  // 2. Resolved-graph movement is limited to the derived closure of the
   //    selected roots. The closure is derived from the PREDECESSOR graph as
   //    well as the candidate's, so a candidate cannot enlarge it by adding
   //    edges to its own lockfile.
@@ -502,6 +614,25 @@ export function classifyMaintenance({ classId, predecessor, candidate, universe 
         'LOCK_MOVEMENT_OUTSIDE_CLOSURE',
         `resolved graph moved outside the derived closure of ${roots.join(', ')}: ` +
           moved.sort().join(', '),
+      )
+    }
+  }
+
+  // 3. Every protected projection must be identical. The verifier authorities
+  //    are protected whatever the policy's floor happens to list.
+  const protectedSpecs = [
+    ...floor,
+    ...(klass.protectedProjections ?? []),
+    ...[...verifierAuthorities].map((p) => ({ path: p, projection: 'bytes' })),
+  ]
+  for (const spec of protectedSpecs) {
+    const before = project(predecessor, spec)
+    const after = project(candidate, spec)
+    if (stable(before.value) !== stable(after.value)) {
+      refuse(
+        'PROTECTED_DRIFT',
+        `${spec.projection} of ${spec.path} differs from the trusted predecessor` +
+          (spec.note ? ` (${spec.note})` : ''),
       )
     }
   }

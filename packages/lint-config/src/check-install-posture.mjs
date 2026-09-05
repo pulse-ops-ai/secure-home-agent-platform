@@ -29,13 +29,60 @@ const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..')
 
 /** Toolchain identities the reviewed contract pins exactly. */
-export const PINNED_IDENTITIES = [
-  { name: 'typescript', expected: '6.0.3', role: 'the normal compiler' },
-  { name: '@typescript/typescript6', expected: '6.0.2', role: 'the bounded parsing seam' },
-  { name: 'eslint', expected: '10.8.0', role: 'the legacy engine' },
-  { name: 'oxlint', expected: '1.80.0', role: 'the replacement engine' },
-  { name: 'oxlint-tsgolint', expected: '7.0.2001', role: 'the typed backend' },
+/**
+ * The packages whose installed identity must match the declaration, and what
+ * each one is FOR. Versions are deliberately absent: they live in the workspace
+ * catalog, which is the single version authority.
+ *
+ * They used to be constants here, and that quietly deadlocked the maintenance
+ * boundary it was meant to support. A predecessor-authorized engine bump would
+ * be admitted by the classifier, installed correctly on both architectures, and
+ * then refused by this checker for not being the PR-B-era version -- so the
+ * native proof could never go green for the exact operation the machinery
+ * exists to permit. The declaration moves; the expectation must move with it.
+ */
+export const IDENTITY_ROLES = [
+  { name: 'typescript', role: 'the normal compiler' },
+  { name: '@typescript/typescript6', role: 'the bounded parsing seam' },
+  { name: 'eslint', role: 'the legacy engine' },
+  { name: 'oxlint', role: 'the replacement engine' },
+  { name: 'oxlint-tsgolint', role: 'the typed backend' },
 ]
+
+/**
+ * The exact catalog pins of the revision under test.
+ *
+ * Strict rather than forgiving: this decides what "the right version" means, so
+ * a catalog line it cannot account for must refuse rather than be skipped. A
+ * skipped line is a version expectation that silently disappears.
+ */
+export function catalogPins(repoRoot = REPO_ROOT) {
+  const text = readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8')
+  const lines = text.split('\n')
+  const start = lines.findIndex((line) => /^catalog:\s*$/.test(line))
+  if (start === -1) throw new Error('pnpm-workspace.yaml declares no catalog')
+  const pins = {}
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i]
+    if (line.trim() === '' || /^\s*#/.test(line)) continue
+    if (!/^\s/.test(line)) break
+    const entry = /^\s{2}(?:'([^']+)'|"([^"]+)"|([^\s:'"]+))\s*:\s*(\S+)\s*$/.exec(line)
+    if (!entry) {
+      throw new Error(
+        `pnpm-workspace.yaml has a catalog line this reader cannot account for, so a version ` +
+          `expectation could vanish: ${JSON.stringify(line)}`,
+      )
+    }
+    pins[entry[1] ?? entry[2] ?? entry[3]] = entry[4].replace(/^['"]|['"]$/g, '')
+  }
+  return pins
+}
+
+/** What each identity must resolve to at THIS revision. */
+export function pinnedIdentities(repoRoot = REPO_ROOT) {
+  const pins = catalogPins(repoRoot)
+  return IDENTITY_ROLES.map(({ name, role }) => ({ name, role, expected: pins[name] }))
+}
 
 /**
  * The install posture, read from the workspace declaration.
@@ -73,7 +120,11 @@ export function checkInstallPosture(repoRoot = REPO_ROOT) {
 /** Resolved versions of the pinned toolchain, as actually installed. */
 export function checkPinnedIdentities(repoRoot = REPO_ROOT) {
   const problems = []
-  for (const { name, expected, role } of PINNED_IDENTITIES) {
+  for (const { name, expected, role } of pinnedIdentities(repoRoot)) {
+    if (expected === undefined) {
+      problems.push(`${name} (${role}) is not pinned in the workspace catalog`)
+      continue
+    }
     let resolved
     try {
       const output = execFileSync(
@@ -118,10 +169,8 @@ if (invokedDirectly) {
     process.exit(1)
   }
   if (identitiesOnly) {
-    console.log(
-      `✓ toolchain identities on ${process.arch} — ${PINNED_IDENTITIES.length} exact pins`,
-    )
-    for (const { name, expected } of PINNED_IDENTITIES) console.log(`    ${name} ${expected}`)
+    console.log(`✓ toolchain identities on ${process.arch} — ${IDENTITY_ROLES.length} exact pins`)
+    for (const { name, expected } of pinnedIdentities()) console.log(`    ${name} ${expected}`)
   } else {
     console.log('✓ install posture — onlyBuiltDependencies is empty, no lifecycle exception')
   }

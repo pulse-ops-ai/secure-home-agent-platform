@@ -43,6 +43,12 @@
           "projection": "file-except-catalog-pins",
           "packages": ["oxlint"],
           "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-except-closure",
+          "packages": ["oxlint"],
+          "note": "resolution and integrity outside the authorized closure, plus settings and importers"
         }
       ],
       "lockRoots": ["oxlint"]
@@ -68,6 +74,12 @@
           "projection": "file-except-catalog-pins",
           "packages": ["typescript"],
           "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-except-closure",
+          "packages": ["typescript"],
+          "note": "resolution and integrity outside the authorized closure, plus settings and importers"
         }
       ],
       "lockRoots": ["typescript"],
@@ -94,6 +106,12 @@
           "projection": "file-except-catalog-pins",
           "packages": ["@typescript/typescript6"],
           "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-except-closure",
+          "packages": ["@typescript/typescript6"],
+          "note": "resolution and integrity outside the authorized closure, plus settings and importers"
         }
       ],
       "lockRoots": ["@typescript/typescript6"]
@@ -125,6 +143,12 @@
           "projection": "file-except-catalog-pins",
           "packages": ["typescript", "oxlint-tsgolint"],
           "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "projection": "lock-except-closure",
+          "packages": ["typescript", "oxlint-tsgolint"],
+          "note": "resolution and integrity outside the authorized closure, plus settings and importers"
         }
       ],
       "lockRoots": ["typescript", "oxlint-tsgolint"],
@@ -207,6 +231,11 @@
       "path": ".github/workflows/toolchain-platform.yml",
       "projection": "bytes",
       "note": "the native platform requirement"
+    },
+    {
+      "path": "packages/lint-config/src/check-install-posture.mjs",
+      "projection": "bytes",
+      "note": "the native identity checker; it is data-driven from the catalog, so a candidate must not be able to edit the checker instead of the declaration"
     }
   ],
   "maintenanceVerifierAuthorities": [

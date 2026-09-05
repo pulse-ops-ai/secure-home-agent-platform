@@ -11,12 +11,18 @@
  * cannot report success unless it did.
  */
 import { readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 // @ts-ignore
-import { PINNED_IDENTITIES, checkInstallPosture } from '../src/check-install-posture.mjs'
+import {
+  checkInstallPosture,
+  checkPinnedIdentities,
+  pinnedIdentities,
+} from '../src/check-install-posture.mjs'
 
 const HERE = import.meta.dirname
 const REPO_ROOT = path.join(HERE, '..', '..', '..')
@@ -114,7 +120,7 @@ describe('the install is deterministic and script-free', () => {
   })
 
   it('pins every toolchain identity exactly', () => {
-    const pins = PINNED_IDENTITIES as { name: string; expected: string }[]
+    const pins = pinnedIdentities() as { name: string; expected: string }[]
     expect(pins.map((p) => p.name).sort()).toEqual([
       '@typescript/typescript6',
       'eslint',
@@ -171,5 +177,59 @@ describe('partial evidence is not evidence', () => {
 
   it('runs even when a leg failed, which is when it matters', () => {
     expect(gate.if).toBe('always()')
+  })
+})
+
+describe('native identity expectations follow the declaration, not PR-B constants', () => {
+  // These were constants, and that quietly deadlocked the maintenance boundary:
+  // a predecessor-authorized engine bump would be classified as allowed,
+  // installed correctly on both architectures, and then refused by this checker
+  // for not being the PR-B-era version -- so the native proof could never go
+  // green for the exact operation the machinery exists to permit.
+  const workspaceWith = (pins: Record<string, string>): string => {
+    const root = mkdtempSync(path.join(tmpdir(), 'catalog-'))
+    const body = Object.entries(pins)
+      .map(([name, version]) => `  ${name}: ${version}`)
+      .join('\n')
+    writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      `packages:\n  - packages/*\n\ncatalog:\n${body}\n`,
+    )
+    return root
+  }
+
+  const REAL = pinnedIdentities() as { name: string; expected: string }[]
+  const installed = Object.fromEntries(REAL.map((pin) => [pin.name, pin.expected]))
+
+  it('derives every expectation from the catalog', () => {
+    const moved = { ...installed, oxlint: '1.81.0' }
+    const derived = pinnedIdentities(workspaceWith(moved)) as { name: string; expected: string }[]
+    expect(derived.find((pin) => pin.name === 'oxlint')?.expected).toBe('1.81.0')
+  })
+
+  it('PASSES when the installed version equals the declared pin', () => {
+    expect(checkPinnedIdentities(workspaceWith(installed))).toEqual([])
+  })
+
+  it('FAILS when the declaration moves and the installation does not', () => {
+    // The catalog says 1.81.0; the workspace still has 1.80.0 installed.
+    const problems = checkPinnedIdentities(workspaceWith({ ...installed, oxlint: '1.81.0' }))
+    expect(problems.join('\n')).toMatch(/oxlint .*resolved 1\.80\.0, expected exactly 1\.81\.0/)
+  })
+
+  it('REFUSES an identity that the catalog does not pin at all', () => {
+    const { oxlint: _dropped, ...withoutOxlint } = installed
+    expect(checkPinnedIdentities(workspaceWith(withoutOxlint)).join('\n')).toMatch(
+      /oxlint .*is not pinned in the workspace catalog/,
+    )
+  })
+
+  it('REFUSES a catalog line it cannot account for rather than skipping it', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'catalog-'))
+    writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'packages:\n  - packages/*\n\ncatalog:\n  this is not a pin at all\n',
+    )
+    expect(() => pinnedIdentities(root)).toThrow(/cannot account for/)
   })
 })

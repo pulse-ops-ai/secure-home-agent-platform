@@ -240,7 +240,7 @@
           "minLength": 1
         },
         "projection": {
-          "description": "bytes: the file's exact bytes. tree-bytes: the set of paths under a prefix and each one's bytes. mapping-coverage: the set of (policy, engine) pairs that carry a mapping, ignoring the vendor detail of each. mapping-detail: the per-engine vendor identity of each mapping row. catalog-pins: the pinned versions of the named packages. catalog-pins-except: every catalog pin OTHER than the named packages. lock-closure: lockfile entries reachable from the named roots. file-except-catalog-pins: the file's whole bytes with ONLY the named packages' pin VALUES masked, so a maintenance class that may move a pin still cannot touch workspace globs, install posture, configuration-plugin settings, or any other pin in the same file.",
+          "description": "bytes: the file's exact bytes. tree-bytes: the set of paths under a prefix and each one's bytes. mapping-coverage: the set of (policy, engine) pairs that carry a mapping, ignoring the vendor detail of each. mapping-detail: the per-engine vendor identity of each mapping row. catalog-pins: the pinned versions of the named packages. catalog-pins-except: every catalog pin OTHER than the named packages. lock-closure: lockfile entries reachable from the named roots. file-except-catalog-pins: the file's whole bytes with ONLY the named packages' pin VALUES masked, so a maintenance class that may move a pin still cannot touch workspace globs, install posture, configuration-plugin settings, or any other pin in the same file. lock-except-closure: lockfile settings, importers, and the resolution/integrity record of every package OUTSIDE the derived closure -- the bytes that decide what is fetched, which dependency topology alone does not cover.",
           "enum": [
             "bytes",
             "tree-bytes",
@@ -249,7 +249,8 @@
             "catalog-pins",
             "catalog-pins-except",
             "file-except-catalog-pins",
-            "lock-closure"
+            "lock-closure",
+            "lock-except-closure"
           ]
         },
         "packages": {

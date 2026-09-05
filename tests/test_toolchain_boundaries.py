@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -237,9 +237,51 @@ def _catalog(pins: dict[str, str]) -> str:
     return f"packages:\n  - packages/*\n\ncatalog:\n{body}\n"
 
 
-def _lock(entries: dict[str, list[str]]) -> str:
-    lines = ['lockfileVersion: "9.0"', "snapshots:"]
-    for key, deps in entries.items():
+DIRECT_DEPENDENCIES = {"oxlint", "oxlint-tsgolint", "typescript", "eslint"}
+
+
+def _lock(
+    packages: dict[str, list[str]],
+    catalog: dict[str, str] | None = None,
+    integrity: dict[str, str] | None = None,
+    settings: str = "  autoInstallPeers: true",
+) -> str:
+    """A lockfile in real pnpm shape.
+
+    The earlier fixture emitted only ``snapshots:``, which is why an entire
+    class of hostile edit was invisible: ``packages:`` carries the resolution
+    and integrity that decide what is actually fetched, ``catalogs:`` and
+    ``importers:`` move when a pin moves, and the settings decide how resolution
+    behaves. None of that is dependency topology.
+    """
+    integrity = integrity or {}
+    if catalog is None:
+        # Only DIRECT dependencies appear in `catalogs:` and `importers:`. A
+        # transitive package like a native binding is resolved, not declared,
+        # so listing it here would make an authorized bump look like unrelated
+        # catalog drift.
+        catalog = {}
+        for key in packages:
+            at = key.rfind("@")
+            name = key[:at]
+            if name in DIRECT_DEPENDENCIES:
+                catalog[name] = key[at + 1 :]
+
+    lines = ["lockfileVersion: '9.0'", "", "settings:", settings, "", "catalogs:", "  default:"]
+    for name, version in catalog.items():
+        lines += [f"    {name}:", f"      specifier: {version}", f"      version: {version}"]
+
+    lines += ["", "importers:", "  .:", "    devDependencies:"]
+    for name, version in catalog.items():
+        lines += [f"      {name}:", "        specifier: 'catalog:'", f"        version: {version}"]
+
+    lines += ["", "packages:"]
+    for key in packages:
+        digest = integrity.get(key, f"sha512-{key.replace('@', '-')}==")
+        lines += [f"  {key}:", f"    resolution: {{integrity: {digest}}}"]
+
+    lines += ["", "snapshots:"]
+    for key, deps in packages.items():
         if not deps:
             lines.append(f"  {key}: {{}}")
             continue
@@ -248,7 +290,7 @@ def _lock(entries: dict[str, list[str]]) -> str:
         for dep in deps:
             at = dep.rfind("@")
             lines.append(f"      {dep[:at]}: {dep[at + 1 :]}")
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 MERGED_POLICY: dict[str, Any] = {
@@ -291,7 +333,12 @@ MERGED_POLICY: dict[str, Any] = {
                     "path": "pnpm-workspace.yaml",
                     "projection": "file-except-catalog-pins",
                     "packages": ["oxlint"],
-                }
+                },
+                {
+                    "path": "pnpm-lock.yaml",
+                    "projection": "lock-except-closure",
+                    "packages": ["oxlint"],
+                },
             ],
             "lockRoots": ["oxlint"],
         },
@@ -362,11 +409,12 @@ def _base_files() -> dict[str, str]:
             }
         ),
         "scripts/check-toolchain-boundaries.mjs": "// verifier bytes\n",
+        f"{LC}src/check-install-posture.mjs": "// native identity checker\n",
         MAINTENANCE_WORKFLOW: "# trusted boundary bytes\n",
     }
 
 
-def _with(overrides: dict[str, str | None]) -> dict[str, str]:
+def _with(overrides: Mapping[str, str | None]) -> dict[str, str]:
     files = _base_files()
     for key, value in overrides.items():
         if value is None:
@@ -959,3 +1007,130 @@ def test_adding_a_brand_new_catalog_pin_is_refused(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+# --- the lockfile binds what gets INSTALLED, not just dependency topology ----
+#
+# Trusted control now installs from candidate lock bytes, so the records that
+# decide what is fetched are security-relevant. The earlier projection compared
+# only the `snapshots:` dependency graph, and the earlier fixture emitted only
+# that section -- so a candidate could repoint an unrelated package's integrity
+# while every edge stayed identical, and nothing looked at it.
+
+BINDING = "@oxlint/binding-linux-x64"
+
+
+def _engine_update(**overrides: str) -> dict[str, str]:
+    """An authorized oxlint bump, with its derived native binding."""
+    files = {
+        "pnpm-workspace.yaml": _catalog(
+            {
+                "typescript": "6.0.3",
+                "oxlint": "1.81.0",
+                "oxlint-tsgolint": "7.0.2001",
+                "eslint": "10.8.0",
+            }
+        ),
+        "pnpm-lock.yaml": _lock(
+            {
+                "oxlint@1.81.0": [f"{BINDING}@1.81.0"],
+                f"{BINDING}@1.81.0": [],
+                "eslint@10.8.0": [],
+            }
+        ),
+    }
+    files.update(overrides)
+    return _with(files)
+
+
+def _base_with_binding() -> dict[str, str]:
+    files = _base_files()
+    files["pnpm-lock.yaml"] = _lock(
+        {
+            "oxlint@1.80.0": [f"{BINDING}@1.80.0"],
+            f"{BINDING}@1.80.0": [],
+            "eslint@10.8.0": [],
+        }
+    )
+    return files
+
+
+def test_an_engine_bump_moves_its_derived_native_binding(tmp_path: Path) -> None:
+    """Inside the authorized closure, resolution and integrity may move."""
+    result = _classify(tmp_path, _engine_update(), predecessor_files=_base_with_binding())
+    assert result.returncode == 0, result.stderr
+
+
+def test_an_unrelated_integrity_change_is_refused(tmp_path: Path) -> None:
+    """Snapshots unchanged, one integrity repointed -- the hostile shape.
+
+    This is what dependency-edge comparison could not see.
+    """
+    hostile = _lock(
+        {
+            "oxlint@1.81.0": [f"{BINDING}@1.81.0"],
+            f"{BINDING}@1.81.0": [],
+            "eslint@10.8.0": [],
+        },
+        integrity={"eslint@10.8.0": "sha512-FORGEDFORGEDFORGED=="},
+    )
+    result = _classify(
+        tmp_path,
+        _engine_update(**{"pnpm-lock.yaml": hostile}),
+        predecessor_files=_base_with_binding(),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_an_unrelated_importer_change_is_refused(tmp_path: Path) -> None:
+    smuggled = _lock(
+        {
+            "oxlint@1.81.0": [f"{BINDING}@1.81.0"],
+            f"{BINDING}@1.81.0": [],
+            "eslint@10.8.0": [],
+        },
+        catalog={"oxlint": "1.81.0", "eslint": "10.8.0", "something-new": "9.9.9"},
+    )
+    result = _classify(
+        tmp_path,
+        _engine_update(**{"pnpm-lock.yaml": smuggled}),
+        predecessor_files=_base_with_binding(),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_a_lockfile_settings_change_is_refused(tmp_path: Path) -> None:
+    """Settings decide how resolution behaves, so they are predecessor-bound."""
+    relaxed = _lock(
+        {
+            "oxlint@1.81.0": [f"{BINDING}@1.81.0"],
+            f"{BINDING}@1.81.0": [],
+            "eslint@10.8.0": [],
+        },
+        settings="  autoInstallPeers: false",
+    )
+    result = _classify(
+        tmp_path,
+        _engine_update(**{"pnpm-lock.yaml": relaxed}),
+        predecessor_files=_base_with_binding(),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_tampering_with_the_native_identity_checker_is_refused(tmp_path: Path) -> None:
+    """The checker is data-driven from the catalog, so it must be unwritable.
+
+    Otherwise a candidate could move a pin and edit the checker that verifies
+    it, instead of moving the declaration the checker reads.
+    """
+    result = _classify(
+        tmp_path,
+        _with({f"{LC}src/check-install-posture.mjs": "// expectations relaxed\n"}),
+    )
+    assert result.returncode != 0
+    refusal = json.loads(result.stderr)
+    assert refusal["code"] in {"UNDECLARED_CHANGE", "PROTECTED_DRIFT"}
+    assert "check-install-posture" in refusal["message"]
