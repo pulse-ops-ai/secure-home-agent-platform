@@ -45,7 +45,8 @@
  * parser and walks the AST. A construct either is an import node or it is not;
  * there is no pattern left to defeat.
  *
- * The cost is one dependency, `typescript`, already pinned in the catalog. This
+ * The cost is one dependency, the bounded `@typescript/typescript6` parsing
+ * seam, pinned in the catalog. This
  * gate runs after `pnpm install --frozen-lockfile` in CI and in `check.sh`;
  * `validate-scaffold.sh`, `scan-secrets.sh`, `check-workspace.mjs`, and
  * `affected-targets.mjs` remain dependency-free and still run before install.
@@ -84,7 +85,20 @@ import { readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join, relative, basename, extname, sep, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import ts from 'typescript'
+// THE BOUNDED COMPATIBILITY SEAM, not the normal compiler.
+//
+// This gate needs a PARSER, not compiler authority. Importing `typescript`
+// coupled the two: a compiler cutover would silently change how architecture is
+// parsed, and the gate would move with the compiler whether or not that was
+// intended. `@typescript/typescript6` presents the traditional TypeScript 6 API
+// as a stable parsing surface, so the compiler can move without dragging the
+// architecture gate behind it.
+//
+// It is NOT a compiler. Nothing here emits, typechecks, or builds, and no other
+// file in this repository may import it: `scripts/toolchain-boundaries.json`
+// records this file as the single admitted consumer and the boundary gate
+// refuses a second one.
+import ts from '@typescript/typescript6'
 
 import {
   DEFAULT_ROOT,
@@ -234,6 +248,11 @@ function sourceFiles(dir) {
       }
       if (stats.isDirectory()) {
         if (IGNORED_DIRS.has(entry) || entry.startsWith('.')) continue
+        // Lint FIXTURES are deliberately invalid -- several are syntax errors
+        // on purpose, so they cannot be parsed and have no imports to govern.
+        // The repository's lint, formatter, and compiler all skip them for the
+        // same reason; this is the fourth reader that must.
+        if (rel === 'tests/fixtures' || rel.endsWith('/tests/fixtures')) continue
         walk(full, rel)
       } else if (SOURCE_EXTENSIONS.includes(extname(entry))) {
         found.push(rel)

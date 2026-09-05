@@ -26,6 +26,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-openspec-review-history.mjs`](check-openspec-review-history.mjs) | The **two-revision** companion: admitted rounds are append-only. Adding is allowed; modifying, deleting, or renaming one is refused; a byte-identical move into `changes/archive/**` is allowed. A round is a **direct child** of `reviews/` named `<epoch>-<reviewed-sha12>.md` — a nested path is refused rather than skipped, because it is the only shape whose admission provenance this check can prove. Runs always |
 | [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
 | [`openspec-review-pins.mjs`](openspec-review-pins.mjs) | Enumerates the historical `reviewed_commit` identities a candidate's `reviews/` rounds cite, read from git objects, so the trusted boundary can fetch those commits **as inert objects** before the gate's `cat-file` identity proof needs them. Necessary after a **squash merge**, which orphans a reviewed commit so a fresh runner has never fetched it. Decides nothing about acceptance — it reads one field and refuses anything but lowercase full 40-hex, a filename that disagrees with its block, or an ambiguous round |
+| [`build-maintenance-plan.mjs`](build-maintenance-plan.mjs) | Assembles a classification plan from two Git **revisions**, read out of the object database as inert file maps — neither side is checked out and nothing from the candidate executes. The path universe is **derived** here (what changed, plus everything the predecessor's protected projections cover) rather than taken from either revision, because a candidate that could shrink the universe could hide a change inside it |
+| [`check-toolchain-boundaries.mjs`](check-toolchain-boundaries.mjs) | The **predecessor-bound** maintenance classifier. Decides admissible *data difference* between a trusted predecessor and a candidate under one of the **closed** maintenance classes in [`toolchain-boundaries.json`](toolchain-boundaries.json), and nothing else — it never resolves, selects, or trusts a revision, because a candidate that could choose its own predecessor could authorize itself. Comparison is by **projection**, a named function over content, so one file can be protected and permitted at once: `engine-mappings.json` is protected under `mapping-coverage` (no policy may lose a mapping) and permitted under `mapping-detail` (vendor rule identity may move). Resolved-graph movement is bounded by the **derived** transitive closure of the selected roots, never a declared one. Run with no arguments it checks the policy's own consistency at rest. Missing or unreadable predecessor, malformed class, unknown class, an undeclared changed path, protected drift, class union, or a class touching its own verifier all **fail closed** |
 | [`check-images.mjs`](check-images.mjs) | Image **lock and lineage** invariants (`deploy/images/image-lock.yaml`): closed lineage classes, immutable external pins, the base→derived digest chain, provider-neutral base/gates definitions, and image inertness. Structural only — real digests come from the governed images workflow |
 | [`image-impact.mjs`](image-impact.mjs) | Fail-closed semantic image-impact analysis: compares a trusted Git revision with the candidate, derives build inputs and dependency closure from the image lock/Dockerfiles/toolchain inventory, and selects no build only when irrelevance is positively proved. Exports `GLOBAL_BUILD_INPUTS`, the repository-level inputs that force the complete set; each must appear on the workflow's outer `paths` perimeter (structurally enforced) or the checker never runs |
 | [`pr-merge-plan.mjs`](pr-merge-plan.mjs) | Composed-tree PR proof planning: resolves the **live** target-branch tip, composes a synthetic `merge(live base, PR head)` with Git plumbing (no branch mutated), gates the previous-head fast path on base incorporation, and re-checks both identities at run end (TOCTOU). The synthetic `MERGE_SHA` is deterministic — fixed identity, input-derived commit dates, and normalized UTF-8 commit encoding — so identical inputs reproduce the same evidence SHA despite ambient clock or Git encoding configuration. Fails closed on an unresolvable base/head or a merge conflict. A global image-proof input, so it is on the `images.yml` perimeter |
@@ -216,3 +218,30 @@ Three deliberate properties of the source check:
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).
+
+## Maintenance-boundary lifecycle state
+
+This repository has produced **no authoritative maintenance evidence**, and PR-B
+(the landing that creates the boundary) cannot produce any. That is the explicit
+genesis-only record, and it is a fact about where the executable authority comes
+from rather than a status field:
+
+- `repository_dispatch` always runs the **default-branch** definition of
+  [`toolchain-maintenance-boundary.yml`](../.github/workflows/toolchain-maintenance-boundary.yml).
+  Until that file is on the default branch there is no authoritative run to have.
+- `classifyMaintenance()` separately refuses a predecessor that does not contain
+  the verifier authorities (`PREDECESSOR_LACKS_VERIFIER`). PR-B is judged against
+  a predecessor that lacks them, so no revision exists at which it admits itself.
+
+An earlier draft encoded this as a `genesisState: GENESIS_ONLY` field the
+classifier read. That was wrong, and removing it was a correction rather than a
+relaxation: no accepted task defines the transition that would flip such a flag
+to `OPERATIONAL`, so it would have refused the *first real maintenance candidate*
+forever — deadlocking the authority it existed to protect. The presence of the
+verifier at the predecessor expresses the same condition and becomes true simply
+by merging.
+
+The protocol is proved here by executable fixtures and ordinary hosted CI. Those
+results are **not** predecessor-hosted maintenance evidence and are not
+represented as such. The first authoritative run belongs to a later candidate
+whose predecessor already contains this boundary.

@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secure-home.local/schemas/toolchain-boundaries.schema.json",
+  "title": "Toolchain boundaries",
+  "description": "The bounded seams of the TypeScript/lint toolchain: who may import the legacy compiler API, which platforms must be proved natively, which tool-maintenance changes are admissible, and how an untrusted candidate is isolated while it is judged. It carries no package versions: the workspace catalog is the single version authority, and duplicating a pin here would create a second one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "compatibilityConsumers",
+    "maintenanceClasses",
+    "maintenanceVerifierAuthorities",
+    "platforms",
+    "protectedProjections",
+    "schemaVersion",
+    "subjectCommandPacks",
+    "subjectIsolation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "compatibilityConsumers": {
+      "description": "The closed allowlist of repository files permitted to import the bounded TypeScript 6 compatibility API. Widening it is a reviewed change, never an implementation detail.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._/-]+$"
+      }
+    },
+    "normalCompilerEntryPoints": {
+      "description": "Entry points that must resolve the NORMAL compiler. The compatibility package may never satisfy one of these.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "platforms": {
+      "description": "Platforms whose command pack must execute NATIVELY. Cross-compilation, emulation, or metadata inspection is not proof.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["ubuntu-24.04", "ubuntu-24.04-arm"]
+      }
+    },
+    "installPosture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onlyBuiltDependencies"],
+      "properties": {
+        "onlyBuiltDependencies": {
+          "description": "Must remain empty. A package needing an install lifecycle script is a stop, not an exception to grant here.",
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "maintenanceClasses": {
+      "description": "The CLOSED set of admissible tool-maintenance changes. A candidate may not union two classes to widen its admitted delta; the composite class exists precisely so a coupled change has one named, reviewed identity.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/maintenanceClass"
+      }
+    },
+    "subjectIsolation": {
+      "description": "The contract for executing candidate tools as subjects under test. Two INDEPENDENT boundaries are required: a trust-domain boundary and an OS-level process boundary. A fresh runner alone satisfies neither.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deniedToSubject", "processBoundary", "containerControls", "image"],
+      "properties": {
+        "deniedToSubject": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "processBoundary": {
+          "description": "Running the candidate as the launcher's own UID in the launcher's filesystem context is inadmissible and must be refused BEFORE execution.",
+          "enum": ["container", "separate-uid"]
+        },
+        "containerControls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "image": {
+          "description": "The subject container image, pinned BY DIGEST. It supplies the interpreter the candidate runs under, so it is part of the measured execution environment; a tag can move underneath a proof.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reference", "digest"],
+          "properties": {
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "protectedProjections": {
+      "description": "The universal protected floor: projections that EVERY maintenance class must preserve, whatever it otherwise allows. A path may appear here under one projection and in a class's allowedProjections under a different projection of the same file -- that is the point. Protecting `engine-mappings.json` wholesale would contradict the lint-engine class, which exists to let per-engine mapping detail move; protecting its policy/engine COVERAGE instead forbids the thing that actually matters, a policy quietly losing its mapping.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/projection"
+      }
+    },
+    "maintenanceVerifierAuthorities": {
+      "description": "AUTH-MAINTENANCE-VERIFIER. No maintenance class may admit a change to the authority that will judge it, so no class's allowedProjections may cover one of these paths. These paths are also the bootstrap condition: a predecessor that does not CONTAIN them cannot have produced the executable authority a maintenance claim is judged by, so classification against it is refused. That is a fact about where the executable authority came from, not a status bit inside the document -- a mutable flag would have to be flipped by some change, and no accepted task defines that transition.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "subjectCommandPacks": {
+      "description": "The exact commands the untrusted subject runs, PER MAINTENANCE CLASS, owned by the predecessor. A class must exercise the tool it moves: a compiler update proved only by running the lint engine has not been proved at all. Candidate content never selects, adds to, or reorders a pack.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["classId", "commands"],
+        "properties": {
+          "classId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/subjectCommand"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "maintenanceClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "allows", "allowedProjections"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        },
+        "composite": {
+          "description": "True for a class that admits a coupled change which its parts could not admit separately.",
+          "type": "boolean"
+        },
+        "allows": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "allowedProjections": {
+          "description": "Exactly which projections of which paths MAY differ from the trusted predecessor. A changed path not covered here refuses the claim; prose in `allows` is a human summary and is never the check.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/projection"
+          }
+        },
+        "protectedProjections": {
+          "description": "Projections this class must preserve IN ADDITION to the universal floor.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/projection"
+          }
+        },
+        "lockRoots": {
+          "description": "The exact package roots whose deterministically derived transitive closure is the ONLY part of the resolved graph permitted to move.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "composedOf": {
+          "description": "For a composite class only: the ids of the classes it couples. The composite must still preserve every protected projection of each contributing class -- coupling is not relaxation.",
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "projection": {
+      "description": "A named function over repository content at one revision. Comparing the SAME projection across two revisions is what a maintenance claim is judged on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "projection"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection": {
+          "description": "bytes: the file's exact bytes. tree-bytes: the set of paths under a prefix and each one's bytes. mapping-coverage: the set of (policy, engine) pairs that carry a mapping, ignoring the vendor detail of each. mapping-detail: the per-engine vendor identity of each mapping row. catalog-pins: the pinned versions of the named packages. catalog-pins-except: every catalog pin OTHER than the named packages. lock-closure: lockfile entries reachable from the named roots. file-except-catalog-pins: the file's whole bytes with ONLY the named packages' pin VALUES masked, so a maintenance class that may move a pin still cannot touch workspace globs, install posture, configuration-plugin settings, or any other pin in the same file. lock-except-closure: lockfile settings, importers, and the resolution/integrity record of every package OUTSIDE the derived closure -- the bytes that decide what is fetched, which dependency topology alone does not cover.",
+          "enum": [
+            "bytes",
+            "tree-bytes",
+            "mapping-coverage",
+            "mapping-detail",
+            "catalog-pins",
+            "catalog-pins-except",
+            "file-except-catalog-pins",
+            "lock-closure",
+            "lock-except-closure"
+          ]
+        },
+        "packages": {
+          "description": "Package names selecting the projection, for the catalog and lock projections.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "engines": {
+          "description": "Engine keys selecting the projection, for the mapping projections.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["legacy", "replacement"]
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "subjectCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "binary", "argv", "cwd", "inputs", "expect"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        },
+        "binary": {
+          "description": "The tool identity being exercised. `package` is resolved to the CANDIDATE's exact pin so the plan names the bytes that will run; `bin` is the executable invoked.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package", "bin"],
+          "properties": {
+            "package": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bin": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "description": "Working directory, relative to the materialization root. Relative argv paths are meaningless without it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "inputs": {
+          "description": "Inputs whose digests the plan pins. `source` is the provenance: a predecessor-sourced input must be predecessor-identical in the candidate, while a candidate-sourced input is one the class ALLOWS to move and is digested from the candidate's exact bytes. Without that distinction a legitimate update deadlocks, because the pin it is permitted to change is also an input it must not change.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "source"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "enum": ["predecessor", "candidate"]
+              }
+            }
+          }
+        },
+        "expect": {
+          "description": "The predecessor's expected result. Without it a subject can fail every command and still be admitted, because classification proves admissible DATA DIFFERENCE, not execution success.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome"],
+          "properties": {
+            "outcome": {
+              "enum": ["success", "rejection"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

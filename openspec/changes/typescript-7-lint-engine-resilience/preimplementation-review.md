@@ -1,11 +1,19 @@
 # Pre-Implementation Review: TypeScript 7 and lint-engine resilience
 
 <!--
-This report is the accepting epoch-1 independent architecture review of the
-`replacement-authority-parity` scope. It is pinned to
-aae33fdd217d66de8d9127576f203c115abc37eb against base
-c0a2f5cbcccfaaaa00a2df897457eba48ec2f226. It accepts architecture only: it does
-not change ADR-0022 from Proposed and creates no implementation authority.
+This report is the accepting epoch-2 focused base-freshness review of the
+`replacement-authority-parity` scope.
+
+Epoch 1 already accepted the Scope-1 architecture. This epoch does not reopen
+that architecture. It determines whether repository movement after epoch 1
+invalidated any accepted Scope-1 assumption, invariant, authority allocation,
+trust boundary, prerequisite, or external identity model.
+
+PR-B historically began from exact post-PR-A2 main
+cb7836148db24971826b886361593950570b4af4 as required by INV-TS7-31. Before
+implementation, that same zero-implementation branch incorporated the reviewed
+governance-infrastructure advance by fast-forward to current target base
+10d04a05df18db634d47737c8235d0e4351f8ac0.
 -->
 
 <!-- openspec-review-gate
@@ -13,12 +21,12 @@ not change ADR-0022 from Proposed and creates no implementation authority.
   "contract": "preimplementation-review-v2",
   "schema": "governed-spec-driven-v2",
   "rubric": "governed-preimplementation-review-v1",
-  "reviewed_commit": "aae33fdd217d66de8d9127576f203c115abc37eb",
-  "reviewed_base_commit": "c0a2f5cbcccfaaaa00a2df897457eba48ec2f226",
-  "review_epoch": 1,
+  "reviewed_commit": "70680c1c3eea2421ac39f6c4c6be862f4c0a0cdc",
+  "reviewed_base_commit": "10d04a05df18db634d47737c8235d0e4351f8ac0",
+  "review_epoch": 2,
   "scope_id": "replacement-authority-parity",
-  "reviewed_at": "2026-09-01T23:47:38Z",
-  "reviewer": "GPT-5.6 Sol \u2014 independent architecture review",
+  "reviewed_at": "2026-09-03T16:11:39Z",
+  "reviewer": "GPT-5.6 Sol — independent architecture review",
   "verdict": "ARCHITECTURE_ACCEPTED",
   "unresolved_p1_count": 0,
   "unassigned_p2_p3_count": 0,
@@ -70,179 +78,166 @@ not change ADR-0022 from Proposed and creates no implementation authority.
 | Field                          | Value                                               |
 | ------------------------------ | --------------------------------------------------- |
 | Repository                     | `pulse-ops-ai/secure-home-agent-platform`           |
+| Branch                         | `feat/typescript-lint-engine-parity-foundation`     |
 | Scope                          | `replacement-authority-parity`                      |
-| Reviewed commit                | `aae33fdd217d66de8d9127576f203c115abc37eb`          |
-| Default branch / reviewed base | `main` / `c0a2f5cbcccfaaaa00a2df897457eba48ec2f226` |
-| Review epoch                   | `1`                                                 |
+| Review type                    | focused base-freshness review                       |
+| Reviewed commit                | `70680c1c3eea2421ac39f6c4c6be862f4c0a0cdc`          |
+| Default branch / reviewed base | `main` / `10d04a05df18db634d47737c8235d0e4351f8ac0` |
+| Review epoch                   | `2`                                                 |
+| Previous accepted epoch        | `1`                                                 |
+| Previous reviewed commit       | `aae33fdd217d66de8d9127576f203c115abc37eb`          |
+| PR-B historical genesis        | `cb7836148db24971826b886361593950570b4af4`          |
+| Worktree state at review pin   | clean                                               |
 | Review rubric                  | `governed-preimplementation-review-v1`              |
 | Reviewer                       | `GPT-5.6 Sol — independent architecture review`     |
-| Reviewed at                    | `2026-09-01T23:47:38Z`                              |
+| Reviewed at                    | `2026-09-03T16:11:39Z`                              |
 
-The reviewed head is rebased onto the current default-branch state containing PR #116. The reviewed planning package contains no implementation authority and ADR-0022 remains `Proposed`.
+The reviewed commit contains no Scope-1 implementation. It contains only the
+two review-ceremony commits required to admit accepted epoch 1 into history and
+prepare the current review slot for epoch 2.
 
-The machine-readable review block is authoritative for the exact reviewed-artifact paths and SHA-256 values.
+The machine-readable review block is authoritative for the exact reviewed
+artifact paths and SHA-256 values.
 
 ## Independent Review Statement
 
-This review is a fresh independent epoch-1 review of the final corrected planning bytes.
+This is an independent, read-only, repository-aware focused review.
 
-The earlier `FOCUSED_CLOSURE_REQUIRED` review was never an admitted epoch. It is therefore superseded in place rather than copied into `reviews/`; accepted historical epochs only belong in that directory.
+The reviewer did not author the governed planning package in the same working
+context. The review did not modify repository state, execute candidate
+implementation, or perform a live external mutation.
 
-The review evaluated the final architecture after closure of the prior findings concerning:
+The current epoch-2 pin, current target-base identity, two-commit ceremony,
+planning-byte identities, accepted ADR state, PR-B genesis relationship, and
+governance-infrastructure movement were evaluated before the accepted epoch-1
+review was used as the structural template for this report.
 
-1. predecessor-bound semantic-policy continuity;
-2. candidate-independent verifier authority;
-3. candidate native-tool isolation;
-4. launcher-versus-candidate process isolation;
-5. the dedicated ADR-acceptance transition;
-6. point-in-time maintenance evidence and merge freshness;
-7. normal TypeScript compiler authority versus the bounded TS6 API seam;
-8. coupled compiler / typed-lint maintenance;
-9. emitted-output compatibility evidence; and
-10. retained implementation proof ownership.
+Epoch 1 was then consulted as accepted historical evidence to determine whether
+any previously accepted architecture assumption had been invalidated or
+regressed by the intervening repository movement.
 
-No additional architecture correction is required by this review.
+The review is intentionally narrower than epoch 1. It does not repeat an
+unrestricted architecture search. The reviewed question is whether the
+unchanged `replacement-authority-parity` planning package remains valid against
+the exact current target base before Scope-1 implementation begins.
+
+It does.
 
 ## Reviewed Artifact Manifest
 
-The machine-readable block above is authoritative for the exact reviewed
-paths and SHA-256 values; this table restates it.
+The machine-readable block above is authoritative for the exact reviewed paths
+and SHA-256 values. This table restates it.
 
-| Path | SHA-256 |
-|---|---|
-| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` |
-| `proposal.md` | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` |
-| `specs/lint-policy-parity/spec.md` | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` |
-| `specs/toolchain-authority/spec.md` | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` |
+| Path                                   | SHA-256                                                            |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `.openspec.yaml`                       | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` |
+| `proposal.md`                          | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` |
+| `specs/lint-policy-parity/spec.md`     | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` |
+| `specs/toolchain-authority/spec.md`    | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` |
 | `specs/toolchain-supply-chain/spec.md` | `591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6` |
-| `specs/typescript-7-cutover/spec.md` | `a6d03fa663d0298c58f94df68f9c2d15a8398d3674a1fec608f2caa147a07b45` |
-| `design.md` | `f849fedc56ee145baa2b22757ac878d1bb0562566fc9835c205984280e1f9da8` |
-| `assurance.md` | `2ae675fd430fe1a452be930721ff1dc1231f0b28aa6f96d5b2857d7d074de3a0` |
-| `tasks.md` | `08a6691e0d6d8f9fe4af6ce304db081353c4b4db87612ff42cb847ed0cfe9c2a` |
+| `specs/typescript-7-cutover/spec.md`   | `a6d03fa663d0298c58f94df68f9c2d15a8398d3674a1fec608f2caa147a07b45` |
+| `design.md`                            | `f849fedc56ee145baa2b22757ac878d1bb0562566fc9835c205984280e1f9da8` |
+| `assurance.md`                         | `2ae675fd430fe1a452be930721ff1dc1231f0b28aa6f96d5b2857d7d074de3a0` |
+| `tasks.md`                             | `08a6691e0d6d8f9fe4af6ce304db081353c4b4db87612ff42cb847ed0cfe9c2a` |
 
-Historical reviews and this report are not members of the planning-byte
-manifest.
+The set and every digest are identical to accepted epoch 1.
+
+Historical review records and this report are review evidence and are not
+members of the planning-byte manifest.
+
 ## Review Method
 
-### Pass A — final-current-state architecture review
+### Pass A — focused current-base review
 
-The review evaluated the exact final planning package at
-`aae33fdd217d66de8d9127576f203c115abc37eb` as a complete architecture rather
-than carrying forward the disposition of either earlier non-accepting review.
+The review first evaluated the current state without reopening already accepted
+Scope-1 architecture.
 
-The current bytes were used to reconstruct and test:
+The following were checked:
 
-1. the complete 117-rule lint-policy migration model and its separation from
-   per-engine mappings;
-2. compiler, lint, formatting, architecture, package-install, and compatibility
-   authority boundaries;
-3. the TypeScript 6 compatibility seam and the prohibition on `tsc6` becoming a
-   normal compiler entry point;
-4. the two implementation scopes and the distinct PR-A2 ADR-acceptance
-   transition;
-5. every current `AUTH-*` allocation and the task that creates or verifies it;
-6. predecessor-bound tool-maintenance classes, including the closed
-   `normal-compiler-and-typed-lint` composite class;
-7. the trusted-control / untrusted-subject / trusted-verdict maintenance
-   topology;
-8. both mandatory candidate-execution isolation boundaries: separation of the
-   subject domain from trusted control/verdict and separation of the candidate
-   process from the trusted host-side launcher;
-9. point-in-time maintenance-evidence identity and the `MAN-TS7-01` merge
-   consumption control;
-10. positive, property, adversarial, mutation, platform, and emitted-output proof
-    obligations; and
-11. the PR-B genesis rule that prevents the newly introduced maintenance
-    boundary from authorizing the PR that creates it.
+1. exact reviewed commit `70680c1c3eea2421ac39f6c4c6be862f4c0a0cdc`;
+2. exact current target base `10d04a05df18db634d47737c8235d0e4351f8ac0`;
+3. unchanged identity of all nine governed planning artifacts;
+4. unchanged accepted ADR-0022 architectural body;
+5. historical PR-B genesis at exact post-PR-A2 main
+   `cb7836148db24971826b886361593950570b4af4`;
+6. absence of any Scope-1 implementation commit before the base-freshness
+   review;
+7. fast-forward-only incorporation of the intervening governance infrastructure;
+8. exact contents of the two epoch ceremony commits; and
+9. whether any intervening repository movement changed an accepted Scope-1
+   assumption, authority, invariant, trust boundary, prerequisite, or external
+   identity model.
 
-The current-state pass found no unresolved authority, invariant, prerequisite,
-trust-boundary, or identity defect requiring another planning correction.
+No such invalidating change was found.
 
-### Pass B — prior-finding regression and falsification review
+### Pass B — accepted-history and regression review
 
-After the current-state model was reconstructed, the review traced every
-material finding from the earlier non-accepting reviews into the final planning
-package and required an executable disposition rather than relying on prose
-closure.
+Only after establishing the current-base facts, the accepted epoch-1 review and
+the intervening transitions were used to test continuity.
 
-That regression pass specifically re-tested the design against these failure
-shapes:
+The review considered:
 
-- delete a semantic policy row together with its only fixture during a tool
-  update;
-- relax shared compiler policy while changing the compiler;
-- replace or delete the candidate checker;
-- alter the candidate workflow to skip verification;
-- run malicious candidate-native tooling beside the deciding verifier;
-- run the candidate directly under the trusted launcher's UID/filesystem
-  context;
-- forge or tamper with the subject result envelope;
-- expose a token, secret, Docker socket, shared writable cache, or trusted
-  workspace to the subject;
-- move the candidate head or trusted predecessor during verification;
-- reuse successful evidence after the head, base, protected authority, or
-  synthetic merge tree changes;
-- begin Scope 1 while ADR-0022 is still `Proposed`;
-- resolve a normal compiler entry point through `tsc6`;
-- self-compose maintenance classes to widen the admitted delta; and
-- accept TypeScript 7 merely because compilation succeeds while governed emitted
-  output changes.
+* the accepted epoch-1 `replacement-authority-parity` decision;
+* PR-A2's acceptance of ADR-0022;
+* the exact post-PR-A2 PR-B genesis requirement;
+* PR #118's trusted review-boundary corrections;
+* the historical reviewed-commit object availability seam fixed by #118;
+* the nested review-history path-set seam fixed by #118;
+* epoch-1 admission provenance;
+* current base-freshness semantics; and
+* the still-required first live trusted `review-boundary.yml` dispatch.
 
-Each failure shape now has a fail-closed rule and an assigned executable
-regression, adversarial case, mutation, or differential proof in PR-B or PR-C.
+The result is continuity, not a new architecture.
 
-The prior `FOCUSED_CLOSURE_REQUIRED` review was non-accepting and therefore was
-never an admitted review epoch. No accepted historical `reviews/**` record exists
-for this scope. This review is the first admitted epoch if and only if the
-current review gate verifies the exact manifest and verdict.
+The remaining first live trusted-boundary execution is an executable pre-apply
+proof. Failure of that execution would block implementation; it would not
+retroactively convert the unchanged planning architecture into a new design.
 
 ## Architecture Acceptance Checks
 
-| Check                                           | Result | Basis                                                                                                    |
-| ----------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
-| Scope and non-goals are explicit                | pass   | planning package remains bounded to the TypeScript/lint-engine resilience program                        |
-| Requirements are observable and scenario-backed | pass   | final normative specs include positive, refusal, hostile, and maintenance cases                          |
-| Trust boundaries are explicit                   | pass   | trusted control / untrusted subject / trusted verdict plus merge-consumption boundary                    |
-| Candidate executable isolation is complete      | pass   | fresh subject domain and independent launcher/process OS boundary are both mandatory                     |
-| Candidate cannot self-authorize maintenance     | pass   | predecessor owns verifier, classes, command plan, and trusted verdict                                    |
-| Maintenance continuity is predecessor-bound     | pass   | protected semantic/config/corpus authorities cannot be deleted with their evidence                       |
-| Merge freshness is honestly modeled             | pass   | maintenance run is point-in-time evidence; `MAN-TS7-01` owns pre-merge freshness                         |
-| ADR acceptance sequencing is executable         | pass   | PR-A2 is an explicit acceptance-only transition before PR-B                                              |
-| Compiler authority is singular                  | pass   | normal entry points use the authoritative TypeScript package; `tsc6` is confined to the bounded API seam |
-| Coupled maintenance cannot self-widen           | pass   | maintenance classes are closed; compiler + typed-lint coupling has one explicit composite class          |
-| Emitted-output preservation is executable       | pass   | differential/golden evidence is assigned for actual governed output surfaces                             |
-| Every mutable fact family has a canonical owner | pass   | authority allocation is complete                                                                         |
-| Proof obligations have due landings             | pass   | P1/P2 closures are assigned to PR-B/PR-C tasks and mutation evidence                                     |
-| PR #113 remains outside the program             | pass   | no #113 content or authority is imported                                                                 |
+| Check                                                              | Result | Evidence                                                                                                         |
+| ------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Scope and non-goals remain explicit                                | pass   | all nine planning artifacts are byte-identical to accepted epoch 1                                               |
+| Current Scope-1 requirements remain observable and scenario-backed | pass   | no normative planning byte changed                                                                               |
+| Trust boundaries remain explicit                                   | pass   | accepted trusted-control / untrusted-subject / trusted-verdict model unchanged                                   |
+| Current-scope gating decisions remain closed                       | pass   | ADR-0022 is Accepted; Scope 1 is externally authorized; trusted pre-apply dispatch remains the final gate        |
+| PR-B genesis prerequisite remains satisfied                        | pass   | branch was created at exact post-PR-A2 `cb783614...` with zero implementation commits                            |
+| Target-base movement is accounted for                              | pass   | zero-implementation branch fast-forwarded to reviewed descendant `10d04a05...` before epoch 2                    |
+| Invariants remain stable and traceable                             | pass   | no governed planning byte or invariant changed                                                                   |
+| Canonical authority allocation remains singular                    | pass   | no intervening change transferred or duplicated Scope-1 authority                                                |
+| Review-history admission is provenance-bearing                     | pass   | epoch-1 bytes were copied from the then-current accepted review and verified by the two-revision history checker |
+| Squash-discarded historical review pins remain verifiable          | pass   | trusted exact-SHA prefetch infrastructure landed in #118 without weakening real-commit identity                  |
+| Historical-round path representation is singular                   | pass   | #118 aligned gate, pin enumerator, and history checker on direct-child rounds                                    |
+| PR-C remains separately gated                                      | pass   | no Scope-2 implementation or authorization was introduced                                                        |
+| PR #113 remains outside the program                                | pass   | frozen branch remains untouched                                                                                  |
+| Proof obligations still have due landings                          | pass   | PR-B and PR-C task/proof allocations are unchanged                                                                |
+
+No acceptance check requires an architecture correction.
 
 ## Severity Calibration
 
-P1 is reserved for a concrete defect that requires changing an invariant,
-canonical-authority allocation, trust boundary, prerequisite, or external
-identity model in order for implementation to be safe.
+P1 remains reserved for a concrete defect whose safe closure requires changing
+an invariant, canonical-authority allocation, trust boundary, prerequisite, or
+external identity/ownership model.
 
-P2 covers a bounded implementation or proof obligation that fits entirely within
-an already-correct authority and invariant model. P3 covers non-material
-clarity, maintainability, or documentation issues.
+P2 is a significant implementation-contract, feasibility, operability, or
+maintainability defect that can be closed inside the already accepted
+architecture through its allocated schema, policy, fixture, test, derivation,
+or bounded implementation choice.
 
-Earlier review rounds correctly classified predecessor-policy continuity,
-candidate-controlled verifier authority, candidate executable co-residency,
-ADR-acceptance sequencing, and merge-evidence freshness as P1 when those
-boundaries were missing or incomplete. The final planning bytes now contain the
-required authorities, invariants, trust boundaries, prerequisites, and
-fail-closed identity model.
+P3 is a non-blocking documentation, organization, naming, clarity, or local
+maintainability issue.
 
-The remaining implementation obligations — including workspace classification,
-blocking/fix semantics, TS7-versus-TS6 parser differential evidence, native
-platform execution, subject-isolation mutations, and emitted-output
-differentials — are explicitly assigned to PR-B or PR-C and do not require an
-additional architecture change.
+Under that calibration, neither legitimate base movement nor the fact that the
+trusted boundary has not yet executed live is itself a new architecture
+finding.
 
-Accordingly, this review records:
+The base movement is exactly why governed-spec-driven-v2 permits a fresh review
+epoch.
 
-- unresolved P1 findings: none;
-- unassigned P2/P3 findings: zero; and
-- no new finding requiring another planning correction.
+The first live trusted-boundary execution remains a required pre-apply proof. If
+it refuses, implementation remains unauthorized and the concrete refusal must be
+reviewed. No local or candidate-provided success may replace it.
 
 ## Findings
 
@@ -250,148 +245,209 @@ Accordingly, this review records:
 
 **Unresolved P1 findings:** `none`
 
-All previously identified P1 architecture defects are closed in the reviewed planning bytes.
+No current-base change requires alteration of an accepted invariant, authority
+allocation, trust boundary, prerequisite, or external identity model.
 
-In particular, candidate tooling is now separated from the maintenance root of trust by two mandatory isolation boundaries:
+PR-A2 completed the ADR-acceptance prerequisite already anticipated by the
+accepted architecture.
 
-- the candidate runs in a fresh secret-free untrusted subject domain; and
-- the candidate process is separated from the trusted launcher by an explicit OS-level boundary.
+PR #118 repaired the review-governance mechanism without modifying this
+program's planning authority or implementation semantics.
 
-A same-UID / same-filesystem launcher topology is explicitly inadmissible and is assigned mutation coverage.
+The two epoch-2 ceremony commits modify review evidence only.
 
-### P2/P3 findings
+### P2 findings
+
+No new P2 finding was identified by this focused review.
+
+Implementation obligations already assigned by epoch 1 remain assigned to their
+existing PR-B or PR-C tasks and proof obligations.
+
+### P3 findings
+
+No new P3 finding requires disposition before Scope-1 apply.
 
 **Unassigned P2/P3 findings:** `0`
 
-Previously identified implementation-level obligations remain explicitly assigned to their owning implementation tasks, including:
-
-- `packages/lint-config` workspace/build-tooling classification and later ESLint-package retirement;
-- blocking severity and fix-output parity;
-- TS7-language / TS6-parser architecture-gate falsification;
-- candidate-subject and launcher isolation mutations;
-- native AMD64/ARM64 execution;
-- composite compiler/typed-lint maintenance; and
-- emitted compiler-output differential proof.
-
-Those obligations are implementation work within the accepted architecture and do not require another planning correction.
+The first live trusted review-boundary dispatch is not an unassigned finding. It
+is the already-required executable pre-apply proof.
 
 ## Authority Allocation Assessment
 
-The final package establishes one canonical owner for each load-bearing mutable fact family.
+The accepted authority model remains intact.
 
-The principal authority split is coherent:
+The principal Scope-1 split remains:
 
-- repository semantic lint policy owns policy;
-- per-engine mappings own implementation translation;
-- TypeScript owns compiler/type correctness;
-- Prettier owns formatting;
-- dedicated repository gates own package/source architecture;
-- `AUTH-TS6-CONSUMERS` owns the bounded compatibility API seam;
-- `AUTH-MAINTENANCE-CLASSES` owns what tool-only maintenance may change;
-- `AUTH-MAINTENANCE-VERIFIER` owns trusted control and trusted verdict;
-- `AUTH-MAINTENANCE-SUBJECT-ISOLATION` owns candidate executable isolation;
-- `MAN-TS7-01` owns merge-time consumption of point-in-time maintenance evidence; and
-- `AUTH-REVIEW-SCOPES` owns the PR-A2 / PR-B / PR-C governance sequence.
+* repository-owned semantic lint policy owns lint-policy semantics;
+* per-engine mappings own implementation translation;
+* the authoritative TypeScript package owns normal compiler/type correctness;
+* Prettier owns formatting;
+* dedicated repository gates own package/source architecture;
+* `AUTH-TS6-CONSUMERS` owns the bounded traditional TypeScript 6 API seam;
+* `AUTH-MAINTENANCE-CLASSES` owns admissible tool-maintenance classes;
+* `AUTH-MAINTENANCE-VERIFIER` owns trusted maintenance control and verdict;
+* `AUTH-MAINTENANCE-SUBJECT-ISOLATION` owns candidate execution isolation;
+* `MAN-TS7-01` owns merge-time consumption of point-in-time maintenance
+  evidence; and
+* `AUTH-REVIEW-SCOPES` owns the PR-A2 / PR-B / PR-C sequence.
 
-No candidate-controlled policy, verifier, workflow, maintenance class, launcher context, or result envelope can independently establish its own admissibility.
+The intervening transitions do not create a competing authority.
+
+ADR-0022's lifecycle transition makes the already-selected architecture
+effective; it does not duplicate planning authority.
+
+Historical `reviews/**` records remain evidence, not normative authority.
+
+PR #118 changes how the trusted default-branch review boundary makes historical
+Git commit objects available and how review-history paths are validated. It
+does not allow candidate or historical bytes to become workflow, schema,
+verifier, or acceptance authority.
+
+The external repository-owner Scope-1 task remains the implementation
+authorization. This review neither creates nor widens that authorization.
 
 **Authority allocation complete:** `YES`
 
 ## Repository Feasibility
 
-| Claim | Repository / package evidence inspected | Result | Finding / consequence |
-| --- | --- | --- | --- |
-| Current lint union is 117 effective identities with the recorded role-specific counts | effective ESLint configuration resolution across the repository roles | verified | union remains 117; recorded modes resolve to 99/96/96/99/96/88/99/91 |
-| Active current lint policy is blocking | resolved effective ESLint rule settings | verified | every enabled current rule resolves at severity 2; replacement proof must preserve blocking behavior |
-| Traditional TypeScript compiler API has one direct repository-owned consumer | tracked imports/API-symbol usage | verified | `scripts/check-source-imports.mjs` is the bounded initial `AUTH-TS6-CONSUMERS` member |
-| Current TypeScript configuration inventory contains 35 tracked `tsconfig*.json` files | tracked repository configuration inventory | verified | Scope 2 audit must cover the complete set and its entry points rather than a hand-selected subset |
-| Selected future package identities exist with the audited distribution shape | TypeScript `7.0.2`, Oxlint `1.80.0`, `oxlint-tsgolint` `7.0.2001`, `@typescript/typescript6` `6.0.2` package evidence | verified for package availability/distribution | native execution and semantic conformance remain implementation proof; package publication alone is insufficient |
-| `onlyBuiltDependencies` remains exactly empty | `pnpm-workspace.yaml` and planned supply-chain contract | verified | no install-script exception is authorized by this architecture |
-| The governed v2 review mechanism can bind the final planning bytes to the current live base | exact review manifest/verification path using the final head and `--remote origin/main` | verified | first admitted review can remain epoch 1 because the earlier non-accepting round was never admitted |
-| The planned maintenance path can preserve predecessor policy without candidate self-authorization | final ADR/spec/design/assurance/tasks allocation for `AUTH-MAINTENANCE-CLASSES`, `AUTH-MAINTENANCE-VERIFIER`, `AUTH-MAINTENANCE-SUBJECT-ISOLATION`, and `MAN-TS7-01` | verified as an implementation-feasible architecture contract | PR-B must implement the predecessor-owned classes/verifier, two-boundary subject isolation, trusted result verification, and required mutations as genesis; PR-B cannot self-admit through the boundary it creates |
+| Claim                                                                   | Repository evidence inspected                                                          | Result   | Finding / consequence                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| PR-B began at exact post-PR-A2 main                                     | branch genesis and zero-commit proof at `cb783614...`                                  | verified | INV-TS7-31 remains satisfied as a historical genesis fact                |
+| Current reviewed target is the post-#118 base                           | live `main` at `10d04a05...` and fast-forward-only incorporation                       | verified | epoch 2 correctly binds the current pre-implementation target            |
+| Planning package remains unchanged                                      | nine SHA-256 identities                                                                | verified | no architecture re-review is triggered by artifact drift                 |
+| ADR-0022 remains the accepted decision                                  | accepted ADR digest `f6709c12ae60d0285d588de717c21354a2e56b1577c8aae24c1fd5fe974088ab` | verified | Scope-1 prerequisite remains satisfied                                   |
+| Epoch 1 is admitted historical evidence                                 | direct-child `reviews/1-aae33fdd217d.md` and two-revision byte provenance              | verified | epoch 2 has a valid accepted predecessor                                 |
+| Historical reviewed commit is a real Git object                         | `aae33fdd217d66de8d9127576f203c115abc37eb` object proof                                | verified | historical identity requirement remains intact                           |
+| Squash-discarded review pins can be obtained on a fresh trusted runner  | #118 exact-SHA prefetch mechanism and regression net                                   | verified | trusted execution no longer depends on accidental developer object state |
+| Nested historical rounds cannot bypass admission provenance             | #118 direct-child path rule across gate, pin enumerator, and history checker           | verified | history path authority is consistent                                     |
+| Current epoch can be checked without executing candidate implementation | governed review gate and default-branch boundary                                       | verified | remaining pre-apply proof is executable and fail-closed                  |
+| Scope-1 implementation has not begun                                    | reviewed branch contains ceremony commits only                                         | verified | no implementation byte exists outside the reviewed planning contract     |
 
-The feasibility result does not claim that PR-B or PR-C implementation evidence
-already exists. It establishes that the final architecture has an executable,
-repository-compatible path to produce that evidence without weakening the
-current policy or trust model.
+The feasibility result does not claim the first live trusted-boundary dispatch
+has already succeeded.
+
+That dispatch remains deliberately pending. The architecture is feasible because
+the trusted boundary exists on default branch and can now be exercised against
+the exact candidate/base pair without depending on candidate-controlled
+verification.
 
 ## Invariant Stability
 
-The final planning package contains the corrected invariant set, including the two-boundary subject-isolation semantics in `INV-TS7-29`.
+The invariant set before this focused review is the accepted epoch-1 invariant
+set recorded by the unchanged `assurance.md`.
 
-This accepting review does not add, remove, split, merge, or otherwise require modification of an invariant. The prior corrective commits occurred before this review and are the bytes being reviewed.
+The invariant set after this review is the same set.
+
+In particular:
+
+* `INV-TS7-31` is unchanged;
+* PR-B's historical genesis remains exact post-PR-A2
+  `cb7836148db24971826b886361593950570b4af4`;
+* current base freshness is independently bound to
+  `10d04a05df18db634d47737c8235d0e4351f8ac0`;
+* the trusted maintenance three-domain model is unchanged;
+* both candidate-isolation boundaries are unchanged;
+* normal compiler authority remains distinct from the TS6 compatibility seam;
+* Scope 1 and Scope 2 remain independently releasable;
+* PR-C remains gated on successful completion and acceptance of PR-B; and
+* PR #113 remains frozen outside this program.
+
+No new invariant is required by this review.
+
+No existing invariant must be removed, split, merged, or materially rewritten.
 
 **Invariant set changed by this review:** `NO`
 
 ## Review-Finding Regression Promotion
 
-| Prior finding / seam | Final disposition | Executable regression promoted into the contract | Owning landing |
-| --- | --- | --- | --- |
-| Candidate-local maintenance could delete policy row R together with its only fixture | closed by predecessor-bound semantic/config/corpus protection and separate engine mappings | engine-pin change + row/fixture co-deletion must fail against the trusted predecessor; compiler-pin change + shared-tsconfig/fixture relaxation must likewise fail | PR-B tasks 1.15 / 2.5; `MUT-MAINT-001/002/003` |
-| Candidate could replace its own maintenance checker or workflow with success | closed by exact-predecessor workflow/verifier/invocation authority | checker changed to unconditional success, checker deleted, and candidate workflow skip must not affect which verifier executes or the resulting refusal | PR-B task 1.16 / 2.5; `MUT-MAINT-004/005` |
-| Candidate native tooling could execute in the verifier's trust domain | closed by trusted control / untrusted subject / trusted verdict separation | subject attempts verifier/workspace overwrite, environment/output-file write, credential read, cache poisoning, path escape, background survival, command-plan edit, or result forgery must be denied or rejected | PR-B task 1.16 / 2.5; `ADV-MAINT-003`, `MUT-MAINT-007/008` |
-| Fresh runner did not mechanically isolate the candidate from the trusted launcher | closed by the second mandatory OS-level launcher boundary in `INV-TS7-29` / `REQ-SC-008` | same-UID / same-filesystem candidate-launcher topology must be refused even with every outer subject-domain control satisfied; launcher/result-envelope tampering must be unreachable | PR-B task 1.16 / 2.5; `MUT-MAINT-009` |
-| ADR-0022 could remain Proposed while PR-B was next in sequence | closed by dedicated acceptance-only PR-A2 | attempting Scope 1 while ADR is Proposed or from pre-PR-A2 main must fail; PR-A2 containing implementation must not qualify as the acceptance transition | PR-A2 / PR-B pre-implementation gate; `EX-A2-001`, `PROP-A2-001`, `MUT-A2-001` |
-| Successful maintenance evidence could become stale before merge | closed by point-in-time evidence semantics plus `MAN-TS7-01` | candidate-head, base, protected-authority, run-identity, or synthetic-merge-tree movement after success invalidates the evidence and requires a new run | PR-B onward; `PROP-MERGE-001`, `MUT-MERGE-001` |
-| `packages/lint-config` / retired ESLint tooling could escape the architecture model | assigned within existing architecture authority | production import of `@secure-home/lint-config` must fail; `packages/eslint-config` layer/build-tooling residue must fail when retirement occurs | PR-B task 1.1 and PR-C retirement task; `MUT-ARCH-003` |
-| Blocking severity and fix-bearing option semantics could be lost while diagnostics still appear | assigned within lint-policy/conformance authority | warning-only enforcement must fail parity; an option affecting automatic fix output must match deterministic expected output | PR-B parity/conformance tasks; `ADV-LP-004` and assigned fixed-output proof |
-| TS7 source could be accepted while the retained TS6 parser silently misses a governed import edge | assigned within the existing architecture-import authority | TS7-accepted syntax containing governed import edges must be extracted equivalently by the TS6 seam or fail closed; a forbidden edge may never disappear through parser recovery | PR-C audit/import-gate tasks; `ADV-TC-002` plus architecture mutation evidence |
-| Normal compiler identity could be confused with the retained TS6 API copy | closed in the compiler-authority contract | ordinary `typecheck`, `build`, and generator entry points resolving `tsc6` must fail, while the admitted source-import tooling path may use the TS6 API | PR-B/C boundary and Scope-2 cutover proof; `MUT-TS6-001` |
-| Compiler and typed-lint updates may need to move together | closed by one predecessor-owned composite maintenance class | admitted `normal-compiler-and-typed-lint` composite may move the coupled pins; candidate-defined union/composition of classes must fail | PR-B task 1.15 / 2.5; `PROP-COMPOSE-001`, `MUT-COMPOSE-001` |
-| TypeScript 7 build success alone could hide governed emitted-output drift | closed by normalized differential/golden proof allocation | semantic change to `.d.ts`, `.d.ts.map`, `.js.map`, or consumed generator output must fail even when compilation exits successfully | PR-C compiler cutover proof; `EX-TS-002`, `MUT-TS-EMIT-001` |
+| Prior finding / seam                                                                               | Current disposition                                            | Durable executable protection                                                                                                | Owning path / landing                                             |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Epoch-1 review could not remain directly usable after legitimate target-base movement              | closed by governed v2 fresh-epoch semantics                    | exact `reviewed_base_commit` binding plus `REVIEW_BASE_DRIFT` refusal                                                        | current review gate / epoch 2                                     |
+| Squash merge could leave an accepted historical `reviewed_commit` absent from a fresh runner       | closed by #118 without weakening commit identity               | trusted enumerator plus exact-SHA fetch into inert refs; fresh-repository regression and unfetchable-pin refusal             | default-branch `review-boundary.yml` / `openspec-review-pins.mjs` |
+| Recursive gate consumption and direct-child history validation disagreed                           | closed by #118                                                 | gate, pin enumerator, and history checker all refuse nested historical rounds; hostile and mutation coverage                 | governed-spec-driven-v2 review infrastructure                     |
+| Epoch history could be admitted merely by naming rather than transition provenance                 | preserved as closed                                            | two-revision checker requires archived bytes to equal the parent's current review; altered-byte falsification refuses        | `check-openspec-review-history.mjs`                               |
+| Candidate-controlled review machinery could become deciding authority                              | remains closed                                                 | trusted boundary continues to execute default-branch workflow/gate/tooling while candidate Git objects remain inert data     | default-branch trusted boundary                                   |
+| PR-B could lose its post-PR-A2 genesis while current base legitimately advanced                    | closed by preserving distinct genesis and freshness identities | recorded zero-implementation genesis at `cb783614...`, followed only by fast-forward before epoch 2                          | INV-TS7-31 plus epoch-2 review pin                                |
+| Previously accepted lint-policy/compiler/maintenance architecture findings could regress unnoticed | unchanged from epoch 1                                         | their existing PR-B/PR-C mutation, adversarial, parity, native-platform, and differential proof obligations remain unchanged | accepted planning package                                         |
 
-Every material prior review finding therefore has one of two acceptable final
-dispositions:
+The intervening repository work therefore strengthens the review-governance
+mechanism without altering the accepted TypeScript/lint-engine architecture.
 
-1. the architecture was corrected and the failure shape was promoted to
-   executable regression evidence; or
-2. the architecture already owned the concern and the bounded implementation
-   proof was explicitly assigned to its landing task.
-
-No material prior finding remains dependent on reviewer memory or prose-only
-follow-up.
+No material finding remains dependent on reviewer memory or an unallocated
+prose follow-up.
 
 ## Verdict
 
 **ARCHITECTURE_ACCEPTED**
 
-The `replacement-authority-parity` architecture is sufficiently closed to proceed to the separately governed ADR-acceptance transition.
+### Verdict rationale
 
-This verdict accepts architecture only.
+Epoch 1 already established that the `replacement-authority-parity` architecture
+was complete.
 
-It does **not**:
+This focused epoch establishes that the subsequent base movement did not
+invalidate that decision.
 
-- change ADR-0022 from `Proposed`;
-- authorize PR-B implementation;
-- authorize PR-C implementation;
-- authorize dependency or compiler changes;
-- authorize ESLint retirement; or
-- modify the freeze on PR #113.
+All nine planning artifacts are unchanged.
 
-The next merge-order vehicle remains PR-A2, the acceptance-only ADR-0022 transition. PR-B remains blocked until PR-A2 is merged and a separate external Scope-1 implementation authorization exists.
+ADR-0022 is now Accepted through the prerequisite transition already anticipated
+by the architecture.
+
+PR-B satisfied its exact post-PR-A2 genesis requirement before any
+implementation occurred.
+
+The intervening #118 infrastructure work changes only the trusted governed-v2
+review mechanism and closes two concrete review-history seams without weakening
+identity or transferring authority to candidate bytes.
+
+The epoch ceremony changes review evidence only.
+
+No new P1 exists, no P2/P3 finding is unassigned, no invariant changed, and no
+authority allocation changed.
+
+The accepted architecture remains valid against exact target base
+`10d04a05df18db634d47737c8235d0e4351f8ac0`.
+
+This verdict does not substitute for the pending trusted hosted pre-apply
+boundary and does not authorize PR-C.
 
 ## Apply Eligibility
 
-- Review gate metadata: valid
-- Exact reviewed head: `aae33fdd217d66de8d9127576f203c115abc37eb`
-- Exact reviewed base: `c0a2f5cbcccfaaaa00a2df897457eba48ec2f226`
-- Review epoch: `1`
-- Verdict: `ARCHITECTURE_ACCEPTED`
-- Unresolved P1: none
-- Unassigned P2/P3: zero
-- Invariant set changed by this review: no
-- Authority allocation complete: yes
-- ADR-0022 accepted: no — remains a separate PR-A2 transition
-- Scope-1 implementation authorization: no — remains externally required
+* Review gate metadata valid: yes
+* Exact reviewed commit:
+  `70680c1c3eea2421ac39f6c4c6be862f4c0a0cdc`
+* Exact reviewed base:
+  `10d04a05df18db634d47737c8235d0e4351f8ac0`
+* Review epoch: `2`
+* Scope: `replacement-authority-parity`
+* Reviewed artifact digests current: yes
+* Repository state expected to differ from reviewed commit only by this current
+  review file and admitted `reviews/**`: yes
+* Verdict is `ARCHITECTURE_ACCEPTED`: yes
+* Unresolved P1 count is zero: yes
+* Unassigned P2/P3 count is zero: yes
+* Invariant set changed by this review: no
+* Authority allocation complete: yes
+* External Scope-1 implementation authorization exists: yes
+* Trusted hosted pre-apply boundary completed: no — still required before
+  implementation begins
+* PR-C authorized: no
 
 **Apply eligible:** `YES`
 
-`Apply eligible` here means the governed architecture review itself satisfies the v2 review gate. It does not override the separate ADR-acceptance and external implementation-authorization prerequisites recorded in `tasks.md`.
+`Apply eligible` means this focused architecture review itself satisfies the
+governed v2 acceptance conditions for the exact reviewed candidate/base pair.
 
-## Review History
+It does not permit implementation to begin until the trusted
+`review-boundary.yml` execution also succeeds against this exact epoch-2
+candidate and exact live base.
 
-The earlier `FOCUSED_CLOSURE_REQUIRED` review was non-accepting and therefore never became an admitted epoch. It is superseded by this epoch-1 accepted review.
+If `main` moves from
+`10d04a05df18db634d47737c8235d0e4351f8ac0` before that boundary succeeds, this
+epoch is stale and must not be reused.
 
-No `reviews/**` history entry is created for that non-admitted round.
+A successful trusted boundary, combined with the already-existing external
+Scope-1 implementation authorization, completes the remaining pre-apply
+conditions for PR-B.
 
-A separate process/documentation mismatch remains in the governed-v2 review-history README: its unconditional instruction to archive a superseded current review is incompatible with the gate's rule that historical entries must themselves be accepted reviews. That infrastructure/documentation issue is outside PR #115 and is not an architecture blocker for this change.
+This review provides no authorization for PR-C.

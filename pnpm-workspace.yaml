@@ -65,6 +65,31 @@ catalog:
   typescript-eslint: 8.66.0
   # Lint globals (Node/browser sets) — tiny, data-only.
   globals: 17.9.0
+  # THE BOUNDED TRADITIONAL-API COMPATIBILITY SEAM, added by PR-B task 1.13.
+  #
+  # NOT a compiler. `typescript` above remains the sole authority for typecheck,
+  # build, and every generator; nothing here may satisfy one of those. This
+  # package exists so ONE consumer -- scripts/check-source-imports.mjs -- can
+  # keep parsing source with the traditional TypeScript API while the normal
+  # compiler moves on. Without the seam, the architecture gate would be coupled
+  # to compiler authority, and a compiler cutover would drag the gate with it.
+  #
+  # Its major track follows the API generation it exposes, not the compiler's:
+  # 6.0.2 here presents the traditional TypeScript 6 API.
+  '@typescript/typescript6': 6.0.2
+  # THE REPLACEMENT LINT ENGINE, added by PR-B/Scope 1 (ADR-0022).
+  #
+  # Scope 1 is deliberately DUAL-ENGINE: both of these and ESLint above run, and
+  # both block. Neither replaces the other here — the point of this landing is to
+  # prove behavioural parity for all 117 policies before any retirement, which
+  # is Scope 2's decision and separately unauthorized.
+  #
+  # Pinned exactly. A floating range would let the engine under test change
+  # between the run that proved parity and the run that consumes the proof.
+  oxlint: 1.80.0
+  # Type-aware lint for the replacement engine. Its major track follows the
+  # TypeScript it reads, not oxlint's.
+  oxlint-tsgolint: 7.0.2001
   # Manifest governance.
   syncpack: 15.3.2
   # The real OpenSpec implementation. Pinned exactly, never `latest`: this
