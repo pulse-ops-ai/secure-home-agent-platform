@@ -1,0 +1,349 @@
+# The three-domain maintenance boundary (AUTH-MAINTENANCE-VERIFIER).
+#
+# TRUST-CRITICAL. A tool-maintenance candidate is a SUBJECT here, never the
+# verifier. The candidate proposes new tool bytes; those bytes must run for the
+# claim to mean anything; and a candidate that ran as the verifier could simply
+# report that it passed. So the executable authority and the thing under test
+# are separated into three domains with an OS boundary between them.
+#
+#   TRUSTED CONTROL   exact live predecessor; builds a content-addressed plan;
+#                     candidate arrives only as Git object data
+#          |
+#      OS BOUNDARY
+#          |
+#   UNTRUSTED SUBJECT candidate binaries only; no token, credentials, socket,
+#                     shared cache, or trusted write; isolated scratch
+#          |
+#     result DATA
+#          |
+#   TRUSTED VERDICT   fresh predecessor context; verifies identity/digests and
+#                     RE-RUNS the predecessor's own classification
+#
+# `repository_dispatch` is what makes the control domain trustworthy: GitHub
+# always runs the DEFAULT BRANCH definition of this file, so a candidate cannot
+# supply the workflow that judges it. That is also the bootstrap condition --
+# until this file is on the default branch there is no authoritative run, which
+# is why the landing that creates it cannot admit itself.
+#
+# Governed by AGENTS.md, ADR-0022, D14, and scripts/toolchain-boundaries.json.
+name: toolchain maintenance boundary
+
+on:
+  repository_dispatch:
+    types: [toolchain-maintenance]
+
+# Read-only metadata. The subject job drops even this.
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: toolchain-maintenance-${{ github.event.client_payload.pr }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  trusted-control:
+    name: trusted control
+    runs-on: ubuntu-24.04
+    outputs:
+      candidate: ${{ steps.identity.outputs.candidate }}
+      predecessor: ${{ steps.identity.outputs.predecessor }}
+      plan_digest: ${{ steps.plan.outputs.digest }}
+    steps:
+      # The payload is DATA. It names which PR to judge; it never names the
+      # code that does the judging.
+      - name: Validate the dispatch payload as data
+        env:
+          PR: ${{ github.event.client_payload.pr }}
+          CLASS_ID: ${{ github.event.client_payload.class_id }}
+        run: |
+          set -euo pipefail
+          case "$PR" in
+            ''|*[!0-9]*) echo "::error::pr must be a positive integer, got '$PR'"; exit 1 ;;
+          esac
+          case "$CLASS_ID" in
+            ''|*[!a-z0-9-]*) echo "::error::class_id is not a class identifier"; exit 1 ;;
+          esac
+
+      # The predecessor is the live default-branch tip, and this workflow must
+      # BE that commit. If they differ, the definition running here is not the
+      # one the repository currently trusts.
+      - name: Resolve both identities and pin the predecessor to this execution
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.client_payload.pr }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          default_branch="$(gh api "repos/$REPO" --jq .default_branch)"
+          predecessor="$(gh api "repos/$REPO/commits/$default_branch" --jq .sha)"
+
+          state="$(gh api "repos/$REPO/pulls/$PR" --jq .state)"
+          base="$(gh api "repos/$REPO/pulls/$PR" --jq .base.ref)"
+          candidate="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+
+          [ "$state" = "open" ] || { echo "::error::PR #$PR is $state"; exit 1; }
+          [ "$base" = "$default_branch" ] || { echo "::error::PR #$PR targets $base"; exit 1; }
+
+          if [ "${{ github.sha }}" != "$predecessor" ]; then
+            echo "::error::this run is $GITHUB_SHA but the live predecessor is $predecessor"
+            exit 1
+          fi
+
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+          echo "predecessor=$predecessor" >> "$GITHUB_OUTPUT"
+
+      # PREDECESSOR bytes only. The candidate is never checked out.
+      - name: Check out the predecessor
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.identity.outputs.predecessor }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+
+      # The candidate enters as Git OBJECTS. Nothing from it is executed here,
+      # and it is materialized as regular 0644 files so no mode bit survives.
+      - name: Fetch the candidate as inert object data
+        env:
+          CANDIDATE: ${{ steps.identity.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$CANDIDATE"
+          mkdir -p /tmp/candidate
+          git archive --format=tar "$CANDIDATE" | tar -x -C /tmp/candidate --no-same-permissions
+          find /tmp/candidate -type f -exec chmod 0644 {} +
+          find /tmp/candidate -type d -exec chmod 0755 {} +
+
+      - name: Build the content-addressed subject plan
+        id: plan
+        env:
+          CANDIDATE: ${{ steps.identity.outputs.candidate }}
+          PREDECESSOR: ${{ steps.identity.outputs.predecessor }}
+          CLASS_ID: ${{ github.event.client_payload.class_id }}
+        run: |
+          set -euo pipefail
+          jq -n --arg p "$PREDECESSOR" --arg c "$CANDIDATE" --arg k "$CLASS_ID" \
+            '{predecessorSha:$p, candidateSha:$c, classId:$k}' > /tmp/plan-request.json
+          node scripts/check-toolchain-boundaries.mjs \
+            --boundary plan-subject /tmp/plan-request.json > /tmp/plan-response.json
+          jq -r '.plan' /tmp/plan-response.json > /tmp/subject-plan.json
+          echo "digest=$(jq -r '.plan.digest' /tmp/plan-response.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse the run unless BOTH isolation boundaries are in place
+        run: |
+          set -euo pipefail
+          # Declared by the launcher, checked before any candidate byte runs.
+          # A perfect boundary 1 does not substitute for boundary 2.
+          jq -n '{
+            grantedToSubject: [],
+            canWriteTrustedWorkspace: false,
+            scratch: "isolated",
+            processBoundary: "container",
+            containerControls: [
+              "non-root", "read-only trusted mounts", "no-new-privileges",
+              "cap-drop-all", "explicit network policy", "resource limits",
+              "isolated scratch"
+            ]
+          }' > /tmp/isolation.json
+          node scripts/check-toolchain-boundaries.mjs --boundary check-isolation /tmp/isolation.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subject-plan
+          path: /tmp/subject-plan.json
+
+  untrusted-subject:
+    name: untrusted subject
+    needs: trusted-control
+    runs-on: ubuntu-24.04
+    # BOUNDARY 1. No repository permissions at all: the subject receives no
+    # token, and therefore no credential to exfiltrate or reuse.
+    permissions: {}
+    container:
+      image: node:24-bookworm-slim
+      # BOUNDARY 2. An OS boundary from the launcher, with the controls the
+      # policy enumerates. Running the candidate as the launcher's own UID in
+      # the launcher's filesystem is refused by check-isolation above.
+      options: >-
+        --user 10001:10001
+        --cap-drop ALL
+        --security-opt no-new-privileges
+        --read-only
+        --tmpfs /tmp:rw,noexec,nosuid,size=512m
+        --network none
+        --memory 2g
+        --cpus 2
+        --pids-limit 512
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: subject-plan
+          path: /tmp/plan
+
+      # The launcher owns timeouts, exit-code capture, artifact hashing, and
+      # envelope construction. The candidate process cannot reach any of them.
+      - name: Run the planned commands against candidate bytes
+        timeout-minutes: 20
+        run: |
+          set -uo pipefail
+          plan=/tmp/plan/subject-plan.json
+          results='[]'
+          for id in $(node -e "for (const c of require('$plan').commands) console.log(c.id)"); do
+            argv="$(node -e "console.log(JSON.stringify(require('$plan').commands.find(c=>c.id==='$id').argv))")"
+            # Exit code is captured by the launcher, not reported by the tool.
+            set +e
+            node -e "
+              const { spawnSync } = require('node:child_process')
+              const argv = $argv
+              const r = spawnSync(argv[0], argv.slice(1), { encoding: 'utf8', timeout: 600000 })
+              require('node:fs').writeFileSync('/tmp/$id.json', JSON.stringify({
+                stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status
+              }))
+              process.exit(r.status === null ? 124 : r.status)
+            "
+            code=$?
+            set -e
+            results="$(node -e "
+              const r = $results
+              r.push({ id: '$id', argv: $argv, exitCode: $code })
+              console.log(JSON.stringify(r))
+            ")"
+          done
+          echo "$results" > /tmp/results.json
+
+      - name: Seal the result envelope
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('node:fs'), crypto = require('node:crypto')
+            const plan = require('/tmp/plan/subject-plan.json')
+            const artifacts = {}
+            for (const name of plan.expectedArtifacts) {
+              artifacts[name] = crypto.createHash('sha256')
+                .update(fs.readFileSync('/tmp/' + name)).digest('hex')
+            }
+            fs.writeFileSync('/tmp/envelope.json', JSON.stringify({
+              schemaVersion: 1,
+              planDigest: plan.digest,
+              predecessorSha: plan.predecessorSha,
+              candidateSha: plan.candidateSha,
+              results: require('/tmp/results.json'),
+              artifacts,
+            }))
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subject-result
+          path: |
+            /tmp/envelope.json
+            /tmp/*.json
+
+  trusted-verdict:
+    name: trusted verdict
+    needs: [trusted-control, untrusted-subject]
+    # `always()` so a subject that fails, hangs, or is cancelled still reaches a
+    # trusted verdict. A missing verdict must never read as a pass.
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      # A FRESH predecessor context. Nothing from the subject job's environment
+      # carries into the domain that decides.
+      - name: Check out the predecessor
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.trusted-control.outputs.predecessor }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+
+      - name: Require the subject to have produced a result
+        if: needs.untrusted-subject.result != 'success'
+        run: |
+          echo "::error::the subject job did not complete (${{ needs.untrusted-subject.result }})"
+          exit 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: subject-plan
+          path: /tmp/plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: subject-result
+          path: /tmp/result
+
+      # Everything the subject could have chosen is checked against what the
+      # trusted control decided. Its claimed success has no authority here.
+      - name: Verify the envelope against the plan
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('node:fs'), crypto = require('node:crypto')
+            const plan = require('/tmp/plan/subject-plan.json')
+            const digests = {}
+            for (const name of plan.expectedArtifacts) {
+              const p = '/tmp/result/' + name
+              digests[name] = fs.existsSync(p)
+                ? crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')
+                : null
+            }
+            fs.writeFileSync('/tmp/verify.json', JSON.stringify({
+              plan, envelope: require('/tmp/result/envelope.json'), artifactDigests: digests,
+            }))
+          "
+          node scripts/check-toolchain-boundaries.mjs --boundary verify-envelope /tmp/verify.json
+
+      # The verdict is the PREDECESSOR's classification, re-run here. The
+      # subject observed; it did not decide.
+      - name: Re-run predecessor-owned maintenance classification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CANDIDATE: ${{ needs.trusted-control.outputs.candidate }}
+          PREDECESSOR: ${{ needs.trusted-control.outputs.predecessor }}
+          CLASS_ID: ${{ github.event.client_payload.class_id }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$CANDIDATE"
+          node scripts/build-maintenance-plan.mjs \
+            --predecessor "$PREDECESSOR" --candidate "$CANDIDATE" --class "$CLASS_ID" \
+            > /tmp/classification-plan.json
+          node scripts/check-toolchain-boundaries.mjs --plan /tmp/classification-plan.json
+
+      # Point-in-time evidence. Either identity moving independently means what
+      # was proved is not what would merge.
+      - name: Re-resolve both identities and refuse movement
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.client_payload.pr }}
+        run: |
+          set -euo pipefail
+          default_branch="$(gh api "repos/$REPO" --jq .default_branch)"
+          jq -n \
+            --arg sc "${{ needs.trusted-control.outputs.candidate }}" \
+            --arg sp "${{ needs.trusted-control.outputs.predecessor }}" \
+            --arg ec "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" \
+            --arg ep "$(gh api "repos/$REPO/commits/$default_branch" --jq .sha)" \
+            '{start:{candidateSha:$sc,predecessorSha:$sp}, end:{candidateSha:$ec,predecessorSha:$ep}}' \
+            > /tmp/freshness.json
+          node scripts/check-toolchain-boundaries.mjs --boundary check-freshness /tmp/freshness.json
+
+      - name: Record point-in-time maintenance evidence
+        run: |
+          echo "Maintenance evidence is POINT-IN-TIME."
+          echo "MAN-TS7-01 remains an owner control: re-confirm head, base, merge tree,"
+          echo "and protected authorities at merge. This run does not admit a merge."

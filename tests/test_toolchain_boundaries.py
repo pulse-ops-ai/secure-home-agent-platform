@@ -127,9 +127,17 @@ def test_coupled_pins_are_reachable_only_through_the_composite(policy: dict[str,
         )
 
 
-def test_this_repository_cannot_classify_itself_as_maintenance(policy: dict[str, Any]) -> None:
-    """PR-B creates this authority under the full proof; it does not use it."""
-    assert policy["genesisState"] == "GENESIS_ONLY"
+def test_the_bootstrap_condition_is_a_fact_not_a_status_bit(policy: dict[str, Any]) -> None:
+    """PR-B creates this authority under the full proof; it does not use it.
+
+    The condition is that the executable authority must EXIST at the
+    predecessor, which becomes true by merging. A ``genesisState`` flag was
+    tried first and was wrong: no accepted task defines the transition that
+    flips it, so it would have refused the first real candidate forever and
+    deadlocked the authority it was meant to protect.
+    """
+    assert "genesisState" not in policy
+    assert policy["maintenanceVerifierAuthorities"], "the bootstrap fact needs named paths"
 
 
 def test_every_protected_path_exists_or_is_the_planned_verifier(policy: dict[str, Any]) -> None:
@@ -196,6 +204,7 @@ def test_the_checker_refuses_a_contradictory_policy(
 # actually hand over in task 1.16: candidate content as inert data.
 
 LC = "packages/lint-config/"
+MAINTENANCE_WORKFLOW = ".github/workflows/toolchain-maintenance-boundary.yml"
 
 
 def _mappings(replacement_rule: str, rows: tuple[str, ...] = ("no-var",)) -> str:
@@ -242,9 +251,8 @@ def _lock(entries: dict[str, list[str]]) -> str:
     return "\n".join(lines)
 
 
-OPERATIONAL_POLICY: dict[str, Any] = {
+MERGED_POLICY: dict[str, Any] = {
     "schemaVersion": 1,
-    "genesisState": "OPERATIONAL",
     "maintenanceVerifierAuthorities": [
         "scripts/check-toolchain-boundaries.mjs",
         ".github/workflows/toolchain-maintenance-boundary.yml",
@@ -330,7 +338,7 @@ OPERATIONAL_POLICY: dict[str, Any] = {
 
 def _base_files() -> dict[str, str]:
     return {
-        "scripts/toolchain-boundaries.json": json.dumps(OPERATIONAL_POLICY),
+        "scripts/toolchain-boundaries.json": json.dumps(MERGED_POLICY),
         f"{LC}policy.json": json.dumps({"policies": [{"id": "no-var", "roles": ["library"]}]}),
         f"{LC}engine-mappings.json": _mappings("no-var"),
         f"{LC}tests/fixtures/core-policy/invalid/no-var.ts": "var x = 1\n",
@@ -347,6 +355,7 @@ def _base_files() -> dict[str, str]:
             }
         ),
         "scripts/check-toolchain-boundaries.mjs": "// verifier bytes\n",
+        MAINTENANCE_WORKFLOW: "# trusted boundary bytes\n",
     }
 
 
@@ -512,18 +521,18 @@ def test_admits_the_coupled_change_only_through_the_composite(tmp_path: Path) ->
                 {
                     "scripts/toolchain-boundaries.json": json.dumps(
                         {
-                            **OPERATIONAL_POLICY,
+                            **MERGED_POLICY,
                             "maintenanceClasses": [
                                 {
-                                    **OPERATIONAL_POLICY["maintenanceClasses"][0],
+                                    **MERGED_POLICY["maintenanceClasses"][0],
                                     "allowedProjections": [
-                                        *OPERATIONAL_POLICY["maintenanceClasses"][0][
+                                        *MERGED_POLICY["maintenanceClasses"][0][
                                             "allowedProjections"
                                         ],
                                         {"path": f"{LC}policy.json", "projection": "bytes"},
                                     ],
                                 },
-                                *OPERATIONAL_POLICY["maintenanceClasses"][1:],
+                                *MERGED_POLICY["maintenanceClasses"][1:],
                             ],
                         }
                     ),
@@ -600,23 +609,35 @@ def test_an_unreadable_predecessor_policy_fails_closed(tmp_path: Path) -> None:
     assert json.loads(result.stderr)["code"] == "MALFORMED_AUTHORITY"
 
 
-def test_a_genesis_predecessor_admits_nothing(tmp_path: Path) -> None:
-    """PR-B creates this authority under the full proof; it does not use it."""
-    genesis = {**OPERATIONAL_POLICY, "genesisState": "GENESIS_ONLY"}
-    result = _classify(
-        tmp_path,
-        _base_files(),
-        predecessor_files={
-            **_base_files(),
-            "scripts/toolchain-boundaries.json": json.dumps(genesis),
-        },
-    )
+def test_a_predecessor_without_the_verifier_admits_nothing(tmp_path: Path) -> None:
+    """The bootstrap condition, and the reason PR-B cannot self-admit.
+
+    PR-B is judged against a predecessor that does not yet contain the
+    maintenance workflow, because that workflow only reaches the default branch
+    by merging PR-B. So there is no revision at which PR-B can be admitted by
+    the authority it is creating.
+    """
+    predecessor = _base_files()
+    del predecessor[MAINTENANCE_WORKFLOW]
+    result = _classify(tmp_path, _base_files(), predecessor_files=predecessor)
     assert result.returncode != 0
-    assert json.loads(result.stderr)["code"] == "GENESIS_ONLY"
+    refusal = json.loads(result.stderr)
+    assert refusal["code"] == "PREDECESSOR_LACKS_VERIFIER"
+    assert MAINTENANCE_WORKFLOW in refusal["message"]
+
+
+def test_the_same_claim_is_admitted_once_the_verifier_has_merged(tmp_path: Path) -> None:
+    """The deadlock check: the refusal above must be resolvable BY MERGING.
+
+    A status bit would not be -- nothing in the accepted tasks flips it -- so
+    the first real maintenance candidate could never be admitted.
+    """
+    result = _classify(tmp_path, _base_files())
+    assert result.returncode == 0, result.stderr
 
 
 def test_roots_that_resolve_to_nothing_fail_closed(tmp_path: Path) -> None:
-    policy = json.loads(json.dumps(OPERATIONAL_POLICY))
+    policy = json.loads(json.dumps(MERGED_POLICY))
     policy["maintenanceClasses"][0]["lockRoots"] = ["not-a-real-package"]
     predecessor = {**_base_files(), "scripts/toolchain-boundaries.json": json.dumps(policy)}
     candidate = {

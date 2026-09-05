@@ -6,13 +6,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schemaVersion",
     "compatibilityConsumers",
-    "platforms",
     "maintenanceClasses",
-    "subjectIsolation",
+    "maintenanceVerifierAuthorities",
+    "platforms",
     "protectedProjections",
-    "maintenanceVerifierAuthorities"
+    "schemaVersion",
+    "subjectCommands",
+    "subjectIsolation"
   ],
   "properties": {
     "schemaVersion": {
@@ -101,10 +102,6 @@
         }
       }
     },
-    "genesisState": {
-      "description": "GENESIS_ONLY while the maintenance boundary exists but has never produced authoritative evidence, because the default branch did not contain it until this landing merged.",
-      "enum": ["GENESIS_ONLY", "OPERATIONAL"]
-    },
     "protectedProjections": {
       "description": "The universal protected floor: projections that EVERY maintenance class must preserve, whatever it otherwise allows. A path may appear here under one projection and in a class's allowedProjections under a different projection of the same file -- that is the point. Protecting `engine-mappings.json` wholesale would contradict the lint-engine class, which exists to let per-engine mapping detail move; protecting its policy/engine COVERAGE instead forbids the thing that actually matters, a policy quietly losing its mapping.",
       "type": "array",
@@ -115,13 +112,38 @@
       }
     },
     "maintenanceVerifierAuthorities": {
-      "description": "AUTH-MAINTENANCE-VERIFIER. No maintenance class may admit a change to the authority that will judge it, so no class's allowedProjections may cover one of these paths.",
+      "description": "AUTH-MAINTENANCE-VERIFIER. No maintenance class may admit a change to the authority that will judge it, so no class's allowedProjections may cover one of these paths. These paths are also the bootstrap condition: a predecessor that does not CONTAIN them cannot have produced the executable authority a maintenance claim is judged by, so classification against it is refused. That is a fact about where the executable authority came from, not a status bit inside the document -- a mutable flag would have to be flipped by some change, and no accepted task defines that transition.",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "subjectCommands": {
+      "description": "The exact commands the untrusted subject runs, owned by the PREDECESSOR. Candidate content never selects, adds to, or reorders this pack -- otherwise the thing under test would choose its own exam.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "argv"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+          },
+          "argv": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
       }
     }
   },

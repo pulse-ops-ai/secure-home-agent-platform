@@ -129,11 +129,25 @@
     }
   ],
   "subjectIsolation": {
-    "deniedToSubject": ["GITHUB_TOKEN", "persisted credentials", "Docker socket"],
+    "deniedToSubject": [
+      "GITHUB_TOKEN",
+      "persisted credentials",
+      "Docker socket",
+      "shared build cache",
+      "trusted workspace write",
+      "repository secrets"
+    ],
     "processBoundary": "container",
-    "containerControls": ["non-root", "read-only trusted mounts", "no-new-privileges"]
+    "containerControls": [
+      "non-root",
+      "read-only trusted mounts",
+      "no-new-privileges",
+      "cap-drop-all",
+      "explicit network policy",
+      "resource limits",
+      "isolated scratch"
+    ]
   },
-  "genesisState": "GENESIS_ONLY",
   "protectedProjections": [
     {
       "path": "packages/lint-config/policy.json",
@@ -191,5 +205,21 @@
   "maintenanceVerifierAuthorities": [
     "scripts/check-toolchain-boundaries.mjs",
     ".github/workflows/toolchain-maintenance-boundary.yml"
+  ],
+  "subjectCommands": [
+    {
+      "id": "replacement-conformance",
+      "argv": [
+        "oxlint",
+        "--format=json",
+        "--config",
+        "generated/oxlintrc.library.json",
+        "tests/fixtures"
+      ]
+    },
+    {
+      "id": "replacement-version",
+      "argv": ["oxlint", "--version"]
+    }
   ]
 }

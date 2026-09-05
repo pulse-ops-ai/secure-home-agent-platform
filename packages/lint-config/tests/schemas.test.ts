@@ -98,12 +98,12 @@ describe('minimal valid documents', () => {
       ],
       protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
       maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
+      subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
       subjectIsolation: {
         deniedToSubject: ['GITHUB_TOKEN'],
         processBoundary: 'container',
         containerControls: ['non-root'],
       },
-      genesisState: 'GENESIS_ONLY',
     }
     expect(errors(doc, BOUNDARY_SCHEMA)).toEqual([])
   })
@@ -305,6 +305,7 @@ describe('toolchain boundaries', () => {
     ],
     protectedProjections: [{ path: 'policy', projection: 'bytes' }],
     maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
+    subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
     subjectIsolation: {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',
@@ -353,6 +354,7 @@ describe('maintenance classes must carry exact projections', () => {
     platforms: ['ubuntu-24.04', 'ubuntu-24.04-arm'],
     protectedProjections: [{ path: 'packages/lint-config/policy.json', projection: 'bytes' }],
     maintenanceVerifierAuthorities: ['scripts/check-toolchain-boundaries.mjs'],
+    subjectCommands: [{ id: 'replacement-version', argv: ['oxlint', '--version'] }],
     subjectIsolation: {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',

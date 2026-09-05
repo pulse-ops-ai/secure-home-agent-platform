@@ -26,6 +26,7 @@
  * Governed by AGENTS.md, ADR-0022, and D13. See scripts/README.md.
  */
 
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -360,21 +361,31 @@ export function classifyMaintenance({ classId, predecessor, candidate, universe 
     refuse('MALFORMED_AUTHORITY', `maintenance class "${classId}" declares no allowed projections`)
   }
 
-  // Genesis: the class exists but its trusted verification contract has never
-  // produced authoritative evidence, so nothing may yet be admitted by it. This
-  // is what stops the landing that CREATES the authority from using it.
-  if (policy.genesisState !== 'OPERATIONAL') {
-    refuse(
-      'GENESIS_ONLY',
-      `the predecessor at ${predecessor.id} is ${policy.genesisState}: the maintenance class ` +
-        'exists but has never produced authoritative evidence, so no candidate may be admitted ' +
-        'by it yet',
-    )
-  }
-
   const verifierAuthorities = new Set(policy.maintenanceVerifierAuthorities ?? [])
   if (verifierAuthorities.size === 0) {
     refuse('MALFORMED_AUTHORITY', 'the policy names no maintenance-verifier authorities')
+  }
+
+  // BOOTSTRAP. The executable authority that judges a claim must EXIST at the
+  // predecessor. The landing that creates the boundary is judged against a
+  // predecessor that does not yet contain it, so it cannot admit itself; once
+  // that landing merges, the next candidate's predecessor does contain it and
+  // the first real run becomes possible.
+  //
+  // This deliberately replaces a `genesisState` flag. A flag says the state is
+  // GENESIS_ONLY until something flips it, and no accepted task defines that
+  // transition -- so the flag would refuse the first real candidate forever,
+  // deadlocking the authority it exists to protect. Presence of the verifier is
+  // the same condition expressed as a fact that becomes true by merging.
+  const missingVerifier = [...verifierAuthorities]
+    .filter((p) => predecessor.read(p) === null)
+    .sort()
+  if (missingVerifier.length > 0) {
+    refuse(
+      'PREDECESSOR_LACKS_VERIFIER',
+      `the predecessor at ${predecessor.id} does not contain the executable maintenance ` +
+        `authority, so it cannot judge a maintenance claim: ${missingVerifier.join(', ')}`,
+    )
   }
 
   const floor = policy.protectedProjections ?? []
@@ -572,6 +583,196 @@ export function validateAgainstSchema(instance, schema, root = schema, at = '') 
   return problems
 }
 
+// --- the three-domain maintenance boundary (task 1.16) ----------------------
+//
+// TRUSTED CONTROL builds a content-addressed plan from PREDECESSOR bytes.
+// The UNTRUSTED SUBJECT runs candidate binaries behind two independent
+// boundaries and returns data. TRUSTED VERDICT verifies identity and digests
+// and then re-runs the predecessor's own classification.
+//
+// The subject's claimed success carries NO authority. It reports what happened;
+// it does not decide what that means.
+
+export const PLAN_SCHEMA_VERSION = 1
+export const ENVELOPE_SCHEMA_VERSION = 1
+
+const SHA_RE = /^[0-9a-f]{40}$/
+
+/** Stable digest over canonical JSON, so a plan has one identity. */
+export function digestOf(value) {
+  return createHash('sha256').update(canonicalJson(value)).digest('hex')
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(',')}}`
+}
+
+/**
+ * TRUSTED CONTROL. Build the subject plan.
+ *
+ * Commands come from the predecessor's policy, never from the candidate: a
+ * candidate that could choose the commands would be setting its own exam. The
+ * plan is content-addressed so the verdict can prove the subject ran THIS plan
+ * and not one it preferred.
+ */
+export function buildSubjectPlan({ predecessorSha, candidateSha, classId, policy }) {
+  for (const [label, sha] of [
+    ['predecessor', predecessorSha],
+    ['candidate', candidateSha],
+  ]) {
+    if (!SHA_RE.test(String(sha ?? ''))) {
+      refuse(
+        'UNRESOLVED_IDENTITY',
+        `${label} identity must be a full 40-hex commit sha, got ${sha}`,
+      )
+    }
+  }
+  if (predecessorSha === candidateSha) {
+    refuse('UNRESOLVED_IDENTITY', 'the candidate cannot be its own predecessor')
+  }
+  const classes = policy?.maintenanceClasses ?? []
+  if (!classes.some((c) => c?.id === classId)) {
+    refuse('UNKNOWN_CLASS', `"${classId}" is not one of the closed maintenance classes`)
+  }
+  const commands = policy?.subjectCommands ?? []
+  if (commands.length === 0) {
+    refuse('MALFORMED_AUTHORITY', 'the predecessor policy names no subject commands')
+  }
+  const plan = {
+    schemaVersion: PLAN_SCHEMA_VERSION,
+    predecessorSha,
+    candidateSha,
+    classId,
+    commands: commands.map((c) => ({ id: c.id, argv: [...c.argv] })),
+    isolation: policy.subjectIsolation,
+    expectedArtifacts: commands.map((c) => `${c.id}.json`),
+  }
+  return { ...plan, digest: digestOf(plan) }
+}
+
+/**
+ * Two INDEPENDENT boundaries, checked before the subject runs.
+ *
+ * Boundary 1 withholds credentials and trusted state. Boundary 2 is an OS
+ * boundary between the launcher and the candidate. A perfect boundary 1 does
+ * not substitute for boundary 2: a process running as the launcher's own UID in
+ * the launcher's filesystem can reach the launcher's plan, its artifacts, and
+ * its verdict, whatever the environment was cleaned of. That topology must be
+ * refused BEFORE execution, not audited afterwards.
+ */
+export function checkSubjectIsolation(spec, policy) {
+  const problems = []
+  const contract = policy?.subjectIsolation
+  if (!contract) return ['the policy declares no subject-isolation contract']
+
+  for (const denied of contract.deniedToSubject ?? []) {
+    if ((spec?.grantedToSubject ?? []).includes(denied)) {
+      problems.push(`boundary 1: the subject was granted "${denied}"`)
+    }
+  }
+  if (spec?.canWriteTrustedWorkspace === true) {
+    problems.push('boundary 1: the subject can write the trusted workspace')
+  }
+  if (spec?.scratch !== 'isolated') {
+    problems.push(`boundary 1: subject scratch must be isolated, got ${spec?.scratch}`)
+  }
+
+  // Boundary 2 is structural. `same-uid` is the launcher's own context and is
+  // never admissible, however clean boundary 1 is.
+  const boundary = spec?.processBoundary
+  if (boundary !== 'container' && boundary !== 'separate-uid') {
+    problems.push(
+      `boundary 2: "${boundary}" is not an OS boundary -- the candidate would run in the ` +
+        "launcher's own execution context",
+    )
+  }
+  if (boundary === 'container') {
+    const applied = new Set(spec?.containerControls ?? [])
+    for (const control of contract.containerControls ?? []) {
+      if (!applied.has(control)) problems.push(`boundary 2: container control "${control}" missing`)
+    }
+  }
+  return problems
+}
+
+/**
+ * TRUSTED VERDICT. Verify the subject's envelope as DATA.
+ *
+ * Everything the subject could have chosen is checked against what the trusted
+ * control decided: identities, plan digest, command identities, artifact
+ * digests. A subject that reports success it did not earn changes nothing,
+ * because the caller re-runs classification afterwards regardless.
+ */
+export function verifyResultEnvelope({ envelope, plan, artifactDigests }) {
+  const problems = []
+  if (envelope?.schemaVersion !== ENVELOPE_SCHEMA_VERSION) {
+    return [
+      `envelope schemaVersion must be ${ENVELOPE_SCHEMA_VERSION}, got ${envelope?.schemaVersion}`,
+    ]
+  }
+  if (envelope.planDigest !== plan.digest) {
+    problems.push('the subject did not run the plan it was given (plan digest mismatch)')
+  }
+  if (envelope.predecessorSha !== plan.predecessorSha) {
+    problems.push('envelope predecessor identity does not match the plan')
+  }
+  if (envelope.candidateSha !== plan.candidateSha) {
+    problems.push('envelope candidate identity does not match the plan')
+  }
+
+  const ran = envelope.results ?? []
+  const expected = plan.commands.map((c) => c.id)
+  const actual = ran.map((r) => r?.id)
+  if (canonicalJson(expected) !== canonicalJson(actual)) {
+    problems.push(
+      `command identities differ: expected ${expected.join(', ')}, got ${actual.join(', ')}`,
+    )
+  }
+  for (const [index, result] of ran.entries()) {
+    const planned = plan.commands[index]
+    if (planned && canonicalJson(result?.argv ?? []) !== canonicalJson(planned.argv)) {
+      problems.push(`command "${planned.id}" ran different arguments than planned`)
+    }
+    if (typeof result?.exitCode !== 'number') {
+      problems.push(`command "${result?.id}" reported no exit code`)
+    }
+  }
+
+  for (const artifact of plan.expectedArtifacts) {
+    const claimed = envelope.artifacts?.[artifact]
+    const measured = artifactDigests?.[artifact]
+    if (!claimed) problems.push(`the envelope claims no digest for ${artifact}`)
+    else if (!measured) problems.push(`${artifact} was not produced`)
+    else if (claimed !== measured) problems.push(`${artifact} digest does not match its bytes`)
+  }
+  return problems
+}
+
+/**
+ * Both identities are re-resolved at the end of the run and must not have moved
+ * INDEPENDENTLY. Evidence is point-in-time; a candidate or base that moved
+ * during the run was not the thing that was proved.
+ */
+export function checkRunFreshness({ start, end }) {
+  const problems = []
+  if (start?.candidateSha !== end?.candidateSha) {
+    problems.push(
+      `the candidate moved during the run: ${start?.candidateSha} -> ${end?.candidateSha}`,
+    )
+  }
+  if (start?.predecessorSha !== end?.predecessorSha) {
+    problems.push(
+      `the predecessor moved during the run: ${start?.predecessorSha} -> ${end?.predecessorSha}`,
+    )
+  }
+  return problems
+}
+
 // --- static invariants over the policy itself -------------------------------
 
 /**
@@ -695,7 +896,71 @@ function inspectLock(lockPath, roots) {
   )
 }
 
+/**
+ * The boundary operations, driven as data.
+ *
+ * Each reads one JSON request and writes one JSON response. The maintenance
+ * workflow calls these from PREDECESSOR bytes; nothing here reads the
+ * candidate's copy of this file.
+ */
+function runBoundaryOp(op, requestPath, repoRoot) {
+  const request = JSON.parse(readFileSync(requestPath, 'utf8'))
+  const policy = JSON.parse(readFileSync(path.join(repoRoot, BOUNDARIES_PATH), 'utf8'))
+  const emit = (problems, payload = {}) => {
+    if (problems.length > 0) {
+      console.error(JSON.stringify({ refused: true, op, problems }))
+      process.exit(1)
+    }
+    console.log(JSON.stringify({ ok: true, op, ...payload }))
+    process.exit(0)
+  }
+
+  try {
+    switch (op) {
+      case 'plan-subject':
+        return emit([], {
+          plan: buildSubjectPlan({
+            predecessorSha: request.predecessorSha,
+            candidateSha: request.candidateSha,
+            classId: request.classId,
+            policy,
+          }),
+        })
+      case 'check-isolation':
+        return emit(checkSubjectIsolation(request, policy))
+      case 'verify-envelope':
+        return emit(
+          verifyResultEnvelope({
+            envelope: request.envelope,
+            plan: request.plan,
+            artifactDigests: request.artifactDigests,
+          }),
+        )
+      case 'check-freshness':
+        return emit(checkRunFreshness(request))
+      default:
+        console.error(JSON.stringify({ refused: true, problems: [`unknown operation "${op}"`] }))
+        return process.exit(1)
+    }
+  } catch (error) {
+    if (error instanceof MaintenanceRefusal) {
+      console.error(
+        JSON.stringify({ refused: true, op, code: error.code, problems: [error.message] }),
+      )
+      process.exit(1)
+    }
+    throw error
+  }
+}
+
 function main() {
+  const repoRootEarly = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
+
+  const opFlag = process.argv.indexOf('--boundary')
+  if (opFlag !== -1) {
+    return runBoundaryOp(process.argv[opFlag + 1], process.argv[opFlag + 2], repoRootEarly)
+  }
+
   const planFlag = process.argv.indexOf('--plan')
   if (planFlag !== -1) return classifyFromPlan(process.argv[planFlag + 1])
 
