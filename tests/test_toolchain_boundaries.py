@@ -284,11 +284,12 @@ MERGED_POLICY: dict[str, Any] = {
                     "projection": "lock-closure",
                     "packages": ["oxlint"],
                 },
+                {"path": f"{LC}generated", "projection": "tree-bytes"},
             ],
             "protectedProjections": [
                 {
                     "path": "pnpm-workspace.yaml",
-                    "projection": "catalog-pins-except",
+                    "projection": "file-except-catalog-pins",
                     "packages": ["oxlint"],
                 }
             ],
@@ -307,7 +308,7 @@ MERGED_POLICY: dict[str, Any] = {
             "protectedProjections": [
                 {
                     "path": "pnpm-workspace.yaml",
-                    "projection": "catalog-pins-except",
+                    "projection": "file-except-catalog-pins",
                     "packages": ["typescript"],
                 }
             ],
@@ -327,7 +328,7 @@ MERGED_POLICY: dict[str, Any] = {
             "protectedProjections": [
                 {
                     "path": "pnpm-workspace.yaml",
-                    "projection": "catalog-pins-except",
+                    "projection": "file-except-catalog-pins",
                     "packages": ["typescript", "oxlint-tsgolint"],
                 }
             ],
@@ -341,11 +342,17 @@ def _base_files() -> dict[str, str]:
         "scripts/toolchain-boundaries.json": json.dumps(MERGED_POLICY),
         f"{LC}policy.json": json.dumps({"policies": [{"id": "no-var", "roles": ["library"]}]}),
         f"{LC}engine-mappings.json": _mappings("no-var"),
+        f"{LC}generated/oxlintrc.library.json": '{"rules":{"no-var":"error"}}',
         f"{LC}tests/fixtures/core-policy/invalid/no-var.ts": "var x = 1\n",
         f"{LC}tests/fixtures/_negative-controls/invalid/no-var.ts": "var y = 2\n",
         "packages/tsconfig/base.json": '{"compilerOptions":{"strict":true}}',
         "pnpm-workspace.yaml": _catalog(
-            {"typescript": "6.0.3", "oxlint": "1.80.0", "eslint": "10.8.0"}
+            {
+                "typescript": "6.0.3",
+                "oxlint": "1.80.0",
+                "oxlint-tsgolint": "7.0.2001",
+                "eslint": "10.8.0",
+            }
         ),
         "pnpm-lock.yaml": _lock(
             {
@@ -401,7 +408,12 @@ def test_admits_an_engine_pin_with_a_legitimate_mapping_update(tmp_path: Path) -
         _with(
             {
                 "pnpm-workspace.yaml": _catalog(
-                    {"typescript": "6.0.3", "oxlint": "1.81.0", "eslint": "10.8.0"}
+                    {
+                        "typescript": "6.0.3",
+                        "oxlint": "1.81.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
                 ),
                 f"{LC}engine-mappings.json": _mappings("no-var-renamed"),
                 "pnpm-lock.yaml": _lock(
@@ -430,8 +442,8 @@ def test_admits_the_coupled_change_only_through_the_composite(tmp_path: Path) ->
                 {
                     "typescript": "7.0.3",
                     "oxlint": "1.80.0",
-                    "eslint": "10.8.0",
                     "oxlint-tsgolint": "7.0.2002",
+                    "eslint": "10.8.0",
                 }
             )
         }
@@ -547,7 +559,12 @@ def test_admits_the_coupled_change_only_through_the_composite(tmp_path: Path) ->
             lambda: _with(
                 {
                     "pnpm-workspace.yaml": _catalog(
-                        {"typescript": "6.0.3", "oxlint": "1.81.0", "eslint": "10.8.0"}
+                        {
+                            "typescript": "6.0.3",
+                            "oxlint": "1.81.0",
+                            "oxlint-tsgolint": "7.0.2001",
+                            "eslint": "10.8.0",
+                        }
                     ),
                     "pnpm-lock.yaml": _lock(
                         {
@@ -790,3 +807,155 @@ def test_the_checker_refuses_a_schema_invalid_instance(
     result = _run_checker(json.dumps(mutated, indent=2))
     assert result.returncode != 0, f"{label} was accepted"
     assert expected in result.stderr, f"{label}: {result.stderr}"
+
+
+# --- legitimate maintenance must be ADMITTED --------------------------------
+#
+# A boundary that refuses everything is not a boundary, it is an outage. These
+# are the updates the classes exist to permit, and they were missing: pinning
+# every command input to the predecessor deadlocked exactly the change each
+# class is for, because the pin a class may move is also an input it was told
+# not to move.
+
+
+def test_a_real_lint_engine_update_is_admitted(tmp_path: Path) -> None:
+    """Engine pin + mapping detail + regenerated config, all at once."""
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "6.0.3",
+                        "oxlint": "1.81.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
+                ),
+                f"{LC}engine-mappings.json": _mappings("no-var-renamed"),
+                # The generated projection is explicitly allowed to move.
+                f"{LC}generated/oxlintrc.library.json": '{"rules":{"no-var":"deny"}}',
+                "pnpm-lock.yaml": _lock(
+                    {
+                        "oxlint@1.81.0": ["oxc-parser@1.1.0"],
+                        "oxc-parser@1.1.0": [],
+                        "eslint@10.8.0": [],
+                    }
+                ),
+            }
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_real_compiler_pin_update_is_admitted(tmp_path: Path) -> None:
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "6.0.4",
+                        "oxlint": "1.80.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
+                )
+            }
+        ),
+        class_id="normal-compiler",
+    )
+    assert result.returncode == 0, result.stderr
+
+
+# --- trusted control installs from this file, so all of it is bound ---------
+
+
+def test_a_non_catalog_workspace_change_is_refused(tmp_path: Path) -> None:
+    """Only the selected pin VALUES may move.
+
+    Trusted control runs a package manager against this file, so workspace
+    globs, install posture and configuration-plugin settings are as
+    security-relevant as the pins. Comparing catalog entries alone left every
+    other byte unbound.
+    """
+    moved = _catalog(
+        {
+            "typescript": "6.0.3",
+            "oxlint": "1.81.0",
+            "oxlint-tsgolint": "7.0.2001",
+            "eslint": "10.8.0",
+        }
+    )
+    result = _classify(
+        tmp_path,
+        _with(
+            {"pnpm-workspace.yaml": moved.replace("  - packages/*", "  - packages/*\n  - evil/*")}
+        ),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_moving_an_unselected_pin_is_refused(tmp_path: Path) -> None:
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "7.0.0",
+                        "oxlint": "1.81.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                    }
+                )
+            }
+        ),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+def test_a_candidate_pnpmfile_is_refused_before_installation(tmp_path: Path) -> None:
+    """`--ignore-scripts` does not make installation inert.
+
+    pnpm supports executable `.pnpmfile.cjs`/`.pnpmfile.mjs` install hooks --
+    readPackage, updateConfig, preResolution, custom resolvers and fetchers --
+    which run during resolution regardless of that flag. Trusted control now
+    classifies BEFORE installing, so a candidate carrying hook code never
+    reaches the package manager; `--ignore-pnpmfile` is the second layer.
+    """
+    result = _classify(
+        tmp_path,
+        _with({".pnpmfile.mjs": "export function readPackage(pkg) { return pkg }\n"}),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "UNDECLARED_CHANGE"
+    assert ".pnpmfile.mjs" in json.loads(result.stderr)["message"]
+
+
+def test_adding_a_brand_new_catalog_pin_is_refused(tmp_path: Path) -> None:
+    """Selecting a package permits moving its VALUE, not introducing it.
+
+    A new catalog entry is a new dependency, which is a policy decision rather
+    than tool maintenance.
+    """
+    result = _classify(
+        tmp_path,
+        _with(
+            {
+                "pnpm-workspace.yaml": _catalog(
+                    {
+                        "typescript": "6.0.3",
+                        "oxlint": "1.80.0",
+                        "oxlint-tsgolint": "7.0.2001",
+                        "eslint": "10.8.0",
+                        "something-new": "1.0.0",
+                    }
+                )
+            }
+        ),
+    )
+    assert result.returncode != 0
+    assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"

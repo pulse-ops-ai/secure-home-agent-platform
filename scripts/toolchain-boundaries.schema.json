@@ -76,7 +76,7 @@
       "description": "The contract for executing candidate tools as subjects under test. Two INDEPENDENT boundaries are required: a trust-domain boundary and an OS-level process boundary. A fresh runner alone satisfies neither.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["deniedToSubject", "processBoundary", "containerControls"],
+      "required": ["deniedToSubject", "processBoundary", "containerControls", "image"],
       "properties": {
         "deniedToSubject": {
           "type": "array",
@@ -98,6 +98,22 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        "image": {
+          "description": "The subject container image, pinned BY DIGEST. It supplies the interpreter the candidate runs under, so it is part of the measured execution environment; a tag can move underneath a proof.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reference", "digest"],
+          "properties": {
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
           }
         }
       }
@@ -224,7 +240,7 @@
           "minLength": 1
         },
         "projection": {
-          "description": "bytes: the file's exact bytes. tree-bytes: the set of paths under a prefix and each one's bytes. mapping-coverage: the set of (policy, engine) pairs that carry a mapping, ignoring the vendor detail of each. mapping-detail: the per-engine vendor identity of each mapping row. catalog-pins: the pinned versions of the named packages. catalog-pins-except: every catalog pin OTHER than the named packages. lock-closure: lockfile entries reachable from the named roots.",
+          "description": "bytes: the file's exact bytes. tree-bytes: the set of paths under a prefix and each one's bytes. mapping-coverage: the set of (policy, engine) pairs that carry a mapping, ignoring the vendor detail of each. mapping-detail: the per-engine vendor identity of each mapping row. catalog-pins: the pinned versions of the named packages. catalog-pins-except: every catalog pin OTHER than the named packages. lock-closure: lockfile entries reachable from the named roots. file-except-catalog-pins: the file's whole bytes with ONLY the named packages' pin VALUES masked, so a maintenance class that may move a pin still cannot touch workspace globs, install posture, configuration-plugin settings, or any other pin in the same file.",
           "enum": [
             "bytes",
             "tree-bytes",
@@ -232,6 +248,7 @@
             "mapping-detail",
             "catalog-pins",
             "catalog-pins-except",
+            "file-except-catalog-pins",
             "lock-closure"
           ]
         },
@@ -296,13 +313,23 @@
           "minLength": 1
         },
         "inputs": {
-          "description": "Protected inputs whose PREDECESSOR digests the plan pins, so the subject cannot answer an easier question than the one asked.",
+          "description": "Inputs whose digests the plan pins. `source` is the provenance: a predecessor-sourced input must be predecessor-identical in the candidate, while a candidate-sourced input is one the class ALLOWS to move and is digested from the candidate's exact bytes. Without that distinction a legitimate update deadlocks, because the pin it is permitted to change is also an input it must not change.",
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "type": "string",
-            "minLength": 1
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "source"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "enum": ["predecessor", "candidate"]
+              }
+            }
           }
         },
         "expect": {

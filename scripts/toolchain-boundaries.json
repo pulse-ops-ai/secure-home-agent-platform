@@ -40,9 +40,9 @@
       "protectedProjections": [
         {
           "path": "pnpm-workspace.yaml",
-          "projection": "catalog-pins-except",
+          "projection": "file-except-catalog-pins",
           "packages": ["oxlint"],
-          "note": "the compiler and the legacy engine do not move under this class"
+          "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
         }
       ],
       "lockRoots": ["oxlint"]
@@ -65,8 +65,9 @@
       "protectedProjections": [
         {
           "path": "pnpm-workspace.yaml",
-          "projection": "catalog-pins-except",
-          "packages": ["typescript"]
+          "projection": "file-except-catalog-pins",
+          "packages": ["typescript"],
+          "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
         }
       ],
       "lockRoots": ["typescript"],
@@ -90,8 +91,9 @@
       "protectedProjections": [
         {
           "path": "pnpm-workspace.yaml",
-          "projection": "catalog-pins-except",
-          "packages": ["@typescript/typescript6"]
+          "projection": "file-except-catalog-pins",
+          "packages": ["@typescript/typescript6"],
+          "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
         }
       ],
       "lockRoots": ["@typescript/typescript6"]
@@ -120,8 +122,9 @@
       "protectedProjections": [
         {
           "path": "pnpm-workspace.yaml",
-          "projection": "catalog-pins-except",
-          "packages": ["typescript", "oxlint-tsgolint"]
+          "projection": "file-except-catalog-pins",
+          "packages": ["typescript", "oxlint-tsgolint"],
+          "note": "only the selected pin values may move; globs, install posture, configuration-plugin settings and every other pin stay identical"
         }
       ],
       "lockRoots": ["typescript", "oxlint-tsgolint"],
@@ -146,7 +149,11 @@
       "explicit network policy",
       "resource limits",
       "isolated scratch"
-    ]
+    ],
+    "image": {
+      "reference": "node:24-bookworm-slim",
+      "digest": "sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e"
+    }
   },
   "protectedProjections": [
     {
@@ -218,7 +225,12 @@
           },
           "argv": ["--version"],
           "cwd": "packages/lint-config",
-          "inputs": ["packages/lint-config/package.json"],
+          "inputs": [
+            {
+              "path": "packages/lint-config/package.json",
+              "source": "candidate"
+            }
+          ],
           "expect": {
             "outcome": "success"
           }
@@ -231,6 +243,8 @@
           },
           "argv": [
             "--type-aware",
+            "--tsconfig",
+            "tests/fixtures/tsconfig.json",
             "--format=json",
             "--config",
             "generated/oxlintrc.library.json",
@@ -238,8 +252,14 @@
           ],
           "cwd": "packages/lint-config",
           "inputs": [
-            "packages/lint-config/generated",
-            "packages/lint-config/tests/fixtures/core-policy/invalid"
+            {
+              "path": "packages/lint-config/generated",
+              "source": "candidate"
+            },
+            {
+              "path": "packages/lint-config/tests/fixtures/core-policy/invalid",
+              "source": "predecessor"
+            }
           ],
           "expect": {
             "outcome": "rejection"
@@ -253,6 +273,8 @@
           },
           "argv": [
             "--type-aware",
+            "--tsconfig",
+            "tests/fixtures/tsconfig.json",
             "--format=json",
             "--config",
             "generated/oxlintrc.library.json",
@@ -260,8 +282,14 @@
           ],
           "cwd": "packages/lint-config",
           "inputs": [
-            "packages/lint-config/generated",
-            "packages/lint-config/tests/fixtures/core-policy/valid"
+            {
+              "path": "packages/lint-config/generated",
+              "source": "candidate"
+            },
+            {
+              "path": "packages/lint-config/tests/fixtures/core-policy/valid",
+              "source": "predecessor"
+            }
           ],
           "expect": {
             "outcome": "success"
@@ -280,7 +308,12 @@
           },
           "argv": ["--version"],
           "cwd": ".",
-          "inputs": ["pnpm-workspace.yaml"],
+          "inputs": [
+            {
+              "path": "pnpm-workspace.yaml",
+              "source": "candidate"
+            }
+          ],
           "expect": {
             "outcome": "success"
           }
@@ -293,9 +326,39 @@
           },
           "argv": ["--noEmit", "-p", "packages/lint-config/tsconfig.json"],
           "cwd": ".",
-          "inputs": ["packages/tsconfig", "packages/lint-config/tsconfig.json"],
+          "inputs": [
+            {
+              "path": "packages/tsconfig",
+              "source": "predecessor"
+            },
+            {
+              "path": "packages/lint-config/tsconfig.json",
+              "source": "predecessor"
+            }
+          ],
           "expect": {
             "outcome": "success"
+          }
+        },
+        {
+          "id": "compiler-rejects-invalid-syntax",
+          "binary": {
+            "package": "typescript",
+            "bin": "tsc"
+          },
+          "argv": [
+            "--noEmit",
+            "packages/lint-config/tests/fixtures/parser-syntax/invalid/no-octal.ts"
+          ],
+          "cwd": ".",
+          "inputs": [
+            {
+              "path": "packages/lint-config/tests/fixtures/parser-syntax/invalid/no-octal.ts",
+              "source": "predecessor"
+            }
+          ],
+          "expect": {
+            "outcome": "rejection"
           }
         }
       ]
@@ -311,7 +374,16 @@
           },
           "argv": ["scripts/check-source-imports.mjs"],
           "cwd": ".",
-          "inputs": ["scripts/check-source-imports.mjs", "scripts/workspace-model.mjs"],
+          "inputs": [
+            {
+              "path": "scripts/check-source-imports.mjs",
+              "source": "predecessor"
+            },
+            {
+              "path": "scripts/workspace-model.mjs",
+              "source": "predecessor"
+            }
+          ],
           "expect": {
             "outcome": "success"
           }
@@ -329,7 +401,12 @@
           },
           "argv": ["--version"],
           "cwd": ".",
-          "inputs": ["pnpm-workspace.yaml"],
+          "inputs": [
+            {
+              "path": "pnpm-workspace.yaml",
+              "source": "candidate"
+            }
+          ],
           "expect": {
             "outcome": "success"
           }
@@ -342,28 +419,36 @@
           },
           "argv": ["--noEmit", "-p", "packages/lint-config/tsconfig.json"],
           "cwd": ".",
-          "inputs": ["packages/tsconfig", "packages/lint-config/tsconfig.json"],
+          "inputs": [
+            {
+              "path": "packages/tsconfig",
+              "source": "predecessor"
+            },
+            {
+              "path": "packages/lint-config/tsconfig.json",
+              "source": "predecessor"
+            }
+          ],
           "expect": {
             "outcome": "success"
           }
         },
         {
-          "id": "typed-backend-rejects-invalid",
+          "id": "compiler-rejects-invalid-syntax",
           "binary": {
-            "package": "oxlint-tsgolint",
-            "bin": "oxlint"
+            "package": "typescript",
+            "bin": "tsc"
           },
           "argv": [
-            "--type-aware",
-            "--format=json",
-            "--config",
-            "generated/oxlintrc.library.json",
-            "tests/fixtures/core-policy/invalid"
+            "--noEmit",
+            "packages/lint-config/tests/fixtures/parser-syntax/invalid/no-octal.ts"
           ],
-          "cwd": "packages/lint-config",
+          "cwd": ".",
           "inputs": [
-            "packages/lint-config/generated",
-            "packages/lint-config/tests/fixtures/core-policy/invalid"
+            {
+              "path": "packages/lint-config/tests/fixtures/parser-syntax/invalid/no-octal.ts",
+              "source": "predecessor"
+            }
           ],
           "expect": {
             "outcome": "rejection"
@@ -377,18 +462,56 @@
           },
           "argv": [
             "--type-aware",
+            "--tsconfig",
+            "tests/fixtures/tsconfig.json",
             "--format=json",
             "--config",
             "generated/oxlintrc.library.json",
-            "tests/fixtures/core-policy/valid"
+            "tests/fixtures/typescript-typed-control/valid"
           ],
           "cwd": "packages/lint-config",
           "inputs": [
-            "packages/lint-config/generated",
-            "packages/lint-config/tests/fixtures/core-policy/valid"
+            {
+              "path": "packages/lint-config/generated",
+              "source": "candidate"
+            },
+            {
+              "path": "packages/lint-config/tests/fixtures/typescript-typed-control/valid",
+              "source": "predecessor"
+            }
           ],
           "expect": {
             "outcome": "success"
+          }
+        },
+        {
+          "id": "typed-backend-rejects-typed-violation",
+          "binary": {
+            "package": "oxlint-tsgolint",
+            "bin": "oxlint"
+          },
+          "argv": [
+            "--type-aware",
+            "--tsconfig",
+            "tests/fixtures/tsconfig.json",
+            "--format=json",
+            "--config",
+            "generated/oxlintrc.library.json",
+            "tests/fixtures/typescript-typed-control/invalid"
+          ],
+          "cwd": "packages/lint-config",
+          "inputs": [
+            {
+              "path": "packages/lint-config/generated",
+              "source": "candidate"
+            },
+            {
+              "path": "packages/lint-config/tests/fixtures/typescript-typed-control/invalid",
+              "source": "predecessor"
+            }
+          ],
+          "expect": {
+            "outcome": "rejection"
           }
         }
       ]

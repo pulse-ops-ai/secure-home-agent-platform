@@ -30,8 +30,13 @@ import process from 'node:process'
 
 import { digestPathTree } from './check-toolchain-boundaries.mjs'
 
-const IMAGE = 'node:24-bookworm-slim'
 const SUBJECT_UID = '10001:10001'
+
+// A predecessor-owned PATH, not the host's. The engine resolves its typed
+// backend from the project it is installed in, but `node` and any tool invoked
+// by name still need to resolve -- and inheriting the runner's environment
+// would let host state decide what the subject executes.
+const SUBJECT_PATH = '/subject/node_modules/.bin:/usr/local/bin:/usr/bin:/bin'
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000
 
 const arg = (flag) => {
@@ -55,7 +60,7 @@ const refuse = (problems) => {
  * job-level container option, so a workflow that declares it there has an
  * assertion but not a boundary.
  */
-function containerArgs(scratch, candidateRoot, workdir) {
+function containerArgs(scratch, candidateRoot, workdir, image) {
   return [
     'run',
     '--rm',
@@ -73,9 +78,12 @@ function containerArgs(scratch, candidateRoot, workdir) {
     `--volume=${scratch}:/scratch:rw`,
     '--tmpfs=/tmp:rw,noexec,nosuid,size=256m',
     `--workdir=/subject/${workdir}`,
-    // No `--env` at all: the container starts with the image's environment and
-    // nothing of the runner's.
-    IMAGE,
+    // Exactly one environment variable, chosen by the predecessor. Nothing of
+    // the runner's environment reaches the subject.
+    `--env=PATH=${SUBJECT_PATH}`,
+    // Pinned BY DIGEST: the image supplies the interpreter the candidate runs
+    // under, so a moving tag would move the measured execution environment.
+    image,
   ]
 }
 
@@ -85,6 +93,12 @@ function main() {
   const outDir = path.resolve(arg('--out'))
   const plan = JSON.parse(readFileSync(planPath, 'utf8'))
   mkdirSync(outDir, { recursive: true })
+
+  const declared = plan.isolation?.image
+  if (!declared?.reference || !declared?.digest) {
+    refuse(['the plan declares no digest-pinned subject image'])
+  }
+  const image = `${declared.reference}@${declared.digest}`
 
   const results = []
   for (const command of plan.commands) {
@@ -109,12 +123,16 @@ function main() {
       ])
     }
 
-    // Protected inputs, measured from the candidate tree. The verdict compares
-    // these with the predecessor digests the plan pinned.
-    const inputs = {}
-    for (const input of Object.keys(command.inputs)) {
-      inputs[input] = digestPathTree(candidateRoot, input)
-    }
+    // Every input is measured from the CANDIDATE tree, whatever its provenance.
+    // For a predecessor-sourced input that is the comparison that matters: the
+    // candidate's copy must equal the predecessor digest the plan pinned. For a
+    // candidate-sourced input the plan already recorded the candidate's bytes,
+    // so this proves the subject ran against what was planned.
+    const inputs = command.inputs.map((input) => ({
+      path: input.path,
+      source: input.source,
+      digest: digestPathTree(candidateRoot, input.path),
+    }))
 
     const scratch = path.join(outDir, `scratch-${command.id}`)
     mkdirSync(scratch, { recursive: true, mode: 0o777 })
@@ -126,7 +144,7 @@ function main() {
     // timeout means a candidate that hangs is destroyed by this process.
     const run = spawnSync(
       'docker',
-      [...containerArgs(scratch, candidateRoot, command.cwd), binary, ...command.argv],
+      [...containerArgs(scratch, candidateRoot, command.cwd, image), binary, ...command.argv],
       { encoding: 'utf8', timeout: COMMAND_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 },
     )
 
@@ -170,6 +188,7 @@ function main() {
       planDigest: plan.digest,
       predecessorSha: plan.predecessorSha,
       candidateSha: plan.candidateSha,
+      image,
       results,
       artifacts,
     }),

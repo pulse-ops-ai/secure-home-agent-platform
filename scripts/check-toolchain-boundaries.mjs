@@ -287,6 +287,31 @@ export function project(revision, spec) {
       }
     }
 
+    case 'file-except-catalog-pins': {
+      // The WHOLE file, with only the selected pin values masked. The earlier
+      // `catalog-pins-except` compared catalog entries and ignored everything
+      // else in the file, so workspace globs, install posture and
+      // configuration-plugin settings were not predecessor-bound at all -- and
+      // trusted control installs from this file.
+      const text = revision.read(spec.path)
+      if (text === null) return { kind: 'file-except-catalog-pins', value: null }
+      const selected = new Set(spec.packages ?? [])
+      let inCatalog = false
+      const masked = text.split('\n').map((line) => {
+        if (/^catalog:\s*$/.test(line)) {
+          inCatalog = true
+          return line
+        }
+        if (inCatalog && /^\S/.test(line)) inCatalog = false
+        if (!inCatalog) return line
+        const entry = /^(\s{2})(?:'([^']+)'|"([^"]+)"|([^\s:'"]+))(\s*:\s*)\S+\s*$/.exec(line)
+        if (!entry) return line
+        const name = entry[2] ?? entry[3] ?? entry[4]
+        return selected.has(name) ? `${entry[1]}${name}${entry[5]}<pin masked>` : line
+      })
+      return { kind: 'file-except-catalog-pins', value: masked.join('\n') }
+    }
+
     case 'lock-closure': {
       const graph = parseLockGraph(revision.read(spec.path), revision.id)
       const closure = deriveLockClosure(graph, spec.packages ?? [])
@@ -631,6 +656,7 @@ export function buildSubjectPlan({
   policy,
   candidatePins,
   inputDigests,
+  candidateInputDigests,
 }) {
   for (const [label, sha] of [
     ['predecessor', predecessorSha],
@@ -670,16 +696,20 @@ export function buildSubjectPlan({
           `for "${command.id}" has no identity`,
       )
     }
-    // Inputs are pinned by PREDECESSOR digest, so the subject cannot answer an
-    // easier question than the one it was asked.
-    const inputs = {}
-    for (const input of command.inputs) {
-      const digest = inputDigests?.[input]
+    // Inputs carry PROVENANCE. A predecessor-sourced input must be
+    // predecessor-identical in the candidate; a candidate-sourced input is one
+    // the class ALLOWS to move, so it is digested from the candidate's own
+    // bytes. Pinning everything to the predecessor deadlocks the legitimate
+    // update: the very pin a class exists to change is also an input, and the
+    // subject would truthfully report a digest the plan called wrong.
+    const inputs = command.inputs.map((input) => {
+      const from = input.source === 'candidate' ? candidateInputDigests : inputDigests
+      const digest = from?.[input.path]
       if (!digest) {
-        refuse('MALFORMED_AUTHORITY', `no predecessor digest for input "${input}"`)
+        refuse('MALFORMED_AUTHORITY', `no ${input.source} digest for input "${input.path}"`)
       }
-      inputs[input] = digest
-    }
+      return { path: input.path, source: input.source, digest }
+    })
     return {
       id: command.id,
       binary: { ...command.binary, version },
@@ -936,7 +966,10 @@ export function checkBoundaryPolicy(policy) {
       problems.push(`class "${klass.id}" has no subject command pack`)
       continue
     }
-    // The pack must exercise a package the class is actually allowed to move.
+    // DECLARED coverage only. Naming a package in `binary.package` is metadata,
+    // not proof that the package executed -- the execution proof is behavioural
+    // and lives in the test suite, where the backend is removed from a
+    // candidate tree and the subject verdict must fail.
     const movable = new Set(
       (klass.allowedProjections ?? [])
         .filter((spec) => spec.projection === 'catalog-pins')
@@ -1069,6 +1102,7 @@ function runBoundaryOp(op, requestPath, repoRoot) {
             policy,
             candidatePins: request.candidatePins,
             inputDigests: request.inputDigests,
+            candidateInputDigests: request.candidateInputDigests,
           }),
         })
 
@@ -1083,9 +1117,14 @@ function runBoundaryOp(op, requestPath, repoRoot) {
         )
         const pack = packForClass(policy, request.classId) ?? []
         const inputDigests = {}
+        const candidateInputDigests = {}
         for (const command of pack) {
           for (const input of command.inputs) {
-            inputDigests[input] = digestPathTree(repoRoot, input)
+            if (input.source === 'candidate') {
+              candidateInputDigests[input.path] = digestPathTree(candidateRoot, input.path)
+            } else {
+              inputDigests[input.path] = digestPathTree(repoRoot, input.path)
+            }
           }
         }
         return emit([], {
@@ -1096,6 +1135,7 @@ function runBoundaryOp(op, requestPath, repoRoot) {
             policy,
             candidatePins: pins,
             inputDigests,
+            candidateInputDigests,
           }),
         })
       }

@@ -107,7 +107,7 @@ describe('minimal valid documents', () => {
               binary: { package: 'oxlint', bin: 'oxlint' },
               argv: ['--version'],
               cwd: '.',
-              inputs: ['package.json'],
+              inputs: [{ path: 'package.json', source: 'candidate' }],
               expect: { outcome: 'success' },
             },
           ],
@@ -117,6 +117,10 @@ describe('minimal valid documents', () => {
         deniedToSubject: ['GITHUB_TOKEN'],
         processBoundary: 'container',
         containerControls: ['non-root'],
+        image: {
+          reference: 'node:24-bookworm-slim',
+          digest: 'sha256:' + 'a'.repeat(64),
+        },
       },
     }
     expect(errors(doc, BOUNDARY_SCHEMA)).toEqual([])
@@ -328,7 +332,7 @@ describe('toolchain boundaries', () => {
             binary: { package: 'oxlint', bin: 'oxlint' },
             argv: ['--version'],
             cwd: '.',
-            inputs: ['package.json'],
+            inputs: [{ path: 'package.json', source: 'candidate' }],
             expect: { outcome: 'success' },
           },
         ],
@@ -338,6 +342,7 @@ describe('toolchain boundaries', () => {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',
       containerControls: ['non-root'],
+      image: { reference: 'node:24-bookworm-slim', digest: 'sha256:' + 'a'.repeat(64) },
     },
   })
 
@@ -391,7 +396,7 @@ describe('maintenance classes must carry exact projections', () => {
             binary: { package: 'oxlint', bin: 'oxlint' },
             argv: ['--version'],
             cwd: '.',
-            inputs: ['package.json'],
+            inputs: [{ path: 'package.json', source: 'candidate' }],
             expect: { outcome: 'success' },
           },
         ],
@@ -401,6 +406,7 @@ describe('maintenance classes must carry exact projections', () => {
       deniedToSubject: ['GITHUB_TOKEN'],
       processBoundary: 'container',
       containerControls: ['non-root'],
+      image: { reference: 'node:24-bookworm-slim', digest: 'sha256:' + 'a'.repeat(64) },
     },
   })
 

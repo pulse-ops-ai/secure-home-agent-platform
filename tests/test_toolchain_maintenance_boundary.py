@@ -71,7 +71,18 @@ def plan(policy: dict[str, Any]) -> dict[str, Any]:
         "candidateSha": SHA_B,
         "classId": "lint-engine",
         "candidatePins": {c["binary"]["package"]: "9.9.9" for c in pack},
-        "inputDigests": {i: f"digest-of-{i}" for c in pack for i in c["inputs"]},
+        "inputDigests": {
+            i["path"]: f"pred-{i['path']}"
+            for c in pack
+            for i in c["inputs"]
+            if i["source"] == "predecessor"
+        },
+        "candidateInputDigests": {
+            i["path"]: f"cand-{i['path']}"
+            for c in pack
+            for i in c["inputs"]
+            if i["source"] == "candidate"
+        },
     }
     result = subprocess.run(
         ["node", str(CHECKER), "--boundary", "plan-subject", "/dev/stdin"],
@@ -144,10 +155,23 @@ def test_the_plan_binds_the_candidate_binary_identity(plan: dict[str, Any]) -> N
         assert command["cwd"], "relative argv paths are meaningless without a cwd"
 
 
-def test_the_plan_pins_protected_input_digests(plan: dict[str, Any]) -> None:
+def test_the_plan_pins_inputs_with_their_provenance(plan: dict[str, Any]) -> None:
+    """A predecessor-sourced input must match; a candidate-sourced one may move.
+
+    Pinning everything to the predecessor deadlocks the legitimate update: the
+    pin a class exists to change is also an input, so the subject would
+    truthfully report a digest the plan called wrong.
+    """
     for command in plan["commands"]:
         assert command["inputs"], f"{command['id']} pins no inputs"
-        assert all(v for v in command["inputs"].values())
+        for entry in command["inputs"]:
+            assert entry["source"] in {"predecessor", "candidate"}
+            assert entry["digest"]
+    sources = {e["source"] for c in plan["commands"] for e in c["inputs"]}
+    assert sources == {"predecessor", "candidate"}, (
+        "the lint-engine pack must exercise both provenances: the generated "
+        "config may move, the conformance corpus may not"
+    )
 
 
 def test_every_class_pack_exercises_the_tool_that_class_moves(
@@ -639,6 +663,20 @@ def test_an_engine_that_accepts_what_the_predecessor_rejects_is_refused(
     assert "expected to REJECT" in outcome.stderr
 
 
+def _relabel_a_predecessor_input(envelope: dict[str, Any]) -> None:
+    """Relabel a PREDECESSOR-sourced input as candidate-sourced.
+
+    That is the interesting forgery: it would turn "must match the predecessor"
+    into "whatever the candidate says", so it must not be accepted.
+    """
+    for result in envelope["results"]:
+        for entry in result["inputs"]:
+            if entry["source"] == "predecessor":
+                entry["source"] = "candidate"
+                return
+    raise AssertionError("no predecessor-sourced input to relabel")
+
+
 @pytest.mark.parametrize(
     ("label", "mutate"),
     [
@@ -656,9 +694,11 @@ def test_an_engine_that_accepts_what_the_predecessor_rejects_is_refused(
         ),
         (
             "protected inputs were swapped",
-            lambda e: e["results"][0]["inputs"].__setitem__(
-                next(iter(e["results"][0]["inputs"])), "0" * 64
-            ),
+            lambda e: e["results"][0]["inputs"][0].__setitem__("digest", "0" * 64),
+        ),
+        (
+            "an input's provenance was relabelled",
+            _relabel_a_predecessor_input,
         ),
     ],
 )
@@ -763,3 +803,127 @@ def test_an_executable_bit_does_not_survive(tmp_path: Path) -> None:
     out = tmp_path / "out"
     assert _materialize(root, out).returncode == 0
     assert oct((out / "tool.sh").stat().st_mode)[-3:] == "644"
+
+
+# --- the typed backend must really execute ----------------------------------
+#
+# Naming `oxlint-tsgolint` in `binary.package` is metadata. The engine shells out
+# to the typed backend, and when that backend is unreachable it does not crash --
+# it reports what the STATIC rules found. So a pack command can pass while all 24
+# typed policies silently do not run, which is exactly the failure task 1.12
+# closed for the production runner.
+#
+# Measured on this corpus:
+#
+#   typed INVALID corpus   backend present -> 1   backend absent -> 1
+#   typed VALID   corpus   backend present -> 0   backend absent -> 1
+#
+# So the invalid corpus proves nothing about the backend, and the VALID corpus
+# with `expect: success` is the discriminator. This test runs the pack's own
+# command rather than a parallel invention, so the pack cannot drift away from
+# the proof.
+
+LINT_CONFIG = REPO / "packages" / "lint-config"
+TSGOLINT_BIN = LINT_CONFIG / "node_modules" / ".bin" / "tsgolint"
+
+
+def _typed_pack_command(policy: dict[str, Any]) -> dict[str, Any]:
+    pack = _pack(policy, "normal-compiler-and-typed-lint")
+    return next(c for c in pack if c["id"] == "typed-backend-accepts-valid")
+
+
+def _run_pack_command(command: dict[str, Any]) -> int:
+    binary = LINT_CONFIG / "node_modules" / ".bin" / command["binary"]["bin"]
+    return subprocess.run(
+        [str(binary), *command["argv"]],
+        cwd=REPO / command["cwd"],
+        capture_output=True,
+        text=True,
+    ).returncode
+
+
+@pytest.mark.skipif(not TSGOLINT_BIN.exists(), reason="typed backend not installed")
+def test_the_typed_pack_command_fails_when_the_backend_is_removed(
+    policy: dict[str, Any],
+) -> None:
+    command = _typed_pack_command(policy)
+    assert command["expect"]["outcome"] == "success"
+
+    with_backend = _run_pack_command(command)
+    assert with_backend == 0, "the planned command must succeed with the backend present"
+
+    hidden = TSGOLINT_BIN.with_suffix(".hidden")
+    TSGOLINT_BIN.rename(hidden)
+    try:
+        without_backend = _run_pack_command(command)
+    finally:
+        hidden.rename(TSGOLINT_BIN)
+    assert TSGOLINT_BIN.exists(), "the backend must be restored"
+
+    assert without_backend != 0, (
+        "removing the typed backend did not change the planned command's outcome, "
+        "so this command is not execution proof for oxlint-tsgolint"
+    )
+
+
+@pytest.mark.skipif(not TSGOLINT_BIN.exists(), reason="typed backend not installed")
+def test_the_typed_invalid_corpus_alone_would_not_prove_the_backend_ran(
+    policy: dict[str, Any],
+) -> None:
+    """Why the VALID corpus carries the proof and the invalid one does not."""
+    pack = _pack(policy, "normal-compiler-and-typed-lint")
+    rejecting = next(c for c in pack if c["id"] == "typed-backend-rejects-typed-violation")
+
+    hidden = TSGOLINT_BIN.with_suffix(".hidden")
+    TSGOLINT_BIN.rename(hidden)
+    try:
+        without_backend = _run_pack_command(rejecting)
+    finally:
+        hidden.rename(TSGOLINT_BIN)
+
+    assert without_backend != 0, (
+        "the invalid corpus fails with or without the backend, which is why the "
+        "pack cannot rely on it alone"
+    )
+
+
+def test_the_subject_receives_a_predecessor_owned_path() -> None:
+    """The subject's PATH is chosen by the predecessor, not inherited."""
+    launcher = (REPO / "scripts" / "run-subject-launcher.mjs").read_text()
+    assert "--env=PATH=" in launcher
+    assert "/subject/node_modules/.bin" in launcher
+
+
+def test_the_subject_image_is_pinned_by_digest(policy: dict[str, Any]) -> None:
+    """A tag can move underneath a proof; the image supplies the interpreter."""
+    import re
+
+    image = policy["subjectIsolation"]["image"]
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", image["digest"])
+    launcher = (REPO / "scripts" / "run-subject-launcher.mjs").read_text()
+    assert "plan.isolation?.image" in launcher
+    assert "node:24-bookworm-slim'" not in launcher, "the tag must not be hard-coded"
+
+
+def test_candidate_data_is_classified_before_it_reaches_a_package_manager() -> None:
+    """Order matters: resolution reads candidate-controlled configuration.
+
+    A candidate that fails classification must never reach the install step.
+    """
+    control = _jobs()["trusted-control"]
+    classify_at = control.index("Classify the candidate before any of its data is installed")
+    # The CANDIDATE install, not the predecessor's own dependency install.
+    install_at = control.index("pnpm install --frozen-lockfile --ignore-scripts")
+    assert classify_at < install_at, "installation precedes classification"
+
+
+def test_candidate_install_hooks_are_disabled() -> None:
+    """`--ignore-scripts` alone does not make pnpm installation inert.
+
+    pnpm supports executable `.pnpmfile.cjs`/`.pnpmfile.mjs` install hooks --
+    readPackage, updateConfig, preResolution, custom resolvers and fetchers --
+    which run during resolution regardless of that flag.
+    """
+    control = _jobs()["trusted-control"]
+    assert "--ignore-scripts" in control
+    assert "--ignore-pnpmfile" in control

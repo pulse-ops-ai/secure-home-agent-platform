@@ -126,15 +126,36 @@ jobs:
           git fetch --no-tags --depth=1 origin "$CANDIDATE"
           node scripts/materialize-candidate.mjs "$CANDIDATE" /tmp/candidate
 
-      # Dependency resolution happens in the TRUSTED domain, with install
-      # lifecycle scripts disabled, so fetching the candidate's tools never
-      # executes them. `onlyBuiltDependencies` is empty for the same reason.
-      - name: Install the candidate's pinned tools without running them
+      # CLASSIFY BEFORE INSTALLING. Dependency resolution reads
+      # candidate-controlled configuration, so the predecessor's own
+      # classification must have admitted the candidate's data BEFORE any of it
+      # is handed to a package manager. A candidate that fails classification
+      # never reaches the install step at all.
+      - name: Classify the candidate before any of its data is installed
+        env:
+          CANDIDATE: ${{ steps.identity.outputs.candidate }}
+          PREDECESSOR: ${{ steps.identity.outputs.predecessor }}
+          CLASS_ID: ${{ github.event.client_payload.class_id }}
+        run: |
+          set -euo pipefail
+          node scripts/build-maintenance-plan.mjs \
+            --predecessor "$PREDECESSOR" --candidate "$CANDIDATE" --class "$CLASS_ID" \
+            > /tmp/preclassification.json
+          node scripts/check-toolchain-boundaries.mjs --plan /tmp/preclassification.json
+
+      # Only now, and still in the TRUSTED domain.
+      #
+      # `--ignore-scripts` alone does NOT make installation inert: pnpm supports
+      # executable `.pnpmfile.cjs`/`.pnpmfile.mjs` install hooks -- readPackage,
+      # updateConfig, preResolution, custom resolvers and fetchers -- which run
+      # regardless. `--ignore-pnpmfile` is what stops candidate hook code from
+      # executing here. `onlyBuiltDependencies` is empty for the same reason.
+      - name: Install the candidate's pinned tools without running any of them
         working-directory: /tmp/candidate
         run: |
           set -euo pipefail
           corepack enable
-          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
 
       - name: Build the class-specific content-addressed plan
         id: plan
