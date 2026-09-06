@@ -7,7 +7,7 @@
  * that does not run reports no violations, and at every layer above that is
  * indistinguishable from clean code.
  */
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
@@ -38,7 +38,7 @@ const manifest = (rel: string): any =>
   JSON.parse(readFileSync(path.join(REPO_ROOT, rel, 'package.json'), 'utf8'))
 const lintScript = (rel: string): string => String(manifest(rel).scripts?.lint ?? '')
 
-describe('every member reaches both engines through the capability', () => {
+describe('every member reaches the replacement engine through the capability', () => {
   it('passes the wiring check as committed', () => {
     expect(checkLintWiring(REPO_ROOT)).toEqual([])
   })
@@ -130,17 +130,24 @@ describe('production typed lint is really typed', () => {
   })
 })
 
-describe('neither engine can mask the other', () => {
+describe('the replacement engine is the only blocking path', () => {
   const runner = readFileSync(path.join(HERE, '..', 'src', 'run-lint.mjs'), 'utf8')
 
-  it('evaluates both before returning a verdict', () => {
-    // Short-circuiting on the legacy result would leave a replacement failure
-    // unreported whenever ESLint happened to fail first.
-    expect(runner).toMatch(/ok: legacy\.ok && replacement\.ok/)
+  it('derives the verdict from the replacement engine alone', () => {
+    // Task 3.3: the legacy engine has left the blocking path. It is still
+    // installed -- 3.4 removes the implementation -- but it no longer decides
+    // whether a member passes, because `typescript-eslint` 8.66.0 refuses
+    // TypeScript 7 and the 3.2 cutover cannot land while an engine that
+    // rejects the new compiler is still required to succeed.
+    expect(runner).toMatch(/ok: replacement\.ok/)
+    expect(runner).not.toMatch(/legacy\.ok && replacement\.ok/)
+  })
+
+  it('does not execute the legacy engine on the production path', () => {
+    expect(runner).not.toMatch(/resolveBin\('eslint'/)
   })
 
   it('treats a missing binary as fatal rather than as a skip', () => {
-    expect(runner).toMatch(/the dual-engine contract cannot run/)
     expect(runner).not.toMatch(/if-present|catch\s*\{\s*\}/)
   })
 })
@@ -164,7 +171,7 @@ describe('lint does not absorb the other authorities', () => {
   })
 })
 
-describe('both engines actually execute', () => {
+describe('the replacement engine actually executes', () => {
   // Source inspection cannot see an engine that was removed and replaced with a
   // hardcoded pass. Only running the thing can, so this lints a member that
   // really violates policy and requires BOTH engines to have said so.
@@ -175,7 +182,9 @@ describe('both engines actually execute', () => {
   const SUBJECT = path.join(HERE, 'lint-subject')
   const VIOLATION = path.join(SUBJECT, 'src', 'violation.ts')
 
-  it('a real violation is reported by the legacy AND the replacement engine', () => {
+  it('a real violation is reported by the replacement engine', () => {
+    // Source inspection cannot see an engine replaced with a hardcoded pass.
+    // Only running it can, so this lints a subject that really violates policy.
     writeFileSync(VIOLATION, 'export const take = (v: any): any => v\n')
     try {
       const result = lintMember({
@@ -184,15 +193,15 @@ describe('both engines actually execute', () => {
         paths: ['src'],
       }) as {
         ok: boolean
-        legacy: { ok: boolean; output: string }
+        legacy?: unknown
         replacement: { ok: boolean; output: string }
       }
 
       expect(result.ok, 'lint must fail').toBe(false)
-      expect(result.legacy.ok, 'the legacy engine must have run and objected').toBe(false)
       expect(result.replacement.ok, 'the replacement engine must have run and objected').toBe(false)
-      expect(result.legacy.output).toMatch(/no-explicit-any/)
       expect(result.replacement.output).toMatch(/no-explicit-any/)
+      // The legacy engine is no longer part of the verdict at all.
+      expect(result.legacy).toBeUndefined()
     } finally {
       rmSync(VIOLATION, { force: true })
     }
@@ -338,7 +347,21 @@ describe('the fail-closed path, driven end to end', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('a legacy failure alone still fails the run', () => {
+  it('a replacement failure fails the run', () => {
+    const result = lintMember({
+      memberDir: SUBJECT,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: () => ({ ok: false, output: 'replacement violation' }),
+    }) as { ok: boolean }
+    expect(result.ok).toBe(false)
+  })
+
+  it('a legacy failure can no longer decide the run', () => {
+    // The obsolete shape of this test required a legacy failure to fail the
+    // run. After 3.3 the legacy engine is not on the production path at all,
+    // so a stand-in that fails everything EXCEPT the replacement engine must
+    // not affect the verdict — there is nothing else being executed.
     const result = lintMember({
       memberDir: SUBJECT,
       rel: 'packages/contracts',
@@ -348,6 +371,84 @@ describe('the fail-closed path, driven end to end', () => {
           ? { ok: true, output: '' }
           : { ok: false, output: 'legacy violation' },
     }) as { ok: boolean }
-    expect(result.ok).toBe(false)
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('task 3.3 — no member escapes the capability-owned policy path', () => {
+  // The hostile shapes that would each leave a member enforced by something
+  // other than the canonical 117-policy authority. Every one is a way for lint
+  // to stay green while enforcing less than the repository decided.
+
+  it('every linting member invokes the capability binary and nothing else', () => {
+    for (const rel of members(REPO_ROOT) as string[]) {
+      if ((NON_LINTING_MEMBERS as Set<string>).has(rel)) continue
+      const script = lintScript(rel)
+      expect(script, rel).toContain(LINT_CAPABILITY as string)
+      for (const engine of ENGINE_BINARIES as string[]) {
+        expect(
+          new RegExp(`(^|[^-\\w])${engine}\\b`).test(script.replace(LINT_CAPABILITY as string, '')),
+          `${rel} assembles its own ${engine} command`,
+        ).toBe(false)
+      }
+    }
+  })
+
+  it('a member declared non-linting must say so and ship no engine config', () => {
+    // Coverage is a closed question: a member is linted, or it is DECLARED
+    // exempt and that declaration is checked. "Neither" is how a member escapes.
+    for (const rel of NON_LINTING_MEMBERS as Set<string>) {
+      expect(lintScript(rel), rel).toMatch(/no lint/)
+      expect(existsSync(path.join(REPO_ROOT, rel, 'eslint.config.js')), rel).toBe(false)
+    }
+    expect(checkLintWiring(REPO_ROOT)).toEqual([])
+  })
+
+  it('the capability renders policy per role rather than invoking a bare engine', () => {
+    // An entry point that ran the replacement binary with no `--config` would
+    // enforce the engine's own defaults, not the repository's policy — green,
+    // and enforcing something nobody decided.
+    const runner = readFileSync(path.join(HERE, '..', 'src', 'run-lint.mjs'), 'utf8')
+    expect(runner).toMatch(/configForRole\(role\)/)
+    expect(runner).toMatch(/'--config'/)
+    expect(runner).toMatch(/roleForMember/)
+  })
+
+  it('typed enforcement cannot silently downgrade', () => {
+    const subject = path.join(HERE, 'lint-subject')
+    const runner = readFileSync(path.join(HERE, '..', 'src', 'run-lint.mjs'), 'utf8')
+    expect(runner).toMatch(/'--type-aware'/)
+    expect(runner).toMatch(/resolveTypedBackend\(\)/)
+    expect(runner).toMatch(/typedAnalysisRan/)
+
+    // Behavioural, not just present: an engine that exits 0 while announcing a
+    // dead backend must still fail.
+    const result = lintMember({
+      memberDir: subject,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: () => ({ ok: true, output: 'tsgolint not found; type-aware analysis failed' }),
+    }) as { ok: boolean }
+    expect(result.ok, 'a dead typed backend must fail the run').toBe(false)
+  })
+
+  it('no member keeps an ESLint-specific production lint path', () => {
+    // `packages/eslint-config` still EXISTS — task 3.4 removes it — but no
+    // member may reach ESLint as a production lint path that bypasses the
+    // capability. Its own lint script goes through the capability like the rest.
+    for (const rel of members(REPO_ROOT) as string[]) {
+      const script = lintScript(rel)
+      if ((NON_LINTING_MEMBERS as Set<string>).has(rel)) continue
+      expect(/\beslint\b/.test(script), `${rel} invokes ESLint directly`).toBe(false)
+    }
+    const root = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'))
+    expect(/\beslint\b/.test(String(root.scripts.lint))).toBe(false)
+  })
+
+  it('the compiler authority is untouched by this task', () => {
+    const catalog = readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8')
+    expect(catalog).toMatch(/^ {2}typescript: 6\.0\.3$/m)
+    expect(catalog).toMatch(/^ {2}eslint: 10\.8\.0$/m)
+    expect(existsSync(path.join(REPO_ROOT, 'packages', 'eslint-config'))).toBe(true)
   })
 })

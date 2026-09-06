@@ -2,18 +2,27 @@
 /**
  * THE DUAL-ENGINE LINT ENTRY POINT.
  *
- * Until now the replacement engine was evidence: the conformance harness proved
- * it CAN enforce the 117-policy contract, while `pnpm lint` still ran ESLint
- * alone. This is where it stops being evidence and joins the repository's
- * merge-admission path.
+ * Scope 1 put both engines on the merge-admission path so the replacement could
+ * be proved against the legacy one in production, not only in a harness. Task
+ * 3.3 completes that transition: the replacement engine is now the sole
+ * blocking path.
  *
  *   pnpm lint
- *     ├── legacy ESLint          BLOCKING
- *     └── Oxlint + typed backend BLOCKING
+ *     └── Oxlint + typed backend BLOCKING   (the 117-policy contract)
  *
- * Either engine reporting violations fails lint. So does either engine failing
- * to RUN. Those are different failures and both must be fatal, because an
- * engine that did not execute reports no violations, and "no violations" and
+ * The legacy engine is still INSTALLED — task 3.4 removes the implementation
+ * atomically — but it no longer decides whether a member passes. It had to
+ * leave the blocking path first: `typescript-eslint` 8.66.0 refuses TypeScript
+ * 7, so the 3.2 compiler cutover cannot land while an engine that rejects the
+ * new compiler is still required to succeed.
+ *
+ * NO POLICY MOVED. All 117 policies still block, rendered per role from the
+ * same manifest, and the dual-engine parity corpus still proves both engines
+ * agree on every one of them.
+ *
+ * Violations fail lint. So does the engine failing to RUN, or its typed backend
+ * failing to start. Those are different failures and all must be fatal, because
+ * an engine that did not execute reports no violations, and "no violations" and
  * "no analysis" are indistinguishable downstream.
  *
  * WHAT THIS DELIBERATELY DOES NOT DO. It does not typecheck, and it does not
@@ -88,9 +97,8 @@ export function projectForMember(memberDir) {
 /**
  * An engine binary, searched from the member outward.
  *
- * pnpm links each member's own dependencies, so the legacy engine lives beside
- * the member that declares it while the replacement engine lives with the
- * capability package. A MISSING binary is fatal rather than a skip: an engine
+ * pnpm links each member's own dependencies, and the replacement engine lives
+ * with the capability package. A MISSING binary is fatal rather than a skip: an engine
  * that cannot start reports no violations, which is indistinguishable from a
  * clean run at every layer above.
  */
@@ -210,7 +218,6 @@ export function lintMember({
   const role = roleForMember(rel)
   if (role === undefined) return { skipped: true, rel }
 
-  const eslintBin = resolveBin('eslint', memberDir, repoRoot)
   const oxlintBin = resolveBin('oxlint', memberDir, repoRoot)
 
   // Before the engine runs, not after: an absent backend is silent.
@@ -220,7 +227,16 @@ export function lintMember({
   // The member's OWN declared paths. A runner that linted `.` everywhere would
   // widen enforcement to files members deliberately exclude, and one that
   // hardcoded `src` would narrow it for members that lint more.
-  const legacy = execute(eslintBin, [...paths], memberDir)
+  //
+  // REPLACEMENT ONLY (task 3.3). The legacy engine has left the blocking path.
+  // It is still installed -- task 3.4 removes the implementation atomically --
+  // but it no longer decides whether a member passes, because the compiler
+  // cutover in 3.2 cannot land while an engine that refuses TypeScript 7 is
+  // still required to succeed.
+  //
+  // Nothing about POLICY changed. All 117 policies still block, through the
+  // generated config for this member's role, and the dual-engine parity corpus
+  // still proves the two engines agree on every one of them.
   // --type-aware is not optional. Without it the typed policies silently do not
   // run and the engine exits 0, which is the one failure mode this contract
   // exists to prevent.
@@ -253,15 +269,11 @@ export function lintMember({
           'type-aware policies were not enforced',
       }
 
-  // BOTH are evaluated before either verdict is returned. Short-circuiting on
-  // the legacy result would let a replacement failure go unreported whenever
-  // ESLint happened to fail first.
   return {
     rel,
     role,
-    legacy,
     replacement,
-    ok: legacy.ok && replacement.ok,
+    ok: replacement.ok,
   }
 }
 
@@ -284,15 +296,11 @@ if (invokedDirectly) {
       process.exit(0)
     }
     if (!result.ok) {
-      if (!result.legacy.ok) console.error(result.legacy.output)
-      if (!result.replacement.ok) console.error(result.replacement.output)
-      console.error(
-        `✗ ${rel} (${result.role}) — legacy ${result.legacy.ok ? 'pass' : 'FAIL'}, ` +
-          `replacement ${result.replacement.ok ? 'pass' : 'FAIL'}`,
-      )
+      console.error(result.replacement.output)
+      console.error(`✗ ${rel} (${result.role}) — replacement engine FAILED`)
       process.exit(1)
     }
-    console.log(`✓ ${rel} (${result.role}) — both engines clean`)
+    console.log(`✓ ${rel} (${result.role}) — replacement engine clean, typed policies enforced`)
   } catch (error) {
     if (error instanceof LintEngineFailure) {
       console.error(`✗ ${rel} — ${error.message}`)
