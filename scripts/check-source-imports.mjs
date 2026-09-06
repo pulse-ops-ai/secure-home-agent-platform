@@ -550,6 +550,47 @@ export function checkSourceImports(root = DEFAULT_ROOT) {
 // --- CLI -------------------------------------------------------------------
 
 // process.argv[1] preserves a symlinked invocation path; the ESM loader
+/**
+ * Every module LOAD SITE in the repository, read from the AST.
+ *
+ * This exists so the compatibility-boundary check does not have to invent a
+ * second answer to "what is a module load". That check used a regex over
+ * comment-stripped text, and text scanning does not converge: a `//` inside a
+ * string truncated the line and erased a real `import("...")` after it, while
+ * `import(process.env.X)`, `import(a + b)`, `import(f())` and
+ * `require(c ? a : b)` were all invisible because only a bare identifier was
+ * recognised. This module already parses every file to govern import
+ * direction, and it is the ONLY admitted consumer of the compatibility parser,
+ * so reporting from here keeps the seam a singleton instead of creating a
+ * second consumer.
+ *
+ * `tests/fixtures` is excluded for the same reason the walker excludes it
+ * everywhere else: those files are deliberately invalid lint subjects, not
+ * repository code that loads anything.
+ */
+export function reportLoadSites(root = DEFAULT_ROOT) {
+  const files = {}
+  for (const file of sourceFiles(root)) {
+    // A file can vanish between listing and reading -- other suites create and
+    // remove subjects while this walks. A path that no longer exists cannot
+    // load anything, so skipping it hides nothing; only ENOENT is tolerated,
+    // because any other read failure IS an unanswered question.
+    let text
+    try {
+      text = readFileSync(join(root, file), 'utf8')
+    } catch (error) {
+      if (error.code === 'ENOENT') continue
+      throw error
+    }
+    const { specifiers, nonLiteral } = readImports(text, file)
+    files[file] = {
+      specifiers: specifiers.map((entry) => entry.specifier),
+      nonLiteral: nonLiteral.map((entry) => ({ line: entry.line })),
+    }
+  }
+  return files
+}
+
 // realpaths import.meta.url. Compared raw, a symlinked invocation matches
 // nothing, runs nothing, and exits 0 — a silent no-op where exit 0 reads as
 // PASS. Both sides are therefore resolved to REAL paths, and an entry path
@@ -563,6 +604,15 @@ const isMain = (() => {
   }
 })()
 if (isMain) {
+  // Machine-readable load-site inventory, for the compatibility-boundary check.
+  // It decides nothing; it reports what the parser saw.
+  const reportFlag = process.argv.indexOf('--report-loads')
+  if (reportFlag !== -1) {
+    const reportRoot = process.argv[reportFlag + 1] ?? DEFAULT_ROOT
+    console.log(JSON.stringify(reportLoadSites(reportRoot)))
+    process.exit(0)
+  }
+
   const root = process.argv[2] ?? DEFAULT_ROOT
   const { problems, scanned, members } = checkSourceImports(root)
 

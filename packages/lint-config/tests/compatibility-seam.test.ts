@@ -14,7 +14,8 @@
  * gone.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -288,14 +289,32 @@ describe('the seam is bounded by module LOADING, not by one import syntax', () =
     })
   })
 
-  it('FAILS CLOSED on a computed specifier, which no read of the file can resolve', () => {
-    // The package could be behind this identifier. An unresolvable load is an
-    // unanswered question, not an absent one, so it must not simply vanish.
+  it.each([
+    ['an environment lookup', `export const f = () => import(process.env['TS_PACKAGE'])\n`],
+    ['a concatenation', `export const f = () => import(prefix + packageName)\n`],
+    ['a call result', `export const f = () => import(resolvePackage())\n`],
+    ['a conditional', `export const f = () => require(condition ? left : right)\n`],
+    ['a bare identifier', `const WHICH = 'typescript'\nexport const f = () => import(WHICH)\n`],
+    ['a template expression', 'export const f = () => import(`${scope}/typescript6`)\n'],
+  ])('FAILS CLOSED on %s, which no read of the file can resolve', (_label, source) => {
+    // The package could be behind any of these. An unresolvable load is an
+    // unanswered question, not an absent one. The text scanner recognised only
+    // the bare-identifier form, so every other shape passed silently.
+    withIntruder(source, (problems) => {
+      expect(problems.join('\n')).toContain(intruder)
+      expect(problems.join('\n')).toMatch(/non-literal specifier/)
+    })
+  })
+
+  it('sees a load that a `//` inside a string would have erased', () => {
+    // The scanner stripped comments from raw text, so a string containing `//`
+    // truncated the rest of the line -- taking a real import with it. Parsing
+    // cannot be fooled this way because it knows the `//` is inside a string.
     withIntruder(
-      `const WHICH = process.env['X'] ?? 'typescript'\nexport const ts = await import(WHICH)\n`,
+      `const marker = "a//b"\nexport const ts = await import("${COMPATIBILITY_PACKAGE}")\n`,
       (problems) => {
         expect(problems.join('\n')).toContain(intruder)
-        expect(problems.join('\n')).toMatch(/computed specifier/)
+        expect(problems.join('\n')).toMatch(/not an admitted consumer/)
       },
     )
   })
@@ -305,5 +324,30 @@ describe('the seam is bounded by module LOADING, not by one import syntax', () =
       `// import ts from '${COMPATIBILITY_PACKAGE}'\n/* require('${COMPATIBILITY_PACKAGE}') */\nexport const x = 1\n`,
       (problems) => expect(problems).toEqual([]),
     )
+  })
+})
+
+describe('an inventory that cannot be produced is not a pass', () => {
+  it('REFUSES when the load-site report fails', () => {
+    // The seam's answer now comes from a subprocess. If that subprocess dies,
+    // the honest result is "unproved", not "no consumers found" -- otherwise
+    // breaking the reporter becomes the easiest way to empty the allowlist.
+    const root = mkdtempSync(path.join(tmpdir(), 'seam-inventory-'))
+    mkdirSync(path.join(root, 'scripts'), { recursive: true })
+    writeFileSync(
+      path.join(root, 'scripts', 'toolchain-boundaries.json'),
+      readFileSync(path.join(REPO_ROOT, 'scripts', 'toolchain-boundaries.json'), 'utf8'),
+    )
+    writeFileSync(
+      path.join(root, 'scripts', 'check-source-imports.mjs'),
+      'process.stderr.write("inventory unavailable\\n")\nprocess.exit(1)\n',
+    )
+    try {
+      const problems = checkCompatibilitySeam(root)
+      expect(problems.join('\n')).toMatch(/inventory could not be produced/)
+      expect(problems.join('\n')).toMatch(/unproved/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
