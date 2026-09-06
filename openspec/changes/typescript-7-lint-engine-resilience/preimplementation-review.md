@@ -20,7 +20,7 @@ criteria below are satisfied.
   "contract": "preimplementation-review-v2",
   "schema": "governed-spec-driven-v2",
   "rubric": "governed-preimplementation-review-v1",
-  "reviewed_commit": "0f4d4f7ec94aff1b7a2ca05af5ebe213c033db10",
+  "reviewed_commit": "cd019d42b873f040d3c6da9cc7d53d0f622b2388",
   "reviewed_base_commit": "519dcde03ebe5e09861a9d66e9cf38424cc31581",
   "review_epoch": 3,
   "scope_id": "typescript7-cutover",
@@ -66,11 +66,21 @@ criteria below are satisfied.
     },
     {
       "path": "tasks.md",
-      "sha256": "08a6691e0d6d8f9fe4af6ce304db081353c4b4db87612ff42cb847ed0cfe9c2a"
+      "sha256": "823058780863ceae50a613b990a54df78c281c55c8aaee4746bdbf8d97bcd60c"
     }
   ]
 }
 -->
+
+> **Epoch 3 was re-minted, not superseded.** The first epoch-3 candidate
+> (`0f4d4f7ec94aff1b7a2ca05af5ebe213c033db10`) returned
+> `FOCUSED_CLOSURE_REQUIRED` with one P1 on Scope-2 task sequencing. The
+> correction changed `tasks.md`, so that manifest no longer covered the bytes
+> under review. An unaccepted candidate is not a historical round -- the gate
+> admits an archived round only if it is a real accepted review -- so epoch 3
+> is re-bound to the corrected commit rather than archived and replaced by an
+> epoch 4.
+
 
 ## Scope-2 Review Focus
 
