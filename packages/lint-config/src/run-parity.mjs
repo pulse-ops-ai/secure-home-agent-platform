@@ -26,6 +26,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { OXLINT_CATEGORIES } from './generate-oxlint-config.mjs'
@@ -118,12 +119,19 @@ export function parseReplacementReport(out) {
   }
   const rules = []
   const parseErrors = []
+  // Which FILE each rule was charged to. The engine reports it in the JSON
+  // reporter and nowhere else that is stable: its human-readable output moves
+  // the filename into a source-frame header, and its `github` reporter into an
+  // annotation attribute. Anything that reads a rule/file pair out of prose is
+  // reading a reporter choice.
+  const attributions = []
   for (const diagnostic of report.diagnostics) {
     // `code` is the rule identity ("eslint(no-var)"). A diagnostic without one
     // is the engine refusing the source rather than a policy firing.
     const code = /^(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)$/.exec(diagnostic?.code ?? '')
     if (code) {
       rules.push(code[1])
+      attributions.push({ rule: code[1], file: String(diagnostic?.filename ?? '') })
       continue
     }
     // `help` carries the specific reason ("\\8 and \\9 are not allowed"); the
@@ -136,7 +144,7 @@ export function parseReplacementReport(out) {
     const help = String(diagnostic?.help ?? '').trim()
     parseErrors.push(help ? `${message} help: ${help}` : message)
   }
-  return { rules, parseErrors, raw: out }
+  return { rules, parseErrors, attributions, raw: out }
 }
 
 export function replacementDiagnosticsForText(text, extension, configPath) {
@@ -205,6 +213,39 @@ export function resolvedByRole(roles) {
   const resolved = {}
   for (const role of roles) resolved[role] = resolveEngineConfig(configForRole(role))
   return resolved
+}
+
+/**
+ * Run an invocation the PRODUCTION runner planned, and read it structurally.
+ *
+ * The runner pins `--format=default`, which is the engine's default FOR THE
+ * ENVIRONMENT -- on an Actions runner that is the `github` reporter, not the
+ * human-readable one. A proof that parsed the runner's own output would
+ * therefore read a different format locally than in CI, which is exactly how
+ * the parser-attribution corpus once passed on a workstation and reported "no
+ * parse error" on every hosted run.
+ *
+ * So the plan comes from the runner and the verdict is read from JSON. The
+ * only argument changed is the reporter; `env` must be the runner's own, or
+ * the typed backend is unreachable and the run says nothing.
+ */
+export function replacementPlannedRun(bin, args, cwd, env = process.env) {
+  let out = ''
+  try {
+    out = execFileSync(
+      bin,
+      // Any reporter the plan carried, replaced by the structural one. Matched
+      // by PREFIX rather than by the literal the runner happens to pass today:
+      // a plan that started emitting `--format=github` would otherwise slip
+      // through unchanged, and this file must contain exactly one reporter
+      // name -- which `role-projection.test.ts` checks.
+      args.map((arg) => (arg.startsWith('--format=') ? '--format=json' : arg)),
+      { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+  } catch (error) {
+    out = `${String(error.stdout ?? '')}${String(error.stderr ?? '')}`
+  }
+  return parseReplacementReport(out)
 }
 
 /** Replacement diagnostics for one file: rule names plus parse errors. */

@@ -35,11 +35,14 @@ import {
 import {
   LintEngineFailure,
   lintMember,
+  resolveBin,
   resolveTypedBackend,
   roleForMember,
   typedAnalysisRan,
   typedBackendEnv,
 } from '../src/run-lint.mjs'
+// @ts-ignore
+import { replacementPlannedRun } from '../src/run-parity.mjs'
 
 const HERE = import.meta.dirname
 const REPO_ROOT = path.join(HERE, '..', '..', '..')
@@ -480,53 +483,69 @@ describe('the one admitted process-entry exception stays bounded (ADV-ROLE-003)'
     expect(calls).toHaveLength(1)
   })
 
-  /** Every (rule, file) pair the engine actually attributed. */
-  const attributions = (output: string): { rule: string; file: string }[] => {
-    const found: { rule: string; file: string }[] = []
-    for (const chunk of output.split(/^\s+x /m).slice(1)) {
-      const rule = /^(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)/.exec(chunk)
-      const file = /,-\[([^:\]]+):/.exec(chunk)
-      if (rule?.[1] !== undefined && file?.[1] !== undefined) {
-        found.push({ rule: rule[1], file: file[1] })
-      }
-    }
-    return found
-  }
-
   it('THE BOUND: identical code passes at the entry point and fails beside it', () => {
     // The proof that matters, and the only one the wiring assertions cannot
     // give. Argument shapes can be right while the configs say the wrong
     // thing; this runs the real engine over the same three violations in two
     // files of one member and reads back which file each was charged to.
+    //
+    // The plan comes from the runner and the verdict is read from JSON. The
+    // runner pins `--format=default`, which is the engine's default FOR THE
+    // ENVIRONMENT: an Actions runner gets the `github` reporter. Reading the
+    // runner's own text would pass locally and see nothing in CI, which is
+    // precisely what it did the first time this test was written.
     const dir = withEntryPoint(RESTRICTED)
     try {
       writeFileSync(path.join(dir, 'src', 'index.ts'), RESTRICTED)
 
+      // End to end first: the real runner, the real engine, the real verdict.
       const result = lintMember({
         memberDir: dir,
         rel: 'agents/adapters/coding/bound-probe',
         paths: ['src'],
-      }) as { ok: boolean; replacement: { output: string } }
+      }) as { ok: boolean }
+      expect(result.ok, 'the member must fail, because index.ts violates policy').toBe(false)
 
-      expect(result.ok).toBe(false)
-      const charged = attributions(result.replacement.output)
+      // Then the attribution, through the invocations the runner planned.
+      const plan: string[][] = []
+      lintMember({
+        memberDir: dir,
+        rel: 'agents/adapters/coding/bound-probe',
+        paths: ['src'],
+        execute: (_command: string, args: string[]) => {
+          plan.push(args)
+          return { ok: true, output: '' }
+        },
+      })
+      const bin = resolveBin('oxlint', dir, REPO_ROOT) as string
+      const charged: { rule: string; file: string }[] = []
+      for (const args of plan) {
+        const report = replacementPlannedRun(bin, args, dir, typedBackendEnv()) as {
+          attributions: { rule: string; file: string }[]
+        }
+        charged.push(...report.attributions)
+      }
+
+      // The engine reports the path as GIVEN: relative when the runner passes
+      // `src`, absolute when a single file is passed. Match the suffix rather
+      // than assuming either.
+      const under = (file: string, name: string): boolean =>
+        file.split(path.sep).join('/').endsWith(`src/${name}`)
+      const inFile = (rule: string, name: string): boolean =>
+        charged.some((e) => e.rule === rule && under(e.file, name))
+
       const RELAXED = ['no-console', 'no-restricted-globals', 'no-restricted-properties']
-
       for (const rule of RELAXED) {
-        expect(
-          charged.some((e) => e.rule === rule && e.file === 'src/index.ts'),
-          `${rule} must still bind beside the entry point`,
-        ).toBe(true)
-        expect(
-          charged.some((e) => e.rule === rule && e.file === 'src/bin.ts'),
-          `${rule} must be relaxed AT the entry point`,
-        ).toBe(false)
+        expect(inFile(rule, 'index.ts'), `${rule} must still bind beside the entry point`).toBe(
+          true,
+        )
+        expect(inFile(rule, 'bin.ts'), `${rule} must be relaxed AT the entry point`).toBe(false)
       }
 
       // And the exempt run is not a no-op. The exception relaxes exactly three
       // policies; everything else still binds at the entry point, which is
       // what stops "bounded to one file" from quietly becoming "unlinted".
-      const atEntry = charged.filter((e) => e.file === 'src/bin.ts')
+      const atEntry = charged.filter((e) => under(e.file, 'bin.ts'))
       expect(atEntry.length, 'the entry point must still be linted').toBeGreaterThan(0)
       for (const entry of atEntry) expect(RELAXED).not.toContain(entry.rule)
     } finally {
