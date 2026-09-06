@@ -697,6 +697,56 @@ export const NORMAL_COMPILER = 'typescript'
  * which time the boundary that was supposed to absorb it no longer exists. So
  * the seam's PRESENCE is asserted, not merely its narrowness.
  */
+/**
+ * Source with comments removed.
+ *
+ * The scan reads text, so prose describing a load form would otherwise count as
+ * one -- this file's own explanation of `import(SOME_CONSTANT)` reported itself.
+ * A commented-out import is not a load site either.
+ */
+export function withoutComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1')
+}
+
+/**
+ * Every LITERAL module-load form, for one package.
+ *
+ * The detector matched `from '<pkg>'` and nothing else, so it saw only
+ * single-quoted static imports. A double-quoted import, a dynamic `import()`,
+ * a `require()`, or `import x = require()` all loaded the compatibility package
+ * while remaining invisible to the seam check -- the allowlist was enforced
+ * against one syntax rather than against module loading.
+ */
+export function literalLoadSites(text, packageName) {
+  const pkg = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const quoted = `(['"])${pkg}\\1`
+  const forms = [
+    // import ... from "pkg"   /   export ... from "pkg"
+    new RegExp(`\\bfrom\\s*${quoted}`),
+    // import "pkg"  (side effect)
+    new RegExp(`\\bimport\\s+${quoted}`),
+    // import("pkg")  (dynamic)
+    new RegExp(`\\bimport\\s*\\(\\s*${quoted}`),
+    // require("pkg")  and  import x = require("pkg")
+    new RegExp(`\\brequire\\s*\\(\\s*${quoted}`),
+  ]
+  return forms.some((form) => form.test(text))
+}
+
+/**
+ * Module loads whose specifier is a bare identifier.
+ *
+ * `import(SOME_CONSTANT)` cannot be resolved by reading the file, so it is a
+ * place the compatibility package can hide. The seam fails CLOSED on these
+ * rather than letting them vanish from the scan: an unresolvable load is an
+ * unanswered question, not an absent one.
+ */
+export function computedLoadSites(text) {
+  return [
+    ...text.matchAll(/\b(?:import|require)\s*\(\s*([A-Za-z_$][\w$]*)\s*(?:as\s+\w+\s*)?\)/g),
+  ].map((match) => match[1])
+}
+
 export function checkCompatibilitySeam(repoRoot = REPO_ROOT) {
   const problems = []
   const boundariesPath = path.join(repoRoot, 'scripts', 'toolchain-boundaries.json')
@@ -719,11 +769,20 @@ export function checkCompatibilitySeam(repoRoot = REPO_ROOT) {
     }
   }
 
-  // Who actually imports it, read from the tree rather than from the allowlist.
+  // Who actually loads it, read from the tree rather than from the allowlist,
+  // across every literal module-load form rather than one import syntax.
   const actual = []
   for (const rel of sourceFiles(repoRoot)) {
-    const text = readFileSync(path.join(repoRoot, rel), 'utf8')
-    if (new RegExp(`from '${COMPATIBILITY_PACKAGE}'`).test(text)) actual.push(rel)
+    const text = withoutComments(readFileSync(path.join(repoRoot, rel), 'utf8'))
+    if (literalLoadSites(text, COMPATIBILITY_PACKAGE)) actual.push(rel)
+    for (const specifier of computedLoadSites(text)) {
+      if (rel === 'scripts/check-source-imports.mjs') continue
+      problems.push(
+        `${rel} loads a module through the computed specifier "${specifier}". The seam cannot ` +
+          'be proved bounded when a load site is unresolvable by reading the file, so this ' +
+          'fails closed: give the specifier literally, or move the load out of repository source',
+      )
+    }
   }
   for (const rel of actual) {
     if (!allowed.has(rel)) {

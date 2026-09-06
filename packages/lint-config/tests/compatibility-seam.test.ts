@@ -13,6 +13,7 @@
  * reappears at the cutover, when the boundary that was meant to absorb it is
  * gone.
  */
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -123,9 +124,16 @@ describe('behaviour is unchanged by the seam', () => {
     expect(read('scripts/check-source-imports.mjs')).toMatch(/ts\.version/)
   })
 
-  it('the seam and the compiler agree on the API surface the gate uses', async () => {
-    const seam = (await import(COMPATIBILITY_PACKAGE as string)).default as Record<string, unknown>
-    const compiler = (await import(NORMAL_COMPILER as string)).default as Record<string, unknown>
+  it('the seam and the compiler agree on the API surface the gate uses', () => {
+    // Loaded in a SUBPROCESS, with both identities taken from the boundary
+    // policy and passed as arguments.
+    //
+    // Importing them here made this file a second consumer of the seam, and it
+    // did so through a computed specifier -- the exact form that cannot be
+    // resolved by reading the file, and therefore the exact form the closure
+    // check must refuse. A verification that has to hide from the rule it
+    // verifies is not evidence. The specifiers stay auditable because they come
+    // from the declared policy rather than from this test.
     const used = [
       'createSourceFile',
       'flattenDiagnosticMessageText',
@@ -143,13 +151,42 @@ describe('behaviour is unchanged by the seam', () => {
       'ScriptTarget',
       'SyntaxKind',
     ]
-    for (const api of used) {
-      expect(seam[api], `the seam must expose ${api}`).toBeDefined()
-      expect(compiler[api], `the compiler exposes ${api} too, today`).toBeDefined()
+    const probe = [
+      // argv is read inline: a bare identifier here would be a computed load
+      // site in THIS file, which is precisely what the closure check refuses.
+      'const seam = (await import(process.argv[1])).default',
+      'const compiler = (await import(process.argv[2])).default',
+      'const used = ' + JSON.stringify(used),
+      'console.log(JSON.stringify({',
+      '  seamMissing: used.filter((k) => seam[k] === undefined),',
+      '  compilerMissing: used.filter((k) => compiler[k] === undefined),',
+      '  seamVersion: seam.version, compilerVersion: compiler.version,',
+      '}))',
+    ].join('\n')
+
+    const run = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        probe,
+        COMPATIBILITY_PACKAGE as string,
+        NORMAL_COMPILER as string,
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf8' },
+    )
+    expect(run.status, run.stderr).toBe(0)
+    const report = JSON.parse(run.stdout) as {
+      seamMissing: string[]
+      compilerMissing: string[]
+      seamVersion: string
+      compilerVersion: string
     }
+    expect(report.seamMissing).toEqual([])
+    expect(report.compilerMissing).toEqual([])
     // They agree NOW. That agreement is exactly why reverting the seam is
     // invisible, and why its presence is asserted rather than inferred.
-    expect(seam['version']).toBe(compiler['version'])
+    expect(report.seamVersion).toBe(report.compilerVersion)
   })
 })
 
@@ -214,5 +251,59 @@ describe('a lint engine is not a compiler authority', () => {
 
   it('accepts the committed entry points, which resolve the normal compiler', () => {
     expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+  })
+})
+
+describe('the seam is bounded by module LOADING, not by one import syntax', () => {
+  // The detector matched `from '<pkg>'` alone. A double-quoted import, a
+  // dynamic import, a require, or `import x = require()` all loaded the
+  // compatibility package while remaining invisible -- the allowlist was being
+  // enforced against one syntax rather than against module loading. Each case
+  // is placed outside `scripts/`, since that is where a miss actually hides.
+  const intruder = 'packages/contracts/src/regression-load-form.ts'
+
+  const withIntruder = (source: string, assertion: (problems: string[]) => void): void => {
+    const absolute = path.join(REPO_ROOT, intruder)
+    mkdirSync(path.dirname(absolute), { recursive: true })
+    writeFileSync(absolute, source)
+    try {
+      assertion(checkCompatibilitySeam(REPO_ROOT))
+    } finally {
+      rmSync(absolute, { force: true })
+    }
+  }
+
+  it.each([
+    ['double-quoted static import', `import ts from "${COMPATIBILITY_PACKAGE}"\n`],
+    ['single-quoted static import', `import ts from '${COMPATIBILITY_PACKAGE}'\n`],
+    ['dynamic import', `export const ts = await import('${COMPATIBILITY_PACKAGE}')\n`],
+    ['require', `const ts = require("${COMPATIBILITY_PACKAGE}")\n`],
+    ['import-equals-require', `import ts = require("${COMPATIBILITY_PACKAGE}")\n`],
+    ['export-from', `export { version } from '${COMPATIBILITY_PACKAGE}'\n`],
+    ['side-effect import', `import '${COMPATIBILITY_PACKAGE}'\n`],
+  ])('REFUSES an unadmitted consumer using %s', (_label, source) => {
+    withIntruder(source, (problems) => {
+      expect(problems.join('\n')).toContain(intruder)
+      expect(problems.join('\n')).toMatch(/not an admitted consumer/)
+    })
+  })
+
+  it('FAILS CLOSED on a computed specifier, which no read of the file can resolve', () => {
+    // The package could be behind this identifier. An unresolvable load is an
+    // unanswered question, not an absent one, so it must not simply vanish.
+    withIntruder(
+      `const WHICH = process.env['X'] ?? 'typescript'\nexport const ts = await import(WHICH)\n`,
+      (problems) => {
+        expect(problems.join('\n')).toContain(intruder)
+        expect(problems.join('\n')).toMatch(/computed specifier/)
+      },
+    )
+  })
+
+  it('does not count a commented-out load, or prose describing one', () => {
+    withIntruder(
+      `// import ts from '${COMPATIBILITY_PACKAGE}'\n/* require('${COMPATIBILITY_PACKAGE}') */\nexport const x = 1\n`,
+      (problems) => expect(problems).toEqual([]),
+    )
   })
 })
