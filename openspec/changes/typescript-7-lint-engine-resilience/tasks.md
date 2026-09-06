@@ -1290,7 +1290,20 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   Complete only when no used compiler surface is untested.
 
 - [ ] **3.2 Cut the authoritative compiler to TypeScript 7.0.2**
-  <!-- agent-task: 3.2 paths=pnpm-workspace.yaml,pnpm-lock.yaml,package.json,**/package.json,packages/tsconfig/**,tests/** checks=ts7-typecheck-build-version risk=high prerequisites=3.1 -->
+  <!-- agent-task: 3.2 paths=pnpm-workspace.yaml,pnpm-lock.yaml,package.json,**/package.json,packages/tsconfig/**,tests/** checks=ts7-typecheck-build-version risk=high prerequisites=3.1,3.4 -->
+
+  **Sequencing**
+
+  The TypeScript 7.0.2 pin moves **only after the legacy engine that rejects it
+  has left the blocking lint path**. `prerequisites=3.1,3.4` implies 3.3 through
+  3.4, so replacement-only lint and ESLint retirement are both complete before
+  the compiler changes.
+
+  **The emitted-output differential still needs a TypeScript 6 baseline.**
+  Capture and freeze that baseline from the current TypeScript 6.0.3 state
+  BEFORE moving the pin; once the pin moves the baseline is unobtainable. This
+  does not weaken `EX-TS-002`, which is still proved against the frozen
+  baseline.
 
   **Task type**
 
@@ -1349,7 +1362,27 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   Complete only when no ordinary command resolves TS6 or unstable TS7 APIs.
 
 - [ ] **3.3 Move every lint entry point to the capability package**
-  <!-- agent-task: 3.3 paths=package.json,agents/**/package.json,apps/**/package.json,packages/**/package.json,services/**/package.json,**/eslint.config.js,packages/lint-config/**,tests/** checks=replacement-entrypoints risk=high prerequisites=3.2 -->
+  <!-- agent-task: 3.3 paths=package.json,agents/**/package.json,apps/**/package.json,packages/**/package.json,services/**/package.json,**/eslint.config.js,packages/lint-config/**,tests/** checks=replacement-entrypoints risk=high prerequisites=3.1 -->
+
+  **Sequencing**
+
+  This runs while TypeScript **6.0.3 is still the normal compiler**. It depends
+  on the audit (3.1), not on the compiler cutover (3.2).
+
+  Ordering it after 3.2 would guarantee a red intermediate state: Scope 1's
+  production runner is dual-engine and fail-closed
+  (`ok = legacy.ok && replacement.ok`), and `typescript-eslint` 8.66.0 refuses
+  TypeScript 7.0.2. Moving the compiler first therefore breaks the legacy engine
+  that is still a required blocking path, and the repository cannot be green in
+  that state.
+
+  Its proof must establish, with the compiler still on 6.0.3:
+
+  - every lint entry point resolves the replacement capability path;
+  - no member silently escapes lint;
+  - all 117 policy semantics and role projections remain enforced;
+  - compiler and typecheck authority remain independently TypeScript 6.0.3 at
+    this stage.
 
   **Task type**
 
@@ -1397,6 +1430,15 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
 - [ ] **3.4 Remove the legacy ESLint implementation atomically**
   <!-- agent-task: 3.4 paths=pnpm-workspace.yaml,pnpm-lock.yaml,packages/eslint-config/**,scripts/workspace-model.mjs,**/eslint.config.js,**/package.json,tests/**,docs/** checks=no-eslint-residue,workspace-tooling-boundary risk=high prerequisites=3.3 -->
+
+  **Sequencing**
+
+  Downstream of 3.3 and still **before** the compiler cutover: legacy ESLint is
+  retired while TypeScript **6.0.3 remains authoritative**. Removing the engine
+  that rejects TypeScript 7 is what makes 3.2 landable at all.
+
+  Full policy parity is re-proved AFTER removal, against the replacement engine
+  alone, so retirement cannot silently drop a policy.
 
   **Task type**
 
