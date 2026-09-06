@@ -1,0 +1,47 @@
+{
+  "name": "@secure-home/lint-config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Engine-neutral lint-policy authority, per-engine mappings, and the dual-engine runner for the workspace.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./policy": "./policy.json",
+    "./engine-mappings": "./engine-mappings.json",
+    "./policy.schema": "./policy.schema.json",
+    "./engine-mappings.schema": "./engine-mappings.schema.json"
+  },
+  "files": [
+    "engine-mappings.json",
+    "engine-mappings.schema.json",
+    "policy.json",
+    "policy.schema.json",
+    "src",
+    "validate-schema.mjs"
+  ],
+  "scripts": {
+    "lint": "node -e \"console.log('no lint: JSON/data authority package; validated by test')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node -e \"console.log('no build: policy-authority package, consumed as-is')\""
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/testing": "workspace:*",
+    "@secure-home/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  },
+  "bin": {
+    "secure-home-lint": "./src/run-lint.mjs"
+  }
+}

@@ -92,11 +92,13 @@ def _base(tmp_path: Path, name: str = "ws") -> Workspace:
         "@secure-home/contracts",
         devDependencies={
             "@secure-home/eslint-config": "workspace:*",
+            "@secure-home/lint-config": "workspace:*",
             "@secure-home/logging": "workspace:*",
             "@secure-home/testing": "workspace:*",
         },
     )
     ws.member("packages/eslint-config", "@secure-home/eslint-config")
+    ws.member("packages/lint-config", "@secure-home/lint-config")
     ws.member("packages/logging", "@secure-home/logging")
     ws.member("packages/observability", "@secure-home/observability")
     ws.member("packages/testing", "@secure-home/testing")
@@ -300,6 +302,43 @@ def test_build_tooling_may_not_be_imported_from_production_source(tmp_path: Path
     result = _imports(ws.root)
     assert result.returncode != 0
     assert "build-tooling package" in _output(result)
+
+
+def test_the_lint_policy_authority_may_not_be_imported_from_production_source(
+    tmp_path: Path,
+) -> None:
+    """`@secure-home/lint-config` is build tooling, exactly like the engine config.
+
+    It holds the policy manifest, the engine mappings, and the dual-engine
+    runner. Nothing resolves any of that at runtime, so a production import
+    would drag lint machinery into a deployed artifact -- and its layer (0)
+    would otherwise permit it, because layering answers direction, not role.
+
+    This matters more than for the ESLint config it will outlive: Scope 2
+    retires `packages/eslint-config`, and this package is what remains.
+    """
+    ws = _base(tmp_path)
+    ws.source(
+        "packages/contracts/src/index.ts",
+        "import policy from '@secure-home/lint-config/policy'\nexport default policy",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode != 0
+    assert "build-tooling package" in _output(result)
+
+
+def test_a_lint_config_import_from_a_build_config_remains_allowed(tmp_path: Path) -> None:
+    """The boundary of the rule. Refusing production imports must not refuse the
+    build-time use the package exists for."""
+    ws = _base(tmp_path)
+    ws.source(
+        "packages/contracts/eslint.config.js",
+        "import policy from '@secure-home/lint-config/policy'\nexport default policy",
+    )
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
 
 
 # --- what must remain allowed -----------------------------------------------
@@ -711,16 +750,25 @@ def test_the_pre_install_checks_stay_dependency_free() -> None:
 def test_the_gate_takes_one_dependency_and_runs_after_install() -> None:
     """The parser is worth a dependency; the ordering that makes it safe is not optional.
 
-    Reading the AST instead of matching patterns costs one import, `typescript`.
+    Reading the AST instead of matching patterns costs one import. Since PR-B
+    task 1.13 that import is the BOUNDED COMPATIBILITY SEAM rather than the
+    normal compiler: this gate needs a parser, not compiler authority, and
+    importing `typescript` coupled the two so that a compiler cutover would
+    silently change how architecture is parsed.
+
     That is only sound if the gate runs after the lockfile install — so the
     ordering is asserted rather than assumed, in CI and in the aggregate check.
     """
-    assert _external_imports("check-source-imports.mjs") == ["typescript"], (
-        "the source import gate should need the TypeScript parser and nothing else"
+    assert _external_imports("check-source-imports.mjs") == ["@typescript/typescript6"], (
+        "the source import gate should need the bounded parsing seam and nothing else"
     )
 
     # Declared at the pinned catalog version, like every other external dependency.
     root_manifest = json.loads((REPO_ROOT / "package.json").read_text())
+    assert root_manifest["devDependencies"]["@typescript/typescript6"] == "catalog:"
+
+    # The normal compiler stays declared too, and stays the compiler: it is what
+    # `pnpm typecheck` and every build resolve. The seam did not replace it.
     assert root_manifest["devDependencies"]["typescript"] == "catalog:"
 
     governance = governance_jobs()["governance"]

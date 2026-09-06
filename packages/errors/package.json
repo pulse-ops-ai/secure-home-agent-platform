@@ -17,13 +17,14 @@
     "dist"
   ],
   "scripts": {
-    "lint": "eslint src",
+    "lint": "secure-home-lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "eslint": "catalog:",

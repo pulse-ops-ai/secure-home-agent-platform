@@ -19,13 +19,14 @@
     "vitest.base.js"
   ],
   "scripts": {
-    "lint": "eslint src vitest.base.js",
+    "lint": "secure-home-lint src vitest.base.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/lint-config": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",

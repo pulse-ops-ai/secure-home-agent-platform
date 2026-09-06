@@ -52,6 +52,10 @@ describe('RC-EX-01: exact dependency allowlist', () => {
   it('devDependencies are exactly the standard tooling set', () => {
     expect(Object.keys(manifest.devDependencies ?? {}).sort()).toEqual([
       '@secure-home/eslint-config',
+      // The dual-engine lint capability. Every linting member declares it,
+      // because lint now runs both engines through one entry point instead of
+      // each package assembling its own commands (ADR-0022, PR-B task 1.12).
+      '@secure-home/lint-config',
       '@secure-home/testing',
       '@secure-home/tsconfig',
       '@types/node',

@@ -596,17 +596,167 @@ def test_a_member_with_a_vitest_config_declares_the_test_dependencies() -> None:
     assert not problems, "inconsistent test setup:\n  " + "\n  ".join(problems)
 
 
-def test_buildable_members_use_the_two_project_build_template() -> None:
-    """tsconfig.json lints src+tests; tsconfig.build.json emits src only."""
+#: TypeScript implementation extensions -- source the compiler must EMIT for.
+#: ``.d.ts`` is deliberately absent: a declaration file is compiler input that
+#: produces no output of its own, so a package holding only declarations is not
+#: thereby an emitting package.
+EMIT_REQUIRING_SUFFIXES = (".ts", ".tsx", ".mts", ".cts")
+
+
+def _emit_requiring_sources(member: Path) -> list[Path]:
+    """TypeScript implementation files under ``src/`` that the compiler emits for.
+
+    The classification is deliberately about FILE CONTENT KIND, not directory
+    presence. ``src/`` alone used to imply "this package is compiled", which is
+    an inference the repository outgrew: ``packages/lint-config/src/*.mjs`` is
+    Node tooling that is executed directly and type-checked by the package's
+    no-emit project with ``allowJs``. Requiring an emit template there would
+    mean either a ``tsconfig.build.json`` that emits nothing anybody consumes,
+    or a build script that lies about what the package produces.
+    """
+    src = member / "src"
+    if not src.is_dir():
+        return []
+    return sorted(
+        path
+        for path in src.rglob("*")
+        if path.is_file()
+        and path.suffix in EMIT_REQUIRING_SUFFIXES
+        and not path.name.endswith(".d.ts")
+    )
+
+
+def _build_template_problems(members: list[Path], root: Path) -> list[str]:
+    """The rule itself, factored out so a fixture can drive it directly."""
     problems: list[str] = []
-    for member in _pnpm_members():
-        if not (member / "src").is_dir():
+    for member in members:
+        if not _emit_requiring_sources(member):
             continue
-        rel = member.relative_to(REPO_ROOT)
+        rel = member.relative_to(root)
         if not (member / "tsconfig.build.json").is_file():
             problems.append(f"{rel}: no tsconfig.build.json")
             continue
         scripts = json.loads((member / "package.json").read_text())["scripts"]
         if scripts.get("build") != "tsc -p tsconfig.build.json":
             problems.append(f"{rel}: build script is {scripts.get('build')!r}")
+    return problems
+
+
+def test_buildable_members_use_the_two_project_build_template() -> None:
+    """tsconfig.json lints src+tests; tsconfig.build.json emits src only.
+
+    Applies to members whose ``src/`` holds TypeScript implementation source.
+    A package whose ``src/`` holds only directly-executed ``.mjs`` tooling emits
+    nothing, so the two-project template would describe a build that does not
+    exist.
+    """
+    problems = _build_template_problems(_pnpm_members(), REPO_ROOT)
     assert not problems, "members not on the build template:\n  " + "\n  ".join(problems)
+
+
+def _fixture_member(
+    root: Path, rel: str, *, sources: dict[str, str], build: str, build_project: bool
+) -> Path:
+    """A throwaway workspace member, so the rule can be driven against inputs
+    this repository does not and should not contain."""
+    member = root / rel
+    (member / "src").mkdir(parents=True, exist_ok=True)
+    for name, body in sources.items():
+        (member / "src" / name).write_text(body)
+    (member / "package.json").write_text(
+        json.dumps({"name": f"@secure-home/{Path(rel).name}", "scripts": {"build": build}})
+    )
+    if build_project:
+        (member / "tsconfig.build.json").write_text("{}\n")
+    return member
+
+
+def test_a_typescript_package_without_the_build_project_is_refused(tmp_path: Path) -> None:
+    """Fail-closed for ordinary TypeScript packages must survive the correction.
+
+    Written as a mutation against a real fixture rather than an assertion about
+    this repository, because every member here already satisfies the rule -- so
+    the live suite alone cannot tell a working rule from one that exempts
+    everything.
+    """
+    member = _fixture_member(
+        tmp_path,
+        "packages/ordinary",
+        sources={"index.ts": "export const a = 1\n"},
+        build="tsc -p tsconfig.build.json",
+        build_project=False,
+    )
+    assert _build_template_problems([member], tmp_path) == [
+        "packages/ordinary: no tsconfig.build.json"
+    ]
+
+
+def test_a_typescript_package_with_the_wrong_build_script_is_refused(tmp_path: Path) -> None:
+    """The second half of the template: having the project is not enough."""
+    member = _fixture_member(
+        tmp_path,
+        "packages/ordinary",
+        sources={"index.ts": "export const a = 1\n"},
+        build="tsc",
+        build_project=True,
+    )
+    assert _build_template_problems([member], tmp_path) == [
+        "packages/ordinary: build script is 'tsc'"
+    ]
+
+
+@pytest.mark.parametrize("suffix", [".ts", ".tsx", ".mts", ".cts"])
+def test_every_typescript_implementation_extension_requires_the_template(
+    tmp_path: Path, suffix: str
+) -> None:
+    """The correction narrows the trigger; it must not narrow it to `.ts` alone."""
+    member = _fixture_member(
+        tmp_path,
+        "packages/ordinary",
+        sources={f"index{suffix}": "export const a = 1\n"},
+        build="tsc -p tsconfig.build.json",
+        build_project=False,
+    )
+    assert _build_template_problems([member], tmp_path) != []
+
+
+def test_a_direct_execution_mjs_package_does_not_need_an_emit_template(tmp_path: Path) -> None:
+    """`packages/lint-config` in miniature.
+
+    Node tooling that is executed directly, type-checked with `allowJs` by the
+    package's no-emit project, and emits nothing. Requiring the two-project
+    template here would force a build artifact nobody consumes.
+    """
+    member = _fixture_member(
+        tmp_path,
+        "packages/lint-config",
+        sources={"check-policy.mjs": "export const check = () => true\n"},
+        build="node -e \"console.log('no build')\"",
+        build_project=False,
+    )
+    assert _build_template_problems([member], tmp_path) == []
+
+
+def test_a_declaration_only_package_is_not_an_emitting_package(tmp_path: Path) -> None:
+    """`.d.ts` is compiler input that produces no output of its own."""
+    member = _fixture_member(
+        tmp_path,
+        "packages/types-only",
+        sources={"index.d.ts": "export declare const a: number\n"},
+        build="node -e \"console.log('no build')\"",
+        build_project=False,
+    )
+    assert _build_template_problems([member], tmp_path) == []
+
+
+def test_a_mixed_package_is_still_an_emitting_package(tmp_path: Path) -> None:
+    """One real TypeScript file is enough. The narrowing must not let a package
+    hide emit-requiring source behind directly-executed tooling."""
+    member = _fixture_member(
+        tmp_path,
+        "packages/mixed",
+        sources={"tool.mjs": "export const t = 1\n", "index.ts": "export const a = 1\n"},
+        build="node -e \"console.log('no build')\"",
+        build_project=False,
+    )
+    assert _build_template_problems([member], tmp_path) != []

@@ -54,6 +54,7 @@ export const LAYERS = {
   // 0 — build tooling. Imports nothing; everything may use it as a devDep.
   'packages/tsconfig': 0,
   'packages/eslint-config': 0,
+  'packages/lint-config': 0,
 
   // 1 — the innermost contract source. Imports nothing from the platform.
   'packages/contracts': 1,
@@ -121,6 +122,12 @@ export const TEST_ONLY_PACKAGES = new Set(['@secure-home/testing'])
 export const BUILD_TOOLING_PACKAGES = new Set([
   '@secure-home/tsconfig',
   '@secure-home/eslint-config',
+  // The engine-neutral lint-policy authority and its dual-engine runner. It is
+  // lint machinery, so the same reasoning applies: nothing resolves it at
+  // runtime, and a production import would drag policy tooling into a deployed
+  // artifact. `packages/eslint-config` leaves this set when the legacy engine is
+  // retired in Scope 2; this entry is what replaces it.
+  '@secure-home/lint-config',
 ])
 
 /** Dependency fields that can declare an internal edge. */

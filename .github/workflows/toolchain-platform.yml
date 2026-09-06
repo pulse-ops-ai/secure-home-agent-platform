@@ -1,0 +1,169 @@
+# NATIVE PLATFORM PROOF for the Scope-1 toolchain.
+#
+# WHY THIS EXISTS SEPARATELY. `checks.yml` proves the repository is correct on
+# one architecture. This proves the TOOLCHAIN runs natively on both, which is a
+# different claim: the replacement lint engine and its typed backend ship
+# platform-specific binaries, so "it works" on x64 says nothing about arm64.
+#
+# WHAT WOULD NOT BE PROOF:
+#
+#   - cross-compilation. A binary built for arm64 that never ran there has not
+#     been shown to run there.
+#   - QEMU or any emulation. Emulated execution proves the instructions decode,
+#     not that the platform package resolves and executes on the real runner.
+#   - package metadata. An `optionalDependencies` entry naming a platform is a
+#     claim by the publisher, not evidence.
+#   - downloading the arm64 artifact from an x64 job. That inspects bytes.
+#
+# So each job asserts its OWN architecture before running anything, and the
+# command pack executes natively in both. A job that cannot confirm where it is
+# running fails rather than reporting a result for an unknown platform.
+#
+# PARTIAL EVIDENCE IS NOT EVIDENCE. The gate job below requires BOTH matrix legs
+# to have succeeded. Missing, skipped, and failed are all incomplete: `needs`
+# alone would let a skipped leg pass, so the result is checked explicitly.
+name: toolchain platform
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'packages/lint-config/**'
+      - 'scripts/toolchain-boundaries.json'
+      - '.github/workflows/toolchain-platform.yml'
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  native:
+    name: native ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      # Both legs always run. Failing fast would leave one architecture
+      # unexamined whenever the other broke first, which is the state this
+      # workflow exists to make impossible.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+            uname: x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            uname: aarch64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # BEFORE anything else. A job that cannot confirm its own architecture
+      # must not report a platform result: "an arm64-labelled workflow existed"
+      # is not proof that the command pack executed there.
+      - name: Assert this job is really running on ${{ matrix.arch }}
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+          EXPECTED_UNAME: ${{ matrix.uname }}
+        run: |
+          set -euo pipefail
+          actual_node="$(node -p 'process.arch')"
+          actual_uname="$(uname -m)"
+          echo "node reports $actual_node; uname reports $actual_uname"
+          if [ "$actual_node" != "$EXPECTED_ARCH" ]; then
+            echo "::error::expected node arch $EXPECTED_ARCH, got $actual_node"
+            exit 1
+          fi
+          if [ "$actual_uname" != "$EXPECTED_UNAME" ]; then
+            echo "::error::expected uname $EXPECTED_UNAME, got $actual_uname"
+            exit 1
+          fi
+          # Two independent sources must agree. Node's value alone could be
+          # wrong under an emulation layer that the kernel would still betray.
+          echo "native $EXPECTED_ARCH confirmed by node and uname"
+
+      # A clean tree, so the install is proved from nothing rather than from a
+      # cache that might already hold a working arm64 binary.
+      - name: Prove the checkout carries no installed dependencies
+        run: |
+          set -euo pipefail
+          if [ -d node_modules ]; then
+            echo "::error::node_modules exists before install; this is not a fresh proof"
+            exit 1
+          fi
+          echo "clean checkout confirmed"
+
+      - name: Deterministic install
+        # --frozen-lockfile refuses a drifted lockfile rather than rewriting it,
+        # so the packages installed here are exactly the reviewed set.
+        run: pnpm install --frozen-lockfile
+
+      # onlyBuiltDependencies is empty and must stay empty. A package needing an
+      # install lifecycle script is a STOP, not an exception to grant: granting
+      # one would change the accepted supply-chain posture rather than prove it.
+      - name: Prove the install posture
+        run: node packages/lint-config/src/check-install-posture.mjs
+
+      - name: Exact toolchain identities on this architecture
+        run: node packages/lint-config/src/check-install-posture.mjs --identities
+
+      # The command pack. Every gate the toolchain owns, executed natively.
+      - name: Lint — dual engine, both blocking, typed backend included
+        run: pnpm lint
+
+      - name: Typecheck — the normal compiler
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Source import direction — through the compatibility seam
+        run: pnpm run check:imports
+
+      - name: Toolchain boundary and lint-policy integrity
+        run: pnpm run check:lint-policy
+
+      - name: Workspace taxonomy
+        run: pnpm run check:workspace
+
+      - name: Formatting authority
+        run: pnpm run format:check
+
+  platform-proof:
+    name: native platform proof
+    runs-on: ubuntu-24.04
+    needs: native
+    # `always()` so this job runs even when a leg failed or was skipped, which
+    # is exactly when the assertion below matters.
+    if: always()
+    steps:
+      - name: Require BOTH architectures to have succeeded
+        env:
+          RESULT: ${{ needs.native.result }}
+        run: |
+          set -euo pipefail
+          # `needs` alone is not enough: a skipped dependency does not fail a
+          # job that depends on it. Missing, skipped and failed are all
+          # incomplete, and only "success" is proof.
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::native platform proof is INCOMPLETE (matrix result: $RESULT)."
+            echo "::error::AMD64 and ARM64 must both have run natively and passed."
+            exit 1
+          fi
+          echo "native platform proof complete: x64 and arm64 both green"

@@ -27,7 +27,7 @@
     "rxjs": "catalog:"
   },
   "scripts": {
-    "lint": "pnpm run deps && eslint src",
+    "lint": "pnpm run deps && secure-home-lint src",
     "typecheck": "pnpm run deps && tsc --noEmit",
     "test": "pnpm run deps && vitest run --passWithNoTests",
     "build": "tsc -p tsconfig.build.json",
@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@secure-home/eslint-config": "workspace:*",
+    "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",

@@ -25,7 +25,7 @@
     "test.js"
   ],
   "scripts": {
-    "lint": "eslint .",
+    "lint": "secure-home-lint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "node -e \"console.log('no build: config-only package, published as-is')\""
@@ -37,6 +37,7 @@
     "typescript-eslint": "catalog:"
   },
   "devDependencies": {
+    "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",

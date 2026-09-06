@@ -52,3 +52,9 @@ out/
 # never committed. See docs/architecture/runner-model.md.
 .runs/
 .evidence/
+
+# Transient parity subjects, written BESIDE the fixture corpus rather than
+# inside it: a subject within the fixture tsconfig's program root joins the
+# typed program other shards build concurrently. Still inside the package, so
+# the engine sees a path under its working directory. Never committed.
+packages/lint-config/tests/.scratch-*/
