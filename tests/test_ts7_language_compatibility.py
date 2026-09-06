@@ -141,13 +141,17 @@ def _compiler_commands() -> dict[tuple[str, str], str]:
     return found
 
 
-VALID_DISPOSITIONS = {
-    "TS7_TYPECHECK_PASS",
-    "TS7_EMIT_PASS",
-    "TS7_CONFIG_PARSE_PASS",
-    "COVERED_TRANSITIVELY_BY_PROBED_CONFIG",
-    "RETIRED_BEFORE_TS7_CUTOVER",
+# Compatibility answers a question about TypeScript 7. Lifecycle answers a
+# question about the accepted task sequence. They were one field, which made
+# "it is going away" a substitute for "it works" -- two different facts, and a
+# config can truthfully carry both.
+COMPATIBILITY_RESULTS = {
+    "TS7_TYPECHECK_PASS": "typecheckedConfigs",
+    "TS7_EMIT_PASS": "emittedConfigs",
+    "TS7_CONFIG_PARSE_PASS": "configParsedConfigs",
 }
+LIFECYCLES = {"SURVIVES_TO_TS7", "RETIRES_IN_3_4"}
+RETIREMENT_SCOPE = "packages/eslint-config/"
 
 
 def _compiler_config_surface() -> set[str]:
@@ -170,97 +174,14 @@ def _compiler_config_surface() -> set[str]:
     return by_basename | shared
 
 
-def test_the_compiler_config_surface_is_exactly_the_audited_set() -> None:
-    frozen = set(EVIDENCE["surface"]["compilerConfigs"])
-    current = _compiler_config_surface()
-    assert current == frozen, (
-        f"added={sorted(current - frozen)} removed={sorted(frozen - current)} — "
-        "the audited compiler surface moved; re-run the 3.1 probe"
-    )
-
-
 def test_a_package_manifest_is_not_a_compiler_config() -> None:
     """The enumeration must be semantic, not a directory-name coincidence."""
     surface = _compiler_config_surface()
     assert "packages/tsconfig/package.json" not in surface
-    assert set(EVIDENCE["surface"]["compilerConfigs"]).isdisjoint(
-        {"packages/tsconfig/package.json"}
-    )
-    # It is still governed — as a compiler COMMAND, which is where it belongs.
+    assert "packages/tsconfig/package.json" not in EVIDENCE["surface"]["compilerConfigs"]
+    # Still governed — as a compiler COMMAND, which is where it belongs.
     commands = {manifest for manifest, _ in _compiler_commands()}
     assert "packages/tsconfig/package.json" in commands
-
-
-def test_every_frozen_config_has_exactly_one_disposition() -> None:
-    """THE COMPLETENESS RULE.
-
-    3.1 completes only when no used compiler surface is untested. A config in the
-    frozen surface with no recorded disposition is precisely an untested surface
-    that looks audited because it appears in the inventory.
-    """
-    surface = set(EVIDENCE["surface"]["compilerConfigs"])
-    dispositions = EVIDENCE["configDispositions"]
-
-    undispositioned = sorted(surface - set(dispositions))
-    assert not undispositioned, f"frozen configs with no coverage disposition: {undispositioned}"
-    orphaned = sorted(set(dispositions) - surface)
-    assert not orphaned, f"dispositions for configs not in the surface: {orphaned}"
-
-    for path, record in sorted(dispositions.items()):
-        assert record["disposition"] in VALID_DISPOSITIONS, (
-            f"{path}: unknown disposition {record['disposition']}"
-        )
-        assert record.get("reason", "").strip(), f"{path}: disposition has no reason"
-
-
-def test_the_live_compiler_input_of_the_config_package_is_probed() -> None:
-    """`packages/tsconfig` runs `tsc --noEmit`, which consumes its own tsconfig.
-
-    That file was in the frozen surface but absent from the probe set — an
-    inventory entry standing in for evidence.
-    """
-    commands = _compiler_commands()
-    assert ("packages/tsconfig/package.json", "typecheck") in commands
-    record = EVIDENCE["configDispositions"]["packages/tsconfig/tsconfig.json"]
-    assert record["disposition"] == "TS7_TYPECHECK_PASS"
-
-
-@pytest.mark.parametrize(
-    "config",
-    [
-        "packages/tsconfig/base.json",
-        "packages/tsconfig/test.json",
-        "packages/tsconfig/tsconfig.json",
-        "packages/eslint-config/tests/fixtures/tsconfig.json",
-        "packages/lint-config/tests/fixtures/tsconfig.json",
-        "packages/lint-config/tests/lint-subject/tsconfig.json",
-    ],
-)
-def test_each_named_config_is_explicitly_resolved(config: str) -> None:
-    record = EVIDENCE["configDispositions"][config]
-    assert record["disposition"] in VALID_DISPOSITIONS
-
-
-def test_a_surviving_lint_fixture_config_carries_compatibility_evidence() -> None:
-    """Only a config the sequencing RETIRES may skip TypeScript 7 evidence.
-
-    `packages/eslint-config/**` is removed by 3.4, which precedes 3.2, so its
-    fixture config never meets TypeScript 7. The lint-config fixture configs
-    survive the cutover, so retirement is not available to them.
-    """
-    dispositions = EVIDENCE["configDispositions"]
-    assert (
-        dispositions["packages/eslint-config/tests/fixtures/tsconfig.json"]["disposition"]
-        == "RETIRED_BEFORE_TS7_CUTOVER"
-    )
-    for surviving in (
-        "packages/lint-config/tests/fixtures/tsconfig.json",
-        "packages/lint-config/tests/lint-subject/tsconfig.json",
-    ):
-        assert dispositions[surviving]["disposition"] != "RETIRED_BEFORE_TS7_CUTOVER", (
-            f"{surviving} survives the cutover and cannot be dispositioned as retired"
-        )
-        assert dispositions[surviving]["disposition"].startswith("TS7_")
 
 
 def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
@@ -355,6 +276,109 @@ def test_an_unadmitted_compiler_api_consumer_is_detected(label: str, specifier: 
 # --- the frozen TypeScript 7.0.2 probe --------------------------------------
 
 
+@pytest.mark.parametrize(("compatibility", "result_set"), sorted(COMPATIBILITY_RESULTS.items()))
+def test_each_compatibility_claim_matches_its_probe_result_set(
+    compatibility: str, result_set: str
+) -> None:
+    """ONE authority for what was probed.
+
+    `probeResults` and `configDispositions` were two representations of the same
+    fact and had already diverged: 18 in one, 20 in the other, kept apart by
+    filtering that existed only to preserve the older number. Neither side may
+    now claim a success the other does not record.
+    """
+    claimed = {
+        path
+        for path, record in EVIDENCE["configDispositions"].items()
+        if record["compatibility"] == compatibility
+    }
+    probed = set(EVIDENCE["probeResults"][result_set])
+    assert claimed == probed, (
+        f"{compatibility}: claimed-but-not-probed={sorted(claimed - probed)} "
+        f"probed-but-not-claimed={sorted(probed - claimed)}"
+    )
+
+
+def test_every_frozen_config_has_exactly_one_compatibility_and_one_lifecycle() -> None:
+    """3.1 completes only when no used compiler surface is untested."""
+    baseline = set(EVIDENCE["surface"]["compilerConfigs"])
+    dispositions = EVIDENCE["configDispositions"]
+
+    assert sorted(dispositions) == sorted(baseline), (
+        f"undispositioned={sorted(baseline - set(dispositions))} "
+        f"orphaned={sorted(set(dispositions) - baseline)}"
+    )
+    for path, record in sorted(dispositions.items()):
+        assert record["compatibility"] in COMPATIBILITY_RESULTS, path
+        assert record["lifecycle"] in LIFECYCLES, path
+        assert record.get("compatibilityReason", "").strip(), path
+
+
+def test_the_probe_result_sets_partition_the_baseline() -> None:
+    """Exactly once each: no config probed twice, none missed."""
+    baseline = EVIDENCE["surface"]["compilerConfigs"]
+    sets = [set(EVIDENCE["probeResults"][name]) for name in COMPATIBILITY_RESULTS.values()]
+    union: set[str] = set()
+    for s in sets:
+        assert union.isdisjoint(s), f"config appears in two probe-result sets: {sorted(union & s)}"
+        union |= s
+    assert union == set(baseline), (
+        f"unprobed={sorted(set(baseline) - union)} extra={sorted(union - set(baseline))}"
+    )
+    assert len(baseline) == len(set(baseline)), "duplicate identities in the baseline"
+
+
+def test_only_configs_inside_the_retirement_scope_may_claim_retirement() -> None:
+    """Task 3.4 owns exactly `packages/eslint-config/**`."""
+    for path, record in sorted(EVIDENCE["configDispositions"].items()):
+        if record["lifecycle"] == "RETIRES_IN_3_4":
+            assert path.startswith(RETIREMENT_SCOPE), (
+                f"{path} claims retirement but is outside {RETIREMENT_SCOPE}, which is the "
+                "exact scope task 3.4 owns"
+            )
+            assert record.get("lifecycleReason", "").strip(), path
+    assert EVIDENCE["lifecycle"]["retirementScope"] == "packages/eslint-config/**"
+    assert EVIDENCE["lifecycle"]["retiringTask"] == "3.4"
+
+
+def test_the_frozen_baseline_still_holds_against_the_working_tree() -> None:
+    """The 3.1 baseline is historical identity and is never rewritten later.
+
+    Before 3.4 every baseline config exists. After 3.4 a config may be absent
+    ONLY if its lifecycle is `RETIRES_IN_3_4` AND the package retirement it
+    belongs to actually happened -- one file vanishing on its own is a defect
+    wearing a lifecycle's clothes.
+    """
+    baseline = EVIDENCE["surface"]["compilerConfigs"]
+    dispositions = EVIDENCE["configDispositions"]
+    current = _compiler_config_surface()
+
+    unknown = sorted(current - set(baseline))
+    assert not unknown, (
+        f"compiler configs appeared after the 3.1 baseline with no probe evidence: {unknown}"
+    )
+
+    eslint_package_retired = not (REPO / "packages" / "eslint-config").exists()
+    for path in baseline:
+        if path in current:
+            continue
+        record = dispositions[path]
+        assert record["lifecycle"] == "RETIRES_IN_3_4", (
+            f"{path} left the surface but is marked {record['lifecycle']}"
+        )
+        assert eslint_package_retired, (
+            f"{path} is missing while packages/eslint-config still exists — that is a file "
+            "disappearing, not task 3.4 retiring a package"
+        )
+
+    for path, record in dispositions.items():
+        if record["lifecycle"] == "SURVIVES_TO_TS7":
+            assert path in current, f"{path} must survive to the cutover but is absent"
+
+
+# --- the frozen TypeScript 7.0.2 probe --------------------------------------
+
+
 def test_the_probe_records_the_exact_compiler_version() -> None:
     assert EVIDENCE["probe"]["version"] == "7.0.2"
     assert EVIDENCE["probe"]["compiler"] == "typescript"
@@ -366,30 +390,6 @@ def test_typescript_7_is_not_in_the_repository_dependency_graph() -> None:
     assert re.search(r"^  typescript: 6\.0\.3$", catalog, re.M), (
         "the normal compiler pin moved during the audit task"
     )
-
-
-def test_the_probed_member_configs_still_exist_exactly() -> None:
-    frozen = set(EVIDENCE["probeResults"]["memberTsconfigsTypechecked"])
-    tracked = _compiler_config_surface()
-    assert frozen <= tracked, f"probed configs no longer tracked: {sorted(frozen - tracked)}"
-    current = {
-        t
-        for t in tracked
-        if t.endswith("/tsconfig.json")
-        and not t.startswith("packages/tsconfig/")
-        and "tests/fixtures" not in t
-        and "lint-subject" not in t
-    }
-    assert current == frozen, (
-        f"the member set the probe covered changed: added={sorted(current - frozen)} "
-        f"removed={sorted(frozen - current)}"
-    )
-
-
-def test_the_probed_build_configs_still_exist_exactly() -> None:
-    frozen = set(EVIDENCE["probeResults"]["buildTsconfigsEmitted"])
-    current = {t for t in _compiler_config_surface() if t.endswith("tsconfig.build.json")}
-    assert current == frozen, f"added={sorted(current - frozen)} removed={sorted(frozen - current)}"
 
 
 def test_the_probed_generators_still_exist_exactly() -> None:
@@ -416,3 +416,58 @@ def test_every_probe_disposition_is_recorded() -> None:
     assert "packages/tsconfig/" in subjects
     assert "apps/web" in subjects
     assert "typescript@7.0.2" in subjects
+
+
+def test_the_live_compiler_input_of_the_config_package_is_probed() -> None:
+    """`packages/tsconfig` runs `tsc --noEmit`, which consumes its own tsconfig.
+
+    It sat in the frozen surface but outside the probe set — an inventory entry
+    standing in for evidence, and the reason this closure exists.
+    """
+    assert ("packages/tsconfig/package.json", "typecheck") in _compiler_commands()
+    record = EVIDENCE["configDispositions"]["packages/tsconfig/tsconfig.json"]
+    assert record["compatibility"] == "TS7_TYPECHECK_PASS"
+    assert record["lifecycle"] == "SURVIVES_TO_TS7"
+    assert "packages/tsconfig/tsconfig.json" in EVIDENCE["probeResults"]["typecheckedConfigs"]
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "packages/tsconfig/base.json",
+        "packages/tsconfig/test.json",
+        "packages/tsconfig/tsconfig.json",
+        "packages/eslint-config/tsconfig.json",
+        "packages/eslint-config/tests/fixtures/tsconfig.json",
+        "packages/lint-config/tests/fixtures/tsconfig.json",
+        "packages/lint-config/tests/lint-subject/tsconfig.json",
+    ],
+)
+def test_each_named_config_is_explicitly_resolved(config: str) -> None:
+    """Named because each was ambiguous until it was probed or dispositioned."""
+    record = EVIDENCE["configDispositions"][config]
+    assert record["compatibility"] in COMPATIBILITY_RESULTS
+    assert record["lifecycle"] in LIFECYCLES
+    # Compatibility is a measured fact even for a config that will retire.
+    assert config in EVIDENCE["probeResults"][COMPATIBILITY_RESULTS[record["compatibility"]]]
+
+
+def test_retiring_configs_still_carry_measured_compatibility() -> None:
+    """Retirement is not an excuse for not knowing.
+
+    `packages/eslint-config/**` leaves before the cutover, but "it is going
+    away" answers a lifecycle question, not a compatibility one. Both configs
+    were probed anyway.
+    """
+    retiring = {
+        path
+        for path, record in EVIDENCE["configDispositions"].items()
+        if record["lifecycle"] == "RETIRES_IN_3_4"
+    }
+    assert retiring == {
+        "packages/eslint-config/tsconfig.json",
+        "packages/eslint-config/tests/fixtures/tsconfig.json",
+    }
+    for path in retiring:
+        record = EVIDENCE["configDispositions"][path]
+        assert path in EVIDENCE["probeResults"][COMPATIBILITY_RESULTS[record["compatibility"]]]

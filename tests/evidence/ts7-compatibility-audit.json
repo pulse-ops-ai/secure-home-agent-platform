@@ -285,7 +285,7 @@
     "compilerConfigSurfaceRule": "Tracked files whose BASENAME is tsconfig*.json, plus the shared compiler-config JSON files packages/tsconfig exports. packages/tsconfig/package.json is excluded: it is a package manifest, and a glob matching on directory name turned it into a tsconfig. It remains governed by the compiler-command inventory."
   },
   "probeResults": {
-    "memberTsconfigsTypechecked": [
+    "typecheckedConfigs": [
       "agents/adapters/coding/claude-code/tsconfig.json",
       "agents/adapters/coding/copilot-cli/tsconfig.json",
       "apps/web/tsconfig.json",
@@ -295,17 +295,19 @@
       "packages/eslint-config/tsconfig.json",
       "packages/events/tsconfig.json",
       "packages/knowledge-toolchain/tsconfig.json",
+      "packages/lint-config/tests/lint-subject/tsconfig.json",
       "packages/lint-config/tsconfig.json",
       "packages/logging/tsconfig.json",
       "packages/observability/tsconfig.json",
       "packages/query-model/tsconfig.json",
       "packages/runner-core/tsconfig.json",
       "packages/testing/tsconfig.json",
+      "packages/tsconfig/tsconfig.json",
       "packages/worker-base/tsconfig.json",
       "services/control-plane/tsconfig.json",
       "services/runner-control/tsconfig.json"
     ],
-    "buildTsconfigsEmitted": [
+    "emittedConfigs": [
       "agents/adapters/coding/claude-code/tsconfig.build.json",
       "agents/adapters/coding/copilot-cli/tsconfig.build.json",
       "apps/web/tsconfig.build.json",
@@ -322,6 +324,15 @@
       "packages/worker-base/tsconfig.build.json",
       "services/control-plane/tsconfig.build.json",
       "services/runner-control/tsconfig.build.json"
+    ],
+    "configParsedConfigs": [
+      "packages/eslint-config/tests/fixtures/tsconfig.json",
+      "packages/lint-config/tests/fixtures/tsconfig.json",
+      "packages/tsconfig/application.json",
+      "packages/tsconfig/base.json",
+      "packages/tsconfig/library.json",
+      "packages/tsconfig/service.json",
+      "packages/tsconfig/test.json"
     ],
     "generatorsCompiled": [
       {
@@ -364,176 +375,226 @@
   ],
   "configDispositions": {
     "agents/adapters/coding/claude-code/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "agents/adapters/coding/claude-code/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "agents/adapters/coding/copilot-cli/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "agents/adapters/coding/copilot-cli/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "apps/web/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "apps/web/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/api-contracts/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/api-contracts/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/contracts/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/contracts/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/errors/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/errors/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/eslint-config/tests/fixtures/tsconfig.json": {
-      "disposition": "RETIRED_BEFORE_TS7_CUTOVER",
-      "reason": "Belongs to packages/eslint-config, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config cannot survive to meet TypeScript 7 -- proved by tests/test_openspec_scope2_sequence.py, not asserted here."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "RETIRES_IN_3_4",
+      "lifecycleReason": "Under packages/eslint-config/**, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config never meets TypeScript 7 in the repository -- though its compatibility was measured anyway, because 'it is going away' is a lifecycle fact and not a compatibility answer."
     },
     "packages/eslint-config/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "RETIRES_IN_3_4",
+      "lifecycleReason": "Under packages/eslint-config/**, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config never meets TypeScript 7 in the repository -- though its compatibility was measured anyway, because 'it is going away' is a lifecycle fact and not a compatibility answer."
     },
     "packages/events/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/events/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/knowledge-toolchain/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/knowledge-toolchain/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/lint-config/tests/fixtures/tsconfig.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "Roots the deliberately-invalid conformance corpus. Typechecking it reports the fixtures' intended diagnostics, which are evidence the corpus works -- not a TS7 incompatibility. --showConfig succeeds under 7.0.2. This config SURVIVES the cutover, so it carries compatibility evidence rather than a retirement disposition."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/lint-config/tests/lint-subject/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "Its subject compiles cleanly under 7.0.2; probed directly."
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/lint-config/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/logging/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/logging/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/observability/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/observability/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/query-model/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/query-model/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/runner-core/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/runner-core/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/testing/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/testing/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/application.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/base.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/library.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/service.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/test.json": {
-      "disposition": "TS7_CONFIG_PARSE_PASS",
-      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/tsconfig/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "A LIVE compiler input, not a bystander: packages/tsconfig/package.json declares `typecheck: tsc --noEmit`, which implicitly consumes this file. It was missing from the probe set and is now probed directly."
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/worker-base/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "packages/worker-base/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "services/control-plane/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "services/control-plane/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "services/runner-control/tsconfig.build.json": {
-      "disposition": "TS7_EMIT_PASS",
-      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     },
     "services/runner-control/tsconfig.json": {
-      "disposition": "TS7_TYPECHECK_PASS",
-      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
     }
+  },
+  "lifecycle": {
+    "retirementScope": "packages/eslint-config/**",
+    "retiringTask": "3.4",
+    "note": "The compilerConfigs baseline is task 3.1's frozen identity set and is NOT rewritten by later tasks. A baseline config may be absent only once 3.4 has actually retired the package it belongs to; a config vanishing on its own is a defect, not a lifecycle."
   }
 }
