@@ -13,7 +13,7 @@
  * reappears at the cutover, when the boundary that was meant to absorb it is
  * gone.
  */
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -150,5 +150,69 @@ describe('behaviour is unchanged by the seam', () => {
     // They agree NOW. That agreement is exactly why reverting the seam is
     // invisible, and why its presence is asserted rather than inferred.
     expect(seam['version']).toBe(compiler['version'])
+  })
+})
+
+describe('the seam is bounded to one FILE, not to one directory', () => {
+  // The scan read only `scripts/*.mjs`. A second consumer there was caught, but
+  // the same import in any workspace package was caught by nothing at all --
+  // not this check, not the architecture import gate, not the workspace gate.
+  // The allowlist is a claim about the whole repository, so the scan must be
+  // too, and that difference is invisible unless the consumer is placed outside
+  // `scripts/`.
+  const elsewhere = [
+    'packages/lint-config/src/regression-second-consumer.mjs',
+    'packages/contracts/src/regression-second-consumer.ts',
+    'services/runner-control/src/regression-second-consumer.ts',
+  ]
+
+  it.each(elsewhere)('REFUSES an unadmitted consumer at %s', (rel) => {
+    const absolute = path.join(REPO_ROOT, rel)
+    mkdirSync(path.dirname(absolute), { recursive: true })
+    writeFileSync(
+      absolute,
+      `import ts from '${COMPATIBILITY_PACKAGE}'\nexport const v = ts.version\n`,
+    )
+    try {
+      const problems = checkCompatibilitySeam(REPO_ROOT)
+      expect(problems.join('\n')).toContain(rel)
+      expect(problems.join('\n')).toMatch(/not an admitted consumer/)
+    } finally {
+      rmSync(absolute, { force: true })
+    }
+  })
+
+  it('still reports a clean tree once the intruder is gone', () => {
+    expect(checkCompatibilitySeam(REPO_ROOT)).toEqual([])
+  })
+})
+
+describe('a lint engine is not a compiler authority', () => {
+  // The check looked only for the compatibility API, so a guarded entry point
+  // could be repointed at the lint engine's type-aware mode and pass. That
+  // retires the compiler authority without any decision being recorded: the
+  // engine reads types to answer lint questions, it does not own whether the
+  // repository compiles.
+  const manifest = path.join(REPO_ROOT, 'package.json')
+
+  it.each([
+    ['typecheck', 'oxlint --type-aware'],
+    ['build', 'eslint --fix'],
+  ])('REFUSES "%s" resolving a lint engine', (entry, script) => {
+    const original = readFileSync(manifest, 'utf8')
+    const pkg = JSON.parse(original) as { scripts: Record<string, string> }
+    pkg.scripts[entry] = script
+    writeFileSync(manifest, `${JSON.stringify(pkg, null, 2)}\n`)
+    try {
+      expect(checkNormalCompilerAuthority(REPO_ROOT).join('\n')).toMatch(
+        /is not a compiler authority/,
+      )
+    } finally {
+      writeFileSync(manifest, original)
+    }
+  })
+
+  it('accepts the committed entry points, which resolve the normal compiler', () => {
+    expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
   })
 })

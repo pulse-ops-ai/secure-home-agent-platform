@@ -721,7 +721,7 @@ export function checkCompatibilitySeam(repoRoot = REPO_ROOT) {
 
   // Who actually imports it, read from the tree rather than from the allowlist.
   const actual = []
-  for (const rel of scriptFiles(repoRoot)) {
+  for (const rel of sourceFiles(repoRoot)) {
     const text = readFileSync(path.join(repoRoot, rel), 'utf8')
     if (new RegExp(`from '${COMPATIBILITY_PACKAGE}'`).test(text)) actual.push(rel)
   }
@@ -778,6 +778,19 @@ export function checkNormalCompilerAuthority(repoRoot = REPO_ROOT) {
             `${NORMAL_COMPILER}`,
         )
       }
+      // A lint engine's type-aware mode is not a compiler either. It reads
+      // types to decide lint questions; it does not own whether the repository
+      // compiles, and substituting it here would retire the compiler authority
+      // without any decision being recorded. Checking only for the
+      // compatibility API missed this entirely.
+      const lintEngine = /\b(oxlint|eslint)\b/.exec(String(script))
+      if (lintEngine) {
+        problems.push(
+          `${label}: the "${name}" script resolves ${lintEngine[1]}. A lint engine, including ` +
+            'its type-aware mode, is not a compiler authority; a normal entry point must ' +
+            `resolve ${NORMAL_COMPILER}`,
+        )
+      }
     }
   }
 
@@ -801,13 +814,36 @@ export function checkNormalCompilerAuthority(repoRoot = REPO_ROOT) {
 const DEP_FIELDS_CHECKED = ['dependencies', 'devDependencies', 'peerDependencies']
 
 /** Repository scripts, which is where a second consumer would appear. */
-function scriptFiles(repoRoot) {
-  const dir = path.join(repoRoot, 'scripts')
-  if (!existsSync(dir)) return []
-  return readdirSync(dir)
-    .filter((name) => name.endsWith('.mjs'))
-    .sort()
-    .map((name) => `scripts/${name}`)
+const SOURCE_EXTENSIONS = new Set(['.mjs', '.cjs', '.js', '.ts', '.mts', '.cts', '.tsx'])
+const NEVER_WALKED = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.turbo'])
+
+/**
+ * Every source file in the repository.
+ *
+ * This scanned only `scripts/*.mjs`, which bounded the seam to one directory
+ * rather than to one file: a workspace package could import the compatibility
+ * parser and no gate would notice, because nothing outside `scripts/` was ever
+ * read. The allowlist is a claim about the WHOLE repository, so the scan has to
+ * be too.
+ */
+function sourceFiles(repoRoot) {
+  const found = []
+  const walk = (dir, rel) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+      a.name < b.name ? -1 : 1,
+    )) {
+      if (entry.name.startsWith('.') && entry.name !== '.github') continue
+      const childRel = rel === '' ? entry.name : `${rel}/${entry.name}`
+      if (entry.isDirectory()) {
+        if (NEVER_WALKED.has(entry.name)) continue
+        walk(path.join(dir, entry.name), childRel)
+      } else if (entry.isFile() && SOURCE_EXTENSIONS.has(path.extname(entry.name))) {
+        found.push(childRel)
+      }
+    }
+  }
+  walk(repoRoot, '')
+  return found
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
