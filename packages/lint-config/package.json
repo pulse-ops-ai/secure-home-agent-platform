@@ -26,18 +26,13 @@
     "build": "node -e \"console.log('no build: policy-authority package, consumed as-is')\""
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@secure-home/eslint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "eslint": "catalog:",
-    "globals": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "catalog:",
     "vitest": "catalog:",
     "yaml": "catalog:"
   },

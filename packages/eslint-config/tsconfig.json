@@ -1,8 +1,0 @@
-{
-  "extends": "@secure-home/tsconfig/test",
-  "compilerOptions": {
-    "allowJs": true,
-    "types": ["node"]
-  },
-  "include": ["tests", "*.js"]
-}

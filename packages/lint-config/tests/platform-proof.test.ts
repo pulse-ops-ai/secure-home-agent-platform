@@ -121,9 +121,11 @@ describe('the install is deterministic and script-free', () => {
 
   it('pins every toolchain identity exactly', () => {
     const pins = pinnedIdentities() as { name: string; expected: string }[]
+    // Four, not five. The retired engine was pinned here while it still had to
+    // resolve identically on both architectures; task 3.4 removed the package,
+    // so a pin for it would be an identity check on nothing.
     expect(pins.map((p) => p.name).sort()).toEqual([
       '@typescript/typescript6',
-      'eslint',
       'oxlint',
       'oxlint-tsgolint',
       'typescript',

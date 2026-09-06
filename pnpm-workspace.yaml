@@ -53,18 +53,20 @@ catalog:
   '@types/node': 24.10.1
   # Type checking and build.
   #
-  # PINNED TO 6.x DELIBERATELY. typescript-eslint 8.66 supports
-  # '>=4.8.4 <6.1.0' and throws outright on TS 7 ("does not support TS 7.0"),
-  # which makes type-aware linting fail or, worse, pass or fail depending on
-  # which TypeScript copy resolves first. Raising this past 6.0.x requires a
-  # typescript-eslint release that supports it — tests/ asserts the pairing.
+  # PINNED TO 6.x DELIBERATELY, and the reason has changed.
+  #
+  # It used to be typescript-eslint: 8.66 supported '>=4.8.4 <6.1.0' and threw
+  # outright on TS 7, so type-aware linting would fail — or, worse, pass or
+  # fail depending on which TypeScript copy resolved first. Task 3.4 retired
+  # that engine, so that constraint is gone.
+  #
+  # This stays at 6.0.3 anyway, because moving it is a DIFFERENT task. The
+  # compiler cutover is task 3.2, and doing it here would mean a single change
+  # that both removed an engine and changed the compiler — with no way to say
+  # which one caused whatever broke next. Raise this in 3.2, not before.
   typescript: 6.0.3
   # Linting.
-  eslint: 10.8.0
-  '@eslint/js': 10.0.1
-  typescript-eslint: 8.66.0
   # Lint globals (Node/browser sets) — tiny, data-only.
-  globals: 17.9.0
   # THE BOUNDED TRADITIONAL-API COMPATIBILITY SEAM, added by PR-B task 1.13.
   #
   # NOT a compiler. `typescript` above remains the sole authority for typecheck,

@@ -23,18 +23,31 @@
  * still rejected, and rejected earlier.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ESLint } from 'eslint'
-import tseslint from 'typescript-eslint'
+import { OXLINT_CATEGORIES } from './generate-oxlint-config.mjs'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const FIXTURE_ROOT = path.join(PACKAGE_ROOT, 'tests', 'fixtures')
 /** Scratch subjects live beside the corpus, never inside it. */
-export const SCRATCH_ROOT = path.join(PACKAGE_ROOT, 'tests')
+/**
+ * Where transient lint subjects are written.
+ *
+ * OUTSIDE the compiled tree, and outside `tests/` in particular. The package
+ * tsconfig includes `tests` and excludes only `tests/fixtures`, so a scratch
+ * subject written under `tests/` joins the typed program -- and then vanishes
+ * underneath a `tsc --noEmit` running concurrently, which `check.sh` does. It
+ * failed intermittently and only under the combined gate, which is the worst
+ * way for a defect to present.
+ *
+ * Still inside the PACKAGE, deliberately: the engine resolves its config and
+ * ignore rules relative to its working directory, so a subject in the system
+ * temp directory would be linted under different rules than a real file.
+ */
+export const SCRATCH_ROOT = path.join(PACKAGE_ROOT, '.scratch')
 const OXLINT = path.join(PACKAGE_ROOT, 'node_modules', '.bin', 'oxlint')
 
 /**
@@ -60,66 +73,6 @@ export function configForRole(role) {
  * `tests/fixtures/**` is ignored by the repository's own lint — deliberately,
  * since these files are invalid on purpose.
  */
-/**
- * The same judgement applied to SOURCE TEXT rather than a committed file.
- *
- * Hostile cases need sources this repository must not contain -- a fixture with
- * its violation removed and an unrelated syntax error put in its place. Writing
- * those to disk would either commit them or place them outside the lint root,
- * where `lintFiles` declines to look.
- */
-/**
- * The parser the legacy engine must use for a fixture.
- *
- * TypeScript fixtures need the TypeScript parser. Without it every `.ts`
- * fixture fails to parse under the default one, the rule never runs, and the
- * harness reports "the policy did not fire" for a reason that has nothing to do
- * with the policy. That is what the first run of the core-control shard showed:
- * fourteen legacy failures whose Oxlint side was already correct.
- */
-/**
- * The plugins a rule id needs before it can be enabled.
- *
- * A namespaced rule cannot be turned on without its plugin registered: ESLint
- * refuses the whole config with `config-plugin-missing` rather than skipping
- * the rule, which is the right behaviour and the reason this is explicit.
- */
-function pluginsFor(ruleId) {
-  return ruleId !== undefined && ruleId.startsWith('@typescript-eslint/')
-    ? { '@typescript-eslint': tseslint.plugin }
-    : {}
-}
-
-function languageOptionsFor(file) {
-  const parserOptions = { ecmaVersion: 2023, sourceType: 'module' }
-  return file.endsWith('.ts') || file.endsWith('.tsx')
-    ? { parser: tseslint.parser, parserOptions }
-    : { parserOptions }
-}
-
-export async function legacyDiagnosticsForText(text, filePath, ruleId, options) {
-  const rules =
-    ruleId === undefined
-      ? {}
-      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
-  const eslint = new ESLint({
-    cwd: PACKAGE_ROOT,
-    overrideConfigFile: true,
-    overrideConfig: {
-      files: ['**/*.ts', '**/*.js'],
-      plugins: pluginsFor(ruleId),
-      languageOptions: languageOptionsFor(filePath),
-      rules,
-    },
-  })
-  const [result] = await eslint.lintText(text, { filePath })
-  const messages = result?.messages ?? []
-  return {
-    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
-    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
-  }
-}
-
 /**
  * The replacement engine's verdict on source text, via a scratch file.
  *
@@ -192,7 +145,8 @@ export function replacementDiagnosticsForText(text, extension, configPath) {
   // that the typed shards build concurrently, and then vanishes underneath
   // them. Still inside the package, because the engine resolves its config and
   // ignore rules relative to its working directory.
-  const dir = mkdtempSync(path.join(SCRATCH_ROOT, '.scratch-'))
+  mkdirSync(SCRATCH_ROOT, { recursive: true })
+  const dir = mkdtempSync(path.join(SCRATCH_ROOT, 'subject-'))
   const file = path.join(dir, `subject${extension}`)
   writeFileSync(file, text)
   try {
@@ -202,31 +156,55 @@ export function replacementDiagnosticsForText(text, extension, configPath) {
   }
 }
 
-export async function legacyDiagnostics(file, ruleId, options) {
-  // A parser-enforced policy has no rule to enable; the parse itself decides.
-  const rules =
-    ruleId === undefined
-      ? {}
-      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
-  const eslint = new ESLint({
-    cwd: PACKAGE_ROOT,
-    overrideConfigFile: true,
-    overrideConfig: {
-      files: ['**/*.ts', '**/*.js'],
-      plugins: pluginsFor(ruleId),
-      languageOptions: languageOptionsFor(file),
-      rules,
-    },
-  })
-  const [result] = await eslint.lintFiles([file])
-  const messages = result?.messages ?? []
-  return {
-    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
-    // The TEXT, not merely "was there a parse error". A boolean cannot tell
-    // the intended violation from an unrelated typo, so it would let any
-    // syntax error satisfy any parser-enforced policy.
-    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
+/**
+ * What the engine says it RESOLVED from a config, in its own words.
+ *
+ * The committed policy is a claim about a live configuration, and a claim
+ * nobody re-derives is a comment. Reading the generated file back cannot
+ * re-derive anything -- it is the same bytes the generator wrote, so it agrees
+ * with itself by construction.
+ *
+ * `--print-config` is the engine's answer instead of ours: the rules it will
+ * actually apply, the severity it will apply them at, and the state of every
+ * ambient category. That last field is why this matters more than it looks.
+ * An engine default that switches back on does not change a single committed
+ * byte, and it is precisely how `no-dupe-keys` once fired on a role that never
+ * declared it.
+ */
+export function resolveEngineConfig(configPath) {
+  let out = ''
+  try {
+    out = execFileSync(OXLINT, ['--print-config', '--config', configPath], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    out = `${String(error.stdout ?? '')}${String(error.stderr ?? '')}`
   }
+  let parsed
+  try {
+    parsed = JSON.parse(out)
+  } catch {
+    // Same discipline as the diagnostic reader: unreadable output must fail
+    // loudly. "The engine resolved nothing" and "we could not read the engine"
+    // are different facts, and only one of them is a passing subject.
+    throw new Error(
+      `the replacement engine did not print a readable config for ${configPath}: ${out.trim()}`,
+    )
+  }
+  if (parsed?.rules === undefined || parsed?.categories === undefined) {
+    throw new Error(
+      `the replacement engine printed a config with no rules or categories for ${configPath}`,
+    )
+  }
+  return parsed
+}
+
+/** The engine's resolution of every generated role. */
+export function resolvedByRole(roles) {
+  const resolved = {}
+  for (const role of roles) resolved[role] = resolveEngineConfig(configForRole(role))
+  return resolved
 }
 
 /** Replacement diagnostics for one file: rule names plus parse errors. */
@@ -282,130 +260,31 @@ export const TYPED_SHARDS = new Set(['typescript-typed-control', 'typescript-typ
 export const ROLE_FIXTURE_ROOT = path.join(FIXTURE_ROOT, 'roles')
 
 /**
- * The legacy rule ids that cannot run without a program, by the rules' OWN
- * declaration (`meta.docs.requiresTypeChecking`).
+ * One fixture under one role, observed through the REPLACEMENT engine.
  *
- * Role behaviour is proved on the STATIC path: a role fixture is one file with
- * no project behind it, so a typed rule would give no answer there rather than
- * a wrong one. The typed policies' role differences are asserted from the
- * oracle's resolved configuration instead; these ids are what the static role
- * run leaves out, explicitly, so the omission is a list and not an accident.
- *
- * Not the typed SHARDS: shard allocation derives type-awareness from the
- * oracle, and a static rule the JavaScript-config override switches off
- * (`explicit-module-boundary-types`) lands in a typed shard that way. That is
- * harmless for the shard, which runs with a program, and wrong for the role
- * run, which would silently drop a static rule it must exercise.
+ * It used to run both engines and report each one's answer. With the legacy
+ * engine retired the question is no longer "do they agree" but "does this role
+ * still enforce exactly the policies it is assigned" -- which is the property
+ * the role matrix always existed to protect. Keyed by POLICY id, with the rule
+ * id resolved through the mappings.
  */
-export function typedLegacyRuleIds(mappings) {
-  const typed = new Set()
-  for (const mapping of mappings.mappings) {
-    if (mapping.engine !== 'legacy' || mapping.ruleId === undefined) continue
-    if (!mapping.ruleId.startsWith('@typescript-eslint/')) continue
-    const rule = tseslint.plugin.rules[mapping.ruleId.slice('@typescript-eslint/'.length)]
-    if (rule?.meta?.docs?.requiresTypeChecking === true) typed.add(mapping.ruleId)
-  }
-  return typed
-}
-
-/**
- * The legacy engine's static rule set for one role, from the oracle's rows.
- *
- * The rows are what `calculateConfigForFile` resolved for the role's
- * representative file -- the same answer the linter gives that file -- so
- * linting a fixture under them is linting it AS that role, minus the typed
- * rules named above. Options travel with each rule: a restriction rule with
- * no restrictions permits everything.
- */
-export function legacyRulesForRole(rows, role, typed) {
-  const rules = {}
-  for (const row of rows) {
-    if (!row.roles.includes(role) || typed.has(row.ruleId)) continue
-    rules[row.ruleId] = ['error', ...(row.options?.[role] ?? [])]
-  }
-  return rules
-}
-
-/**
- * Legacy diagnostics for one file under a whole rule set, as rule ids.
- *
- * The TypeScript parser for JavaScript too, with type checking off: that is
- * what the repository's own JavaScript block does (`disableTypeChecked` keeps
- * the parser and drops the program), and a static TypeScript rule that is
- * enabled for the JavaScript-config role loads only against that parser.
- */
-export async function legacyDiagnosticsForRules(file, rules) {
-  const plugins = Object.keys(rules).some((id) => id.startsWith('@typescript-eslint/'))
-    ? { '@typescript-eslint': tseslint.plugin }
-    : {}
-  const eslint = new ESLint({
-    cwd: PACKAGE_ROOT,
-    overrideConfigFile: true,
-    overrideConfig: {
-      files: ['**/*.ts', '**/*.js'],
-      plugins,
-      languageOptions: {
-        parser: tseslint.parser,
-        parserOptions: {
-          ecmaVersion: 2023,
-          sourceType: 'module',
-          project: false,
-          projectService: false,
-        },
-      },
-      rules,
-    },
-  })
-  const [result] = await eslint.lintFiles([file])
-  const messages = result?.messages ?? []
-  return {
-    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
-    fatalMessages: messages.filter((m) => m.fatal === true).map((m) => m.message),
-  }
-}
-
-/**
- * One fixture under one role, both engines: did each engine report the
- * policy? Keyed by POLICY id, with each engine's own rule id resolved through
- * the mappings, exactly as the shard parity does.
- */
-export async function roleObservation({
-  file,
-  role,
-  policyIds,
-  rows,
-  policy,
-  mappings,
-  legacyRules,
-  replacementConfig,
-}) {
-  const legacy = new Map(
-    mappings.mappings.filter((m) => m.engine === 'legacy').map((m) => [m.policy, m]),
-  )
+export function roleObservation({ file, role, policyIds, mappings, replacementConfig }) {
   const replacement = new Map(
     mappings.mappings.filter((m) => m.engine === 'replacement').map((m) => [m.policy, m]),
   )
-  const legacyOut = await legacyDiagnosticsForRules(
-    file,
-    legacyRules ?? legacyRulesForRole(rows, role, typedLegacyRuleIds(mappings)),
-  )
-  const replacementOut = replacementDiagnostics(file, replacementConfig ?? configForRole(role))
+  const out = replacementDiagnostics(file, replacementConfig ?? configForRole(role))
   const observed = {}
   for (const id of policyIds) {
-    const legacyRule = legacy.get(id)?.ruleId
-    const replacementRule = replacement.get(id)?.ruleId
+    const ruleId = replacement.get(id)?.ruleId
     const bare =
-      replacementRule === undefined
+      ruleId === undefined
         ? undefined
-        : replacementRule.includes('/')
-          ? replacementRule.slice(replacementRule.lastIndexOf('/') + 1)
-          : replacementRule
-    observed[id] = {
-      legacy: legacyOut.rules.includes(legacyRule),
-      replacement: replacementOut.rules.includes(bare),
-    }
+        : ruleId.includes('/')
+          ? ruleId.slice(ruleId.lastIndexOf('/') + 1)
+          : ruleId
+    observed[id] = out.rules.includes(bare)
   }
-  return { file, role, observed, detail: { legacyOut, replacementOut } }
+  return { file, role, observed, detail: { out } }
 }
 
 /**
@@ -432,14 +311,12 @@ export function roleMatrixProblems(observations, expectations, roles) {
         continue
       }
       const mustReject = rejecting.includes(role)
-      for (const engine of ['legacy', 'replacement']) {
-        if (seen[engine] !== mustReject) {
-          problems.push(
-            `${policyId}: the ${engine} engine ${seen[engine] ? 'rejected' : 'accepted'} ` +
-              `${path.basename(observation.file)} under the "${role}" role, which must ` +
-              `${mustReject ? 'reject' : 'accept'} it`,
-          )
-        }
+      if (seen !== mustReject) {
+        problems.push(
+          `${policyId}: the replacement engine ${seen ? 'rejected' : 'accepted'} ` +
+            `${path.basename(observation.file)} under the "${role}" role, which must ` +
+            `${mustReject ? 'reject' : 'accept'} it`,
+        )
       }
     }
   }
@@ -447,92 +324,123 @@ export function roleMatrixProblems(observations, expectations, roles) {
 }
 
 /** Both engines, both fixtures, one policy. */
-export async function parityFor(policy, legacy, replacement, configPath) {
+/**
+ * One policy's conformance under the REPLACEMENT engine.
+ *
+ * This was `parityFor`, which asked whether two engines agreed. Task 3.4
+ * retired the legacy engine, so agreement is no longer a question that can be
+ * asked -- but "does this policy still enforce" very much is, and retirement
+ * must not be allowed to answer it by making the question disappear.
+ *
+ * The contract per policy is unchanged: its invalid fixture must be REJECTED
+ * for the intended policy, and its valid fixture ACCEPTED. Attribution still
+ * matters, so a parser-enforced policy must reject for its own diagnostic
+ * rather than for any parse failure.
+ */
+export function conformanceFor(policy, replacement, configPath) {
   const valid = fixturePath(policy.proof.valid)
   const invalid = fixturePath(policy.proof.invalid)
 
-  // Semantic options come from the POLICY, and a rule that needs them does not
-  // fire without them. `no-restricted-globals` with no restrictions declared is
-  // a rule that permits everything: the fixture would be accepted and the
-  // harness would report that the policy is not enforced -- when what is not
-  // enforced is the empty configuration it was handed.
-  const options = legacy.engineOptions ?? policy.options?.values
-
-  // Typed policies go through the TYPED backends on both sides. Falling back to
-  // the static path for either one would compare a typed answer against a
-  // no-answer and call the result parity.
+  // Typed policies go through the TYPED backend. Falling back to the static
+  // path would take a no-answer for a clean answer.
   const typed = TYPED_SHARDS.has(policy.proof.shard)
-  const legacyRun = typed ? legacyTypedDiagnostics : legacyDiagnostics
-  const replacementRun = typed ? replacementTypedDiagnostics : replacementDiagnostics
+  const run = typed ? replacementTypedDiagnostics : replacementDiagnostics
 
-  const legacyInvalid = await legacyRun(invalid, legacy.ruleId, options)
-  const legacyValid = await legacyRun(valid, legacy.ruleId, options)
-  const replacementInvalid = replacementRun(invalid, configPath)
-  const replacementValid = replacementRun(valid, configPath)
+  const onInvalid = run(invalid, configPath)
+  const onValid = run(valid, configPath)
 
-  const replacementRule = replacement.ruleId
+  const ruleId = replacement.ruleId
   const bare =
-    replacementRule === undefined
+    ruleId === undefined
       ? undefined
-      : replacementRule.includes('/')
-        ? replacementRule.slice(replacementRule.lastIndexOf('/') + 1)
-        : replacementRule
+      : ruleId.includes('/')
+        ? ruleId.slice(ruleId.lastIndexOf('/') + 1)
+        : ruleId
 
   return {
     id: policy.id,
-    legacyRejects:
-      legacy.mechanism === 'parser'
-        ? matches(legacyInvalid.fatalMessages, legacy.diagnosticPattern)
-        : legacyInvalid.rules.includes(legacy.ruleId),
-    legacyAccepts:
-      legacy.mechanism === 'parser'
-        ? !matches(legacyValid.fatalMessages, legacy.diagnosticPattern)
-        : !legacyValid.rules.includes(legacy.ruleId),
-    replacementRejects:
+    rejects:
       replacement.mechanism === 'parser'
-        ? matches(replacementInvalid.parseErrors, replacement.diagnosticPattern)
-        : replacementInvalid.rules.includes(bare),
-    replacementAccepts:
+        ? matches(onInvalid.parseErrors, replacement.diagnosticPattern)
+        : onInvalid.rules.includes(bare),
+    accepts:
       replacement.mechanism === 'parser'
-        ? !matches(replacementValid.parseErrors, replacement.diagnosticPattern)
-        : !replacementValid.rules.includes(bare),
-    detail: { legacyInvalid, legacyValid, replacementInvalid, replacementValid },
+        ? !matches(onValid.parseErrors, replacement.diagnosticPattern)
+        : !onValid.rules.includes(bare),
+    detail: { onInvalid, onValid },
   }
 }
 
 // ── option semantics ────────────────────────────────────────────────────────
 
+/** The replacement engine's fixed output for the same source. */
 /**
- * The FIXED OUTPUT a rule produces, not merely whether it fired.
+ * An ad-hoc config isolating ONE rule under CHOSEN options.
  *
- * Some options change what the fix writes rather than whether a diagnostic
- * appears. `consistent-type-imports` with `fixStyle: "inline-type-imports"`
- * rejects the same source as the separate-import style and repairs it
- * differently. Proving both engines reject a file therefore says nothing about
- * whether the repository's chosen option survived the migration -- the two
- * could agree on rejection and disagree on every byte they write.
+ * The retired engine exposed this as an API call: verify a source against a
+ * single rule with a single option array. The replacement engine has no
+ * single-rule entry point, so the equivalent experiment is expressed in its
+ * own vocabulary -- every ambient category off, one rule on, exactly the
+ * options under test.
+ *
+ * This is not a convenience. An option is only shown to be load-bearing by
+ * running the SAME source WITHOUT it, and a generated per-role config can
+ * never do that: it contains only the option that was chosen. Without this
+ * probe, "the option appears in the config" would be the whole of the
+ * evidence, which is the thing this suite exists to refuse.
  */
-export async function legacyFixOutput(text, filePath, ruleId, options) {
-  const rules =
-    ruleId === undefined
-      ? {}
-      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
-  const eslint = new ESLint({
-    cwd: PACKAGE_ROOT,
-    fix: true,
-    overrideConfigFile: true,
-    overrideConfig: {
-      files: ['**/*.ts', '**/*.js'],
-      plugins: pluginsFor(ruleId),
-      languageOptions: languageOptionsFor(filePath),
-      rules,
-    },
-  })
-  const [result] = await eslint.lintText(text, { filePath })
-  return result?.output ?? text
+export function ruleProbeConfig(dir, ruleId, options) {
+  const slash = ruleId.indexOf('/')
+  const config = {
+    plugins: slash === -1 ? [] : [ruleId.slice(0, slash)],
+    // Named off one by one. `categories: {}` does NOT disable them -- the
+    // engine keeps its own defaults, and an ambient rule firing here would be
+    // read as this rule firing.
+    categories: Object.fromEntries(OXLINT_CATEGORIES.map((name) => [name, 'off'])),
+    rules: { [ruleId]: options === undefined ? 'error' : ['error', ...options] },
+  }
+  const configPath = path.join(dir, 'oxlintrc.json')
+  writeFileSync(configPath, JSON.stringify(config))
+  return configPath
 }
 
-/** The replacement engine's fixed output for the same source. */
+/** Diagnostics for one rule under chosen options. */
+export function replacementRuleDiagnostics(text, extension, ruleId, options) {
+  mkdirSync(SCRATCH_ROOT, { recursive: true })
+  const dir = mkdtempSync(path.join(SCRATCH_ROOT, 'subject-'))
+  try {
+    const configPath = ruleProbeConfig(dir, ruleId, options)
+    const file = path.join(dir, `subject${extension}`)
+    writeFileSync(file, text)
+    return replacementDiagnostics(file, configPath)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+/** Fix output for one rule under chosen options. */
+export function replacementRuleFixOutput(text, extension, ruleId, options) {
+  mkdirSync(SCRATCH_ROOT, { recursive: true })
+  const dir = mkdtempSync(path.join(SCRATCH_ROOT, 'subject-'))
+  try {
+    const configPath = ruleProbeConfig(dir, ruleId, options)
+    const file = path.join(dir, `subject${extension}`)
+    writeFileSync(file, text)
+    try {
+      execFileSync(OXLINT, ['--config', configPath, '--fix', file], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch {
+      // Non-zero means unfixed diagnostics remain; the written bytes are what
+      // this measures.
+    }
+    return readFileSync(file, 'utf8')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 export function replacementFixOutput(text, extension, configPath) {
   const dir = mkdtempSync(path.join(tmpdir(), 'parity-fix-'))
   const file = path.join(dir, `subject${extension}`)
@@ -557,61 +465,6 @@ export const FIXTURE_TSCONFIG = path.join(FIXTURE_ROOT, 'tsconfig.json')
 export class TypedBackendUnavailable extends Error {}
 
 /**
- * Legacy typed lint, with a REAL TypeScript program.
- *
- * A typed rule cannot be decided without types: `await-thenable` has to know
- * whether the awaited value is a promise. Running it without a program does not
- * produce a wrong answer, it produces NO answer -- and a rule that reports
- * nothing is indistinguishable from a rule that found nothing.
- *
- * So a missing or unusable project is thrown, never absorbed. The suite must
- * fail because typed execution disappeared, not quietly pass because the
- * expected diagnostic did.
- */
-export async function legacyTypedDiagnostics(file, ruleId, options) {
-  if (!existsSync(FIXTURE_TSCONFIG)) {
-    throw new TypedBackendUnavailable(
-      `the fixture type environment is missing at ${FIXTURE_TSCONFIG}; typed lint ` +
-        'cannot run, and a static fallback would report nothing while looking like a pass',
-    )
-  }
-  const rules =
-    ruleId === undefined
-      ? {}
-      : { [ruleId]: options === undefined ? 'error' : ['error', ...options] }
-  const eslint = new ESLint({
-    cwd: FIXTURE_ROOT,
-    overrideConfigFile: true,
-    overrideConfig: {
-      files: ['**/*.ts'],
-      plugins: pluginsFor(ruleId),
-      languageOptions: {
-        parser: tseslint.parser,
-        parserOptions: {
-          ecmaVersion: 2023,
-          sourceType: 'module',
-          project: FIXTURE_TSCONFIG,
-          tsconfigRootDir: FIXTURE_ROOT,
-        },
-      },
-      rules,
-    },
-  })
-  const [result] = await eslint.lintFiles([file])
-  const messages = result?.messages ?? []
-  const fatal = messages.filter((m) => m.fatal === true).map((m) => m.message)
-  // A parser that could not build a program says so fatally. That is a backend
-  // failure, not a lint result.
-  if (fatal.some((m) => /project|tsconfig|program|type information/i.test(m))) {
-    throw new TypedBackendUnavailable(`typed lint could not initialize: ${fatal.join('; ')}`)
-  }
-  return {
-    rules: messages.filter((m) => m.ruleId !== null).map((m) => m.ruleId),
-    fatalMessages: fatal,
-  }
-}
-
-/**
  * Replacement typed lint, through the engine's own type-aware backend.
  *
  * `--type-aware` is required: without it the typed rules are simply not run,
@@ -619,12 +472,31 @@ export async function legacyTypedDiagnostics(file, ruleId, options) {
  * silent downgrade this whole harness exists to prevent, so absence of the
  * backend is an error rather than an empty result.
  */
-export function replacementTypedDiagnostics(file, configPath) {
+/**
+ * @param cwd Where the engine runs, and therefore one of the two places it
+ * looks for its typed backend: resolution walks UP from here.
+ * @param env The other place. The backend is found on PATH too, which a
+ * package-manager-run script populates with `node_modules/.bin` -- so a cwd
+ * override alone hides the backend when run directly and does NOT hide it
+ * under `pnpm test`.
+ *
+ * Both are overridable so that a test can put the harness somewhere the
+ * backend is genuinely unreachable. The alternative was moving
+ * `node_modules/.bin/tsgolint` aside, which is shared state and races every
+ * other test file in the run.
+ */
+export function replacementTypedDiagnostics(
+  file,
+  configPath,
+  cwd = FIXTURE_ROOT,
+  env = process.env,
+) {
   let out = ''
   let failed = false
   try {
     out = execFileSync(OXLINT, ['--type-aware', '--format=json', '--config', configPath, file], {
-      cwd: FIXTURE_ROOT,
+      cwd,
+      env,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     })

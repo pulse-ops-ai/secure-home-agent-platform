@@ -2,8 +2,23 @@
  * The committed manifests, and the checks that keep them honest.
  *
  * Committed policy is a CLAIM about a live configuration. A claim nobody
- * re-derives is a comment, so these tests regenerate from the engine and
- * compare, then break each invariant deliberately to show the checker sees it.
+ * re-derives is a comment, so these tests re-derive it -- from the engine's
+ * own resolved configuration -- and then break each invariant deliberately to
+ * show the checker sees it.
+ *
+ * Task 3.4 changed WHERE the re-derivation comes from, not whether there is
+ * one. The manifests used to be regenerated from the retired engine's resolved
+ * rule set and compared byte for byte; with that engine gone there is nothing
+ * to regenerate them from, and `policy.json` is now an authored authority
+ * rather than a derived one. What replaces the old provenance is a chain that
+ * ends in behaviour rather than in a second config file:
+ *
+ *   policy.json + engine-mappings.json
+ *      -> generated/oxlintrc.<role>.json   (byte-identical, checked below)
+ *      -> what the engine says it resolved (`--print-config`, checked below)
+ *      -> what the engine actually reports (the 117 shard conformance proofs)
+ *
+ * Only the last two can see a rule that quietly stopped being enforced.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -11,14 +26,7 @@ import { describe, expect, it } from 'vitest'
 
 // @ts-ignore -- dependency-free .mjs modules, deliberately untyped
 import {
-  baselineOptions,
-  extractEffectivePolicy,
-  policyIdFor,
-} from '../src/extract-legacy-policy.mjs'
-// @ts-ignore
-import { buildManifests, shardFor } from '../src/build-manifest.mjs'
-// @ts-ignore
-import {
+  bareRuleName,
   checkGeneratedDrift,
   checkPolicyDrift,
   checkReferentialIntegrity,
@@ -29,7 +37,8 @@ import { validate } from '../validate-schema.mjs'
 import { GENERATED_ROLES, OXLINT_CATEGORIES, generateAll } from '../src/generate-oxlint-config.mjs'
 // @ts-ignore
 import { canonicalJson } from '../src/canonical.mjs'
-import { replacementDiagnosticsForText } from '../src/run-parity.mjs'
+// @ts-ignore
+import { replacementDiagnosticsForText, resolvedByRole } from '../src/run-parity.mjs'
 
 const HERE = import.meta.dirname
 const load = (p: string): any => JSON.parse(readFileSync(path.join(HERE, '..', p), 'utf8'))
@@ -40,9 +49,10 @@ const MAPPINGS = load('engine-mappings.json')
 const POLICY_SCHEMA = load('policy.schema.json')
 const MAPPING_SCHEMA = load('engine-mappings.schema.json')
 
-const rows = await extractEffectivePolicy()
-const baseline = await baselineOptions()
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
+
+/** What the engine says it will apply, asked once and reused. */
+const RESOLVED = resolvedByRole(GENERATED_ROLES as string[]) as Record<string, any>
 
 describe('the committed manifests', () => {
   it('cover all 117 policies with a legacy and a replacement mapping each', () => {
@@ -97,23 +107,14 @@ describe('the committed manifests', () => {
   })
 })
 
-describe('regeneration is deterministic and matches the engine', () => {
+describe('the generated authorities are reproducible from the manifests', () => {
   const generatedEntries = (): { path: string; value: unknown; committed: string }[] => {
     const built = generateAll(POLICY, MAPPINGS)
-    const manifests = buildManifests(rows, baseline)
-    return [
-      { path: 'policy.json', value: manifests.policy, committed: readCommitted('policy.json') },
-      {
-        path: 'engine-mappings.json',
-        value: manifests.mappings,
-        committed: readCommitted('engine-mappings.json'),
-      },
-      ...(GENERATED_ROLES as string[]).map((role) => ({
-        path: `generated/oxlintrc.${role}.json`,
-        value: built[role],
-        committed: readCommitted(`generated/oxlintrc.${role}.json`),
-      })),
-    ]
+    return (GENERATED_ROLES as string[]).map((role) => ({
+      path: `generated/oxlintrc.${role}.json`,
+      value: built[role],
+      committed: readCommitted(`generated/oxlintrc.${role}.json`),
+    }))
   }
 
   it('passes the byte-identity check for every generated authority', async () => {
@@ -121,8 +122,7 @@ describe('regeneration is deterministic and matches the engine', () => {
   })
 
   it('REPORTS a formatting-only edit, which object equality cannot see', async () => {
-    const entries = generatedEntries()
-    const target = entries.find((e) => e.path === 'generated/oxlintrc.library.json')!
+    const target = generatedEntries().find((e) => e.path === 'generated/oxlintrc.library.json')!
     const reformatted = JSON.stringify(JSON.parse(target.committed), null, 4)
     expect(JSON.parse(reformatted)).toEqual(JSON.parse(target.committed))
     const problems = await checkGeneratedDrift(
@@ -133,87 +133,95 @@ describe('regeneration is deterministic and matches the engine', () => {
   })
 
   it('REPORTS a key-order edit, which also parses identically', async () => {
-    const entries = generatedEntries()
-    const target = entries.find((e) => e.path === 'generated/oxlintrc.library.json')!
+    const target = generatedEntries().find((e) => e.path === 'generated/oxlintrc.library.json')!
     const parsed = JSON.parse(target.committed)
     const reordered = JSON.stringify(Object.fromEntries(Object.entries(parsed).reverse()), null, 2)
     expect(JSON.parse(reordered)).toEqual(parsed)
     const problems = await checkGeneratedDrift([{ ...target, committed: reordered }], canonicalJson)
     expect(problems).toHaveLength(1)
   })
-
-  it('reproduces the committed manifests BYTE for byte', async () => {
-    // Byte identity, not object equality. AUTH-LINT-CONFIG must be
-    // byte-identical to generator output, and an object comparison accepts
-    // whitespace and key-order changes -- so a committed authority could be
-    // edited into something the generator would never emit and still report
-    // clean. That is the check this test previously failed to be.
-    const built = buildManifests(rows, baseline)
-    expect(await canonicalJson(built.policy)).toBe(readCommitted('policy.json'))
-    expect(await canonicalJson(built.mappings)).toBe(readCommitted('engine-mappings.json'))
-  })
-
-  it('reproduces the same semantic content, so a byte failure is a real one', () => {
-    const built = buildManifests(rows, baseline)
-    expect(built.policy).toEqual(POLICY)
-    expect(built.mappings).toEqual(MAPPINGS)
-  })
-
-  it('finds no drift against the live configuration', () => {
-    expect(checkPolicyDrift(POLICY, MAPPINGS, rows, policyIdFor)).toEqual([])
-  })
-
-  it('derives type-awareness from the engine rather than a hand list', () => {
-    // A TypeScript rule surviving into js-config cannot need type information,
-    // because that role disables every type-aware rule.
-    expect(shardFor('@typescript-eslint/no-explicit-any', { typeAware: false })).toBe(
-      'typescript-static',
-    )
-    expect(shardFor('@typescript-eslint/no-floating-promises', { typeAware: true })).toBe(
-      'typescript-typed-control',
-    )
-    expect(shardFor('@typescript-eslint/no-unsafe-return', { typeAware: true })).toBe(
-      'typescript-typed-unsafe',
-    )
-  })
-
-  it('refuses to invent a shard for an unclassified core rule', () => {
-    expect(() => shardFor('some-brand-new-core-rule', { typeAware: false })).toThrow(
-      /no shard assigned/,
-    )
-  })
 })
 
-describe('drift the manifest must catch', () => {
+describe('the committed policy still describes the live engine', () => {
+  // `--print-config` is the engine's own answer, not ours. Reading our
+  // generated file back would agree with the generator by construction and
+  // could never see an engine that stopped applying something.
+  it('finds no drift against the configuration the engine resolves', () => {
+    expect(checkPolicyDrift(POLICY, MAPPINGS, RESOLVED)).toEqual([])
+  })
+
   it('sees a rule the engine enforces that no policy claims', () => {
-    const extra = [...rows, { ruleId: 'newly-enabled-rule', roles: ['library'], options: {} }]
-    expect(checkPolicyDrift(POLICY, MAPPINGS, extra, policyIdFor).join('\n')).toMatch(
-      /the engine enforces "newly-enabled-rule" but no policy row claims it/,
+    const drifted = clone(RESOLVED)
+    drifted['library'].rules['newly-enabled-rule'] = 'deny'
+    expect(checkPolicyDrift(POLICY, MAPPINGS, drifted).join('\n')).toMatch(
+      /the engine enforces "newly-enabled-rule" in role "library" but no policy row claims it/,
     )
   })
 
   it('sees a policy the engine no longer enforces', () => {
-    const fewer = rows.filter((r: any) => r.ruleId !== 'no-console')
-    expect(checkPolicyDrift(POLICY, MAPPINGS, fewer, policyIdFor).join('\n')).toMatch(
-      /policy claims "no-console" but the engine no longer enforces it/,
+    const drifted = clone(RESOLVED)
+    delete drifted['library'].rules['no-console']
+    expect(checkPolicyDrift(POLICY, MAPPINGS, drifted).join('\n')).toMatch(
+      /policy "no-console" claims role "library" but the engine no longer enforces/,
     )
   })
 
   it('sees a role change, which silently alters what blocks where', () => {
-    const moved = clone(rows)
-    const target = moved.find((r: any) => r.ruleId === 'no-console')
-    target.roles = ['library']
-    expect(checkPolicyDrift(POLICY, MAPPINGS, moved, policyIdFor).join('\n')).toMatch(
-      /claims roles \[.*\] but the engine blocks it in \[library\]/,
+    // Removing it from one role alone is a role change, and it must be
+    // reported against the role that lost it rather than passing because the
+    // rule still exists somewhere.
+    const drifted = clone(RESOLVED)
+    delete drifted['service'].rules['no-console']
+    expect(checkPolicyDrift(POLICY, MAPPINGS, drifted).join('\n')).toMatch(
+      /policy "no-console" claims role "service" but the engine no longer enforces/,
     )
   })
 
-  it('sees a policy downgraded out of blocking', () => {
+  it('sees a policy downgraded out of blocking severity by the engine', () => {
+    // The nastiest of these. The rule is still there, still spelled the same,
+    // still looks enforced in every structural check -- and fails nothing.
+    const drifted = clone(RESOLVED)
+    drifted['library'].rules['no-console'] = ['warn', [{}]]
+    expect(checkPolicyDrift(POLICY, MAPPINGS, drifted).join('\n')).toMatch(
+      /is blocking, but the engine applies "no-console" in role "library" at "warn"/,
+    )
+  })
+
+  it('sees a policy downgraded out of blocking in the manifest', () => {
     const weakened = clone(POLICY)
     weakened.policies[0].blocking = false
-    expect(checkPolicyDrift(weakened, MAPPINGS, rows, policyIdFor).join('\n')).toMatch(
-      /is not blocking/,
+    expect(checkPolicyDrift(weakened, MAPPINGS, RESOLVED).join('\n')).toMatch(/is not blocking/)
+  })
+
+  it('sees an ambient category switched back on', () => {
+    // No committed byte changes when this happens, which is exactly why the
+    // engine has to be the one asked. It is how `no-dupe-keys` once fired on a
+    // role that never declared it.
+    const drifted = clone(RESOLVED)
+    drifted['library'].categories.correctness = 'deny'
+    expect(checkPolicyDrift(POLICY, MAPPINGS, drifted).join('\n')).toMatch(
+      /role "library" leaves the "correctness" category on \(deny\)/,
     )
+  })
+
+  it('refuses to let two policies collapse onto one rule name', () => {
+    // The normalisation that makes the extension rules comparable must not be
+    // able to hide a disappearance. If two policies in a role ever resolved to
+    // the same bare name, one could vanish unseen -- so that is an error in
+    // its own right rather than a silent merge.
+    const collided = clone(MAPPINGS)
+    const row = collided.mappings.find(
+      (m: any) => m.policy === 'no-console' && m.engine === 'replacement',
+    )
+    row.ruleId = 'typescript/no-unused-vars'
+    expect(checkPolicyDrift(POLICY, collided, RESOLVED).join('\n')).toMatch(
+      /both resolve to the rule name "no-unused-vars" in role "library"/,
+    )
+  })
+
+  it('strips only the plugin namespace when normalising a rule name', () => {
+    expect(bareRuleName('typescript/no-unused-vars')).toBe('no-unused-vars')
+    expect(bareRuleName('no-console')).toBe('no-console')
   })
 })
 

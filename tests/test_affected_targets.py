@@ -270,7 +270,7 @@ def test_shared_tooling_changes_fan_out_to_every_typescript_target() -> None:
     for tooling_file in (
         "packages/tsconfig/base.json",
         "packages/tsconfig/library.json",
-        "packages/eslint-config/base.js",
+        "packages/lint-config/policy.json",
         "packages/testing/vitest.base.js",
         ".prettierrc.json",
         ".prettierignore",

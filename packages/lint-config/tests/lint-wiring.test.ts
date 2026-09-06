@@ -7,7 +7,16 @@
  * that does not run reports no violations, and at every layer above that is
  * indistinguishable from clean code.
  */
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
@@ -47,7 +56,7 @@ describe('every member reaches the replacement engine through the capability', (
     const linting = (members(REPO_ROOT) as string[]).filter(
       (rel) => !(NON_LINTING_MEMBERS as Set<string>).has(rel),
     )
-    expect(linting.length).toBe(17)
+    expect(linting.length).toBe(16)
     for (const rel of linting) {
       expect(lintScript(rel), rel).toContain(LINT_CAPABILITY as string)
     }
@@ -375,6 +384,157 @@ describe('the fail-closed path, driven end to end', () => {
   })
 })
 
+describe('the one admitted process-entry exception stays bounded (ADV-ROLE-003)', () => {
+  // A coding adapter is a library and must not touch the process. Its
+  // `src/bin.ts` is the single exception, because a CLI entry cannot be
+  // written without stdio, argv and signals.
+  //
+  // The exception used to live in each adapter's own `eslint.config.js` as a
+  // per-file override. Task 3.4 deleted those files with the engine that read
+  // them, and the exception had to move into the runner rather than go: with
+  // it simply gone the adapters failed lint outright, and the obvious repair
+  // -- projecting the whole adapter onto the relaxed role -- would have
+  // relaxed all three restrictions across every file of the package.
+  //
+  // So the wiring is checked, and then the BOUND is checked by running the
+  // real engine over identical code in two places.
+  const SUBJECT = path.join(HERE, 'lint-subject')
+  const RESTRICTED = 'export const probe = (): void => console.log(process.env.HOME)\n'
+
+  /** A member shaped like a coding adapter: same subject, plus an entry point. */
+  const withEntryPoint = (body: string): string => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'adapter-probe-'))
+    cpSync(SUBJECT, dir, { recursive: true })
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src', 'bin.ts'), body)
+    return dir
+  }
+
+  it('lints the exempt file separately, and holds it out of the member run', () => {
+    const dir = withEntryPoint('export const value = 1\n')
+    try {
+      const calls: string[][] = []
+      const result = lintMember({
+        memberDir: dir,
+        rel: 'agents/adapters/coding/claude-code',
+        paths: ['src'],
+        execute: (_command: string, args: string[]) => {
+          calls.push(args)
+          return { ok: true, output: '' }
+        },
+      }) as { role: string; override?: { file: string; role: string } }
+
+      // Two runs, because one run can only carry one role.
+      expect(calls).toHaveLength(2)
+      expect(result.role).toBe('library')
+      expect(result.override).toEqual({ file: 'src/bin.ts', role: 'adapter-bin' })
+
+      const [member, exempt] = calls as [string[], string[]]
+      // The member run must EXCLUDE the exempt file. Without this the file
+      // would be judged twice, and the stricter judgement would still fail it.
+      expect(member).toContain('--ignore-pattern')
+      expect(member[member.indexOf('--ignore-pattern') + 1]).toBe('src/bin.ts')
+      expect(member.at(-1)).toBe('src')
+      expect(member.join(' ')).toContain('oxlintrc.library.json')
+
+      // The exempt run must cover that file and NOTHING else.
+      expect(exempt.at(-1)).toBe('src/bin.ts')
+      expect(exempt).not.toContain('src')
+      expect(exempt.join(' ')).toContain('oxlintrc.adapter-bin.json')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('applies to no other member, so nothing else acquires the relaxation', () => {
+    const calls: string[][] = []
+    lintMember({
+      memberDir: SUBJECT,
+      rel: 'packages/contracts',
+      paths: ['src'],
+      execute: (_command: string, args: string[]) => {
+        calls.push(args)
+        return { ok: true, output: '' }
+      },
+    })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).not.toContain('--ignore-pattern')
+  })
+
+  it('does not fire for an adapter that ships no such entry point', () => {
+    // The override is bounded by the file EXISTING, not by the path prefix
+    // alone. An adapter with no `src/bin.ts` must get exactly one run, or a
+    // future adapter would acquire a second, relaxed pass over a file it never
+    // wrote.
+    expect(existsSync(path.join(SUBJECT, 'src', 'bin.ts'))).toBe(false)
+    const calls: string[][] = []
+    lintMember({
+      memberDir: SUBJECT,
+      rel: 'agents/adapters/coding/no-entry-point',
+      paths: ['src'],
+      execute: (_command: string, args: string[]) => {
+        calls.push(args)
+        return { ok: true, output: '' }
+      },
+    })
+    expect(calls).toHaveLength(1)
+  })
+
+  /** Every (rule, file) pair the engine actually attributed. */
+  const attributions = (output: string): { rule: string; file: string }[] => {
+    const found: { rule: string; file: string }[] = []
+    for (const chunk of output.split(/^\s+x /m).slice(1)) {
+      const rule = /^(?:eslint|typescript|oxc)\(([a-z0-9-]+)\)/.exec(chunk)
+      const file = /,-\[([^:\]]+):/.exec(chunk)
+      if (rule?.[1] !== undefined && file?.[1] !== undefined) {
+        found.push({ rule: rule[1], file: file[1] })
+      }
+    }
+    return found
+  }
+
+  it('THE BOUND: identical code passes at the entry point and fails beside it', () => {
+    // The proof that matters, and the only one the wiring assertions cannot
+    // give. Argument shapes can be right while the configs say the wrong
+    // thing; this runs the real engine over the same three violations in two
+    // files of one member and reads back which file each was charged to.
+    const dir = withEntryPoint(RESTRICTED)
+    try {
+      writeFileSync(path.join(dir, 'src', 'index.ts'), RESTRICTED)
+
+      const result = lintMember({
+        memberDir: dir,
+        rel: 'agents/adapters/coding/bound-probe',
+        paths: ['src'],
+      }) as { ok: boolean; replacement: { output: string } }
+
+      expect(result.ok).toBe(false)
+      const charged = attributions(result.replacement.output)
+      const RELAXED = ['no-console', 'no-restricted-globals', 'no-restricted-properties']
+
+      for (const rule of RELAXED) {
+        expect(
+          charged.some((e) => e.rule === rule && e.file === 'src/index.ts'),
+          `${rule} must still bind beside the entry point`,
+        ).toBe(true)
+        expect(
+          charged.some((e) => e.rule === rule && e.file === 'src/bin.ts'),
+          `${rule} must be relaxed AT the entry point`,
+        ).toBe(false)
+      }
+
+      // And the exempt run is not a no-op. The exception relaxes exactly three
+      // policies; everything else still binds at the entry point, which is
+      // what stops "bounded to one file" from quietly becoming "unlinted".
+      const atEntry = charged.filter((e) => e.file === 'src/bin.ts')
+      expect(atEntry.length, 'the entry point must still be linted').toBeGreaterThan(0)
+      for (const entry of atEntry) expect(RELAXED).not.toContain(entry.rule)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('task 3.3 — no member escapes the capability-owned policy path', () => {
   // The hostile shapes that would each leave a member enforced by something
   // other than the canonical 117-policy authority. Every one is a way for lint
@@ -446,9 +606,24 @@ describe('task 3.3 — no member escapes the capability-owned policy path', () =
   })
 
   it('the compiler authority is untouched by this task', () => {
+    // 3.4 retires an ENGINE. The compiler cutover is 3.2 and has not happened,
+    // so TypeScript must still be exactly 6.0.3 here: a retirement that also
+    // moved the compiler would make it impossible to say which change caused
+    // whatever broke next.
     const catalog = readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8')
     expect(catalog).toMatch(/^ {2}typescript: 6\.0\.3$/m)
-    expect(catalog).toMatch(/^ {2}eslint: 10\.8\.0$/m)
-    expect(existsSync(path.join(REPO_ROOT, 'packages', 'eslint-config'))).toBe(true)
+  })
+
+  it('and the retired engine is gone from the workspace entirely', () => {
+    // The other half. This asserted the ENGINE's survival while 3.3 moved it
+    // off the blocking path; 3.4 removes it, so the same fact is now checked
+    // with the opposite sign rather than deleted. A pin left behind would keep
+    // resolving the engine into the lockfile, and a package left behind would
+    // keep offering a second way to configure lint.
+    const catalog = readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8')
+    expect(catalog).not.toMatch(/^ {2}eslint:/m)
+    expect(catalog).not.toMatch(/^ {2}'?@eslint\//m)
+    expect(catalog).not.toMatch(/^ {2}typescript-eslint:/m)
+    expect(existsSync(path.join(REPO_ROOT, 'packages', 'eslint-config'))).toBe(false)
   })
 })

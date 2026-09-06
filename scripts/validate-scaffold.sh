@@ -190,6 +190,7 @@ for root in $SCAN_ROOTS; do
   done <<< "$(find "$root" -type d \
       ! -path '*/node_modules*' ! -path '*/.venv*' ! -path '*/__pycache__*' \
       ! -path '*/.mypy_cache*' ! -path '*/.ruff_cache*' ! -path '*/.pytest_cache*' \
+      ! -path '*/.scratch*' \
       ! -path '*/dist*' ! -path '*/build*' ! -name '*.egg-info')"
 done
 

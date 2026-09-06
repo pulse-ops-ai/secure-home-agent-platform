@@ -44,7 +44,6 @@ const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..')
 export const IDENTITY_ROLES = [
   { name: 'typescript', role: 'the normal compiler' },
   { name: '@typescript/typescript6', role: 'the bounded parsing seam' },
-  { name: 'eslint', role: 'the legacy engine' },
   { name: 'oxlint', role: 'the replacement engine' },
   { name: 'oxlint-tsgolint', role: 'the typed backend' },
 ]

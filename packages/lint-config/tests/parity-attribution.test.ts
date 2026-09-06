@@ -1,11 +1,11 @@
 /**
  * Parse-level ATTRIBUTION, not merely rejection.
  *
- * Five policies are realised by both engines' parsers rather than by a rule.
- * The tempting check is "did the file fail to parse", and it is wrong: a
- * fixture whose intended violation was removed and replaced by an unrelated
- * syntax error would still be rejected by both engines and would pass parity
- * while proving nothing at all.
+ * Five policies are realised by the engine's parser rather than by a rule. The
+ * tempting check is "did the file fail to parse", and it is wrong: a fixture
+ * whose intended violation was removed and replaced by an unrelated syntax
+ * error would still be rejected and would pass conformance while proving
+ * nothing at all.
  *
  * So a parser mapping carries the engine's expected diagnostic, and the
  * invalid fixture passes only when THAT diagnostic appears. These tests break
@@ -18,12 +18,10 @@ import { describe, expect, it } from 'vitest'
 // @ts-ignore
 import {
   configForRole,
+  conformanceFor,
   fixturePath,
-  legacyDiagnostics,
-  legacyDiagnosticsForText,
   loadAuthorities,
   matches,
-  parityFor,
   parseReplacementReport,
   replacementDiagnostics,
   replacementDiagnosticsForText,
@@ -31,9 +29,6 @@ import {
 } from '../src/run-parity.mjs'
 
 const { policy, mappings } = loadAuthorities()
-const legacy = new Map(
-  mappings.mappings.filter((m: any) => m.engine === 'legacy').map((m: any) => [m.policy, m]),
-)
 const replacement = new Map(
   mappings.mappings.filter((m: any) => m.engine === 'replacement').map((m: any) => [m.policy, m]),
 )
@@ -41,26 +36,29 @@ type Mapping = { mechanism: string; diagnosticPattern?: string }
 const mappingOf = (source: Map<unknown, unknown>, id: string): Mapping => source.get(id) as Mapping
 
 const PARSER_POLICIES = policy.policies.filter(
-  (p: any) => mappingOf(legacy, p.id).mechanism === 'parser',
+  (p: any) => mappingOf(replacement, p.id).mechanism === 'parser',
 )
 
 describe('every parser mapping declares an expected diagnostic', () => {
-  it('covers every legacy parser policy on both engines', () => {
-    // Four, not five. no-delete-var is parser-enforced on the REPLACEMENT only:
-    // the repository parses .ts with the TypeScript parser, which accepts
-    // `delete localBinding` and lets the rule fire instead. Mechanism is a
-    // per-engine fact, and this is the case that proves it.
-    expect(PARSER_POLICIES).toHaveLength(4)
+  it('covers every parser-mechanism policy', () => {
+    // Five, not four. Mechanism is a per-engine fact, and the retired engine's
+    // set was the smaller one: it enforced no-delete-var with a RULE, because
+    // it parsed .ts with the TypeScript parser, which accepts
+    // `delete localBinding`. The set that matters is the one the surviving
+    // engine actually uses, because that is what production conformance keys
+    // on -- so retiring the second engine WIDENED the pattern-attributed set
+    // by one rather than narrowing it, and the decoy corpus below grew to
+    // match.
+    expect(PARSER_POLICIES).toHaveLength(5)
     for (const row of PARSER_POLICIES) {
-      expect(mappingOf(legacy, row.id).diagnosticPattern, `${row.id} legacy`).toBeTruthy()
-      expect(mappingOf(replacement, row.id).diagnosticPattern, `${row.id} replacement`).toBeTruthy()
+      expect(mappingOf(replacement, row.id).diagnosticPattern, row.id).toBeTruthy()
     }
   })
 
   it('keeps raw engine text out of the semantic policy', () => {
     for (const row of PARSER_POLICIES) {
       expect(JSON.stringify(row)).not.toMatch(
-        /strict mode|Argument name clash|already been declared/,
+        /strict mode|Argument name clash|already been declared|unqualified identifier/,
       )
     }
   })
@@ -73,61 +71,38 @@ describe('every parser mapping declares an expected diagnostic', () => {
 })
 
 describe('an unrelated syntax error must NOT satisfy a parser policy', () => {
-  // The crucial case. Both engines still produce parse errors, so a
-  // rejection-only check would report parity.
+  // The crucial case. The engine still produces a parse error, so a
+  // rejection-only check would report conformance.
   const UNRELATED = 'export const value = (\n'
 
   for (const row of PARSER_POLICIES as { id: string; proof: any }[]) {
-    it(`${row.id}: a bare syntax error is rejected by both engines yet fails parity`, async () => {
+    it(`${row.id}: a bare syntax error is rejected yet fails attribution`, () => {
       const extension = path.extname(row.proof.invalid)
-      const legacySeen = await legacyDiagnosticsForText(
-        UNRELATED,
-        `decoy${extension}`,
-        undefined,
-        undefined,
-      )
-      const replacementSeen = replacementDiagnosticsForText(
-        UNRELATED,
-        extension,
-        configForRole(roleFor(row)),
-      )
+      const seen = replacementDiagnosticsForText(UNRELATED, extension, configForRole(roleFor(row)))
 
-      // Precondition: the decoy really does fail to parse under both engines.
-      expect(legacySeen.fatalMessages.length, 'ESLint must still reject it').toBeGreaterThan(0)
-      expect(replacementSeen.parseErrors.length, 'Oxlint must still reject it').toBeGreaterThan(0)
+      // Precondition: the decoy really does fail to parse.
+      expect(seen.parseErrors.length, 'Oxlint must still reject it').toBeGreaterThan(0)
 
-      // And yet it is not attribution for this policy, on either engine.
-      expect(matches(legacySeen.fatalMessages, mappingOf(legacy, row.id).diagnosticPattern)).toBe(
+      // And yet it is not attribution for this policy.
+      expect(matches(seen.parseErrors, mappingOf(replacement, row.id).diagnosticPattern)).toBe(
         false,
       )
-      expect(
-        matches(replacementSeen.parseErrors, mappingOf(replacement, row.id).diagnosticPattern),
-      ).toBe(false)
     })
   }
 })
 
 describe('one parser policy cannot satisfy another', () => {
-  it('no policy diagnostic matches a different policy mapping', async () => {
+  it('no policy diagnostic matches a different policy mapping', () => {
     for (const row of PARSER_POLICIES as { id: string; proof: any }[]) {
-      const seenLegacy = await legacyDiagnostics(
-        fixturePath(row.proof.invalid),
-        undefined,
-        undefined,
-      )
-      const seenReplacement = replacementDiagnostics(
+      const seen = replacementDiagnostics(
         fixturePath(row.proof.invalid),
         configForRole(roleFor(row)),
       )
       for (const other of PARSER_POLICIES as { id: string }[]) {
         if (other.id === row.id) continue
         expect(
-          matches(seenLegacy.fatalMessages, mappingOf(legacy, other.id).diagnosticPattern),
-          `${row.id}'s ESLint diagnostic must not satisfy ${other.id}`,
-        ).toBe(false)
-        expect(
-          matches(seenReplacement.parseErrors, mappingOf(replacement, other.id).diagnosticPattern),
-          `${row.id}'s Oxlint diagnostic must not satisfy ${other.id}`,
+          matches(seen.parseErrors, mappingOf(replacement, other.id).diagnosticPattern),
+          `${row.id}'s diagnostic must not satisfy ${other.id}`,
         ).toBe(false)
       }
     }
@@ -150,40 +125,36 @@ describe('the matcher itself', () => {
   })
 })
 
-describe('a decoy fixture fails the real parity check end to end', () => {
-  it('substituting an unrelated syntax error breaks parity for no-with', async () => {
+describe('a decoy fixture fails the real conformance check end to end', () => {
+  it('substituting an unrelated syntax error breaks conformance for no-with', () => {
     const row = PARSER_POLICIES.find((p: any) => p.id === 'no-with')
-    const seen = await legacyDiagnosticsForText(
+    const seen = replacementDiagnosticsForText(
       'export const value = (\n',
-      'no-with-decoy.js',
-      undefined,
-      undefined,
-    )
-    expect(seen.fatalMessages.length).toBeGreaterThan(0)
-    expect(matches(seen.fatalMessages, mappingOf(legacy, 'no-with').diagnosticPattern)).toBe(false)
-
-    // The real fixture, by contrast, is attributed.
-    const real = await parityFor(
-      row,
-      legacy.get('no-with'),
-      replacement.get('no-with'),
+      '.js',
       configForRole(roleFor(row)),
     )
-    expect(real.legacyRejects).toBe(true)
-    expect(real.replacementRejects).toBe(true)
+    expect(seen.parseErrors.length).toBeGreaterThan(0)
+    expect(matches(seen.parseErrors, mappingOf(replacement, 'no-with').diagnosticPattern)).toBe(
+      false,
+    )
+
+    // The real fixture, by contrast, is attributed.
+    const real = conformanceFor(row, replacement.get('no-with'), configForRole(roleFor(row)))
+    expect(real.rejects).toBe(true)
   })
 })
 
-describe('the real parity check rejects a decoy end to end', () => {
+describe('the real conformance check rejects a decoy end to end', () => {
   // The integration path, not just the matcher. Committed negative controls:
   // each has the intended violation REMOVED and an unrelated syntax error in
-  // its place, so both engines still reject the file. Parity must still fail.
+  // its place, so the engine still rejects the file. Conformance must still
+  // fail.
   //
   // These exist because a mutation survived without them: dropping the
-  // diagnostic check from parityFor left every test green, since the real
-  // fixtures produce the right diagnostic and "some parse error" was also true.
+  // diagnostic check left every test green, since the real fixtures produce
+  // the right diagnostic and "some parse error" was also true.
   for (const row of PARSER_POLICIES as { id: string; proof: any }[]) {
-    it(`${row.id}: a decoy fixture fails parityFor on both engines`, async () => {
+    it(`${row.id}: a decoy fixture fails conformanceFor`, () => {
       const extension = path.extname(row.proof.invalid)
       const decoy = {
         ...row,
@@ -193,23 +164,18 @@ describe('the real parity check rejects a decoy end to end', () => {
           invalid: `_negative-controls/invalid/${row.id}${extension}`,
         },
       }
-      const result = await parityFor(
-        decoy,
-        legacy.get(row.id),
-        replacement.get(row.id),
-        configForRole(roleFor(row)),
-      )
-      expect(result.legacyRejects, 'ESLint must not attribute an unrelated error').toBe(false)
-      expect(result.replacementRejects, 'Oxlint must not attribute an unrelated error').toBe(false)
+      const result = conformanceFor(decoy, replacement.get(row.id), configForRole(roleFor(row)))
+      expect(result.rejects, 'an unrelated error must not be attributed').toBe(false)
     })
   }
 })
 
-// The parity harness once read the replacement engine's human-readable output.
-// That output is not stable: the engine emits its `github` reporter on a CI
-// runner, which drops the ` error: ` marker the text parser keyed on. Every
-// parser-attribution fixture then reported "no parse error" on hosted runners
-// while passing locally. These lock the properties that make that impossible.
+// The conformance harness once read the replacement engine's human-readable
+// output. That output is not stable: the engine emits its `github` reporter on
+// a CI runner, which drops the ` error: ` marker the text parser keyed on.
+// Every parser-attribution fixture then reported "no parse error" on hosted
+// runners while passing locally. These lock the properties that make that
+// impossible.
 describe('the replacement report is read structurally, not as prose', () => {
   it('reads a rule violation from its code field', () => {
     const report = parseReplacementReport(

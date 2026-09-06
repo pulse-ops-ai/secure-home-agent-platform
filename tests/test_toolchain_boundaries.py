@@ -778,8 +778,18 @@ def real_lock() -> dict[str, Any]:
 
 
 def test_the_real_lockfile_parses_with_no_dangling_edge(real_lock: dict[str, Any]) -> None:
-    """Synthetic fixtures hid an inline-empty snapshot form and an alias edge."""
-    assert real_lock["snapshots"] > 300
+    """Synthetic fixtures hid an inline-empty snapshot form and an alias edge.
+
+    The floor exists so this stays a real parse of a real lockfile rather than
+    a formality that a two-entry file would satisfy. It dropped from 300 when
+    task 3.4 removed the ESLint dependency tree -- roughly fifty packages went
+    with the engine, its TypeScript plugin and its globals data.
+
+    200 rather than 256: a floor set just under the current count would fail on
+    the next routine dependency removal and teach whoever hits it to edit the
+    number, which is how a floor stops meaning anything.
+    """
+    assert real_lock["snapshots"] > 200
     assert real_lock["dangling"] == []
 
 

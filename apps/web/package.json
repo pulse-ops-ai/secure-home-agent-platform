@@ -23,11 +23,9 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
-    "@secure-home/eslint-config": "workspace:*",
     "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
-    "eslint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

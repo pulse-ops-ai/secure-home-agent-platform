@@ -91,14 +91,14 @@ def _base(tmp_path: Path, name: str = "ws") -> Workspace:
         "packages/contracts",
         "@secure-home/contracts",
         devDependencies={
-            "@secure-home/eslint-config": "workspace:*",
             "@secure-home/lint-config": "workspace:*",
+            "@secure-home/tsconfig": "workspace:*",
             "@secure-home/logging": "workspace:*",
             "@secure-home/testing": "workspace:*",
         },
     )
-    ws.member("packages/eslint-config", "@secure-home/eslint-config")
     ws.member("packages/lint-config", "@secure-home/lint-config")
+    ws.member("packages/tsconfig", "@secure-home/tsconfig")
     ws.member("packages/logging", "@secure-home/logging")
     ws.member("packages/observability", "@secure-home/observability")
     ws.member("packages/testing", "@secure-home/testing")
@@ -290,13 +290,18 @@ def test_a_filesystem_read_is_not_claimed_to_be_covered(tmp_path: Path) -> None:
 def test_build_tooling_may_not_be_imported_from_production_source(tmp_path: Path) -> None:
     """Layer 0 is *below* everything, so layering alone would allow this.
 
-    Direction is not the only property that matters: an ESLint config has no
-    business resolving inside a deployed artifact regardless of its layer.
+    Direction is not the only property that matters: compiler configuration has
+    no business resolving inside a deployed artifact regardless of its layer.
+
+    This used to import the retired ESLint config. `@secure-home/tsconfig` is
+    the other build-tooling package and makes the same point, which matters:
+    the rule must be about the ROLE of a package, not about one package name
+    that happened to be in the set.
     """
     ws = _base(tmp_path)
     ws.source(
         "packages/contracts/src/index.ts",
-        "import cfg from '@secure-home/eslint-config/library'\nexport default cfg",
+        "import cfg from '@secure-home/tsconfig/base.json'\nexport default cfg",
     )
 
     result = _imports(ws.root)
@@ -314,8 +319,8 @@ def test_the_lint_policy_authority_may_not_be_imported_from_production_source(
     would drag lint machinery into a deployed artifact -- and its layer (0)
     would otherwise permit it, because layering answers direction, not role.
 
-    This matters more than for the ESLint config it will outlive: Scope 2
-    retires `packages/eslint-config`, and this package is what remains.
+    This matters more than for the ESLint config it outlived: task 3.4 retired
+    `packages/eslint-config`, and this package is what remains.
     """
     ws = _base(tmp_path)
     ws.source(
@@ -333,7 +338,7 @@ def test_a_lint_config_import_from_a_build_config_remains_allowed(tmp_path: Path
     build-time use the package exists for."""
     ws = _base(tmp_path)
     ws.source(
-        "packages/contracts/eslint.config.js",
+        "packages/contracts/prettier.config.js",
         "import policy from '@secure-home/lint-config/policy'\nexport default policy",
     )
 
@@ -377,8 +382,8 @@ def test_test_files_and_build_configs_may_reach_their_tooling(tmp_path: Path) ->
         "export default definePackageConfig()",
     )
     ws.source(
-        "packages/contracts/eslint.config.js",
-        "import config from '@secure-home/eslint-config/library'\nexport default config",
+        "packages/contracts/prettier.config.js",
+        "import config from '@secure-home/lint-config/policy'\nexport default config",
     )
 
     result = _imports(ws.root)

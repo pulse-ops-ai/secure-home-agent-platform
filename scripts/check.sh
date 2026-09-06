@@ -73,6 +73,7 @@ if command -v node >/dev/null 2>&1; then
   # repository-wide member-role projection. Stdlib-only, so it runs beside the
   # other governance gates rather than behind the workspace toolchain.
   run "lint policy integrity" node packages/lint-config/src/check-policy.mjs
+  run "lint-engine retirement" node scripts/check-engine-retirement.mjs
   # Maintenance-class authority: the closed set of admissible tool-maintenance
   # differences must be internally consistent at rest. A class that contradicts
   # the protected floor is caught when it is written, not when an advisory

@@ -184,17 +184,139 @@ def test_a_package_manifest_is_not_a_compiler_config() -> None:
     assert "packages/tsconfig/package.json" in commands
 
 
-def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
-    """Identity AND body: a script kept by name but repointed is a substitution."""
-    frozen = {
+def _command_baseline_problems(
+    frozen: dict[tuple[str, str], str],
+    current: dict[tuple[str, str], str],
+    scope_exists: bool,
+) -> list[str]:
+    """The lifecycle-aware baseline rule, as a function that can be DRIVEN.
+
+    Extracted from the test that used to inline it. A rule that only ever ran
+    against the real tree could be asserted true today and be unable to say
+    anything about the cases it exists for -- a command outside the retirement
+    scope going quiet, or the retired package's command vanishing while the
+    package is still there. Both are exercised below.
+    """
+    problems: list[str] = []
+
+    added = sorted(set(current) - set(frozen))
+    if added:
+        problems.append(f"compiler commands appeared after the 3.1 baseline: {added}")
+
+    for manifest, script in sorted(set(frozen) - set(current)):
+        if not manifest.startswith(RETIREMENT_SCOPE):
+            problems.append(
+                f"{manifest}:{script} left the compiler surface, and it is not inside the "
+                f"{RETIREMENT_SCOPE}** retirement scope. A command disappearing on its own is "
+                "a defect, not a lifecycle"
+            )
+        elif not scope_exists:
+            continue
+        else:
+            problems.append(
+                f"{manifest}:{script} is missing while {RETIREMENT_SCOPE} still exists — that "
+                "is a script disappearing, not task 3.4 retiring a package"
+            )
+
+    changed = sorted(k for k in frozen if k in current and current[k] != frozen[k])
+    if changed:
+        problems.append(f"compiler command bodies changed: {changed}")
+    return problems
+
+
+def _frozen_commands() -> dict[tuple[str, str], str]:
+    return {
         (c["manifest"], c["script"]): c["body"] for c in EVIDENCE["surface"]["compilerCommands"]
     }
-    current = _compiler_commands()
-    assert set(current) == set(frozen), (
-        f"added={sorted(set(current) - set(frozen))} removed={sorted(set(frozen) - set(current))}"
+
+
+def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
+    """Identity AND body: a script kept by name but repointed is a substitution.
+
+    Lifecycle-aware on the same terms as the config baseline, and for the same
+    reason: the 3.1 inventory is historical identity and is never rewritten by
+    a later task. A command may be absent ONLY because the package it lives in
+    was retired, and only once that retirement actually happened. Everything
+    else is unchanged -- a command outside the retirement scope must still
+    match byte for byte, and a NEW command is still unreviewed surface whether
+    or not anything was retired.
+    """
+    problems = _command_baseline_problems(
+        _frozen_commands(), _compiler_commands(), (REPO / RETIREMENT_SCOPE).exists()
     )
-    changed = {k for k in frozen if current[k] != frozen[k]}
-    assert not changed, f"compiler command bodies changed: {sorted(changed)}"
+    assert not problems, problems
+
+
+def test_the_retirement_actually_removed_a_frozen_command() -> None:
+    """Otherwise every lifecycle test below is about nothing."""
+    inside = {k for k in _frozen_commands() if k[0].startswith(RETIREMENT_SCOPE)}
+    assert inside, "the retirement scope held no compiler command"
+    assert not (REPO / RETIREMENT_SCOPE).exists(), "the retirement has not happened"
+    assert not (inside & set(_compiler_commands())), "the retired commands are still present"
+
+
+def test_a_non_retired_command_disappearing_is_a_failure() -> None:
+    """Mutation: a command outside the retirement scope goes quiet.
+
+    The retirement grants an allowance, and the allowance reaches exactly as
+    far as the retirement did. This is the case where a real regression would
+    otherwise ride along inside a legitimate removal.
+    """
+    frozen = _frozen_commands()
+    current = _compiler_commands()
+    victim = next(k for k in current if not k[0].startswith(RETIREMENT_SCOPE))
+    mutated = {k: v for k, v in current.items() if k != victim}
+    assert mutated != current, "the mutation did not change the command set"
+
+    problems = _command_baseline_problems(frozen, mutated, scope_exists=False)
+    assert any("is not inside the" in p and victim[0] in p for p in problems), problems
+
+
+def test_the_retired_command_disappearing_alone_is_a_failure() -> None:
+    """Mutation: the ESLint typecheck command goes, but its package stays.
+
+    The exact shape of a script being deleted and called a lifecycle. The
+    allowance is granted BY the package retirement; with the package still
+    present there is no retirement to grant it.
+    """
+    frozen = _frozen_commands()
+    retired = next(k for k in frozen if k[0].startswith(RETIREMENT_SCOPE))
+    current = {k: v for k, v in frozen.items() if k != retired}
+    assert current != frozen, "the mutation did not change the command set"
+
+    problems = _command_baseline_problems(frozen, current, scope_exists=True)
+    assert any("still exists" in p and retired[0] in p for p in problems), problems
+
+    # And the same absence is accepted once the package is genuinely gone.
+    assert _command_baseline_problems(frozen, current, scope_exists=False) == []
+
+
+def test_a_surviving_command_may_not_be_edited_by_a_retirement() -> None:
+    """Mutation: a body repointed under cover of the removal.
+
+    Retirement removes commands; it does not license editing the ones that
+    remain. A script kept by name and repointed is a substitution, which is the
+    property the body comparison exists for.
+    """
+    frozen = _frozen_commands()
+    victim = next(k for k in frozen if not k[0].startswith(RETIREMENT_SCOPE))
+    current = dict(frozen)
+    current[victim] = f"{frozen[victim]} --different"
+    assert current[victim] != frozen[victim], "the mutation did not change the body"
+
+    problems = _command_baseline_problems(frozen, current, scope_exists=False)
+    assert any("bodies changed" in p for p in problems), problems
+
+
+def test_a_new_command_is_unreviewed_surface_even_after_a_retirement() -> None:
+    """Mutation: a compiler command appears. Removal does not open the door."""
+    frozen = _frozen_commands()
+    current = dict(frozen)
+    current[("packages/brand-new/package.json", "typecheck")] = "tsc --noEmit"
+    assert current != frozen, "the mutation did not change the command set"
+
+    problems = _command_baseline_problems(frozen, current, scope_exists=False)
+    assert any("appeared after the 3.1 baseline" in p for p in problems), problems
 
 
 def test_the_compiler_options_are_exactly_the_audited_set() -> None:

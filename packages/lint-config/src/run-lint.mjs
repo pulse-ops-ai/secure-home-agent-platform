@@ -36,7 +36,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { NON_LINTING_MEMBERS, SELF_LINTING_MEMBER, expectedRoleFor } from './check-policy.mjs'
+import { ADAPTER_BIN_OVERRIDE, NON_LINTING_MEMBERS, expectedRoleFor } from './check-policy.mjs'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..')
@@ -58,7 +58,6 @@ export class LintEngineFailure extends Error {
  */
 export function roleForMember(rel) {
   if (NON_LINTING_MEMBERS.has(rel)) return undefined
-  if (rel === SELF_LINTING_MEMBER) return 'library'
   const projected = expectedRoleFor(rel)
   if (projected === undefined) {
     throw new LintEngineFailure(
@@ -67,6 +66,32 @@ export function roleForMember(rel) {
     )
   }
   return projected.role
+}
+
+/**
+ * The one admitted process-entry exception, and where it now lives.
+ *
+ * A coding adapter is a LIBRARY: it must not touch the process. Its `src/bin.ts`
+ * is the single exception, because a CLI entry point cannot be written without
+ * stdio, argv and signals -- and the exception is bounded to that one file so
+ * that "the adapter may use process" never becomes true.
+ *
+ * The exception used to be a per-file override block inside the member's own
+ * `eslint.config.js`. Task 3.4 deleted those files with the engine that read
+ * them, so the bound moved HERE, into the runner, where it is one declaration
+ * (`ADAPTER_BIN_OVERRIDE`) instead of one copy per adapter.
+ *
+ * Moving it was not optional and dropping it was not safe: with the override
+ * gone the adapters simply failed lint, and the tempting repair -- projecting
+ * the whole adapter onto the `adapter-bin` role -- would have relaxed all three
+ * restrictions across every file of the package. That is the broadening
+ * ADV-ROLE-003 exists to prevent, so the file is linted separately instead.
+ */
+export function adapterBinOverrideFor(rel, memberDir) {
+  if (!rel.startsWith(ADAPTER_BIN_OVERRIDE.prefix)) return undefined
+  const file = ADAPTER_BIN_OVERRIDE.files
+  if (!existsSync(path.join(memberDir, file))) return undefined
+  return { file, role: 'adapter-bin' }
 }
 
 /** The generated replacement config for a role. */
@@ -193,7 +218,7 @@ export function typedBackendEnv(base = process.env) {
 }
 
 /**
- * Both engines, in order, with neither able to mask the other.
+ * The member's own paths, under the role the policy projects for it.
  *
  * @param {{
  *   memberDir: string,
@@ -228,43 +253,51 @@ export function lintMember({
   // widen enforcement to files members deliberately exclude, and one that
   // hardcoded `src` would narrow it for members that lint more.
   //
-  // REPLACEMENT ONLY (task 3.3). The legacy engine has left the blocking path.
-  // It is still installed -- task 3.4 removes the implementation atomically --
-  // but it no longer decides whether a member passes, because the compiler
-  // cutover in 3.2 cannot land while an engine that refuses TypeScript 7 is
-  // still required to succeed.
-  //
-  // Nothing about POLICY changed. All 117 policies still block, through the
-  // generated config for this member's role, and the dual-engine parity corpus
-  // still proves the two engines agree on every one of them.
+  // Nothing about POLICY changed when the second engine went. All 117 policies
+  // still block, through the generated config for this member's role, and each
+  // one is still proved against a positive and a negative fixture by the shard
+  // conformance corpus.
   // --type-aware is not optional. Without it the typed policies silently do not
   // run and the engine exits 0, which is the one failure mode this contract
   // exists to prevent.
-  const replacementRun = execute(
-    oxlintBin,
-    // --format is pinned rather than inherited. The engine picks a different
-    // reporter when it detects a CI runner, and the typed-backend verdict below
-    // reads this output.
-    [
-      '--type-aware',
-      '--format=default',
-      '--tsconfig',
-      project,
-      '--config',
-      configForRole(role),
-      ...paths,
-    ],
-    memberDir,
-    typedBackendEnv(),
-  )
+  const override = adapterBinOverrideFor(rel, memberDir)
+
+  // --format is pinned rather than inherited. The engine picks a different
+  // reporter when it detects a CI runner, and the typed-backend verdict below
+  // reads this output.
+  const invoke = (configRole, targets, ignore) =>
+    execute(
+      oxlintBin,
+      [
+        '--type-aware',
+        '--format=default',
+        '--tsconfig',
+        project,
+        ...(ignore === undefined ? [] : ['--ignore-pattern', ignore]),
+        '--config',
+        configForRole(configRole),
+        ...targets,
+      ],
+      memberDir,
+      typedBackendEnv(),
+    )
+
+  // The member's declared paths under its own role, with the one exempt file
+  // held out -- then that file alone under the relaxed role. Two runs rather
+  // than one, because a single run can only carry a single role, and widening
+  // the role to cover the entry point would relax the whole package.
+  const runs = [invoke(role, paths, override?.file)]
+  if (override !== undefined) runs.push(invoke(override.role, [override.file]))
+
+  const output = runs.map((entry) => entry.output).join('')
   // A clean exit is not proof the typed half ran. If the output says the
   // backend did not start, the result is a FAILURE whatever the exit code said.
-  const replacement = typedAnalysisRan(replacementRun.output)
-    ? replacementRun
+  const replacement = typedAnalysisRan(output)
+    ? { ok: runs.every((entry) => entry.ok), output }
     : {
         ok: false,
         output:
-          `${replacementRun.output}\n` +
+          `${output}\n` +
           'the replacement engine reported that its typed backend did not start, so the ' +
           'type-aware policies were not enforced',
       }
@@ -272,6 +305,7 @@ export function lintMember({
   return {
     rel,
     role,
+    override,
     replacement,
     ok: replacement.ok,
   }
