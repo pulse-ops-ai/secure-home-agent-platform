@@ -25,6 +25,7 @@ must keep working cannot silently shrink between now and the cutover.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -101,116 +102,204 @@ def test_the_audit_corpus_covers_the_constructs_that_were_probed(
 
 
 # --- the compiler surface this scope must keep working ----------------------
+#
+# Frozen as EXACT IDENTITIES, never as counts. `len(tracked) >= 40` is satisfied
+# by a surface with one config deleted and another added, which is precisely the
+# substitution the audit exists to notice. A probe result that says "everything
+# passed" ages into a claim about whatever files happen to exist later; naming
+# them keeps it a claim about the files that were actually probed.
+
+EVIDENCE = json.loads((REPO / "tests" / "evidence" / "ts7-compatibility-audit.json").read_text())
+
+# Package FAMILIES, not exact names. TypeScript 7 exposes the traditional API
+# behind `typescript/unstable/*`, so a subpath import is a real consumer of the
+# normal compiler API and an exact-name check would not see it.
+NORMAL_COMPILER = "typescript"
+COMPATIBILITY_SEAM = "@typescript/typescript6"
 
 
-def test_the_compiler_surface_inventory_is_complete() -> None:
-    """3.1 freezes WHAT the cutover has to keep working.
+def _family(specifier: str, package: str) -> bool:
+    return specifier == package or specifier.startswith(f"{package}/")
 
-    Asserted as exact sets rather than counts: a config or command that
-    disappears would otherwise shrink the audited surface without failing.
-    """
-    tracked = subprocess.run(
-        ["git", "ls-files", "*tsconfig*.json"],
+
+def _tracked(pattern: str) -> list[str]:
+    return subprocess.run(
+        ["git", "ls-files", pattern],
         capture_output=True,
         text=True,
         cwd=REPO,
         check=True,
     ).stdout.split()
-    # Reusable role configs are EXTENDED, never compiled directly: `-p` against
-    # them reports TS18003 because `${configDir}/src` does not exist under
-    # packages/tsconfig. They are part of the surface, not of the probe set.
-    shared = {t for t in tracked if t.startswith("packages/tsconfig/")}
-    assert shared, "the shared role configs are missing"
-    assert len(tracked) >= 40, f"tsconfig surface shrank to {len(tracked)}"
 
-    manifests = subprocess.run(
-        ["git", "ls-files", "*package.json"],
-        capture_output=True,
-        text=True,
-        cwd=REPO,
-        check=True,
-    ).stdout.split()
-    compiler_commands = []
-    for rel in manifests:
-        scripts = json.loads((REPO / rel).read_text()).get("scripts", {})
-        for name, body in scripts.items():
+
+def _compiler_commands() -> dict[tuple[str, str], str]:
+    found = {}
+    for rel in _tracked("*package.json"):
+        for name, body in json.loads((REPO / rel).read_text()).get("scripts", {}).items():
             if re.search(r"\btsc\b", body):
-                compiler_commands.append((rel, name))
-    assert len(compiler_commands) >= 30, (
-        f"compiler command surface shrank to {len(compiler_commands)}"
+                found[(rel, name)] = body
+    return found
+
+
+def test_the_tsconfig_surface_is_exactly_the_audited_set() -> None:
+    frozen = set(EVIDENCE["surface"]["tsconfigs"])
+    current = set(_tracked("*tsconfig*.json"))
+    assert current == frozen, (
+        f"added={sorted(current - frozen)} removed={sorted(frozen - current)} — "
+        "the audited compiler surface moved; re-run the 3.1 probe"
     )
 
-    generators = {rel for rel, name in compiler_commands if name.startswith("generate")}
-    assert generators == {
-        "packages/contracts/package.json",
-        "packages/events/package.json",
-    }, f"generator surface changed: {sorted(generators)}"
+
+def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
+    """Identity AND body: a script kept by name but repointed is a substitution."""
+    frozen = {
+        (c["manifest"], c["script"]): c["body"] for c in EVIDENCE["surface"]["compilerCommands"]
+    }
+    current = _compiler_commands()
+    assert set(current) == set(frozen), (
+        f"added={sorted(set(current) - set(frozen))} removed={sorted(set(frozen) - set(current))}"
+    )
+    changed = {k for k in frozen if current[k] != frozen[k]}
+    assert not changed, f"compiler command bodies changed: {sorted(changed)}"
+
+
+def test_the_compiler_options_are_exactly_the_audited_set() -> None:
+    frozen = set(EVIDENCE["surface"]["compilerOptions"])
+    current: set[str] = set()
+    for rel in _tracked("*tsconfig*.json"):
+        text = re.sub(r"/\*[\s\S]*?\*/", "", (REPO / rel).read_text())
+        text = re.sub(r"^\s*//.*$", "", text, flags=re.M)
+        try:
+            current |= set(json.loads(text).get("compilerOptions", {}))
+        except json.JSONDecodeError:
+            continue
+    assert current == frozen, (
+        f"added={sorted(current - frozen)} removed={sorted(frozen - current)} — "
+        "an option the cutover must keep working entered or left the surface"
+    )
+
+
+def test_the_generator_commands_are_exactly_the_audited_identities() -> None:
+    frozen = {(g["manifest"], g["script"]) for g in EVIDENCE["surface"]["generatorCommands"]}
+    current = {k for k in _compiler_commands() if k[1].startswith("generate")}
+    assert current == frozen, f"generator surface changed: {sorted(current)}"
 
 
 def test_the_traditional_compiler_api_has_exactly_one_consumer() -> None:
-    """The seam stays a singleton across the cutover.
+    """The seam stays a singleton, matched by package FAMILY.
 
     TypeScript 7's package main exports only `version`/`versionMajorMinor`; the
-    traditional API it needs is not there. That is why the bounded seam is
-    retained by the accepted Scope-2 completion definition rather than retired.
+    traditional API it needs is behind `./unstable/*`. Matching exact names only
+    would let `typescript/unstable/sync` become a direct compiler-API consumer
+    without being seen.
     """
     report = _report(REPO)
-    consumers = sorted(
-        name for name, sites in report.items() if "@typescript/typescript6" in sites["specifiers"]
+    seam = sorted(
+        name
+        for name, sites in report.items()
+        if any(_family(s, COMPATIBILITY_SEAM) for s in sites["specifiers"])
     )
-    assert consumers == ["scripts/check-source-imports.mjs"], consumers
+    assert seam == ["scripts/check-source-imports.mjs"], seam
 
-    direct = sorted(name for name, sites in report.items() if "typescript" in sites["specifiers"])
-    assert direct == [], f"direct TypeScript API consumers exist: {direct}"
-
-
-# --- the fail-closed half ----------------------------------------------------
-#
-# Across eighteen probed TypeScript 7 constructs, the TypeScript 6 parser
-# accepted every one that TypeScript 7 accepted, so no fixture in the corpus
-# exercises the "refused" branch of the invariant. That branch still has to be
-# real: the property is "extracted OR refused", and an OR whose second arm is
-# never exercised is half a proof. These prove the refusal mechanism directly.
-
-
-def test_an_unparseable_governed_edge_is_refused_not_skipped(tmp_path: Path) -> None:
-    """A file the parser cannot read must fail the gate, never be passed over.
-
-    The subject is placed inside a real workspace member, because the gate
-    governs members: pointed at a bare directory it reports "0 source files
-    across 0 workspace members" and exits 0, which would make this pass without
-    the refusal ever being reached.
-    """
-    subject = tmp_path / "broken.ts"
-    subject.write_text("import { x } from '@secure-home/contracts'\nexport const v = (\n")
-    assert _report(tmp_path)["broken.ts"]["syntaxErrors"], (
-        "the parser reported no syntax error for an unparseable file, so the "
-        "gate would treat it as simply having no imports"
+    direct = sorted(
+        name
+        for name, sites in report.items()
+        if any(
+            _family(s, NORMAL_COMPILER) and not _family(s, COMPATIBILITY_SEAM)
+            for s in sites["specifiers"]
+        )
     )
+    assert direct == [], f"direct normal-compiler API consumers exist: {direct}"
 
-    planted = REPO / "packages" / "errors" / "src" / "ts7-audit-unparseable.ts"
-    planted.write_text("import { x } from '@secure-home/contracts'\nexport const v = (\n")
+
+@pytest.mark.parametrize(
+    ("label", "specifier"),
+    [
+        ("a TypeScript 7 unstable subpath", "typescript/unstable/sync"),
+        ("the normal compiler package", "typescript"),
+        ("a compatibility-seam subpath", "@typescript/typescript6/lib/typescript.js"),
+        ("the compatibility seam itself", "@typescript/typescript6"),
+    ],
+)
+def test_an_unadmitted_compiler_api_consumer_is_detected(label: str, specifier: str) -> None:
+    """Placed in a real member, since that is where the gate governs."""
+    planted = REPO / "packages" / "errors" / "src" / "ts7-audit-consumer.ts"
+    planted.write_text(f"import * as api from '{specifier}'\nexport const v = api\n")
     try:
-        gate = subprocess.run(["node", str(GATE)], capture_output=True, text=True, cwd=REPO)
+        report = _report(REPO)
+        rel = "packages/errors/src/ts7-audit-consumer.ts"
+        assert rel in report, f"{label}: the planted consumer was not inventoried"
+        seen = report[rel]["specifiers"]
+        assert specifier in seen, f"{label}: specifier not extracted, got {seen}"
+        assert _family(specifier, NORMAL_COMPILER) or _family(specifier, COMPATIBILITY_SEAM), (
+            f"{label}: the family match does not classify {specifier}"
+        )
     finally:
         planted.unlink()
-    assert gate.returncode != 0, "the gate accepted a file it could not parse"
-    assert "cannot be parsed" in gate.stdout + gate.stderr
     assert not planted.exists()
 
 
-def test_the_probe_result_is_recorded_not_assumed() -> None:
-    """Freeze the audit's actual finding about parser divergence.
+# --- the frozen TypeScript 7.0.2 probe --------------------------------------
 
-    If a future TypeScript 6 or 7 revision makes one of these constructs
-    diverge, this corpus starts reporting a syntax error instead of an edge --
-    which the invariant above then turns into a refusal rather than a silent
-    miss. Recording the current answer keeps that change visible.
-    """
-    report = _report(FIXTURES)
-    diverged = {name for name, sites in report.items() if sites["syntaxErrors"]}
-    assert diverged == set(), (
-        "TypeScript 6 now refuses constructs TypeScript 7 accepts: "
-        f"{sorted(diverged)}. That is fail-closed, not a silent miss, but the "
-        "audit finding has changed and task 3.5 must re-prove the seam"
+
+def test_the_probe_records_the_exact_compiler_version() -> None:
+    assert EVIDENCE["probe"]["version"] == "7.0.2"
+    assert EVIDENCE["probe"]["compiler"] == "typescript"
+
+
+def test_typescript_7_is_not_in_the_repository_dependency_graph() -> None:
+    """3.1 audits; it does not adopt. Task 3.2 moves the pin."""
+    catalog = (REPO / "pnpm-workspace.yaml").read_text()
+    assert re.search(r"^  typescript: 6\.0\.3$", catalog, re.M), (
+        "the normal compiler pin moved during the audit task"
     )
+
+
+def test_the_probed_member_configs_still_exist_exactly() -> None:
+    frozen = set(EVIDENCE["probeResults"]["memberTsconfigsTypechecked"])
+    tracked = set(_tracked("*tsconfig*.json"))
+    assert frozen <= tracked, f"probed configs no longer tracked: {sorted(frozen - tracked)}"
+    current = {
+        t
+        for t in tracked
+        if t.endswith("/tsconfig.json")
+        and not t.startswith("packages/tsconfig/")
+        and "tests/fixtures" not in t
+        and "lint-subject" not in t
+    }
+    assert current == frozen, (
+        f"the member set the probe covered changed: added={sorted(current - frozen)} "
+        f"removed={sorted(frozen - current)}"
+    )
+
+
+def test_the_probed_build_configs_still_exist_exactly() -> None:
+    frozen = set(EVIDENCE["probeResults"]["buildTsconfigsEmitted"])
+    current = {t for t in _tracked("*tsconfig*.json") if t.endswith("tsconfig.build.json")}
+    assert current == frozen, f"added={sorted(current - frozen)} removed={sorted(frozen - current)}"
+
+
+def test_the_probed_generators_still_exist_exactly() -> None:
+    frozen = {(g["manifest"], g["script"]) for g in EVIDENCE["probeResults"]["generatorsCompiled"]}
+    current = {k for k in _compiler_commands() if k[1].startswith("generate")}
+    assert current == frozen
+
+
+def test_the_probed_fixture_bytes_are_unchanged() -> None:
+    """The probe accepted THESE bytes. Editing a fixture silently re-points it."""
+    frozen = EVIDENCE["probeResults"]["ts7LanguageFixtures"]
+    current = {
+        f.name: hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(FIXTURES.glob("*.ts"))
+    }
+    assert current == frozen, (
+        "TypeScript 7 language fixtures changed after the probe accepted them; "
+        "re-run the 3.1 probe and update the frozen evidence together"
+    )
+
+
+def test_every_probe_disposition_is_recorded() -> None:
+    """The two probe artefacts and the API-shape finding stay written down."""
+    subjects = " ".join(d["subject"] for d in EVIDENCE["dispositions"])
+    assert "packages/tsconfig/" in subjects
+    assert "apps/web" in subjects
+    assert "typescript@7.0.2" in subjects
