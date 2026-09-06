@@ -141,13 +141,126 @@ def _compiler_commands() -> dict[tuple[str, str], str]:
     return found
 
 
-def test_the_tsconfig_surface_is_exactly_the_audited_set() -> None:
-    frozen = set(EVIDENCE["surface"]["tsconfigs"])
-    current = set(_tracked("*tsconfig*.json"))
+VALID_DISPOSITIONS = {
+    "TS7_TYPECHECK_PASS",
+    "TS7_EMIT_PASS",
+    "TS7_CONFIG_PARSE_PASS",
+    "COVERED_TRANSITIVELY_BY_PROBED_CONFIG",
+    "RETIRED_BEFORE_TS7_CUTOVER",
+}
+
+
+def _compiler_config_surface() -> set[str]:
+    """The compiler-config surface, built semantically.
+
+    A glob like `*tsconfig*.json` matches on the whole path, so
+    `packages/tsconfig/package.json` was being counted as a TypeScript config
+    because of its DIRECTORY name. It is a package manifest; the compiler-command
+    inventory governs it. The surface is instead: tracked files whose BASENAME is
+    `tsconfig*.json`, plus the shared config JSONs `packages/tsconfig` exports.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files"], capture_output=True, text=True, cwd=REPO, check=True
+    ).stdout.split()
+    by_basename = {
+        t for t in tracked if Path(t).name.startswith("tsconfig") and t.endswith(".json")
+    }
+    exports = json.loads((REPO / "packages" / "tsconfig" / "package.json").read_text())["exports"]
+    shared = {"packages/tsconfig/" + v.lstrip("./") for v in exports.values()}
+    return by_basename | shared
+
+
+def test_the_compiler_config_surface_is_exactly_the_audited_set() -> None:
+    frozen = set(EVIDENCE["surface"]["compilerConfigs"])
+    current = _compiler_config_surface()
     assert current == frozen, (
         f"added={sorted(current - frozen)} removed={sorted(frozen - current)} — "
         "the audited compiler surface moved; re-run the 3.1 probe"
     )
+
+
+def test_a_package_manifest_is_not_a_compiler_config() -> None:
+    """The enumeration must be semantic, not a directory-name coincidence."""
+    surface = _compiler_config_surface()
+    assert "packages/tsconfig/package.json" not in surface
+    assert set(EVIDENCE["surface"]["compilerConfigs"]).isdisjoint(
+        {"packages/tsconfig/package.json"}
+    )
+    # It is still governed — as a compiler COMMAND, which is where it belongs.
+    commands = {manifest for manifest, _ in _compiler_commands()}
+    assert "packages/tsconfig/package.json" in commands
+
+
+def test_every_frozen_config_has_exactly_one_disposition() -> None:
+    """THE COMPLETENESS RULE.
+
+    3.1 completes only when no used compiler surface is untested. A config in the
+    frozen surface with no recorded disposition is precisely an untested surface
+    that looks audited because it appears in the inventory.
+    """
+    surface = set(EVIDENCE["surface"]["compilerConfigs"])
+    dispositions = EVIDENCE["configDispositions"]
+
+    undispositioned = sorted(surface - set(dispositions))
+    assert not undispositioned, f"frozen configs with no coverage disposition: {undispositioned}"
+    orphaned = sorted(set(dispositions) - surface)
+    assert not orphaned, f"dispositions for configs not in the surface: {orphaned}"
+
+    for path, record in sorted(dispositions.items()):
+        assert record["disposition"] in VALID_DISPOSITIONS, (
+            f"{path}: unknown disposition {record['disposition']}"
+        )
+        assert record.get("reason", "").strip(), f"{path}: disposition has no reason"
+
+
+def test_the_live_compiler_input_of_the_config_package_is_probed() -> None:
+    """`packages/tsconfig` runs `tsc --noEmit`, which consumes its own tsconfig.
+
+    That file was in the frozen surface but absent from the probe set — an
+    inventory entry standing in for evidence.
+    """
+    commands = _compiler_commands()
+    assert ("packages/tsconfig/package.json", "typecheck") in commands
+    record = EVIDENCE["configDispositions"]["packages/tsconfig/tsconfig.json"]
+    assert record["disposition"] == "TS7_TYPECHECK_PASS"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "packages/tsconfig/base.json",
+        "packages/tsconfig/test.json",
+        "packages/tsconfig/tsconfig.json",
+        "packages/eslint-config/tests/fixtures/tsconfig.json",
+        "packages/lint-config/tests/fixtures/tsconfig.json",
+        "packages/lint-config/tests/lint-subject/tsconfig.json",
+    ],
+)
+def test_each_named_config_is_explicitly_resolved(config: str) -> None:
+    record = EVIDENCE["configDispositions"][config]
+    assert record["disposition"] in VALID_DISPOSITIONS
+
+
+def test_a_surviving_lint_fixture_config_carries_compatibility_evidence() -> None:
+    """Only a config the sequencing RETIRES may skip TypeScript 7 evidence.
+
+    `packages/eslint-config/**` is removed by 3.4, which precedes 3.2, so its
+    fixture config never meets TypeScript 7. The lint-config fixture configs
+    survive the cutover, so retirement is not available to them.
+    """
+    dispositions = EVIDENCE["configDispositions"]
+    assert (
+        dispositions["packages/eslint-config/tests/fixtures/tsconfig.json"]["disposition"]
+        == "RETIRED_BEFORE_TS7_CUTOVER"
+    )
+    for surviving in (
+        "packages/lint-config/tests/fixtures/tsconfig.json",
+        "packages/lint-config/tests/lint-subject/tsconfig.json",
+    ):
+        assert dispositions[surviving]["disposition"] != "RETIRED_BEFORE_TS7_CUTOVER", (
+            f"{surviving} survives the cutover and cannot be dispositioned as retired"
+        )
+        assert dispositions[surviving]["disposition"].startswith("TS7_")
 
 
 def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
@@ -166,7 +279,7 @@ def test_the_compiler_commands_are_exactly_the_audited_identities() -> None:
 def test_the_compiler_options_are_exactly_the_audited_set() -> None:
     frozen = set(EVIDENCE["surface"]["compilerOptions"])
     current: set[str] = set()
-    for rel in _tracked("*tsconfig*.json"):
+    for rel in sorted(_compiler_config_surface()):
         text = re.sub(r"/\*[\s\S]*?\*/", "", (REPO / rel).read_text())
         text = re.sub(r"^\s*//.*$", "", text, flags=re.M)
         try:
@@ -257,7 +370,7 @@ def test_typescript_7_is_not_in_the_repository_dependency_graph() -> None:
 
 def test_the_probed_member_configs_still_exist_exactly() -> None:
     frozen = set(EVIDENCE["probeResults"]["memberTsconfigsTypechecked"])
-    tracked = set(_tracked("*tsconfig*.json"))
+    tracked = _compiler_config_surface()
     assert frozen <= tracked, f"probed configs no longer tracked: {sorted(frozen - tracked)}"
     current = {
         t
@@ -275,7 +388,7 @@ def test_the_probed_member_configs_still_exist_exactly() -> None:
 
 def test_the_probed_build_configs_still_exist_exactly() -> None:
     frozen = set(EVIDENCE["probeResults"]["buildTsconfigsEmitted"])
-    current = {t for t in _tracked("*tsconfig*.json") if t.endswith("tsconfig.build.json")}
+    current = {t for t in _compiler_config_surface() if t.endswith("tsconfig.build.json")}
     assert current == frozen, f"added={sorted(current - frozen)} removed={sorted(frozen - current)}"
 
 

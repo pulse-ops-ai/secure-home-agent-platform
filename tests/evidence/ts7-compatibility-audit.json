@@ -9,52 +9,6 @@
     "note": "A ONE-TIME isolated probe, recorded so its identity and result survive. It is not re-executed by ordinary CI: TypeScript 7 is not in the repository dependency graph until task 3.2, which installs it through the normal path and re-proves these results. Until then this file says exactly WHICH files the successful probe covered, so it cannot later be read as evidence for different ones."
   },
   "surface": {
-    "tsconfigs": [
-      "agents/adapters/coding/claude-code/tsconfig.build.json",
-      "agents/adapters/coding/claude-code/tsconfig.json",
-      "agents/adapters/coding/copilot-cli/tsconfig.build.json",
-      "agents/adapters/coding/copilot-cli/tsconfig.json",
-      "apps/web/tsconfig.build.json",
-      "apps/web/tsconfig.json",
-      "packages/api-contracts/tsconfig.build.json",
-      "packages/api-contracts/tsconfig.json",
-      "packages/contracts/tsconfig.build.json",
-      "packages/contracts/tsconfig.json",
-      "packages/errors/tsconfig.build.json",
-      "packages/errors/tsconfig.json",
-      "packages/eslint-config/tests/fixtures/tsconfig.json",
-      "packages/eslint-config/tsconfig.json",
-      "packages/events/tsconfig.build.json",
-      "packages/events/tsconfig.json",
-      "packages/knowledge-toolchain/tsconfig.build.json",
-      "packages/knowledge-toolchain/tsconfig.json",
-      "packages/lint-config/tests/fixtures/tsconfig.json",
-      "packages/lint-config/tests/lint-subject/tsconfig.json",
-      "packages/lint-config/tsconfig.json",
-      "packages/logging/tsconfig.build.json",
-      "packages/logging/tsconfig.json",
-      "packages/observability/tsconfig.build.json",
-      "packages/observability/tsconfig.json",
-      "packages/query-model/tsconfig.build.json",
-      "packages/query-model/tsconfig.json",
-      "packages/runner-core/tsconfig.build.json",
-      "packages/runner-core/tsconfig.json",
-      "packages/testing/tsconfig.build.json",
-      "packages/testing/tsconfig.json",
-      "packages/tsconfig/application.json",
-      "packages/tsconfig/base.json",
-      "packages/tsconfig/library.json",
-      "packages/tsconfig/package.json",
-      "packages/tsconfig/service.json",
-      "packages/tsconfig/test.json",
-      "packages/tsconfig/tsconfig.json",
-      "packages/worker-base/tsconfig.build.json",
-      "packages/worker-base/tsconfig.json",
-      "services/control-plane/tsconfig.build.json",
-      "services/control-plane/tsconfig.json",
-      "services/runner-control/tsconfig.build.json",
-      "services/runner-control/tsconfig.json"
-    ],
     "compilerOptions": [
       "allowJs",
       "composite",
@@ -282,7 +236,53 @@
         "manifest": "packages/events/package.json",
         "script": "generate"
       }
-    ]
+    ],
+    "compilerConfigs": [
+      "agents/adapters/coding/claude-code/tsconfig.build.json",
+      "agents/adapters/coding/claude-code/tsconfig.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.build.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.json",
+      "apps/web/tsconfig.build.json",
+      "apps/web/tsconfig.json",
+      "packages/api-contracts/tsconfig.build.json",
+      "packages/api-contracts/tsconfig.json",
+      "packages/contracts/tsconfig.build.json",
+      "packages/contracts/tsconfig.json",
+      "packages/errors/tsconfig.build.json",
+      "packages/errors/tsconfig.json",
+      "packages/eslint-config/tests/fixtures/tsconfig.json",
+      "packages/eslint-config/tsconfig.json",
+      "packages/events/tsconfig.build.json",
+      "packages/events/tsconfig.json",
+      "packages/knowledge-toolchain/tsconfig.build.json",
+      "packages/knowledge-toolchain/tsconfig.json",
+      "packages/lint-config/tests/fixtures/tsconfig.json",
+      "packages/lint-config/tests/lint-subject/tsconfig.json",
+      "packages/lint-config/tsconfig.json",
+      "packages/logging/tsconfig.build.json",
+      "packages/logging/tsconfig.json",
+      "packages/observability/tsconfig.build.json",
+      "packages/observability/tsconfig.json",
+      "packages/query-model/tsconfig.build.json",
+      "packages/query-model/tsconfig.json",
+      "packages/runner-core/tsconfig.build.json",
+      "packages/runner-core/tsconfig.json",
+      "packages/testing/tsconfig.build.json",
+      "packages/testing/tsconfig.json",
+      "packages/tsconfig/application.json",
+      "packages/tsconfig/base.json",
+      "packages/tsconfig/library.json",
+      "packages/tsconfig/service.json",
+      "packages/tsconfig/test.json",
+      "packages/tsconfig/tsconfig.json",
+      "packages/worker-base/tsconfig.build.json",
+      "packages/worker-base/tsconfig.json",
+      "services/control-plane/tsconfig.build.json",
+      "services/control-plane/tsconfig.json",
+      "services/runner-control/tsconfig.build.json",
+      "services/runner-control/tsconfig.json"
+    ],
+    "compilerConfigSurfaceRule": "Tracked files whose BASENAME is tsconfig*.json, plus the shared compiler-config JSON files packages/tsconfig exports. packages/tsconfig/package.json is excluded: it is a package manifest, and a glob matching on directory name turned it into a tsconfig. It remains governed by the compiler-command inventory."
   },
   "probeResults": {
     "memberTsconfigsTypechecked": [
@@ -361,5 +361,179 @@
       "disposition": "traditional API absent from the main export",
       "reason": "The main export resolves to lib/version.cjs and carries only version and versionMajorMinor; the traditional API lives behind ./unstable/* subpaths. The architecture import gate needs that traditional API, which is why the accepted completion definition RETAINS the bounded @typescript/typescript6 seam rather than retiring it."
     }
-  ]
+  ],
+  "configDispositions": {
+    "agents/adapters/coding/claude-code/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "agents/adapters/coding/claude-code/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "agents/adapters/coding/copilot-cli/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "agents/adapters/coding/copilot-cli/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "apps/web/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "apps/web/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/api-contracts/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/api-contracts/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/contracts/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/contracts/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/errors/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/errors/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/eslint-config/tests/fixtures/tsconfig.json": {
+      "disposition": "RETIRED_BEFORE_TS7_CUTOVER",
+      "reason": "Belongs to packages/eslint-config, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config cannot survive to meet TypeScript 7 -- proved by tests/test_openspec_scope2_sequence.py, not asserted here."
+    },
+    "packages/eslint-config/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/events/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/events/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/knowledge-toolchain/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/knowledge-toolchain/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/lint-config/tests/fixtures/tsconfig.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "Roots the deliberately-invalid conformance corpus. Typechecking it reports the fixtures' intended diagnostics, which are evidence the corpus works -- not a TS7 incompatibility. --showConfig succeeds under 7.0.2. This config SURVIVES the cutover, so it carries compatibility evidence rather than a retirement disposition."
+    },
+    "packages/lint-config/tests/lint-subject/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "Its subject compiles cleanly under 7.0.2; probed directly."
+    },
+    "packages/lint-config/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/logging/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/logging/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/observability/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/observability/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/query-model/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/query-model/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/runner-core/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/runner-core/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/testing/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/testing/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "packages/tsconfig/application.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+    },
+    "packages/tsconfig/base.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+    },
+    "packages/tsconfig/library.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+    },
+    "packages/tsconfig/service.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+    },
+    "packages/tsconfig/test.json": {
+      "disposition": "TS7_CONFIG_PARSE_PASS",
+      "reason": "A reusable role config, extended by members and never compiled standalone. `-p` against it reports TS18003 (no inputs) or picks up files it was never meant to own, so config-level parse is the compatible subject: --showConfig succeeds under 7.0.2. Its option semantics reach the compiler through the members that extend it, every one of which is TS7_TYPECHECK_PASS."
+    },
+    "packages/tsconfig/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "A LIVE compiler input, not a bystander: packages/tsconfig/package.json declares `typecheck: tsc --noEmit`, which implicitly consumes this file. It was missing from the probe set and is now probed directly."
+    },
+    "packages/worker-base/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "packages/worker-base/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "services/control-plane/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "services/control-plane/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    },
+    "services/runner-control/tsconfig.build.json": {
+      "disposition": "TS7_EMIT_PASS",
+      "reason": "tsc -p emitted under the isolated 7.0.2 probe"
+    },
+    "services/runner-control/tsconfig.json": {
+      "disposition": "TS7_TYPECHECK_PASS",
+      "reason": "tsc --noEmit -p under the isolated 7.0.2 probe"
+    }
+  }
 }
