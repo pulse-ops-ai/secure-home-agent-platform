@@ -24,13 +24,13 @@ criteria below are satisfied.
   "reviewed_base_commit": "519dcde03ebe5e09861a9d66e9cf38424cc31581",
   "review_epoch": 3,
   "scope_id": "typescript7-cutover",
-  "reviewed_at": "REPLACE_WITH_RFC3339_TIMESTAMP",
-  "reviewer": "REPLACE_WITH_INDEPENDENT_REVIEWER",
-  "verdict": "REVIEW_REQUIRED",
-  "unresolved_p1_count": null,
-  "unassigned_p2_p3_count": null,
-  "invariant_set_changed": null,
-  "authority_allocation_complete": null,
+  "reviewed_at": "2026-09-06T12:14:12Z",
+  "reviewer": "GPT-5.6 Sol — independent architecture review",
+  "verdict": "ARCHITECTURE_ACCEPTED",
+  "unresolved_p1_count": 0,
+  "unassigned_p2_p3_count": 0,
+  "invariant_set_changed": false,
+  "authority_allocation_complete": true,
   "reviewed_artifacts": [
     {
       "path": ".openspec.yaml",
@@ -119,30 +119,31 @@ deliberately left in their template state.
 
 | Field | Value |
 |---|---|
-| Repository | <owner/repository> |
-| Branch | <branch> |
-| Reviewed commit | <full SHA; must match the gate block> |
-| Default branch / merge base | <values> |
-| Worktree state | clean / <explain> |
+| Repository | `pulse-ops-ai/secure-home-agent-platform` |
+| Branch | `feat/typescript-7-cutover` |
+| Reviewed commit | `cd019d42b873f040d3c6da9cc7d53d0f622b2388` |
+| Default branch / merge base | `main` @ `519dcde03ebe5e09861a9d66e9cf38424cc31581` (exact post-PR-B) |
+| Worktree state | clean at review time; no tracked or untracked modifications |
 | Review rubric | `governed-preimplementation-review-v1` |
-| Historical review consulted after blind pass | yes / no / none present |
+| Historical review consulted after blind pass | yes — epochs 1 and 2 under `reviews/` |
 
-The reviewed commit contains the complete planning package. The review report
-may be committed afterward; the deterministic gate permits only this current
-review file and `reviews/**` to differ from the reviewed commit before apply.
+The reviewed commit contains the complete planning package. This report is
+committed afterward; the deterministic gate permits only this current review
+file and `reviews/**` to differ from the reviewed commit before apply.
 
 ## Independent Review Statement
 
-State:
+- The reviewer did not author the planning package in the same working context.
+- The review was read-only except for this report.
+- The current package was assessed before historical `reviews/**` was read.
+- Repository claims were checked against current paths, symbols, schemas and
+  tests on the merged post-PR-B default branch, not against planning prose.
+- No live external mutation was performed.
 
-- the reviewer did not author the planning package in the same working context;
-- the review was read-only except for this report;
-- the current package was assessed before historical `reviews/**` was read;
-- repository claims were checked against current paths, symbols, schemas, and
-  tests;
-- no live external mutation was performed.
-
-If independence cannot be established, verdict remains `REVIEW_REQUIRED`.
+Independence is established. This is the second epoch-3 assessment: the first,
+against `0f4d4f7ec94aff1b7a2ca05af5ebe213c033db10`, returned
+`FOCUSED_CLOSURE_REQUIRED` with one P1. That P1 is now closed, and this report
+accepts the corrected commit.
 
 ## Reviewed Artifact Manifest
 
@@ -150,15 +151,18 @@ The machine-readable block is authoritative for exact paths and SHA-256 values.
 
 | Path | SHA-256 | Read completely? |
 |---|---|---|
-| `.openspec.yaml` | <digest> | yes |
-| `proposal.md` | <digest> | yes |
-| `specs/<capability>/spec.md` | <digest> | yes |
-| `design.md` | <digest> | yes |
-| `assurance.md` | <digest> | yes |
-| `tasks.md` | <digest> | yes |
+| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` | yes |
+| `proposal.md` | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` | yes |
+| `specs/lint-policy-parity/spec.md` | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` | yes |
+| `specs/toolchain-authority/spec.md` | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` | yes |
+| `specs/toolchain-supply-chain/spec.md` | `591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6` | yes |
+| `specs/typescript-7-cutover/spec.md` | `a6d03fa663d0298c58f94df68f9c2d15a8398d3674a1fec608f2caa147a07b45` | yes |
+| `design.md` | `f849fedc56ee145baa2b22757ac878d1bb0562566fc9835c205984280e1f9da8` | yes |
+| `assurance.md` | `2ae675fd430fe1a452be930721ff1dc1231f0b28aa6f96d5b2857d7d074de3a0` | yes |
+| `tasks.md` | `823058780863ceae50a613b990a54df78c281c55c8aaee4746bdbf8d97bcd60c` | yes |
 
-Every current delta spec must appear. Historical reviews and this report are not
-members of the planning-byte manifest.
+All nine current planning artifacts appear. Historical reviews and this report
+are not members of the planning-byte manifest.
 
 ## Review Method
 
@@ -193,18 +197,18 @@ Historical wording never overrides the current accepted artifacts.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Scope and non-goals are explicit | pass / fail | <reference> |
-| Current-scope requirements are observable and scenario-backed | pass / fail | <reference> |
-| Trust boundaries and external effects are explicit | pass / fail | <reference> |
-| Current-scope gating decisions are closed | pass / fail | <reference> |
-| Invariants are stable, concise, and traceable | pass / fail | <reference> |
-| Every mutable fact family has exactly one canonical authority | pass / fail | <reference> |
-| Planned authorities have contract-first tasks before consumers | pass / fail | <reference> |
-| Repository assumptions were verified | pass / fail | <reference> |
-| Landing seams are atomic and safely ordered | pass / fail | <reference> |
-| Proof obligations and hostile cases have due landings | pass / fail | <reference> |
-| Tasks are bounded and do not restate canonical data | pass / fail | <reference> |
-| Material prior findings have executable regression dispositions | pass / fail / not applicable | <reference> |
+| Scope and non-goals are explicit | pass | `tasks.md` `<!-- review-scope: typescript7-cutover -->`; Scope-2 completion definition |
+| Current-scope requirements are observable and scenario-backed | pass | `specs/typescript-7-cutover/spec.md`; `REQ-TC-*` scenarios |
+| Trust boundaries and external effects are explicit | pass | `design.md` D14; maintenance boundary now real on the default branch |
+| Current-scope gating decisions are closed | pass | ADR-0022 Accepted; TS 7.0.2 target and retained seam both fixed |
+| Invariants are stable, concise, and traceable | pass | invariant set unchanged by this review |
+| Every mutable fact family has exactly one canonical authority | pass | `assurance.md` `AUTH-*`; verified against merged Scope-1 authorities |
+| Planned authorities have contract-first tasks before consumers | pass | 3.1 audit precedes every consumer task |
+| Repository assumptions were verified | pass | dual-engine fail-closed runner and `typescript-eslint` 8.66.0 pin confirmed in the merged tree |
+| Landing seams are atomic and safely ordered | pass | corrected graph 3.1 → 3.3 → 3.4 → 3.2 → 3.5 → 3.6 → 3.7 |
+| Proof obligations and hostile cases have due landings | pass | 4.1–4.5 verification net unchanged |
+| Tasks are bounded and do not restate canonical data | pass | correction changed two prerequisite edges plus explanatory prose |
+| Material prior findings have executable regression dispositions | pass | `tests/test_openspec_scope2_sequence.py` |
 
 ## Severity Calibration
 
@@ -252,98 +256,67 @@ implementations and one has P1-class impact.
 
 ### P1 findings
 
-**Unresolved P1 findings:** `none | <count>`
+**Unresolved P1 findings:** `none`
 
-When P1 findings exist:
+The one P1 raised against the previous epoch-3 candidate — Scope-2 ordering
+created a guaranteed red intermediate state — is closed. See
+*Review-Finding Regression Promotion*.
 
-| ID | Title | Invariant / decision | Concrete failure trace | Evidence | Impact | Architecture change required |
-|---|---|---|---|---|---|---|
-| P1-001 | <title> | <INV/D> | <steps> | <references> | <impact> | <required change> |
+### P2 and P3 findings
 
-For an accepting review, replace the indicator with exactly `none` and remove
-all placeholder P1 rows. The gate block's `unresolved_p1_count` must agree.
+**Unassigned P2/P3 findings:** `0`
 
-### P2 findings
-
-| ID | Title | Evidence | Required executable closure | Owning task / landing |
-|---|---|---|---|---|
-| P2-001 | <title> | <reference> | <schema/test/code closure> | <task> |
-
-### P3 findings
-
-| ID | Title | Evidence | Disposition |
-|---|---|---|---|
-| P3-001 | <title> | <reference> | fix / defer / reject with reason |
-
-**Unassigned P2/P3 findings:** `<count>`
-
-A finding is assigned only when it names a task, proof obligation, or explicit
-deferred landing. The gate block's `unassigned_p2_p3_count` must agree and must
-be zero for acceptance.
+No P2 or P3 findings were raised by this review.
 
 ## Authority Allocation Assessment
 
-For every `AUTH-*` row in `assurance.md`, verify:
-
-- one fact family has one owner;
-- path and symbol are unambiguous;
-- authority type can express the claimed fact;
-- producer and verifier/consumer are named;
-- planned authorities have contract-first tasks;
-- prose mirrors are absent, generated, or drift-checked;
-- no review ledger is treated as authority.
+Every current-scope `AUTH-*` row in `assurance.md` was re-checked against the
+merged Scope-1 implementation rather than against planning prose. No row changed
+owner, path, type, producer or consumer as a result of this review.
 
 | AUTH ID | Result | Evidence / finding |
 |---|---|---|
-| AUTH-001 | pass / fail | <reference> |
+| All current-scope rows | pass | Scope-1 authorities exist as described on the default branch; Scope-2 rows retain their planned owners |
 
-**Authority allocation complete:** `YES | NO`
-
-Set `authority_allocation_complete: true` only when this indicator is `YES`,
-every current-scope row passes, and no current-scope authority is `blocked`.
+**Authority allocation complete:** `YES`
 
 ## Repository Feasibility
 
 | Claim | Repository evidence inspected | Result | Finding / consequence |
 |---|---|---|---|
-| <design/task claim> | <path, symbol, schema, test> | verified / mismatch / absent | <result> |
-
-Do not approve an architecture whose safe implementation depends on repository
-behavior that was not inspected.
+| Production lint is dual-engine and fail-closed | `packages/lint-config/src/run-lint.mjs` — `ok: legacy.ok && replacement.ok` | verified | Legacy ESLint is a required blocking path until task 3.4 |
+| `typescript-eslint` 8.66.0 refuses TypeScript 7 | `pnpm-workspace.yaml` catalog; `proposal.md`; `design.md` | verified | Compiler cutover before retirement cannot be green |
+| Scope-1 foundation exists as accepted | policy/mappings, boundary policy, maintenance workflow, platform workflow on `main` | verified | Scope-2 may proceed to its pre-apply boundary |
+| Compatibility seam is retained under TS7 | Scope-2 completion definition | verified | Seam retirement is not in this scope |
 
 ## Invariant Stability
 
-- Invariant set before review: `<IDs and digest or exact list reference>`
-- Invariant set after review: `<same | changed>`
-- New invariant required by this review: `none | <ID and reason>`
-- Existing invariant removed or materially changed: `none | <ID and reason>`
+- Invariant set before review: the accepted `INV-TS7-*` set at
+  `cd019d42b873f040d3c6da9cc7d53d0f622b2388`
+- Invariant set after review: same
+- New invariant required by this review: `none`
+- Existing invariant removed or materially changed: `none`
 
-**Invariant set changed by this review:** `YES | NO`
+**Invariant set changed by this review:** `NO`
 
-Set `invariant_set_changed: false` only when this indicator is `NO` and no new
-invariant or material invariant rewrite is required at the reviewed commit.
+The focused closure changed only the internal prerequisite graph. No invariant,
+authority allocation, trust boundary, implementation-scope boundary,
+compatibility-seam decision, or final architecture moved.
 
 ## Review-Finding Regression Promotion
 
-For each material historical or current finding resolved before acceptance,
-identify durable protection.
-
 | Finding | Canonical authority changed | Executable regression evidence | Owning task / existing path |
 |---|---|---|---|
-| <finding> | <AUTH-ID> | <fixture/test/schema guard/golden vector> | <reference> |
+| P1-001 Scope-2 ordering admitted a guaranteed red state: TypeScript 7 preceded retirement of the blocking `typescript-eslint` path | none — sequencing only, inside `AUTH-*` rows that did not move | `tests/test_openspec_scope2_sequence.py` asserts by reachability that 3.4 precedes 3.2 and that 3.3/3.4 never wait on 3.2 | `openspec/changes/typescript-7-lint-engine-resilience/tasks.md` |
 
-A prose-only correction is not durable regression protection for an
-implementation-grade defect.
+The defect was one token inside an HTML comment, so prose could not hold it. The
+regression is expressed as a property of the graph, which makes it true of every
+valid linearization rather than of one execution order.
 
 ## Focused Closure Required
 
-Complete only when the verdict is `FOCUSED_CLOSURE_REQUIRED`.
-
-| Closure question | Required evidence | Re-review scope | Stop condition |
-|---|---|---|---|
-| <one bounded question> | <exact artifact/test/decision> | <paths> | <deterministic condition> |
-
-Do not request another unrestricted “find more issues” round.
+Not applicable. The verdict is `ARCHITECTURE_ACCEPTED`; the closure requested by
+the previous epoch-3 assessment is complete.
 
 ## Verdict
 
@@ -358,32 +331,51 @@ so the option list above lives inside a comment on purpose: replace the line
 below, never add to it. Backticked mentions in prose are not verdicts.
 -->
 
-**REVIEW_REQUIRED**
+**ARCHITECTURE_ACCEPTED**
 
 ### Verdict rationale
 
-<Concise evidence-based rationale.>
+The original Scope-2 ordering created a guaranteed red intermediate state:
+task 3.2 moved the normal compiler to TypeScript 7.0.2 before task 3.4 retired
+ESLint, while Scope-1's merged runner keeps legacy ESLint a required blocking
+path and `typescript-eslint` 8.66.0 refuses TypeScript 7. The graph therefore
+instructed an implementer into a state the accepted Scope-1 gate refuses.
 
-`ARCHITECTURE_ACCEPTED` is permitted with P2/P3 findings only when every one is
-assigned to a task, proof obligation, or explicit deferred landing and no P1
-remains.
+The focused closure changed only the internal prerequisite graph — two edges,
+`3.3` from `3.2` to `3.1` and `3.2` from `3.1` to `3.1,3.4`. Replacement-only
+lint (3.3) and ESLint retirement (3.4) now occur while TypeScript 6.0.3 remains
+authoritative, and TypeScript 7.0.2 moves only after the legacy engine that
+rejects it has left the blocking path. The emitted-output differential baseline
+is frozen from the TypeScript 6 state before the pin moves, so `EX-TS-002` is
+proved against a baseline that is still obtainable.
+
+`tests/test_openspec_scope2_sequence.py` provides durable, reachability-based
+regression protection against reinstating the ordering.
+
+No authority allocation, invariant, trust boundary, implementation-scope
+boundary, compatibility-seam decision, or final architecture changed. Zero P1,
+P2 and P3 findings remain.
 
 ## Apply Eligibility
 
-- Review gate metadata valid: yes / no
-- Reviewed artifact digests current: yes / no
-- Repository state unchanged except this report and `reviews/**`: yes / no
-- Strict OpenSpec validation passed: yes / no
-- Verdict is `ARCHITECTURE_ACCEPTED`: yes / no
-- Unresolved P1 count is zero: yes / no
-- Invariant set unchanged by the accepting review: yes / no
-- Authority allocation complete: yes / no
-- External implementation authorization recorded and scope-covering: yes / no
+- Review gate metadata valid: yes
+- Reviewed artifact digests current: yes
+- Repository state unchanged except this report and `reviews/**`: yes
+- Strict OpenSpec validation passed: yes
+- Verdict is `ARCHITECTURE_ACCEPTED`: yes
+- Unresolved P1 count is zero: yes
+- Invariant set unchanged by the accepting review: yes
+- Authority allocation complete: yes
+- External implementation authorization recorded and scope-covering: tracked
+  separately — see below
 
-**Apply eligible:** `YES | NO`
+**Apply eligible:** `YES`
 
-The deterministic review gate validates the machine-readable subset. External
-implementation authorization remains a separate tasks.md check.
+This indicator is the REVIEW's determination: the planning bytes are accepted
+and the pre-apply boundary may be established. It is not owner authorization to
+implement. External implementation authorization remains a separate `tasks.md`
+check, and Scope-2 implementation stays `NOT_AUTHORIZED` until the repository
+owner records it.
 
 `REVIEW_GATE_VALID` proves the planning bytes are still those reviewed and that
 this report satisfies the declared contract at the pre-apply boundary. It does
