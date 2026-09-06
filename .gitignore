@@ -55,4 +55,4 @@ out/
 
 # Transient parity subjects, written inside the fixture root so the engine
 # always sees a path under its working directory. Never committed.
-packages/lint-config/tests/fixtures/.scratch-*/
+packages/lint-config/tests/.scratch-*/

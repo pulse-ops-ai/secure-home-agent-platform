@@ -33,6 +33,8 @@ import tseslint from 'typescript-eslint'
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const FIXTURE_ROOT = path.join(PACKAGE_ROOT, 'tests', 'fixtures')
+/** Scratch subjects live beside the corpus, never inside it. */
+export const SCRATCH_ROOT = path.join(PACKAGE_ROOT, 'tests')
 const OXLINT = path.join(PACKAGE_ROOT, 'node_modules', '.bin', 'oxlint')
 
 /**
@@ -185,7 +187,12 @@ export function parseReplacementReport(out) {
 }
 
 export function replacementDiagnosticsForText(text, extension, configPath) {
-  const dir = mkdtempSync(path.join(FIXTURE_ROOT, '.scratch-'))
+  // OUTSIDE the fixture tree, deliberately. The fixture tsconfig includes
+  // `**/*.ts`, so a scratch subject written inside it joins the typed program
+  // that the typed shards build concurrently, and then vanishes underneath
+  // them. Still inside the package, because the engine resolves its config and
+  // ignore rules relative to its working directory.
+  const dir = mkdtempSync(path.join(SCRATCH_ROOT, '.scratch-'))
   const file = path.join(dir, `subject${extension}`)
   writeFileSync(file, text)
   try {
