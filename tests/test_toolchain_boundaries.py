@@ -310,6 +310,9 @@ MERGED_POLICY: dict[str, Any] = {
         {"path": f"{LC}tests/fixtures", "projection": "tree-bytes"},
         {"path": "packages/tsconfig", "projection": "tree-bytes"},
         {"path": "scripts/toolchain-boundaries.json", "projection": "bytes"},
+        {"path": ".prettierrc.json", "projection": "bytes"},
+        {"path": "scripts/check-source-imports.mjs", "projection": "bytes"},
+        {"path": ".github/workflows/toolchain-platform.yml", "projection": "bytes"},
     ],
     "maintenanceClasses": [
         {
@@ -366,6 +369,35 @@ MERGED_POLICY: dict[str, Any] = {
             ],
         },
         {
+            "id": "compatibility-parser",
+            "allows": ["compatibility package pin"],
+            "allowedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "catalog-pins",
+                    "packages": ["@typescript/typescript6"],
+                },
+                {
+                    "path": "pnpm-lock.yaml",
+                    "projection": "lock-closure",
+                    "packages": ["@typescript/typescript6"],
+                },
+            ],
+            "protectedProjections": [
+                {
+                    "path": "pnpm-workspace.yaml",
+                    "projection": "file-except-catalog-pins",
+                    "packages": ["@typescript/typescript6"],
+                },
+                {
+                    "path": "pnpm-lock.yaml",
+                    "projection": "lock-except-closure",
+                    "packages": ["@typescript/typescript6"],
+                },
+            ],
+            "lockRoots": ["@typescript/typescript6"],
+        },
+        {
             "id": "normal-compiler-and-typed-lint",
             "composite": True,
             "composedOf": ["normal-compiler", "lint-engine"],
@@ -415,6 +447,9 @@ def _base_files() -> dict[str, str]:
         ),
         "scripts/check-toolchain-boundaries.mjs": "// verifier bytes\n",
         f"{LC}src/check-install-posture.mjs": "// native identity checker\n",
+        ".prettierrc.json": '{"semi": false}',
+        "scripts/check-source-imports.mjs": "// architecture import gate\n",
+        ".github/workflows/toolchain-platform.yml": "# native platform proof\n",
         MAINTENANCE_WORKFLOW: "# trusted boundary bytes\n",
     }
 
@@ -1227,3 +1262,87 @@ def test_an_unrelated_integrity_change_still_refuses_in_the_peer_shape(
     )
     assert result.returncode != 0
     assert json.loads(result.stderr)["code"] == "PROTECTED_DRIFT"
+
+
+# --- every class transition, and the authorities none of them may touch ------
+
+
+def test_a_compatibility_parser_pin_update_is_admitted(tmp_path: Path) -> None:
+    """The fourth class, which had no admission test.
+
+    Its own pin and derived closure may move; everything else may not.
+    """
+    catalog = {
+        "typescript": "6.0.3",
+        "oxlint": "1.80.0",
+        "oxlint-tsgolint": "7.0.2001",
+        "eslint": "10.8.0",
+        "@typescript/typescript6": "6.0.2",
+    }
+    predecessor = _base_files()
+    predecessor["pnpm-workspace.yaml"] = _catalog(catalog)
+    predecessor["pnpm-lock.yaml"] = _lock(
+        {"@typescript/typescript6@6.0.2": [], "eslint@10.8.0": []},
+        catalog={"@typescript/typescript6": "6.0.2", "eslint": "10.8.0"},
+    )
+
+    result = _classify(
+        tmp_path,
+        {
+            **predecessor,
+            "pnpm-workspace.yaml": _catalog({**catalog, "@typescript/typescript6": "6.0.3"}),
+            "pnpm-lock.yaml": _lock(
+                {"@typescript/typescript6@6.0.3": [], "eslint@10.8.0": []},
+                catalog={"@typescript/typescript6": "6.0.3", "eslint": "10.8.0"},
+            ),
+        },
+        class_id="compatibility-parser",
+        predecessor_files=predecessor,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "tampered"),
+    [
+        ("the formatter authority", ".prettierrc.json", '{"semi": true}'),
+        (
+            "the architecture import gate",
+            "scripts/check-source-imports.mjs",
+            "// direction checks removed\n",
+        ),
+        (
+            "the native platform requirement",
+            ".github/workflows/toolchain-platform.yml",
+            "# arm64 leg removed\n",
+        ),
+    ],
+)
+def test_no_maintenance_class_may_touch(
+    tmp_path: Path, label: str, path: str, tampered: str
+) -> None:
+    """Formatter, architecture gate and platform proof are outside every class.
+
+    A tool update that also quietly relaxes one of these is not tool
+    maintenance; it is a policy change wearing a version bump.
+    """
+    for class_id in (
+        "lint-engine",
+        "normal-compiler",
+        "compatibility-parser",
+        "normal-compiler-and-typed-lint",
+    ):
+        result = _classify(tmp_path, _with({path: tampered}), class_id=class_id)
+        assert result.returncode != 0, f"{class_id} admitted a change to {label}"
+
+    # The path is deliberately omitted from the caller's universe, so the
+    # refusal must come from the protected FLOOR rather than from the
+    # undeclared-path rule. Without this the test passes even when the floor
+    # stops carrying the authority, because any changed path is refused anyway.
+    narrowed = _classify(
+        tmp_path,
+        _with({path: tampered}),
+        universe=[p for p in _base_files() if p != path],
+    )
+    assert narrowed.returncode != 0, f"{label} survived a narrowed universe"
+    assert json.loads(narrowed.stderr)["code"] == "PROTECTED_DRIFT", label
