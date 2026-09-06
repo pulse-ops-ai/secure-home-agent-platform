@@ -32,9 +32,28 @@ REPO = Path(__file__).resolve().parents[1]
 TASKS = REPO / "openspec" / "changes" / "typescript-7-lint-engine-resilience" / "tasks.md"
 
 # The compiler cutover, replacement-only lint, and ESLint retirement.
+AUDIT = "3.1"
 COMPILER_CUTOVER = "3.2"
 REPLACEMENT_ONLY_LINT = "3.3"
 ESLINT_RETIREMENT = "3.4"
+
+# The accepted Scope-2 node set: 3.x implementation and 4.x verification.
+# Written out so a task that disappears from `tasks.md` fails here rather than
+# reducing what every other assertion covers.
+EXPECTED_SCOPE_2_TASKS = {
+    "3.1",
+    "3.2",
+    "3.3",
+    "3.4",
+    "3.5",
+    "3.6",
+    "3.7",
+    "4.1",
+    "4.2",
+    "4.3",
+    "4.4",
+    "4.5",
+}
 
 TASK_BLOCK = re.compile(
     r"<!--\s*agent-task:\s*(?P<id>[0-9]+\.[0-9]+)\s.*?prerequisites=(?P<prereqs>[^\s]+)\s*-->",
@@ -128,13 +147,38 @@ def test_replacement_only_lint_does_not_wait_for_the_compiler(
     )
 
 
+def test_the_complete_scope_2_node_set_is_parsed(graph: dict[str, set[str]]) -> None:
+    """The graph must be the WHOLE scope, not whatever the regex happened to find.
+
+    Every assertion here is about reachability, and reachability over a
+    partially-parsed graph is vacuous: a task that silently failed to parse has
+    no edges, so nothing about it can fail. Pinning the node set means a
+    renamed, deleted, or malformed task block breaks this test instead of
+    quietly shrinking what the other tests check.
+    """
+    assert set(graph) == EXPECTED_SCOPE_2_TASKS, (
+        "parsed Scope-2 task set does not match the accepted set; "
+        f"missing={sorted(EXPECTED_SCOPE_2_TASKS - set(graph))} "
+        f"unexpected={sorted(set(graph) - EXPECTED_SCOPE_2_TASKS)}"
+    )
+
+
 def test_every_scope_2_task_is_reachable_from_the_audit(
     graph: dict[str, set[str]],
 ) -> None:
-    """3.1 freezes the compatibility audit; nothing may precede it."""
-    for task in graph:
-        if task == "3.1":
+    """3.1 freezes the compatibility audit; nothing may precede it.
+
+    No empty-prerequisite escape. The earlier form allowed `not graph[task]`,
+    which meant a task that declared no task prerequisites at all satisfied the
+    rule -- exactly the shape that would let work start before the audit was
+    frozen. 3.1 itself is the only node permitted to have none.
+    """
+    for task in sorted(graph):
+        if task == AUDIT:
+            assert not graph[task], (
+                f"{AUDIT} must have no task prerequisites; it is the scope entry point"
+            )
             continue
-        assert "3.1" in _ancestors(graph, task) or not graph[task], (
-            f"{task} does not depend on the frozen audit 3.1"
+        assert AUDIT in _ancestors(graph, task), (
+            f"{task} does not transitively depend on the frozen audit {AUDIT}"
         )
