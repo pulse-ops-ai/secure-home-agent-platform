@@ -582,10 +582,15 @@ export function reportLoadSites(root = DEFAULT_ROOT) {
       if (error.code === 'ENOENT') continue
       throw error
     }
-    const { specifiers, nonLiteral } = readImports(text, file)
+    const { specifiers, nonLiteral, syntaxErrors } = readImports(text, file)
     files[file] = {
       specifiers: specifiers.map((entry) => entry.specifier),
       nonLiteral: nonLiteral.map((entry) => ({ line: entry.line })),
+      // Reported so a consumer can distinguish "no edge here" from "this file
+      // could not be parsed". The gate itself already fails closed on these;
+      // the Scope-2 audit needs to see them to prove a governed edge cannot
+      // vanish through parser recovery instead of being refused.
+      syntaxErrors: syntaxErrors.map((entry) => ({ line: entry.line })),
     }
   }
   return files
