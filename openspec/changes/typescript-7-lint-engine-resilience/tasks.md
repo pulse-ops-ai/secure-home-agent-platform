@@ -1305,6 +1305,11 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   does not weaken `EX-TS-002`, which is still proved against the frozen
   baseline.
 
+  **The frozen baseline is immutable historical record.** It states what
+  TypeScript 6.0.3 emitted before the cutover. It is never recaptured under
+  TypeScript 7, and never rewritten so that a differing surface compares equal
+  — either would make the proof agree with the compiler it exists to test.
+
   **Task type**
 
   `implementation | proof`
@@ -1330,11 +1335,26 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   proven config/command fixes; strengthen version identity tests across every
   member compiler entry point so each resolves the one authoritative normal
   `typescript` package/version and no ordinary `typecheck`/`build`/generator
-  entry point resolves `tsc6`. Capture normalized golden emitted output under
-  TypeScript 6 for the surfaces the repository actually emits — library/service
-  `.d.ts`, `.d.ts.map`, and `.js.map`, and any member `generate` output — and
-  require TypeScript 7 to match after neutralizing only version banners and
-  absolute paths; roles that emit nothing carry no golden claim.
+  entry point resolves `tsc6`. Capture the golden emitted output under
+  TypeScript 6 for the surfaces the repository actually emits, then require
+  TypeScript 7 to preserve what the repository SHIPS, per surface (`D18`):
+
+  - emitted runtime `.js` and any member `generate` output byte-identical,
+    after neutralizing only version banners and absolute paths;
+  - `.d.ts` preserving declared type and API semantics, compared structurally
+    rather than by an accumulating pattern normalizer — the string-literal quote
+    delimiter and TypeScript 7's deterministic member ordering are the
+    compiler's presentation and carry no consumer-visible meaning, while a
+    changed exported symbol, member, literal value, type, optionality,
+    `readonly`, generic constraint, module specifier, signature semantics, or
+    union/intersection membership must fail;
+  - `.d.ts.map` and `.js.map` present for the same surfaces, valid, internally
+    consistent, correctly scoped and usable for source attribution, rather than
+    byte-identical.
+
+  Roles that emit nothing carry no golden claim. Where TypeScript's own
+  `--stableTypeOrdering` helps, use it as a migration-analysis projection only;
+  it never replaces or rewrites the frozen raw TypeScript 6 evidence.
 
   **Does not own**
 
@@ -1348,9 +1368,10 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   `pnpm typecheck`, `pnpm build`, generators, tsconfig fixtures, and version
   identity all pass with normal compiler 7.0.2; every ordinary entry point
-  resolves the one authoritative package and none resolves `tsc6`; and the
-  normalized golden/differential comparison of emitted declaration, map, and
-  generator output matches.
+  resolves the one authoritative package and none resolves `tsc6`; emitted
+  runtime and generator output are byte-identical to the frozen baseline;
+  declaration semantics are preserved under structural comparison; and every
+  map remains present, valid, correctly scoped and usable.
 
   **Size and atomicity**
 
@@ -1359,7 +1380,9 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   **Completion**
 
-  Complete only when no ordinary command resolves TS6 or unstable TS7 APIs.
+  Complete only when no ordinary command resolves TS6 or unstable TS7 APIs, and
+  the per-surface emitted-output obligation above is met with the frozen
+  TypeScript 6 evidence unmodified.
 
 - [ ] **3.3 Move every lint entry point to the capability package**
   <!-- agent-task: 3.3 paths=package.json,agents/**/package.json,apps/**/package.json,packages/**/package.json,services/**/package.json,**/eslint.config.js,packages/lint-config/**,tests/** checks=replacement-entrypoints risk=high prerequisites=3.1 -->
