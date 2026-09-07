@@ -1,5 +1,5 @@
 /**
- * The production dual-engine entry point.
+ * The production lint entry point.
  *
  * Up to 1.11 the replacement engine was evidence. This is the wiring that makes
  * it part of merge admission, so the failure that matters is not "a rule

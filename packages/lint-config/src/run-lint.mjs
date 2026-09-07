@@ -1,24 +1,24 @@
 #!/usr/bin/env node
 /**
- * THE DUAL-ENGINE LINT ENTRY POINT.
+ * THE LINT ENTRY POINT.
  *
- * Scope 1 put both engines on the merge-admission path so the replacement could
- * be proved against the legacy one in production, not only in a harness. Task
- * 3.3 completes that transition: the replacement engine is now the sole
- * blocking path.
+ * Every member's `lint` script runs this and nothing else, so one place owns
+ * the engine, the config and the severity.
  *
  *   pnpm lint
  *     └── Oxlint + typed backend BLOCKING   (the 117-policy contract)
  *
- * The legacy engine is still INSTALLED — task 3.4 removes the implementation
- * atomically — but it no longer decides whether a member passes. It had to
- * leave the blocking path first: `typescript-eslint` 8.66.0 refuses TypeScript
- * 7, so the 3.2 compiler cutover cannot land while an engine that rejects the
- * new compiler is still required to succeed.
+ * Scope 1 ran two engines here so the replacement could be proved against the
+ * retired one in production rather than only in a harness. Task 3.3 made the
+ * replacement the sole blocking path, and task 3.4 removed the other engine
+ * from the repository entirely. It had to leave the blocking path first:
+ * `typescript-eslint` refused TypeScript 7, so the 3.2 compiler cutover could
+ * not land while an engine that rejects the new compiler was still required to
+ * succeed.
  *
  * NO POLICY MOVED. All 117 policies still block, rendered per role from the
- * same manifest, and the dual-engine parity corpus still proves both engines
- * agree on every one of them.
+ * same manifest, and each is still proved against a positive and a negative
+ * fixture by the conformance corpus.
  *
  * Violations fail lint. So does the engine failing to RUN, or its typed backend
  * failing to start. Those are different failures and all must be fatal, because
@@ -137,7 +137,7 @@ export function resolveBin(name, memberDir, repoRoot = REPO_ROOT) {
   if (found === undefined) {
     throw new LintEngineFailure(
       name,
-      `no executable found in ${candidates.join(', ')}; the dual-engine contract cannot run`,
+      `no executable found in ${candidates.join(', ')}; the lint contract cannot run`,
     )
   }
   return found

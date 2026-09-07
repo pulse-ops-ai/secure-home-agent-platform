@@ -1,18 +1,22 @@
 /**
  * REPOSITORY-WIDE POLICY AND ROLE-ASSIGNMENT INTEGRITY.
  *
- * WHY THIS EXISTS SEPARATELY FROM THE ORACLE. `extract-legacy-policy.mjs`
- * resolves ONE representative file per role. That establishes what each role
- * MEANS, and it is the only honest way to learn the semantics — but it is blind
- * to which members actually consume which role. A member could switch from
- * `library` to `service`, quietly dropping the process restrictions from a
- * package that is not a composition root, and every representative probe would
- * still pass because `services/runner-control` still resolves `service`
- * correctly.
+ * WHY THIS EXISTS SEPARATELY FROM THE CONFORMANCE CORPUS. The corpus exercises
+ * ONE fixture pair per policy. That establishes what each role MEANS, and it is
+ * the only honest way to learn the semantics — but it is blind to which members
+ * actually consume which role. A member could switch from `library` to
+ * `service`, quietly dropping the process restrictions from a package that is
+ * not a composition root, and every fixture would still pass because
+ * `services/runner-control` still resolves `service` correctly.
  *
- * So role SEMANTICS come from probes and role ASSIGNMENT is checked here,
+ * So role SEMANTICS come from the corpus and role ASSIGNMENT is checked here,
  * across every member. `AUTH-MEMBER-ROLES` owns both halves; one without the
  * other is not the authority it claims to be.
+ *
+ * The semantics half used to be read from a resolved ESLint configuration by
+ * `extract-legacy-policy.mjs`. Task 3.4 retired that engine and that extractor;
+ * the split it motivated is unchanged, because it was never about which engine
+ * answered — it was about a probe being unable to say who consumes the answer.
  *
  * Dependency-free: node stdlib.
  */
@@ -725,6 +729,11 @@ export function checkFixtureProjection(repoRoot = REPO_ROOT) {
 export const LINT_CAPABILITY = 'secure-home-lint'
 
 /** Engines a member must never invoke directly. */
+// `eslint` stays on this list after its retirement, deliberately. The list
+// names binaries a member's lint script must not invoke DIRECTLY, and the
+// retired engine is the one most likely to be reached for by habit or by a
+// copied snippet. Removing it would make reintroducing it the one bypass this
+// check does not notice.
 export const ENGINE_BINARIES = ['eslint', 'oxlint', 'tsgolint']
 
 /**
@@ -769,7 +778,8 @@ export function checkLintWiring(repoRoot = REPO_ROOT) {
     if (!script.includes(LINT_CAPABILITY)) {
       problems.push(
         `${rel}: lint does not go through ${LINT_CAPABILITY}. A member that invokes an ` +
-          'engine directly runs one half of the dual-engine contract and reports success',
+          'engine directly chooses its own config, rules and severity, and reports success ' +
+          'against a contract nobody checked',
       )
     }
 
@@ -778,7 +788,7 @@ export function checkLintWiring(repoRoot = REPO_ROOT) {
       if (new RegExp(`(^|[\\s&|])${engine}([\\s]|$)`).test(script)) {
         problems.push(
           `${rel}: lint invokes "${engine}" directly. Command ownership belongs to the ` +
-            'capability, or the dual-engine contract drifts per package',
+            'capability, or the lint contract drifts per package',
         )
       }
     }

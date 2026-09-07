@@ -155,7 +155,7 @@ describe('the command pack is complete', () => {
     expect(stepRun(name as string)).toContain(command as string)
   })
 
-  it('the lint step is the dual-engine entry point, typed backend included', () => {
+  it('the lint step is the capability entry point, typed backend included', () => {
     // `pnpm lint` reaches the capability, which fails closed if either engine
     // or the typed backend is unavailable.
     expect(stepRun('Lint')).toBe('pnpm lint')

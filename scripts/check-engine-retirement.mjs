@@ -119,21 +119,86 @@ export function catalogResidue(repoRoot) {
 }
 
 /**
- * Lock entries resolving a retired package.
+ * The dependency fields a lockfile importer can declare.
  *
- * The one that a manifest scan alone would miss: a dependency removed from
- * every manifest but left in the lockfile still describes an install.
+ * All four, for the same reason the manifest scan reads all four: a retired
+ * package reached through an optional or peer edge is still installed.
+ */
+export const LOCK_DEPENDENCY_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+]
+
+/** The package name in a lock key, with any version and peer suffix removed. */
+export function lockPackageName(key) {
+  // `oxlint@1.80.0(oxlint-tsgolint@7.0.2001)` -- the peer suffix carries its own
+  // `@`, so it has to go before the version separator is located.
+  const withoutPeers = key.split('(')[0]
+  const at = withoutPeers.lastIndexOf('@')
+  return at <= 0 ? withoutPeers : withoutPeers.slice(0, at)
+}
+
+/**
+ * Every position in a pnpm-lock v9 document that names a PACKAGE.
+ *
+ * Four sections name packages, and they name them differently:
+ *
+ *   catalogs.<catalog>.<name>            a pinned version, no resolution yet
+ *   importers.<path>.<field>.<name>      a declared edge from one member
+ *   packages.<name@version>              a resolved package record
+ *   snapshots.<name@version(peers)>      a resolved installation
+ *
+ * A scan that read only the last two would pass a lockfile that still pins the
+ * retired engine in the catalog and still declares it from a member -- which is
+ * a lockfile that reinstalls it.
+ *
+ * This tracks indentation and section rather than matching one line shape,
+ * because the four positions differ in depth and in quoting. It is not a YAML
+ * parser and does not need to be: it answers exactly one question, which is
+ * where a package NAME appears, and every value line is ignored.
+ */
+export function lockPackageIdentities(text) {
+  const found = []
+  const stack = []
+  for (const raw of text.split('\n')) {
+    if (raw.trim() === '' || /^\s*#/.test(raw)) continue
+    const indent = raw.length - raw.trimStart().length
+    const key = /^(?:'([^']*)'|"([^"]*)"|([^\s:'"][^:]*?))\s*:\s*$/.exec(raw.trim())
+    if (key === null) continue
+    const name = key[1] ?? key[2] ?? key[3]
+    while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop()
+    stack.push({ indent, key: name })
+    const at = stack.map((entry) => entry.key)
+
+    if (at.length === 3 && at[0] === 'catalogs') {
+      found.push({ name, where: `catalogs.${at[1]}` })
+    } else if (at.length === 4 && at[0] === 'importers' && LOCK_DEPENDENCY_FIELDS.includes(at[2])) {
+      found.push({ name, where: `importer "${at[1]}" ${at[2]}` })
+    } else if (at.length === 2 && (at[0] === 'packages' || at[0] === 'snapshots')) {
+      found.push({ name: lockPackageName(name), where: at[0], key: name })
+    }
+  }
+  return found
+}
+
+/**
+ * Lock entries naming a retired package.
+ *
+ * The one a manifest scan alone would miss: a dependency removed from every
+ * manifest but left in the lockfile still describes an install.
  */
 export function lockResidue(repoRoot) {
   const problems = []
   const file = path.join(repoRoot, 'pnpm-lock.yaml')
   if (!existsSync(file)) return problems
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const entry = /^\s{2,6}'?((?:@[^/'@\s]+\/)?[^/'@\s]+)@[^:'\s]*'?:\s*$/.exec(line)
-    const name = entry?.[1]
-    if (name !== undefined && isRetired(name)) {
-      problems.push(`pnpm-lock.yaml: still resolves "${name}"`)
-    }
+  for (const entry of lockPackageIdentities(readFileSync(file, 'utf8'))) {
+    if (!isRetired(entry.name)) continue
+    problems.push(
+      `pnpm-lock.yaml: ${entry.where} still names the retired package "${entry.name}"` +
+        (entry.key === undefined ? '' : ` (${entry.key})`),
+    )
   }
   return problems
 }
@@ -188,33 +253,96 @@ export function classificationResidue(repoRoot) {
 /**
  * Import specifiers resolving a retired package.
  *
- * Bare specifiers only, and only the package part: `eslint/use-at-your-own-risk`
- * counts, `packages/lint-config/src/run-lint.mjs` does not.
+ * The specifiers come from `check-source-imports.mjs --report-loads`, which is
+ * this repository's one admitted structural load-site authority: it parses each
+ * file with the compatibility seam and reports what the AST says, not what a
+ * regular expression can find.
+ *
+ * This scan was regex-based and missed a whole syntactic form. `import 'eslint'`
+ * has no binding and no `from`, so a pattern keyed on `from`, `import(` or
+ * `require(` saw nothing -- and a side-effect import is the one that most
+ * clearly executes the package. Extending the pattern would have added a second
+ * import parser to maintain beside the real one, and the second parser is
+ * always the one that falls behind.
+ *
+ * The report also carries `nonLiteral` and `syntaxErrors`. Both fail closed
+ * here: a specifier that cannot be read without running the code cannot be
+ * proved free of the retired package, and neither can a file that did not
+ * parse.
+ *
+ * @param loads the parsed `--report-loads` document for the tree under test.
  */
-export function importResidue(repoRoot, tracked) {
+export function importResidue(loads) {
   const problems = []
-  const SPECIFIER = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g
-  for (const rel of tracked) {
-    if (!/\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(rel)) continue
-    let text
-    try {
-      text = readFileSync(path.join(repoRoot, rel), 'utf8')
-    } catch {
-      continue
-    }
-    for (const [, specifier] of text.matchAll(SPECIFIER)) {
+  for (const [file, entry] of Object.entries(loads)) {
+    for (const specifier of entry.specifiers ?? []) {
       if (specifier.startsWith('.') || specifier.startsWith('/')) continue
       const parts = specifier.split('/')
       const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
-      if (isRetired(name) || isRetired(`${name}/`)) {
-        problems.push(`${rel}: imports the retired package "${name}"`)
+      if (isRetired(name)) {
+        problems.push(`${file}: loads the retired package "${name}"`)
       }
+    }
+    for (const site of entry.nonLiteral ?? []) {
+      problems.push(
+        `${file}:${site.line} loads a module through a non-literal specifier, so it cannot be ` +
+          'proved free of the retired engine',
+      )
+    }
+    for (const site of entry.syntaxErrors ?? []) {
+      problems.push(
+        `${file}:${site.line} did not parse, so its module loads are unknown and the ` +
+          'retirement cannot be proved over it',
+      )
     }
   }
   return problems
 }
 
-export function checkRetirement(repoRoot = REPO_ROOT) {
+/**
+ * Ask the structural authority what the tree under test loads.
+ *
+ * The PARSER is this repository's, the SUBJECT is the given root. That split is
+ * deliberate: the load-site reader is a trusted control-plane tool that resolves
+ * its seam from this checkout's `node_modules`, while the tree being judged is
+ * data and may have no install at all.
+ *
+ * It needs `@typescript/typescript6`, so it cannot run in the stdlib phase --
+ * see the `--phase` flag below.
+ */
+export function readLoadSites(repoRoot) {
+  const reader = path.join(REPO_ROOT, 'scripts', 'check-source-imports.mjs')
+  const out = execFileSync('node', [reader, '--report-loads', repoRoot], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  return JSON.parse(out)
+}
+
+/**
+ * The two phases, and why they are two.
+ *
+ * `static` reads bytes: dependency edges, catalog pins, lock identities,
+ * tracked paths and layer classification. Node's standard library answers all
+ * of it, so it must stay checkable on a host with no workspace installed --
+ * the same argument the other governance gates in `check.sh` make for
+ * themselves.
+ *
+ * `imports` reads an AST, through the structural load-site authority, which
+ * resolves `@typescript/typescript6`. That is an installed dependency. It runs
+ * after `pnpm install --frozen-lockfile` and nowhere else; pretending it were
+ * available earlier would mean either a silent skip or a gate that fails for
+ * the wrong reason on a clean host.
+ */
+export const RETIREMENT_PHASES = ['static', 'imports']
+
+export function checkRetirement(repoRoot = REPO_ROOT, phase = 'static') {
+  if (!RETIREMENT_PHASES.includes(phase)) {
+    throw new Error(`unknown retirement phase "${phase}"; expected one of ${RETIREMENT_PHASES}`)
+  }
+  if (phase === 'imports') return importResidue(readLoadSites(repoRoot))
+
   const tracked = trackedFiles(repoRoot)
   return [
     ...manifestResidue(repoRoot, tracked),
@@ -222,7 +350,6 @@ export function checkRetirement(repoRoot = REPO_ROOT) {
     ...lockResidue(repoRoot),
     ...pathResidue(tracked),
     ...classificationResidue(repoRoot),
-    ...importResidue(repoRoot, tracked),
   ]
 }
 
@@ -235,14 +362,20 @@ const invokedDirectly = (() => {
 })()
 
 if (invokedDirectly) {
-  const root = process.argv[2] ?? REPO_ROOT
-  const problems = checkRetirement(root)
+  const args = process.argv.slice(2)
+  const phaseFlag = args.find((arg) => arg.startsWith('--phase='))
+  const phase = phaseFlag === undefined ? 'static' : phaseFlag.slice('--phase='.length)
+  const root = args.find((arg) => !arg.startsWith('--')) ?? REPO_ROOT
+
+  const problems = checkRetirement(root, phase)
   if (problems.length > 0) {
-    console.error(`✗ lint-engine retirement — ${problems.length} residue(s)\n`)
+    console.error(`✗ lint-engine retirement (${phase}) — ${problems.length} residue(s)\n`)
     for (const problem of problems) console.error(`    ${problem}`)
     process.exit(1)
   }
   console.log(
-    '✓ lint-engine retirement — no dependency, catalog, lock, path, layer or import residue',
+    phase === 'imports'
+      ? '✓ lint-engine retirement — no source file loads the retired engine (AST load sites)'
+      : '✓ lint-engine retirement — no dependency, catalog, lock, path or layer residue',
   )
 }

@@ -1,6 +1,6 @@
 # `lint-subject/` — a member-shaped subject for the runner
 
-The dual-engine runner is proved by running it, not by reading it: an engine
+The runner is proved by running it, not by reading it: an engine
 that was deleted and replaced with a hardcoded pass is invisible to source
 inspection.
 

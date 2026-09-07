@@ -79,12 +79,12 @@ catalog:
   # Its major track follows the API generation it exposes, not the compiler's:
   # 6.0.2 here presents the traditional TypeScript 6 API.
   '@typescript/typescript6': 6.0.2
-  # THE REPLACEMENT LINT ENGINE, added by PR-B/Scope 1 (ADR-0022).
+  # THE LINT ENGINE, added by PR-B/Scope 1 (ADR-0022).
   #
-  # Scope 1 is deliberately DUAL-ENGINE: both of these and ESLint above run, and
-  # both block. Neither replaces the other here — the point of this landing is to
-  # prove behavioural parity for all 117 policies before any retirement, which
-  # is Scope 2's decision and separately unauthorized.
+  # Scope 1 ran it alongside ESLint so behavioural parity could be proved for
+  # all 117 policies before any retirement. That retirement is task 3.4, and it
+  # has happened: this is now the only lint engine in the workspace, and the
+  # only one that blocks.
   #
   # Pinned exactly. A floating range would let the engine under test change
   # between the run that proved parity and the run that consumes the proof.

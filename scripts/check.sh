@@ -73,7 +73,11 @@ if command -v node >/dev/null 2>&1; then
   # repository-wide member-role projection. Stdlib-only, so it runs beside the
   # other governance gates rather than behind the workspace toolchain.
   run "lint policy integrity" node packages/lint-config/src/check-policy.mjs
-  run "lint-engine retirement" node scripts/check-engine-retirement.mjs
+  # Lint-engine retirement, byte half: dependency edges, catalog pins, lock
+  # identities, tracked paths and layer classification. Stdlib-only, so it sits
+  # with the other governance gates. The AST half needs the compatibility seam
+  # and runs behind the workspace gate below — see "typescript: retirement".
+  run "lint-engine retirement" node scripts/check-engine-retirement.mjs --phase=static
   # Maintenance-class authority: the closed set of admissible tool-maintenance
   # differences must be internally consistent at rest. A class that contradicts
   # the protected floor is caught when it is written, not when an advisory
@@ -84,6 +88,7 @@ else
   skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "openspec review history" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "lint policy integrity" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "lint-engine retirement" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "toolchain boundaries" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
@@ -98,6 +103,12 @@ if command -v pnpm >/dev/null 2>&1; then
   # DECLARE, this one checks what source IMPORTS. A manifest cannot prove
   # import direction, so neither check substitutes for the other.
   run "typescript: imports"   pnpm run check:imports
+  # The AST half of the retirement proof. It consumes the same structural
+  # load-site authority the line above enforces with, which resolves the
+  # `@typescript/typescript6` seam from node_modules — so it belongs after the
+  # install, not beside the stdlib half. A source file can load a package no
+  # manifest declares, and that load is what actually executes.
+  run "typescript: retirement" node scripts/check-engine-retirement.mjs --phase=imports
   run "typescript: lint"      pnpm lint
   run "typescript: types"     pnpm typecheck
   run "typescript: tests"     pnpm test

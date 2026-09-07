@@ -2,7 +2,7 @@
   "name": "@secure-home/lint-config",
   "version": "0.0.0",
   "private": true,
-  "description": "Engine-neutral lint-policy authority, per-engine mappings, and the dual-engine runner for the workspace.",
+  "description": "Engine-neutral lint-policy authority, per-engine mappings, and the lint runner for the workspace.",
   "license": "UNLICENSED",
   "type": "module",
   "exports": {

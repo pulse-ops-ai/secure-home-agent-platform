@@ -23,8 +23,22 @@ REPO = Path(__file__).resolve().parents[1]
 CHECK = REPO / "scripts" / "check-engine-retirement.mjs"
 
 
-def _run(root: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["node", str(CHECK), str(root)], capture_output=True, text=True, cwd=REPO)
+def _run(root: Path, phase: str = "static") -> subprocess.CompletedProcess[str]:
+    """Run one phase of the retirement gate against a tree.
+
+    The gate is split because its two halves need different things. `static`
+    reads bytes and runs on a host with no workspace; `imports` parses each
+    file through the structural load-site authority, which resolves the
+    `@typescript/typescript6` seam from THIS checkout's node_modules. The
+    parser is a trusted tool and the subject tree is data, which is why a clone
+    with no install can still be judged.
+    """
+    return subprocess.run(
+        ["node", str(CHECK), f"--phase={phase}", str(root)],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
 
 
 def _output(result: subprocess.CompletedProcess[str]) -> str:
@@ -82,9 +96,11 @@ def clone(tmp_path: Path) -> Path:
     return _clone(tmp_path)
 
 
-def test_the_committed_tree_has_no_residue(clone: Path) -> None:
-    """The baseline. Every mutation below is measured against this passing."""
-    result = _run(clone)
+@pytest.mark.parametrize("phase", ["static", "imports"])
+def test_the_committed_tree_has_no_residue(clone: Path, phase: str) -> None:
+    """The baseline, in both phases. Every mutation below is measured against
+    this passing."""
+    result = _run(clone, phase)
     assert result.returncode == 0, _output(result)
 
 
@@ -127,21 +143,177 @@ def test_a_catalog_pin_left_behind_is_caught(clone: Path) -> None:
     assert 'the catalog still pins "eslint"' in _output(result)
 
 
-def test_a_lock_entry_left_behind_is_caught(clone: Path) -> None:
-    """The one a manifest scan alone would miss.
+# --- lock residue: every identity-bearing section of pnpm-lock v9 -----------
+#
+# Four sections name packages, and they name them differently. A scan that read
+# only the resolved records would pass a lockfile that still pins the retired
+# engine in the catalog and still declares it from a member -- which is a
+# lockfile that reinstalls it on the next `--frozen-lockfile`.
+#
+# Every mutation below keeps the document WELL FORMED. The gate must refuse the
+# package identity, not the YAML.
 
-    A dependency removed from every manifest but still resolved in the lockfile
-    still describes an install -- the engine would come back on the next
-    `pnpm install --frozen-lockfile`.
+
+def _lock_identities(lock: Path) -> list[dict[str, str]]:
+    """Every package identity the gate's own reader finds in a lockfile."""
+    script = (
+        "import {lockPackageIdentities} from "
+        f"{str(CHECK)!r};"
+        "import {readFileSync} from 'node:fs';"
+        f"console.log(JSON.stringify(lockPackageIdentities(readFileSync({str(lock)!r},'utf8'))))"
+    )
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        check=True,
+    )
+    identities: list[dict[str, str]] = json.loads(out.stdout)
+    return identities
+
+
+def _assert_only_added(original: Path, mutated: Path, name: str) -> None:
+    """The mutation must be a LOCKFILE, not a broken file.
+
+    Without this a test could pass because the document fell apart and the
+    reader lost its footing, which would prove nothing about identifying a
+    retired package. So the mutated document is read with the gate's own
+    reader: every identity that was there before must still be there, and the
+    only new one is the injected package.
+
+    That is a stronger check than "the YAML still parses". A document can parse
+    and still have lost a section to a botched edit.
+    """
+    before = _lock_identities(original)
+    after = _lock_identities(mutated)
+    assert len(after) == len(before) + 1, (
+        f"the mutation changed {len(after) - len(before)} identities, not 1 — "
+        "the lockfile structure did not survive the edit"
+    )
+    added = [entry for entry in after if entry not in before]
+    assert [entry["name"] for entry in added] == [name], added
+
+
+def test_a_catalog_pin_left_in_the_lock_is_caught(clone: Path) -> None:
+    """`catalogs.default` pins a version before anything resolves it.
+
+    Removing the package everywhere else and leaving this behind still hands
+    the next install a version to fetch.
     """
     lock = clone / "pnpm-lock.yaml"
+    pristine = clone / "pnpm-lock.pristine.yaml"
     text = lock.read_text()
-    _mutate(lock, text.replace("\npackages:\n", "\npackages:\n\n  eslint@10.8.0:\n", 1))
+    pristine.write_text(text)
+    _mutate(
+        lock,
+        text.replace(
+            "catalogs:\n  default:\n",
+            "catalogs:\n  default:\n    eslint:\n      specifier: 10.8.0\n      version: 10.8.0\n",
+            1,
+        ),
+    )
+    _assert_only_added(pristine, lock, "eslint")
     _stage(clone)
 
     result = _run(clone)
     assert result.returncode != 0
-    assert 'pnpm-lock.yaml: still resolves "eslint"' in _output(result)
+    assert 'catalogs.default still names the retired package "eslint"' in _output(result)
+
+
+def test_an_importer_dependency_left_in_the_lock_is_caught(clone: Path) -> None:
+    """An importer entry is a member's declared edge, recorded independently of
+    that member's manifest. The two can disagree, and this is the half a
+    manifest scan cannot see."""
+    lock = clone / "pnpm-lock.yaml"
+    pristine = clone / "pnpm-lock.pristine.yaml"
+    text = lock.read_text()
+    pristine.write_text(text)
+    _mutate(
+        lock,
+        text.replace(
+            "importers:\n\n  .:\n    devDependencies:\n",
+            "importers:\n\n  .:\n    devDependencies:\n"
+            "      eslint:\n        specifier: 'catalog:'\n        version: 10.8.0\n",
+            1,
+        ),
+    )
+    _assert_only_added(pristine, lock, "eslint")
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0
+    assert 'importer "." devDependencies still names the retired package "eslint"' in _output(
+        result
+    )
+
+
+def test_a_resolved_package_record_left_in_the_lock_is_caught(clone: Path) -> None:
+    """The versioned form: a dependency removed from every manifest but still
+    resolved still describes an install."""
+    lock = clone / "pnpm-lock.yaml"
+    pristine = clone / "pnpm-lock.pristine.yaml"
+    text = lock.read_text()
+    pristine.write_text(text)
+    _mutate(
+        lock,
+        text.replace(
+            "\npackages:\n",
+            "\npackages:\n\n  eslint@10.8.0:\n    resolution: {integrity: sha512-deadbeef}\n",
+            1,
+        ),
+    )
+    _assert_only_added(pristine, lock, "eslint")
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0
+    assert 'packages still names the retired package "eslint"' in _output(result)
+
+
+def test_a_snapshot_left_in_the_lock_is_caught(clone: Path) -> None:
+    """The installed form, whose key carries a peer suffix with its own `@`."""
+    lock = clone / "pnpm-lock.yaml"
+    pristine = clone / "pnpm-lock.pristine.yaml"
+    text = lock.read_text()
+    pristine.write_text(text)
+    _mutate(
+        lock,
+        text.replace(
+            "\nsnapshots:\n",
+            "\nsnapshots:\n\n  eslint@10.8.0(typescript@6.0.3):\n    dependencies: {}\n",
+            1,
+        ),
+    )
+    _assert_only_added(pristine, lock, "eslint")
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0
+    assert 'snapshots still names the retired package "eslint"' in _output(result)
+
+
+def test_a_key_name_is_read_past_its_version_and_peer_suffix(clone: Path) -> None:
+    """A snapshot key carries a peer suffix with its own `@`.
+
+    `oxlint@1.80.0(oxlint-tsgolint@7.0.2001)` must resolve to `oxlint`. Reading
+    from the last `@` instead would yield `7.0.2001)` — the classifier would be
+    comparing version strings against package names, and would never match
+    anything at all. A scan that cannot match is a scan that always passes.
+    """
+    identities = _lock_identities(clone / "pnpm-lock.yaml")
+    names = {entry["name"] for entry in identities}
+    assert "oxlint" in names
+    assert not any("(" in name or name[1:].count("@") for name in names), sorted(names)[:5]
+
+    # And the four sections are all actually being read, so the tests above are
+    # not all exercising one code path.
+    assert {entry["where"] for entry in identities} >= {
+        "catalogs.default",
+        "packages",
+        "snapshots",
+    }
+    assert any(entry["where"].startswith("importer ") for entry in identities)
 
 
 # --- mutation 2: a projection survives --------------------------------------
@@ -198,21 +370,119 @@ def test_a_readme_alone_still_counts_as_survival(clone: Path) -> None:
     assert "survives inside the retired packages/eslint-config/ package" in _output(result)
 
 
-def test_an_import_of_the_retired_package_is_caught(clone: Path) -> None:
+# --- import residue: every syntactic form the AST authority reports ---------
+#
+# This scan was regex-based and missed a whole form. `import \'eslint\'` has no
+# binding and no `from`, so a pattern keyed on `from`, `import(` or `require(`
+# saw nothing -- and a side-effect import is the one that most plainly executes
+# the package. The fix was to consume the structural load-site report rather
+# than to widen the pattern, so these exercise the FORMS.
+
+
+@pytest.mark.parametrize(
+    ("label", "body", "expected"),
+    [
+        (
+            "side-effect import of the engine",
+            "import 'eslint'\nexport const a = 1\n",
+            'loads the retired package "eslint"',
+        ),
+        (
+            "side-effect import of a retired subpath",
+            "import '@secure-home/eslint-config/library'\nexport const a = 1\n",
+            'loads the retired package "@secure-home/eslint-config"',
+        ),
+        (
+            "default import, the form that was already refused",
+            "import config from '@secure-home/eslint-config/library'\nexport default config\n",
+            'loads the retired package "@secure-home/eslint-config"',
+        ),
+        (
+            "named import from the retired family",
+            "import { x } from '@typescript-eslint/utils'\nexport const a = x\n",
+            'loads the retired package "@typescript-eslint/utils"',
+        ),
+        (
+            "dynamic import",
+            "export const load = async () => import('eslint')\n",
+            'loads the retired package "eslint"',
+        ),
+        (
+            "require call",
+            "const e = require('eslint')\nexport default e\n",
+            'loads the retired package "eslint"',
+        ),
+        (
+            "re-export, which is an edge in the other direction",
+            "export { Linter } from 'eslint'\n",
+            'loads the retired package "eslint"',
+        ),
+        (
+            "type-only import, which still names the package",
+            "import type { Linter } from 'eslint'\nexport type L = Linter\n",
+            'loads the retired package "eslint"',
+        ),
+    ],
+)
+def test_a_load_of_the_retired_package_is_caught(
+    clone: Path, label: str, body: str, expected: str
+) -> None:
     """Import residue, which no dependency scan sees.
 
-    A source file can import a package no manifest declares -- it resolves
-    through the workspace root, and the import is what actually runs.
+    A source file can load a package no manifest declares -- it resolves
+    through the workspace root, and the load is what actually runs.
     """
     source = clone / "packages" / "contracts" / "src" / "residue.ts"
-    _mutate(
-        source, "import config from '@secure-home/eslint-config/library'\nexport default config\n"
-    )
+    _mutate(source, body)
     _stage(clone)
 
-    result = _run(clone)
+    result = _run(clone, "imports")
+    assert result.returncode != 0, f"{label} was not refused"
+    assert expected in _output(result), label
+
+
+def test_a_side_effect_import_is_invisible_to_a_from_keyed_scan(clone: Path) -> None:
+    """The defect itself, pinned as a claim about the SHAPE.
+
+    This body contains no `from`, no `import(` and no `require(`, so any scan
+    keyed on those three tokens reports nothing. The structural authority
+    reports it because the AST holds an ImportDeclaration either way.
+    """
+    body = "import 'eslint'\nexport const a = 1\n"
+    assert " from " not in body
+    assert "import(" not in body
+    assert "require(" not in body
+
+    source = clone / "packages" / "contracts" / "src" / "residue.ts"
+    _mutate(source, body)
+    _stage(clone)
+
+    result = _run(clone, "imports")
     assert result.returncode != 0
-    assert 'imports the retired package "@secure-home/eslint-config"' in _output(result)
+    assert 'loads the retired package "eslint"' in _output(result)
+
+
+def test_an_unreadable_load_site_fails_closed(clone: Path) -> None:
+    """A specifier that cannot be read without running the code cannot be
+    proved free of the retired engine."""
+    source = clone / "packages" / "contracts" / "src" / "residue.ts"
+    _mutate(source, "const n = 'esl' + 'int'\nexport const load = () => import(n)\n")
+    _stage(clone)
+
+    result = _run(clone, "imports")
+    assert result.returncode != 0
+    assert "non-literal specifier" in _output(result)
+
+
+def test_a_file_that_does_not_parse_fails_closed(clone: Path) -> None:
+    """Parser recovery must not be able to make an edge disappear."""
+    source = clone / "packages" / "contracts" / "src" / "residue.ts"
+    _mutate(source, "export const broken = (\n")
+    _stage(clone)
+
+    result = _run(clone, "imports")
+    assert result.returncode != 0
+    assert "did not parse" in _output(result)
 
 
 def test_a_layer_classification_left_behind_is_caught(clone: Path) -> None:
