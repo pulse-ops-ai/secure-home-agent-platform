@@ -531,3 +531,68 @@ def test_the_replacement_engines_own_diagnostic_codes_are_not_residue(
 
     result = _run(clone)
     assert result.returncode == 0, _output(result)
+
+
+# --- the gate must actually be invoked -------------------------------------
+#
+# A gate nothing calls is a gate nothing enforces. The first version of this
+# verifier was wired into `scripts/check.sh` alone, and CI does not run
+# check.sh — it runs the steps individually — so the whole proof was local-only
+# and every hosted run passed without it. These pin the invocation.
+
+
+def _workflow() -> str:
+    return (REPO / ".github" / "workflows" / "checks.yml").read_text()
+
+
+def _check_script() -> str:
+    return (REPO / "scripts" / "check.sh").read_text()
+
+
+@pytest.mark.parametrize("phase", ["static", "imports"])
+def test_the_local_gate_runs_both_phases(phase: str) -> None:
+    assert f"--phase={phase}" in _check_script(), f"scripts/check.sh does not run the {phase} phase"
+
+
+@pytest.mark.parametrize("phase", ["static", "imports"])
+def test_ci_runs_both_phases(phase: str) -> None:
+    """Either directly or through the root script that carries the flag."""
+    workflow = _workflow()
+    root_scripts = json.loads((REPO / "package.json").read_text())["scripts"]
+    invocations = [line.strip() for line in workflow.splitlines() if "run:" in line]
+    reached = any(
+        f"--phase={phase}" in line
+        or any(
+            name in line and f"--phase={phase}" in body
+            for name, body in root_scripts.items()
+            if name.startswith("check:")
+        )
+        for line in invocations
+    )
+    assert reached, f"checks.yml never runs the {phase} phase of the retirement gate"
+
+
+def test_the_static_phase_runs_before_the_install_in_ci() -> None:
+    """It refuses a lockfile that would reinstall the retired engine, so it has
+    to be asked before the install acts on that lockfile.
+
+    It is also stdlib-only, which is what makes running it that early possible
+    at all — the import phase is not, and must not be moved here.
+    """
+    workflow = _workflow()
+    assert "--phase=static" in workflow, "checks.yml never runs the static phase"
+    assert "pnpm install --frozen-lockfile" in workflow, "checks.yml never installs"
+    assert workflow.index("--phase=static") < workflow.index("pnpm install --frozen-lockfile"), (
+        "the static phase must run before the install"
+    )
+
+
+def test_the_import_phase_runs_after_the_install_in_ci() -> None:
+    """It parses through `@typescript/typescript6`, which is installed. Running
+    it earlier would fail for the wrong reason on a clean host."""
+    workflow = _workflow()
+    assert "check:retirement-imports" in workflow, "checks.yml never runs the import phase"
+    assert "pnpm install --frozen-lockfile" in workflow, "checks.yml never installs"
+    assert workflow.index("pnpm install --frozen-lockfile") < workflow.index(
+        "check:retirement-imports"
+    ), "the import phase must run after the install"

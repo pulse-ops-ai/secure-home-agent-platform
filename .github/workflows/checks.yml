@@ -103,6 +103,14 @@ jobs:
       - name: Image lineage
         run: node scripts/check-images.mjs
 
+      # Lint-engine retirement, byte half: dependency edges, catalog pins, lock
+      # identities, tracked paths and layer classification. Node standard
+      # library, so it runs before the install like the two checks above — and
+      # it must, because one of the things it refuses is a lockfile that would
+      # reinstall the retired engine on the very next line.
+      - name: Lint-engine retirement (static)
+        run: node scripts/check-engine-retirement.mjs --phase=static
+
       # --frozen-lockfile fails on a stale or drifted lockfile rather than
       # rewriting it. CI never mutates a manifest or the lockfile.
       - name: Manifest and lockfile consistency
@@ -126,6 +134,15 @@ jobs:
       # re-opens a direction hole that the other cannot see.
       - name: Source import direction
         run: pnpm run check:imports
+
+      # The AST half of the retirement proof, and a separate gate from the one
+      # above for the same reason those two are separate: that one governs
+      # import DIRECTION between members, this one governs whether any source
+      # file loads a retired package at all. It consumes the same structural
+      # load-site report, which resolves `@typescript/typescript6` — so it runs
+      # after the install and cannot sit with the static half.
+      - name: Lint-engine retirement (imports)
+        run: pnpm run check:retirement-imports
 
       # REAL repository content through admission. `check-knowledge.mjs` above
       # is the registry/scaffold checker and cannot see content rules; this runs
