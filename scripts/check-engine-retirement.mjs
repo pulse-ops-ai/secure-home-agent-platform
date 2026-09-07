@@ -265,10 +265,21 @@ export function classificationResidue(repoRoot) {
  * import parser to maintain beside the real one, and the second parser is
  * always the one that falls behind.
  *
- * The report also carries `nonLiteral` and `syntaxErrors`. Both fail closed
- * here: a specifier that cannot be read without running the code cannot be
- * proved free of the retired package, and neither can a file that did not
- * parse.
+ * WHAT THIS DOES NOT OWN. The report also carries `nonLiteral` load sites, and
+ * this must not refuse them. Whether a module may be loaded through a computed
+ * specifier is `check-source-imports.mjs`'s decision, and it decides by ZONE:
+ * production source must import by literal specifier, test and tooling files
+ * deliberately may not have that prohibition. Refusing every non-literal site
+ * here would be stricter than the authority it reads from — a second, quieter
+ * module-loading policy, owned by a task about retiring a lint engine and
+ * disagreeing with the real one. A non-literal load in production is already
+ * refused, by the gate that owns the question, which runs in the same local and
+ * hosted checks as this one.
+ *
+ * `syntaxErrors` DO fail closed here. That is not a second policy: a file that
+ * did not parse has no specifiers at all, so the retirement is unproved over
+ * it in every zone, and the source-import gate refuses it repository-wide for
+ * the same reason.
  *
  * @param loads the parsed `--report-loads` document for the tree under test.
  */
@@ -282,12 +293,6 @@ export function importResidue(loads) {
       if (isRetired(name)) {
         problems.push(`${file}: loads the retired package "${name}"`)
       }
-    }
-    for (const site of entry.nonLiteral ?? []) {
-      problems.push(
-        `${file}:${site.line} loads a module through a non-literal specifier, so it cannot be ` +
-          'proved free of the retired engine',
-      )
     }
     for (const site of entry.syntaxErrors ?? []) {
       problems.push(

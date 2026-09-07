@@ -462,16 +462,125 @@ def test_a_side_effect_import_is_invisible_to_a_from_keyed_scan(clone: Path) -> 
     assert 'loads the retired package "eslint"' in _output(result)
 
 
-def test_an_unreadable_load_site_fails_closed(clone: Path) -> None:
-    """A specifier that cannot be read without running the code cannot be
-    proved free of the retired engine."""
-    source = clone / "packages" / "contracts" / "src" / "residue.ts"
-    _mutate(source, "const n = 'esl' + 'int'\nexport const load = () => import(n)\n")
+# --- the ownership boundary -------------------------------------------------
+#
+# The retirement import phase consumes `check-source-imports.mjs --report-loads`
+# and owns exactly one question about it: does a LITERAL specifier resolve to a
+# retired package. Whether a module may be loaded through a COMPUTED specifier
+# is the other gate's question, and it answers by zone — production source must
+# import by literal specifier; test and tooling files deliberately need not.
+#
+# This phase briefly refused every non-literal site in every zone. That is
+# stricter than the authority it reads from: a second, quieter module-loading
+# policy owned by a task about retiring a lint engine, disagreeing with the real
+# one. The matrix below pins both gates over the same fixtures, so neither can
+# drift into the other's question — and so "already refused by the other gate"
+# stays a checked claim rather than a comment.
+
+NON_LITERAL = "export const load = (n: string) => import(n)\n"
+LITERAL_RETIRED = "import 'eslint'\nexport const a = 1\n"
+
+
+def _source_imports(root: Path) -> subprocess.CompletedProcess[str]:
+    """The gate that owns non-literal loads, run over the same tree."""
+    return subprocess.run(
+        ["node", str(REPO / "scripts" / "check-source-imports.mjs"), str(root)],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "rel", "body", "source_imports_refuses", "retirement_refuses"),
+    [
+        # A computed specifier is the OTHER gate's question, and only in
+        # production. Retirement says nothing about any of these.
+        (
+            "non-literal in production",
+            "packages/contracts/src/probe.ts",
+            NON_LITERAL,
+            True,
+            False,
+        ),
+        (
+            "non-literal in a test file",
+            "packages/contracts/src/probe.test.ts",
+            NON_LITERAL,
+            False,
+            False,
+        ),
+        (
+            "non-literal in a build config",
+            "packages/contracts/vitest.config.ts",
+            NON_LITERAL,
+            False,
+            False,
+        ),
+        # A literal retired package is THIS gate's question, in every zone --
+        # including the two the other gate deliberately relaxes, which is
+        # exactly where residue would otherwise sit unseen.
+        (
+            "literal retired import in a test file",
+            "packages/contracts/src/probe.test.ts",
+            LITERAL_RETIRED,
+            False,
+            True,
+        ),
+        (
+            "literal retired import in a build config",
+            "packages/contracts/vitest.config.ts",
+            LITERAL_RETIRED,
+            False,
+            True,
+        ),
+        (
+            "literal retired import in production",
+            "packages/contracts/src/probe.ts",
+            LITERAL_RETIRED,
+            False,
+            True,
+        ),
+    ],
+)
+def test_each_gate_refuses_only_its_own_question(
+    clone: Path,
+    label: str,
+    rel: str,
+    body: str,
+    source_imports_refuses: bool,
+    retirement_refuses: bool,
+) -> None:
+    _mutate(clone / rel, body)
     _stage(clone)
 
-    result = _run(clone, "imports")
-    assert result.returncode != 0
-    assert "non-literal specifier" in _output(result)
+    imports_gate = _source_imports(clone)
+    assert (imports_gate.returncode != 0) is source_imports_refuses, (
+        f"{label}: check-source-imports\n{_output(imports_gate)}"
+    )
+
+    retirement = _run(clone, "imports")
+    assert (retirement.returncode != 0) is retirement_refuses, (
+        f"{label}: retirement import phase\n{_output(retirement)}"
+    )
+    if retirement_refuses:
+        assert 'loads the retired package "eslint"' in _output(retirement), label
+
+
+def test_the_retirement_checker_holds_no_zone_classifier(clone: Path) -> None:
+    """Deferral, not reimplementation.
+
+    The boundary above would also hold if this checker had grown its own copy
+    of `zoneOf` and happened to agree today. Two classifiers agree until one is
+    edited, and the copy is the one that would silently win -- so the checker
+    must not contain one at all.
+    """
+    checker = (REPO / "scripts" / "check-engine-retirement.mjs").read_text()
+    code = "\n".join(
+        line for line in checker.splitlines() if not line.lstrip().startswith(("*", "/*", "//"))
+    )
+    for borrowed in ("zoneOf", "TEST_DIR", "TEST_FILE", "ROOT_CONFIG", "production"):
+        assert borrowed not in code, f"the retirement checker reimplements {borrowed}"
 
 
 def test_a_file_that_does_not_parse_fails_closed(clone: Path) -> None:

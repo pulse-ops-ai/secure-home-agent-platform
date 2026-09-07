@@ -25,6 +25,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from workflow_model import governance_jobs, has_condition, job_sections
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -465,6 +467,31 @@ def test_a_non_literal_dynamic_import_is_rejected_in_production_source(tmp_path:
     result = _imports(ws.root)
     assert result.returncode != 0
     assert "non-literal" in _output(result)
+
+
+@pytest.mark.parametrize(
+    ("label", "rel"),
+    [
+        ("a test file", "packages/contracts/src/thing.test.ts"),
+        ("a build config", "packages/contracts/vitest.config.ts"),
+    ],
+)
+def test_a_non_literal_dynamic_import_is_permitted_outside_production(
+    tmp_path: Path, label: str, rel: str
+) -> None:
+    """CONTROL for the test above, and the other half of the zone rule.
+
+    The prohibition is deliberately production-only: a test may load a subject
+    it computed, and a build config may resolve a plugin by name. Pinned here
+    because this is the file that owns the decision -- another gate reading the
+    same load sites must not quietly refuse what this one permits, and cannot
+    be shown not to unless the permission is written down.
+    """
+    ws = _base(tmp_path, f"ws-nl-{label.replace(' ', '-')}")
+    ws.source(rel, "export const load = (name) => import(name)")
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
 
 
 # --- lexical structure: what a regex could not see ---------------------------
