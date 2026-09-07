@@ -24,13 +24,13 @@ criteria below are satisfied.
   "reviewed_base_commit": "519dcde03ebe5e09861a9d66e9cf38424cc31581",
   "review_epoch": 4,
   "scope_id": "typescript7-cutover",
-  "reviewed_at": "REPLACE_WITH_RFC3339_TIMESTAMP",
-  "reviewer": "REPLACE_WITH_INDEPENDENT_REVIEWER",
-  "verdict": "REVIEW_REQUIRED",
-  "unresolved_p1_count": null,
-  "unassigned_p2_p3_count": null,
-  "invariant_set_changed": null,
-  "authority_allocation_complete": null,
+  "reviewed_at": "2026-09-07T16:37:57Z",
+  "reviewer": "GPT-5.6 Sol — independent architecture review",
+  "verdict": "ARCHITECTURE_ACCEPTED",
+  "unresolved_p1_count": 0,
+  "unassigned_p2_p3_count": 0,
+  "invariant_set_changed": false,
+  "authority_allocation_complete": true,
   "reviewed_artifacts": [
     {
       "path": ".openspec.yaml",
@@ -72,34 +72,49 @@ criteria below are satisfied.
 }
 -->
 
+## Epoch-4 Review Focus
+
+Epoch 4 assesses one focused planning correction, made after task 3.2 stopped at
+its own accepted stop condition.
+
+The local TypeScript 7.0.2 cutover typechecked, built, produced byte-identical
+runtime JavaScript and byte-identical generator artifacts, and emitted the same
+file set — then failed a raw-byte declaration comparison on 164 files. The
+differences were two compiler serializer choices: the string-literal quote
+delimiter, and TypeScript 7's deterministic member ordering. Map bytes shifted
+as a consequence, including `.js.map` for `.js` files that are byte-identical.
+
+Nothing from the cutover has been merged or delivered, so no consumer depends on
+TypeScript 6's byte formatting. The question for this epoch is whether the
+correction re-states the preservation obligation against what the repository
+means and ships, without moving anything architectural.
+
 ## Review Pin
 
 | Field | Value |
 |---|---|
-| Repository | pulse-ops-ai/secure-home-agent-platform |
-| Branch | feat/typescript-7-cutover |
+| Repository | `pulse-ops-ai/secure-home-agent-platform` |
+| Branch | `feat/typescript-7-cutover` |
 | Reviewed commit | `5c95299df406023e50507a4c6ef256c9b1b38e90` |
-| Default branch / merge base | `main` / `519dcde03ebe5e09861a9d66e9cf38424cc31581` (live ref consulted at mint) |
-| Worktree state | clean / <confirm independently> |
+| Default branch / merge base | `main` @ `519dcde03ebe5e09861a9d66e9cf38424cc31581` (exact live base, unmoved) |
+| Worktree state | clean at review time; no tracked or untracked modifications |
 | Review rubric | `governed-preimplementation-review-v1` |
-| Historical review consulted after blind pass | yes / no / none present |
+| Historical review consulted after blind pass | yes — epochs 1, 2 and 3 under `reviews/` |
 
-The reviewed commit contains the complete planning package. The review report
-may be committed afterward; the deterministic gate permits only this current
-review file and `reviews/**` to differ from the reviewed commit before apply.
+The reviewed commit contains the complete planning package. This report is
+committed afterward; the deterministic gate permits only this current review
+file and `reviews/**` to differ from the reviewed commit before apply.
 
 ## Independent Review Statement
 
-State:
+- The reviewer did not author the planning package in the same working context.
+- The review was read-only except for this report.
+- The current package was assessed before historical `reviews/**` was read.
+- Repository claims were checked against current paths, symbols, schemas and
+  tests, not against planning prose.
+- No live external mutation was performed.
 
-- the reviewer did not author the planning package in the same working context;
-- the review was read-only except for this report;
-- the current package was assessed before historical `reviews/**` was read;
-- repository claims were checked against current paths, symbols, schemas, and
-  tests;
-- no live external mutation was performed.
-
-If independence cannot be established, verdict remains `REVIEW_REQUIRED`.
+Independence is established.
 
 ## Reviewed Artifact Manifest
 
@@ -107,18 +122,18 @@ The machine-readable block is authoritative for exact paths and SHA-256 values.
 
 | Path | SHA-256 | Read completely? |
 |---|---|---|
-| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` | <yes/no> |
-| `proposal.md` | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` | <yes/no> |
-| `specs/lint-policy-parity/spec.md` | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` | <yes/no> |
-| `specs/toolchain-authority/spec.md` | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` | <yes/no> |
-| `specs/toolchain-supply-chain/spec.md` | `591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6` | <yes/no> |
-| `specs/typescript-7-cutover/spec.md` | `af6e80db95686be42b00feff313f6f59a520c05c907760213ec303362811d338` | <yes/no> |
-| `design.md` | `b33429798052e3c2e387882079195754e7d826b264f644cab605b79dbbf5c588` | <yes/no> |
-| `assurance.md` | `ed041ecb88441821ab6a9e5c6f20d3b8e3348afca5658ad56c26eed10191a6a5` | <yes/no> |
-| `tasks.md` | `102aac693bd7e46e22f03ff6deebf590fb3e7c9537c8b7a5efa8d0727272e6f5` | <yes/no> |
+| `.openspec.yaml` | `212a6ad71ca36b84fdbef9c954c23bb5f5551512f74a3b8205c70c639d2111e1` | yes |
+| `proposal.md` | `2ae9962c24e2949976f03ad7bb3ecdda390070287d04caa80f4d698abdfb56c8` | yes |
+| `specs/lint-policy-parity/spec.md` | `f265eabb97fcc09816f4529d78eef40cb7e7978162cbdefb0aa23d2e84c7a268` | yes |
+| `specs/toolchain-authority/spec.md` | `6711db4724e51f7c4eb4d77dde4b5491286cbb75e07155542b0638ad310cbaa9` | yes |
+| `specs/toolchain-supply-chain/spec.md` | `591bcb272bece673adec456bad5ae85b351b50deef43ab10ad78856cef5f26c6` | yes |
+| `specs/typescript-7-cutover/spec.md` | `af6e80db95686be42b00feff313f6f59a520c05c907760213ec303362811d338` | yes |
+| `design.md` | `b33429798052e3c2e387882079195754e7d826b264f644cab605b79dbbf5c588` | yes |
+| `assurance.md` | `ed041ecb88441821ab6a9e5c6f20d3b8e3348afca5658ad56c26eed10191a6a5` | yes |
+| `tasks.md` | `102aac693bd7e46e22f03ff6deebf590fb3e7c9537c8b7a5efa8d0727272e6f5` | yes |
 
-Every current delta spec must appear. Historical reviews and this report are not
-members of the planning-byte manifest.
+All nine current planning artifacts appear. Historical reviews and this report
+are not members of the planning-byte manifest.
 
 ## Review Method
 
@@ -153,18 +168,18 @@ Historical wording never overrides the current accepted artifacts.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Scope and non-goals are explicit | pass / fail | <reference> |
-| Current-scope requirements are observable and scenario-backed | pass / fail | <reference> |
-| Trust boundaries and external effects are explicit | pass / fail | <reference> |
-| Current-scope gating decisions are closed | pass / fail | <reference> |
-| Invariants are stable, concise, and traceable | pass / fail | <reference> |
-| Every mutable fact family has exactly one canonical authority | pass / fail | <reference> |
-| Planned authorities have contract-first tasks before consumers | pass / fail | <reference> |
-| Repository assumptions were verified | pass / fail | <reference> |
-| Landing seams are atomic and safely ordered | pass / fail | <reference> |
-| Proof obligations and hostile cases have due landings | pass / fail | <reference> |
-| Tasks are bounded and do not restate canonical data | pass / fail | <reference> |
-| Material prior findings have executable regression dispositions | pass / fail / not applicable | <reference> |
+| Scope and non-goals are explicit | pass | `tasks.md` `<!-- review-scope: typescript7-cutover -->`; task 3.2 "Does not own" unchanged |
+| Current-scope requirements are observable and scenario-backed | pass | `REQ-TC-002` now carries four emitted-output scenarios, one per failure mode |
+| Trust boundaries and external effects are explicit | pass | `design.md` D14/D15 untouched by this correction |
+| Current-scope gating decisions are closed | pass | D18 closes the preservation question; TS 7.0.2 target unchanged |
+| Invariants are stable, concise, and traceable | pass | no `INV-TS7-*` line added, removed or altered |
+| Every mutable fact family has exactly one canonical authority | pass | no `AUTH-*` row changed owner, path, type, producer or consumer |
+| Planned authorities have contract-first tasks before consumers | pass | 3.1 audit and the frozen baseline both precede 3.2's differential |
+| Repository assumptions were verified | pass | the correction is grounded in executed 7.0.2 evidence, not in prediction |
+| Landing seams are atomic and safely ordered | pass | 3.1 → 3.3 → 3.4 → 3.2 → 3.5 → 3.6 → 3.7 unchanged |
+| Proof obligations and hostile cases have due landings | pass | `MUT-TS-EMIT-001`…`004` all land in PR-C |
+| Tasks are bounded and do not restate canonical data | pass | task 3.2 wording refined; no checkbox touched |
+| Material prior findings have executable regression dispositions | pass | see *Review-Finding Regression Promotion* |
 
 ## Severity Calibration
 
@@ -183,13 +198,6 @@ A finding is P1 only when it includes all of:
    - prerequisite;
    - external identity or ownership model.
 
-Examples of P1 impact include credential disclosure, authorization attached to
-an untrusted destination, unauthorized or wrong-target external mutation,
-duplicate external creation, concurrent effects, recovery treating ambiguity as
-safe retry, or evidence accepted although it does not describe execution.
-
-A trust-critical component is not automatically a P1.
-
 ### P2 — implementation-contract blocker
 
 A significant correctness, feasibility, operability, or maintainability defect
@@ -197,113 +205,131 @@ that must be resolved before the affected landing ships but can be closed
 inside the already accepted architecture through a schema, policy, typed table,
 fixture, test, derivation, or bounded implementation choice.
 
-A defect in an allocated codec, pointer, enum, mapping, schema, filename, or
-golden vector is normally P2.
-
 ### P3 — documentation or local improvement
 
 A clarity, organization, naming, duplication, or non-blocking maintainability
 issue.
 
-A propagation mismatch is P3 unless it leaves two plausible normative
-implementations and one has P1-class impact.
-
 ## Findings
 
 ### P1 findings
 
-**Unresolved P1 findings:** `none | <count>`
+**Unresolved P1 findings:** `none`
 
-When P1 findings exist:
-
-| ID | Title | Invariant / decision | Concrete failure trace | Evidence | Impact | Architecture change required |
-|---|---|---|---|---|---|---|
-| P1-001 | <title> | <INV/D> | <steps> | <references> | <impact> | <required change> |
-
-For an accepting review, replace the indicator with exactly `none` and remove
-all placeholder P1 rows. The gate block's `unresolved_p1_count` must agree.
+The correction changes no invariant, authority allocation, trust boundary,
+prerequisite, or identity model, so no finding met the P1 bar.
 
 ### P2 findings
 
 | ID | Title | Evidence | Required executable closure | Owning task / landing |
 |---|---|---|---|---|
-| P2-001 | <title> | <reference> | <schema/test/code closure> | <task> |
+| P2-001 | Map preservation must prove ATTRIBUTION, not merely map structure | `REQ-TC-002` requires `.d.ts.map` / `.js.map` to be present, valid, internally consistent, correctly scoped and usable for source attribution. A checker verifying only Source Map v3 validity, the `sources[]` list, or non-empty `mappings` satisfies every one of those structural properties while mapping generated code to the WRONG original source line | See *P2-001 required closure* below | task `3.2`; `EX-TS-002`; `MUT-TS-EMIT-003` |
+
+#### P2-001 required closure
+
+Assigned, not deferred. This is an implementation choice inside the accepted
+`REQ-TC-002` architecture and requires no new authority and no planning change.
+
+For `.js.map`, where emitted `.js` is required byte-identical:
+
+- exact map file-set equality;
+- valid Source Map v3;
+- expected emitted `file`;
+- sources confined to the expected member/source tree;
+- for each TypeScript 6 mapped generated line, TypeScript 7 must retain
+  attribution to the same original source FILE and original source LINE;
+- generated/original column and segment refinement may differ;
+- a mapping to a different source path or original source line FAILS;
+- loss of TypeScript 6 source-line coverage FAILS.
+
+For `.d.ts.map`, where declaration serialization may legitimately change:
+
+- exact map file-set equality;
+- valid Source Map v3;
+- expected emitted target and member scope;
+- source-line coverage derived from the TypeScript 6 migration-comparison
+  projection;
+- every TypeScript 6-covered source file and original source line must remain
+  covered under TypeScript 7;
+- generated declaration line/column positions may move, because declaration
+  serialization and member ordering may move;
+- wrong-source attribution or lost source-line coverage FAILS.
+
+Required hostile controls:
+
+| Mutation | Required result |
+|---|---|
+| map missing | FAIL |
+| map malformed | FAIL |
+| same `sources[]`, mapping changed to the wrong source LINE | FAIL |
+| mapping changed to the wrong source FILE | FAIL |
+| source-line coverage removed | FAIL |
+| column/segment refinement with source file and line preserved | PASS |
 
 ### P3 findings
 
-| ID | Title | Evidence | Disposition |
-|---|---|---|---|
-| P3-001 | <title> | <reference> | fix / defer / reject with reason |
+None.
 
-**Unassigned P2/P3 findings:** `<count>`
+**Unassigned P2/P3 findings:** `0`
 
-A finding is assigned only when it names a task, proof obligation, or explicit
-deferred landing. The gate block's `unassigned_p2_p3_count` must agree and must
-be zero for acceptance.
+P2-001 is assigned to task 3.2, `EX-TS-002` and `MUT-TS-EMIT-003`.
 
 ## Authority Allocation Assessment
 
-For every `AUTH-*` row in `assurance.md`, verify:
-
-- one fact family has one owner;
-- path and symbol are unambiguous;
-- authority type can express the claimed fact;
-- producer and verifier/consumer are named;
-- planned authorities have contract-first tasks;
-- prose mirrors are absent, generated, or drift-checked;
-- no review ledger is treated as authority.
+Every current-scope `AUTH-*` row in `assurance.md` was re-checked. No row changed
+owner, path, type, producer or consumer as a result of this correction.
 
 | AUTH ID | Result | Evidence / finding |
 |---|---|---|
-| AUTH-001 | pass / fail | <reference> |
+| All current-scope rows | pass | unchanged by the correction |
+| `AUTH-TS-CONFORMANCE` | pass | continues to own emitted-output conformance; only the obligation it enforces is refined. D18's mention is a reference to the existing allocation in `assurance.md`, not a new authority |
 
-**Authority allocation complete:** `YES | NO`
-
-Set `authority_allocation_complete: true` only when this indicator is `YES`,
-every current-scope row passes, and no current-scope authority is `blocked`.
+**Authority allocation complete:** `YES`
 
 ## Repository Feasibility
 
 | Claim | Repository evidence inspected | Result | Finding / consequence |
 |---|---|---|---|
-| <design/task claim> | <path, symbol, schema, test> | verified / mismatch / absent | <result> |
-
-Do not approve an architecture whose safe implementation depends on repository
-behavior that was not inspected.
+| TypeScript 7.0.2 compiles the workspace | executed `pnpm typecheck` and `pnpm build` under 7.0.2 | verified | the cutover is not blocked by compilation |
+| Emitted runtime JavaScript is unchanged | 0 of 257 `.js` differ | verified | exact-byte obligation is achievable and meaningful |
+| Generator output is unchanged | 0 of 11 `schemas/` artifacts differ | verified | exact-byte obligation is achievable and meaningful |
+| Declaration differences are serializer-only | 28 of 256 `.d.ts` differ: 23 quote delimiter only, 5 including member reordering | verified | raw-byte declaration identity is the over-constraint |
+| Map bytes shift without emitted change | 53 of 257 `.js.map` differ although every `.js` is byte-identical | verified | raw-byte map identity is the over-constraint |
+| The frozen TypeScript 6 evidence is immutable and bound | `tests/evidence/ts6-emit-baseline.json`, sealed, bound to `362c349e` with the binding verified rather than asserted | verified | the historical record survives the correction |
 
 ## Invariant Stability
 
-- Invariant set before review: `<IDs and digest or exact list reference>`
-- Invariant set after review: `<same | changed>`
-- New invariant required by this review: `none | <ID and reason>`
-- Existing invariant removed or materially changed: `none | <ID and reason>`
+- Invariant set before review: the accepted `INV-TS7-*` set at
+  `5c95299df406023e50507a4c6ef256c9b1b38e90`
+- Invariant set after review: same
+- New invariant required by this review: `none`
+- Existing invariant removed or materially changed: `none`
 
-**Invariant set changed by this review:** `YES | NO`
+**Invariant set changed by this review:** `NO`
 
-Set `invariant_set_changed: false` only when this indicator is `NO` and no new
-invariant or material invariant rewrite is required at the reviewed commit.
+The correction refines one requirement's proof obligation and adds one decision
+record. TypeScript 7.0.2 as the target normal compiler, Scope-2 sequencing, every
+`INV-TS7-*` invariant, every `AUTH-*` ownership and allocation, the bounded
+TypeScript 6 compatibility seam, lint-policy authority, the retirement
+architecture, trust boundaries, and the native platform requirements are all
+unchanged.
 
 ## Review-Finding Regression Promotion
 
-For each material historical or current finding resolved before acceptance,
-identify durable protection.
-
 | Finding | Canonical authority changed | Executable regression evidence | Owning task / existing path |
 |---|---|---|---|
-| <finding> | <AUTH-ID> | <fixture/test/schema guard/golden vector> | <reference> |
+| Task 3.2's emitted-output stop: the accepted proof contract required raw-byte identity with an undelivered compiler's serializer, blocking a cutover on differences no consumer can observe | none — `AUTH-TS-CONFORMANCE` keeps the fact family; only its obligation is refined | D18; corrected `REQ-TC-002` scenarios; refined `EX-TS-002`; `MUT-TS-EMIT-001`…`004`; task 3.2's per-surface proof | `openspec/changes/typescript-7-lint-engine-resilience/{design,assurance,tasks}.md`, `specs/typescript-7-cutover/spec.md` |
+| P2-001 map preservation must prove attribution, not structure | none | assigned, not yet executable — closure lands in task 3.2 as `MUT-TS-EMIT-003` with the six hostile controls above | task 3.2 |
 
-A prose-only correction is not durable regression protection for an
-implementation-grade defect.
+`MUT-TS-EMIT-004` is the durable protection for the baseline itself: rewriting
+the frozen TypeScript 6 evidence, or recapturing it under TypeScript 7, is now a
+named hostile case rather than a convention.
 
 ## Focused Closure Required
 
-Complete only when the verdict is `FOCUSED_CLOSURE_REQUIRED`.
-
-| Closure question | Required evidence | Re-review scope | Stop condition |
-|---|---|---|---|
-| <one bounded question> | <exact artifact/test/decision> | <paths> | <deterministic condition> |
-
-Do not request another unrestricted “find more issues” round.
+Not applicable. The verdict is `ARCHITECTURE_ACCEPTED`. P2-001 is assigned to an
+implementation task inside the accepted architecture and does not require another
+review round.
 
 ## Verdict
 
@@ -318,32 +344,60 @@ so the option list above lives inside a comment on purpose: replace the line
 below, never add to it. Backticked mentions in prose are not verdicts.
 -->
 
-**REVIEW_REQUIRED**
+**ARCHITECTURE_ACCEPTED**
 
 ### Verdict rationale
 
-<Concise evidence-based rationale.>
+The focused correction is architecturally sound. It corrects an over-constrained
+proof mechanism that real task-3.2 evidence exposed, and it does so without
+moving the target compiler, the sequencing, any invariant, or any authority.
 
-`ARCHITECTURE_ACCEPTED` is permitted with P2/P3 findings only when every one is
-assigned to a task, proof obligation, or explicit deferred landing and no P1
-remains.
+D18 draws the right distinction: before first delivery, preservation means the
+repository's contract, not the previous compiler's serializer. `REQ-TC-002` now
+allocates that obligation by emitted surface — exact bytes where the repository
+ships bytes (runtime JavaScript, generator artifacts), structural type and API
+semantics for declarations, and operational source attribution for maps. The
+declaration contract is explicit in both directions: quote delimiter and
+deterministic member ordering may differ, while a changed exported symbol,
+member, literal value, type, optionality, `readonly` modifier, generic
+constraint, module specifier, signature or overload semantics, or
+union/intersection membership must fail.
+
+The refusal to normalize is correct. A pattern-based normalizer that grows a rule
+per observed difference eventually accepts every difference, and the rules needed
+here would have had to erase declaration structure and ordering — which is where
+meaning lives. Comparing declarations structurally instead keeps the failure
+modes enumerable.
+
+The raw TypeScript 6 baseline remains immutable historical evidence and is not
+rewritten or recaptured to fit TypeScript 7.
+
+One P2 is raised and assigned: map preservation must prove attribution rather
+than structure, because a structurally valid map can still point at the wrong
+original line. It closes inside the accepted architecture, in task 3.2.
+
+Zero P1 findings. Zero unassigned findings.
 
 ## Apply Eligibility
 
-- Review gate metadata valid: yes / no
-- Reviewed artifact digests current: yes / no
-- Repository state unchanged except this report and `reviews/**`: yes / no
-- Strict OpenSpec validation passed: yes / no
-- Verdict is `ARCHITECTURE_ACCEPTED`: yes / no
-- Unresolved P1 count is zero: yes / no
-- Invariant set unchanged by the accepting review: yes / no
-- Authority allocation complete: yes / no
-- External implementation authorization recorded and scope-covering: yes / no
+- Review gate metadata valid: yes
+- Reviewed artifact digests current: yes
+- Repository state unchanged except this report and `reviews/**`: yes
+- Strict OpenSpec validation passed: yes
+- Verdict is `ARCHITECTURE_ACCEPTED`: yes
+- Unresolved P1 count is zero: yes
+- Invariant set unchanged by the accepting review: yes
+- Authority allocation complete: yes
+- External implementation authorization recorded and scope-covering: tracked
+  separately — see below
 
-**Apply eligible:** `YES | NO`
+**Apply eligible:** `YES`
 
-The deterministic review gate validates the machine-readable subset. External
-implementation authorization remains a separate tasks.md check.
+This indicator is the REVIEW's determination: the planning bytes are accepted and
+the pre-apply boundary may be established. It is not owner authorization to
+implement. Task 3.2 remains paused: implementation resumes only after a fresh
+trusted pre-apply boundary succeeds and the owner refreshes implementation
+authority.
 
 `REVIEW_GATE_VALID` proves the planning bytes are still those reviewed and that
 this report satisfies the declared contract at the pre-apply boundary. It does
