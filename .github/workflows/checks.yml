@@ -144,6 +144,13 @@ jobs:
       - name: Lint-engine retirement (imports)
         run: pnpm run check:retirement-imports
 
+      # EX-TS-002 per-surface emitted-output conformance against the frozen
+      # TypeScript 6 baseline: exact bytes for runtime JavaScript and generator
+      # artifacts, structural shape for declarations, attribution and coverage
+      # for maps. A green build is not evidence that emitted output survived.
+      - name: Emitted-output conformance
+        run: pnpm run check:emit-conformance
+
       # REAL repository content through admission. `check-knowledge.mjs` above
       # is the registry/scaffold checker and cannot see content rules; this runs
       # the package that owns them over whatever knowledge/ actually contains.

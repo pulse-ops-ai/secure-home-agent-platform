@@ -113,6 +113,11 @@ if command -v pnpm >/dev/null 2>&1; then
   run "typescript: types"     pnpm typecheck
   run "typescript: tests"     pnpm test
   run "typescript: build"     pnpm build
+  # EX-TS-002. The build exiting 0 says the program typechecked, not that what
+  # it EMITS still matches what the previous compiler produced. Runs after the
+  # build because it compares emitted output, and it rebuilds cleanly itself so
+  # a stale dist cannot make it agree.
+  run "typescript: emit conformance" pnpm run check:emit-conformance
   # REAL repository content through the package's admission rules. It runs
   # after the build because it invokes the published package export rather than
   # a copy of the logic — which is the point: one admission authority, exercised

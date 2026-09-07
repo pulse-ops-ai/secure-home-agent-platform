@@ -19,6 +19,7 @@
     "check:lint-policy": "node packages/lint-config/src/check-policy.mjs",
     "check:retirement": "node scripts/check-engine-retirement.mjs --phase=static",
     "check:retirement-imports": "node scripts/check-engine-retirement.mjs --phase=imports",
+    "check:emit-conformance": "node scripts/emit-conformance.mjs --verify",
     "check:toolchain-boundaries": "node scripts/check-toolchain-boundaries.mjs",
     "check:openspec-schema": "OPENSPEC_TELEMETRY=0 openspec schema validate governed-spec-driven-v2",
     "check:release-history": "node scripts/check-release-history.mjs",
