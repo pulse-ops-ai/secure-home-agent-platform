@@ -625,12 +625,12 @@ describe('task 3.3 — no member escapes the capability-owned policy path', () =
   })
 
   it('the compiler authority is untouched by this task', () => {
-    // 3.4 retires an ENGINE. The compiler cutover is 3.2 and has not happened,
-    // so TypeScript must still be exactly 6.0.3 here: a retirement that also
-    // moved the compiler would make it impossible to say which change caused
-    // whatever broke next.
+    // 3.4 retired an ENGINE and deliberately left the compiler alone, so this
+    // asserted 6.0.3 until task 3.2 moved it. The ordering is the point: the
+    // engine left first, so no single change both removed an engine and moved
+    // the compiler, and whatever broke next could be attributed.
     const catalog = readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8')
-    expect(catalog).toMatch(/^ {2}typescript: 6\.0\.3$/m)
+    expect(catalog).toMatch(/^ {2}typescript: 7\.0\.2$/m)
   })
 
   it('and the retired engine is gone from the workspace entirely', () => {

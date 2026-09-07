@@ -135,7 +135,7 @@ def test_a_typescript_eslint_dependency_is_caught_by_family(clone: Path) -> None
 def test_a_catalog_pin_left_behind_is_caught(clone: Path) -> None:
     workspace = clone / "pnpm-workspace.yaml"
     text = workspace.read_text()
-    _mutate(workspace, text.replace("  typescript: 6.0.3", "  eslint: 10.8.0\n  typescript: 6.0.3"))
+    _mutate(workspace, text.replace("  typescript: 7.0.2", "  eslint: 10.8.0\n  typescript: 7.0.2"))
     _stage(clone)
 
     result = _run(clone)

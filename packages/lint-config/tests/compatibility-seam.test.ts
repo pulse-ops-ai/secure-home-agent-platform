@@ -75,8 +75,18 @@ describe('the seam is not a compiler', () => {
     expect(root.devDependencies[COMPATIBILITY_PACKAGE as string]).toBe('catalog:')
   })
 
-  it('the authoritative compiler pin is unchanged', () => {
-    expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}typescript: 6\.0\.3$/m)
+  it('the authoritative compiler pin is exactly the cutover target', () => {
+    // Task 3.2 moved this from 6.0.3. Exact, never a range: a range would let
+    // the compiler that produced the emitted-output evidence differ from the
+    // one a later install resolves.
+    expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}typescript: 7\.0\.2$/m)
+  })
+
+  it('and the seam did NOT move with it', () => {
+    // The seam tracks the API generation it exposes, not the compiler's. Task
+    // 3.5 owns its post-cutover re-proof; 3.2 must leave it exactly where it
+    // was, or a single change would have moved two authorities.
+    expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}'@typescript\/typescript6': 6\.0\.2$/m)
   })
 
   it('no guarded entry point reaches the compatibility API', () => {
@@ -125,7 +135,7 @@ describe('behaviour is unchanged by the seam', () => {
     expect(read('scripts/check-source-imports.mjs')).toMatch(/ts\.version/)
   })
 
-  it('the seam and the compiler agree on the API surface the gate uses', () => {
+  it('the seam carries the API surface the gate uses, and the compiler does NOT', () => {
     // Loaded in a SUBPROCESS, with both identities taken from the boundary
     // policy and passed as arguments.
     //
@@ -183,11 +193,22 @@ describe('behaviour is unchanged by the seam', () => {
       seamVersion: string
       compilerVersion: string
     }
+    // The seam has every symbol the gate uses.
     expect(report.seamMissing).toEqual([])
-    expect(report.compilerMissing).toEqual([])
-    // They agree NOW. That agreement is exactly why reverting the seam is
-    // invisible, and why its presence is asserted rather than inferred.
-    expect(report.seamVersion).toBe(report.compilerVersion)
+
+    // The normal compiler has NONE of them, and that is the point.
+    //
+    // Before the cutover both exposed the traditional API, so this could only
+    // assert that they agreed — which made the seam's presence look like a
+    // redundancy anyone could revert without a test noticing. TypeScript 7's
+    // root export has no traditional API surface (D5), so the same probe now
+    // proves the seam is LOAD-BEARING: delete it and the architecture import
+    // gate has nothing to parse with.
+    expect(report.compilerMissing.sort()).toEqual([...used].sort())
+
+    // Two different generations, which is the gap the seam exists to bridge.
+    expect(report.compilerVersion).toBe('7.0.2')
+    expect(report.seamVersion).not.toBe(report.compilerVersion)
   })
 })
 

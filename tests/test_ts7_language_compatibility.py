@@ -506,11 +506,19 @@ def test_the_probe_records_the_exact_compiler_version() -> None:
     assert EVIDENCE["probe"]["compiler"] == "typescript"
 
 
-def test_typescript_7_is_not_in_the_repository_dependency_graph() -> None:
-    """3.1 audits; it does not adopt. Task 3.2 moves the pin."""
+def test_the_audited_compiler_is_now_the_authoritative_one() -> None:
+    """3.1 audited 7.0.2 without adopting it; task 3.2 adopted it.
+
+    This guard read the other way around until the cutover — "the pin must
+    still be 6.0.3, because the audit does not adopt" — and its own docstring
+    named 3.2 as the task that would flip it. Flipped, not deleted: the audit
+    probed exactly 7.0.2, so the pin landing on any OTHER version would mean
+    the repository adopted a compiler nothing audited.
+    """
     catalog = (REPO / "pnpm-workspace.yaml").read_text()
-    assert re.search(r"^  typescript: 6\.0\.3$", catalog, re.M), (
-        "the normal compiler pin moved during the audit task"
+    probed = EVIDENCE["probe"]["version"]
+    assert re.search(rf"^  typescript: {re.escape(probed)}$", catalog, re.M), (
+        f"the audit probed TypeScript {probed}; the catalog pins something else"
     )
 
 

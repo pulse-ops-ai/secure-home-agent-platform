@@ -53,18 +53,21 @@ catalog:
   '@types/node': 24.10.1
   # Type checking and build.
   #
-  # PINNED TO 6.x DELIBERATELY, and the reason has changed.
+  # THE ONE AUTHORITATIVE NORMAL COMPILER. Task 3.2 moved this from 6.0.3.
   #
-  # It used to be typescript-eslint: 8.66 supported '>=4.8.4 <6.1.0' and threw
-  # outright on TS 7, so type-aware linting would fail — or, worse, pass or
-  # fail depending on which TypeScript copy resolved first. Task 3.4 retired
-  # that engine, so that constraint is gone.
+  # It was pinned to 6.x because typescript-eslint 8.66 supported
+  # '>=4.8.4 <6.1.0' and threw outright on TS 7, so type-aware linting would
+  # fail — or, worse, pass or fail depending on which TypeScript copy resolved
+  # first. Task 3.4 retired that engine, which is what made this move possible;
+  # the pin moved only afterwards, so a single change never both removed an
+  # engine and changed the compiler.
   #
-  # This stays at 6.0.3 anyway, because moving it is a DIFFERENT task. The
-  # compiler cutover is task 3.2, and doing it here would mean a single change
-  # that both removed an engine and changed the compiler — with no way to say
-  # which one caused whatever broke next. Raise this in 3.2, not before.
-  typescript: 6.0.3
+  # Exact, never a range. Every `typecheck`, `build` and `generate` entry point
+  # must resolve THIS package at THIS version, proved by the compiler-identity
+  # tests rather than assumed. `@typescript/typescript6` below is a bounded
+  # PARSER seam, not a compiler: no ordinary entry point may resolve it, its
+  # `tsc6` binary, or `typescript/unstable/*`.
+  typescript: 7.0.2
   # Linting.
   # Lint globals (Node/browser sets) — tiny, data-only.
   # THE BOUNDED TRADITIONAL-API COMPATIBILITY SEAM, added by PR-B task 1.13.
