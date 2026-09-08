@@ -352,6 +352,46 @@ describe('a lint engine is not a compiler authority', () => {
   })
 })
 
+describe('the seam is bounded by AVAILABILITY, not only by who imports it', () => {
+  // A member does not have to import the compatibility parser for the boundary
+  // to have moved. Declaring it makes it locally resolvable, and every
+  // singleton proof above is about SOURCE consumers -- so a dependency edge is
+  // a second, quieter way to widen a bounded parsing surface into a general
+  // one. `optionalDependencies` was the field nobody read, and an optional edge
+  // installs exactly like a required one when the platform matches.
+  const MEMBER = path.join(SUBJECT, 'packages', 'contracts', 'package.json')
+
+  it.each(['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'])(
+    'REFUSES a member declaring the seam in %s',
+    (field) => {
+      const original = readFileSync(MEMBER, 'utf8')
+      const pkg = JSON.parse(original) as Record<string, Record<string, string>>
+      pkg[field] = { ...(pkg[field] ?? {}), [COMPATIBILITY_PACKAGE]: 'catalog:' }
+      writeFileSync(MEMBER, `${JSON.stringify(pkg, null, 2)}\n`)
+      try {
+        expect(readFileSync(MEMBER, 'utf8')).toContain(COMPATIBILITY_PACKAGE)
+        const problems = checkNormalCompilerAuthority(SUBJECT).join('\n')
+        expect(problems).toContain(`declares ${COMPATIBILITY_PACKAGE} in ${field}`)
+        expect(problems).toMatch(/only the root hosts the admitted consumer/)
+      } finally {
+        writeFileSync(MEMBER, original)
+      }
+    },
+  )
+
+  it('and the ROOT declaration stays admitted, because the root hosts the consumer', () => {
+    // Not a vacuous control: the root really does declare it, so an
+    // implementation that refused every declaration would fail here.
+    const root = JSON.parse(readFileSync(path.join(SUBJECT, 'package.json'), 'utf8')) as {
+      devDependencies?: Record<string, string>
+      dependencies?: Record<string, string>
+    }
+    expect({ ...root.dependencies, ...root.devDependencies }).toHaveProperty(COMPATIBILITY_PACKAGE)
+    expect(checkNormalCompilerAuthority(SUBJECT)).toEqual([])
+    expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+  })
+})
+
 describe('the seam is bounded by module LOADING, not by one import syntax', () => {
   // The detector matched `from '<pkg>'` alone. A double-quoted import, a
   // dynamic import, a require, or `import x = require()` all loaded the

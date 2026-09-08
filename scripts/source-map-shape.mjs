@@ -81,23 +81,47 @@ export function decodeMappings(mappings) {
  * every segment of every map would cost far more than it proves. What matters
  * is that the two readers cannot disagree about the format.
  */
-function crossCheck(map, entries, label) {
+function crossCheck(map, entries, sources, label) {
   const step = Math.max(1, Math.floor(entries.length / 16))
   for (let i = 0; i < entries.length; i += step) {
     const mine = entries[i]
     const theirs = map.findEntry(mine.genLine, mine.genCol)
+    // The source INDEX is checked too, not only line and column. Node reports
+    // the RAW `sources[]` string it read from the same bytes, so comparing it
+    // against `sources[srcIdx]` is the only thing that validates the index --
+    // and `mapProjection` builds the whole effective-source identity from that
+    // index. Without this a decoder could attribute every segment to the wrong
+    // FILE, agree about line and column, and cross-check clean.
+    const mineSource = sources[mine.srcIdx]
     if (
       theirs.originalLine !== mine.srcLine ||
       theirs.originalColumn !== mine.srcCol ||
-      theirs.originalSource === undefined
+      theirs.originalSource === undefined ||
+      theirs.originalSource !== mineSource
     ) {
       throw new Error(
         `${label}: the VLQ decoder disagrees with node:module at ` +
-          `${mine.genLine}:${mine.genCol} — decoded ${mine.srcLine}:${mine.srcCol}, ` +
-          `node reported ${theirs.originalLine}:${theirs.originalColumn}`,
+          `${mine.genLine}:${mine.genCol} — decoded ${JSON.stringify(mineSource)} ` +
+          `${mine.srcLine}:${mine.srcCol}, node reported ` +
+          `${JSON.stringify(theirs.originalSource)} ` +
+          `${theirs.originalLine}:${theirs.originalColumn}`,
       )
     }
   }
+}
+
+/**
+ * The emitted file a map is the map FOR, derived from the map's own path.
+ *
+ * `file` is the map's CLAIM about what it describes. Comparing it only against
+ * the previous compiler's `file` value proves the claim did not change; it
+ * never proves the claim is true. A map at `dist/index.js.map` naming
+ * `other.js` mis-identifies its target in both projections equally, and every
+ * before/after comparison passes.
+ */
+export function expectedEmittedTarget(mapPath) {
+  const base = mapPath.split('/').pop() ?? mapPath
+  return base.endsWith('.map') ? base.slice(0, -'.map'.length) : base
 }
 
 /**
@@ -139,7 +163,7 @@ export function mapProjection(text, label = 'map', mapPath = label, repoRoot = p
   if (typeof json.mappings !== 'string') throw new Error(`${label}: no mappings string`)
 
   const entries = decodeMappings(json.mappings)
-  crossCheck(map, entries, label)
+  crossCheck(map, entries, json.sources, label)
 
   const effective = json.sources.map((source) =>
     effectiveSource(mapPath, json.sourceRoot ?? '', source, repoRoot),
@@ -210,12 +234,30 @@ export const digestOf = (value) =>
  *
  * @param scope repository-relative prefix every effective source must sit
  * inside — the member that owns the map.
+ *
+ * @param expectedFile the emitted target this map's own path implies. Checked
+ * against the CURRENT map, because it is an absolute claim rather than a
+ * comparison between two compilers.
  */
-export function compareMap(label, before, after, { strictLines, scope = undefined }) {
+export function compareMap(
+  label,
+  before,
+  after,
+  { strictLines, scope = undefined, expectedFile = undefined },
+) {
   const problems = []
 
   if (before.file !== after.file) {
     problems.push(`${label}: emitted target changed, ${before.file} -> ${after.file}`)
+  }
+  // Equality above is agreement between two projections; this is agreement with
+  // the map's own path. Both are needed: a map that named the wrong target
+  // under BOTH compilers is stable and still wrong.
+  if (expectedFile !== undefined && after.file !== expectedFile) {
+    problems.push(
+      `${label}: the map names "${after.file}" as its emitted target, but a map at this path ` +
+        `describes "${expectedFile}"`,
+    )
   }
 
   // Effective identities, so a `sourceRoot` change that redirects attribution

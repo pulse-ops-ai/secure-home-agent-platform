@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -340,6 +341,153 @@ def test_a_legacy_rc_file_is_caught_too(clone: Path) -> None:
     result = _run(clone)
     assert result.returncode != 0
     assert "is a configuration file for the retired engine" in _output(result)
+
+
+# --- P2-B: the configuration, metadata and SCRIPT surfaces, exhaustively -----
+#
+# The committed tree is clean; the question these answer is whether the checker
+# would still report clean over a candidate that was not. A subset of the
+# configuration forms, or a scan of only the canonical `lint` script, is a hole
+# with the shape of exactly the residue someone would leave.
+
+
+def _exported(name: str) -> list[str]:
+    """Read a set the checker itself owns, so the test cannot drift from it."""
+    out = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            f"import {{{name}}} from {str(CHECK)!r}; process.stdout.write(JSON.stringify({name}))",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        check=True,
+    ).stdout
+    parsed: list[str] = json.loads(out)
+    return parsed
+
+
+#: Every filename the engine resolved, across both configuration eras. Written
+#: out here rather than read from the checker, because the point is that the
+#: checker must cover a surface defined by the ENGINE, not by itself.
+REQUIRED_CONFIG_FORMS = [
+    ".eslintignore",
+    ".eslintrc",
+    ".eslintrc.cjs",
+    ".eslintrc.js",
+    ".eslintrc.json",
+    ".eslintrc.yaml",
+    ".eslintrc.yml",
+    "eslint.config.cjs",
+    "eslint.config.cts",
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.mts",
+    "eslint.config.ts",
+]
+
+
+def test_the_configuration_surface_is_complete() -> None:
+    """A missing form is not a smaller claim; it is a false one.
+
+    The checker asserts that no engine configuration survives, so an unlisted
+    filename is a place a candidate keeps one while the gate reports clean.
+    """
+    covered = set(_exported("RETIRED_CONFIG_BASENAMES"))
+    missing = sorted(set(REQUIRED_CONFIG_FORMS) - covered)
+    assert not missing, f"the checker does not refuse these engine config forms: {missing}"
+
+
+@pytest.mark.parametrize("basename", REQUIRED_CONFIG_FORMS)
+def test_every_engine_configuration_form_is_caught(clone: Path, basename: str) -> None:
+    _mutate(clone / "packages" / "contracts" / basename, "// engine configuration residue\n")
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0, f"{basename} was admitted"
+    assert "is a configuration file for the retired engine" in _output(result)
+
+
+def _edit_manifest(root: Path, rel: str, **changes: Any) -> None:
+    path = root / rel
+    manifest: dict[str, Any] = json.loads(path.read_text())
+    for key, value in changes.items():
+        if key == "scripts":
+            manifest.setdefault("scripts", {}).update(value)
+        else:
+            manifest[key] = value
+    _mutate(path, json.dumps(manifest, indent=2) + "\n")
+
+
+@pytest.mark.parametrize("key", ["eslintConfig", "eslintIgnore"])
+def test_legacy_configuration_carried_in_package_metadata_is_caught(clone: Path, key: str) -> None:
+    """The legacy era let a package configure the engine with no config FILE at
+    all, so a filename scan alone leaves the hole where completeness is claimed."""
+    value: Any = {"extends": []} if key == "eslintConfig" else ["dist"]
+    _edit_manifest(clone, "packages/contracts/package.json", **{key: value})
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0, f"{key} was admitted"
+    assert "is configuration for the retired engine" in _output(result)
+
+
+@pytest.mark.parametrize(
+    ("label", "script"),
+    [
+        ("a bare invocation", "eslint ."),
+        ("a package-manager prefix", "pnpm exec eslint ."),
+        ("an npx prefix", "npx eslint --fix ."),
+        ("an explicit package entry path", "node node_modules/eslint/bin/eslint.js ."),
+        ("a bin shim", "./node_modules/.bin/eslint ."),
+        ("a second command in a chain", "tsc --noEmit && eslint ."),
+        ("an environment-prefixed invocation", "NODE_OPTIONS=--no-warnings eslint ."),
+        ("the retired workspace config package", "node packages/eslint-config/index.js"),
+    ],
+)
+def test_any_script_running_the_retired_engine_is_caught(
+    clone: Path, label: str, script: str
+) -> None:
+    """And it must be caught with NO dependency on the engine anywhere.
+
+    The clone has no `eslint` in any manifest, catalog or lock -- that is the
+    committed state. A script is a second, independent way to reach the engine,
+    and the checker looked only at the canonical `lint` command, which is the
+    one command nobody would use to keep it.
+    """
+    _edit_manifest(clone, "packages/contracts/package.json", scripts={"lint:legacy": script})
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode != 0, f"{label} was admitted"
+    assert "runs the retired lint engine" in _output(result)
+
+
+@pytest.mark.parametrize(
+    ("label", "script"),
+    [
+        ("prose that prints the word", "echo 'eslint was retired in task 3.4'"),
+        ("the replacement capability", "secure-home-lint"),
+        ("a script named for the retired era", "pnpm -r --if-present run lint"),
+    ],
+)
+def test_a_script_that_only_mentions_the_engine_is_not_residue(
+    clone: Path, label: str, script: str
+) -> None:
+    """The control that keeps this an IDENTITY check rather than a grep.
+
+    The retirement is deliberately provable without searching for the word,
+    because the word legitimately survives in the retained legacy rule
+    identities, in the surviving engine's own diagnostic codes, and in prose
+    that has to be able to name what was retired.
+    """
+    _edit_manifest(clone, "packages/contracts/package.json", scripts={"note": script})
+    _stage(clone)
+
+    result = _run(clone)
+    assert result.returncode == 0, f"{label} was refused: {_output(result)}"
 
 
 # --- mutation 3: the package partially survives -----------------------------

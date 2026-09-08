@@ -166,8 +166,19 @@ def test_a_member_that_emits_no_declarations_carries_no_declaration_claim(
 
 
 def test_the_claimed_surfaces_are_the_ones_ex_ts_002_names(baseline: dict[str, Any]) -> None:
-    """`.d.ts`, `.d.ts.map`, `.js.map`, and generator output. `.js` is recorded
-    but not claimed: widening a proof obligation is not this task's to do."""
+    """The BASELINE's own claim flags, which are immutable evidence.
+
+    They record what task 3.1 claimed when the baseline was frozen: `.d.ts`,
+    `.d.ts.map`, `.js.map` and generator output, with compiled `.js` recorded as
+    observation rather than claimed, because widening a proof obligation was not
+    that task's to do.
+
+    They are not the current obligation. D18 re-stated `REQ-TC-002` per emitted
+    surface, and `emit-conformance.mjs` now compares that recorded runtime JS
+    surface by exact bytes — a stronger requirement than the flag frozen here.
+    The flags stay as captured; recapturing them under the new compiler is
+    `MUT-TS-EMIT-004`.
+    """
     claimed_kinds = {
         kind
         for record in baseline["members"].values()
@@ -179,7 +190,8 @@ def test_the_claimed_surfaces_are_the_ones_ex_ts_002_names(baseline: dict[str, A
         not o["claimed"] and o["kind"] == "javascript"
         for record in baseline["members"].values()
         for o in record["outputs"].values()
-    ), "compiled JavaScript should still be recorded as observation"
+    ), "compiled JavaScript must still be RECORDED, which is what makes the exact-byte "
+    "comparison in emit-conformance.mjs possible at all"
 
 
 def test_both_real_generators_are_captured(baseline: dict[str, Any]) -> None:

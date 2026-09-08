@@ -54,17 +54,98 @@ export const RETIRED_SCOPES = ['@typescript-eslint/', '@eslint/']
 /** Paths the retirement removed. */
 export const RETIRED_PATH_PREFIX = 'packages/eslint-config/'
 
-/** Config filenames that only the retired engine ever read. */
+/**
+ * Config filenames that only the retired engine ever read.
+ *
+ * COMPLETE for both eras, deliberately. A subset is worse than nothing here:
+ * the checker's claim is that no engine configuration survives, and an
+ * overlooked form is a place a candidate can keep one while the gate reports
+ * clean. The flat-config era resolves six extensions and the legacy era six
+ * more, so both are enumerated rather than the ones that happened to exist.
+ */
 export const RETIRED_CONFIG_BASENAMES = [
+  // flat config, every extension ESLint resolves
   'eslint.config.js',
   'eslint.config.mjs',
   'eslint.config.cjs',
   'eslint.config.ts',
+  'eslint.config.mts',
+  'eslint.config.cts',
+  // legacy rc, every form -- the checker already refused some of these, so the
+  // intent was always the whole surface rather than an arbitrary selection
   '.eslintrc',
   '.eslintrc.js',
+  '.eslintrc.cjs',
   '.eslintrc.json',
   '.eslintrc.yml',
+  '.eslintrc.yaml',
+  // and the ignore file, which is engine configuration by another name
+  '.eslintignore',
 ]
+
+/**
+ * Manifest keys that carry engine configuration inside `package.json`.
+ *
+ * The legacy era let a package configure the engine without any config FILE at
+ * all, so a filename scan alone leaves a hole exactly where the checker claims
+ * completeness.
+ */
+export const RETIRED_MANIFEST_KEYS = ['eslintConfig', 'eslintIgnore']
+
+/** Binaries the retired engine installed. */
+export const RETIRED_BINARIES = ['eslint']
+
+/** Runners whose first non-flag argument is the executable they invoke. */
+const RUNNERS = new Set(['pnpm', 'npm', 'npx', 'yarn', 'bun', 'bunx', 'node', 'corepack'])
+
+/** Sub-commands those runners take before the executable. */
+const RUNNER_SUBCOMMANDS = new Set(['exec', 'run', 'run-script', 'dlx', '--'])
+
+const unquote = (token) => token.replace(/^['"]|['"]$/g, '')
+
+/**
+ * The executable each command in a script actually invokes.
+ *
+ * IDENTITY, not text. `echo "eslint is retired"` runs `echo`, and prose about
+ * a retired engine is not residue -- the retirement is deliberately provable
+ * without grepping for the word, because the word legitimately survives in the
+ * retained legacy rule identities and in the surviving engine's own diagnostic
+ * codes. What matters is whether something in the command position resolves
+ * the retired binary or a path into a retired package.
+ */
+export function invokedExecutables(script) {
+  const found = []
+  for (const command of String(script).split(/&&|\|\||[;|]/)) {
+    const tokens = command
+      .trim()
+      .split(/\s+/)
+      .filter((token) => token !== '')
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = unquote(tokens[i])
+      if (token === '') continue
+      if (token.startsWith('-')) continue // a flag, not the executable
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(token)) continue // VAR=value prefix
+      const base = token.split('/').pop() ?? token
+      if (RUNNERS.has(base) || RUNNER_SUBCOMMANDS.has(token)) continue
+      found.push(token)
+      break // everything after the executable is its arguments
+    }
+  }
+  return found
+}
+
+/** The retired identity a command token resolves, if it resolves one. */
+export function retiredExecutable(token) {
+  const base = token.split('/').pop() ?? token
+  const name = base.replace(/\.(js|mjs|cjs|ts|cmd|ps1|sh)$/, '')
+  if (RETIRED_BINARIES.includes(name)) return name
+  // A path INTO a retired package runs it whatever the entry file is called.
+  if (token.startsWith(RETIRED_PATH_PREFIX)) return RETIRED_PATH_PREFIX
+  for (const segment of token.split('/')) {
+    if (RETIRED_PACKAGES.includes(segment)) return segment
+  }
+  return undefined
+}
 
 const isRetired = (name) =>
   RETIRED_PACKAGES.includes(name) || RETIRED_SCOPES.some((scope) => name.startsWith(scope))
@@ -75,7 +156,14 @@ export function trackedFiles(repoRoot = REPO_ROOT) {
     .filter((line) => line !== '')
 }
 
-/** Dependency edges naming a retired package. */
+/**
+ * Everything a `package.json` can carry for the retired engine.
+ *
+ * Three surfaces, not one. A dependency edge installs it; a SCRIPT runs it
+ * whether or not it is declared, which is why the script scan holds even for a
+ * repository with no dependency on it at all; and the legacy configuration keys
+ * configure it with no config file anywhere.
+ */
 export function manifestResidue(repoRoot, tracked) {
   const problems = []
   for (const rel of tracked) {
@@ -91,6 +179,25 @@ export function manifestResidue(repoRoot, tracked) {
         if (isRetired(name)) {
           problems.push(`${rel}: ${field}.${name} is a retired lint-engine package`)
         }
+      }
+    }
+    // EVERY script, not the canonical lint command. `lint:legacy`, `verify`,
+    // `prepare` -- any of them reaching the retired engine is a second path to
+    // it, and the one that was checked was the one nobody would use to hide it.
+    for (const [name, script] of Object.entries(manifest.scripts ?? {})) {
+      for (const token of invokedExecutables(script)) {
+        const retired = retiredExecutable(token)
+        if (retired !== undefined) {
+          problems.push(
+            `${rel}: the "${name}" script runs the retired lint engine ` +
+              `("${token}" resolves ${retired})`,
+          )
+        }
+      }
+    }
+    for (const key of RETIRED_MANIFEST_KEYS) {
+      if (manifest[key] !== undefined) {
+        problems.push(`${rel}: "${key}" is configuration for the retired engine`)
       }
     }
   }
@@ -381,6 +488,7 @@ if (invokedDirectly) {
   console.log(
     phase === 'imports'
       ? '✓ lint-engine retirement — no source file loads the retired engine (AST load sites)'
-      : '✓ lint-engine retirement — no dependency, catalog, lock, path or layer residue',
+      : '✓ lint-engine retirement — no dependency, script, manifest-config, catalog, lock, ' +
+          'path or layer residue',
   )
 }

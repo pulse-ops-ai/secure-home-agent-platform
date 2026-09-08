@@ -752,14 +752,14 @@ export const LINT_PREREQUISITES = new Map([
 ])
 
 /**
- * Every member reaches both engines through the capability, and none assembles
- * its own combination.
+ * Every member reaches the replacement engine through the capability, and none
+ * assembles its own command.
  *
- * A member that called `eslint src` directly would run one engine and pass,
- * which is exactly the state this landing replaces. A member that called
- * `oxlint` directly would skip the typed backend and the role projection. Both
- * look like working lint scripts, and neither enforces the contract, so the
- * wiring is checked rather than trusted to stay put.
+ * Scope 2 is replacement-only: task 3.4 retired the second engine, so there is
+ * one engine and the capability is the one way to it. A member that called
+ * `oxlint` directly would skip the typed backend and the role projection, and
+ * it would still look like a working lint script -- which is why the wiring is
+ * checked rather than trusted to stay put.
  */
 export function checkLintWiring(repoRoot = REPO_ROOT) {
   const problems = []
@@ -975,7 +975,22 @@ export function checkNormalCompilerAuthority(repoRoot = REPO_ROOT) {
   return problems
 }
 
-const DEP_FIELDS_CHECKED = ['dependencies', 'devDependencies', 'peerDependencies']
+/**
+ * All four manifest dependency fields.
+ *
+ * `optionalDependencies` was omitted, and an optional edge installs the package
+ * exactly like a required one when the platform matches. A member could make
+ * the compatibility parser locally resolvable through it while the singleton
+ * SOURCE-consumer proof stayed green, because no source file need import it for
+ * the boundary to have moved -- availability is the thing the seam bounds.
+ * The lockfile importer scan already read all four for the same reason.
+ */
+const DEP_FIELDS_CHECKED = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+]
 
 /** Repository scripts, which is where a second consumer would appear. */
 const SOURCE_EXTENSIONS = new Set(['.mjs', '.cjs', '.js', '.ts', '.mts', '.cts', '.tsx'])

@@ -377,22 +377,43 @@ def test_the_traditional_compiler_api_has_exactly_one_consumer() -> None:
         ("the compatibility seam itself", "@typescript/typescript6"),
     ],
 )
-def test_an_unadmitted_compiler_api_consumer_is_detected(label: str, specifier: str) -> None:
-    """Placed in a real member, since that is where the gate governs."""
-    planted = REPO / "packages" / "errors" / "src" / "ts7-audit-consumer.ts"
+def test_an_unadmitted_compiler_api_consumer_is_detected(
+    tmp_path: Path, label: str, specifier: str
+) -> None:
+    """Placed in a member-SHAPED isolated subject, not in the repository.
+
+    `--report-loads` walks whatever root it is given and reports what the AST
+    says; it does not consult workspace membership, so nothing about this proof
+    needs the real tree. Planting into `packages/errors/src/` did: the file was
+    visible to any concurrently running gate, typecheck or formatter for the
+    length of the assertion, and survived an interrupt.
+
+    Everything that made it a proof is kept — the REAL gate executes, the
+    planted source really exists, the exact specifier is extracted from it, and
+    the family classification is applied to that specifier.
+    """
+    rel = "packages/errors/src/ts7-audit-consumer.ts"
+    planted = tmp_path / rel
+    planted.parent.mkdir(parents=True, exist_ok=True)
     planted.write_text(f"import * as api from '{specifier}'\nexport const v = api\n")
-    try:
-        report = _report(REPO)
-        rel = "packages/errors/src/ts7-audit-consumer.ts"
-        assert rel in report, f"{label}: the planted consumer was not inventoried"
-        seen = report[rel]["specifiers"]
-        assert specifier in seen, f"{label}: specifier not extracted, got {seen}"
-        assert _family(specifier, NORMAL_COMPILER) or _family(specifier, COMPATIBILITY_SEAM), (
-            f"{label}: the family match does not classify {specifier}"
-        )
-    finally:
-        planted.unlink()
-    assert not planted.exists()
+    assert planted.is_file(), f"{label}: the planted consumer was never written"
+
+    report = _report(tmp_path)
+    assert rel in report, f"{label}: the planted consumer was not inventoried"
+    seen = report[rel]["specifiers"]
+    assert specifier in seen, f"{label}: specifier not extracted, got {seen}"
+    assert _family(specifier, NORMAL_COMPILER) or _family(specifier, COMPATIBILITY_SEAM), (
+        f"{label}: the family match does not classify {specifier}"
+    )
+
+    # The mutation subject was never the repository.
+    assert not (REPO / rel).exists(), "the audit planted a consumer in the real member tree"
+
+
+def test_the_audit_probe_leaves_no_consumer_in_the_repository() -> None:
+    """Stated as its own fact, because the old placement's failure mode was a
+    file left behind by an interrupted run rather than a failing assertion."""
+    assert not (REPO / "packages" / "errors" / "src" / "ts7-audit-consumer.ts").exists()
 
 
 # --- the frozen TypeScript 7.0.2 probe --------------------------------------

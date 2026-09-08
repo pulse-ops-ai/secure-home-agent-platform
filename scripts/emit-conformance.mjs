@@ -30,7 +30,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { declarationShapeSha256 } from './declaration-shape.mjs'
-import { compareMap, mapProjection } from './source-map-shape.mjs'
+import { compareMap, expectedEmittedTarget, mapProjection } from './source-map-shape.mjs'
 import { capture as captureRaw, emittingMembers } from './emit-baseline.mjs'
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -217,6 +217,9 @@ export function differential(baseline, projection, current, currentProjection) {
           // same thing in both builds and must resolve identically. Declaration
           // serialization may move, so only coverage is required there.
           strictLines: KIND_OF(file) === 'sourceMap',
+          // What this map claims to describe, checked against its own path
+          // rather than only against the previous compiler's claim.
+          expectedFile: expectedEmittedTarget(file),
         }),
       )
     }
