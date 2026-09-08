@@ -3,6 +3,17 @@
 Shared TypeScript compiler configurations. Every TypeScript member extends one
 of these; no member restates compiler options.
 
+**Options, not versions.** The configs here own compiler *options* — strictness,
+module resolution, emit, output isolation. They do not own which compiler runs.
+The normal compiler is **TypeScript 7.0.2**, pinned once in the
+`pnpm-workspace.yaml` catalog, and every `typecheck`, `build` and `generate`
+entry point resolves that one package.
+
+`@typescript/typescript6` is a bounded **parser seam** for the architecture
+import gate and takes no part in typecheck, build or generate. A config here can
+change what the compiler is asked to do; it cannot change which compiler
+answers.
+
 ## The configs
 
 ```
