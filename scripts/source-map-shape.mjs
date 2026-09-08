@@ -23,6 +23,7 @@
  */
 import { createHash } from 'node:crypto'
 import { SourceMap } from 'node:module'
+import path from 'node:path'
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 const CHAR = new Map([...B64].map((c, index) => [c, index]))
@@ -100,14 +101,37 @@ function crossCheck(map, entries, label) {
 }
 
 /**
+ * The EFFECTIVE source a map entry attributes to.
+ *
+ * ECMA-426 resolves a source against `sourceRoot` and then against the map's
+ * own location. Comparing raw `sources[]` alone therefore compares a spelling,
+ * not an identity: a map can keep `sources: ["index.ts"]` and identical
+ * mappings, change `sourceRoot`, and now point at a completely different file
+ * while every raw comparison still passes.
+ *
+ * Returned repository-relative, so the identity survives being read from a
+ * different absolute checkout and two spellings that resolve to the same file
+ * compare equal.
+ */
+export function effectiveSource(mapPath, sourceRoot, source, repoRoot) {
+  const base = path.dirname(path.resolve(repoRoot, mapPath))
+  const rooted = sourceRoot ? path.resolve(base, sourceRoot) : base
+  const absolute = path.resolve(rooted, source)
+  return path.relative(repoRoot, absolute).split(path.sep).join('/')
+}
+
+/**
  * The comparable projection of one map.
  *
- * `attribution` is the set of (generated line -> original file, original line)
- * pairs. `coverage` is the set of original lines reached at all, per source.
- * Generated and original COLUMNS are deliberately absent: refining them is the
- * change the new compiler is allowed to make.
+ * `attribution` is the set of (generated line -> EFFECTIVE original file,
+ * original line) pairs. `coverage` is the set of original lines reached at all,
+ * per effective source. Generated and original COLUMNS are deliberately
+ * absent: refining them is the change the new compiler is allowed to make.
+ *
+ * @param mapPath repository-relative path of the map itself, needed to resolve
+ * its sources the way a consumer would.
  */
-export function mapProjection(text, label = 'map') {
+export function mapProjection(text, label = 'map', mapPath = label, repoRoot = process.cwd()) {
   const json = JSON.parse(text)
   const map = new SourceMap(json)
   if (json.version !== 3) throw new Error(`${label}: not a Source Map v3 document`)
@@ -117,17 +141,22 @@ export function mapProjection(text, label = 'map') {
   const entries = decodeMappings(json.mappings)
   crossCheck(map, entries, label)
 
+  const effective = json.sources.map((source) =>
+    effectiveSource(mapPath, json.sourceRoot ?? '', source, repoRoot),
+  )
+
   const attribution = new Set()
   const coverage = new Map()
   for (const entry of entries) {
-    const source = json.sources[entry.srcIdx]
+    const source = effective[entry.srcIdx]
     if (source === undefined) {
       throw new Error(`${label}: mapping references source index ${entry.srcIdx}, which is absent`)
     }
-    // The source INDEX, not the path: the path is already in `sources`, and
-    // repeating it per entry multiplies the artifact by an order of magnitude.
-    // Comparison resolves the index back through `sources`, so a reordered
-    // `sources` array cannot make two different files compare equal.
+    // The source INDEX, not the path: the path is already in `effectiveSources`,
+    // and repeating it per entry multiplies the artifact by an order of
+    // magnitude. Comparison resolves the index back to the EFFECTIVE path, so
+    // neither a reordered `sources` array nor a changed `sourceRoot` can make
+    // two different files compare equal.
     attribution.add(`${entry.genLine}|${entry.srcIdx}|${entry.srcLine}`)
     if (!coverage.has(source)) coverage.set(source, new Set())
     coverage.get(source).add(entry.srcLine)
@@ -136,6 +165,8 @@ export function mapProjection(text, label = 'map') {
   return {
     file: json.file ?? null,
     sources: [...json.sources],
+    sourceRoot: json.sourceRoot ?? '',
+    effectiveSources: effective,
     attribution: [...attribution].sort(),
     coverage: Object.fromEntries(
       [...coverage].sort().map(([source, lines]) => [source, [...lines].sort((a, b) => a - b)]),
@@ -156,19 +187,67 @@ export const digestOf = (value) =>
  * move because declaration serialization may move) only original-line COVERAGE
  * must survive.
  */
-export function compareMap(label, before, after, { strictLines }) {
+/**
+ * Compare one map against its projection under the previous compiler.
+ *
+ * Identity is the EFFECTIVE source — resolved through `sourceRoot` and the
+ * map's own location — never the raw `sources[]` spelling. A changed spelling
+ * that resolves to the same file is not a difference; an unchanged spelling
+ * that resolves somewhere else is.
+ *
+ * @param strictLines when true (`.js.map`, whose generated `.js` is required
+ * byte-identical) the SET of (effective file, original line) pairs must be
+ * EQUAL for every generated line. Set equality rather than containment: a
+ * one-way subset admits a new segment on an existing generated line that
+ * resolves to a DIFFERENT original line, which is a divergent attribution
+ * wearing the clothes of a refinement. An extra segment resolving to a pair
+ * already present changes no set and still passes, which is the refinement the
+ * new compiler is allowed to make.
+ *
+ * When false (`.d.ts.map`, whose generated positions may legitimately move
+ * because declaration serialization may move) only original-line COVERAGE must
+ * survive, and additional coverage is permitted.
+ *
+ * @param scope repository-relative prefix every effective source must sit
+ * inside — the member that owns the map.
+ */
+export function compareMap(label, before, after, { strictLines, scope = undefined }) {
   const problems = []
 
   if (before.file !== after.file) {
     problems.push(`${label}: emitted target changed, ${before.file} -> ${after.file}`)
   }
-  const beforeSources = new Set(before.sources)
-  const afterSources = new Set(after.sources)
+
+  // Effective identities, so a `sourceRoot` change that redirects attribution
+  // is caught even when `sources[]` is untouched.
+  const beforeSources = new Set(before.effectiveSources ?? [])
+  const afterSources = new Set(after.effectiveSources ?? [])
   for (const source of beforeSources) {
-    if (!afterSources.has(source)) problems.push(`${label}: source "${source}" is no longer mapped`)
+    if (!afterSources.has(source)) {
+      problems.push(`${label}: effective source "${source}" is no longer mapped`)
+    }
   }
   for (const source of afterSources) {
-    if (!beforeSources.has(source)) problems.push(`${label}: maps a new source "${source}"`)
+    if (!beforeSources.has(source)) {
+      problems.push(`${label}: maps a new effective source "${source}"`)
+    }
+    if (scope !== undefined && scope !== null && !source.startsWith(scope)) {
+      problems.push(
+        `${label}: effective source "${source}" resolves outside the expected scope "${scope}"`,
+      )
+    }
+  }
+
+  /** Attribution resolved to effective paths and grouped by generated line. */
+  const byLine = (record) => {
+    const lines = new Map()
+    for (const entry of record.attribution ?? []) {
+      const [genLine, index, srcLine] = entry.split('|')
+      const source = (record.effectiveSources ?? [])[Number(index)]
+      if (!lines.has(genLine)) lines.set(genLine, new Set())
+      lines.get(genLine).add(`${source}|${srcLine}`)
+    }
+    return lines
   }
 
   if (strictLines) {
@@ -176,21 +255,32 @@ export function compareMap(label, before, after, { strictLines }) {
       problems.push(`${label}: per-line attribution is required for this surface but absent`)
       return problems
     }
-    // Resolved to source PATHS on both sides before comparing, so a reordered
-    // `sources` array cannot make two different files compare equal.
-    const resolve = (entries, sources) =>
-      entries.map((entry) => {
-        const [genLine, index, srcLine] = entry.split('|')
-        return `${genLine}|${sources[Number(index)]}|${srcLine}`
-      })
-    const now = new Set(resolve(after.attribution, after.sources))
-    const lost = resolve(before.attribution, before.sources).filter((entry) => !now.has(entry))
-    if (lost.length > 0) {
-      const [genLine, source, srcLine] = lost[0].split('|')
-      problems.push(
-        `${label}: generated line ${genLine} no longer attributes to ${source}:${srcLine}` +
-          (lost.length > 1 ? ` (and ${lost.length - 1} more)` : ''),
-      )
+    const was = byLine(before)
+    const now = byLine(after)
+    for (const [genLine, pairs] of was) {
+      const current = now.get(genLine) ?? new Set()
+      for (const pair of pairs) {
+        if (!current.has(pair)) {
+          const [source, srcLine] = pair.split('|')
+          problems.push(
+            `${label}: generated line ${genLine} no longer attributes to ${source}:${srcLine}`,
+          )
+        }
+      }
+      for (const pair of current) {
+        if (!pairs.has(pair)) {
+          const [source, srcLine] = pair.split('|')
+          problems.push(
+            `${label}: generated line ${genLine} gained an attribution to ${source}:${srcLine}, ` +
+              'which is a different origin rather than a refinement of the same one',
+          )
+        }
+      }
+    }
+    for (const genLine of now.keys()) {
+      if (!was.has(genLine)) {
+        problems.push(`${label}: generated line ${genLine} is newly attributed`)
+      }
     }
   }
 
