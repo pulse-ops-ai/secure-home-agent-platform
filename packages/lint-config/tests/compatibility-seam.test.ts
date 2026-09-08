@@ -15,9 +15,9 @@
  */
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // @ts-ignore
 import {
@@ -33,6 +33,57 @@ const REPO_ROOT = path.join(HERE, '..', '..', '..')
 const read = (rel: string): string => readFileSync(path.join(REPO_ROOT, rel), 'utf8')
 const json = (rel: string): any => JSON.parse(read(rel))
 const BOUNDARIES = json('scripts/toolchain-boundaries.json')
+
+// An ISOLATED repository subject, for the two proofs that work by planting
+// something the guard must refuse.
+//
+// Both used to plant into the working tree: a second seam consumer as a new file
+// under three real members' `src/`, and an in-place rewrite of the TRACKED root
+// `package.json`. Each is undone on the happy path and each survives an
+// interrupt, and while it exists a concurrent gate, typecheck or formatter run
+// sees it -- the hygiene defect this repository has already been bitten by.
+//
+// `node_modules/` is gitignored and skipped by every scanner here, and a bare
+// `@typescript/typescript6` specifier still resolves from inside it by walking
+// up, so the copied gate behaves exactly like the original.
+//
+// Nothing is mocked and nothing is reimplemented: the real `checkCompatibilitySeam`
+// runs, and it spawns the real `check-source-imports.mjs --report-loads` over
+// this root.
+const SUBJECT = path.join(REPO_ROOT, 'node_modules', '.compatibility-seam-probe')
+const SUBJECT_SCRIPTS = [
+  'scripts/check-source-imports.mjs',
+  'scripts/workspace-model.mjs',
+  'scripts/toolchain-boundaries.json',
+]
+const SUBJECT_MEMBERS = ['packages/lint-config', 'packages/contracts', 'services/runner-control']
+// Extensions vary deliberately: the scan must cover a package's `.mjs` as well
+// as its `.ts`, which is the half a `scripts/*.mjs` scan got right by accident.
+const PLANTED = [
+  'packages/lint-config/src/regression-second-consumer.mjs',
+  'packages/contracts/src/regression-second-consumer.ts',
+  'services/runner-control/src/regression-second-consumer.ts',
+]
+
+function materializeSubject(): string {
+  rmSync(SUBJECT, { recursive: true, force: true })
+  mkdirSync(path.join(SUBJECT, 'scripts'), { recursive: true })
+  for (const rel of SUBJECT_SCRIPTS) writeFileSync(path.join(SUBJECT, rel), read(rel))
+  writeFileSync(path.join(SUBJECT, 'package.json'), read('package.json'))
+  for (const rel of SUBJECT_MEMBERS) {
+    mkdirSync(path.join(SUBJECT, rel, 'src'), { recursive: true })
+    writeFileSync(path.join(SUBJECT, rel, 'package.json'), read(`${rel}/package.json`))
+    writeFileSync(path.join(SUBJECT, rel, 'src', 'index.ts'), 'export const marker = 1\n')
+  }
+  return SUBJECT
+}
+
+beforeAll(() => {
+  materializeSubject()
+})
+afterAll(() => {
+  rmSync(SUBJECT, { recursive: true, force: true })
+})
 
 describe('the seam exists and is a singleton', () => {
   it('passes both guards as committed', () => {
@@ -219,21 +270,33 @@ describe('the seam is bounded to one FILE, not to one directory', () => {
   // The allowlist is a claim about the whole repository, so the scan must be
   // too, and that difference is invisible unless the consumer is placed outside
   // `scripts/`.
-  const elsewhere = [
-    'packages/lint-config/src/regression-second-consumer.mjs',
-    'packages/contracts/src/regression-second-consumer.ts',
-    'services/runner-control/src/regression-second-consumer.ts',
-  ]
 
-  it.each(elsewhere)('REFUSES an unadmitted consumer at %s', (rel) => {
-    const absolute = path.join(REPO_ROOT, rel)
-    mkdirSync(path.dirname(absolute), { recursive: true })
+  it('the subject carries the REAL gate and the REAL allowlist, byte for byte', () => {
+    // Isolation is worthless if what runs inside it is a stand-in. These three
+    // files ARE the repository's, so the refusal below is the real mechanism's.
+    for (const rel of SUBJECT_SCRIPTS) {
+      expect(readFileSync(path.join(SUBJECT, rel), 'utf8'), rel).toBe(read(rel))
+    }
+  })
+
+  it('the isolated control is clean before anything is planted', () => {
+    expect(checkCompatibilitySeam(SUBJECT)).toEqual([])
+  })
+
+  it.each(PLANTED)('REFUSES an unadmitted consumer at %s', (rel) => {
+    const absolute = path.join(SUBJECT, rel)
+    expect(
+      absolute.startsWith(`${SUBJECT}${path.sep}`),
+      'the target must be inside the subject',
+    ).toBe(true)
     writeFileSync(
       absolute,
       `import ts from '${COMPATIBILITY_PACKAGE}'\nexport const v = ts.version\n`,
     )
     try {
-      const problems = checkCompatibilitySeam(REPO_ROOT)
+      // A refusal proves nothing if the thing it refuses was never written.
+      expect(existsSync(absolute), 'the planted consumer must really exist').toBe(true)
+      const problems = checkCompatibilitySeam(SUBJECT)
       expect(problems.join('\n')).toContain(rel)
       expect(problems.join('\n')).toMatch(/not an admitted consumer/)
     } finally {
@@ -242,6 +305,11 @@ describe('the seam is bounded to one FILE, not to one directory', () => {
   })
 
   it('still reports a clean tree once the intruder is gone', () => {
+    expect(checkCompatibilitySeam(SUBJECT)).toEqual([])
+  })
+
+  it('and the working tree was never the mutation target', () => {
+    for (const rel of PLANTED) expect(existsSync(path.join(REPO_ROOT, rel)), rel).toBe(false)
     expect(checkCompatibilitySeam(REPO_ROOT)).toEqual([])
   })
 })
@@ -252,7 +320,12 @@ describe('a lint engine is not a compiler authority', () => {
   // retires the compiler authority without any decision being recorded: the
   // engine reads types to answer lint questions, it does not own whether the
   // repository compiles.
-  const manifest = path.join(REPO_ROOT, 'package.json')
+  //
+  // Driven against the isolated subject. The mutation rewrites a repository
+  // ROOT manifest, and doing that in place left the tracked `package.json`
+  // holding `"build": "eslint --fix"` for the length of the assertion -- and
+  // permanently if the run were interrupted.
+  const manifest = path.join(SUBJECT, 'package.json')
 
   it.each([
     ['typecheck', 'oxlint --type-aware'],
@@ -263,7 +336,8 @@ describe('a lint engine is not a compiler authority', () => {
     pkg.scripts[entry] = script
     writeFileSync(manifest, `${JSON.stringify(pkg, null, 2)}\n`)
     try {
-      expect(checkNormalCompilerAuthority(REPO_ROOT).join('\n')).toMatch(
+      expect(readFileSync(manifest, 'utf8')).toContain(script)
+      expect(checkNormalCompilerAuthority(SUBJECT).join('\n')).toMatch(
         /is not a compiler authority/,
       )
     } finally {
@@ -272,7 +346,9 @@ describe('a lint engine is not a compiler authority', () => {
   })
 
   it('accepts the committed entry points, which resolve the normal compiler', () => {
+    // Read-only, and against the REAL repository: this is the fact being claimed.
     expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+    expect(checkNormalCompilerAuthority(SUBJECT)).toEqual([])
   })
 })
 

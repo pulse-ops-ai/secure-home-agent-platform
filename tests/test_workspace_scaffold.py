@@ -547,28 +547,6 @@ def test_every_member_extends_the_shared_tsconfig_by_package_path() -> None:
     assert not problems, "members not using the shared tsconfig:\n  " + "\n  ".join(problems)
 
 
-def test_every_member_uses_the_shared_eslint_config() -> None:
-    """No member declares its own rules.
-
-    `packages/eslint-config` is exempt: it lints itself with the configuration
-    it exports, which it can only reference relatively — a package cannot import
-    itself by package name.
-    """
-    problems: list[str] = []
-    for member in _pnpm_members():
-        config = member / "eslint.config.js"
-        if not config.is_file():
-            continue
-        text = config.read_text()
-        rel = member.relative_to(REPO_ROOT)
-        if rel.name == "eslint-config":
-            assert "./index.js" in text, "the config package must lint itself with its own config"
-            continue
-        if "@secure-home/eslint-config" not in text:
-            problems.append(str(rel))
-    assert not problems, f"members not using the shared ESLint config: {problems}"
-
-
 def test_a_member_with_a_vitest_config_declares_the_test_dependencies() -> None:
     """A config without its dependency fails only when someone runs the tests."""
     problems: list[str] = []

@@ -1,4 +1,4 @@
-# NATIVE PLATFORM PROOF for the Scope-1 toolchain.
+# NATIVE PLATFORM PROOF for the repository toolchain.
 #
 # WHY THIS EXISTS SEPARATELY. `checks.yml` proves the repository is correct on
 # one architecture. This proves the TOOLCHAIN runs natively on both, which is a
@@ -137,7 +137,7 @@ jobs:
         run: node packages/lint-config/src/check-install-posture.mjs --identities
 
       # The command pack. Every gate the toolchain owns, executed natively.
-      - name: Lint — dual engine, both blocking, typed backend included
+      - name: Lint — replacement-only policy, typed backend included
         run: pnpm lint
 
       - name: Typecheck — the normal compiler
@@ -152,7 +152,7 @@ jobs:
       - name: Source import direction — through the compatibility seam
         run: pnpm run check:imports
 
-      - name: Toolchain boundary and lint-policy integrity
+      - name: Lint-policy integrity
         run: pnpm run check:lint-policy
 
       - name: Workspace taxonomy

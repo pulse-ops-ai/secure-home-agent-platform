@@ -32,6 +32,8 @@ const workflow = parse(raw) as any
 const native = workflow.jobs.native
 const gate = workflow.jobs['platform-proof']
 const steps = native.steps as { name?: string; run?: string; uses?: string }[]
+// First step whose name contains the fragment, so a fragment shared by two
+// steps would silently resolve by ORDER. Every fragment below is unique.
 const stepRun = (fragment: string): string =>
   steps.find((s) => (s.name ?? '').includes(fragment))?.run ?? ''
 
@@ -143,12 +145,12 @@ describe('the install is deterministic and script-free', () => {
 
 describe('the command pack is complete', () => {
   it.each([
-    ['Lint', 'pnpm lint'],
+    ['Lint —', 'pnpm lint'],
     ['Typecheck', 'pnpm typecheck'],
     ['Tests', 'pnpm test'],
     ['Build', 'pnpm build'],
     ['Source import direction', 'pnpm run check:imports'],
-    ['Toolchain boundary', 'pnpm run check:lint-policy'],
+    ['Lint-policy integrity', 'pnpm run check:lint-policy'],
     ['Workspace taxonomy', 'pnpm run check:workspace'],
     ['Formatting authority', 'pnpm run format:check'],
   ])('runs %s natively', (name, command) => {
@@ -158,7 +160,7 @@ describe('the command pack is complete', () => {
   it('the lint step is the capability entry point, typed backend included', () => {
     // `pnpm lint` reaches the capability, which fails closed if either engine
     // or the typed backend is unavailable.
-    expect(stepRun('Lint')).toBe('pnpm lint')
+    expect(stepRun('Lint —')).toBe('pnpm lint')
   })
 })
 
