@@ -28,6 +28,11 @@ TOOL = REPO / "scripts" / "emit-baseline.mjs"
 BASELINE_COMPILER = "6.0.3"
 PRE_CUTOVER_HEAD = "362c349e18cfb3c63c52fc29a5c70a947a1107f2"
 
+#: The frozen evidence, as an object id. `MUT-TS-EMIT-004` makes recapturing or
+#: rewriting it a named hostile case; this is the identity that names it.
+BASELINE_BLOB = "e97f80f94b37030f7058f831ba9eb15a89806868"
+BASELINE_REL = "tests/evidence/ts6-emit-baseline.json"
+
 
 @pytest.fixture(scope="module")
 def baseline() -> dict[str, Any]:
@@ -78,21 +83,113 @@ def test_that_head_really_still_pinned_typescript_6(baseline: dict[str, Any]) ->
     assert f"\n  typescript: {BASELINE_COMPILER}\n" in catalog
 
 
-def test_the_baseline_was_committed_while_typescript_6_was_authoritative() -> None:
-    """Git history is the part nobody can restage.
+def test_the_committed_baseline_is_the_frozen_blob(baseline: dict[str, Any]) -> None:
+    """Identity of the evidence itself, independent of any history claim.
 
-    The commit that last touched the baseline must itself contain the 6.0.3
-    pin. Capturing the golden after the cutover -- or recapturing it later to
-    make a differential pass -- moves that commit past the pin change and fails
-    here.
+    Every provenance argument below is about THIS object. Without pinning it,
+    a recaptured baseline could inherit the provenance of the one it replaced.
     """
-    introducing = _git("log", "--format=%H", "-1", "--", str(BASELINE_PATH.relative_to(REPO)))
-    assert introducing, "the baseline is not committed yet"
-    catalog = _git("show", f"{introducing}:pnpm-workspace.yaml")
-    assert f"\n  typescript: {BASELINE_COMPILER}\n" in catalog, (
-        f"the baseline's last commit {introducing[:12]} no longer pins TypeScript "
-        f"{BASELINE_COMPILER}, so it was written after the compiler moved"
+    assert _git("rev-parse", f"HEAD:{BASELINE_REL}") == BASELINE_BLOB
+
+
+def _rev_list(*args: str) -> list[str]:
+    out = _git("rev-list", *args)
+    return out.split() if out else []
+
+
+def _blob_at_each(revs: list[str], rel: str) -> dict[str, str]:
+    """The object id of one path at many revisions, in one git call.
+
+    `git log -1 -- <path>` cannot answer this. It walks SIMPLIFIED history and
+    reports where the path last changed along one line of it, so a squash
+    commit -- which reintroduces every path relative to its single parent --
+    is reported as the place these bytes were written. The DAG still holds the
+    real answer; it has to be asked directly rather than through simplification.
+    """
+    if not revs:
+        return {}
+    query = "".join(f"{rev}:{rel}\n" for rev in revs)
+    result = subprocess.run(
+        ["git", "cat-file", "--batch-check"],
+        input=query,
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        check=True,
     )
+    lines = result.stdout.splitlines()
+    found: dict[str, str] = {}
+    # One output line per input line, in order -- a revision that does not carry
+    # the path answers "missing", which is an answer, not an error.
+    for rev, line in zip(revs, lines, strict=True):
+        parts = line.split()
+        if len(parts) == 3 and parts[1] == "blob":
+            found[rev] = parts[0]
+    return found
+
+
+def test_the_baseline_existed_in_a_typescript_6_authoritative_ancestor() -> None:
+    """Git history is the part nobody can restage — asked of the DAG.
+
+    The invariant is not "the last commit to touch this path pinned 6.0.3". It
+    is that these exact bytes existed in a repository state that was still
+    TypeScript 6 authoritative and already descended from the captured head.
+    A baseline captured after the cutover, or recaptured later to make a
+    differential pass, has no such ancestor.
+
+        capturedAtHead 362c349e
+              ↓
+        an ancestor carrying blob e97f80f9 with `typescript: 6.0.3`
+              ↓
+        HEAD
+
+    The old formulation read that off `git log -1 -- <path>`, which is
+    simplified history. PR #120 was squash-merged, so the squash commit
+    introduces this path relative to its only parent and simplification names
+    it — while pinning 7.0.2, because by then the cutover had landed. The
+    ancestry is intact; only the question was wrong.
+    """
+    candidates = _rev_list(f"{PRE_CUTOVER_HEAD}..HEAD")
+    assert candidates, "no revision descends from the captured head"
+
+    carrying = sorted(
+        rev
+        for rev, blob in _blob_at_each(candidates, BASELINE_REL).items()
+        if blob == BASELINE_BLOB
+    )
+    assert carrying, (
+        f"no ancestor of HEAD descended from {PRE_CUTOVER_HEAD[:12]} carries the frozen "
+        f"baseline blob {BASELINE_BLOB[:12]}"
+    )
+
+    witnesses = [
+        rev
+        for rev in carrying
+        if f"\n  typescript: {BASELINE_COMPILER}\n" in _git("show", f"{rev}:pnpm-workspace.yaml")
+    ]
+    assert witnesses, (
+        f"the frozen baseline exists in {len(carrying)} ancestor(s), but none of them still "
+        f"pinned TypeScript {BASELINE_COMPILER} — so these bytes were written after the "
+        "compiler moved"
+    )
+
+
+def test_that_ancestor_search_cannot_find_evidence_that_was_never_there() -> None:
+    """The control.
+
+    A baseline recaptured under TypeScript 7 is a DIFFERENT object, so the
+    search above must return nothing for a blob no ancestor holds rather than
+    falling back to something weaker. Without this, a search that matched
+    anything would look like a passing provenance proof.
+    """
+    candidates = _rev_list(f"{PRE_CUTOVER_HEAD}..HEAD")
+    assert candidates, "no revision descends from the captured head"
+    never_committed = "0" * 40
+    assert [
+        rev
+        for rev, blob in _blob_at_each(candidates, BASELINE_REL).items()
+        if blob == never_committed
+    ] == []
 
 
 # --- the baseline has not been edited ---------------------------------------
