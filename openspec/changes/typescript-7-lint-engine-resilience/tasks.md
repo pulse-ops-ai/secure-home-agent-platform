@@ -1290,7 +1290,25 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   Complete only when no used compiler surface is untested.
 
 - [ ] **3.2 Cut the authoritative compiler to TypeScript 7.0.2**
-  <!-- agent-task: 3.2 paths=pnpm-workspace.yaml,pnpm-lock.yaml,package.json,**/package.json,packages/tsconfig/**,tests/** checks=ts7-typecheck-build-version risk=high prerequisites=3.1 -->
+  <!-- agent-task: 3.2 paths=pnpm-workspace.yaml,pnpm-lock.yaml,package.json,**/package.json,packages/tsconfig/**,tests/** checks=ts7-typecheck-build-version risk=high prerequisites=3.1,3.4 -->
+
+  **Sequencing**
+
+  The TypeScript 7.0.2 pin moves **only after the legacy engine that rejects it
+  has left the blocking lint path**. `prerequisites=3.1,3.4` implies 3.3 through
+  3.4, so replacement-only lint and ESLint retirement are both complete before
+  the compiler changes.
+
+  **The emitted-output differential still needs a TypeScript 6 baseline.**
+  Capture and freeze that baseline from the current TypeScript 6.0.3 state
+  BEFORE moving the pin; once the pin moves the baseline is unobtainable. This
+  does not weaken `EX-TS-002`, which is still proved against the frozen
+  baseline.
+
+  **The frozen baseline is immutable historical record.** It states what
+  TypeScript 6.0.3 emitted before the cutover. It is never recaptured under
+  TypeScript 7, and never rewritten so that a differing surface compares equal
+  — either would make the proof agree with the compiler it exists to test.
 
   **Task type**
 
@@ -1317,11 +1335,26 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
   proven config/command fixes; strengthen version identity tests across every
   member compiler entry point so each resolves the one authoritative normal
   `typescript` package/version and no ordinary `typecheck`/`build`/generator
-  entry point resolves `tsc6`. Capture normalized golden emitted output under
-  TypeScript 6 for the surfaces the repository actually emits — library/service
-  `.d.ts`, `.d.ts.map`, and `.js.map`, and any member `generate` output — and
-  require TypeScript 7 to match after neutralizing only version banners and
-  absolute paths; roles that emit nothing carry no golden claim.
+  entry point resolves `tsc6`. Capture the golden emitted output under
+  TypeScript 6 for the surfaces the repository actually emits, then require
+  TypeScript 7 to preserve what the repository SHIPS, per surface (`D18`):
+
+  - emitted runtime `.js` and any member `generate` output byte-identical,
+    after neutralizing only version banners and absolute paths;
+  - `.d.ts` preserving declared type and API semantics, compared structurally
+    rather than by an accumulating pattern normalizer — the string-literal quote
+    delimiter and TypeScript 7's deterministic member ordering are the
+    compiler's presentation and carry no consumer-visible meaning, while a
+    changed exported symbol, member, literal value, type, optionality,
+    `readonly`, generic constraint, module specifier, signature semantics, or
+    union/intersection membership must fail;
+  - `.d.ts.map` and `.js.map` present for the same surfaces, valid, internally
+    consistent, correctly scoped and usable for source attribution, rather than
+    byte-identical.
+
+  Roles that emit nothing carry no golden claim. Where TypeScript's own
+  `--stableTypeOrdering` helps, use it as a migration-analysis projection only;
+  it never replaces or rewrites the frozen raw TypeScript 6 evidence.
 
   **Does not own**
 
@@ -1335,9 +1368,10 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   `pnpm typecheck`, `pnpm build`, generators, tsconfig fixtures, and version
   identity all pass with normal compiler 7.0.2; every ordinary entry point
-  resolves the one authoritative package and none resolves `tsc6`; and the
-  normalized golden/differential comparison of emitted declaration, map, and
-  generator output matches.
+  resolves the one authoritative package and none resolves `tsc6`; emitted
+  runtime and generator output are byte-identical to the frozen baseline;
+  declaration semantics are preserved under structural comparison; and every
+  map remains present, valid, correctly scoped and usable.
 
   **Size and atomicity**
 
@@ -1346,10 +1380,32 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
   **Completion**
 
-  Complete only when no ordinary command resolves TS6 or unstable TS7 APIs.
+  Complete only when no ordinary command resolves TS6 or unstable TS7 APIs, and
+  the per-surface emitted-output obligation above is met with the frozen
+  TypeScript 6 evidence unmodified.
 
 - [ ] **3.3 Move every lint entry point to the capability package**
-  <!-- agent-task: 3.3 paths=package.json,agents/**/package.json,apps/**/package.json,packages/**/package.json,services/**/package.json,**/eslint.config.js,packages/lint-config/**,tests/** checks=replacement-entrypoints risk=high prerequisites=3.2 -->
+  <!-- agent-task: 3.3 paths=package.json,agents/**/package.json,apps/**/package.json,packages/**/package.json,services/**/package.json,**/eslint.config.js,packages/lint-config/**,tests/** checks=replacement-entrypoints risk=high prerequisites=3.1 -->
+
+  **Sequencing**
+
+  This runs while TypeScript **6.0.3 is still the normal compiler**. It depends
+  on the audit (3.1), not on the compiler cutover (3.2).
+
+  Ordering it after 3.2 would guarantee a red intermediate state: Scope 1's
+  production runner is dual-engine and fail-closed
+  (`ok = legacy.ok && replacement.ok`), and `typescript-eslint` 8.66.0 refuses
+  TypeScript 7.0.2. Moving the compiler first therefore breaks the legacy engine
+  that is still a required blocking path, and the repository cannot be green in
+  that state.
+
+  Its proof must establish, with the compiler still on 6.0.3:
+
+  - every lint entry point resolves the replacement capability path;
+  - no member silently escapes lint;
+  - all 117 policy semantics and role projections remain enforced;
+  - compiler and typecheck authority remain independently TypeScript 6.0.3 at
+    this stage.
 
   **Task type**
 
@@ -1397,6 +1453,15 @@ remains bounded, and native Linux AMD64/ARM64 full command packs pass.
 
 - [ ] **3.4 Remove the legacy ESLint implementation atomically**
   <!-- agent-task: 3.4 paths=pnpm-workspace.yaml,pnpm-lock.yaml,packages/eslint-config/**,scripts/workspace-model.mjs,**/eslint.config.js,**/package.json,tests/**,docs/** checks=no-eslint-residue,workspace-tooling-boundary risk=high prerequisites=3.3 -->
+
+  **Sequencing**
+
+  Downstream of 3.3 and still **before** the compiler cutover: legacy ESLint is
+  retired while TypeScript **6.0.3 remains authoritative**. Removing the engine
+  that rejects TypeScript 7 is what makes 3.2 landable at all.
+
+  Full policy parity is re-proved AFTER removal, against the replacement engine
+  alone, so retirement cannot silently drop a policy.
 
   **Task type**
 

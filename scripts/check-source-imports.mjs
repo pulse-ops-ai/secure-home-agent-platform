@@ -7,7 +7,7 @@
  *
  * `check-workspace.mjs` governs what a manifest may DECLARE, and it excludes
  * `devDependencies` from layering on purpose: every member devDepends on
- * `@secure-home/testing` (layer 6) and `@secure-home/eslint-config` (layer 0),
+ * `@secure-home/testing` (layer 6) and `@secure-home/lint-config` (layer 0),
  * so treating those as architectural edges would make the layer map unusable.
  *
  * That exclusion leaves a hole, and it is the hole this file closes. Nothing
@@ -62,7 +62,7 @@
  *   production  everything that is not test or member-root config. Full rules.
  *   test        `tests/`, `__tests__/`, `*.test.*`, `*.spec.*`. Relaxed:
  *               a test may reach a test helper above its own layer.
- *   tooling     member-root `*.config.*` (vitest.config.ts, eslint.config.js).
+ *   tooling     member-root `*.config.*` (vitest.config.ts, prettier.config.js).
  *               Relaxed: configuring the build is what these are for.
  *
  * Production is the DEFAULT, not an opt-in list, so a package that puts code
@@ -582,10 +582,15 @@ export function reportLoadSites(root = DEFAULT_ROOT) {
       if (error.code === 'ENOENT') continue
       throw error
     }
-    const { specifiers, nonLiteral } = readImports(text, file)
+    const { specifiers, nonLiteral, syntaxErrors } = readImports(text, file)
     files[file] = {
       specifiers: specifiers.map((entry) => entry.specifier),
       nonLiteral: nonLiteral.map((entry) => ({ line: entry.line })),
+      // Reported so a consumer can distinguish "no edge here" from "this file
+      // could not be parsed". The gate itself already fails closed on these;
+      // the Scope-2 audit needs to see them to prove a governed edge cannot
+      // vanish through parser recovery instead of being refused.
+      syntaxErrors: syntaxErrors.map((entry) => ({ line: entry.line })),
     }
   }
   return files

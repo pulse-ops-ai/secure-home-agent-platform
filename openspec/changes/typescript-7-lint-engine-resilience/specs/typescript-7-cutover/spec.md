@@ -62,15 +62,45 @@ satisfy any typecheck, build, or generator compilation.
 
 Scope 2 SHALL preserve successful typecheck, build, decorators where currently
 configured, tsconfig inheritance, rootDir/outDir resolution, and test-config
-no-emit behavior. For the emitted surfaces the repository actually produces,
-Scope 2 SHALL prove preservation with normalized golden/differential evidence:
-declaration output (`.d.ts`), declaration maps (`.d.ts.map`), and source maps
-(`.js.map`) for the library and service roles, and the committed or consumed
-output of any member `generate` step. Roles that emit none of a surface — the
-application role for declarations and declaration maps, and the no-emit test
-role — SHALL NOT carry a preservation claim for that surface. Normalization
-SHALL neutralize only compiler-version banners and absolute path prefixes and
-SHALL NOT alter semantic content.
+no-emit behavior.
+
+For the emitted surfaces the repository actually produces, Scope 2 SHALL prove
+preservation of the REPOSITORY'S CONTRACT rather than of the previous
+compiler's serializer. No TypeScript 7 state has been delivered, so there is no
+external consumer of TypeScript 6's byte formatting to keep compatible; what
+must survive the cutover is what the repository means and ships, and the
+obligation is therefore stated per surface:
+
+- **Emitted runtime JavaScript** (`.js`) SHALL be byte-identical. This is
+  shipped executable code, and a compiler that changes it has changed the
+  program.
+- **Member `generate` output** SHALL be byte-identical. These artifacts are
+  committed and consumed by other tools, so their bytes are the contract.
+- **Declaration output** (`.d.ts`) SHALL preserve the declared type and API
+  semantics. It SHALL NOT be required to reproduce TypeScript 6's serialization
+  byte for byte: presentation choices the compiler owns — string-literal quote
+  delimiter, and TypeScript 7's deterministic member ordering — carry no
+  meaning a consumer can depend on. The comparison SHALL still fail on a change
+  to an exported symbol, a member, a literal value, a type, optionality,
+  `readonly`, a generic constraint, a module specifier, overload or signature
+  semantics, or union/intersection membership.
+- **Declaration maps and source maps** (`.d.ts.map`, `.js.map`) SHALL remain
+  present for the same emitted surfaces, valid, internally consistent, scoped to
+  the expected source and member, and usable for source attribution. Segment
+  serialization or column refinement that the new compiler produces for
+  unchanged output SHALL NOT by itself be a migration failure; a missing,
+  malformed, or mis-scoped map, or a loss of meaningful source coverage, SHALL
+  be.
+
+Roles that emit none of a surface — the application role for declarations and
+declaration maps, and the no-emit test role — SHALL NOT carry a preservation
+claim for that surface.
+
+Where byte comparison is used, normalization SHALL neutralize only
+compiler-version banners and absolute path prefixes and SHALL NOT alter
+semantic content. Declaration semantics SHALL be compared structurally rather
+than by an accumulating pattern-based normalizer, because a normalizer that
+grows a rule per observed difference eventually accepts every difference.
 
 #### Scenario: Full workspace typecheck and build
 
@@ -112,15 +142,47 @@ SHALL NOT alter semantic content.
 - **THEN** entry-point validation SHALL fail
 - **AND** `tsc6` SHALL NOT be accepted as the compiler for that entry point
 
-#### Scenario: Emitted declaration, map, and generator output are preserved
+#### Scenario: Emitted runtime and generator output are preserved exactly
 
-- **GIVEN** library/service declaration output, declaration maps, and source
-  maps, and the output of any member `generate` step, captured under TypeScript 6
+- **GIVEN** emitted runtime JavaScript and any member `generate` output captured
+  under TypeScript 6
 - **WHEN** the same surfaces are emitted under TypeScript 7.0.2
-- **THEN** a normalized golden/differential comparison SHALL match, neutralizing
-  only version banners and absolute path prefixes
-- **AND** a semantic difference SHALL block the cutover rather than be accepted
-  because compilation exited successfully
+- **THEN** they SHALL be byte-identical after neutralizing only version banners
+  and absolute path prefixes
+- **AND** any difference SHALL block the cutover rather than be accepted because
+  compilation exited successfully
+
+#### Scenario: Declaration semantics are preserved across a serializer change
+
+- **GIVEN** declaration output captured under TypeScript 6
+- **WHEN** TypeScript 7.0.2 emits the same declarations with a different
+  string-literal quote delimiter or a different deterministic member ordering
+- **THEN** the comparison SHALL pass, because neither carries meaning a consumer
+  can depend on
+- **AND** the frozen TypeScript 6 evidence SHALL NOT be rewritten to describe
+  TypeScript 7 output
+
+#### Scenario: A declaration changes meaning
+
+- **GIVEN** declaration output captured under TypeScript 6
+- **WHEN** an exported symbol, member, literal value, type, optionality,
+  `readonly` modifier, generic constraint, module specifier, overload or
+  signature semantics, or union/intersection membership differs under
+  TypeScript 7.0.2
+- **THEN** the comparison SHALL fail
+- **AND** the difference SHALL block the cutover rather than be admitted as a
+  compiler presentation change
+
+#### Scenario: A map stops being usable
+
+- **GIVEN** declaration maps and source maps for the emitted surfaces
+- **WHEN** they are produced under TypeScript 7.0.2
+- **THEN** each SHALL remain present, valid, internally consistent, scoped to
+  the expected source and member, and usable for source attribution
+- **AND** a missing, malformed, or mis-scoped map, or a loss of meaningful
+  source coverage, SHALL fail
+- **AND** a difference confined to segment serialization or column refinement
+  SHALL NOT by itself fail
 
 #### Scenario: A role that emits nothing carries no golden claim
 

@@ -1,7 +1,13 @@
 # `@secure-home/lint-config`
 
 The repository's **lint policy**, stated in terms the repository owns, plus the
-per-engine translation tables and the runner that executes both engines.
+per-engine translation tables and the runner that executes it.
+
+Lint is **replacement-only**: `policy.json` is the authority, and Oxlint 1.80.0
+with `oxlint-tsgolint` 7.0.2001 is the implementation that currently realises
+it. Scope 1 ran two engines side by side to prove they agreed; Scope 2 task 3.4
+retired the other one. The policy did not move when the engine did, which is the
+whole point of separating them.
 
 ## Why this package exists
 
@@ -48,9 +54,13 @@ REPLACED_BY_DEDICATED_REPOSITORY_GATE
 
 There is no `DROPPED`, and deliberately no "unavailable" value either. If a
 fixture proves a policy cannot be enforced equivalently, that is a **blocking
-conformance result**: the migration stops and ESLint keeps enforcing the policy.
-A row that could record unavailability would make a failed migration look like a
-decision somebody took.
+conformance result**: the change stops. A row that could record unavailability
+would make a failed migration look like a decision somebody took.
+
+While the migration was in progress that stop meant the previous engine kept
+enforcing the policy. It has been retired, so the stop is now simply a refusal:
+a policy that cannot be realised blocks the change that would drop it, and the
+engine cannot be swapped out from under `policy.json` by a green build.
 
 Whether the replacement engine realises a policy natively or through options is
 an engine implementation detail, so it lives in the mapping and not here.
@@ -76,7 +86,7 @@ while a release helper that only ever runs on a maintainer's laptop is not.
 | Class | Meaning | Examples here |
 |---|---|---|
 | Runtime production dependency | Reachable from shipped code paths | none in this package |
-| **CI/build parser of PR-controlled bytes** | Parses repository content that a pull request can choose | `typescript`, `@typescript/typescript6`, `eslint`, `oxlint`, `oxlint-tsgolint` |
+| **CI/build parser of PR-controlled bytes** | Parses repository content that a pull request can choose | `typescript`, `@typescript/typescript6`, `oxlint`, `oxlint-tsgolint` |
 | Local-only development utility | No path to production and no untrusted input | formatting and release conveniences |
 
 The second class is treated as **security-relevant** whatever the manifest says.

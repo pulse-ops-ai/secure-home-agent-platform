@@ -22,8 +22,13 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from workflow_model import governance_jobs, has_condition, job_sections
 
@@ -91,14 +96,14 @@ def _base(tmp_path: Path, name: str = "ws") -> Workspace:
         "packages/contracts",
         "@secure-home/contracts",
         devDependencies={
-            "@secure-home/eslint-config": "workspace:*",
             "@secure-home/lint-config": "workspace:*",
+            "@secure-home/tsconfig": "workspace:*",
             "@secure-home/logging": "workspace:*",
             "@secure-home/testing": "workspace:*",
         },
     )
-    ws.member("packages/eslint-config", "@secure-home/eslint-config")
     ws.member("packages/lint-config", "@secure-home/lint-config")
+    ws.member("packages/tsconfig", "@secure-home/tsconfig")
     ws.member("packages/logging", "@secure-home/logging")
     ws.member("packages/observability", "@secure-home/observability")
     ws.member("packages/testing", "@secure-home/testing")
@@ -290,13 +295,18 @@ def test_a_filesystem_read_is_not_claimed_to_be_covered(tmp_path: Path) -> None:
 def test_build_tooling_may_not_be_imported_from_production_source(tmp_path: Path) -> None:
     """Layer 0 is *below* everything, so layering alone would allow this.
 
-    Direction is not the only property that matters: an ESLint config has no
-    business resolving inside a deployed artifact regardless of its layer.
+    Direction is not the only property that matters: compiler configuration has
+    no business resolving inside a deployed artifact regardless of its layer.
+
+    This used to import the retired ESLint config. `@secure-home/tsconfig` is
+    the other build-tooling package and makes the same point, which matters:
+    the rule must be about the ROLE of a package, not about one package name
+    that happened to be in the set.
     """
     ws = _base(tmp_path)
     ws.source(
         "packages/contracts/src/index.ts",
-        "import cfg from '@secure-home/eslint-config/library'\nexport default cfg",
+        "import cfg from '@secure-home/tsconfig/base.json'\nexport default cfg",
     )
 
     result = _imports(ws.root)
@@ -314,8 +324,8 @@ def test_the_lint_policy_authority_may_not_be_imported_from_production_source(
     would drag lint machinery into a deployed artifact -- and its layer (0)
     would otherwise permit it, because layering answers direction, not role.
 
-    This matters more than for the ESLint config it will outlive: Scope 2
-    retires `packages/eslint-config`, and this package is what remains.
+    This matters more than for the ESLint config it outlived: task 3.4 retired
+    `packages/eslint-config`, and this package is what remains.
     """
     ws = _base(tmp_path)
     ws.source(
@@ -333,7 +343,7 @@ def test_a_lint_config_import_from_a_build_config_remains_allowed(tmp_path: Path
     build-time use the package exists for."""
     ws = _base(tmp_path)
     ws.source(
-        "packages/contracts/eslint.config.js",
+        "packages/contracts/prettier.config.js",
         "import policy from '@secure-home/lint-config/policy'\nexport default policy",
     )
 
@@ -377,8 +387,8 @@ def test_test_files_and_build_configs_may_reach_their_tooling(tmp_path: Path) ->
         "export default definePackageConfig()",
     )
     ws.source(
-        "packages/contracts/eslint.config.js",
-        "import config from '@secure-home/eslint-config/library'\nexport default config",
+        "packages/contracts/prettier.config.js",
+        "import config from '@secure-home/lint-config/policy'\nexport default config",
     )
 
     result = _imports(ws.root)
@@ -460,6 +470,31 @@ def test_a_non_literal_dynamic_import_is_rejected_in_production_source(tmp_path:
     result = _imports(ws.root)
     assert result.returncode != 0
     assert "non-literal" in _output(result)
+
+
+@pytest.mark.parametrize(
+    ("label", "rel"),
+    [
+        ("a test file", "packages/contracts/src/thing.test.ts"),
+        ("a build config", "packages/contracts/vitest.config.ts"),
+    ],
+)
+def test_a_non_literal_dynamic_import_is_permitted_outside_production(
+    tmp_path: Path, label: str, rel: str
+) -> None:
+    """CONTROL for the test above, and the other half of the zone rule.
+
+    The prohibition is deliberately production-only: a test may load a subject
+    it computed, and a build config may resolve a plugin by name. Pinned here
+    because this is the file that owns the decision -- another gate reading the
+    same load sites must not quietly refuse what this one permits, and cannot
+    be shown not to unless the permission is written down.
+    """
+    ws = _base(tmp_path, f"ws-nl-{label.replace(' ', '-')}")
+    ws.source(rel, "export const load = (name) => import(name)")
+
+    result = _imports(ws.root)
+    assert result.returncode == 0, _output(result)
 
 
 # --- lexical structure: what a regex could not see ---------------------------
@@ -997,3 +1032,271 @@ def test_a_windows_drive_path_specifier_is_rejected(tmp_path: Path) -> None:
     result = _imports(ws.root)
     assert result.returncode != 0, "a drive-letter path is outside the member"
     assert "outside its own workspace member" in _output(result)
+
+
+# --- task 3.5: the bounded seam, re-proven under TypeScript 7 ---------------
+#
+# Scope 2 moved the normal compiler to 7.0.2 while the architecture gate keeps
+# parsing through `@typescript/typescript6` 6.0.2. Those are now two different
+# TypeScript generations in one repository, and the question this section
+# answers is whether TypeScript 7 can bypass or replace the gate.
+#
+# The facts each task established are CONNECTED here rather than restated:
+# task 3.1 froze the TS7-language corpus, task 3.2 proved the compiler identity
+# and that TypeScript 7's root export has no traditional API. What was missing
+# is the behaviour that links them — that the gate still sees what it must, and
+# fails closed when it cannot.
+
+SEAM = "@typescript/typescript6"
+NORMAL_COMPILER = "typescript"
+TS7_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "ts7-language"
+GOVERNED_EDGE = "@secure-home/contracts"
+
+
+def _load_report(root: Path) -> dict[str, Any]:
+    result = subprocess.run(
+        [
+            "node",
+            str(REPO_ROOT / "scripts" / "check-source-imports.mjs"),
+            "--report-loads",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    parsed: dict[str, Any] = json.loads(result.stdout)
+    return parsed
+
+
+def _probe_gate(edits: dict[str, Callable[[str], str]] | None = None) -> Path:
+    """A copy of the gate and its rule model, mutable without touching the repo.
+
+    Placed under `node_modules/`, deliberately. A mutation applied in place would
+    leave the repository dirty if a run were interrupted and would race anything
+    else reading those files — the exact hygiene defect this repository has
+    already been bitten by. `node_modules/` is gitignored, skipped by every
+    scanner here, and still lets a bare `@typescript/typescript6` specifier
+    resolve by walking up, so the copy behaves like the original.
+    """
+    probe = REPO_ROOT / "node_modules" / ".architecture-gate-probe"
+    if probe.exists():
+        shutil.rmtree(probe)
+    probe.mkdir(parents=True)
+    for name in ("check-source-imports.mjs", "workspace-model.mjs"):
+        text = (REPO_ROOT / "scripts" / name).read_text()
+        if edits and name in edits:
+            mutated = edits[name](text)
+            assert mutated != text, f"the mutation did not change {name}"
+            text = mutated
+        (probe / name).write_text(text)
+    return probe
+
+
+def _run_probe(probe: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(probe / "check-source-imports.mjs"), *args],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+
+
+def test_the_gate_parses_through_the_seam_and_the_normal_compiler_cannot_replace_it() -> None:
+    """The seam is load-bearing, and TypeScript 7 is what makes that visible.
+
+    Under TypeScript 6 both the seam and the normal compiler exposed the
+    traditional API, so repointing this import changed nothing observable and
+    the seam looked like a redundancy anyone could revert. TypeScript 7's root
+    export has no traditional API, so the same repoint now breaks the gate
+    outright.
+    """
+    # As committed, the gate's only external dependency is the seam.
+    assert _external_imports("check-source-imports.mjs") == [SEAM]
+
+    probe = _probe_gate(
+        {
+            "check-source-imports.mjs": lambda text: text.replace(
+                f"import ts from '{SEAM}'", f"import ts from '{NORMAL_COMPILER}'", 1
+            )
+        }
+    )
+    try:
+        repointed = _run_probe(probe, str(REPO_ROOT))
+        assert repointed.returncode != 0, (
+            "the gate ran against the normal compiler's root export; the seam is not load-bearing"
+        )
+        # It fails because the traditional API is absent, not for some other reason.
+        assert "ScriptKind" in repointed.stdout + repointed.stderr
+
+        # The unmutated copy, by contrast, works.
+        healthy = _run_probe(_probe_gate(), str(REPO_ROOT))
+        assert healthy.returncode == 0, healthy.stdout + healthy.stderr
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+
+
+def test_a_gate_that_stopped_importing_the_seam_is_refused() -> None:
+    """Removal, not just repointing. The seam check is what notices."""
+    seam_check = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {checkCompatibilitySeam} from "
+            f"{str(REPO_ROOT / 'packages' / 'lint-config' / 'src' / 'check-policy.mjs')!r};"
+            "process.stdout.write(JSON.stringify(checkCompatibilitySeam(process.cwd())))",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert seam_check.returncode == 0, seam_check.stderr
+    assert json.loads(seam_check.stdout) == [], "the committed tree does not pass the seam check"
+
+    # The allowlist names exactly one consumer, and it really loads the seam.
+    loads = _load_report(REPO_ROOT)
+    consumers = sorted(file for file, entry in loads.items() if SEAM in entry.get("specifiers", []))
+    assert consumers == ["scripts/check-source-imports.mjs"], consumers
+
+
+def test_the_ts7_language_corpus_invariant_is_live(tmp_path: Path) -> None:
+    """MUTATION on the invariant itself.
+
+    Every fixture currently satisfies "extracted OR refused" through the
+    extracted arm, so the assertion could hold while being unable to detect a
+    violation. This copies the corpus, adds a construct that is NEITHER — a
+    governed edge behind a computed specifier, which the TypeScript 6 parser
+    reports no error for and extracts nothing from — and requires the invariant
+    to notice.
+    """
+    corpus = tmp_path / "ts7-language"
+    shutil.copytree(TS7_FIXTURES, corpus)
+    intruder = corpus / "regression-invisible-edge.ts"
+    intruder.write_text(
+        "const name = '@secure-home/' + 'contracts'\nexport const v = import(name)\n"
+    )
+
+    report = _load_report(corpus)
+    sites = report["regression-invisible-edge.ts"]
+    assert GOVERNED_EDGE not in sites["specifiers"] and not sites["syntaxErrors"], (
+        "the intruder does not violate the invariant, so this proves nothing"
+    )
+
+    violations = [
+        name
+        for name, entry in report.items()
+        if GOVERNED_EDGE not in entry["specifiers"] and not entry["syntaxErrors"]
+    ]
+    assert violations == ["regression-invisible-edge.ts"], violations
+
+    # And the committed corpus itself has no violation.
+    assert [
+        name
+        for name, entry in _load_report(TS7_FIXTURES).items()
+        if GOVERNED_EDGE not in entry["specifiers"] and not entry["syntaxErrors"]
+    ] == []
+
+
+def test_an_edge_the_parser_cannot_see_literally_is_still_refused_in_production(
+    tmp_path: Path,
+) -> None:
+    """The two mechanisms leave no hole between them.
+
+    The invariant says a governed edge is extracted or refused. The case it
+    cannot resolve — a specifier the parser sees but cannot read — is closed by
+    a different rule: production source must import by literal specifier. So the
+    construct that would hide an edge is refused before the invariant has to
+    have an opinion about it.
+    """
+    ws = _base(tmp_path, "ws-invisible-edge")
+    ws.source(
+        "packages/contracts/src/index.ts",
+        "const name = '@secure-home/' + 'logging'\nexport const v = import(name)",
+    )
+    result = _imports(ws.root)
+    assert result.returncode != 0
+    assert "non-literal" in _output(result)
+
+
+def test_syntax_recovery_cannot_hide_a_governed_edge(tmp_path: Path) -> None:
+    """Fail closed, on a subject that also carries a real edge.
+
+    A parser that recovered from unreadable syntax could report no error and
+    quietly drop what followed. The gate refuses the file instead, so an edge
+    can never disappear into recovery.
+    """
+    ws = _base(tmp_path, "ws-recovery")
+    ws.source(
+        "packages/contracts/src/index.ts",
+        f"import {{ thing }} from '{GOVERNED_EDGE}'\nexport const broken = (",
+    )
+    result = _imports(ws.root)
+    assert result.returncode != 0
+    assert "cannot be parsed" in _output(result)
+
+
+def test_the_compiler_and_the_architecture_gate_stay_separate_authorities() -> None:
+    """Neither can answer the other's question.
+
+    The gate resolves the seam and never the normal compiler; the compiler entry
+    points resolve the normal compiler and never the seam. Task 3.2 proves the
+    second half across every member — this asserts the first, and that the two
+    run as separate steps rather than one reporting for the other.
+    """
+    assert _external_imports("check-source-imports.mjs") == [SEAM]
+
+    workflow = WORKFLOW.read_text()
+    assert "run: pnpm run check:imports" in workflow
+    for other in ("pnpm lint", "pnpm typecheck"):
+        assert f"{other} && pnpm run check:imports" not in workflow
+        assert f"pnpm run check:imports && {other}" not in workflow
+
+
+def test_removing_the_independent_ci_invocation_fails_the_structural_proof() -> None:
+    """MUTATION. A gate CI stops invoking is a gate that enforces nothing.
+
+    Driven over the workflow TEXT rather than by editing the file, so the
+    repository is never left in the mutated state.
+    """
+    original = WORKFLOW.read_text()
+    mutated = original.replace("        run: pnpm run check:imports\n", "", 1)
+    assert mutated != original, "the mutation did not change the workflow"
+
+    assert {n for n, s in governance_jobs(original).items() if "check:imports" in s}, (
+        "the committed workflow does not invoke the gate unconditionally"
+    )
+    assert not {n for n, s in governance_jobs(mutated).items() if "check:imports" in s}, (
+        "removing the invocation was not detected"
+    )
+
+
+def test_mutating_an_architecture_rule_fails_the_behavioural_corpus(tmp_path: Path) -> None:
+    """MUTATION on the rules, with the seam untouched.
+
+    The seam being healthy says the gate can PARSE. It says nothing about what
+    the gate then decides, so a rule could be relaxed while every seam proof
+    stayed green. The behavioural corpus is what notices.
+    """
+    ws = _base(tmp_path, "ws-rule-mutation")
+    ws.source(
+        "packages/contracts/src/index.ts",
+        "import cfg from '@secure-home/tsconfig/base.json'\nexport default cfg",
+    )
+
+    # As committed, this production import of build tooling is refused.
+    assert _run_probe(_probe_gate(), str(ws.root)).returncode != 0
+
+    probe = _probe_gate(
+        {"workspace-model.mjs": lambda text: text.replace("  '@secure-home/tsconfig',\n", "", 1)}
+    )
+    try:
+        relaxed = _run_probe(probe, str(ws.root))
+        assert relaxed.returncode == 0, (
+            "the rule mutation did not change the gate's decision, so it proves nothing:\n"
+            + relaxed.stdout
+            + relaxed.stderr
+        )
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)

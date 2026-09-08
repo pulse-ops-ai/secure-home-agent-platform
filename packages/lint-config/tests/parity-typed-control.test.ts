@@ -1,24 +1,24 @@
 /**
- * Behavioural parity for the typescript-typed-control shard.
+ * Behavioural conformance for the typescript-typed-control shard.
  *
- * Registration is not parity. Every policy here is exercised against two real
- * files and BOTH engines: the invalid fixture must be rejected by each, the
- * valid one accepted by each, and both rejections attributed to the same
- * semantic policy.
+ * Registration is not enforcement. Every policy here is exercised against two
+ * real files: the invalid fixture must be rejected and the valid one accepted,
+ * both attributed to this policy's own rule identity rather than to whatever
+ * else the config happens to flag.
  *
- * The legacy assertion runs first and is not a formality. A fixture that fires
- * nothing under ESLint would "pass" on both sides and prove only that neither
- * engine enforces the policy.
+ * Task 3.4 retired the second engine, so this is no longer a cross-engine
+ * agreement test. It loses nothing that mattered. The legacy side was an
+ * oracle of record for the migration, but the property that actually catches a
+ * dead fixture was always the accept/reject PAIR: a fixture that fires nothing
+ * fails `rejects`, and a fixture that fires unconditionally fails `accepts`.
+ * Both still run, against the engine that now enforces in production.
  */
 import { describe, expect, it } from 'vitest'
 
 // @ts-ignore
-import { configForRole, loadAuthorities, parityFor, roleFor } from '../src/run-parity.mjs'
+import { configForRole, conformanceFor, loadAuthorities, roleFor } from '../src/run-parity.mjs'
 
 const { policy, mappings } = loadAuthorities()
-const legacy = new Map(
-  mappings.mappings.filter((m: any) => m.engine === 'legacy').map((m: any) => [m.policy, m]),
-)
 const replacement = new Map(
   mappings.mappings.filter((m: any) => m.engine === 'replacement').map((m: any) => [m.policy, m]),
 )
@@ -30,17 +30,10 @@ describe('typescript-typed-control shard', () => {
   })
 
   for (const row of shard as { id: string }[]) {
-    it(`${row.id}: both engines agree`, async () => {
-      const result = await parityFor(
-        row,
-        legacy.get(row.id),
-        replacement.get(row.id),
-        configForRole(roleFor(row)),
-      )
-      expect(result.legacyRejects, 'the invalid fixture must fire under ESLint').toBe(true)
-      expect(result.legacyAccepts, 'the valid fixture must not fire under ESLint').toBe(true)
-      expect(result.replacementRejects, 'the invalid fixture must fire under Oxlint').toBe(true)
-      expect(result.replacementAccepts, 'the valid fixture must not fire under Oxlint').toBe(true)
+    it(`${row.id}: enforced, and only on the invalid fixture`, () => {
+      const result = conformanceFor(row, replacement.get(row.id), configForRole(roleFor(row)))
+      expect(result.rejects, 'the invalid fixture must fire under Oxlint').toBe(true)
+      expect(result.accepts, 'the valid fixture must not fire under Oxlint').toBe(true)
     })
   }
 })

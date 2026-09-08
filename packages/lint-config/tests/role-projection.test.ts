@@ -7,10 +7,17 @@
  * test role leak onto ordinary tests, or widening the one admitted process-entry
  * exception. None of that is visible in a per-rule fixture.
  *
- * So the roles are proved BEHAVIOURALLY: one fixture, every role, both engines,
- * against a matrix of which role must reject it. The oracle's resolved
- * configuration is then used only for what a single file cannot show -- the
- * typed policies' role differences, and the per-role totals.
+ * So the roles are proved BEHAVIOURALLY: one fixture, every role, against a
+ * matrix of which role must reject it. The committed policy is then used only
+ * for what a single file cannot show -- the typed policies' role differences,
+ * and the per-role totals.
+ *
+ * Task 3.4 retired the second engine, and with it the resolved-configuration
+ * oracle these role facts used to be read from. The role sets did not move:
+ * the per-role totals below are the same seven numbers the oracle produced,
+ * now read from the authority that survived it. What changed is that a role
+ * fact is no longer cross-checked against a second engine's resolution -- it
+ * is checked against the engine that actually runs, one fixture at a time.
  */
 import {
   cpSync,
@@ -23,7 +30,6 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
 
 // @ts-ignore
@@ -39,29 +45,29 @@ import {
 import { GENERATED_ROLES } from '../src/generate-oxlint-config.mjs'
 // @ts-ignore
 import {
-  extractEffectivePolicy,
-  MEMBER_TEST_PROBE,
-  severityOf,
-} from '../src/extract-legacy-policy.mjs'
-// @ts-ignore
-import {
   configForRole,
-  legacyRulesForRole,
   loadAuthorities,
   ROLE_FIXTURE_ROOT,
   roleMatrixProblems,
   roleObservation,
-  typedLegacyRuleIds,
 } from '../src/run-parity.mjs'
 
 const HERE = import.meta.dirname
 const REPO_ROOT = path.join(HERE, '..', '..', '..')
 const load = (p: string): any => JSON.parse(readFileSync(path.join(HERE, '..', p), 'utf8'))
 
-type Row = { ruleId: string; roles: string[]; options?: Record<string, unknown[]> }
-const rows = (await extractEffectivePolicy()) as Row[]
-const rule = (id: string): Row | undefined => rows.find((r) => r.ruleId === id)
-const countFor = (role: string): number => rows.filter((r) => r.roles.includes(role)).length
+/**
+ * The roles a policy applies to, and how many apply to a role.
+ *
+ * These used to be read from the retired engine's resolved configuration --
+ * the oracle. `policy.json` states the same facts and produces the same seven
+ * totals, so the successor authority is the committed one rather than a second
+ * engine nobody runs any more.
+ */
+const rolesOf = (id: string): string[] | undefined =>
+  POLICY.policies.find((p: any) => p.id === id)?.roles
+const countFor = (role: string): number =>
+  POLICY.policies.filter((p: any) => p.roles.includes(role)).length
 
 const { policy: POLICY, mappings: MAPPINGS } = loadAuthorities() as { policy: any; mappings: any }
 const GENERATED = loadGeneratedConfigs() as Record<string, any>
@@ -145,7 +151,7 @@ const MATRIX: Matrix[] = [
 type Observation = {
   file: string
   role: string
-  observed: Record<string, { legacy: boolean; replacement: boolean }>
+  observed: Record<string, boolean>
 }
 
 /**
@@ -153,45 +159,32 @@ type Observation = {
  * destructuring, which makes the optional overrides look required. Widened
  * once, here, at the boundary.
  */
-const observeRole = roleObservation as unknown as (
-  input: Record<string, unknown>,
-) => Promise<Observation>
+const observeRole = roleObservation as unknown as (input: Record<string, unknown>) => Observation
 
-async function observe(
-  entry: Matrix,
-  overrides: Record<string, unknown> = {},
-): Promise<Observation[]> {
-  const out: Observation[] = []
-  for (const role of entry.roles) {
-    out.push(
-      (await observeRole({
-        file: path.join(ROLE_FIXTURE_ROOT, entry.file),
-        role,
-        policyIds: Object.keys(entry.rejects),
-        rows,
-        policy: POLICY,
-        mappings: MAPPINGS,
-        ...overrides,
-      })) as Observation,
-    )
-  }
-  return out
+function observe(entry: Matrix, overrides: Record<string, unknown> = {}): Observation[] {
+  return entry.roles.map((role) =>
+    observeRole({
+      file: path.join(ROLE_FIXTURE_ROOT, entry.file),
+      role,
+      policyIds: Object.keys(entry.rejects),
+      policy: POLICY,
+      mappings: MAPPINGS,
+      ...overrides,
+    }),
+  )
 }
 
-describe('role behaviour: one fixture, every role, both engines (EX-ROLE-001)', () => {
+describe('role behaviour: one fixture, every role (EX-ROLE-001)', () => {
   for (const entry of MATRIX) {
-    it(`${entry.file}: each role rejects exactly what the matrix says`, async () => {
-      const observations = await observe(entry)
+    it(`${entry.file}: each role rejects exactly what the matrix says`, () => {
+      const observations = observe(entry)
       expect(roleMatrixProblems(observations, entry.rejects, entry.roles)).toEqual([])
-      // The matrix is not vacuous: every provoked policy is rejected somewhere
-      // by both engines, or is a JavaScript twin whose TypeScript original is.
+      // The matrix is not vacuous: every provoked policy is rejected somewhere,
+      // or is a JavaScript twin whose TypeScript original is.
       for (const [policyId, rejecting] of Object.entries(entry.rejects)) {
         if (rejecting.length === 0) continue
         const hit = observations.find((o) => o.role === rejecting[0])?.observed[policyId]
-        expect(hit, `${policyId} under ${rejecting[0]}`).toEqual({
-          legacy: true,
-          replacement: true,
-        })
+        expect(hit, `${policyId} under ${rejecting[0]}`).toBe(true)
       }
     })
   }
@@ -201,21 +194,22 @@ describe('role behaviour: one fixture, every role, both engines (EX-ROLE-001)', 
     expect([...covered].sort()).toEqual([...(GENERATED_ROLES as string[])].sort())
   })
 
-  it('the static role run leaves out exactly the typed policies, by name', () => {
-    const typed = typedLegacyRuleIds(MAPPINGS) as Set<string>
-    // By the rules' own metadata: 23 declare they need a program. The typed
-    // SHARDS hold 24, because shard allocation is derived from the oracle and
-    // a static rule the JavaScript-config override switches off lands there;
-    // the role run must still exercise that one.
-    expect(typed.size).toBe(23)
-    for (const id of typed) expect(id).toMatch(/^@typescript-eslint\//)
-    expect(typed.has('@typescript-eslint/explicit-module-boundary-types')).toBe(false)
-    expect(typed.has('@typescript-eslint/no-floating-promises')).toBe(true)
-    // The typed role differences are the oracle's to state (below); nothing
-    // typed is silently absent from a role's static rule set.
-    const library = legacyRulesForRole(rows, 'library', typed) as Record<string, unknown>
-    expect(Object.keys(library)).toHaveLength(countFor('library') - typed.size)
-    expect(Object.keys(library)).not.toContain('@typescript-eslint/no-floating-promises')
+  it('the typed policies are named, and reach exactly the roles that can run them', () => {
+    // This used to read type-awareness out of the retired engine's rule
+    // metadata. The shards carry the same fact, and the engine proves it
+    // behaviourally in `typed-backend.test.ts`; what belongs HERE is the role
+    // consequence -- a typed policy must not be assigned to the one role whose
+    // files the typed backend cannot analyse.
+    expect(TYPE_AWARE_REPLACEMENT_RULES.length).toBe(24)
+    for (const id of TYPE_AWARE_REPLACEMENT_RULES) expect(id).toMatch(/^typescript\//)
+    expect(TYPE_AWARE_REPLACEMENT_RULES).toContain('typescript/no-floating-promises')
+
+    const jsConfig = new Set(enabledFor('js-config'))
+    const library = new Set(enabledFor('library'))
+    for (const id of TYPE_AWARE_REPLACEMENT_RULES) {
+      expect(jsConfig, `js-config cannot enforce ${id}`).not.toContain(id)
+      expect(library, `library must enforce ${id}`).toContain(id)
+    }
   })
 })
 
@@ -223,94 +217,71 @@ describe('role behaviour: one fixture, every role, both engines (EX-ROLE-001)', 
 
 describe('the matrix fails when a role stops rejecting what it must (MUT-ROLE-001)', () => {
   const entry = MATRIX[0] as Matrix
-  const typed = typedLegacyRuleIds(MAPPINGS) as Set<string>
 
-  it('legacy: the process exception broadened onto the library role', async () => {
-    const relaxed = legacyRulesForRole(rows, 'library', typed) as Record<string, unknown>
-    delete relaxed['no-console']
-    delete relaxed['no-restricted-globals']
-    delete relaxed['no-restricted-properties']
-    const mutated = (await observeRole({
+  /** Observe one role against a doctored config, the rest as committed. */
+  const withMutatedRole = (role: string, replacementConfig: string): string[] => {
+    const mutated = observeRole({
       file: path.join(ROLE_FIXTURE_ROOT, entry.file),
-      role: 'library',
+      role,
       policyIds: Object.keys(entry.rejects),
-      rows,
       policy: POLICY,
       mappings: MAPPINGS,
-      legacyRules: relaxed,
-    })) as Observation
-    const others = (await observe(entry)).filter((o) => o.role !== 'library')
-    const problems = roleMatrixProblems(
-      [mutated, ...others],
-      entry.rejects,
-      entry.roles,
-    ) as string[]
-    expect(problems.join('\n')).toMatch(
-      /no-console: the legacy engine accepted .* "library" role, which must reject/,
-    )
-    expect(problems.join('\n')).toMatch(/no-restricted-globals: the legacy engine accepted/)
-    expect(problems.filter((p) => p.includes('replacement'))).toEqual([])
-  })
+      replacementConfig,
+    })
+    const others = observe(entry).filter((o) => o.role !== role)
+    return roleMatrixProblems([mutated, ...others], entry.rejects, entry.roles) as string[]
+  }
 
-  it('replacement: the generated library config without the process rules', async () => {
+  /** A generated config with rules removed, written where the engine can read it. */
+  const configWithout = (role: string, drop: string[]): string => {
     const dir = mkdtempSync(path.join(tmpdir(), 'role-mutation-'))
-    const config = load('generated/oxlintrc.library.json')
-    delete config.rules['no-console']
-    delete config.rules['no-restricted-globals']
-    delete config.rules['no-restricted-properties']
-    const mutatedConfig = path.join(dir, 'oxlintrc.library.json')
-    writeFileSync(mutatedConfig, JSON.stringify(config))
-    const mutated = (await observeRole({
-      file: path.join(ROLE_FIXTURE_ROOT, entry.file),
-      role: 'library',
-      policyIds: Object.keys(entry.rejects),
-      rows,
-      policy: POLICY,
-      mappings: MAPPINGS,
-      replacementConfig: mutatedConfig,
-    })) as Observation
-    const others = (await observe(entry)).filter((o) => o.role !== 'library')
-    const problems = roleMatrixProblems(
-      [mutated, ...others],
-      entry.rejects,
-      entry.roles,
-    ) as string[]
-    expect(problems.join('\n')).toMatch(
-      /no-console: the replacement engine accepted .* "library" role/,
+    const config = load(`generated/oxlintrc.${role}.json`)
+    for (const id of drop) delete config.rules[id]
+    const target = path.join(dir, `oxlintrc.${role}.json`)
+    writeFileSync(target, JSON.stringify(config))
+    return target
+  }
+
+  it('broadened: the process exception reaching the whole library role', () => {
+    // The mutation that matters most. Relaxing these three across the library
+    // role turns the admitted single-file exception into a package-wide one,
+    // and every per-rule fixture would still pass.
+    const problems = withMutatedRole(
+      'library',
+      configWithout('library', ['no-console', 'no-restricted-globals', 'no-restricted-properties']),
     )
-    expect(problems.filter((p) => p.includes('legacy'))).toEqual([])
+    expect(problems.join('\n')).toMatch(
+      /no-console: the replacement engine accepted .* "library" role, which must reject/,
+    )
+    expect(problems.join('\n')).toMatch(/no-restricted-globals: the replacement engine accepted/)
+    expect(problems.join('\n')).toMatch(/no-restricted-properties: the replacement engine accepted/)
   })
 
-  it('leak: the library restrictions reaching a service', async () => {
-    // The other direction: a role that starts rejecting what it must accept.
-    const strict = legacyRulesForRole(rows, 'library', typed) as Record<string, unknown>
-    const mutated = (await observeRole({
-      file: path.join(ROLE_FIXTURE_ROOT, entry.file),
-      role: 'service',
-      policyIds: Object.keys(entry.rejects),
-      rows,
-      policy: POLICY,
-      mappings: MAPPINGS,
-      legacyRules: strict,
-      replacementConfig: configForRole('library'),
-    })) as Observation
-    const others = (await observe(entry)).filter((o) => o.role !== 'service')
-    const problems = roleMatrixProblems(
-      [mutated, ...others],
-      entry.rejects,
-      entry.roles,
-    ) as string[]
+  it('leaked: the library restrictions reaching a service', () => {
+    // The other direction, and the one that is easy to mistake for rigour: a
+    // role that starts rejecting what it must ACCEPT is drift too. A service
+    // is a composition root; it is supposed to read the process.
+    const problems = withMutatedRole('service', configForRole('library') as string)
     expect(problems.join('\n')).toMatch(
-      /no-restricted-globals: the legacy engine rejected .* "service" role, which must accept/,
-    )
-    expect(problems.join('\n')).toMatch(
-      /no-restricted-globals: the replacement engine rejected .* "service" role/,
+      /no-restricted-globals: the replacement engine rejected .* "service" role, which must accept/,
     )
   })
 
   it('a missing observation is a problem, never a pass', () => {
     const problems = roleMatrixProblems([], { 'no-console': ['library'] }, ['library']) as string[]
     expect(problems).toEqual(['no-console: no observation for the "library" role'])
+  })
+
+  it('a verdict-free observation is a problem, never a pass', () => {
+    // The subtler vacuity: an observation exists but says nothing about the
+    // policy. Treating that as agreement would let a harness that stopped
+    // reporting a rule read as a clean role.
+    const problems = roleMatrixProblems(
+      [{ file: 'x.ts', role: 'library', observed: {} }],
+      { 'no-console': ['library'] },
+      ['library'],
+    ) as string[]
+    expect(problems).toEqual(['no-console: the "library" observation carries no verdict for it'])
   })
 })
 
@@ -395,65 +366,66 @@ describe('role behaviour is preserved per role, not on average', () => {
   })
 
   it('a library restricts process access where a service does not', () => {
-    // The single most consequential role difference, as the oracle resolves
-    // it; the matrix above proves the same thing on both engines.
+    // The single most consequential role difference, as the policy states it;
+    // the matrix above proves the same thing by running the engine.
     for (const restricted of ['no-restricted-globals', 'no-restricted-properties']) {
-      expect(rule(restricted)?.roles, restricted).toContain('library')
-      expect(rule(restricted)?.roles, restricted).not.toContain('service')
-      expect(rule(restricted)?.roles, restricted).not.toContain('application')
+      expect(rolesOf(restricted), restricted).toContain('library')
+      expect(rolesOf(restricted), restricted).not.toContain('service')
+      expect(rolesOf(restricted), restricted).not.toContain('application')
     }
   })
 
   it('a library states its exported boundary types where a composition root need not', () => {
-    const boundary = rule('@typescript-eslint/explicit-module-boundary-types')
-    expect(boundary?.roles).toContain('library')
-    expect(boundary?.roles).not.toContain('service')
-    expect(boundary?.roles).not.toContain('application')
+    const boundary = rolesOf('explicit-module-boundary-types')
+    expect(boundary).toContain('library')
+    expect(boundary).not.toContain('service')
+    expect(boundary).not.toContain('application')
   })
 
   it('config roles relax the surface rules and keep the correctness rules', () => {
-    expect(rule('no-console')?.roles).not.toContain('config-file')
-    expect(rule('no-console')?.roles).not.toContain('js-config')
-    expect(rule('@typescript-eslint/no-explicit-any')?.roles).toContain('config-file')
+    expect(rolesOf('no-console')).not.toContain('config-file')
+    expect(rolesOf('no-console')).not.toContain('js-config')
+    expect(rolesOf('no-explicit-any')).toContain('config-file')
   })
 
   it('type-aware policy does not reach the JavaScript-config role', () => {
-    for (const typed of [
-      '@typescript-eslint/no-floating-promises',
-      '@typescript-eslint/await-thenable',
-    ]) {
-      expect(rule(typed)?.roles).not.toContain('js-config')
+    for (const typed of ['no-floating-promises', 'await-thenable']) {
+      expect(rolesOf(typed)).not.toContain('js-config')
     }
   })
 
   it('the exported test role relaxes the typed unsafe policies that a single file cannot show', () => {
     for (const relaxed of [
-      '@typescript-eslint/no-unsafe-assignment',
-      '@typescript-eslint/no-unsafe-argument',
-      '@typescript-eslint/no-unsafe-member-access',
+      'no-unsafe-assignment',
+      'no-unsafe-argument',
+      'no-unsafe-member-access',
     ]) {
-      expect(rule(relaxed)?.roles, relaxed).not.toContain('exported-test')
-      expect(rule(relaxed)?.roles, relaxed).toContain('library')
+      expect(rolesOf(relaxed), relaxed).not.toContain('exported-test')
+      expect(rolesOf(relaxed), relaxed).toContain('library')
     }
     // ...and keeps the ones that catch a test that never runs its assertions.
-    expect(rule('@typescript-eslint/no-floating-promises')?.roles).toContain('exported-test')
+    expect(rolesOf('no-floating-promises')).toContain('exported-test')
   })
 })
 
 // ── ordinary tests are not the exported test role ───────────────────────────
 
 describe('member-role assignment and the exported test role stay separate (ADV-ROLE-002)', () => {
-  it('an ordinary test file resolves to its MEMBER role, by the engine', async () => {
-    const probe = MEMBER_TEST_PROBE as { member: string; file: string }
-    const asTest = (await extractEffectivePolicy({
-      probes: [{ role: 'probe', member: probe.member, file: probe.file }],
-      includeExportedTestRole: false,
-    })) as Row[]
-    const asSource = (await extractEffectivePolicy({
-      probes: [{ role: 'probe', member: probe.member, file: 'src/index.ts' }],
-      includeExportedTestRole: false,
-    })) as Row[]
-    expect(asTest.map((r) => r.ruleId).sort()).toEqual(asSource.map((r) => r.ruleId).sort())
+  it('an ordinary test file resolves to its MEMBER role, because nothing else can', () => {
+    // The retired engine chose a config PER FILE, so a test file acquiring the
+    // relaxed role was a live possibility and had to be probed for. The
+    // surviving engine is handed one config per member, and a per-file
+    // override would have to be written INTO that config to change it.
+    //
+    // So the property is now checked where it could actually be broken: no
+    // generated config may carry per-file targeting at all. The engine
+    // supports it; the policy does not use it, and a role that varied inside a
+    // member would put a second, unreviewed contract in the same package.
+    for (const role of GENERATED_ROLES as string[]) {
+      const keys = Object.keys(GENERATED[role])
+      expect(keys, `${role} must not target files`).not.toContain('overrides')
+      expect(keys, `${role} must not target files`).not.toContain('files')
+    }
   })
 
   it('the exported role is genuinely more permissive, and applies to nothing', () => {
@@ -461,25 +433,30 @@ describe('member-role assignment and the exported test role stay separate (ADV-R
     for (const relaxed of [
       'no-console',
       'no-restricted-globals',
-      '@typescript-eslint/no-explicit-any',
-      '@typescript-eslint/no-unsafe-assignment',
+      'no-explicit-any',
+      'no-unsafe-assignment',
     ]) {
-      expect(rule(relaxed)?.roles, `${relaxed} relaxed by the exported role`).not.toContain(
+      expect(rolesOf(relaxed), `${relaxed} relaxed by the exported role`).not.toContain(
         'exported-test',
       )
-      expect(rule(relaxed)?.roles, `${relaxed} still blocks for members`).toContain('library')
+      expect(rolesOf(relaxed), `${relaxed} still blocks for members`).toContain('library')
     }
   })
 
   it('offers no bare `test` role that could blur the two', () => {
-    expect(rows.flatMap((r) => r.roles)).not.toContain('test')
+    expect(POLICY.policies.flatMap((p: any) => p.roles)).not.toContain('test')
   })
 
-  it('no member composes the exported test role', () => {
+  it('no member ships an engine configuration of its own', () => {
+    // Stronger than the check it replaces, and for the same reason. A member
+    // used to be able to compose the exported test role in its own
+    // `eslint.config.js`; task 3.4 deleted those files, so the guard is now
+    // that a member has NO local engine config to compose anything in --
+    // whatever the engine, and whatever role it might name.
     for (const rel of readMembers()) {
-      const config = path.join(REPO_ROOT, rel, 'eslint.config.js')
-      if (!existsSync(config)) continue
-      expect(readFileSync(config, 'utf8'), rel).not.toMatch(/@secure-home\/eslint-config\/test\b/)
+      for (const name of ['eslint.config.js', 'eslint.config.mjs', '.oxlintrc.json']) {
+        expect(existsSync(path.join(REPO_ROOT, rel, name)), `${rel}/${name}`).toBe(false)
+      }
     }
   })
 })
@@ -490,36 +467,38 @@ describe('the coding-adapter process entry cannot broaden', () => {
   const RELAXED = ['no-console', 'no-restricted-globals', 'no-restricted-properties']
   const ADAPTER = path.join(REPO_ROOT, 'agents', 'adapters', 'coding', 'claude-code')
 
-  it('relaxes exactly those three and nothing else, by the oracle', () => {
-    const relaxed = rows
-      .filter((r) => r.roles.includes('library') && !r.roles.includes('adapter-bin'))
-      .map((r) => r.ruleId)
+  it('relaxes exactly those three and nothing else, by the policy', () => {
+    const relaxed = POLICY.policies
+      .filter((p: any) => p.roles.includes('library') && !p.roles.includes('adapter-bin'))
+      .map((p: any) => p.id)
       .sort()
     expect(relaxed).toEqual([...RELAXED].sort())
   })
 
-  it('applies to src/bin.ts and to no other file of the adapter, by the engine', async () => {
-    // The PATH half of role/path behaviour: the same member, two files, and
-    // only the declared wire entry is relaxed.
-    const eslint = new ESLint({ cwd: ADAPTER })
-    const bin = await eslint.calculateConfigForFile('src/bin.ts')
-    for (const other of ['src/index.ts', 'src/plan.ts', 'src/bin.test.ts', 'src/lib/bin.ts']) {
-      const config = await eslint.calculateConfigForFile(other)
-      for (const id of RELAXED) {
-        expect(severityOf(bin.rules[id]), `${id} at src/bin.ts`).toBe('off')
-        expect(severityOf(config.rules[id]), `${id} at ${other}`).toBe('error')
-      }
-    }
+  it('and the adapter cannot relax anything for itself', () => {
+    // The PATH half used to be a property of the adapter's own config, which
+    // named `src/bin.ts` in its own bytes. That file is gone: the bound now
+    // lives in the runner, which lints the entry point separately (proved
+    // end to end in `lint-wiring.test.ts`). What must hold HERE is that the
+    // adapter has no way to widen it -- no local config, and a lint script
+    // that goes through the capability rather than the engine.
+    expect(existsSync(path.join(ADAPTER, 'eslint.config.js'))).toBe(false)
+    expect(existsSync(path.join(ADAPTER, '.oxlintrc.json'))).toBe(false)
+    const script = String(
+      JSON.parse(readFileSync(path.join(ADAPTER, 'package.json'), 'utf8')).scripts.lint,
+    )
+    expect(script).toContain('secure-home-lint')
+    expect(script).not.toMatch(/\boxlint\b/)
   })
 
   it('keeps every correctness policy in force at that entry', () => {
     for (const kept of [
-      '@typescript-eslint/no-floating-promises',
-      '@typescript-eslint/no-explicit-any',
-      '@typescript-eslint/explicit-module-boundary-types',
+      'no-floating-promises',
+      'no-explicit-any',
+      'explicit-module-boundary-types',
       'eqeqeq',
     ]) {
-      expect(rule(kept)?.roles, kept).toContain('adapter-bin')
+      expect(rolesOf(kept), kept).toContain('adapter-bin')
     }
   })
 
@@ -644,7 +623,10 @@ describe('Prettier remains the sole formatting authority', () => {
 // ── the fixture class, across every reader ──────────────────────────────────
 
 const PROJECTION_FILES = [
-  'packages/eslint-config/base.js',
+  // Lint discovery is the member's own manifest now: `run-lint.mjs` lints each
+  // member in its own directory, so the corpus is out of reach exactly while
+  // its owner declines to be linted. See `checkFixtureProjection`.
+  'packages/lint-config/package.json',
   '.prettierignore',
   'packages/lint-config/tsconfig.json',
   'scripts/check-source-imports.mjs',
@@ -695,8 +677,15 @@ describe('the conformance corpus is excluded by four readers and consumed by one
   it.each([
     [
       'lint discovery',
-      'packages/eslint-config/base.js',
-      (t: string) => t.replace("'**/tests/fixtures/**',", ''),
+      // The corpus is out of the engine's reach because its OWNER declines to
+      // be linted. Give this member a real lint script and every deliberately
+      // invalid fixture becomes a build failure.
+      'packages/lint-config/package.json',
+      (t: string) => {
+        const manifest = JSON.parse(t)
+        manifest.scripts.lint = 'secure-home-lint src'
+        return JSON.stringify(manifest, null, 2)
+      },
       /lint discovery no longer excludes the conformance corpus/,
     ],
     [
@@ -761,6 +750,6 @@ describe('the conformance corpus is excluded by four readers and consumed by one
 /** Every workspace member, from the checker's own discovery. */
 function readMembers(): string[] {
   const found = members(REPO_ROOT) as string[]
-  expect(found.length).toBeGreaterThanOrEqual(19)
+  expect(found.length).toBeGreaterThanOrEqual(18)
   return found
 }

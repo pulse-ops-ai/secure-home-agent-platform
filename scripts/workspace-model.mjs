@@ -19,6 +19,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 export const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -53,7 +54,6 @@ export const TAXONOMY = {
 export const LAYERS = {
   // 0 — build tooling. Imports nothing; everything may use it as a devDep.
   'packages/tsconfig': 0,
-  'packages/eslint-config': 0,
   'packages/lint-config': 0,
 
   // 1 — the innermost contract source. Imports nothing from the platform.
@@ -116,17 +116,16 @@ export const TEST_ONLY_PACKAGES = new Set(['@secure-home/testing'])
  * that would drag lint and compiler machinery into a deployed artifact.
  *
  * Their layer (0) is below everything, so the layering rule alone would happily
- * ALLOW `contracts/src` to import `@secure-home/eslint-config`. Direction is not
+ * ALLOW `contracts/src` to import `@secure-home/lint-config`. Direction is not
  * the only property that matters; role is too.
  */
 export const BUILD_TOOLING_PACKAGES = new Set([
   '@secure-home/tsconfig',
-  '@secure-home/eslint-config',
-  // The engine-neutral lint-policy authority and its dual-engine runner. It is
-  // lint machinery, so the same reasoning applies: nothing resolves it at
+  // The engine-neutral lint-policy authority and its replacement-engine runner.
+  // It is lint machinery, so the same reasoning applies: nothing resolves it at
   // runtime, and a production import would drag policy tooling into a deployed
-  // artifact. `packages/eslint-config` leaves this set when the legacy engine is
-  // retired in Scope 2; this entry is what replaces it.
+  // artifact. `@secure-home/eslint-config` used to sit here too; task 3.4
+  // retired the legacy engine, and this entry is what replaced it.
   '@secure-home/lint-config',
 ])
 
@@ -209,4 +208,33 @@ export function declaredInternalDeps(pkg) {
     }
   }
   return declared
+}
+
+// ── CLI ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Emit the classification as JSON.
+ *
+ * So that a checker can read the classification of a DIFFERENT tree than the
+ * one it lives in. Importing this module dynamically from a variable path
+ * would do it in one line and is not available: the compatibility seam guard
+ * fails closed on a non-literal module specifier, because a load site that
+ * cannot be resolved without running the code cannot be proved bounded. A
+ * subprocess keeps every specifier literal on both sides.
+ */
+const invokedDirectly = (() => {
+  try {
+    return process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]
+  } catch {
+    return false
+  }
+})()
+
+if (invokedDirectly && process.argv.includes('--json')) {
+  process.stdout.write(
+    `${JSON.stringify({
+      layers: LAYERS,
+      buildToolingPackages: [...BUILD_TOOLING_PACKAGES],
+    })}\n`,
+  )
 }

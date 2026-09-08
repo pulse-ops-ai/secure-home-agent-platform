@@ -844,6 +844,48 @@ external system effect crosses these boundaries.
   `adr-0022-acceptance` transition between PR-A and PR-B.
 - **Revisit trigger:** the owner adopts a different governed acceptance mechanism.
 
+### D18: Before first delivery, preservation means semantics, not the previous compiler's serialization
+
+- **Decision:** the emitted-output obligation in `REQ-TC-002` is stated per
+  surface. Emitted runtime JavaScript and member `generate` output must be
+  byte-identical. Declaration output must preserve declared type and API
+  semantics, and need not reproduce TypeScript 6's serialization: the
+  string-literal quote delimiter and TypeScript 7's deterministic member
+  ordering are presentation choices the compiler owns. Declaration and source
+  maps must remain present, valid, internally consistent, correctly scoped and
+  usable for source attribution, rather than byte-identical.
+- **Requirement(s):** `REQ-TC-002`.
+- **Rationale:** nothing from the TypeScript 7 cutover has been merged or
+  delivered, so no consumer exists that depends on TypeScript 6's byte
+  formatting. The thing that must survive the migration is what the repository
+  MEANS and SHIPS. A contract written against the old serializer would block the
+  cutover on differences no consumer can observe — which is exactly what
+  happened: the local 7.0.2 build typechecked, built, produced byte-identical
+  runtime JavaScript and byte-identical generator artifacts, and still failed a
+  raw-byte declaration comparison on quote delimiters and member ordering.
+- **Alternatives considered:** (a) require raw byte identity — blocks a cutover
+  on non-semantic differences and offers no way forward except abandoning the
+  compiler; (b) normalize the differences away with patterns — a normalizer that
+  grows a rule per observed difference eventually accepts every difference, and
+  the rules would have to erase declaration structure and ordering, which are
+  exactly where meaning lives; (c) recapture the golden under TypeScript 7 —
+  destroys the evidence of what the two compilers actually do, and makes the
+  proof agree with the compiler it is meant to test.
+- **Trust consequence:** a semantic change to a shipped declaration, a change to
+  emitted runtime code, a change to a generated artifact, or a map that stops
+  being usable each still block the cutover. What stops blocking it is a
+  difference no consumer can depend on.
+- **Canonical authority consequence:** none. `AUTH-TS-CONFORMANCE` continues to
+  own emitted-output conformance; only the obligation it enforces is refined.
+  The frozen TypeScript 6 evidence remains immutable historical record of what
+  TypeScript 6.0.3 produced before the cutover, and is never rewritten into a
+  claim that it produced TypeScript 7 output. TypeScript's own
+  `--stableTypeOrdering`, where useful, is a migration-analysis projection only
+  and never replaces that record.
+- **Revisit trigger:** TypeScript 7 output is delivered to an external consumer,
+  after which its serialization becomes a compatibility surface in its own right
+  and this decision no longer applies to subsequent compiler moves.
+
 ## Repository Feasibility
 
 | Assumption | Repository evidence | Status | Design consequence |

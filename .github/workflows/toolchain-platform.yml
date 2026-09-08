@@ -1,4 +1,4 @@
-# NATIVE PLATFORM PROOF for the Scope-1 toolchain.
+# NATIVE PLATFORM PROOF for the repository toolchain.
 #
 # WHY THIS EXISTS SEPARATELY. `checks.yml` proves the repository is correct on
 # one architecture. This proves the TOOLCHAIN runs natively on both, which is a
@@ -62,6 +62,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The command pack includes `pnpm test`, and part of that suite is a
+          # TWO-REVISION property: the identity ledger is compared against the
+          # accepted ledger at the trusted base. That comparison resolves its
+          # base from the pull-request event payload when there is one, and
+          # falls back to `merge-base HEAD origin/main` when there is not.
+          #
+          # On `workflow_dispatch` there is no payload, so the fallback is the
+          # only path — and a depth-1 checkout has no `origin/main` for it to
+          # resolve. The suite then fails closed, which is correct behaviour and
+          # meant this workflow could only ever execute its own command pack
+          # when a pull request happened to trigger it. A platform proof that
+          # works under one trigger is not a platform proof.
+          #
+          # `checks.yml` already takes full history for the same class of
+          # two-revision property.
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -121,7 +137,7 @@ jobs:
         run: node packages/lint-config/src/check-install-posture.mjs --identities
 
       # The command pack. Every gate the toolchain owns, executed natively.
-      - name: Lint — dual engine, both blocking, typed backend included
+      - name: Lint — replacement-only policy, typed backend included
         run: pnpm lint
 
       - name: Typecheck — the normal compiler
@@ -136,7 +152,7 @@ jobs:
       - name: Source import direction — through the compatibility seam
         run: pnpm run check:imports
 
-      - name: Toolchain boundary and lint-policy integrity
+      - name: Lint-policy integrity
         run: pnpm run check:lint-policy
 
       - name: Workspace taxonomy

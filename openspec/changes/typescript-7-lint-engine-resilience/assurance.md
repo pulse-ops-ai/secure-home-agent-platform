@@ -197,7 +197,7 @@ mutable fact families this package can fill itself.
 | EX-MAINT-001 | Scope 1 two-revision fixtures establish a genesis class without self-admission; a later exact pin/mapping-only maintenance candidate preserves the trusted predecessor's protected semantic projection and passes the full proof net | PR-B onward | genesis assertion + two-revision maintenance fixture |
 | EX-MAINT-002 | PR-B proves the future three-domain trusted boundary through executable protocol fixtures without self-admission: trusted control loads verifier/dependency bytes from the exact live predecessor and emits a content-addressed subject plan; the untrusted subject executes candidate tools in isolation; the trusted verdict verifies the result envelope by schema/digest and re-resolves identities | PR-B genesis + each later maintenance candidate | trusted-boundary integration fixtures; real predecessor-hosted run evidence only after genesis is on default branch |
 | EX-SUBJECT-001 | candidate tools run in an isolated subject with no credential/secret/token/Docker socket/shared cache/trusted-workspace write, only isolated scratch, and (if containerized) the enumerated container controls; and the candidate process is launched behind an explicit OS-level boundary relative to the trusted launcher | PR-B onward | subject-isolation integration fixture + workflow/container-option inspection + launcher-topology assertion |
-| EX-TS-002 | for actually-emitted surfaces (library/service `.d.ts`, `.d.ts.map`, `.js.map`, and member `generate` output), TypeScript 7 output matches a normalized golden captured under TypeScript 6; absent surfaces carry no claim | PR-C | normalized golden/differential vectors |
+| EX-TS-002 | for actually-emitted surfaces, TypeScript 7 preserves what the repository ships, measured per surface against a golden captured under TypeScript 6: emitted runtime `.js` and member `generate` output byte-identical; `.d.ts` preserving declared type/API semantics but not the previous serializer's quote delimiter or member ordering; `.d.ts.map`/`.js.map` present, valid, internally consistent, correctly scoped and usable for source attribution rather than byte-identical; absent surfaces carry no claim | PR-C | byte vectors for runtime/generator output; structural declaration comparison; map validity and scope checks |
 | EX-A2-001 | PR-A2 changes only ADR-0022 status Proposed→Accepted plus atomic index/current-state mirrors, is bound to the exact accepted ADR byte digest, and introduces no implementation | PR-A2 | acceptance-diff structural check + digest binding |
 
 ### Property proofs
@@ -281,7 +281,10 @@ mutable fact families this package can fill itself.
 | MUT-A2-001 | authorize/begin PR-B while ADR-0022 is Proposed or from a pre-PR-A2 main | PR-B pre-implementation gate/authorization fails | PR-A2/PR-B |
 | MUT-MERGE-001 | consume a successful run as merge authorization after the head/base/merge-tree moved | merge-freshness (MAN-TS7-01) evidence-expiry test fails | PR-B onward |
 | MUT-COMPOSE-001 | union two separate maintenance classes (or edit the class set) to widen the admitted delta | closed-composition property test fails | PR-B onward |
-| MUT-TS-EMIT-001 | accept a changed `.d.ts`/`.d.ts.map`/`.js.map`/generator output under TS7 as passing | normalized golden/differential test fails | PR-C |
+| MUT-TS-EMIT-001 | accept a changed emitted runtime `.js` or `generate` artifact under TS7 as passing | byte differential test fails | PR-C |
+| MUT-TS-EMIT-002 | accept a `.d.ts` whose exported symbol, member, literal value, type, optionality, `readonly`, generic constraint, module specifier, signature semantics, or union/intersection membership changed, on the grounds that the compiler reformats declarations | structural declaration comparison fails | PR-C |
+| MUT-TS-EMIT-003 | accept a missing, malformed, or mis-scoped map, or a loss of meaningful source coverage, because map bytes are no longer compared | map validity/scope test fails | PR-C |
+| MUT-TS-EMIT-004 | rewrite the frozen TypeScript 6 evidence so a differing surface compares equal, or recapture it under TypeScript 7 | baseline seal/provenance test fails | PR-C |
 
 ## Cross-Requirement Interaction Checks
 
@@ -340,7 +343,7 @@ mutable fact families this package can fill itself.
 | REQ-LP-005 | D4 | 16,24 | POLICY, CONFIG | PROP-LP-002, ADV-LP-001 | PR-B/C |
 | REQ-LP-006 | D2/D11/D12 | 02,08,17,20 | POLICY, CONFORMANCE, ENGINE-PINS | MUT-LP-002/005 | PR-C |
 | REQ-TC-001 | D5/D11 | 01,05,17 | TS-CONFIGS, TS-ENTRYPOINTS | ADV-TC-001 | PR-C |
-| REQ-TC-002 | D5 | 01,11,13 | TS-PINS, TS-CONFIGS, TS-ENTRYPOINTS, TS6-CONSUMERS, TS-CONFORMANCE | EX-TS-001, EX-TS-002, EX-PLAT-001, MUT-TS6-001, MUT-TS-EMIT-001 | PR-C |
+| REQ-TC-002 | D5, D18 | 01,11,13 | TS-PINS, TS-CONFIGS, TS-ENTRYPOINTS, TS6-CONSUMERS, TS-CONFORMANCE | EX-TS-001, EX-TS-002, EX-PLAT-001, MUT-TS6-001, MUT-TS-EMIT-001, MUT-TS-EMIT-002, MUT-TS-EMIT-003, MUT-TS-EMIT-004 | PR-C |
 | REQ-TC-003 | D5/D7 | 03,04,05,14 | TS6-CONSUMERS, ARCH-IMPORT | EX-ARCH-001, ADV-TC-002, MUT-ARCH-001, MUT-ARCH-002 | PR-B/C |
 | REQ-TC-004 | D6 | 07,14,20 | TS-ENTRYPOINTS, LINT-CONFIG | PROP-SEP-001, MUT-SEP-001 | PR-B/C |
 | REQ-TC-005 | D11 | 08,13,17 | PINS, POLICY, CONFORMANCE | completion/rollback evidence | PR-C |

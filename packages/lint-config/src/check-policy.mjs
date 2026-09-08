@@ -1,18 +1,22 @@
 /**
  * REPOSITORY-WIDE POLICY AND ROLE-ASSIGNMENT INTEGRITY.
  *
- * WHY THIS EXISTS SEPARATELY FROM THE ORACLE. `extract-legacy-policy.mjs`
- * resolves ONE representative file per role. That establishes what each role
- * MEANS, and it is the only honest way to learn the semantics — but it is blind
- * to which members actually consume which role. A member could switch from
- * `library` to `service`, quietly dropping the process restrictions from a
- * package that is not a composition root, and every representative probe would
- * still pass because `services/runner-control` still resolves `service`
- * correctly.
+ * WHY THIS EXISTS SEPARATELY FROM THE CONFORMANCE CORPUS. The corpus exercises
+ * ONE fixture pair per policy. That establishes what each role MEANS, and it is
+ * the only honest way to learn the semantics — but it is blind to which members
+ * actually consume which role. A member could switch from `library` to
+ * `service`, quietly dropping the process restrictions from a package that is
+ * not a composition root, and every fixture would still pass because
+ * `services/runner-control` still resolves `service` correctly.
  *
- * So role SEMANTICS come from probes and role ASSIGNMENT is checked here,
+ * So role SEMANTICS come from the corpus and role ASSIGNMENT is checked here,
  * across every member. `AUTH-MEMBER-ROLES` owns both halves; one without the
  * other is not the authority it claims to be.
+ *
+ * The semantics half used to be read from a resolved ESLint configuration by
+ * `extract-legacy-policy.mjs`. Task 3.4 retired that engine and that extractor;
+ * the split it motivated is unchanged, because it was never about which engine
+ * answered — it was about a probe being unable to say who consumes the answer.
  *
  * Dependency-free: node stdlib.
  */
@@ -43,13 +47,9 @@ export const ROLE_PROJECTION = [
  * turns a gate into a suggestion. Each must still declare a lint script that
  * says so out loud, so the absence is a recorded decision and not an omission.
  */
-export const NON_LINTING_MEMBERS = new Set(['packages/tsconfig', 'packages/lint-config'])
+export const EXPORTED_TEST_ROLE = 'exported-test'
 
-/**
- * The one member allowed to lint itself with what it exports, since asking it
- * to consume a published role would be circular.
- */
-export const SELF_LINTING_MEMBER = 'packages/eslint-config'
+export const NON_LINTING_MEMBERS = new Set(['packages/tsconfig', 'packages/lint-config'])
 
 /** The one admitted process-boundary override, and the exact rules it may relax. */
 export const ADAPTER_BIN_OVERRIDE = {
@@ -94,14 +94,23 @@ export function expectedRoleFor(rel) {
   return undefined
 }
 
-/** The role a member's config actually composes, read from its own bytes. */
-export function declaredRoleOf(repoRoot, rel) {
-  const configPath = path.join(repoRoot, rel, 'eslint.config.js')
-  if (!existsSync(configPath)) return { kind: 'absent' }
-  const text = readFileSync(configPath, 'utf8')
-  if (/from\s+'\.\/index\.js'/.test(text)) return { kind: 'self', text }
-  const match = /@secure-home\/eslint-config\/([a-z]+)/.exec(text)
-  return match === null ? { kind: 'unknown', text } : { kind: 'role', role: match[1], text }
+/**
+ * How a member declares that it is linted, read from its own bytes.
+ *
+ * This used to read `eslint.config.js`, which task 3.4 retired along with the
+ * engine. The surviving projection is the member's lint SCRIPT: `AUTH-MEMBER-
+ * ROLES` names the policy as the authority and member configs/scripts as its
+ * checked projections, so the authority did not move -- one of its two
+ * projections did.
+ */
+export function declaredLintOf(repoRoot, rel) {
+  const manifest = path.join(repoRoot, rel, 'package.json')
+  if (!existsSync(manifest)) return { kind: 'absent', script: '' }
+  const script = String(JSON.parse(readFileSync(manifest, 'utf8')).scripts?.lint ?? '')
+  if (script === '') return { kind: 'absent', script }
+  if (/no lint/.test(script)) return { kind: 'declared-none', script }
+  if (script.includes(LINT_CAPABILITY)) return { kind: 'capability', script }
+  return { kind: 'unknown', script }
 }
 
 /**
@@ -112,61 +121,143 @@ export function declaredRoleOf(repoRoot, rel) {
  * point, catches the override as WRITTEN: a second glob entry or a fourth
  * relaxed rule is a broadening whether or not any file matches it today.
  */
-export function localOverridesOf(text) {
-  const overrides = []
-  const blocks = text.matchAll(/files:\s*\[([^\]]*)\](?:[^{}]*rules:\s*\{([^}]*)\})?/g)
-  for (const [, files, rules] of blocks) {
-    const globs = files
-      .split(',')
-      .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
-      .filter((s) => s.length > 0)
-    const entries =
-      rules === undefined
-        ? undefined
-        : [...rules.matchAll(/['"]?([@\w/-]+)['"]?\s*:\s*(['"][\w-]+['"]|[\w[{]+)/g)].map(
-            ([, rule, value]) => ({ rule, value: value.replace(/^['"]|['"]$/g, '') }),
-          )
-    overrides.push({ globs, rules: entries })
-  }
-  return overrides
-}
 
 /**
  * Every member's assignment, checked against the projection.
  *
  * Returns problems rather than throwing, so one run reports the whole picture.
  */
-export function checkMemberRoles(repoRoot = REPO_ROOT) {
+/**
+ * No projection entry may hand a member the exported test role.
+ *
+ * ADV-ROLE-002. The role exists so that a package can PUBLISH relaxed rules for
+ * test helpers it exports; a member acquiring it would move all of its own
+ * tests onto the more permissive contract at once.
+ *
+ * Checked against the table rather than against each member, because the table
+ * is where it could actually happen: `expectedRoleFor` derives a member's role
+ * from this list alone, so a per-member check would be unreachable code that
+ * could never fail and never be trusted. The table is a parameter for the same
+ * reason -- a guard nothing can drive is not a guard.
+ */
+export function checkRoleProjectionTable(projection = ROLE_PROJECTION) {
   const problems = []
+  for (const entry of projection) {
+    if (entry.role === EXPORTED_TEST_ROLE) {
+      problems.push(
+        `the projection maps "${entry.prefix}" onto the exported test role. No member ` +
+          "consumes it: its relaxations reaching a member's own tests is a reviewed decision",
+      )
+    }
+  }
+  return problems
+}
 
-  for (const rel of members(repoRoot)) {
-    const declared = declaredRoleOf(repoRoot, rel)
+/**
+ * The admitted process-entry exception must be exactly what it says.
+ *
+ * ADV-ROLE-001. `ADAPTER_BIN_OVERRIDE.relaxes` is the DECLARATION -- three
+ * named policies, relaxed at one file. The generated `adapter-bin` config is
+ * the realisation. Until this check existed the declaration was inert data:
+ * the runner read only the prefix and the filename, so the two could disagree
+ * indefinitely and the relaxation could quietly grow a fourth rule.
+ *
+ * The exception used to be written into each adapter's own config, where it
+ * was validated by reading that file's text. Task 3.4 deleted those files, so
+ * the same broadenings are caught here instead -- against the configs the
+ * engine is actually handed, which is a stronger place to catch them than a
+ * regular expression over source.
+ */
+export function checkAdmittedException(policy, mappings, generated) {
+  const problems = []
+  const memberRole = 'library'
+  const exemptRole = 'adapter-bin'
+  const member = generated[memberRole]
+  const exempt = generated[exemptRole]
+  if (member === undefined || exempt === undefined) {
+    problems.push(`the "${memberRole}" and "${exemptRole}" configs must both exist to compare`)
+    return problems
+  }
 
-    if (NON_LINTING_MEMBERS.has(rel)) {
-      if (declared.kind !== 'absent') {
-        problems.push(`${rel}: declared non-linting but ships an eslint.config.js`)
-        continue
-      }
-      const pkg = JSON.parse(readFileSync(path.join(repoRoot, rel, 'package.json'), 'utf8'))
-      if (!/no lint/.test(String(pkg.scripts?.lint ?? ''))) {
-        problems.push(`${rel}: runs no lint engine but its lint script does not say so`)
-      }
+  const ruleFor = new Map()
+  for (const mapping of mappings.mappings) {
+    if (mapping.engine !== 'replacement' || mapping.mechanism !== 'rule') continue
+    ruleFor.set(mapping.policy, mapping.ruleId)
+  }
+
+  const declared = []
+  for (const id of ADAPTER_BIN_OVERRIDE.relaxes) {
+    const row = policy.policies.find((entry) => entry.id === id)
+    if (row === undefined) {
+      problems.push(`the admitted exception relaxes "${id}", which is not a policy`)
       continue
     }
+    if (!row.roles.includes(memberRole)) {
+      problems.push(
+        `the admitted exception relaxes "${id}", which the "${memberRole}" role does not ` +
+          'enforce, so there is nothing to relax',
+      )
+      continue
+    }
+    const ruleId = ruleFor.get(id)
+    if (ruleId === undefined) {
+      problems.push(`the admitted exception relaxes "${id}", which no rule realises`)
+      continue
+    }
+    declared.push(ruleId)
+  }
 
-    if (rel === SELF_LINTING_MEMBER) {
-      if (declared.kind !== 'self') {
-        problems.push(`${rel}: the engine config package must lint itself with what it exports`)
+  const memberRules = new Set(Object.keys(member.rules ?? {}))
+  const exemptRules = new Set(Object.keys(exempt.rules ?? {}))
+  const relaxed = [...memberRules].filter((rule) => !exemptRules.has(rule)).sort()
+  const gained = [...exemptRules].filter((rule) => !memberRules.has(rule)).sort()
+
+  if (gained.length > 0) {
+    problems.push(
+      `the "${exemptRole}" role enforces ${gained.join(', ')}, which "${memberRole}" does not. ` +
+        'An exception may only relax',
+    )
+  }
+  const expected = [...declared].sort()
+  if (relaxed.join(',') !== expected.join(',')) {
+    problems.push(
+      `the "${exemptRole}" role relaxes ${relaxed.join(', ') || '(nothing)'} but the admitted ` +
+        `exception declares ${expected.join(', ') || '(nothing)'}`,
+    )
+  }
+
+  return problems
+}
+
+export function checkMemberRoles(repoRoot = REPO_ROOT) {
+  const problems = []
+  const generated = loadGeneratedConfigs()
+
+  for (const rel of members(repoRoot)) {
+    const declared = declaredLintOf(repoRoot, rel)
+
+    if (NON_LINTING_MEMBERS.has(rel)) {
+      if (declared.kind !== 'declared-none') {
+        problems.push(
+          `${rel}: declared non-linting, but its lint script does not say so (${declared.kind})`,
+        )
       }
       continue
     }
 
     if (declared.kind === 'absent') {
-      problems.push(`${rel}: no eslint.config.js, and it is not a declared non-linting member`)
+      problems.push(`${rel}: has no lint script, and it is not a declared non-linting member`)
       continue
     }
-    if (declared.kind !== 'role') {
-      problems.push(`${rel}: eslint.config.js composes no recognisable exported role`)
+    if (declared.kind === 'declared-none') {
+      problems.push(`${rel}: opts out of lint without being a declared non-linting member`)
+      continue
+    }
+    if (declared.kind !== 'capability') {
+      problems.push(
+        `${rel}: its lint script does not go through ${LINT_CAPABILITY}. A member that assembles ` +
+          'its own engine command owns lint semantics the policy is supposed to own',
+      )
       continue
     }
 
@@ -175,61 +266,14 @@ export function checkMemberRoles(repoRoot = REPO_ROOT) {
       problems.push(`${rel}: outside every taxonomy prefix, so no role can be projected for it`)
       continue
     }
-    if (declared.role !== expected.role) {
+    // The projected role must be one the policy actually renders. A projection
+    // naming a role with no generated config would leave the member linted by
+    // nothing while every structural check still passed.
+    if (generated[expected.role] === undefined) {
       problems.push(
-        `${rel}: composes the "${declared.role}" role but the projection says "${expected.role}" ` +
-          `(${expected.why}). A role change alters which policies block, so it is a reviewed ` +
-          `decision, not a config edit`,
+        `${rel}: projects the "${expected.role}" role, which the policy renders no config for`,
       )
-    }
-
-    // The exported test role is consumed by NO member today. A member that
-    // starts composing it moves every one of its tests onto a more permissive
-    // contract, so that is a reviewed decision and never a quiet config edit
-    // (REQ-LP-004; ADV-ROLE-002).
-    if (/@secure-home\/eslint-config\/test\b/.test(declared.text)) {
-      problems.push(
-        `${rel}: eslint.config.js composes the exported test role. No member consumes it; ` +
-          `its relaxations reaching a member's tests is a reviewed decision, not a config edit`,
-      )
-    }
-
-    // The one admitted override, EXACTLY: the adapter's `src/bin.ts` and no
-    // other glob beside it, relaxing the three process-boundary rules and
-    // nothing else, to `off` and nothing else. A second glob entry or a fourth
-    // rule is a broadening whether or not anything matches it yet
-    // (ADV-ROLE-001).
-    for (const { globs, rules } of localOverridesOf(declared.text)) {
-      const files = globs.join(', ')
-      const isAdapterEntry =
-        rel.startsWith(ADAPTER_BIN_OVERRIDE.prefix) &&
-        globs.length === 1 &&
-        globs[0] === ADAPTER_BIN_OVERRIDE.files
-      if (!isAdapterEntry) {
-        problems.push(
-          `${rel}: eslint.config.js carries a local override for ${files}. Policy is ` +
-            `repository-wide; the only admitted local exception is the coding-adapter ` +
-            `${ADAPTER_BIN_OVERRIDE.files} process entry, alone`,
-        )
-        continue
-      }
-      if (rules === undefined) {
-        problems.push(`${rel}: the ${files} override's rules could not be read`)
-        continue
-      }
-      for (const { rule, value } of rules) {
-        if (!ADAPTER_BIN_OVERRIDE.relaxes.includes(rule)) {
-          problems.push(
-            `${rel}: the ${files} override touches "${rule}". The admitted exception relaxes ` +
-              `exactly ${ADAPTER_BIN_OVERRIDE.relaxes.join(', ')}`,
-          )
-        } else if (value !== 'off') {
-          problems.push(
-            `${rel}: the ${files} override sets "${rule}" to ${value}; the exception switches ` +
-              `it off, it does not re-configure it`,
-          )
-        }
-      }
+      continue
     }
   }
 
@@ -411,50 +455,124 @@ export function checkReferentialIntegrity(policy, mappings) {
 }
 
 /**
+ * The bare rule name, with any plugin namespace removed.
+ *
+ * The engine canonicalises a TypeScript EXTENSION rule -- one that replaces a
+ * core rule of the same name, such as `typescript/no-unused-vars` -- back to
+ * the core name when it reports its resolved configuration. Three of the 117
+ * are like that. Comparing raw keys would report all three as both unclaimed
+ * and missing, which is a naming artefact and not drift.
+ *
+ * Normalising is only safe while the bare names stay unique within a role, and
+ * `checkPolicyDrift` asserts that rather than assuming it: two policies
+ * collapsing onto one name would make a real disappearance invisible.
+ */
+export function bareRuleName(ruleId) {
+  const slash = ruleId.lastIndexOf('/')
+  return slash === -1 ? ruleId : ruleId.slice(slash + 1)
+}
+
+/**
  * The manifest must still describe the engine's real behaviour.
  *
- * Committed policy is a claim about a live configuration, and a claim nobody
- * re-derives is a comment. Deleting or re-scoping a rule in eslint-config
- * without regenerating shows up here as drift rather than as silence.
+ * Committed policy is a CLAIM about a live configuration, and a claim nobody
+ * re-derives is a comment. Task 3.4 retired the engine this used to re-derive
+ * from, so the claim is now checked against the engine that actually runs:
+ * `resolved` is what Oxlint itself reports it will apply for each role, not
+ * what our own generated file says.
+ *
+ * Reading the generated file back would prove nothing. It is the generator's
+ * own output, so it agrees with the generator by construction. Only the engine
+ * can say whether the rule survived, at what severity, and whether anything
+ * NOBODY declared is switched on beside it.
+ *
+ * Presence and severity, not options. The engine does not report the authored
+ * options for an extension rule even though it applies them, so an option
+ * comparison here would fail on three policies that are in fact correct. That
+ * the options survive into behaviour is proven where it can be proven, by
+ * running the engine -- see `option-semantics.test.ts`.
+ *
+ * @param resolved `{ [role]: { rules, categories } }` from `--print-config`.
  */
-export function checkPolicyDrift(policy, mappings, liveRows, deriveId) {
+export function checkPolicyDrift(policy, mappings, resolved) {
   const problems = []
 
-  // Keyed on the DERIVED policy identity, not on a legacy rule id. Five
-  // policies are realised by the parser on both engines and carry no rule to
-  // key on, and keying on one would have made them look unclaimed -- which is
-  // exactly what happened when they were first reclassified.
-  const taken = new Set()
-  const liveById = new Map()
-  for (const row of liveRows) {
-    const id = deriveId(row.ruleId, taken)
-    taken.add(id)
-    liveById.set(id, row)
+  const ruleFor = new Map()
+  for (const mapping of mappings.mappings) {
+    if (mapping.engine !== 'replacement') continue
+    // Parser-realised policies carry no rule to resolve. They are enforced
+    // before any rule runs, which is why they are absent here rather than
+    // missing -- keying on a rule id they do not have is exactly what once
+    // made them look unclaimed.
+    if (mapping.mechanism !== 'rule') continue
+    ruleFor.set(mapping.policy, mapping.ruleId)
   }
 
-  const declared = new Set(policy.policies.map((p) => p.id))
-
-  for (const [id, row] of liveById) {
-    if (!declared.has(id)) {
-      problems.push(`the engine enforces "${row.ruleId}" but no policy row claims it`)
+  for (const [role, live] of Object.entries(resolved)) {
+    for (const [category, state] of Object.entries(live.categories ?? {})) {
+      // `off` is how the config says it; `allow` is how the engine says it
+      // back. Anything else means the engine is enforcing rules that reached
+      // it through a category rather than through policy.
+      if (state !== 'off' && state !== 'allow') {
+        problems.push(
+          `role "${role}" leaves the "${category}" category on (${state}), so the engine ` +
+            'enforces rules no policy decided',
+        )
+      }
     }
-  }
-  for (const id of declared) {
-    if (!liveById.has(id)) {
-      problems.push(`policy claims "${id}" but the engine no longer enforces it`)
+
+    const expected = new Map()
+    for (const row of policy.policies) {
+      if (!row.roles.includes(role)) continue
+      const ruleId = ruleFor.get(row.id)
+      if (ruleId === undefined) continue
+      const bare = bareRuleName(ruleId)
+      const clash = expected.get(bare)
+      if (clash !== undefined) {
+        problems.push(
+          `policies "${clash.row.id}" and "${row.id}" both resolve to the rule name ` +
+            `"${bare}" in role "${role}", so one disappearing would be invisible here`,
+        )
+        continue
+      }
+      expected.set(bare, { row, ruleId })
+    }
+
+    const applied = new Map()
+    for (const [ruleId, entry] of Object.entries(live.rules ?? {})) {
+      applied.set(bareRuleName(ruleId), entry)
+    }
+
+    for (const bare of applied.keys()) {
+      if (!expected.has(bare)) {
+        problems.push(
+          `the engine enforces "${bare}" in role "${role}" but no policy row claims it there`,
+        )
+      }
+    }
+    for (const [bare, { row, ruleId }] of expected) {
+      if (!applied.has(bare)) {
+        problems.push(
+          `policy "${row.id}" claims role "${role}" but the engine no longer enforces ` +
+            `"${ruleId}" there`,
+        )
+        continue
+      }
+      const entry = applied.get(bare)
+      const severity = Array.isArray(entry) ? entry[0] : entry
+      // Blocking is a policy word; `deny` is the engine's word for it. A rule
+      // resolved to `warn` still appears in the config and still looks
+      // enforced, while failing nothing.
+      if (row.blocking === true && severity !== 'deny' && severity !== 'error') {
+        problems.push(
+          `policy "${row.id}" is blocking, but the engine applies "${ruleId}" in role ` +
+            `"${role}" at "${severity}"`,
+        )
+      }
     }
   }
 
   for (const row of policy.policies) {
-    const live = liveById.get(row.id)
-    if (live === undefined) continue
-    const declared = [...row.roles].sort().join(',')
-    const actual = [...live.roles].sort().join(',')
-    if (declared !== actual) {
-      problems.push(
-        `policy "${row.id}" claims roles [${declared}] but the engine blocks it in [${actual}]`,
-      )
-    }
     if (row.blocking !== true) {
       problems.push(`policy "${row.id}" is not blocking, yet every current policy blocks`)
     }
@@ -531,10 +649,17 @@ export function checkFixtureProjection(repoRoot = REPO_ROOT) {
 
   const readers = [
     {
+      // Task 3.4 retired the engine that carried this exclusion as an ignore
+      // glob. The exclusion did not go away with it -- it moved to the byte
+      // that now decides whether the corpus is ever handed to an engine at
+      // all. `run-lint.mjs` lints each member in its own directory, so the
+      // corpus is out of reach precisely while its OWNER declines to be
+      // linted. Give `packages/lint-config` a real lint script and every
+      // deliberately-invalid fixture becomes a build failure.
       name: 'lint discovery',
-      file: 'packages/eslint-config/base.js',
+      file: 'packages/lint-config/package.json',
       why: 'linting the corpus fails the build on the very violations it proves',
-      matches: (text) => /\*\*\/tests\/fixtures\/\*\*/.test(text),
+      matches: (text) => /no lint/.test(String(JSON.parse(text).scripts?.lint ?? '')),
     },
     {
       name: 'Prettier',
@@ -604,6 +729,11 @@ export function checkFixtureProjection(repoRoot = REPO_ROOT) {
 export const LINT_CAPABILITY = 'secure-home-lint'
 
 /** Engines a member must never invoke directly. */
+// `eslint` stays on this list after its retirement, deliberately. The list
+// names binaries a member's lint script must not invoke DIRECTLY, and the
+// retired engine is the one most likely to be reached for by habit or by a
+// copied snippet. Removing it would make reintroducing it the one bypass this
+// check does not notice.
 export const ENGINE_BINARIES = ['eslint', 'oxlint', 'tsgolint']
 
 /**
@@ -622,14 +752,14 @@ export const LINT_PREREQUISITES = new Map([
 ])
 
 /**
- * Every member reaches both engines through the capability, and none assembles
- * its own combination.
+ * Every member reaches the replacement engine through the capability, and none
+ * assembles its own command.
  *
- * A member that called `eslint src` directly would run one engine and pass,
- * which is exactly the state this landing replaces. A member that called
- * `oxlint` directly would skip the typed backend and the role projection. Both
- * look like working lint scripts, and neither enforces the contract, so the
- * wiring is checked rather than trusted to stay put.
+ * Scope 2 is replacement-only: task 3.4 retired the second engine, so there is
+ * one engine and the capability is the one way to it. A member that called
+ * `oxlint` directly would skip the typed backend and the role projection, and
+ * it would still look like a working lint script -- which is why the wiring is
+ * checked rather than trusted to stay put.
  */
 export function checkLintWiring(repoRoot = REPO_ROOT) {
   const problems = []
@@ -648,7 +778,8 @@ export function checkLintWiring(repoRoot = REPO_ROOT) {
     if (!script.includes(LINT_CAPABILITY)) {
       problems.push(
         `${rel}: lint does not go through ${LINT_CAPABILITY}. A member that invokes an ` +
-          'engine directly runs one half of the dual-engine contract and reports success',
+          'engine directly chooses its own config, rules and severity, and reports success ' +
+          'against a contract nobody checked',
       )
     }
 
@@ -657,7 +788,7 @@ export function checkLintWiring(repoRoot = REPO_ROOT) {
       if (new RegExp(`(^|[\\s&|])${engine}([\\s]|$)`).test(script)) {
         problems.push(
           `${rel}: lint invokes "${engine}" directly. Command ownership belongs to the ` +
-            'capability, or the dual-engine contract drifts per package',
+            'capability, or the lint contract drifts per package',
         )
       }
     }
@@ -844,7 +975,22 @@ export function checkNormalCompilerAuthority(repoRoot = REPO_ROOT) {
   return problems
 }
 
-const DEP_FIELDS_CHECKED = ['dependencies', 'devDependencies', 'peerDependencies']
+/**
+ * All four manifest dependency fields.
+ *
+ * `optionalDependencies` was omitted, and an optional edge installs the package
+ * exactly like a required one when the platform matches. A member could make
+ * the compatibility parser locally resolvable through it while the singleton
+ * SOURCE-consumer proof stayed green, because no source file need import it for
+ * the boundary to have moved -- availability is the thing the seam bounds.
+ * The lockfile importer scan already read all four for the same reason.
+ */
+const DEP_FIELDS_CHECKED = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+]
 
 /** Repository scripts, which is where a second consumer would appear. */
 const SOURCE_EXTENSIONS = new Set(['.mjs', '.cjs', '.js', '.ts', '.mts', '.cts', '.tsx'])
@@ -896,6 +1042,8 @@ if (invokedDirectly) {
   const generated = loadGeneratedConfigs()
   const problems = [
     ...checkMemberRoles(REPO_ROOT),
+    ...checkRoleProjectionTable(),
+    ...checkAdmittedException(read('policy.json'), read('engine-mappings.json'), generated),
     ...checkReferentialIntegrity(read('policy.json'), read('engine-mappings.json')),
     ...checkFixtureProjection(REPO_ROOT),
     ...checkFrameworkNeutrality(read('policy.json'), read('engine-mappings.json'), generated),

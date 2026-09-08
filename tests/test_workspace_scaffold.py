@@ -507,33 +507,23 @@ def test_devdependencies_do_not_create_an_architectural_edge() -> None:
 # --- regression: the TypeScript / typescript-eslint pairing ------------------
 
 
-def test_catalog_typescript_is_supported_by_typescript_eslint() -> None:
-    """TypeScript must stay inside typescript-eslint's supported range.
-
-    PR #44 pinned TypeScript 7.0.2 while typescript-eslint supports
-    `>=4.8.4 <6.1.0`. Type-aware linting then threw — or passed — depending on
-    which TypeScript copy resolved first, which is worse than failing outright.
-    """
-    workspace = (REPO_ROOT / "pnpm-workspace.yaml").read_text()
-    match = re.search(r"^\s*typescript:\s*(\S+)\s*$", workspace, re.MULTILINE)
-    assert match, "no typescript entry in the pnpm catalog"
-    major, minor = (int(p) for p in match.group(1).split(".")[:2])
-
-    supported = REPO_ROOT.glob(
-        "node_modules/.pnpm/@typescript-eslint+typescript-estree@*/node_modules/"
-        "@typescript-eslint/typescript-estree/dist/parseSettings/warnAboutTSVersion.js"
-    )
-    ranges = [
-        m.group(1) for f in supported if (m := re.search(r"'>=[\d.]+ <([\d.]+)'", f.read_text()))
-    ]
-    if not ranges:
-        pytest.skip("typescript-eslint not installed; run pnpm install")
-
-    upper = min(tuple(int(p) for p in r.split(".")[:2]) for r in ranges)
-    assert (major, minor) < upper, (
-        f"catalog TypeScript {match.group(1)} is outside typescript-eslint's "
-        f"supported range (< {upper[0]}.{upper[1]}); type-aware linting will break"
-    )
+# The TypeScript/typescript-eslint range guard lived here until task 3.2.
+#
+# It required the catalog compiler to stay inside typescript-eslint's supported
+# range, because PR #44 once pinned TypeScript 7 while that engine supported
+# `>=4.8.4 <6.1.0` and type-aware linting then passed or threw depending on
+# which copy resolved first. Task 3.4 retired the engine, so the constraint has
+# no subject: `typescript-eslint` has zero lockfile entries.
+#
+# It was also reading the wrong thing. It globbed the pnpm content-addressable
+# store rather than the dependency graph, so after the retirement it still found
+# an orphaned `@typescript-eslint+typescript-estree@8.66.0_typescript@6.0.3`
+# directory and reported a constraint from a package no member installs.
+#
+# What replaced it is stronger and graph-based: `check-engine-retirement.mjs`
+# refuses the identity in any manifest, catalog pin, lock entry, tracked path,
+# layer classification or import, and `tests/test_ts7_compiler_authority.py`
+# proves every ordinary entry point resolves the one authoritative compiler.
 
 
 # --- shared tooling is consumed uniformly (#25) ------------------------------
@@ -555,28 +545,6 @@ def test_every_member_extends_the_shared_tsconfig_by_package_path() -> None:
             if ".." in extends:
                 problems.append(f"{rel}/{name}: relative traversal in extends")
     assert not problems, "members not using the shared tsconfig:\n  " + "\n  ".join(problems)
-
-
-def test_every_member_uses_the_shared_eslint_config() -> None:
-    """No member declares its own rules.
-
-    `packages/eslint-config` is exempt: it lints itself with the configuration
-    it exports, which it can only reference relatively — a package cannot import
-    itself by package name.
-    """
-    problems: list[str] = []
-    for member in _pnpm_members():
-        config = member / "eslint.config.js"
-        if not config.is_file():
-            continue
-        text = config.read_text()
-        rel = member.relative_to(REPO_ROOT)
-        if rel.name == "eslint-config":
-            assert "./index.js" in text, "the config package must lint itself with its own config"
-            continue
-        if "@secure-home/eslint-config" not in text:
-            problems.append(str(rel))
-    assert not problems, f"members not using the shared ESLint config: {problems}"
 
 
 def test_a_member_with_a_vitest_config_declares_the_test_dependencies() -> None:

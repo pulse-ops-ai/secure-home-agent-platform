@@ -27,12 +27,10 @@
     "generate": "tsc -p tsconfig.build.json && node dist/tools/generate.js"
   },
   "devDependencies": {
-    "@secure-home/eslint-config": "workspace:*",
     "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

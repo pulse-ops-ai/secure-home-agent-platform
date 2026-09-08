@@ -16,7 +16,7 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
 | [`workspace-model.mjs`](workspace-model.mjs) | The workspace's shape — taxonomy, the **layer map**, package roles. Imported by the two checks below so they cannot disagree. No side effects |
 | [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
-| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file with the TypeScript compiler and enforces direction on the real import nodes |
+| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file through the bounded `@typescript/typescript6` seam and enforces direction on the real import nodes |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 | [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, gates, and README-only while a module's toolchain gate is closed. **Not** the content validator |
 | [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
@@ -59,12 +59,30 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    `workspace-model.mjs`, and `affected-targets.mjs` are likewise dependency-free;
    `affected-targets.mjs` in particular runs in a CI job that never installs.
 
-   **One deliberate exception:** `check-source-imports.mjs` imports `typescript`
-   to parse source. Deciding whether a token is an import requires a lexer, and
-   a governance gate that guesses is a governance gate with bypasses. It runs
-   after `pnpm install --frozen-lockfile` in both CI and `check.sh`, and
-   `tests/test_source_imports.py` asserts that ordering and that this is the
-   only third-party import any of these scripts takes.
+   **One deliberate exception:** `check-source-imports.mjs` imports
+   `@typescript/typescript6` to parse source. Deciding whether a token is an
+   import requires a lexer, and a governance gate that guesses is a governance
+   gate with bypasses.
+
+   It does **not** import the normal `typescript` compiler, and the distinction
+   is not cosmetic. The normal compiler is TypeScript 7.0.2, whose root export
+   no longer carries the traditional AST API this gate is written against;
+   `@typescript/typescript6` 6.0.2 is a bounded **parser seam** that does. Two
+   consequences follow, and both are deliberate:
+
+   - the gate needs a parser, not compiler authority. Importing `typescript`
+     would couple them, so a future compiler cutover would silently change how
+     architecture is parsed.
+   - the seam is **not a second compiler**. No `typecheck`, `build` or
+     `generate` command may resolve it, its `tsc6` binary, or
+     `typescript/unstable/*`.
+
+   Exactly one file in the repository may load the seam — this one — and
+   `packages/lint-config/tests/compatibility-seam.test.ts` refuses a second
+   consumer anywhere in the tree. It runs after `pnpm install --frozen-lockfile`
+   in both CI and `check.sh`, and `tests/test_source_imports.py` asserts that
+   ordering and that the seam is the only third-party import any of these
+   scripts takes.
 
    **A second, first-party exception:** `check-set-releases.mjs` and
    `check-release-history.mjs` import `@secure-home/knowledge-toolchain` — the
@@ -167,7 +185,7 @@ stop agreeing about what "inward" means without anything failing.
 
 `check-workspace.mjs` excludes `devDependencies` from layering on purpose: every
 member devDepends on `@secure-home/testing` (layer 6) and
-`@secure-home/eslint-config` (layer 0), so counting those as architectural edges
+`@secure-home/lint-config` (layer 0), so counting those as architectural edges
 would make the layer map unusable while preventing nothing.
 
 That exclusion is correct for manifest policy and **false as a claim about the
@@ -204,7 +222,8 @@ Three deliberate properties of the source check:
   `import { log } from /* c */ '@secure-home/logging'`. Masking comments and
   strings by hand fixes those two and leaves regular-expression literals
   containing quotes, template substitutions, and JSX text containing an
-  apostrophe. So the checker uses TypeScript's own parser and walks the AST —
+  apostrophe. So the checker uses a real TypeScript parser — the bounded
+  `@typescript/typescript6` seam — and walks the AST —
   a construct either is an import node or it is not. A file whose syntax the
   parser rejects **fails**; a file that cannot be parsed cannot be verified,
   and skipping it would restore the bypass.
@@ -228,7 +247,8 @@ from rather than a status field:
 
 - `repository_dispatch` always runs the **default-branch** definition of
   [`toolchain-maintenance-boundary.yml`](../.github/workflows/toolchain-maintenance-boundary.yml).
-  Until that file is on the default branch there is no authoritative run to have.
+  That file is now on the default branch, so the invocation exists; what does
+  not yet exist is a candidate whose PREDECESSOR already contains it.
 - `classifyMaintenance()` separately refuses a predecessor that does not contain
   the verifier authorities (`PREDECESSOR_LACKS_VERIFIER`). PR-B is judged against
   a predecessor that lacks them, so no revision exists at which it admits itself.
@@ -245,3 +265,100 @@ The protocol is proved here by executable fixtures and ordinary hosted CI. Those
 results are **not** predecessor-hosted maintenance evidence and are not
 represented as such. The first authoritative run belongs to a later candidate
 whose predecessor already contains this boundary.
+
+## Updating the toolchain: the security-maintenance procedure
+
+A compiler, lint-engine or parser-seam version change is **not**
+
+```text
+edit the version → run the tests → merge
+```
+
+It is a two-revision, predecessor-bound proof. The reason is that the thing
+being changed is the thing that would otherwise verify the change: a toolchain
+update that graded its own homework could relax a policy and report green. So a
+candidate is treated as untrusted data, and the authority that judges it comes
+from the revision before it.
+
+```text
+trusted predecessor
+      ↓             the verifier and its dependencies are loaded from here
+closed maintenance class
+      ↓             a named, bounded set of admissible differences
+candidate changes only allowed projections
+      ↓             anything outside the class is refused, not argued about
+trusted maintenance workflow
+      ↓             .github/workflows/toolchain-maintenance-boundary.yml,
+      ↓             always the DEFAULT-BRANCH definition
+candidate treated as untrusted subject / data
+      ↓             it executes in isolation; it never becomes the verifier
+classifier / verifier proves protected projections unchanged
+      ↓             scripts/check-toolchain-boundaries.mjs
+native platform proof
+      ↓             .github/workflows/toolchain-platform.yml, x64 AND arm64
+freshness / merge checks
+```
+
+The executable authorities are
+[`check-toolchain-boundaries.mjs`](check-toolchain-boundaries.mjs) and
+[`toolchain-boundaries.json`](toolchain-boundaries.json). Read the current
+classes and protected projections there rather than here: a package list copied
+into prose is a second authority that starts drifting the moment either changes.
+
+### What a version update must still prove
+
+- **Semantic lint policy cannot disappear with an engine update.** `policy.json`
+  states the policies; an engine change may alter which rule realises one, never
+  whether one exists.
+- **Mapping detail may change only where the class permits it**, and **mapping
+  coverage stays protected** — every policy keeps a mapping for every engine.
+- **Compiler and typed-lint movement respect the composite boundary.** The typed
+  lint backend reads types; moving it and the compiler together is a coupled
+  change the class governs, not two independent bumps.
+- **Frozen install and native x64/ARM64 proof are part of the update**, not a
+  follow-up. A toolchain that has not been shown to run on both architectures
+  has not been shown to work.
+- **A new `onlyBuiltDependencies` exception is not routine maintenance.** The
+  posture is empty on purpose; an install lifecycle script is a decision, and it
+  stops the update rather than being absorbed into it.
+
+### Running the native platform proof deliberately
+
+The proof normally runs itself: `toolchain-platform.yml` triggers on any pull
+request touching the catalog, the lockfile, `packages/lint-config/**`,
+`toolchain-boundaries.json`, or the workflow. To run it on demand:
+
+```sh
+gh workflow run toolchain-platform.yml --ref <your-branch>
+```
+
+There is no wrapper script and should not be one. A dispatch runs **both**
+native rows — `ubuntu-24.04` and `ubuntu-24.04-arm` — and the aggregate job
+requires both to have concluded `success`. Missing and skipped are not pass, so
+one architecture cannot quietly carry the other.
+
+### Rolling back a bad toolchain update
+
+Rollback restores an authority; it does not suspend one. None of these is a
+rollback:
+
+- reinstating a retired lint engine;
+- bypassing `policy.json`, or lowering a policy to non-blocking;
+- pointing the architecture gate at the normal compiler instead of the seam;
+- widening the seam's admitted-consumer allowlist;
+- dropping the ARM64 row;
+- adding an install-script exception to get the install through.
+
+The rollback is: restore the last accepted predecessor-compatible toolchain
+state through an ordinary reviewed Git change, then re-run the same conformance,
+maintenance and native platform proofs against it. If those pass, the state is
+accepted again on the same evidence as any other candidate — which is the point.
+A revert that skipped the proofs would leave the repository trusting a version
+precisely because it used to be trusted.
+
+One caveat specific to the TypeScript 7 migration: **TypeScript 6's emitted
+serialization is not a compatibility contract.** No TypeScript 7 output was ever
+delivered, so what the migration preserves is the repository's semantics and
+shipped artifacts — runtime JavaScript and generated files byte-for-byte,
+declarations by type and API meaning. Rolling back to reproduce TypeScript 6's
+exact declaration bytes would be restoring a serializer, not an interface.

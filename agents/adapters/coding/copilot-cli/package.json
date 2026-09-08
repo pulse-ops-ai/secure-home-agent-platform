@@ -17,7 +17,6 @@
   "files": [
     "dist"
   ],
-  "dependencies": {},
   "scripts": {
     "lint": "pnpm run deps && secure-home-lint src",
     "typecheck": "pnpm run deps && tsc --noEmit",
@@ -27,12 +26,10 @@
   },
   "devDependencies": {
     "@secure-home/contracts": "workspace:*",
-    "@secure-home/eslint-config": "workspace:*",
     "@secure-home/lint-config": "workspace:*",
     "@secure-home/testing": "workspace:*",
     "@secure-home/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "eslint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

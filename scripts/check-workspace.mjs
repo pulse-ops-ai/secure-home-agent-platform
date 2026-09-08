@@ -73,7 +73,7 @@ const REQUIRED_SCRIPTS = ['lint', 'typecheck', 'test', 'build']
  * devDependencies are excluded deliberately: they are build tooling, resolved
  * at development time and absent from a published or deployed artifact, so they
  * cannot create a runtime cycle or an outward runtime dependency. Every package
- * devDepends on @secure-home/testing (layer 6) and @secure-home/eslint-config
+ * devDepends on @secure-home/testing (layer 6) and @secure-home/lint-config
  * — treating those as architectural edges would make the layer map unusable
  * while preventing nothing.
  *

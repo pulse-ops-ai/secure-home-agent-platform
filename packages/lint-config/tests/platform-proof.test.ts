@@ -32,6 +32,8 @@ const workflow = parse(raw) as any
 const native = workflow.jobs.native
 const gate = workflow.jobs['platform-proof']
 const steps = native.steps as { name?: string; run?: string; uses?: string }[]
+// First step whose name contains the fragment, so a fragment shared by two
+// steps would silently resolve by ORDER. Every fragment below is unique.
 const stepRun = (fragment: string): string =>
   steps.find((s) => (s.name ?? '').includes(fragment))?.run ?? ''
 
@@ -121,9 +123,11 @@ describe('the install is deterministic and script-free', () => {
 
   it('pins every toolchain identity exactly', () => {
     const pins = pinnedIdentities() as { name: string; expected: string }[]
+    // Four, not five. The retired engine was pinned here while it still had to
+    // resolve identically on both architectures; task 3.4 removed the package,
+    // so a pin for it would be an identity check on nothing.
     expect(pins.map((p) => p.name).sort()).toEqual([
       '@typescript/typescript6',
-      'eslint',
       'oxlint',
       'oxlint-tsgolint',
       'typescript',
@@ -141,22 +145,22 @@ describe('the install is deterministic and script-free', () => {
 
 describe('the command pack is complete', () => {
   it.each([
-    ['Lint', 'pnpm lint'],
+    ['Lint —', 'pnpm lint'],
     ['Typecheck', 'pnpm typecheck'],
     ['Tests', 'pnpm test'],
     ['Build', 'pnpm build'],
     ['Source import direction', 'pnpm run check:imports'],
-    ['Toolchain boundary', 'pnpm run check:lint-policy'],
+    ['Lint-policy integrity', 'pnpm run check:lint-policy'],
     ['Workspace taxonomy', 'pnpm run check:workspace'],
     ['Formatting authority', 'pnpm run format:check'],
   ])('runs %s natively', (name, command) => {
     expect(stepRun(name as string)).toContain(command as string)
   })
 
-  it('the lint step is the dual-engine entry point, typed backend included', () => {
+  it('the lint step is the capability entry point, typed backend included', () => {
     // `pnpm lint` reaches the capability, which fails closed if either engine
     // or the typed backend is unavailable.
-    expect(stepRun('Lint')).toBe('pnpm lint')
+    expect(stepRun('Lint —')).toBe('pnpm lint')
   })
 })
 
