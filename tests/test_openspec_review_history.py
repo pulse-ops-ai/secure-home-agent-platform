@@ -128,25 +128,252 @@ def _refused(result: subprocess.CompletedProcess[str], fragment: str) -> None:
 
 
 def test_the_live_repository_passes_its_own_history_gate() -> None:
+    """INFERRED base, deliberately.
+
+    This used to supply `merge-base HEAD origin/main` explicitly. On any
+    checkout where HEAD *is* `origin/main` — every steady-state main checkout,
+    and every CI run of the default branch — that value is HEAD, so the window
+    was HEAD..HEAD: empty, and green because nothing was examined. Letting the
+    checker infer its own baseline is what keeps this honest, because its
+    inference may never select HEAD (proved by
+    `test_an_inferred_baseline_is_never_head_itself`).
+
+    A steady-state checkout can legitimately have zero changed review files, so
+    a non-zero count is NOT required here. The squash-topology fixtures above
+    are what prove admission traversal is non-vacuous.
+    """
     result = subprocess.run(
-        [
-            "node",
-            str(SCRIPT),
-            "--base",
-            subprocess.run(
-                ["git", "merge-base", "HEAD", "origin/main"],
-                cwd=REPO_ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip(),
-        ],
+        ["node", str(SCRIPT)],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "(base: explicit --base" not in result.stdout, (
+        "this must exercise the inferred baseline, not one handed to it"
+    )
+
+
+# ── admission is found in the DAG, not in simplified path history ────────────
+#
+# `git log -- <path>` walks ONE line of the graph and stops at the first commit
+# whose tree explains the path. A squash commit reintroduces every path relative
+# to its only parent, so after a squash delivery simplification reports the
+# squash as the admission — and its parent is whatever the branch looked like
+# before, carrying a different current review. The transition is still in the
+# graph; only the question was wrong.
+
+
+def _is_ancestor(repo: Path, older: str, newer: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", older, newer],
+            cwd=repo,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _base_commit(repo: Path, prior: str | None = "W\n") -> str:
+    """The change before any round exists. `prior` is a DIFFERENT current review,
+    so a squash whose parent is this commit cannot accidentally satisfy the
+    transition."""
+    _write(repo, "openspec/changes/demo/proposal.md", "# proposal\n")
+    if prior is not None:
+        _write(repo, "openspec/changes/demo/preimplementation-review.md", prior)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+    return _git_out(repo, "rev-parse", "HEAD")
+
+
+def _admit_round(repo: Path, body: str = "X\n") -> str:
+    """The real ceremony: accept a current review, then archive exactly it."""
+    _write(repo, "openspec/changes/demo/preimplementation-review.md", body)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "accepted review epoch 1")
+
+    _write(repo, ROUND, body)
+    (repo / "openspec" / "changes" / "demo" / "preimplementation-review.md").unlink()
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "archive review epoch 1")
+    return _git_out(repo, "rev-parse", "HEAD")
+
+
+def _recovered_squash_repo(tmp_path: Path) -> tuple[Path, str, str, str]:
+    """PR #120's delivered topology, reproduced.
+
+    base ─── feature: accepted review X ── archive round X     (admission)
+      │                                          │
+      └──────── squash delivery ─────────────────┤   tree of the feature
+                        │                        │   tip; feature is NOT
+                        └── ancestry-only merge ─┘   an ancestor until the
+                                                     merge restores it
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "mainline")
+    base = _base_commit(repo)
+
+    _git(repo, "checkout", "-q", "-b", "feature")
+    admission = _admit_round(repo)
+
+    _git(repo, "checkout", "-q", "mainline")
+    _git(repo, "merge", "--squash", "-q", "feature")
+    _git(repo, "commit", "-qm", "squash delivery")
+    squash = _git_out(repo, "rev-parse", "HEAD")
+
+    _git(repo, "merge", "--no-ff", "-s", "ours", "-q", "feature", "-m", "ancestry only")
+    return repo, base, admission, squash
+
+
+def test_the_recovered_squash_topology_finds_the_real_admission(tmp_path: Path) -> None:
+    """The regression PR #120 produced, reproduced as real git history."""
+    repo, base, admission, squash = _recovered_squash_repo(tmp_path)
+
+    # The topology is the whole point, so it is asserted rather than assumed.
+    assert _is_ancestor(repo, admission, "HEAD"), "the ancestry merge did not restore the lineage"
+    simplified = _git_out(
+        repo, "log", "--reverse", "--diff-filter=A", "--format=%H", f"{base}..HEAD", "--", ROUND
+    ).split()
+    full = _git_out(
+        repo,
+        "log",
+        "--full-history",
+        "--reverse",
+        "--diff-filter=A",
+        "--format=%H",
+        f"{base}..HEAD",
+        "--",
+        ROUND,
+    ).split()
+    assert simplified == [squash], (
+        "the fixture does not reproduce the defect: simplification must see only the squash"
+    )
+    assert admission in full and squash in full, full
+
+    result = _check(repo, base=base)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 added" in result.stdout, result.stdout
+
+
+def test_the_squash_commit_alone_is_not_a_valid_admission(tmp_path: Path) -> None:
+    """The control that makes the case above mean something.
+
+    Same bytes at HEAD, same squash commit — but without the restored lineage
+    the real transition is unreachable, and the squash must not stand in for it.
+    """
+    repo, base, admission, squash = _recovered_squash_repo(tmp_path)
+    _git(repo, "checkout", "-q", "--detach", squash)
+    assert not _is_ancestor(repo, admission, "HEAD"), "this control needs the lineage ABSENT"
+
+    _refused(_check(repo, base=base), "does not match the current review it claims to archive")
+
+
+def test_admission_must_carry_the_bytes_that_survive_at_head(tmp_path: Path) -> None:
+    """Add and then REWRITE inside one window, so the net status is A.
+
+        base ── accepted X ── archive round X ── rewrite round to Y ── HEAD
+
+    A witness search that stopped at "some version of this path was once
+    admitted" finds the admission of X and passes, while HEAD carries Y, which
+    was never any change's current review. The diff over the window reports one
+    ADDED path, so no other rule in this checker looks at it.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "fixture")
+    base = _base_commit(repo, prior=None)
+    _admit_round(repo)
+
+    _write(repo, ROUND, "Y\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "rewrite the admitted round")
+
+    assert _git_out(repo, "diff", "--name-status", base, "HEAD", "--", ROUND).startswith("A"), (
+        "this case is only interesting while the NET status over the window is A"
+    )
+
+    _refused(_check(repo, base=base), "does not match the current review it claims to archive")
+
+
+# ── both defects are load-bearing ────────────────────────────────────────────
+
+
+def _run(script: Path, repo: Path, base: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(script), "--root", str(repo), "--base", base],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _mutant(tmp_path: Path, name: str, *pairs: tuple[str, str]) -> Path:
+    """A copy of the checker with one behaviour removed.
+
+    The checker takes `--root`, so the copy needs no repository of its own and
+    the committed script is never touched.
+    """
+    source = SCRIPT.read_text()
+    mutated = source
+    for old, new in pairs:
+        assert mutated.count(old) == 1, f"the mutation anchor is not unique: {old!r}"
+        mutated = mutated.replace(old, new, 1)
+    assert mutated != source, "the mutation did not change the subject bytes"
+    target = tmp_path / name
+    target.write_text(mutated)
+    return target
+
+
+SIMPLIFIED_DISCOVERY = (
+    "  const window = git(root, ['rev-list', `${baseRef}..HEAD`])",
+    "  const window = git(root, ['log', '--reverse', '--diff-filter=A', '--format=%H',"
+    " `${baseRef}..HEAD`, '--', historicalPath])",
+)
+
+UNBOUND_FROM_HEAD = (
+    "    if (carriedAt.get(`${rev}:${historicalPath}`) === finalBlob) carrying.push(rev)",
+    "    if (carriedAt.get(`${rev}:${historicalPath}`) !== undefined) carrying.push(rev)",
+)
+
+UNBOUND_PARENT = (
+    "      if (parentCurrent !== finalBlob) {",
+    "      if (parentCurrent !== carriedAt.get(`${candidate}:${historicalPath}`)) {",
+)
+
+
+def test_restoring_simplified_discovery_reopens_the_squash_hole(tmp_path: Path) -> None:
+    """Mutation 1. Candidate DISCOVERY is what a squash defeats."""
+    repo, base, _admission, _squash = _recovered_squash_repo(tmp_path)
+    mutant = _mutant(tmp_path, "simplified.mjs", SIMPLIFIED_DISCOVERY)
+
+    assert _run(SCRIPT, repo, base).returncode == 0, "the unmutated checker must accept this"
+    result = _run(mutant, repo, base)
+    assert result.returncode == 1, "simplified discovery accepted the recovered topology"
+    assert "does not match the current review" in result.stderr, result.stderr
+
+
+def test_unbinding_the_witness_from_head_reopens_the_rewrite_hole(tmp_path: Path) -> None:
+    """Mutation 2. Proving SOME version was admitted is not proving THIS one was."""
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "fixture")
+    base = _base_commit(repo, prior=None)
+    _admit_round(repo)
+    _write(repo, ROUND, "Y\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "rewrite the admitted round")
+
+    mutant = _mutant(tmp_path, "unbound.mjs", UNBOUND_FROM_HEAD, UNBOUND_PARENT)
+
+    assert _run(SCRIPT, repo, base).returncode == 1, "the unmutated checker must refuse this"
+    assert _run(mutant, repo, base).returncode == 0, (
+        "the mutation did not reopen the hole, so binding to HEAD's bytes is not what closes it"
+    )
 
 
 # ── the four rules ───────────────────────────────────────────────────────────

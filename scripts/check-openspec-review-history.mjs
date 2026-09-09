@@ -125,6 +125,39 @@ export function resolveBase(root, explicit) {
 const blobId = (root, ref, path) => git(root, ['rev-parse', `${ref}:${path}`])?.trim()
 
 /**
+ * Object ids for many `<rev>:<path>` lookups, in ONE git call.
+ *
+ * `undefined` where the revision does not carry the path, which is an ANSWER
+ * here -- "the parent did not already have this file" is half the transition
+ * being proved -- not an error.
+ */
+function blobIdsAt(root, specs) {
+  const found = new Map()
+  if (specs.length === 0) return found
+  let out
+  try {
+    out = execFileSync('git', ['cat-file', '--batch-check'], {
+      cwd: root,
+      encoding: 'utf8',
+      input: `${specs.join('\n')}\n`,
+      maxBuffer: DIFF_MAX_BUFFER,
+    })
+  } catch {
+    return found
+  }
+  const lines = out.split('\n').filter((line) => line !== '')
+  // One answer per query, in order. A missing object answers "<query> missing".
+  for (const [index, spec] of specs.entries()) {
+    const parts = (lines[index] ?? '').split(' ')
+    if (parts.length === 3 && parts[1] === 'blob') found.set(spec, parts[0])
+  }
+  return found
+}
+
+const parentsOf = (root, commit) =>
+  (git(root, ['rev-list', '--parents', '-n', '1', commit]) ?? '').trim().split(' ').slice(1)
+
+/**
  * PROVE ADMISSION WAS A TRANSITION, NOT AN AUTHORED FILE.
  *
  * The current-revision gate can prove a historical round is SELF-CONSISTENT: it
@@ -134,60 +167,116 @@ const blobId = (root, ref, path) => git(root, ['rev-parse', `${ref}:${path}`])?.
  *
  * A hand-written `reviews/1-deadbeefcafe.md` carrying a well-formed accepted
  * block would satisfy every single-revision rule while never having been
- * reviewed as the current document. So: find the commit that FIRST adds the
- * historical path, look at its parent, and require the parent's
- * `preimplementation-review.md` to be byte-identical to the round being
- * admitted.
+ * reviewed as the current document. The shape that nothing else produces is:
  *
- *     parent:  preimplementation-review.md  == these exact bytes
- *     commit:  reviews/<epoch>-<sha12>.md   == these exact bytes
+ *     parent   preimplementation-review.md  == these exact bytes
+ *              reviews/<epoch>-<sha12>.md   ABSENT
+ *     commit   reviews/<epoch>-<sha12>.md   == these exact bytes
  *
- * That is the archival step, and nothing else produces that shape.
+ * WHY THIS SEARCHES THE DAG. The first implementation asked
+ * `git log --diff-filter=A -- <path>` for "the commit that added it" and
+ * trusted the single answer. That is SIMPLIFIED path history: it walks one
+ * line of the graph and stops at the first commit whose tree explains the
+ * path. A squash commit reintroduces every path relative to its only parent,
+ * so after a squash delivery it is reported as the admission — and its parent
+ * is whatever main looked like before the squash, which carried a different
+ * current review. The transition is still in the graph; simplification just
+ * cannot see it. So every candidate in the window is examined and the
+ * RELATION is what decides, not the position of a commit in a walk.
+ *
+ * WHY THE WITNESS IS BOUND TO HEAD'S BYTES. Proving that some earlier version
+ * of the path was once admitted says nothing about the version that survives.
+ * A window containing a valid admission of X followed by a rewrite to Y nets
+ * out as a single added path, and a witness search that accepted the admission
+ * of X would pass while HEAD carries bytes no review ever was. The blob at
+ * HEAD is therefore what a witness must carry, on both sides of the
+ * transition.
  */
 function admissionProvenanceProblem(root, baseRef, historicalPath) {
   const changeRoot = historicalPath.slice(0, historicalPath.indexOf('/reviews/'))
   const currentPath = `${changeRoot}/preimplementation-review.md`
 
-  // The oldest commit in base..HEAD that introduced this path.
-  const adds = git(root, [
-    'log',
-    '--reverse',
-    '--diff-filter=A',
-    '--format=%H',
-    `${baseRef}..HEAD`,
-    '--',
-    historicalPath,
-  ])
-  if (adds === undefined) {
-    return `"${historicalPath}": the commit that added it could not be determined`
+  const finalBlob = blobId(root, 'HEAD', historicalPath)
+  if (finalBlob === undefined) {
+    return `"${historicalPath}": HEAD does not carry it, so there are no bytes to account for`
   }
-  const addingCommit = adds
+
+  const window = git(root, ['rev-list', `${baseRef}..HEAD`])
+  if (window === undefined) {
+    return `"${historicalPath}": the revisions between the base and HEAD could not be listed`
+  }
+  const revisions = window
     .split('\n')
     .map((line) => line.trim())
-    .filter(Boolean)[0]
-  if (addingCommit === undefined) {
+    .filter(Boolean)
+  if (revisions.length === 0) {
     return `"${historicalPath}": no commit in this window adds it`
   }
 
-  const admitted = blobId(root, addingCommit, historicalPath)
-  const parentCurrent = blobId(root, `${addingCommit}^`, currentPath)
+  // Every revision in the window that carries EXACTLY the bytes HEAD carries.
+  // Enumerated rather than walked, so no ordering and no history
+  // simplification takes part in the answer.
+  const carrying = []
+  const carriedAt = blobIdsAt(
+    root,
+    revisions.map((rev) => `${rev}:${historicalPath}`),
+  )
+  for (const rev of revisions) {
+    if (carriedAt.get(`${rev}:${historicalPath}`) === finalBlob) carrying.push(rev)
+  }
+  if (carrying.length === 0) {
+    return (
+      `"${historicalPath}": no revision between the base and HEAD carries the bytes HEAD ` +
+      'carries, so the file at HEAD was never admitted in this window'
+    )
+  }
 
-  if (parentCurrent === undefined) {
-    return (
-      `"${historicalPath}" was added in ${addingCommit.slice(0, 12)}, whose parent ` +
-      'carries no preimplementation-review.md. A historical round is admitted by ' +
-      'archiving the CURRENT review, so those bytes must have been the current ' +
-      'review immediately before'
-    )
+  // A witness is a commit carrying those bytes whose PARENT did not have the
+  // path at all and whose current review was byte-identical to them.
+  const rejected = []
+  for (const candidate of carrying) {
+    const parents = parentsOf(root, candidate)
+    if (parents.length === 0) {
+      rejected.push(`${candidate.slice(0, 12)} is a root commit, so it archived nothing`)
+      continue
+    }
+    const lookups = parents.flatMap((parent) => [
+      `${parent}:${historicalPath}`,
+      `${parent}:${currentPath}`,
+    ])
+    const at = blobIdsAt(root, lookups)
+    for (const parent of parents) {
+      const parentHistorical = at.get(`${parent}:${historicalPath}`)
+      if (parentHistorical !== undefined) {
+        // Not an admission: the round already existed on this side. A squash
+        // that re-adds an already-archived round lands here.
+        continue
+      }
+      const parentCurrent = at.get(`${parent}:${currentPath}`)
+      if (parentCurrent === undefined) {
+        rejected.push(
+          `${candidate.slice(0, 12)}^ (${parent.slice(0, 12)}) carries no ` +
+            'preimplementation-review.md',
+        )
+        continue
+      }
+      if (parentCurrent !== finalBlob) {
+        rejected.push(
+          `at ${candidate.slice(0, 12)}^ (${parent.slice(0, 12)}) the current review was a ` +
+            'different document',
+        )
+        continue
+      }
+      return undefined
+    }
   }
-  if (admitted !== parentCurrent) {
-    return (
-      `"${historicalPath}" does not match the current review it claims to archive: ` +
-      `at ${addingCommit.slice(0, 12)}^ the current review was a different document. ` +
-      'Admission is a transition, not an authored file'
-    )
-  }
-  return undefined
+
+  return (
+    `"${historicalPath}" does not match the current review it claims to archive: ` +
+    `${carrying.length} revision(s) carry its bytes and none archives them from the ` +
+    `change's current review. Admission is a transition, not an authored file` +
+    (rejected.length > 0 ? ` — ${rejected.slice(0, 3).join('; ')}` : '')
+  )
 }
 
 /** The change NAME a live review path belongs to, or undefined. */
