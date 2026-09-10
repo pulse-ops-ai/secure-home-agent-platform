@@ -51,7 +51,6 @@ const TS_FANOUT = [
   '.npmrc',
   'tsconfig.json',
   'tsconfig.base.json',
-  'eslint.config.js',
   '.prettierrc.json',
   '.prettierignore',
   'scripts/affected-targets.mjs',
@@ -69,7 +68,14 @@ const TS_FANOUT = [
  * package's tests run, so validating only that package would validate nothing
  * that actually changed.
  */
-const TS_FANOUT_PREFIXES = ['packages/tsconfig/', 'packages/eslint-config/', 'packages/testing/']
+const TS_FANOUT_PREFIXES = [
+  'packages/tsconfig/',
+  // The lint capability owns every member's lint semantics, so a change to it
+  // changes what passes everywhere. It replaced `packages/eslint-config/` here
+  // when task 3.4 retired that package.
+  'packages/lint-config/',
+  'packages/testing/',
+]
 
 /** Root configuration whose change affects the Python target. */
 const PY_FANOUT = ['pyproject.toml', 'uv.lock', '.github/workflows/checks.yml']

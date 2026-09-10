@@ -64,9 +64,32 @@ if command -v node >/dev/null 2>&1; then
   # Image lineage is stdlib-only for the same reason: the lock and its
   # invariants must be checkable before any workspace toolchain exists.
   run "image lineage"      node scripts/check-images.mjs
+  # Append-only review history is stdlib-only too, so it belongs here rather
+  # than behind the pnpm workspace gate: it must be checkable on a host with no
+  # workspace installed. `pnpm run check:review-history` remains the convenience
+  # command and the CI invocation.
+  run "openspec review history" node scripts/check-openspec-review-history.mjs
+  # Lint-policy authority: manifest/mapping referential integrity and the
+  # repository-wide member-role projection. Stdlib-only, so it runs beside the
+  # other governance gates rather than behind the workspace toolchain.
+  run "lint policy integrity" node packages/lint-config/src/check-policy.mjs
+  # Lint-engine retirement, byte half: dependency edges, catalog pins, lock
+  # identities, tracked paths and layer classification. Stdlib-only, so it sits
+  # with the other governance gates. The AST half needs the compatibility seam
+  # and runs behind the workspace gate below — see "typescript: retirement".
+  run "lint-engine retirement" node scripts/check-engine-retirement.mjs --phase=static
+  # Maintenance-class authority: the closed set of admissible tool-maintenance
+  # differences must be internally consistent at rest. A class that contradicts
+  # the protected floor is caught when it is written, not when an advisory
+  # response first needs it.
+  run "toolchain boundaries" node scripts/check-toolchain-boundaries.mjs
 else
   skip "knowledge registry" "node is not installed (see docs/operations/pi-bootstrap.md)"
   skip "image lineage" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "openspec review history" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "lint policy integrity" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "lint-engine retirement" "node is not installed (see docs/operations/pi-bootstrap.md)"
+  skip "toolchain boundaries" "node is not installed (see docs/operations/pi-bootstrap.md)"
 fi
 
 # --- TypeScript workspace (primary stack) -----------------------------------
@@ -80,10 +103,21 @@ if command -v pnpm >/dev/null 2>&1; then
   # DECLARE, this one checks what source IMPORTS. A manifest cannot prove
   # import direction, so neither check substitutes for the other.
   run "typescript: imports"   pnpm run check:imports
+  # The AST half of the retirement proof. It consumes the same structural
+  # load-site authority the line above enforces with, which resolves the
+  # `@typescript/typescript6` seam from node_modules — so it belongs after the
+  # install, not beside the stdlib half. A source file can load a package no
+  # manifest declares, and that load is what actually executes.
+  run "typescript: retirement" node scripts/check-engine-retirement.mjs --phase=imports
   run "typescript: lint"      pnpm lint
   run "typescript: types"     pnpm typecheck
   run "typescript: tests"     pnpm test
   run "typescript: build"     pnpm build
+  # EX-TS-002. The build exiting 0 says the program typechecked, not that what
+  # it EMITS still matches what the previous compiler produced. Runs after the
+  # build because it compares emitted output, and it rebuilds cleanly itself so
+  # a stale dist cannot make it agree.
+  run "typescript: emit conformance" pnpm run check:emit-conformance
   # REAL repository content through the package's admission rules. It runs
   # after the build because it invokes the published package export rather than
   # a copy of the logic — which is the point: one admission authority, exercised
@@ -93,6 +127,9 @@ if command -v pnpm >/dev/null 2>&1; then
   # mechanism nothing calls is a mechanism nothing enforces.
   run "set releases"          pnpm run check:set-releases
   run "release history"       pnpm run check:release-history
+  # The real OpenSpec parser, against the schema this repository authors.
+  # Needs the workspace, so it belongs here rather than in the stdlib block.
+  run "openspec schema"       pnpm run check:openspec-schema
 elif command -v corepack >/dev/null 2>&1; then
   skip "typescript workspace" "pnpm not provisioned — run 'corepack enable' first"
 else

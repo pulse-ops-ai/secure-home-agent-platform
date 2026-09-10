@@ -1,0 +1,2021 @@
+{
+  "schemaVersion": 1,
+  "policies": [
+    {
+      "id": "await-thenable",
+      "intent": "Preserve the behaviour the repository enforces as the \"await-thenable\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/await-thenable.ts",
+        "invalid": "typescript-typed-control/invalid/await-thenable.ts"
+      }
+    },
+    {
+      "id": "ban-ts-comment",
+      "intent": "Preserve the behaviour the repository enforces as the \"ban-ts-comment\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "options": {
+        "values": [
+          {
+            "ts-expect-error": "allow-with-description",
+            "ts-ignore": true
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/ban-ts-comment.ts",
+        "invalid": "typescript-static/invalid/ban-ts-comment.ts"
+      }
+    },
+    {
+      "id": "consistent-type-imports",
+      "intent": "Preserve the behaviour the repository enforces as the \"consistent-type-imports\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "options": {
+        "values": [
+          {
+            "prefer": "type-imports",
+            "fixStyle": "inline-type-imports"
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/consistent-type-imports.ts",
+        "invalid": "typescript-static/invalid/consistent-type-imports.ts"
+      }
+    },
+    {
+      "id": "explicit-module-boundary-types",
+      "intent": "Preserve the behaviour the repository enforces as the \"explicit-module-boundary-types\" policy.",
+      "roles": ["adapter-bin", "library"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/explicit-module-boundary-types.ts",
+        "invalid": "typescript-typed-control/invalid/explicit-module-boundary-types.ts"
+      }
+    },
+    {
+      "id": "no-array-constructor",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-array-constructor\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-array-constructor.ts",
+        "invalid": "typescript-static/invalid/no-array-constructor.ts"
+      }
+    },
+    {
+      "id": "no-array-delete",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-array-delete\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/no-array-delete.ts",
+        "invalid": "typescript-typed-control/invalid/no-array-delete.ts"
+      }
+    },
+    {
+      "id": "no-base-to-string",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-base-to-string\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-base-to-string.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-base-to-string.ts"
+      }
+    },
+    {
+      "id": "no-duplicate-enum-values",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-duplicate-enum-values\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-duplicate-enum-values.ts",
+        "invalid": "typescript-static/invalid/no-duplicate-enum-values.ts"
+      }
+    },
+    {
+      "id": "no-duplicate-type-constituents",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-duplicate-type-constituents\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-duplicate-type-constituents.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-duplicate-type-constituents.ts"
+      }
+    },
+    {
+      "id": "no-empty-object-type",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-empty-object-type\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-empty-object-type.ts",
+        "invalid": "typescript-static/invalid/no-empty-object-type.ts"
+      }
+    },
+    {
+      "id": "no-explicit-any",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-explicit-any\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "js-config", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-explicit-any.ts",
+        "invalid": "typescript-static/invalid/no-explicit-any.ts"
+      }
+    },
+    {
+      "id": "no-extra-non-null-assertion",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-extra-non-null-assertion\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-extra-non-null-assertion.ts",
+        "invalid": "typescript-static/invalid/no-extra-non-null-assertion.ts"
+      }
+    },
+    {
+      "id": "no-floating-promises",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-floating-promises\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/no-floating-promises.ts",
+        "invalid": "typescript-typed-control/invalid/no-floating-promises.ts"
+      }
+    },
+    {
+      "id": "no-for-in-array",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-for-in-array\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/no-for-in-array.ts",
+        "invalid": "typescript-typed-control/invalid/no-for-in-array.ts"
+      }
+    },
+    {
+      "id": "no-implied-eval",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-implied-eval\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/no-implied-eval.ts",
+        "invalid": "typescript-typed-control/invalid/no-implied-eval.ts"
+      }
+    },
+    {
+      "id": "no-import-type-side-effects",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-import-type-side-effects\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-import-type-side-effects.ts",
+        "invalid": "typescript-static/invalid/no-import-type-side-effects.ts"
+      }
+    },
+    {
+      "id": "no-misused-new",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-misused-new\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-misused-new.ts",
+        "invalid": "typescript-static/invalid/no-misused-new.ts"
+      }
+    },
+    {
+      "id": "no-misused-promises",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-misused-promises\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/no-misused-promises.ts",
+        "invalid": "typescript-typed-control/invalid/no-misused-promises.ts"
+      }
+    },
+    {
+      "id": "no-namespace",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-namespace\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-namespace.ts",
+        "invalid": "typescript-static/invalid/no-namespace.ts"
+      }
+    },
+    {
+      "id": "no-non-null-asserted-optional-chain",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-non-null-asserted-optional-chain\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-non-null-asserted-optional-chain.ts",
+        "invalid": "typescript-static/invalid/no-non-null-asserted-optional-chain.ts"
+      }
+    },
+    {
+      "id": "no-redundant-type-constituents",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-redundant-type-constituents\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-redundant-type-constituents.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-redundant-type-constituents.ts"
+      }
+    },
+    {
+      "id": "no-require-imports",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-require-imports\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-require-imports.ts",
+        "invalid": "typescript-static/invalid/no-require-imports.ts"
+      }
+    },
+    {
+      "id": "no-this-alias",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-this-alias\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-this-alias.ts",
+        "invalid": "typescript-static/invalid/no-this-alias.ts"
+      }
+    },
+    {
+      "id": "no-unnecessary-type-assertion",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unnecessary-type-assertion\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unnecessary-type-assertion.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unnecessary-type-assertion.ts"
+      }
+    },
+    {
+      "id": "no-unnecessary-type-constraint",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unnecessary-type-constraint\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-unnecessary-type-constraint.ts",
+        "invalid": "typescript-static/invalid/no-unnecessary-type-constraint.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-argument",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-argument\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-argument.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-argument.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-assignment",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-assignment\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-assignment.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-assignment.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-call",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-call\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-call.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-call.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-declaration-merging",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-declaration-merging\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-unsafe-declaration-merging.ts",
+        "invalid": "typescript-static/invalid/no-unsafe-declaration-merging.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-enum-comparison",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-enum-comparison\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-enum-comparison.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-enum-comparison.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-function-type",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-function-type\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-unsafe-function-type.ts",
+        "invalid": "typescript-static/invalid/no-unsafe-function-type.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-member-access",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-member-access\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-member-access.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-member-access.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-return",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-return\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-return.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-return.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-unary-minus",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-unary-minus\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/no-unsafe-unary-minus.ts",
+        "invalid": "typescript-typed-unsafe/invalid/no-unsafe-unary-minus.ts"
+      }
+    },
+    {
+      "id": "no-unused-expressions",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unused-expressions\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-unused-expressions.ts",
+        "invalid": "typescript-static/invalid/no-unused-expressions.ts"
+      }
+    },
+    {
+      "id": "no-unused-vars",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unused-vars\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "options": {
+        "values": [
+          {
+            "args": "all",
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_",
+            "ignoreRestSiblings": true
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-unused-vars.ts",
+        "invalid": "typescript-static/invalid/no-unused-vars.ts"
+      }
+    },
+    {
+      "id": "no-wrapper-object-types",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-wrapper-object-types\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/no-wrapper-object-types.ts",
+        "invalid": "typescript-static/invalid/no-wrapper-object-types.ts"
+      }
+    },
+    {
+      "id": "only-throw-error",
+      "intent": "Preserve the behaviour the repository enforces as the \"only-throw-error\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/only-throw-error.ts",
+        "invalid": "typescript-typed-control/invalid/only-throw-error.ts"
+      }
+    },
+    {
+      "id": "prefer-as-const",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-as-const\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/prefer-as-const.ts",
+        "invalid": "typescript-static/invalid/prefer-as-const.ts"
+      }
+    },
+    {
+      "id": "prefer-namespace-keyword",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-namespace-keyword\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/prefer-namespace-keyword.ts",
+        "invalid": "typescript-static/invalid/prefer-namespace-keyword.ts"
+      }
+    },
+    {
+      "id": "prefer-promise-reject-errors",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-promise-reject-errors\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/prefer-promise-reject-errors.ts",
+        "invalid": "typescript-typed-control/invalid/prefer-promise-reject-errors.ts"
+      }
+    },
+    {
+      "id": "require-await",
+      "intent": "Preserve the behaviour the repository enforces as the \"require-await\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/require-await.ts",
+        "invalid": "typescript-typed-control/invalid/require-await.ts"
+      }
+    },
+    {
+      "id": "restrict-plus-operands",
+      "intent": "Preserve the behaviour the repository enforces as the \"restrict-plus-operands\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/restrict-plus-operands.ts",
+        "invalid": "typescript-typed-unsafe/invalid/restrict-plus-operands.ts"
+      }
+    },
+    {
+      "id": "restrict-template-expressions",
+      "intent": "Preserve the behaviour the repository enforces as the \"restrict-template-expressions\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-unsafe",
+        "valid": "typescript-typed-unsafe/valid/restrict-template-expressions.ts",
+        "invalid": "typescript-typed-unsafe/invalid/restrict-template-expressions.ts"
+      }
+    },
+    {
+      "id": "triple-slash-reference",
+      "intent": "Preserve the behaviour the repository enforces as the \"triple-slash-reference\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-static",
+        "valid": "typescript-static/valid/triple-slash-reference.ts",
+        "invalid": "typescript-static/invalid/triple-slash-reference.ts"
+      }
+    },
+    {
+      "id": "unbound-method",
+      "intent": "Preserve the behaviour the repository enforces as the \"unbound-method\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "typescript-typed-control",
+        "valid": "typescript-typed-control/valid/unbound-method.ts",
+        "invalid": "typescript-typed-control/invalid/unbound-method.ts"
+      }
+    },
+    {
+      "id": "constructor-super",
+      "intent": "Preserve the behaviour the repository enforces as the \"constructor-super\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/constructor-super.js",
+        "invalid": "core-control/invalid/constructor-super.js"
+      }
+    },
+    {
+      "id": "eqeqeq",
+      "intent": "Preserve the behaviour the repository enforces as the \"eqeqeq\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "options": {
+        "values": [
+          "always",
+          {
+            "null": "ignore"
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/eqeqeq.ts",
+        "invalid": "core-policy/invalid/eqeqeq.ts"
+      }
+    },
+    {
+      "id": "for-direction",
+      "intent": "Preserve the behaviour the repository enforces as the \"for-direction\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/for-direction.ts",
+        "invalid": "core-control/invalid/for-direction.ts"
+      }
+    },
+    {
+      "id": "getter-return",
+      "intent": "Preserve the behaviour the repository enforces as the \"getter-return\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/getter-return.js",
+        "invalid": "core-control/invalid/getter-return.js"
+      }
+    },
+    {
+      "id": "no-async-promise-executor",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-async-promise-executor\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-async-promise-executor.ts",
+        "invalid": "core-control/invalid/no-async-promise-executor.ts"
+      }
+    },
+    {
+      "id": "no-case-declarations",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-case-declarations\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-case-declarations.ts",
+        "invalid": "core-control/invalid/no-case-declarations.ts"
+      }
+    },
+    {
+      "id": "no-class-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-class-assign\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-class-assign.js",
+        "invalid": "core-control/invalid/no-class-assign.js"
+      }
+    },
+    {
+      "id": "no-compare-neg-zero",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-compare-neg-zero\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-compare-neg-zero.ts",
+        "invalid": "core-control/invalid/no-compare-neg-zero.ts"
+      }
+    },
+    {
+      "id": "no-cond-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-cond-assign\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-cond-assign.ts",
+        "invalid": "core-control/invalid/no-cond-assign.ts"
+      }
+    },
+    {
+      "id": "no-console",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-console\" policy.",
+      "roles": ["application", "library", "service"],
+      "blocking": true,
+      "options": {
+        "values": [{}]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-console.ts",
+        "invalid": "core-policy/invalid/no-console.ts"
+      }
+    },
+    {
+      "id": "no-const-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-const-assign\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-const-assign.js",
+        "invalid": "core-control/invalid/no-const-assign.js"
+      }
+    },
+    {
+      "id": "no-constant-binary-expression",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-constant-binary-expression\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-constant-binary-expression.ts",
+        "invalid": "core-control/invalid/no-constant-binary-expression.ts"
+      }
+    },
+    {
+      "id": "no-constant-condition",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-constant-condition\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-constant-condition.ts",
+        "invalid": "core-control/invalid/no-constant-condition.ts"
+      }
+    },
+    {
+      "id": "no-control-regex",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-control-regex\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-control-regex.ts",
+        "invalid": "parser-syntax/invalid/no-control-regex.ts"
+      }
+    },
+    {
+      "id": "no-debugger",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-debugger\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-debugger.ts",
+        "invalid": "core-policy/invalid/no-debugger.ts"
+      }
+    },
+    {
+      "id": "no-delete-var",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-delete-var\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-delete-var.ts",
+        "invalid": "parser-syntax/invalid/no-delete-var.ts"
+      }
+    },
+    {
+      "id": "no-dupe-args",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-dupe-args\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-dupe-args.js",
+        "invalid": "parser-syntax/invalid/no-dupe-args.js"
+      }
+    },
+    {
+      "id": "no-dupe-class-members",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-dupe-class-members\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-dupe-class-members.js",
+        "invalid": "parser-syntax/invalid/no-dupe-class-members.js"
+      }
+    },
+    {
+      "id": "no-dupe-else-if",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-dupe-else-if\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-dupe-else-if.ts",
+        "invalid": "parser-syntax/invalid/no-dupe-else-if.ts"
+      }
+    },
+    {
+      "id": "no-dupe-keys",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-dupe-keys\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-dupe-keys.js",
+        "invalid": "parser-syntax/invalid/no-dupe-keys.js"
+      }
+    },
+    {
+      "id": "no-duplicate-case",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-duplicate-case\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-duplicate-case.ts",
+        "invalid": "parser-syntax/invalid/no-duplicate-case.ts"
+      }
+    },
+    {
+      "id": "no-empty",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-empty\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-empty.ts",
+        "invalid": "core-policy/invalid/no-empty.ts"
+      }
+    },
+    {
+      "id": "no-empty-character-class",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-empty-character-class\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-empty-character-class.ts",
+        "invalid": "parser-syntax/invalid/no-empty-character-class.ts"
+      }
+    },
+    {
+      "id": "no-empty-pattern",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-empty-pattern\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-empty-pattern.ts",
+        "invalid": "core-control/invalid/no-empty-pattern.ts"
+      }
+    },
+    {
+      "id": "no-empty-static-block",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-empty-static-block\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-empty-static-block.ts",
+        "invalid": "core-policy/invalid/no-empty-static-block.ts"
+      }
+    },
+    {
+      "id": "no-ex-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-ex-assign\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-ex-assign.ts",
+        "invalid": "core-control/invalid/no-ex-assign.ts"
+      }
+    },
+    {
+      "id": "no-extra-boolean-cast",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-extra-boolean-cast\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-extra-boolean-cast.ts",
+        "invalid": "core-policy/invalid/no-extra-boolean-cast.ts"
+      }
+    },
+    {
+      "id": "no-fallthrough",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-fallthrough\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-fallthrough.ts",
+        "invalid": "core-control/invalid/no-fallthrough.ts"
+      }
+    },
+    {
+      "id": "no-func-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-func-assign\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-func-assign.js",
+        "invalid": "core-control/invalid/no-func-assign.js"
+      }
+    },
+    {
+      "id": "no-global-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-global-assign\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-global-assign.ts",
+        "invalid": "core-control/invalid/no-global-assign.ts"
+      }
+    },
+    {
+      "id": "no-import-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-import-assign\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-import-assign.js",
+        "invalid": "core-control/invalid/no-import-assign.js"
+      }
+    },
+    {
+      "id": "no-invalid-regexp",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-invalid-regexp\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-invalid-regexp.ts",
+        "invalid": "parser-syntax/invalid/no-invalid-regexp.ts"
+      }
+    },
+    {
+      "id": "no-irregular-whitespace",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-irregular-whitespace\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-irregular-whitespace.ts",
+        "invalid": "parser-syntax/invalid/no-irregular-whitespace.ts"
+      }
+    },
+    {
+      "id": "no-loss-of-precision",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-loss-of-precision\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-loss-of-precision.ts",
+        "invalid": "parser-syntax/invalid/no-loss-of-precision.ts"
+      }
+    },
+    {
+      "id": "no-misleading-character-class",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-misleading-character-class\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-misleading-character-class.ts",
+        "invalid": "parser-syntax/invalid/no-misleading-character-class.ts"
+      }
+    },
+    {
+      "id": "no-new-native-nonconstructor",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-new-native-nonconstructor\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-new-native-nonconstructor.js",
+        "invalid": "core-policy/invalid/no-new-native-nonconstructor.js"
+      }
+    },
+    {
+      "id": "no-nonoctal-decimal-escape",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-nonoctal-decimal-escape\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-nonoctal-decimal-escape.ts",
+        "invalid": "parser-syntax/invalid/no-nonoctal-decimal-escape.ts"
+      }
+    },
+    {
+      "id": "no-obj-calls",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-obj-calls\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-obj-calls.js",
+        "invalid": "core-control/invalid/no-obj-calls.js"
+      }
+    },
+    {
+      "id": "no-octal",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-octal\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-octal.ts",
+        "invalid": "parser-syntax/invalid/no-octal.ts"
+      }
+    },
+    {
+      "id": "no-prototype-builtins",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-prototype-builtins\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-prototype-builtins.ts",
+        "invalid": "core-policy/invalid/no-prototype-builtins.ts"
+      }
+    },
+    {
+      "id": "no-redeclare",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-redeclare\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-redeclare.js",
+        "invalid": "parser-syntax/invalid/no-redeclare.js"
+      }
+    },
+    {
+      "id": "no-regex-spaces",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-regex-spaces\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-regex-spaces.ts",
+        "invalid": "parser-syntax/invalid/no-regex-spaces.ts"
+      }
+    },
+    {
+      "id": "no-restricted-globals",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-restricted-globals\" policy.",
+      "roles": ["library"],
+      "blocking": true,
+      "options": {
+        "values": [
+          {
+            "name": "process",
+            "message": "A library must not read process state; take it as a parameter."
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-restricted-globals.ts",
+        "invalid": "core-policy/invalid/no-restricted-globals.ts"
+      }
+    },
+    {
+      "id": "no-restricted-properties",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-restricted-properties\" policy.",
+      "roles": ["library"],
+      "blocking": true,
+      "options": {
+        "values": [
+          {
+            "object": "process",
+            "property": "exit",
+            "message": "A library must not exit the process."
+          },
+          {
+            "object": "process",
+            "property": "env",
+            "message": "A library must not read env; take configuration as a parameter."
+          }
+        ]
+      },
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-restricted-properties.ts",
+        "invalid": "core-policy/invalid/no-restricted-properties.ts"
+      }
+    },
+    {
+      "id": "no-self-assign",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-self-assign\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-self-assign.ts",
+        "invalid": "core-control/invalid/no-self-assign.ts"
+      }
+    },
+    {
+      "id": "no-setter-return",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-setter-return\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-setter-return.js",
+        "invalid": "core-control/invalid/no-setter-return.js"
+      }
+    },
+    {
+      "id": "no-shadow-restricted-names",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-shadow-restricted-names\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-shadow-restricted-names.ts",
+        "invalid": "parser-syntax/invalid/no-shadow-restricted-names.ts"
+      }
+    },
+    {
+      "id": "no-sparse-arrays",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-sparse-arrays\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-sparse-arrays.ts",
+        "invalid": "parser-syntax/invalid/no-sparse-arrays.ts"
+      }
+    },
+    {
+      "id": "no-this-before-super",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-this-before-super\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-this-before-super.js",
+        "invalid": "core-control/invalid/no-this-before-super.js"
+      }
+    },
+    {
+      "id": "no-unassigned-vars",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unassigned-vars\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-unassigned-vars.ts",
+        "invalid": "core-control/invalid/no-unassigned-vars.ts"
+      }
+    },
+    {
+      "id": "no-undef",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-undef\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-undef.js",
+        "invalid": "parser-syntax/invalid/no-undef.js"
+      }
+    },
+    {
+      "id": "no-unexpected-multiline",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unexpected-multiline\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-unexpected-multiline.ts",
+        "invalid": "parser-syntax/invalid/no-unexpected-multiline.ts"
+      }
+    },
+    {
+      "id": "no-unreachable",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unreachable\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-unreachable.js",
+        "invalid": "core-control/invalid/no-unreachable.js"
+      }
+    },
+    {
+      "id": "no-unsafe-finally",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-finally\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-unsafe-finally.ts",
+        "invalid": "core-control/invalid/no-unsafe-finally.ts"
+      }
+    },
+    {
+      "id": "no-unsafe-negation",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-negation\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-unsafe-negation.js",
+        "invalid": "core-control/invalid/no-unsafe-negation.js"
+      }
+    },
+    {
+      "id": "no-unsafe-optional-chaining",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unsafe-optional-chaining\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-unsafe-optional-chaining.ts",
+        "invalid": "core-control/invalid/no-unsafe-optional-chaining.ts"
+      }
+    },
+    {
+      "id": "no-unused-labels",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unused-labels\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-unused-labels.ts",
+        "invalid": "core-policy/invalid/no-unused-labels.ts"
+      }
+    },
+    {
+      "id": "no-unused-private-class-members",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-unused-private-class-members\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-unused-private-class-members.ts",
+        "invalid": "core-policy/invalid/no-unused-private-class-members.ts"
+      }
+    },
+    {
+      "id": "no-useless-assignment",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-useless-assignment\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-useless-assignment.ts",
+        "invalid": "core-control/invalid/no-useless-assignment.ts"
+      }
+    },
+    {
+      "id": "no-useless-backreference",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-useless-backreference\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-useless-backreference.ts",
+        "invalid": "parser-syntax/invalid/no-useless-backreference.ts"
+      }
+    },
+    {
+      "id": "no-useless-catch",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-useless-catch\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/no-useless-catch.ts",
+        "invalid": "core-control/invalid/no-useless-catch.ts"
+      }
+    },
+    {
+      "id": "no-useless-escape",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-useless-escape\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-useless-escape.ts",
+        "invalid": "parser-syntax/invalid/no-useless-escape.ts"
+      }
+    },
+    {
+      "id": "no-var",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-var\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/no-var.ts",
+        "invalid": "core-policy/invalid/no-var.ts"
+      }
+    },
+    {
+      "id": "no-with",
+      "intent": "Preserve the behaviour the repository enforces as the \"no-with\" policy.",
+      "roles": ["js-config"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/no-with.js",
+        "invalid": "parser-syntax/invalid/no-with.js"
+      }
+    },
+    {
+      "id": "prefer-const",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-const\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/prefer-const.ts",
+        "invalid": "core-policy/invalid/prefer-const.ts"
+      }
+    },
+    {
+      "id": "prefer-rest-params",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-rest-params\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/prefer-rest-params.ts",
+        "invalid": "core-policy/invalid/prefer-rest-params.ts"
+      }
+    },
+    {
+      "id": "prefer-spread",
+      "intent": "Preserve the behaviour the repository enforces as the \"prefer-spread\" policy.",
+      "roles": ["adapter-bin", "application", "config-file", "exported-test", "library", "service"],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-policy",
+        "valid": "core-policy/valid/prefer-spread.ts",
+        "invalid": "core-policy/invalid/prefer-spread.ts"
+      }
+    },
+    {
+      "id": "preserve-caught-error",
+      "intent": "Preserve the behaviour the repository enforces as the \"preserve-caught-error\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/preserve-caught-error.ts",
+        "invalid": "core-control/invalid/preserve-caught-error.ts"
+      }
+    },
+    {
+      "id": "require-yield",
+      "intent": "Preserve the behaviour the repository enforces as the \"require-yield\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/require-yield.ts",
+        "invalid": "core-control/invalid/require-yield.ts"
+      }
+    },
+    {
+      "id": "use-isnan",
+      "intent": "Preserve the behaviour the repository enforces as the \"use-isnan\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "core-control",
+        "valid": "core-control/valid/use-isnan.ts",
+        "invalid": "core-control/invalid/use-isnan.ts"
+      }
+    },
+    {
+      "id": "valid-typeof",
+      "intent": "Preserve the behaviour the repository enforces as the \"valid-typeof\" policy.",
+      "roles": [
+        "adapter-bin",
+        "application",
+        "config-file",
+        "exported-test",
+        "js-config",
+        "library",
+        "service"
+      ],
+      "blocking": true,
+      "disposition": "MIGRATED_TO_NEW_LINT_ENGINE",
+      "proof": {
+        "shard": "parser-syntax",
+        "valid": "parser-syntax/valid/valid-typeof.ts",
+        "invalid": "parser-syntax/invalid/valid-typeof.ts"
+      }
+    }
+  ]
+}

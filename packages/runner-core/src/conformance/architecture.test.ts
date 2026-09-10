@@ -51,11 +51,16 @@ describe('RC-EX-01: exact dependency allowlist', () => {
 
   it('devDependencies are exactly the standard tooling set', () => {
     expect(Object.keys(manifest.devDependencies ?? {}).sort()).toEqual([
-      '@secure-home/eslint-config',
+      // The lint capability. Every linting member declares it and nothing
+      // else: lint runs through one entry point that owns the engine, the
+      // config and the severity, instead of each package assembling its own
+      // commands (ADR-0022, PR-B task 1.12). Task 3.4 removed the engine
+      // packages that used to sit beside it here, so a member listing an
+      // engine directly would now be reaching around the capability.
+      '@secure-home/lint-config',
       '@secure-home/testing',
       '@secure-home/tsconfig',
       '@types/node',
-      'eslint',
       'typescript',
       'vitest',
     ])

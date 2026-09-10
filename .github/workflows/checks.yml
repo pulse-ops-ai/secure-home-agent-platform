@@ -103,6 +103,14 @@ jobs:
       - name: Image lineage
         run: node scripts/check-images.mjs
 
+      # Lint-engine retirement, byte half: dependency edges, catalog pins, lock
+      # identities, tracked paths and layer classification. Node standard
+      # library, so it runs before the install like the two checks above — and
+      # it must, because one of the things it refuses is a lockfile that would
+      # reinstall the retired engine on the very next line.
+      - name: Lint-engine retirement (static)
+        run: node scripts/check-engine-retirement.mjs --phase=static
+
       # --frozen-lockfile fails on a stale or drifted lockfile rather than
       # rewriting it. CI never mutates a manifest or the lockfile.
       - name: Manifest and lockfile consistency
@@ -127,6 +135,22 @@ jobs:
       - name: Source import direction
         run: pnpm run check:imports
 
+      # The AST half of the retirement proof, and a separate gate from the one
+      # above for the same reason those two are separate: that one governs
+      # import DIRECTION between members, this one governs whether any source
+      # file loads a retired package at all. It consumes the same structural
+      # load-site report, which resolves `@typescript/typescript6` — so it runs
+      # after the install and cannot sit with the static half.
+      - name: Lint-engine retirement (imports)
+        run: pnpm run check:retirement-imports
+
+      # EX-TS-002 per-surface emitted-output conformance against the frozen
+      # TypeScript 6 baseline: exact bytes for runtime JavaScript and generator
+      # artifacts, structural shape for declarations, attribution and coverage
+      # for maps. A green build is not evidence that emitted output survived.
+      - name: Emitted-output conformance
+        run: pnpm run check:emit-conformance
+
       # REAL repository content through admission. `check-knowledge.mjs` above
       # is the registry/scaffold checker and cannot see content rules; this runs
       # the package that owns them over whatever knowledge/ actually contains.
@@ -146,6 +170,39 @@ jobs:
 
       - name: Set releases
         run: pnpm run check:set-releases
+
+      - name: OpenSpec schema (real parser)
+        # This repository AUTHORS an OpenSpec schema, so the parser that will
+        # read it must accept it. validate-scaffold.sh is fast structural
+        # defence in depth and cannot make this claim.
+        run: pnpm run check:openspec-schema
+
+      - name: OpenSpec review history
+        # Append-only history is a two-revision repository property, so it runs
+        # here always. The PRE-APPLY review gate is deliberately NOT a CI step:
+        # it refuses repository change after the reviewed planning commit, which
+        # every implementation commit legitimately is. CI tests that mechanism
+        # in the governance suite instead of re-running the authorization.
+        env:
+          EVENT_BASE: >-
+            ${{ github.event_name == 'pull_request'
+                && github.event.pull_request.base.sha
+                || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BASE"
+          case "$base" in *[!0]*) ;; *) base="" ;; esac
+          REVIEW_HISTORY_BASE="$base" pnpm run check:review-history
+
+      - name: Lint policy integrity
+        # The engine-neutral policy manifest, its per-engine mappings, and the
+        # repository-wide member-role projection. Unconditional: a role
+        # reassignment changes which policies block for a member, and the
+        # representative probes in the package's own suite cannot see that.
+        run: pnpm run check:lint-policy
+
+      - name: Toolchain boundary policy
+        run: pnpm run check:toolchain-boundaries
 
       - name: Release history
         # CI knows the exact baseline; the script's local inference is for
@@ -193,7 +250,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -361,7 +418,7 @@ jobs:
 
       - name: Install uv
         if: needs.select.outputs.python == 'true'
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
