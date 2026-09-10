@@ -163,6 +163,44 @@ A later mismatch in that comment's exact UTF-8 body invalidates the recorded
 amendment provenance and requires renewed owner review. The comment is not
 copied into this change and is neither edited nor replaced here.
 
+### Governance convergence refresh — planning only
+
+A second owner-authorized planning-only reconciliation supplements the
+amendment above. It brings this branch forward to current `main` and corrects
+the contract against the first end-to-end governed delivery in this repository
+(PRs #120–#123). It releases no implementation task:
+
+| Source | Stable comment ID | Created | Updated | Exact UTF-8 body SHA-256 |
+| --- | --- | --- | --- | --- |
+| [issue #106 comment](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5623842299) — `OWNER AUTHORIZATION — GOVERNANCE-STATE CONVERGENCE REFRESH, PLANNING ONLY` | `5623842299` | `2026-09-10T18:53:26Z` | `2026-09-10T18:53:26Z` | `3c80e8ff1cf352621437d2e017125d490b447f415f895112ac7bec04478ee42b` |
+
+Reconciliation base: `main` at `449b46b85390a99a1bdd636930e1e4a08862fba3`. A
+later mismatch in that comment's exact UTF-8 body invalidates the recorded
+provenance and requires renewed owner review.
+
+PR-1 remains **`NOT_AUTHORIZED`**. No task checkbox is changed by this
+reconciliation, and the reviewed task decomposition is not renumbered.
+
+**Task ownership after the correction.** The convergence does not move work
+between landings; it sharpens which layer owns which fact, so PR-1's
+implementation reads unambiguously:
+
+| Owner | Owns |
+| --- | --- |
+| Shared semantic model (`2.1`, `2.2`) | The stage rules, both `reviewedIdentity` classes and their selection, member-byte comparison, `bundleSha256` composition, and the derivation that completion reads `delivery.lifecycle` and its evidence — never reviewed planning bytes. |
+| Rules-free Git/content observation adapter (`2.3`) | Root presence and absence, scoped tree observation, blob identity, and real-path containment. It answers what the repository contains; it decides nothing, and in particular does not decide which identity class is required or whether an absent object is fatal. |
+| Current-revision verification (`3.1`–`3.3`) | Applying the closed evidence shape, refusing an empty required member set, and reporting `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` when a required identity is unavailable rather than downgrading it. |
+| Later two-revision work (PR-2) | Base selection and the refusal of a self-selecting comparison window; the mutation, disappearance and regression rules over completion evidence. |
+| External and manual | `MAN-G03` semantic association of an archive with a landing; historical authorization; anything requiring live external verification. |
+
+Task `2.4` keeps the archived-OpenSpec identity contract. Its scope changes only
+in that `reviewedIdentity` now admits `content-sha256`, so its proof obligation
+gains the deleted-branch and mechanically-valid-wrong-snapshot cases.
+
+Two-revision work stays in PR-2. The delivery exposed a Git-history defect in a
+different repository authority, which is not a reason to move history validation
+earlier; PR-1 still proves only what one revision can prove.
+
 If the amendment is merged and the owner separately refreshes PR-1 authority,
 only the previously named PR-1 tasks (`1.1`, `1.2`, `2.1`, `2.2`, `2.3`, `2.4`,
 `3.1`, `3.2`, `3.3`) and the PR-1 completion gate may become executable after

@@ -713,8 +713,12 @@ For `reviewed-delivery-v1`, `evidence.deliveredIdentity` SHALL be either a
 or a `content-sha256` with exactly one canonical repository-relative path in
 `scope[]`; the checker SHALL verify the selected commit tree or exact artifact
 bytes. An `external-git-commit` is opaque and SHALL not satisfy completion.
-The nested `reviewedIdentity` and `archivedPackageIdentity` SHALL remain
-`local-git-commit` only. This preserves the accepted commit-or-artifact
+`archivedPackageIdentity` SHALL remain `local-git-commit` only: the archived
+package lands on the default branch by construction, so its stage is always
+locally observable. `reviewedIdentity` SHALL be either a `local-git-commit` or a
+`content-sha256`, both being ADR-0021 §7a identity classes, because the reviewed
+snapshot is NOT guaranteed to survive delivery — see the merge-method
+independence requirement below. This preserves the accepted commit-or-artifact
 alternative for delivered work without weakening archive provenance.
 
 The complete `reviewed-spike-evidence-v1` evidence branch SHALL be exactly:
@@ -889,18 +893,44 @@ golden vector; mutation tests SHALL remove or alter each identity-bearing
 input and fail.
 
 `reviewedIdentity` and `archivedPackageIdentity` are supporting provenance
-separate from `bundleSha256`. For ordinary post-genesis completion, both have
-the only permitted class `local-git-commit`, both objects SHALL exist locally,
-and their values SHALL differ. `reviewedIdentity` names the commit whose
-complete active package was reviewed; its active root SHALL be present, its
-archive root SHALL be absent, and its scoped tree SHALL match the member paths
-and bytes after normalization. `archivedPackageIdentity` names a different
-commit whose complete archived package is locally observable; its archive root
-SHALL be present, its active root SHALL be absent, and its scoped tree SHALL
-match the current archive tree and the same member bytes. It does not claim
-that the archive first appeared in that commit. An `external-git-commit`,
-missing object, incomplete scope, wrong-stage root presence, or byte mismatch is
-not local proof and SHALL fail closed. The Git-tree adapter supplies root
+separate from `bundleSha256`. `bundleSha256` — not either identity — is the
+binding that makes the reviewed package's content identity survive delivery.
+
+`archivedPackageIdentity` SHALL be a `local-git-commit` whose object exists,
+whose complete archived package is locally observable, whose archive root is
+present and active root absent, and whose scoped tree SHALL match the current
+archive tree and the same member bytes. It does not claim that the archive
+first appeared in that commit.
+
+`reviewedIdentity` names the reviewed snapshot of the same package in its ACTIVE
+stage, and takes one of two classes:
+
+- a `local-git-commit` whose object exists, whose active root is present and
+  archive root absent, whose scoped tree matches the member paths and bytes
+  after normalization, and whose value differs from `archivedPackageIdentity`;
+  or
+- a `content-sha256` binding the reviewed member bytes, which SHALL equal the
+  archived member bytes recorded in `members[]`, with the active root recorded
+  as the reviewed stage root.
+
+The `content-sha256` form exists because the reviewed commit is not guaranteed
+to remain reachable. A squash delivery replaces the reviewed commits with one
+commit whose parent predates them, and the feature branch is routinely deleted
+on merge; the reviewed OBJECT then no longer exists locally, while the reviewed
+BYTES are unchanged and still present, because archiving a change relocates its
+members without editing them. Requiring a local commit made validity depend on
+delivery topology, and — worse — could be satisfied mechanically by any
+pre-archive commit on the default branch, none of which is the reviewed one.
+Content identity binds what was actually reviewed; a commit is supporting
+provenance for it.
+
+Where a reviewed `local-git-commit` is named but its object is absent, or where
+only an `external-git-commit` is available, the checker SHALL fail closed and
+report `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` per ADR-0021 §D.1 rather
+than treating the delivery as invalid or silently downgrading the class.
+
+An incomplete scope, wrong-stage root presence, or byte mismatch is not local
+proof and SHALL fail closed in either class. The Git-tree adapter supplies root
 presence/absence and tree observations; the shared model owns these stage rules.
 These checks prove repository bytes and scope, not that a human reviewer
 authenticated either commit. A commit is supporting provenance, not the
@@ -978,21 +1008,31 @@ deliberately selects no stronger archive-internal machine binding.
 
 #### Scenario: Reviewed and archive provenance is locally verifiable
 
-- **GIVEN** a missing, opaque, absent-local, out-of-scope, or byte-mismatched
-  `reviewedIdentity` or `archivedPackageIdentity`
+- **GIVEN** a missing, opaque, out-of-scope, or byte-mismatched
+  `reviewedIdentity` or `archivedPackageIdentity`, or a commit-classed identity
+  whose object is absent locally
 - **WHEN** the checker validates ordinary completion
 - **THEN** it fails closed with external verification required; a recomputed
-  envelope cannot make arbitrary identity bytes valid
+  envelope cannot make arbitrary identity bytes valid, and an absent commit
+  object is never silently reclassified as content identity
 
 #### Scenario: Reviewed and archived package stages are exclusive snapshots
 
-- **GIVEN** the same commit is reused for both identities, `activeRoot` and
-  `archiveRoot` coexist at `reviewedIdentity`, `activeRoot` survives at
-  `archivedPackageIdentity`, `activeRoot` survives in the current snapshot, or
-  an archive is copied while the active package remains
+- **GIVEN** a commit-classed `reviewedIdentity` where `activeRoot` and
+  `archiveRoot` coexist or which reuses the `archivedPackageIdentity` commit,
+  `activeRoot` surviving at `archivedPackageIdentity`, `activeRoot` surviving in
+  the current snapshot, or an archive copied while the active package remains
 - **WHEN** the checker validates ordinary completion
 - **THEN** it refuses the evidence; reviewed is active-only, archived and
-  current are archive-only, and the two snapshot identities differ
+  current are archive-only, and two commit-classed identities differ
+
+#### Scenario: A content-classed reviewed identity is not held to commit rules
+
+- **GIVEN** a `content-sha256` `reviewedIdentity` binding the reviewed member
+  bytes and recording the active root as its stage root
+- **WHEN** the checker validates ordinary completion
+- **THEN** it applies the member-byte and stage-root rules and SHALL NOT require
+  a distinct commit object, because there is no commit to compare
 
 #### Scenario: Machine bindings and human association are distinct
 
@@ -1022,6 +1062,150 @@ deliberately selects no stronger archive-internal machine binding.
 - **WHEN** the checker validates the identity
 - **THEN** it refuses the path after real-path containment and regular-file
   checks
+
+---
+
+### Requirement: Reviewed delivery identity is content-based and merge-method independent
+
+A completed governed landing SHALL remain verifiable when the same reviewed
+content is delivered by squash, merge commit, or rebase. Delivery validity
+SHALL be a property of the governed delivered bytes and their declared scope,
+never of Git topology, unless the selected completion policy explicitly declares
+topology to be part of its own contract. No completion policy in this version
+does.
+
+Consequently the checker SHALL NOT require, for any completion:
+
+- that intermediate implementation commits remain ancestors of the default
+  branch;
+- that a feature branch still exist;
+- that any branch name be resolvable; or
+- that a repair commit have been made to restore ancestry after delivery.
+
+A branch name is never authority, and an ephemeral ref SHALL never be the only
+thing that makes a completion provable. `bundleSha256` and the member digests in
+`archivedOpenSpec` are the content bindings that satisfy this requirement;
+`reviewedIdentity` and `archivedPackageIdentity` remain supporting provenance
+under the class rules above.
+
+#### Scenario: The same reviewed content is delivered by any merge method
+
+- **GIVEN** identical governed delivered bytes and declared scope, delivered by
+  squash, by a merge commit, or by rebase
+- **WHEN** the checker validates completion
+- **THEN** it reaches the same verdict in all three cases, and no verdict
+  depends on which method was used
+
+#### Scenario: Different delivered bytes are refused whatever the method
+
+- **GIVEN** a delivery whose scoped bytes differ from the bound delivered
+  identity, by any merge method
+- **WHEN** the checker validates completion
+- **THEN** it refuses; merge-method independence widens no byte tolerance
+
+#### Scenario: A deleted feature branch does not invalidate a delivery
+
+- **GIVEN** a completion whose reviewed package is bound by `content-sha256` and
+  whose archived package is locally observable, with the originating branch
+  deleted and the reviewed commits absent from the default branch's ancestry
+- **WHEN** the checker validates completion
+- **THEN** it accepts, because every required identity is still locally
+  verifiable from content
+
+#### Scenario: A delivery provable only by an ephemeral ref is refused
+
+- **GIVEN** a completion whose required reviewed identity resolves only through
+  a branch, a pull-request ref, or another ref that may be deleted, with no
+  content binding
+- **WHEN** the checker validates completion
+- **THEN** it fails closed with `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`;
+  an ephemeral ref is not durable local proof
+
+#### Scenario: A mechanically valid but unreviewed active snapshot is not reviewed identity
+
+- **GIVEN** a `reviewedIdentity` naming an arbitrary pre-archive commit that
+  happens to show the active root present and the archive root absent, but whose
+  member bytes are not the reviewed bytes
+- **WHEN** the checker validates completion
+- **THEN** it refuses on member-byte mismatch; passing the stage rule is not
+  evidence that the named snapshot is the one that was reviewed
+
+---
+
+### Requirement: Reviewed planning identity and execution progress are separately owned
+
+Reviewed planning bytes and mutable execution progress SHALL NOT share an
+authority. The archived OpenSpec package — including its `tasks.md` and every
+checkbox in it — is an immutable normative record under ADR-0021 §2.1, bound by
+`bundleSha256`. The landing's `delivery.lifecycle` and its completion evidence
+are the mutable execution-progress and completion authority under ADR-0021 §3.D.
+
+The registry SHALL NOT introduce a second progress authority, and SHALL NOT
+derive completion from the reviewed planning bytes.
+
+#### Scenario: Progress advances while reviewed planning bytes stay frozen
+
+- **GIVEN** a landing whose reviewed package is unchanged and whose
+  `delivery.lifecycle` moves `Planned -> InProgress -> Complete` with valid
+  completion evidence
+- **WHEN** the checker validates the registry
+- **THEN** it accepts; unchanged reviewed planning is the expected state, not a
+  stalled landing
+
+#### Scenario: Completion is never inferred from planning checkboxes
+
+- **GIVEN** an archived package whose `tasks.md` checkboxes are entirely
+  unchecked, entirely checked, or partially checked
+- **WHEN** the checker derives whether the landing is `Complete`
+- **THEN** the checkbox state has no effect on the derivation; only the closed
+  lifecycle transition and its bound completion evidence decide
+
+#### Scenario: Editing reviewed planning bytes after pinning is drift
+
+- **GIVEN** a `tasks.md` checkbox, or any other member byte, changed inside a
+  package already bound by `bundleSha256`
+- **WHEN** the checker validates the identity
+- **THEN** it refuses as planning drift, because the member digest and the
+  bundle identity no longer match the reviewed package
+
+---
+
+### Requirement: Evidence that asserts observation SHALL fail when it observed nothing
+
+Where a completion policy requires that a governed subject set was observed,
+the checker SHALL distinguish "the requirement was satisfied" from "nothing
+applicable was exercised". A required subject set that is silently empty SHALL
+fail closed rather than derive satisfaction, and a comparison window that
+selects the revision under test SHALL be refused rather than reported as clean.
+
+Non-applicability SHALL be explicit and typed — as
+`reviewed-spike-evidence-v1` already declares `openSpecApplicability` — never
+inferred from an empty result.
+
+#### Scenario: A required member set that is empty is refused
+
+- **GIVEN** an `archivedOpenSpec` identity whose `members[]` is empty, or whose
+  observed package resolves to no members
+- **WHEN** the checker validates the identity
+- **THEN** it refuses; an empty membership is an unanswered question, not a
+  package with nothing in it
+
+#### Scenario: A self-selecting comparison window is refused
+
+- **GIVEN** a two-revision comparison whose supplied base resolves to the
+  revision under test
+- **WHEN** the checker compares revisions
+- **THEN** it refuses rather than reporting a clean empty comparison, and never
+  falls back to an inferred revision
+
+#### Scenario: Declared non-applicability remains acceptable
+
+- **GIVEN** an evidence class the selected completion policy explicitly declares
+  non-applicable, such as `openSpecApplicability: "not-applicable"` for
+  `reviewed-spike-evidence-v1`
+- **WHEN** the checker validates completion
+- **THEN** it accepts the declared fact, because the policy permits it and the
+  fact is authored rather than inferred from absence
 
 ---
 

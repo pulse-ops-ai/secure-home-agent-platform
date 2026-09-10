@@ -243,13 +243,15 @@ accordingly.
   excluded from that preimage. Arbitrary-only packages, arbitrary documents,
   partial or substituted archives, symlinks, traversal, non-`100644` modes,
   and extra or missing members are refused.
-- **INV-G50** Ordinary post-genesis archive provenance has two distinct,
-  locally verifiable `local-git-commit` identities: `reviewedIdentity` names
-  the reviewed active package, while `archivedPackageIdentity` names a commit
-  containing the complete archived package. At the reviewed identity the
+- **INV-G50** Ordinary post-genesis archive provenance has two locally
+  verifiable identities: `reviewedIdentity` names the reviewed active package —
+  as a `local-git-commit` when that commit survives delivery, otherwise as a
+  `content-sha256` over the reviewed member bytes — while
+  `archivedPackageIdentity` names a `local-git-commit` containing the complete
+  archived package. At a commit-classed reviewed identity the
   active root is present and the archive root absent; at the archived identity
   and in the current snapshot the archive root is present and the active root
-  absent. The identity values differ. Neither claims that the archive first
+  absent. Two commit-classed identity values differ. Neither claims that the archive first
   appeared in that commit. Their scopes and bytes are checked separately from
   the bundle digest and human completion attestation; missing, opaque,
   out-of-scope, wrong-stage, or byte-mismatched provenance fails closed.
@@ -379,8 +381,9 @@ For `reviewed-delivery-v1`, `evidence.deliveredIdentity` is a closed union of
 and a nonempty canonical path set whose tree or delivered bytes match; the
 latter requires exactly one canonical repository-relative path in `scope[]` and
 local hashing of its exact bytes. An `external-git-commit` is opaque and cannot
-satisfy completion. The nested `reviewedIdentity` and
-`archivedPackageIdentity` remain `local-git-commit` only.
+satisfy completion. `archivedPackageIdentity` remains `local-git-commit` only;
+`reviewedIdentity` is a closed union of `local-git-commit` and
+`content-sha256`.
 
 The complete `reviewed-spike-evidence-v1` evidence branch is:
 
@@ -941,6 +944,78 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   stable completion envelope and digest, and human attestation (including
   `MAN-G03`) all bind the same landing. The whole-change archive fixture is
   owned by PR-1; no genesis disposition is used.
+
+### Governance convergence cases (PR-1) — merge-method independence, ownership, non-vacuity
+
+Added after the TypeScript 7 delivery (PRs #120–#123), the first end-to-end
+governed delivery in this repository, which is used here as an empirical test of
+the contract rather than as an authority over it. Design rationale is D4.5.
+
+These are contract cases. PR-1 implements the current-revision checks; nothing
+here moves two-revision work forward into PR-1.
+
+**Merge-method independence.** A delivery is judged on its governed bytes and
+declared scope, never on Git topology.
+
+| Case | Expected |
+| --- | --- |
+| Identical reviewed content delivered by squash | ACCEPT |
+| Identical reviewed content delivered by a merge commit | ACCEPT |
+| Identical reviewed content delivered by rebase | ACCEPT |
+| Scoped delivered bytes differ from the bound delivered identity, any method | REFUSE |
+| Feature branch deleted, reviewed commits not ancestors, reviewed package bound by `content-sha256`, archive locally observable | ACCEPT |
+| Required reviewed identity resolves only through a branch or pull-request ref, no content binding | REFUSE — `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` |
+| `reviewedIdentity` names an arbitrary pre-archive snapshot that satisfies the active-only stage rule but whose member bytes are not the reviewed bytes | REFUSE on member-byte mismatch |
+
+The last row is the one that matters most, and the one the delivery exposed: the
+stage rule alone is satisfied by every pre-archive commit on the default branch,
+so passing it is not evidence that the named snapshot is the reviewed one. A
+fixture that only proved the topology-independent cases would leave the contract
+accepting a mechanically valid, semantically wrong identity.
+
+**Reviewed planning versus execution progress.** The archived package, including
+every `tasks.md` checkbox, is immutable and inside `bundleSha256`;
+`delivery.lifecycle` plus completion evidence is the mutable authority.
+
+| Case | Expected |
+| --- | --- |
+| Reviewed planning bytes unchanged while the lifecycle advances `Planned -> InProgress -> Complete` with valid evidence | ACCEPT |
+| A `tasks.md` checkbox — or any member byte — edited inside a package already bound by `bundleSha256` | REFUSE as planning drift |
+| Completion derived from checkbox state, whether all unchecked, all checked, or partial | REFUSE — checkbox state SHALL have no effect on the derivation |
+
+The real delivery finished at 0/79 checked with implementation complete, so the
+first row is the expected steady state and not a stalled landing. The third row
+must be proved by driving the derivation over all three checkbox populations and
+requiring the same verdict, not by asserting that the code contains no reader.
+
+**Non-vacuity where applicability requires evidence.**
+
+| Case | Expected |
+| --- | --- |
+| Required governed subject set observed and non-empty | ACCEPT |
+| `members[]` empty, or the observed package resolves to no members | REFUSE — an empty membership is an unanswered question |
+| A two-revision comparison whose supplied base resolves to the revision under test | REFUSE — never reported as a clean empty comparison, never an inferred fallback |
+| Evidence class the selected policy explicitly declares non-applicable, e.g. `openSpecApplicability: "not-applicable"` | ACCEPT — authored typed fact, permitted by the policy |
+
+Non-applicability is authored, never inferred from absence. The middle two rows
+are the completion-evidence face of rules ADR-0021 already states in §2.3, §8
+and §9; they are added here because the delivery showed that a checker can be
+green having examined nothing.
+
+**Mutation targets added.** Each must change the subject bytes before its result
+is read:
+
+- remove the `content-sha256` alternative for `reviewedIdentity` — the
+  deleted-branch case must FAIL;
+- accept a reviewed snapshot on stage rule alone, without comparing member
+  bytes — the mechanically-valid-wrong-snapshot case must PASS, proving the byte
+  comparison is what refuses it;
+- let the completion derivation read checkbox state — the all-unchecked and
+  all-checked populations must then disagree;
+- treat an empty required member set as satisfied — the empty-membership case
+  must PASS;
+- allow an inferred base when the supplied one resolves to the revision under
+  test — the self-selecting-window case must PASS.
 
 ### Provable only by the two-revision history checker (PR-2)
 

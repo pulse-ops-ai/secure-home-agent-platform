@@ -523,10 +523,11 @@ For `reviewed-delivery-v1`, `evidence.deliveredIdentity` is a closed union of
 commit and a nonempty canonical path set whose tree or delivered bytes match;
 an artifact identity has class `content-sha256`, exactly one canonical path in
 `scope[]`, and a value recomputed from that path's exact bytes. An
-`external-git-commit` is opaque and cannot satisfy completion. The nested
-`reviewedIdentity` and `archivedPackageIdentity` remain `local-git-commit`
-only; this preserves the accepted commit-or-artifact alternative for the
-delivered result without weakening archive provenance.
+`external-git-commit` is opaque and cannot satisfy completion. Of the nested
+identities, `archivedPackageIdentity` remains `local-git-commit` only — the
+archive lands on the default branch by construction — while `reviewedIdentity`
+is a closed union of `local-git-commit` and `content-sha256`, because the
+reviewed snapshot is not guaranteed to survive delivery. D4.5 records why.
 
 The complete `reviewed-spike-evidence-v1` evidence branch is:
 
@@ -742,6 +743,80 @@ supplied to ordinary completion; and symlink or traversal paths. A recomputed
 bundle does not turn a semantically unrelated but mechanically valid archive
 into machine-proven landing evidence: `MAN-G03` requires the human
 attestation to establish that association.
+
+### D4.5. Governance convergence: what the first governed delivery proved
+
+D4.4 was written before any change had been delivered under this contract. The
+TypeScript 7 / lint-engine programme (PRs #120–#123) is the first end-to-end
+governed delivery in this repository, and it is used here as an empirical test
+of D4.4 rather than as an authority that amends ADR-0021. Three of its findings
+change this contract; the rest do not, and are recorded as out of scope so a
+later reader does not re-litigate them.
+
+**Reviewed identity cannot be topology-bound.** D4.4 required both nested
+identities to be `local-git-commit`. The delivery was squash-merged, which
+replaced the reviewed commits with one commit whose parent predates them, and
+the feature branch was deleted on merge. The reviewed OBJECT then existed only
+behind `refs/pull/<n>/head` — an ephemeral ref — while the reviewed BYTES were
+untouched, because archiving relocates members without editing them: the whole
+package moved with every file detected as a 100 %-similarity rename.
+
+Worse than unprovable, the rule was satisfiable by accident. The stage rule asks
+for a snapshot with the active root present and the archive root absent, and
+every pre-archive commit on the default branch exhibits that. A mechanically
+valid, semantically wrong commit would have passed the machine checks and left
+`MAN-G03` carrying the entire binding.
+
+`bundleSha256` already binds `changeId`, both roots, every member path, and
+every member digest, so the reviewed content identity was never actually
+missing. The correction is therefore small: `reviewedIdentity` accepts
+`content-sha256` as well as `local-git-commit` — both are ADR-0021 §7a classes,
+and §D.1 already says a delivered identity may be a commit **or** an artifact —
+and the unavailable-object case takes the outcome ADR-0021 §D.1 already
+prescribes, `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`, rather than being
+treated as an invalid delivery. `archivedPackageIdentity` stays
+`local-git-commit`: the archive lands on the default branch by construction, so
+its stage is always locally observable.
+
+PR #121 restored the reviewed ancestry as a second parent, and a durable
+provenance branch was pushed. Both were the right response to a live incident.
+Neither becomes a requirement of this contract — a delivery that is provable
+only because someone repaired history afterwards is not a delivery this contract
+should have accepted.
+
+**Reviewed planning and execution progress are separate authorities.** The
+delivery finished with `tasks.md` at 0/79 checked and the implementation
+complete, and that was correct: reviewed planning bytes were frozen through
+implementation, and completion was carried by evidence. ADR-0021 already splits
+these — §2.1 makes an archived change an immutable normative record, §3.D makes
+`delivery.lifecycle` the mutable authority — so this contract only has to say so
+without ambiguity, and must not invent a second progress authority. The
+checkbox set is inside `bundleSha256`; changing it after pinning is drift, and
+reading it to decide completion is a derivation this registry does not perform.
+
+**Proof must distinguish satisfaction from vacuity.** The programme produced
+several green results that examined nothing: a comparison window whose supplied
+base resolved to the revision under test, and a required subject set that was
+silently empty. ADR-0021 already refuses the second of these in general terms —
+§2.3 forbids deriving from a missing input, §8 forbids interpreting malformed
+input as an empty registry, §9 forbids falling back to an inferred base and
+names the wrong-revision comparison "a false green". What this contract adds is
+the completion-evidence face of the same rule, and nothing more: a required
+member set that resolves empty is refused, and non-applicability is an authored
+typed fact — the shape `reviewed-spike-evidence-v1` already uses for
+`openSpecApplicability` — never an inference from absence.
+
+**Deliberately not in this contract.** The programme also produced lessons that
+belong above the substrate, and adding them here would widen a registry of
+primitive facts into a policy engine:
+
+| Lesson | Disposition |
+| --- | --- |
+| A verifier defect blocks a candidate only when it can plausibly cause false acceptance of a requirement applicable to that candidate | Governance policy above the substrate. `state.json` records completion facts and evidence identity; it does not adjudicate finding severity. No `P1`/`P2`/`P3` vocabulary. |
+| Risk tiers and proof budgets — routine / architectural / trust-critical | Later governance policy. The substrate already supports it: a landing names a `completionPolicy` identity, and a future ADR may add a policy whose evidence requirements encode a tier. Hardcoding a tier vocabulary now would fix a policy decision this ADR did not make. |
+| Lifecycle choreography automation | Mixed, and mostly already placed. Delivery lifecycle and completion evidence are authored primitives; prerequisite readiness and blockers are derived; review-epoch transitions, base freshness, merge continuity, archive readiness and canonical spec sync stay owned by their existing authorities and are referenced, not copied. A derived fact is not stored merely because people want to read it. |
+
+None of these requires an ADR change, and none is added to this change.
 
 ---
 
