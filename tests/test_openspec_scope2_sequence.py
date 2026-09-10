@@ -29,7 +29,28 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-TASKS = REPO / "openspec" / "changes" / "typescript-7-lint-engine-resilience" / "tasks.md"
+CHANGE = "typescript-7-lint-engine-resilience"
+
+
+def _tasks() -> Path:
+    """The accepted task graph, wherever the change currently lives.
+
+    Delivered changes are archived under a DATED directory, so a literal path
+    into `openspec/changes/<change>/` stops resolving the moment the archive
+    runs — while the bytes it asserts about are unchanged, and still the
+    accepted ones. The archive name is matched by suffix rather than written
+    out, because the date belongs to the archive operation and not to this
+    property.
+    """
+    live = REPO / "openspec" / "changes" / CHANGE / "tasks.md"
+    if live.is_file():
+        return live
+    archived = sorted((REPO / "openspec" / "changes" / "archive").glob(f"*-{CHANGE}/tasks.md"))
+    assert len(archived) == 1, f"expected exactly one archived {CHANGE}, found {archived}"
+    return archived[0]
+
+
+TASKS = _tasks()
 
 # The compiler cutover, replacement-only lint, and ESLint retirement.
 AUDIT = "3.1"
