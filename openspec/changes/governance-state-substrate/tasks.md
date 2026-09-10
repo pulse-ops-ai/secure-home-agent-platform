@@ -187,15 +187,17 @@ implementation reads unambiguously:
 
 | Owner | Owns |
 | --- | --- |
-| Shared semantic model (`2.1`, `2.2`) | The stage rules, both `reviewedIdentity` classes and their selection, member-byte comparison, `bundleSha256` composition, and the derivation that completion reads `delivery.lifecycle` and its evidence — never reviewed planning bytes. |
-| Rules-free Git/content observation adapter (`2.3`) | Root presence and absence, scoped tree observation, blob identity, and real-path containment. It answers what the repository contains; it decides nothing, and in particular does not decide which identity class is required or whether an absent object is fatal. |
-| Current-revision verification (`3.1`–`3.3`) | Applying the closed evidence shape, refusing an empty required member set, and reporting `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` when a required identity is unavailable rather than downgrading it. |
-| Later two-revision work (PR-2) | Base selection and the refusal of a self-selecting comparison window; the mutation, disappearance and regression rules over completion evidence. |
+| Shared semantic model — task `2.3`, which owns landings, completion policies and evidence | Both `reviewedIdentity` forms and their selection; the stage rules and which form each applies to; commit durability as reachability from `HEAD`; the review-witness comparison; member-byte equality; `bundleSha256` composition; and the derivation that completion reads `delivery.lifecycle` and its evidence — never reviewed planning bytes. |
+| Rules-free Git/content observation adapter | Root presence and absence, scoped tree observation, blob identity, commit reachability as an OBSERVATION, and real-path containment. It answers what the repository contains and decides nothing: not which identity form is required, not whether an unreachable object is fatal, not whether a stage rule applies. |
+| Current-revision checker entry point — task `2.4` | Wiring the above into the offline checker, refusing an empty required member set, and reporting `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` when a required identity is not durable — never downgrading a recorded commit identity to the content form. |
+| Verification net — tasks `3.1`–`3.3` | The hostile corpus, property and mutation coverage for all of the above, including `EX-G29` in both reviewed-identity forms over the same archived package. |
+| Later two-revision work — PR-2 | Base selection and the refusal of a self-selecting comparison window; the mutation, disappearance and regression rules over completion evidence. |
 | External and manual | `MAN-G03` semantic association of an archive with a landing; historical authorization; anything requiring live external verification. |
 
-Task `2.4` keeps the archived-OpenSpec identity contract. Its scope changes only
-in that `reviewedIdentity` now admits `content-sha256`, so its proof obligation
-gains the deleted-branch and mechanically-valid-wrong-snapshot cases.
+Task `2.3` keeps the archived-OpenSpec identity contract; task `2.4` keeps the
+checker entry point. Neither task moves. `2.3`'s scope changes only in that
+`reviewedIdentity` is now a closed two-form union, so its proof obligation gains
+the durability, review-witness, class-error and both-forms cases.
 
 Two-revision work stays in PR-2. The delivery exposed a Git-history defect in a
 different repository authority, which is not a reason to move history validation
@@ -548,14 +550,18 @@ PR-1 must not contain — and review has completed on one frozen head.
   all other modes fail. Mode is a fixed validity constraint rather than an
   unbound digest field.
 
-  Stage exclusivity is required in addition to membership equality. At
-  `reviewedIdentity`, `activeRoot` must exist with the complete required package
-  and `archiveRoot` must be absent. At `archivedPackageIdentity`, `archiveRoot`
-  must exist with the complete package and `activeRoot` must be absent. The
-  current snapshot must likewise contain only the complete `archiveRoot` package
-  and no `activeRoot`. The two local snapshot identities must have different
-  commit values. These are snapshot-shape rules only; they make no chronology or
-  first-introduction claim.
+  Stage exclusivity is required in addition to membership equality, wherever a
+  snapshot exists to observe. At a commit-backed `reviewedIdentity`,
+  `activeRoot` must exist with the complete required package, `archiveRoot` must
+  be absent, and its value must differ from `archivedPackageIdentity`. At
+  `archivedPackageIdentity`, `archiveRoot` must exist with the complete package
+  and `activeRoot` must be absent. The current snapshot must likewise contain
+  only the complete `archiveRoot` package and no `activeRoot`. A content-backed
+  `reviewedIdentity` names no snapshot, so no reviewed-stage rule applies to it;
+  its obligation is the review-witness comparison. Every commit-classed nested
+  identity must additionally be reachable from the current `HEAD` — object
+  presence is not durability. These are snapshot-shape rules only; they make no
+  chronology or first-introduction claim.
   Absolute paths, traversal, empty segments, symlinks, missing members, extra
   members, and non-regular files fail. An active completion, ADR, README,
   arbitrary file, archive subfile, path-unrelated archive root, or mismatched
@@ -611,15 +617,18 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `ADV-G79` complete three-way membership, stage exclusivity, path, symlink,
     mode, and exact-byte refusal
   - `ADV-G80` bundle preimage and digest refusal
-  - `ADV-G81` reviewed-active and archived-package-snapshot local-proof and
-    distinct-stage refusal
+  - `ADV-G81` durable nested provenance: reachability-from-`HEAD` refusal for
+    commit-classed identities, review-witness refusal for the content form, and
+    distinct-stage refusal; no downgrade of a recorded commit identity
   - `ADV-G82` machine-decidable scope, authority-anchor, and stale-binding refusal;
     semantic association remains `MAN-G03`
   - `ADV-G84` real-path containment and traversal refusal
-  - `ADV-G85` reviewed-active/current-archive/manifest equality, root absence,
-    distinct snapshot identities, and mode refusal
+  - `ADV-G85` reviewed-observation/current-archive/manifest equality, root
+    absence, distinct snapshot identities, mode refusal, and the class error of
+    asserting a commit-stage rule against a content-backed reviewed identity
   - `EX-G29` valid complete archived child change with minimum OpenSpec package
-    structure and `MAN-G03` human association
+    structure and `MAN-G03` human association, proved in BOTH reviewed-identity
+    forms over the same archived package
   - `MAN-G03` semantic archive-to-landing association is human-attested, not inferred
   - `PROP-G11` independent bundle field sensitivity
   - `MUT-G15` weakened archive bundle/association guards, stage guards, or the

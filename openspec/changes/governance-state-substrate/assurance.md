@@ -234,8 +234,8 @@ accordingly.
   envelope and closed `archivedOpenSpec` evidence defined in the
   specification: its `changeId`, `activeRoot`, and `archiveRoot` correspond,
   its members are the complete sorted whole-change set of regular tracked files,
-  and the reviewed active tree, current archive tree, and declared members are
-  equal in paths and bytes. An ordinary post-genesis package contains
+  and the reviewed-package observation, current archive tree, and declared
+  members are equal in paths and bytes. An ordinary post-genesis package contains
   `.openspec.yaml`, `proposal.md`, `design.md`, `assurance.md`, `tasks.md`, and
   at least one `specs/**/spec.md`, plus every other tracked regular file under
   the package root. Its bundle digest covers the schema, contract, `changeId`,
@@ -243,15 +243,21 @@ accordingly.
   excluded from that preimage. Arbitrary-only packages, arbitrary documents,
   partial or substituted archives, symlinks, traversal, non-`100644` modes,
   and extra or missing members are refused.
-- **INV-G50** Ordinary post-genesis archive provenance has two locally
-  verifiable identities: `reviewedIdentity` names the reviewed active package —
-  as a `local-git-commit` when that commit survives delivery, otherwise as a
-  `content-sha256` over the reviewed member bytes — while
-  `archivedPackageIdentity` names a `local-git-commit` containing the complete
-  archived package. At a commit-classed reviewed identity the
-  active root is present and the archive root absent; at the archived identity
-  and in the current snapshot the archive root is present and the active root
-  absent. Two commit-classed identity values differ. Neither claims that the archive first
+- **INV-G50** Ordinary post-genesis archive provenance has two durable,
+  locally verifiable identities. `archivedPackageIdentity` is a
+  `local-git-commit` containing the complete archived package.
+  `reviewedIdentity` is either a `local-git-commit` naming the reviewed active
+  package, or a `content-sha256` over exactly one member — the accepted review
+  artifact — whose `preimplementation-review-v2` block supplies review-time
+  paths and digests that must equal the corresponding archived members.
+  DURABILITY is reachability from the current `HEAD`, not object presence: a
+  commit reachable only through a fetched pull-request or branch ref is not
+  local proof, and no branch name takes part in the test. At a commit-backed
+  reviewed identity the active root is present and the archive root absent, and
+  its value differs from `archivedPackageIdentity`; at the archived identity and
+  in the current snapshot the archive root is present and the active root
+  absent. A content-backed reviewed identity names no snapshot and asserts no
+  stage. Neither claims that the archive first
   appeared in that commit. Their scopes and bytes are checked separately from
   the bundle digest and human completion attestation; missing, opaque,
   out-of-scope, wrong-stage, or byte-mismatched provenance fails closed.
@@ -486,28 +492,31 @@ least one `specs/**/spec.md` file. Those required artifacts, together with
 every other tracked regular file under the package root, are the complete
 membership set; a correctly named package containing only arbitrary files or
 only a README is refused. Each required and additional member must be present
-in the reviewed active tree, the archived-package snapshot, the current
+in the reviewed-package observation, the archived-package snapshot, the current
 archive, and `members[]`, with identical bytes and Git mode `100644`. Each
 `path` is relative to `activeRoot`, and the corresponding archive path is the
 same relative suffix under `archiveRoot`. Members are sorted lexicographically
-by canonical relative path and duplicate-free. The complete sets in the
-reviewed active tree, the archive tree at `archivedPackageIdentity`, and the
-current archive root must each equal the declared members by path and exact
-bytes. Historical genesis may use only its explicit human disposition for an
+by canonical relative path and duplicate-free. The complete sets in each observed tree — the
+reviewed active tree where the reviewed identity is commit-backed, the archive
+tree at `archivedPackageIdentity`, and the current archive root — must each
+equal the declared members by path and exact bytes. Historical genesis may use only its explicit human disposition for an
 older package shape; that disposition is not a generic post-genesis fallback.
 Missing, extra, unmanifested, non-regular, symlinked, absolute, traversal, or
 empty-segment members fail. Every member in each observed tree must have Git
 mode `100644`; symlink, gitlink, executable, and all other modes fail. Mode is
 a fixed validity constraint rather than an unbound digest field.
 
-The required membership proof is three-way: the reviewed active-package tree
-at `reviewedIdentity`, the current archive-root tree, and the declared member
-set and bytes must be equal after active-to-archive path normalization.
-`archivedPackageIdentity` is an additional snapshot observation whose complete
-scoped archive tree must match the current archive tree. Stage observations
-must also show active-only at `reviewedIdentity`, archive-only at
-`archivedPackageIdentity`, and archive-only in the current snapshot; the two
-snapshot commit values must differ. The Git-tree observation adapter supplies
+The required membership proof has three terms, the first of which depends on
+the reviewed identity's form: the reviewed-package observation — the reviewed
+active-package tree at a commit-backed `reviewedIdentity`, or the review-witness
+comparison for a content-backed one — the current archive-root tree, and the
+declared member set and bytes, which must be equal after active-to-archive path
+normalization. `archivedPackageIdentity` is an additional snapshot observation
+whose complete scoped archive tree must match the current archive tree. Stage
+observations must also show archive-only at `archivedPackageIdentity` and
+archive-only in the current snapshot, and — for a commit-backed reviewed
+identity only — active-only at `reviewedIdentity` with a differing commit
+value. The Git-tree observation adapter supplies
 paths, modes, bytes, and root presence/absence; it applies no semantic rules.
 The three required membership observations are therefore the reviewed active
 tree, the current archive tree, and the declared member set; the selected
@@ -903,11 +912,19 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G80** An `archivedOpenSpec` whose `bundleSha256` is absent or wrong,
   or whose canonical preimage omits or changes `changeId`, `activeRoot`,
   `archiveRoot`, a member path, or a member digest.
-- **ADV-G81** A missing, opaque, absent-local, out-of-scope, wrong-stage, or
-  byte-mismatched `reviewedIdentity` or `archivedPackageIdentity`, equal reuse
-  of one snapshot commit for both identities, or a provenance object using an
-  unsupported identity class; ordinary reviewed delivery requires two distinct
-  locally verifiable scoped commits.
+- **ADV-G81** Nested provenance that is not durable local proof: a missing,
+  opaque, or out-of-scope identity; a commit-classed identity whose object is
+  absent OR present but unreachable from the current `HEAD` — including one
+  available only because a pull-request or branch ref was fetched; a
+  byte-mismatched `reviewedIdentity` or `archivedPackageIdentity`; equal reuse of
+  one snapshot commit for both identities; a provenance object using an
+  unsupported identity class; a content-backed `reviewedIdentity` whose selected
+  path is an arbitrary package member rather than the accepted review artifact,
+  or whose review block is absent, unparseable, of an unsupported contract, or
+  carries an empty `reviewed_artifacts[]`; a `reviewed_artifacts[]` entry with
+  no matching member or a digest disagreement; and a completion-time bundle
+  offered as reviewed identity with no review-time witness. Refusal never
+  downgrades a recorded commit identity to the content form.
 - **ADV-G82** A completion whose delivered scope or authority anchor does not
   match the landing, or whose landing/archive binding is stale because the
   complete completion preimage and human attestation were not recomputed. A
@@ -916,13 +933,15 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G84** An archive root or member reached through a symlinked ancestor,
   symlinked final file, lexical sibling, traversal, or path outside the real
   repository root.
-- **ADV-G85** The three required membership observations disagree: the
-  reviewed active-package tree, current archive-root tree, and declared member
+- **ADV-G85** The required membership observations disagree: the
+  reviewed-package observation, current archive-root tree, and declared member
   set differ in paths, bytes, or required `100644` modes, or the
   `archivedPackageIdentity` tree does not match the current archive tree. It
-  also refuses active/archive coexistence at the reviewed snapshot, an active
-  root surviving at the archived snapshot or current checkout, or equal
-  snapshot identities. The checker refuses before deriving completion.
+  also refuses active/archive coexistence at a commit-backed reviewed snapshot,
+  an active root surviving at the archived snapshot or current checkout, equal
+  snapshot identities, and a commit-stage presence rule asserted against a
+  content-backed reviewed identity — a class error, refused as such rather than
+  passed or skipped. The checker refuses before deriving completion.
 - **ADV-G67** A target snapshot carries `Withdrawn` without its withdrawal
   digest, without its evidence, or without its attestation — each refused
   independently — or with a malformed or mutually exclusive completion and
@@ -939,11 +958,14 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 
 - **EX-G29** A valid post-genesis `reviewed-delivery-v1` completion whose
   complete active-to-archive child-change equivalence, minimum OpenSpec package
-  structure, locally verifiable reviewed and archived-package snapshot
-  identities, delivered identity, landing-owned policy and authority anchor,
-  stable completion envelope and digest, and human attestation (including
-  `MAN-G03`) all bind the same landing. The whole-change archive fixture is
-  owned by PR-1; no genesis disposition is used.
+  structure, durable reviewed and archived-package provenance, delivered
+  identity, landing-owned policy and authority anchor, stable completion
+  envelope and digest, and human attestation (including `MAN-G03`) all bind the
+  same landing. It is proved in BOTH reviewed-identity forms over the same
+  archived package: once with a commit-backed reviewed identity reachable from
+  `HEAD`, and once content-backed against the accepted review artifact with the
+  reviewed commits absent from current history. The whole-change archive fixture
+  is owned by PR-1; no genesis disposition is used.
 
 ### Governance convergence cases (PR-1) — merge-method independence, ownership, non-vacuity
 
@@ -1002,6 +1024,25 @@ are the completion-evidence face of rules ADR-0021 already states in §2.3, §8
 and §9; they are added here because the delivery showed that a checker can be
 green having examined nothing.
 
+**Durability and review-witness cases.** Added by the focused closure; design
+rationale is D4.5 and D4.6.
+
+| Case | Expected |
+| --- | --- |
+| Commit-backed reviewed identity, reachable from `HEAD`, bytes match | ACCEPT commit form |
+| Reviewed commits absent from current history, durable review witness, archived planning bytes match | ACCEPT content form |
+| Reviewed commit object present only because a PR or branch ref was fetched, not reachable from `HEAD`, no content variant | REFUSE — `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`, never downgraded to the content form |
+| `content-sha256` over one arbitrary package member offered as whole-package review identity | REFUSE |
+| Correct completion-time `bundleSha256` with no durable review-time witness | REFUSE |
+| `reviewed_artifacts[]` entry with no matching member, or a digest disagreement | REFUSE |
+| Archived members the review did not read (`reviews/**`, the review artifact itself) | ACCEPT — the comparison is subset-and-equal, not set equality |
+| Commit-stage presence rule asserted against a content-backed reviewed identity | REFUSE as a class error, not passed vacuously or skipped |
+| `archivedPackageIdentity` commit not reachable from current `HEAD` | REFUSE |
+| `archivedPackageIdentity` reachable from `HEAD` with exact archive bytes | ACCEPT |
+
+The fixture SHALL exercise `EX-G29` in both reviewed-identity forms over the
+same archived package, so neither form is proved only by the other's absence.
+
 **Mutation targets added.** Each must change the subject bytes before its result
 is read:
 
@@ -1015,7 +1056,13 @@ is read:
 - treat an empty required member set as satisfied — the empty-membership case
   must PASS;
 - allow an inferred base when the supplied one resolves to the revision under
-  test — the self-selecting-window case must PASS.
+  test — the self-selecting-window case must PASS;
+- weaken commit durability from reachability to object presence — the
+  fetched-but-unreachable case must PASS, proving reachability is what refuses
+  it;
+- accept the content form without comparing `reviewed_artifacts[]` against the
+  archived members — the arbitrary-member and digest-disagreement cases must
+  PASS, proving the review witness is load-bearing rather than decorative.
 
 ### Provable only by the two-revision history checker (PR-2)
 

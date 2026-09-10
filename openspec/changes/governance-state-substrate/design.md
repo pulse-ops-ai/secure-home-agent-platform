@@ -632,12 +632,13 @@ least one `specs/**/spec.md` file. Those required artifacts, together with
 every other tracked regular file under the package root, are the complete
 membership set; a correctly named package containing only arbitrary files or
 only a README is refused. Every required and additional member must be present
-in the reviewed active tree, the archived-package snapshot, the current
+in the reviewed-package observation, the archived-package snapshot, the current
 archive, and `members[]`, with identical bytes and Git mode `100644`. Each
 member `path` is relative to `activeRoot`; the corresponding archive path is
 the same relative suffix under `archiveRoot`. Members are sorted
 lexicographically by canonical relative path, have no duplicate paths, and must
-account for every file in the reviewed active tree, the archive tree named by
+account for every file in each observed tree: the reviewed active tree where the
+reviewed identity is commit-backed, the archive tree named by
 `archivedPackageIdentity`, and the current checkout's archive root. A missing,
 extra, or unmanifested file is a refusal. Historical genesis may use only its
 explicit human disposition for an older package shape; that disposition is not
@@ -649,17 +650,21 @@ member in each tree must have Git mode `100644`; symlink, gitlink, executable,
 and every other non-`100644` mode is refused. The mode is a fixed validity
 constraint rather than a separately serialized member field.
 
-Stage exclusivity is required in addition to membership equality. At
-`reviewedIdentity`, `activeRoot` must exist with the complete required package
-and `archiveRoot` must be absent. At `archivedPackageIdentity`, `archiveRoot`
-must exist with the complete package and `activeRoot` must be absent. The
-current snapshot must likewise contain only the complete `archiveRoot` package
-and no `activeRoot`. The two local snapshot identities must have different
-commit values. These are snapshot-shape rules only; they make no chronology or
+Stage exclusivity is required in addition to membership equality, wherever a
+snapshot exists to observe. At a commit-backed `reviewedIdentity`, `activeRoot`
+must exist with the complete required package and `archiveRoot` must be absent,
+and its value must differ from `archivedPackageIdentity`. At
+`archivedPackageIdentity`, `archiveRoot` must exist with the complete package
+and `activeRoot` must be absent. The current snapshot must likewise contain only
+the complete `archiveRoot` package and no `activeRoot`. A content-backed
+`reviewedIdentity` names no snapshot, so no reviewed-stage rule applies to it.
+These are snapshot-shape rules only; they make no chronology or
 first-introduction claim.
 
-The required membership proof is three-way and exact: (1) the complete
-reviewed active-package tree at `reviewedIdentity`, (2) the complete current
+The required membership proof is exact, and its first term depends on the
+reviewed identity's form: (1) the reviewed-package observation — the complete
+reviewed active-package tree at a commit-backed `reviewedIdentity`, or the
+review-witness comparison for a content-backed one — (2) the complete current
 archive-root tree, and (3) the declared `members` set and bytes must be equal
 after the active-to-archive path normalization above. The
 `archivedPackageIdentity` commit is an additional snapshot observation: its
@@ -697,11 +702,19 @@ must mutate each of those four identity-bearing inputs.
 
 `reviewedIdentity` and `archivedPackageIdentity` are separate supporting
 provenance, not part of `bundleSha256`. For an ordinary post-genesis
-`reviewed-delivery-v1` completion, both have the only permitted class
-`local-git-commit`; both objects must exist locally and their values must
-differ. `reviewedIdentity` names the commit whose complete active package is
-reviewed; its active root must be present, its archive root must be absent, and
-its scoped tree must match the member paths and bytes after normalization.
+`reviewed-delivery-v1` completion, `archivedPackageIdentity` has the only
+permitted class `local-git-commit` and `reviewedIdentity` is a closed union of
+`local-git-commit` and `content-sha256`. Every commit-classed nested identity
+must exist AND be reachable from the current `HEAD`; object presence alone is
+not durability, because a commit fetched through a pull-request or branch ref
+may vanish. A commit-backed `reviewedIdentity` names the commit whose complete
+active package is reviewed, its active root must be present, its archive root
+must be absent, its scoped tree must match the member paths and bytes after
+normalization, and its value must differ from `archivedPackageIdentity`. A
+content-backed `reviewedIdentity` is the SHA-256 of exactly one member — the
+accepted review artifact — whose machine-readable `preimplementation-review-v2`
+block supplies the review-time paths and digests that are compared against the
+archived planning members. It asserts no snapshot stage.
 `archivedPackageIdentity` names a different commit whose complete archived
 package is locally observable; its archive root must be present, its active root
 must be absent, and its scoped tree must match the current archive tree and the
@@ -817,6 +830,66 @@ primitive facts into a policy engine:
 | Lifecycle choreography automation | Mixed, and mostly already placed. Delivery lifecycle and completion evidence are authored primitives; prerequisite readiness and blockers are derived; review-epoch transitions, base freshness, merge continuity, archive readiness and canonical spec sync stay owned by their existing authorities and are referenced, not copied. A derived fact is not stored merely because people want to read it. |
 
 None of these requires an ADR change, and none is added to this change.
+
+### D4.6. Two reviewed-identity forms, and what makes each durable
+
+D4.5 opened `reviewedIdentity` to `content-sha256` without saying what bytes
+that digest covers. A generic `content-sha256` is the exact SHA-256 of ONE
+canonical repository-relative path, and a reviewed OpenSpec package is many
+files, so the mapping had to be closed rather than left to the implementation.
+It is closed WITHOUT redefining the class: the single path is the package's
+accepted review artifact.
+
+**Why the review artifact is the right single file.** It is the only member that
+is itself review-time evidence. Its `openspec-review-gate` block — contract
+`preimplementation-review-v2`, the repository's existing shape — records
+`reviewed_commit`, `review_epoch`, `scope_id`, `verdict`, and a
+`reviewed_artifacts[]` list of every artifact the reviewer read with its exact
+review-time SHA-256. Those digests were authored when the review happened. The
+artifact then travels into the archive as an ordinary member, so its bytes are
+bound by its own member digest and by `bundleSha256`: it cannot be fabricated at
+completion time without changing the bundle.
+
+That distinction is the point. `bundleSha256` is computed at completion over the
+delivered package; it proves what was delivered, never that those bytes were
+independently reviewed. The review witness is the only artifact in this contract
+that carries a claim made BEFORE the delivery existed, so it is what the content
+form rests on.
+
+**It works on the real delivery.** Checked against the archived TypeScript 7
+change: the review block declares nine `reviewed_artifacts`, every one resolves
+to an archived member, and all nine digests match the archived bytes exactly.
+The archive carries fourteen members — the extra five are `README.md`, the
+review artifact itself, and three historical `reviews/**` rounds — so the rule
+is subset-and-equal, not set equality. A rule demanding equality would have
+failed on the first package it was applied to.
+
+**Durability is reachability, not object presence.** ADR-0021 §7a says a
+`local-git-commit` is "locally verifiable only when its object exists in the
+checked-out repository". Object existence turned out to be too weak for a nested
+provenance identity: `git fetch origin refs/pull/<n>/head` puts a commit in the
+object store that no branch or tag keeps alive, and it can be pruned. So both
+commit-classed nested identities must additionally be reachable from the current
+`HEAD`. That is a property of history, not of a name — no branch name appears in
+the test — and it is exactly the refusal the "provable only by an ephemeral ref"
+rule needs in order to be executable rather than aspirational.
+
+Reachability is also the whole justification for `archivedPackageIdentity`
+staying commit-only. The archived package lands on the default branch by
+construction, so it is always in durable current history; the reviewed snapshot
+is not. The asymmetry is that fact, not a preference, and making the two
+symmetric for tidiness would either weaken the archive side or add an unused
+alternative to it.
+
+**Stage claims follow the form.** Active/archive exclusivity is a claim about a
+snapshot. A commit names a snapshot and is held to it; a content digest names
+bytes and is not. Asserting a commit-stage rule against a content-backed
+identity is a class error and is refused as one — not passed vacuously, which
+would launder a missing check into a green result, and not skipped silently,
+which would hide that a rule stopped applying. Conversely a recorded commit
+identity that has become unreachable is never downgraded to the content form:
+the form is chosen when the completion is authored, and repairing it at check
+time would let the checker manufacture the evidence it is supposed to verify.
 
 ---
 
