@@ -991,25 +991,86 @@ alongside `reviewed_commit`, `review_epoch`, `scope_id` and `verdict`. Those
 digests were authored when the review was performed, before any completion
 existed.
 
-The checker SHALL verify, mechanically:
+**The review record's validity is owned by the existing versioned contract.**
+`preimplementation-review-v2` is a contract this repository already defines and
+enforces, and it — not this change — is the semantic owner of the review block's
+closed shape and acceptance semantics. The contract string is itself the
+schema-version discriminator for this use; no second version field is
+introduced, and no looser second interpretation of the block SHALL be defined
+here. The governance model CONSUMES that contract. The implementation SHALL
+reuse a shared review-contract validator, or an equivalent single semantic
+owner, rather than maintaining a diverging copy of the contract/schema/rubric
+identity, the acceptance verdict, the finding counts, the invariant and
+authority flags, or the artifact-entry shape.
 
-- the review block parses, declares the supported contract, and carries a
-  nonempty `reviewed_artifacts[]`;
-- every `reviewed_artifacts[].path`, resolved as a member path, is present in
-  `members[]`; and
-- every `reviewed_artifacts[].sha256` equals that member's `contentSha256`.
+A valid content-backed review witness SHALL therefore be a COMPLETE ACCEPTING
+v2 record. The checker SHALL require, through that owner:
 
-`reviewed_artifacts[]` is a subset of `members[]`, not an equality: an archived
-package legitimately carries members the review did not read as planning input,
-such as historical `reviews/**` rounds and the review artifact itself. An
-`reviewed_artifacts[]` entry with no matching member, or a digest disagreement,
-SHALL be refused. An empty or absent `reviewed_artifacts[]` SHALL be refused
-under the non-vacuity requirement below.
+- `contract` is `preimplementation-review-v2`, `schema` is
+  `governed-spec-driven-v2`, and `rubric` is
+  `governed-preimplementation-review-v1`; any other or absent value is an
+  unsupported review contract and SHALL be refused rather than reinterpreted;
+- `reviewed_commit` and `reviewed_base_commit` are well-formed full object-id
+  shapes;
+- `review_epoch` is an integer `>= 1`;
+- `scope_id` satisfies its closed shape;
+- `reviewed_at` is a real, non-placeholder review instant;
+- `reviewer` is non-placeholder;
+- `verdict` is `ARCHITECTURE_ACCEPTED`;
+- `unresolved_p1_count` is `0` and `unassigned_p2_p3_count` is `0`;
+- `invariant_set_changed` is `false` and `authority_allocation_complete` is
+  `true`;
+- `reviewed_artifacts[]` entries have the exact closed `{path, sha256}` shape,
+  canonical planning paths, lowercase SHA-256 values, and no duplicate paths.
+
+A `FOCUSED_CLOSURE_REQUIRED`, `ARCHITECTURE_REJECTED`, or otherwise
+non-accepting record SHALL be refused even when every declared digest matches.
+Digest agreement proves the bytes are the ones the record names; it does not
+make a non-accepted review an acceptance.
+
+`reviewed_commit` is part of the record's shape and is validated as a shape.
+The checker SHALL NOT require that object to exist or be reachable for the
+content form — that requirement is exactly what the content alternative exists
+to avoid. The commit form consumes the durable review SNAPSHOT; the content form
+consumes the durable review RECORD. Equally, the content form SHALL NOT be made
+to rerun any history-dependent portion of the review verification, because the
+history it would need is the history that may be gone.
+
+**The manifest SHALL be the COMPLETE planning projection, not a subset.** The
+expected set is derived from the archived package using the same planning-set
+definition the review contract uses:
+
+```text
+.openspec.yaml
+proposal.md
+every specs/**/*.md delta spec, sorted
+design.md
+assurance.md
+tasks.md
+```
+
+The checker SHALL require:
+
+- the set of `reviewed_artifacts[].path` values EQUALS the expected planning
+  member paths — equality, not containment, in both directions; and
+- every `reviewed_artifacts[].sha256` equals the corresponding archived member's
+  `contentSha256`.
+
+Equality is against the PLANNING PROJECTION of the package, not against every
+archive member. An archive legitimately carries members outside that projection
+— `README.md`, the review artifact itself, and historical `reviews/**` rounds —
+and their presence SHALL NOT be a refusal and SHALL NOT be expected in
+`reviewed_artifacts[]`.
+
+An incomplete manifest SHALL be refused even when every declared digest matches:
+a record naming one planning member, or omitting one `specs/**/*.md` delta spec,
+describes a review that did not read the package. A subset rule would accept it,
+which is why the rule is equality.
 
 A `content-sha256` over an arbitrary single package member — a `proposal.md`,
 say — SHALL NOT be accepted as a whole-package reviewed identity: the selected
-path SHALL be the review artifact, and the review block is what carries the
-whole-package claim.
+path SHALL be the review artifact, and the complete accepting record is what
+carries the whole-package claim.
 
 `bundleSha256` continues to bind the complete archived change. It is a
 completion-time computation over the delivered package and SHALL NOT by itself
@@ -1022,10 +1083,10 @@ historical *snapshot*, so it is provable only where a snapshot exists:
 | Claim | Commit-backed reviewed identity | Content-backed reviewed identity |
 | --- | --- | --- |
 | `activeRoot` present, `archiveRoot` absent at the reviewed identity | REQUIRED | not applicable — there is no snapshot to observe |
-| Scoped reviewed tree equals `members[]` paths and bytes | REQUIRED | replaced by the review-witness comparison above |
+| Scoped reviewed tree equals `members[]` paths and bytes | REQUIRED | replaced by the complete accepting review record and planning-set equality above |
 | Reviewed identity differs from `archivedPackageIdentity` | REQUIRED | not applicable — the values are not commits |
 | Commit reachable from current `HEAD` | REQUIRED | not applicable |
-| Review-time paths and digests equal the archived planning members | not required — the tree comparison subsumes it | REQUIRED |
+| Complete accepting v2 record whose manifest EQUALS the planning projection, digests matching | not required — the tree comparison subsumes it | REQUIRED |
 
 Applying a commit-stage presence rule to a content-backed reviewed identity is a
 class error and SHALL be refused as such rather than silently passed or
@@ -1135,11 +1196,13 @@ deliberately selects no stronger archive-internal machine binding.
 
 #### Scenario: A content-classed reviewed identity is not held to commit rules
 
-- **GIVEN** a `content-sha256` `reviewedIdentity` binding the reviewed member
-  bytes and recording the active root as its stage root
+- **GIVEN** a `content-sha256` `reviewedIdentity` naming the accepted review
+  artifact
 - **WHEN** the checker validates ordinary completion
-- **THEN** it applies the member-byte and stage-root rules and SHALL NOT require
-  a distinct commit object, because there is no commit to compare
+- **THEN** it applies the complete accepting v2 record check and the
+  planning-projection equality, and NO reviewed commit-stage presence or absence
+  rule applies — no active-root presence, no archive-root absence, no distinct
+  commit value, and no reachability of `reviewed_commit`
 
 #### Scenario: Machine bindings and human association are distinct
 
@@ -1154,13 +1217,16 @@ deliberately selects no stronger archive-internal machine binding.
 
 #### Scenario: A retrospective archive without a verified package snapshot is not evidence
 
-- **GIVEN** an archive assembled without the required reviewed active-package
-  and archived-package snapshot identities, or a genesis human-disposition
-  record supplied as ordinary post-genesis evidence
+- **GIVEN** an archive assembled without the required archived-package snapshot
+  identity, or without the reviewed evidence its selected form requires — a
+  reviewed active-package snapshot for the commit form, a complete accepting
+  review record for the content form — or a genesis human-disposition record
+  supplied as ordinary post-genesis evidence
 - **WHEN** the checker validates completion
 - **THEN** it refuses the evidence; a later archive commit is valid only when
-  its complete tree is locally verified and equivalent to the reviewed active
-  package, and genesis disposition is never a generic fallback
+  its complete tree is locally verified and equivalent to the reviewed package
+  as that form establishes it, and genesis disposition is never a generic
+  fallback
 
 #### Scenario: Archive paths cannot escape or traverse by symlink
 
@@ -1263,6 +1329,62 @@ under the class rules above.
 - **THEN** it refuses; a single member's digest is not a whole-package reviewed
   identity, and the review block is what carries that claim
 
+#### Scenario: A complete accepting v2 record over the full planning projection is accepted
+
+- **GIVEN** a content-backed `reviewedIdentity` whose review block declares
+  `preimplementation-review-v2`, `governed-spec-driven-v2` and
+  `governed-preimplementation-review-v1`, verdict `ARCHITECTURE_ACCEPTED`, zero
+  unresolved P1 and zero unassigned P2/P3, `invariant_set_changed` false,
+  `authority_allocation_complete` true, well-formed commit shapes, a real
+  non-placeholder instant and reviewer, and a `reviewed_artifacts[]` whose paths
+  EQUAL the archived package's planning projection with every digest matching
+- **WHEN** the checker validates completion
+- **THEN** it accepts, regardless of whether `reviewed_commit` still exists
+
+#### Scenario: A non-accepting review record is refused however well its digests match
+
+- **GIVEN** a review block that is otherwise complete and whose every declared
+  digest matches, but whose `verdict` is `FOCUSED_CLOSURE_REQUIRED` or
+  `ARCHITECTURE_REJECTED`
+- **WHEN** the checker validates completion
+- **THEN** it refuses; digest agreement proves the bytes are the ones the record
+  names, and never converts a non-accepted review into an acceptance
+
+#### Scenario: Unsatisfied acceptance fields are refused individually
+
+- **GIVEN** a review block failing exactly one acceptance field — a nonzero
+  `unresolved_p1_count`, a nonzero `unassigned_p2_p3_count`,
+  `authority_allocation_complete` false, or `invariant_set_changed` true
+- **WHEN** the checker validates completion
+- **THEN** it refuses in each case independently
+
+#### Scenario: A wrong or unsupported review contract, schema, or rubric is refused
+
+- **GIVEN** a review block whose `contract` is not `preimplementation-review-v2`,
+  or whose `schema` or `rubric` is not the supported value, including an older
+  contract version
+- **WHEN** the checker validates completion
+- **THEN** it refuses as an unsupported review contract rather than
+  reinterpreting the block under current rules
+
+#### Scenario: An incomplete planning manifest is refused
+
+- **GIVEN** a `reviewed_artifacts[]` containing only one valid planning member,
+  or omitting one `specs/**/*.md` delta spec, with every declared digest
+  matching
+- **WHEN** the checker validates completion
+- **THEN** it refuses; the manifest SHALL equal the planning projection, because
+  a record that did not read the package is not a review of it
+
+#### Scenario: Archive members outside the planning projection are permitted
+
+- **GIVEN** a `reviewed_artifacts[]` equal to the planning projection while the
+  archive additionally carries `README.md`, the review artifact itself, and
+  historical `reviews/**` rounds
+- **WHEN** the checker validates completion
+- **THEN** it accepts; equality is against the planning projection, and members
+  outside it are neither expected in the manifest nor a refusal
+
 #### Scenario: A completion-time bundle without a review-time witness is refused
 
 - **GIVEN** a completion whose `bundleSha256` is correct but whose review
@@ -1277,9 +1399,10 @@ under the class rules above.
 - **GIVEN** a `reviewed_artifacts[]` entry whose path has no matching member, or
   whose `sha256` disagrees with that member's `contentSha256`
 - **WHEN** the checker validates completion
-- **THEN** it refuses; extra archived members that the review did not read —
-  historical `reviews/**` and the review artifact itself — remain permitted,
-  because the comparison is subset-and-equal, not set equality
+- **THEN** it refuses. The comparison is EQUALITY against the planning
+  projection, so a missing planning member is refused too; archive members
+  outside that projection — `README.md`, historical `reviews/**`, the review
+  artifact itself — are permitted and are not expected in the manifest
 
 #### Scenario: A commit-stage rule against a content identity is a class error
 

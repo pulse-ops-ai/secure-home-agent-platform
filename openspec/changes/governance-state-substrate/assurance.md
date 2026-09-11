@@ -298,7 +298,7 @@ Independent dimensions that materially affect behavior:
 | Delivery lifecycle | Planned · InProgress · Complete · Withdrawn |
 | Completion evidence | valid · missing · opaque · wrong-policy · manufactured |
 | Archived OpenSpec identity | complete active/archive whole-change equivalence · partial · substituted · active · path-invalid · bundle-mismatched |
-| Archived OpenSpec provenance | reviewed active and archive commits locally verifiable · absent · opaque · out-of-scope · byte-mismatched |
+| Archived OpenSpec provenance | archive commit reachable-and-verified · reviewed identity commit-backed (reachable) or content-backed (complete accepting record) · absent · opaque · unreachable · out-of-scope · byte-mismatched · non-accepting record · incomplete planning manifest |
 | Identity class | local-git-commit present · absent · external · content-sha256 |
 | Prerequisite graph | acyclic · cyclic · dangling |
 | Replacement graph / closure | absent · legal · transitive · forked · cyclic · incomplete current closure · historical-reference only |
@@ -555,12 +555,17 @@ refusal to use that genesis path for ordinary post-genesis completion. No
 generic archive or legacy fallback is permitted.
 
 `reviewedIdentity` and `archivedPackageIdentity` are separate supporting
-provenance. For ordinary post-genesis completion both have class
-`local-git-commit`, must exist locally, and must have different commit values.
-The reviewed identity's active-only complete package tree and the
-archived-package identity's archive-only complete package tree must match the
-declared members and bytes as specified above. An opaque, missing, incomplete,
-out-of-scope, wrong-stage, or byte-mismatched identity fails closed. These
+provenance. For ordinary post-genesis completion `archivedPackageIdentity` has
+class `local-git-commit` and `reviewedIdentity` is a closed union of
+`local-git-commit` and `content-sha256`. Every commit-classed nested identity
+must exist AND be reachable from the current `HEAD`, and where both are
+commit-classed their values must differ. The archived-package identity's
+archive-only complete package tree must match the declared members and bytes as
+specified above; the reviewed identity's obligation depends on its form — an
+active-only complete package tree for the commit form, a complete accepting
+`preimplementation-review-v2` record whose manifest equals the planning
+projection for the content form. An opaque, missing, incomplete, out-of-scope,
+wrong-stage, unreachable, or byte-mismatched identity fails closed. These
 checks prove repository bytes and scope, not human reviewer identity, and the
 archived-package identity does not claim first appearance in its commit. The
 completion attestation supplies the causal landing association, including the
@@ -1034,14 +1039,41 @@ rationale is D4.5 and D4.6.
 | Reviewed commit object present only because a PR or branch ref was fetched, not reachable from `HEAD`, no content variant | REFUSE — `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`, never downgraded to the content form |
 | `content-sha256` over one arbitrary package member offered as whole-package review identity | REFUSE |
 | Correct completion-time `bundleSha256` with no durable review-time witness | REFUSE |
+| Complete accepting v2 block + manifest EQUAL to the planning projection + matching digests | ACCEPT |
+| `FOCUSED_CLOSURE_REQUIRED` block with every declared digest matching | REFUSE |
+| `ARCHITECTURE_REJECTED` block with every declared digest matching | REFUSE |
+| Nonzero `unresolved_p1_count`, or nonzero `unassigned_p2_p3_count` | REFUSE (each independently) |
+| `authority_allocation_complete` false, or `invariant_set_changed` true | REFUSE (each independently) |
+| Wrong or unsupported `contract`, `schema`, or `rubric` | REFUSE — unsupported review contract, never reinterpreted |
+| `reviewed_artifacts[]` containing only one valid planning member | REFUSE |
+| `reviewed_artifacts[]` missing one `specs/**/*.md` member | REFUSE |
+| Manifest equals the planning projection while the archive also carries `README.md`, the review artifact and `reviews/**` | ACCEPT |
 | `reviewed_artifacts[]` entry with no matching member, or a digest disagreement | REFUSE |
-| Archived members the review did not read (`reviews/**`, the review artifact itself) | ACCEPT — the comparison is subset-and-equal, not set equality |
 | Commit-stage presence rule asserted against a content-backed reviewed identity | REFUSE as a class error, not passed vacuously or skipped |
 | `archivedPackageIdentity` commit not reachable from current `HEAD` | REFUSE |
 | `archivedPackageIdentity` reachable from `HEAD` with exact archive bytes | ACCEPT |
 
 The fixture SHALL exercise `EX-G29` in both reviewed-identity forms over the
 same archived package, so neither form is proved only by the other's absence.
+
+**What the content form does and does not prove.** Stated so no later reader
+over-reads it. It mechanically proves three things: the archived review artifact
+carries the exact bytes its member digest and `bundleSha256` bind; those bytes
+are a valid ACCEPTING `preimplementation-review-v2` record under the existing
+versioned contract; and that record's COMPLETE reviewed planning manifest equals
+the archived planning bytes.
+
+It does not cryptographically prove who authored the review, that the reviewer
+was independent, or that the unsigned record existed at any particular
+wall-clock instant. Those are procedural and human facts owned by the existing
+review system, exactly as they are for the commit form. Nothing here should be
+read as a stronger claim.
+
+That boundary is deliberate and SHALL NOT be closed by adding signatures,
+network lookups, branch-name authority, another governance field, or a
+feature-ancestry requirement. A machine-verifiable reviewer identity or temporal
+precedence would be a separate trust-root decision, and this change does not
+make it.
 
 **Mutation targets added.** Each must change the subject bytes before its result
 is read:
@@ -1062,7 +1094,13 @@ is read:
   it;
 - accept the content form without comparing `reviewed_artifacts[]` against the
   archived members — the arbitrary-member and digest-disagreement cases must
-  PASS, proving the review witness is load-bearing rather than decorative.
+  PASS, proving the review witness is load-bearing rather than decorative;
+- replace the planning-set EQUALITY with subset acceptance — the
+  one-member and missing-delta-spec cases must then PASS, proving completeness
+  is load-bearing and not an incidental property of the fixture;
+- drop the acceptance-field checks and keep only the contract string — the
+  `FOCUSED_CLOSURE_REQUIRED` and `ARCHITECTURE_REJECTED` cases must then PASS,
+  proving the verdict is what refuses them rather than the block's shape.
 
 ### Provable only by the two-revision history checker (PR-2)
 

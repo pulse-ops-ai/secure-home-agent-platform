@@ -881,6 +881,45 @@ is not. The asymmetry is that fact, not a preference, and making the two
 symmetric for tidiness would either weaken the archive side or add an unused
 alternative to it.
 
+**One semantic owner for the review record.** `preimplementation-review-v2` is a
+contract this repository already defines and enforces, in
+`scripts/openspec-review-gate.mjs`, which owns the contract/schema/rubric
+identity, the acceptance verdict and finding-count rules, the placeholder and
+instant checks, the artifact-entry shape, and `planningPaths()` — the planning
+projection itself. The governance model CONSUMES that owner; PR-1 reuses a
+shared validator or an equivalent single owner rather than keeping a second,
+diverging copy of those rules. The contract string is the schema-version
+discriminator for this use, so no additional version field is introduced.
+
+Two things are deliberately separated. REVIEW-RECORD VALIDITY is what the
+content form consumes, and is decidable from the archived bytes alone.
+HISTORICAL COMMIT AVAILABILITY is what the commit form consumes. The content
+form therefore validates `reviewed_commit` as a shape and never requires that
+object to exist or be reachable, and never reruns the history-dependent portions
+of review verification — the history it would need is precisely the history that
+may be gone, which is why the alternative exists at all.
+
+**Completeness, not containment.** The first draft compared
+`reviewed_artifacts[]` as a subset of the archived members. That accepts a
+record naming one planning file, or omitting a delta spec, so long as the few
+digests it does declare match — a review that never read the package. The
+comparison is therefore EQUALITY against the package's PLANNING PROJECTION:
+`.openspec.yaml`, `proposal.md`, every `specs/**/*.md`, `design.md`,
+`assurance.md`, `tasks.md`. Members outside that projection — `README.md`, the
+review artifact itself, historical `reviews/**` — are legitimate archive content
+and are neither expected in the manifest nor a refusal. On the archived
+TypeScript 7 change that is 9 planning members of 14 archive members, and the
+declared manifest equals the projection exactly.
+
+**What the content form does not prove.** It proves the archived review artifact
+carries its bound bytes, is a valid ACCEPTING v2 record, and carries a complete
+planning manifest matching the archived planning bytes. It does not prove who
+authored the review, that the reviewer was independent, or that an unsigned
+record existed at a particular instant — those are procedural facts owned by the
+existing review system, for the commit form equally. Closing that gap with
+signatures, network lookups, branch-name authority or another governance field
+would be a separate trust-root decision, and is not made here.
+
 **Stage claims follow the form.** Active/archive exclusivity is a claim about a
 snapshot. A commit names a snapshot and is held to it; a content digest names
 bytes and is not. Asserting a commit-stage rule against a content-backed

@@ -442,8 +442,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   commit and nonempty canonical scope; the second requires exactly one
   canonical repository-relative path in `scope[]` and exact-byte hashing. An
   `external-git-commit` is opaque and cannot satisfy completion. The nested
-  `reviewedIdentity` and `archivedPackageIdentity` remain local-git-commit
-  only.
+  `archivedPackageIdentity` remains `local-git-commit` only;
+  `reviewedIdentity` is a closed union of `local-git-commit` and
+  `content-sha256`. The JSON blocks here are EXAMPLES of one valid variant, not
+  the sole closed shape.
 
   The complete `reviewed-spike-evidence-v1` evidence branch is:
 
@@ -592,10 +594,15 @@ PR-1 must not contain — and review has completed on one frozen head.
   `archivedPackageIdentity`. The
   implementation must provide an independent literal golden vector and
   mutation cases for `changeId`, `activeRoot`, `archiveRoot`, every member path,
-  and every member digest. Ordinary post-genesis completion requires locally
-  present `local-git-commit` values for both provenance identities: the reviewed
-  active tree and archived-package snapshot tree must match the complete member
-  set and bytes. Opaque, missing, out-of-scope, or mismatched provenance fails
+  and every member digest. Ordinary post-genesis completion requires an
+  `archivedPackageIdentity` that is a `local-git-commit` reachable from the
+  current `HEAD`, whose archived-package snapshot tree matches the complete
+  member set and bytes, and a `reviewedIdentity` in one of its two forms: a
+  `local-git-commit` reachable from `HEAD` whose reviewed active tree matches
+  that member set and bytes, or a `content-sha256` over the accepted review
+  artifact carrying a complete accepting `preimplementation-review-v2` record
+  whose `reviewed_artifacts[]` EQUALS the planning projection of the archived
+  package with matching digests. Object presence alone is not durability. Opaque, missing, out-of-scope, or mismatched provenance fails
   closed. The archived-package identity does not claim first appearance in its
   commit. This provenance supports, but does not replace, the human completion
   attestation. The completion preimage binds the landing, lifecycle transition,
