@@ -1056,6 +1056,22 @@ rationale is D4.5 and D4.6.
 The fixture SHALL exercise `EX-G29` in both reviewed-identity forms over the
 same archived package, so neither form is proved only by the other's absence.
 
+**The shared review-contract owner is proved shared, not asserted.** The
+extraction of `scripts/openspec-review-contract.mjs` is a refactor of behaviour
+that already exists, so the obligations are regression obligations:
+
+| Case | Expected |
+| --- | --- |
+| The existing OpenSpec review-gate tests, run after the extraction | PASS UNCHANGED — a behavioural difference in the review gate is a defect in the extraction |
+| The governance content-backed witness validated through the shared component | PASS — it carries no record validator of its own |
+| One acceptance rule changed inside the shared component | BOTH consumers change together; if only one does, the owner is not actually shared |
+| `scripts/governance/**` searched for duplicated review-contract constants or tables | none present, asserted by a test rather than assumed |
+
+The third row is the load-bearing one. A component that is imported but whose
+rules are also restated elsewhere satisfies every structural check and still
+leaves two authorities, which is the defect the single-owner requirement exists
+to prevent.
+
 **What the content form does and does not prove.** Stated so no later reader
 over-reads it. It mechanically proves three things: the archived review artifact
 carries the exact bytes its member digest and `bundleSha256` bind; those bytes

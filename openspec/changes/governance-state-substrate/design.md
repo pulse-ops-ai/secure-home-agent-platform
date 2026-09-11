@@ -857,12 +857,14 @@ that carries a claim made BEFORE the delivery existed, so it is what the content
 form rests on.
 
 **It works on the real delivery.** Checked against the archived TypeScript 7
-change: the review block declares nine `reviewed_artifacts`, every one resolves
-to an archived member, and all nine digests match the archived bytes exactly.
-The archive carries fourteen members — the extra five are `README.md`, the
-review artifact itself, and three historical `reviews/**` rounds — so the rule
-is subset-and-equal, not set equality. A rule demanding equality would have
-failed on the first package it was applied to.
+change: the nine `reviewed_artifacts` EQUAL the nine-member planning projection,
+and all nine digests match the archived bytes exactly. That planning projection
+is a proper subset of the fourteen-member archive; the five additional archive
+members — `README.md`, the review artifact itself, and three historical
+`reviews/**` rounds — are valid non-planning members, neither expected in the
+manifest nor a refusal. The normative rule is equality against the planning
+projection, stated in D4.6; the containment here is between the projection and
+the archive, not between the manifest and the projection.
 
 **Durability is reachability, not object presence.** ADR-0021 §7a says a
 `local-git-commit` is "locally verifiable only when its object exists in the
@@ -929,6 +931,58 @@ which would hide that a rule stopped applying. Conversely a recorded commit
 identity that has become unreachable is never downgraded to the content form:
 the form is chosen when the completion is authored, and repairing it at check
 time would let the checker manufacture the evidence it is supposed to verify.
+
+### D4.7. The shared review-contract component, and why the seam has to be named now
+
+D4.6 requires PR-1 to consume `preimplementation-review-v2` through ONE semantic
+owner. Today those semantics are inside `scripts/openspec-review-gate.mjs`,
+while task 2.3 declares `paths=scripts/governance/model/**`. An implementer
+holding only that path can satisfy the design in exactly two ways, and both are
+defects: copy the review rules into the governance model, which is the diverging
+second copy the requirement forbids, or edit a file the task does not own. The
+seam is therefore named in planning rather than discovered during
+implementation.
+
+**The component.** `scripts/openspec-review-contract.mjs` owns the PURE,
+versioned review-record contract and nothing else:
+
+- the `preimplementation-review-v2` constants — contract, schema and rubric
+  identity;
+- `validateReviewRecordShapeAndAcceptance(record)` — the closed gate shape, the
+  acceptance verdict, the finding counts, the invariant and authority flags,
+  the placeholder and real-instant checks, and the `reviewed_artifacts` entry
+  shape;
+- the canonical planning-artifact projection both consumers need.
+
+It deliberately owns NONE of: Git history traversal, review-epoch history, base
+freshness, repository mutation, governance-state semantics, or completion
+semantics. Those stay where they are. Keeping the component pure is what lets
+the governance consumer use it offline, on an archived package, with no history
+available — which is the entire reason the content-backed form exists.
+
+**Both consumers, one implementation.** `scripts/openspec-review-gate.mjs`
+remains the OpenSpec review gate and takes its record and planning semantics
+from the component; it keeps everything history-dependent. The governance-state
+model takes the same component for the content-backed `reviewedIdentity`. There
+is exactly one implementation of the contract/schema/rubric identity, the
+accepted verdict, count and flag semantics, the `reviewed_artifact` entry shape,
+and the planning projection. No constant or table is copied into
+`scripts/governance/**`, and a test asserts that rather than trusting it.
+
+**Why task 2.3 owns the extraction.** Not because it owns review, but because
+reviewed-delivery completion is the thing that consumes the review record. Its
+declared paths widen by exactly the two files the extraction touches, and no
+further; `scripts/**` as a whole is not opened. Task 2.4 is unchanged: it
+remains the governance checker entry point and the rules-free Git/content
+observation adapter.
+
+**The extraction is a refactor, not a change.** The existing review gate's
+behaviour is fixed. PR-1 verification runs the existing review-gate tests after
+the extraction and requires them to pass unchanged; a behavioural difference in
+the review gate is a defect in the extraction, not an accepted consequence of
+it. The shared owner is then proved to be shared, by changing one acceptance
+rule inside it and requiring BOTH consumers to move together — a single owner
+that only one consumer actually reads is the same defect wearing a better name.
 
 ---
 

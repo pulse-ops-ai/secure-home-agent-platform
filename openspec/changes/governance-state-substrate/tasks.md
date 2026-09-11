@@ -188,6 +188,7 @@ implementation reads unambiguously:
 | Owner | Owns |
 | --- | --- |
 | Shared semantic model — task `2.3`, which owns landings, completion policies and evidence | Both `reviewedIdentity` forms and their selection; the stage rules and which form each applies to; commit durability as reachability from `HEAD`; the review-witness comparison; member-byte equality; `bundleSha256` composition; and the derivation that completion reads `delivery.lifecycle` and its evidence — never reviewed planning bytes. |
+| Shared review-contract component — `scripts/openspec-review-contract.mjs`, extracted under task `2.3` | The `preimplementation-review-v2` constants, `validateReviewRecordShapeAndAcceptance(record)`, and the canonical planning-artifact projection. PURE and versioned: no Git history traversal, no review-epoch history, no base freshness, no repository mutation, no governance-state or completion semantics. `scripts/openspec-review-gate.mjs` and the governance model both consume it, so there is exactly ONE implementation of contract/schema/rubric identity, accepted verdict, counts, flags, the `reviewed_artifact` entry shape, and the planning projection. |
 | Rules-free Git/content observation adapter | Root presence and absence, scoped tree observation, blob identity, commit reachability as an OBSERVATION, and real-path containment. It answers what the repository contains and decides nothing: not which identity form is required, not whether an unreachable object is fatal, not whether a stage rule applies. |
 | Current-revision checker entry point — task `2.4` | Wiring the above into the offline checker, refusing an empty required member set, and reporting `COMPLETION_REQUIRES_EXTERNAL_VERIFICATION` when a required identity is not durable — never downgrading a recorded commit identity to the content form. |
 | Verification net — tasks `3.1`–`3.3` | The hostile corpus, property and mutation coverage for all of the above, including `EX-G29` in both reviewed-identity forms over the same archived package. |
@@ -195,7 +196,13 @@ implementation reads unambiguously:
 | External and manual | `MAN-G03` semantic association of an archive with a landing; historical authorization; anything requiring live external verification. |
 
 Task `2.3` keeps the archived-OpenSpec identity contract; task `2.4` keeps the
-checker entry point. Neither task moves. `2.3`'s scope changes only in that
+checker entry point and the rules-free Git/content observation adapter, and is
+otherwise unchanged. Neither task moves. Task `2.3`'s declared paths widen by
+exactly the two files the shared-contract extraction touches —
+`scripts/openspec-review-contract.mjs` and `scripts/openspec-review-gate.mjs` —
+and no further; `scripts/**` as a whole is not opened. It owns the extraction
+not because it owns review, but because reviewed-delivery completion is what
+consumes the review record. Design rationale is D4.7. `2.3`'s scope changes only in that
 `reviewedIdentity` is now a closed two-form union, so its proof obligation gains
 the durability, review-witness, class-error and both-forms cases.
 
@@ -362,7 +369,7 @@ PR-1 must not contain — and review has completed on one frozen head.
     silently false
 
 - [ ] **2.3 Landings, prerequisites, completion policies, and node replacement**
-  <!-- agent-task: 2.3 paths=scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=2.2 -->
+  <!-- agent-task: 2.3 paths=scripts/governance/model/**,scripts/openspec-review-contract.mjs,scripts/openspec-review-gate.mjs checks=node,pytest risk=trust-critical prerequisites=2.2 -->
 
   **Implements** — *Landings carry immutable rule inputs…*; *Completion is an
   identity-bound transition…*; the withdrawal and replacement protocols;
@@ -689,6 +696,38 @@ PR-1 must not contain — and review has completed on one frozen head.
   | malformed or mutually exclusive completion/withdrawal envelopes | fail (`ADV-G67`) |
   | `Withdrawn` counted as satisfying a prerequisite | fail (`ADV-G68`) |
   | any withdrawal-preimage field changed | `withdrawalDigest` changes (`PROP-G10`) |
+
+  **The shared review-contract extraction, and its regression obligation.** The
+  content-backed `reviewedIdentity` consumes `preimplementation-review-v2`, and
+  the specification requires exactly ONE semantic owner for it. Those semantics
+  live today in `scripts/openspec-review-gate.mjs`, so this task extracts the
+  pure, versioned part into `scripts/openspec-review-contract.mjs`:
+
+  | Owned by the shared component | Explicitly NOT owned by it |
+  |---|---|
+  | `preimplementation-review-v2` contract, schema and rubric constants | Git history traversal |
+  | `validateReviewRecordShapeAndAcceptance(record)` — closed gate shape, acceptance verdict, finding counts, invariant and authority flags, placeholder and real-instant checks, `reviewed_artifacts` entry shape | review-epoch history; base freshness |
+  | the canonical planning-artifact projection | repository mutation |
+  | — | governance-state or completion semantics |
+
+  `scripts/openspec-review-gate.mjs` remains the OpenSpec review gate and
+  consumes the component for its record and planning semantics, keeping
+  everything history-dependent. The governance model consumes the same component
+  for the content-backed reviewed identity, which is what lets it run offline
+  over an archived package with no history available.
+
+  This is a REFACTOR of existing behaviour, not a change to it. Verification
+  SHALL prove:
+
+  | Obligation | Outcome |
+  |---|---|
+  | run the existing OpenSpec review-gate tests after the extraction | pass UNCHANGED; a behavioural difference in the review gate is a defect in the extraction, not an accepted consequence |
+  | the governance content-backed witness validates through the same component | pass; it does not carry its own record validator |
+  | change one acceptance rule inside the shared component | BOTH consumers move together; a single owner only one consumer reads is the same defect renamed |
+  | search `scripts/governance/**` for duplicated review-contract constants or tables | none present — asserted by a test, not assumed |
+
+  `tests/test_openspec_review_gate.py` need not change unless the extraction
+  itself requires a test adaptation; running it is mandatory either way.
 
 - [ ] **2.4 Current-revision checker entry point**
   <!-- agent-task: 2.4 paths=scripts/check-governance-state.mjs,scripts/governance/git-tree/** checks=node,pytest risk=trust-critical prerequisites=2.3 -->
