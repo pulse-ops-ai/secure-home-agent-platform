@@ -377,4 +377,18 @@ export function isCanonicalStateText(text, value) {
   return text === canonicalSerialize(value)
 }
 
+/**
+ * The canonical form is a BYTE contract, so it is checked on bytes.
+ *
+ * `TextDecoder` strips a leading U+FEFF before anything downstream sees it, so
+ * a BOM-prefixed document decoded to exactly the canonical text and passed —
+ * while its bytes were not the canonical bytes. Comparing the original bytes
+ * against the UTF-8 encoding of the canonical serialization closes that,
+ * without weakening strict decoding.
+ */
+export function isCanonicalStateBytes(bytes, value) {
+  const expected = Buffer.from(canonicalSerialize(value), 'utf8')
+  return Buffer.compare(Buffer.from(bytes), expected) === 0
+}
+
 export { hasOwn, isObject }

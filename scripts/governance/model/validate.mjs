@@ -3,6 +3,7 @@ import {
   canonicalizeValue,
   decodeUtf8,
   hasOwn,
+  isCanonicalStateBytes,
   isCanonicalStateText,
   isObject,
   parseStrictJson,
@@ -21,6 +22,7 @@ import {
   withdrawalDigest,
 } from './digests.mjs'
 import { validateArchivedOpenSpec } from './archived-openspec.mjs'
+import { canonicalPathSetProblems } from './paths.mjs'
 
 const ADR_LIFECYCLES = new Set(['Proposed', 'Accepted', 'Superseded', 'Rejected'])
 const DELIVERY_LIFECYCLES = new Set(['Planned', 'InProgress', 'Complete', 'Withdrawn'])
@@ -96,6 +98,33 @@ const EVIDENCE_FIELDS = [
   'decisionIdentity',
   'authorityAnchor',
 ]
+/**
+ * Exactly the fields each policy branch owns.
+ *
+ * `EVIDENCE_FIELDS` remains only as the fallback for an unknown policy, which
+ * is itself refused elsewhere; it is not a compatibility path.
+ */
+const POLICY_EVIDENCE_FIELDS = {
+  'reviewed-delivery-v1': [
+    'type',
+    'deliveredIdentity',
+    'policyEvidenceIdentities',
+    'archivedOpenSpec',
+  ],
+  'reviewed-spike-evidence-v1': [
+    'type',
+    'deliveredIdentity',
+    'policyEvidenceIdentities',
+    'noOpenSpec',
+    'evidenceRoot',
+    'manifest',
+    'findings',
+    'mergedPullRequest',
+    'mergedCommit',
+  ],
+  withdrawal: ['type', 'decisionIdentity', 'contentDigest', 'authorityAnchor'],
+}
+
 const DELIVERY_FIELDS = ['lifecycle', 'completionPolicy', 'completion', 'withdrawal']
 const COMPLETION_FIELDS = ['from', 'to', 'digest', 'evidence', 'attestation']
 const WITHDRAWAL_FIELDS = ['from', 'to', 'digest', 'evidence', 'attestation']
@@ -169,7 +198,25 @@ function nonEmptyString(value, path, problems, code = 'ADV-G02') {
   return true
 }
 
+/**
+ * A RegExp coerces its argument, so `DATE.test(["2026-08-30"])` is TRUE.
+ *
+ * That made a wrong JSON type look like a well-formed value, and the next line
+ * — `value.split('-')` — threw a TypeError out of the checker instead of
+ * recording a refusal. A crash is not a verdict: it exits nonzero with no
+ * problem list, which is indistinguishable from a tooling failure. Type first,
+ * then pattern.
+ */
+function requireText(value, path, problems, code = 'ADV-G02') {
+  if (typeof value !== 'string') {
+    addProblem(problems, code, path, 'must be a string')
+    return false
+  }
+  return true
+}
+
 function validDate(value, path, problems) {
+  if (!requireText(value, path, problems)) return false
   if (!DATE.test(value)) {
     addProblem(problems, 'ADV-G02', path, 'must be an ISO calendar date')
     return false
@@ -189,6 +236,7 @@ function validDate(value, path, problems) {
 }
 
 function validTimestamp(value, path, problems) {
+  if (!requireText(value, path, problems)) return false
   if (!RFC3339.test(value)) {
     addProblem(problems, 'ADV-G02', path, 'must be an RFC 3339 UTC timestamp')
     return false
@@ -251,7 +299,37 @@ function headerPreamble(text) {
   return separator === -1 ? text : text.slice(0, separator)
 }
 
+/**
+ * A relationship LABEL present in a shape this parser does not support.
+ *
+ * The parser reads the structural form the repository authors. A plain
+ * `Closes: U4` line is not that form, so it parsed to nothing — and "nothing"
+ * is exactly what an empty registry relation looks like, so a header claiming
+ * a relationship the registry omits compared equal and passed. An unsupported
+ * claim must be a refusal, never silence.
+ */
+function unparseableRelationshipClaims(text, labels) {
+  const supported = new RegExp('^- \\*\\*(' + labels.join('|') + '):\\*\\*\\s', 'u')
+  const anyClaim = new RegExp('^\\s*[-*]?\\s*\\**(' + labels.join('|') + ')\\**\\s*:', 'iu')
+  const found = []
+  for (const line of headerPreamble(text).split('\n')) {
+    if (!anyClaim.test(line)) continue
+    if (supported.test(line)) continue
+    found.push(line.trim())
+  }
+  return found
+}
+
 function parseHeaderRelationship(text, labels, expression, path, problems) {
+  for (const claim of unparseableRelationshipClaims(text, labels)) {
+    addProblem(
+      problems,
+      'ADV-G14',
+      path,
+      `the header carries a relationship claim this parser cannot read structurally, so it ` +
+        `cannot be compared with the registry: ${claim}`,
+    )
+  }
   const pattern = new RegExp('^- \\*\\*(' + labels.join('|') + '):\\*\\*\\s*(.*)$', 'gmu')
   const values = new Set()
   for (const match of headerPreamble(text).matchAll(pattern)) {
@@ -374,9 +452,12 @@ function validateIdentity(value, path, problems, options = {}) {
     )
   }
   if (hasOwn(value, 'scope')) {
-    validateSet(value.scope, path + '.scope', problems, (member, memberPath, memberProblems) =>
-      validRepoPath(member, memberPath, memberProblems),
-    )
+    // One owner for canonical path sets, shared with the archived-OpenSpec
+    // identity so a scope cannot mean different things in different records.
+    const scopeProblems = canonicalPathSetProblems(value.scope)
+    if (scopeProblems.length > 0) {
+      addProblem(problems, 'ADV-G12', path + '.scope', scopeProblems.join('; '))
+    }
   } else if (options.requireScope) {
     addProblem(problems, 'ADV-G26', path + '.scope', 'delivery identity must bind a declared scope')
   }
@@ -544,7 +625,7 @@ function verifyHeader(adr, path, problems, context) {
   return true
 }
 
-function verifyIdentity(value, path, problems, context) {
+function verifyIdentity(value, path, problems, context, { requireScopedProof = false } = {}) {
   if (!value || typeof value !== 'object') return
   if (value.class === 'local-git-commit') {
     if (!context?.hasLocalGitObject || !context.hasLocalGitObject(value.value)) {
@@ -554,6 +635,29 @@ function verifyIdentity(value, path, problems, context) {
         path,
         'local Git object is absent; completion requires external verification',
       )
+      return
+    }
+    // OBJECT EXISTENCE IS NOT SCOPED PROOF.
+    //
+    // A commit that exists proves only that some commit exists. Where the
+    // policy binds a scope, the scope has to actually resolve IN that commit —
+    // otherwise any unrelated commit paired with any path satisfied the
+    // evidence, which is exactly the shape an author would reach for.
+    if (requireScopedProof && Array.isArray(value.scope) && context?.observe) {
+      for (const member of value.scope) {
+        const seen = context.observe.pathExistsAt(value.value, member)
+        if (seen === 'PRESENT') continue
+        addProblem(
+          problems,
+          'ADV-G33',
+          path + '.scope',
+          seen === 'OBSERVATION_ERROR'
+            ? `the scope "${member}" could not be observed at the bound commit; an unanswered ` +
+                'repository question is a refusal'
+            : `the scope "${member}" does not exist at the bound commit, so the identity proves ` +
+                'nothing about the delivered bytes',
+        )
+      }
     }
   }
   if (
@@ -574,15 +678,27 @@ function validateEvidence(value, path, problems, context, policy) {
         ? 'ADV-G27'
         : 'ADV-G26'
   if (!requireObject(value, path, problems, evidenceCode)) return false
-  checkFields(value, EVIDENCE_FIELDS, path, problems)
+  // CLOSED PER POLICY, not one broad union.
+  //
+  // A single union of every branch's fields let a reviewed delivery carry spike
+  // fields and vice versa, and accepted a legacy `reviewed-delivery` alias for
+  // the discriminator. Each policy now enumerates exactly its own fields, so a
+  // field belonging to another branch is an unknown field rather than an
+  // ignored one.
+  checkFields(value, POLICY_EVIDENCE_FIELDS[policy] ?? EVIDENCE_FIELDS, path, problems)
   if (typeof value.type !== 'string') {
     addProblem(problems, 'ADV-G30', path + '.type', 'evidence type is required')
     return false
   }
 
   if (policy === 'reviewed-delivery-v1') {
-    if (!['reviewed-delivery', 'reviewed-delivery-v1'].includes(value.type)) {
-      addProblem(problems, 'ADV-G30', path + '.type', 'does not match reviewed-delivery-v1')
+    if (value.type !== 'reviewed-delivery-v1') {
+      addProblem(
+        problems,
+        'ADV-G30',
+        path + '.type',
+        'must be exactly reviewed-delivery-v1; the legacy alias is not a compatibility path',
+      )
     }
     if (
       !validateIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, {
@@ -591,14 +707,16 @@ function validateEvidence(value, path, problems, context, policy) {
       })
     )
       return false
-    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context)
+    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context, {
+      requireScopedProof: true,
+    })
     validateSet(
       value.policyEvidenceIdentities,
       path + '.policyEvidenceIdentities',
       problems,
       (member, memberPath, memberProblems) => {
         validateIdentity(member, memberPath, memberProblems)
-        verifyIdentity(member, memberPath, memberProblems, context)
+        verifyIdentity(member, memberPath, memberProblems, context, { requireScopedProof: true })
       },
     )
     // The whole child change, not a single artifact. A `{path, contentDigest}`
@@ -610,8 +728,13 @@ function validateEvidence(value, path, problems, context, policy) {
   }
 
   if (policy === 'reviewed-spike-evidence-v1') {
-    if (!['reviewed-spike-evidence', 'reviewed-spike-evidence-v1'].includes(value.type)) {
-      addProblem(problems, 'ADV-G30', path + '.type', 'does not match reviewed-spike-evidence-v1')
+    if (value.type !== 'reviewed-spike-evidence-v1') {
+      addProblem(
+        problems,
+        'ADV-G30',
+        path + '.type',
+        'must be exactly reviewed-spike-evidence-v1; the legacy alias is not a compatibility path',
+      )
     }
     if (
       !validateIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, {
@@ -619,14 +742,16 @@ function validateEvidence(value, path, problems, context, policy) {
       })
     )
       return false
-    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context)
+    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context, {
+      requireScopedProof: true,
+    })
     validateSet(
       value.policyEvidenceIdentities,
       path + '.policyEvidenceIdentities',
       problems,
       (member, memberPath, memberProblems) => {
         validateIdentity(member, memberPath, memberProblems)
-        verifyIdentity(member, memberPath, memberProblems, context)
+        verifyIdentity(member, memberPath, memberProblems, context, { requireScopedProof: true })
       },
     )
     for (const field of [
@@ -665,7 +790,9 @@ function validateEvidence(value, path, problems, context, policy) {
     validateTypedAnchor(value.mergedPullRequest, path + '.mergedPullRequest', problems)
     validateIdentity(value.mergedCommit, path + '.mergedCommit', problems, { requireScope: true })
     if (value.mergedCommit)
-      verifyIdentity(value.mergedCommit, path + '.mergedCommit', problems, context)
+      verifyIdentity(value.mergedCommit, path + '.mergedCommit', problems, context, {
+        requireScopedProof: true,
+      })
     return true
   }
 
@@ -863,11 +990,23 @@ function validateDelivery(value, path, problems, context, landing) {
     return
   }
   if (value.lifecycle === 'Complete') {
-    if (
-      value.withdrawal !== null ||
-      !requireObject(value.completion, path + '.completion', problems, 'ADV-G26')
-    )
+    // EXCLUSIVITY IS A REFUSAL, NOT A REASON TO STOP LOOKING.
+    //
+    // This used to `return` the moment a withdrawal envelope was present,
+    // adding nothing — so `Complete` carrying both envelopes produced no
+    // problem at all, and the landing went on to satisfy a prerequisite. An
+    // early return that records nothing is indistinguishable from acceptance.
+    if (value.withdrawal !== null) {
+      addProblem(
+        problems,
+        'ADV-G67',
+        path + '.withdrawal',
+        'a Complete landing SHALL carry no withdrawal envelope; completion and withdrawal are ' +
+          'mutually exclusive',
+      )
       return
+    }
+    if (!requireObject(value.completion, path + '.completion', problems, 'ADV-G26')) return
     checkFields(value.completion, COMPLETION_FIELDS, path + '.completion', problems)
     requiredFields(value.completion, COMPLETION_FIELDS, path + '.completion', problems)
     if (value.completion.from !== 'Planned' && value.completion.from !== 'InProgress') {
@@ -915,11 +1054,17 @@ function validateDelivery(value, path, problems, context, landing) {
     return
   }
   if (value.lifecycle === 'Withdrawn') {
-    if (
-      value.completion !== null ||
-      !requireObject(value.withdrawal, path + '.withdrawal', problems, 'ADV-G67')
-    )
+    if (value.completion !== null) {
+      addProblem(
+        problems,
+        'ADV-G67',
+        path + '.completion',
+        'a Withdrawn landing SHALL carry no completion envelope; completion and withdrawal are ' +
+          'mutually exclusive',
+      )
       return
+    }
+    if (!requireObject(value.withdrawal, path + '.withdrawal', problems, 'ADV-G67')) return
     checkFields(value.withdrawal, WITHDRAWAL_FIELDS, path + '.withdrawal', problems)
     requiredFields(value.withdrawal, WITHDRAWAL_FIELDS, path + '.withdrawal', problems)
     if (value.withdrawal.from !== 'Planned' && value.withdrawal.from !== 'InProgress') {
@@ -1215,7 +1360,18 @@ function validateAdrRelationships(state, problems) {
   }
 }
 
-function checkCanonical(stateText, state, problems) {
+function checkCanonical(stateText, state, problems, stateBytes) {
+  // Bytes when the caller has them: a BOM survives the byte comparison and
+  // vanishes from the decoded text, so a text-only check cannot see it.
+  if (stateBytes !== undefined && !isCanonicalStateBytes(stateBytes, state)) {
+    addProblem(
+      problems,
+      'ADV-G03',
+      '$',
+      'state bytes are not the deterministic canonical serialization',
+    )
+    return
+  }
   if (!isCanonicalStateText(stateText, state)) {
     addProblem(
       problems,
@@ -1229,7 +1385,15 @@ function checkCanonical(stateText, state, problems) {
 function deriveQuestions(state, problems) {
   const questions = Object.create(null)
   for (const question of state.questions ?? []) {
-    questions[question.id] = { id: question.id, resolved: false, resolver: null }
+    questions[question.id] = {
+      id: question.id,
+      resolved: false,
+      resolver: null,
+      // The contract's resolution scenario requires the resolver AND its
+      // acceptance date, so the date is part of the derived answer rather than
+      // something a consumer has to go and look up.
+      resolvedAt: null,
+    }
   }
   const resolvers = Object.create(null)
   for (const adr of state.adrs ?? []) {
@@ -1252,13 +1416,14 @@ function deriveQuestions(state, problems) {
           'multiple current accepted resolvers exist for ' + questionId,
         )
       }
-      resolvers[questionId] = adr.id
+      resolvers[questionId] = { id: adr.id, at: adr.acceptance?.at ?? null }
     }
   }
   for (const question of Object.values(questions)) {
     if (resolvers[question.id]) {
       question.resolved = true
-      question.resolver = resolvers[question.id]
+      question.resolver = resolvers[question.id].id
+      question.resolvedAt = resolvers[question.id].at
     }
   }
   return questions
@@ -1530,7 +1695,7 @@ export function evaluateState(stateText, context = {}) {
     }
     return { ok: false, problems }
   }
-  checkCanonical(stateText, state, problems)
+  checkCanonical(stateText, state, problems, context.stateBytes)
   validateTopLevel(state, problems, context)
   if (isObject(state)) validateAdrRelationships(state, problems)
   if (problems.length > 0)

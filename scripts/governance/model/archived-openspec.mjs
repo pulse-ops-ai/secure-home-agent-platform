@@ -25,6 +25,8 @@
  * construction.
  */
 import { canonicalSerialize } from './canonical.mjs'
+import { ABSENT, OBSERVATION_ERROR, PRESENT } from '../git-tree/index.mjs'
+import { canonicalPathSetProblems } from './paths.mjs'
 import { sha256Bytes, sha256Text, isSha256 } from './digests.mjs'
 import {
   CONTRACT as REVIEW_CONTRACT,
@@ -107,10 +109,16 @@ export function bundlePreimage(archived) {
     changeId: archived.changeId,
     activeRoot: archived.activeRoot,
     archiveRoot: archived.archiveRoot,
-    members: archived.members.map((member) => ({
-      path: member.path,
-      contentSha256: member.contentSha256,
-    })),
+    // A completion-envelope ENTITY SET keyed by path: the same logical member
+    // set must produce the same bundle identity whatever order it was authored
+    // in. Digesting the authored order made the identity order-sensitive, which
+    // turns a presentational difference into a different delivery.
+    members: [...archived.members]
+      .sort((left, right) => compareUtf8(left.path, right.path))
+      .map((member) => ({
+        path: member.path,
+        contentSha256: member.contentSha256,
+      })),
   }
 }
 
@@ -119,9 +127,9 @@ export function bundleSha256(archived) {
 }
 
 /** An observed tree reduced to the manifest shape, refusing non-regular modes. */
-function observedMembers(tree, path, problems, code, label) {
+function observedMembers(entries, path, problems, code, label) {
   const members = []
-  for (const [relative, entry] of [...tree.entries()].sort((a, b) => compareUtf8(a[0], b[0]))) {
+  for (const [relative, entry] of [...entries.entries()].sort((a, b) => compareUtf8(a[0], b[0]))) {
     if (entry.mode !== REGULAR_MODE) {
       add(
         problems,
@@ -139,6 +147,27 @@ function observedMembers(tree, path, problems, code, label) {
     members.push({ path: relative, contentSha256: entry.sha256 })
   }
   return members
+}
+
+/**
+ * Turn a tri-state observation into a decision, refusing on ERROR.
+ *
+ * The model, not the adapter, decides that an unanswerable question is fatal —
+ * and it must be, because several rules REQUIRE an absence and an unobserved
+ * path would otherwise satisfy them by default.
+ */
+function observed(status, expectation, path, problems, what) {
+  if (status === OBSERVATION_ERROR) {
+    add(
+      problems,
+      'ADV-G81',
+      path,
+      `${what} could not be observed; an unanswered repository question is a refusal, never a ` +
+        'satisfied absence',
+    )
+    return false
+  }
+  return status === expectation
 }
 
 const sameMembers = (left, right) =>
@@ -193,12 +222,43 @@ function verifyContentReviewedIdentity(archived, identity, path, problems, conte
   // EXACT BYTES. Hashing a decoded round trip would make two files with the
   // same text but different encodings compare equal, and the whole point of a
   // content identity is that it is the bytes.
-  if (sha256Bytes(bytes) !== identity.value) {
+  const actual = sha256Bytes(bytes)
+  if (actual !== identity.value) {
     return add(
       problems,
       'ADV-G81',
       path + '.value',
       'the identity value is not the SHA-256 of the review artifact bytes',
+    )
+  }
+
+  // ...AND THOSE BYTES ARE THE DECLARED MEMBER'S BYTES.
+  //
+  // Without this the two halves of the evidence could describe different files:
+  // the member manifest (and every tree observation) proves artifact A, while
+  // the identity is the digest of whatever the read returned — B. Both halves
+  // pass, and the accepting record validated is the one the archive does not
+  // contain. The chain has to close:
+  //
+  //   identity.value == SHA256(read bytes) == members[review file].contentSha256
+  //
+  // and the observations below bind that member digest to the repository.
+  const declaredReview = archived.members.find((member) => member.path === REVIEW_FILE)
+  if (declaredReview === undefined) {
+    return add(
+      problems,
+      'ADV-G81',
+      path,
+      `the package declares no ${REVIEW_FILE} member, so there is no reviewed record to bind`,
+    )
+  }
+  if (declaredReview.contentSha256 !== actual) {
+    return add(
+      problems,
+      'ADV-G81',
+      path + '.value',
+      `the reviewed record's bytes are not the declared ${REVIEW_FILE} member: identity ` +
+        `${actual.slice(0, 12)} vs member ${declaredReview.contentSha256.slice(0, 12)}`,
     )
   }
 
@@ -293,7 +353,9 @@ function verifyCommitReviewedIdentity(archived, identity, path, problems, contex
     return add(problems, 'ADV-G81', path, 'repository observations are unavailable')
   }
 
-  if (!observe.commitExists(identity.value)) {
+  if (
+    !observed(observe.commitExists(identity.value), PRESENT, path, problems, 'the reviewed commit')
+  ) {
     return add(
       problems,
       'ADV-G81',
@@ -301,7 +363,7 @@ function verifyCommitReviewedIdentity(archived, identity, path, problems, contex
       'the reviewed commit object is absent; completion requires external verification',
     )
   }
-  if (!observe.isReachable(identity.value)) {
+  if (!observed(observe.isReachable(identity.value), PRESENT, path, problems, 'reachability')) {
     return add(
       problems,
       'ADV-G81',
@@ -321,29 +383,47 @@ function verifyCommitReviewedIdentity(archived, identity, path, problems, contex
   }
 
   // Stage exclusivity, which only a snapshot can answer.
-  if (!observe.pathExistsAt(identity.value, archived.activeRoot)) {
-    return add(problems, 'ADV-G85', path, 'the active root is absent at the reviewed snapshot')
+  const activeAt = observe.pathExistsAt(identity.value, archived.activeRoot)
+  if (!observed(activeAt, PRESENT, path, problems, 'the active root at the reviewed snapshot')) {
+    return activeAt === OBSERVATION_ERROR
+      ? false
+      : add(problems, 'ADV-G85', path, 'the active root is absent at the reviewed snapshot')
   }
-  if (observe.pathExistsAt(identity.value, archived.archiveRoot)) {
-    return add(
-      problems,
-      'ADV-G85',
-      path,
-      'the archive root exists at the reviewed snapshot; reviewed is active-only',
-    )
+  const archiveAt = observe.pathExistsAt(identity.value, archived.archiveRoot)
+  if (!observed(archiveAt, ABSENT, path, problems, 'the archive root at the reviewed snapshot')) {
+    return archiveAt === OBSERVATION_ERROR
+      ? false
+      : add(
+          problems,
+          'ADV-G85',
+          path,
+          'the archive root exists at the reviewed snapshot; reviewed is active-only',
+        )
   }
 
   const tree = observe.treeAt(identity.value, archived.activeRoot)
-  if (tree === undefined) {
-    return add(problems, 'ADV-G85', path, 'the reviewed active tree could not be observed')
-  }
-  const observed = observedMembers(tree, path, problems, 'ADV-G85', 'reviewed active tree')
-  if (!sameMembers(observed, archived.members)) {
+  if (tree.status !== PRESENT) {
     return add(
       problems,
       'ADV-G85',
       path,
-      `the reviewed active tree does not match the declared members: observed ${describe(observed)}`,
+      `the reviewed active tree could not be observed (${tree.status})`,
+    )
+  }
+  const seenMembers = observedMembers(
+    tree.entries,
+    path,
+    problems,
+    'ADV-G85',
+    'reviewed active tree',
+  )
+  if (!sameMembers(seenMembers, archived.members)) {
+    return add(
+      problems,
+      'ADV-G85',
+      path,
+      'the reviewed active tree does not match the declared members: observed ' +
+        describe(seenMembers),
     )
   }
   return true
@@ -438,12 +518,21 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
       )
     }
   }
-  if (deltaSpecPaths([...seen]).length === 0) {
+  // Two different questions, deliberately not merged:
+  //   the review PLANNING PROJECTION covers every specs/**/*.md;
+  //   the minimum PACKAGE requires at least one specs/**/spec.md.
+  // A package carrying only `specs/foo/notes.md` has a planning projection and
+  // no delta spec, and used to qualify because the projection was reused as the
+  // membership test.
+  const deltaSpecs = [...seen].filter(
+    (member) => member.startsWith('specs/') && member.endsWith('/spec.md'),
+  )
+  if (deltaSpecs.length === 0) {
     return add(
       problems,
       'ADV-G78',
       path + '.members',
-      'the minimum OpenSpec package structure requires at least one specs/**/*.md',
+      'the minimum OpenSpec package structure requires at least one specs/**/spec.md',
     )
   }
 
@@ -474,7 +563,15 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
     ) {
       return false
     }
-    if (!Array.isArray(identity.scope) || identity.scope.length === 0) {
+    // The SHARED canonical-path-set rule, not a second opinion. This used to
+    // check only "non-empty array", so traversal, absolute paths, duplicates
+    // and non-strings reached the observation layer through the nested
+    // identities while every other scope in the registry refused them.
+    const scopeProblems = canonicalPathSetProblems(identity.scope)
+    if (scopeProblems.length > 0) {
+      return add(problems, 'ADV-G84', `${path}.${name}.scope`, scopeProblems.join('; '))
+    }
+    if (identity.scope.length === 0) {
       return add(
         problems,
         'ADV-G81',
@@ -513,7 +610,15 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
   }
 
   // ── the archived package, and the current snapshot ──────────────────────
-  if (!observe.commitExists(archivedPkg.value)) {
+  if (
+    !observed(
+      observe.commitExists(archivedPkg.value),
+      PRESENT,
+      path + '.archivedPackageIdentity',
+      problems,
+      'the archived-package commit',
+    )
+  ) {
     return add(
       problems,
       'ADV-G81',
@@ -521,7 +626,15 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
       'the archived-package commit object is absent',
     )
   }
-  if (!observe.isReachable(archivedPkg.value)) {
+  if (
+    !observed(
+      observe.isReachable(archivedPkg.value),
+      PRESENT,
+      path + '.archivedPackageIdentity',
+      problems,
+      'archived-package reachability',
+    )
+  ) {
     return add(
       problems,
       'ADV-G81',
@@ -530,28 +643,56 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
         'expected to have landed durably, so this is a refusal rather than object presence',
     )
   }
-  if (!observe.pathExistsAt(archivedPkg.value, value.archiveRoot)) {
-    return add(
-      problems,
-      'ADV-G85',
+
+  const archiveAtSnapshot = observe.pathExistsAt(archivedPkg.value, value.archiveRoot)
+  if (
+    !observed(
+      archiveAtSnapshot,
+      PRESENT,
       path + '.archivedPackageIdentity',
-      'the archive root is absent at the archived-package snapshot',
+      problems,
+      'the archive root at the archived snapshot',
     )
+  ) {
+    return archiveAtSnapshot === OBSERVATION_ERROR
+      ? false
+      : add(
+          problems,
+          'ADV-G85',
+          path + '.archivedPackageIdentity',
+          'the archive root is absent at the archived-package snapshot',
+        )
   }
-  if (observe.pathExistsAt(archivedPkg.value, value.activeRoot)) {
-    return add(
-      problems,
-      'ADV-G85',
+  const activeAtSnapshot = observe.pathExistsAt(archivedPkg.value, value.activeRoot)
+  if (
+    !observed(
+      activeAtSnapshot,
+      ABSENT,
       path + '.archivedPackageIdentity',
-      'the active root survives at the archived-package snapshot; archived is archive-only',
+      problems,
+      'the active root at the archived snapshot',
     )
+  ) {
+    return activeAtSnapshot === OBSERVATION_ERROR
+      ? false
+      : add(
+          problems,
+          'ADV-G85',
+          path + '.archivedPackageIdentity',
+          'the active root survives at the archived-package snapshot; archived is archive-only',
+        )
   }
   const archivedTree = observe.treeAt(archivedPkg.value, value.archiveRoot)
-  if (archivedTree === undefined) {
-    return add(problems, 'ADV-G85', path, 'the archived-package tree could not be observed')
+  if (archivedTree.status !== PRESENT) {
+    return add(
+      problems,
+      'ADV-G85',
+      path,
+      `the archived-package tree could not be observed (${archivedTree.status})`,
+    )
   }
   const archivedObserved = observedMembers(
-    archivedTree,
+    archivedTree.entries,
     path,
     problems,
     'ADV-G85',
@@ -567,31 +708,55 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
     )
   }
 
-  if (observe.currentPathExists(value.activeRoot)) {
+  // ── the CURRENT CHECKOUT, which a Git-tree observation cannot see ───────
+  //
+  // `ls-tree` answers what a COMMIT contains. A member edited in the working
+  // tree, a member deleted from it, or an extra file dropped beside the archive
+  // are all invisible there — and the contract's current-snapshot rules are
+  // about what is on disk now. Both observations are required: the Git one
+  // proves the snapshot, this one proves the checkout the checker is running
+  // against actually matches it.
+  if (!context?.checkout) {
+    return add(problems, 'ADV-G85', path, 'the current checkout cannot be observed')
+  }
+  let checkoutActive
+  let checkoutEntries
+  try {
+    checkoutActive = context.checkout.pathExists(value.activeRoot)
+    checkoutEntries = context.checkout.tree(value.archiveRoot)
+  } catch (error) {
+    // A containment violation is a refusal, never an absence.
+    return add(
+      problems,
+      'ADV-G84',
+      path,
+      `the current checkout is unsafe to read: ${error.message}`,
+    )
+  }
+  if (checkoutActive) {
     return add(
       problems,
       'ADV-G85',
       path,
-      'the active package still exists in the current snapshot; the archive must replace it',
+      'the active package still exists in the current checkout; the archive must replace it',
     )
   }
-  const currentTree = observe.currentTree(value.archiveRoot)
-  if (currentTree === undefined) {
-    return add(problems, 'ADV-G85', path, 'the archive root is absent in the current snapshot')
+  if (checkoutEntries === undefined) {
+    return add(problems, 'ADV-G85', path, 'the archive root is absent in the current checkout')
   }
   const currentObserved = observedMembers(
-    currentTree,
+    checkoutEntries,
     path,
     problems,
     'ADV-G85',
-    'current archive tree',
+    'current checkout',
   )
   if (!sameMembers(currentObserved, value.members)) {
     return add(
       problems,
       'ADV-G85',
       path,
-      'the current archive tree does not match the declared members: observed ' +
+      'the current checkout does not match the declared members: observed ' +
         describe(currentObserved),
     )
   }

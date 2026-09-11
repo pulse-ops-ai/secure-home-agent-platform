@@ -52,6 +52,18 @@ export const GATE_FIELDS = [
 export const PLANNING_PREFIX = ['.openspec.yaml', 'proposal.md']
 export const PLANNING_SUFFIX = ['design.md', 'assurance.md', 'tasks.md']
 
+/**
+ * `path.isAbsolute` semantics, without importing `node:path` into a pure module.
+ *
+ * Platform-identical to what the gate did before the extraction: on POSIX only
+ * a leading `/` is absolute. Reproducing it exactly is the point — see the
+ * artifact-path check below.
+ */
+const isAbsolutePath = (value) =>
+  process.platform === 'win32'
+    ? /^(?:[A-Za-z]:)?[\\/]/.test(value) || /^\\\\/.test(value)
+    : value.startsWith('/')
+
 export class ReviewContractError extends Error {
   constructor(code, message) {
     super(message)
@@ -267,9 +279,15 @@ export function validateReviewRecordShapeAndAcceptance(gate) {
     assertExactKeys(artifact, ['path', 'sha256'], `reviewed_artifacts[${index}]`)
     assertString(artifact.path, `reviewed_artifacts[${index}].path`)
 
+    // EXACTLY the pre-extraction predicate, including its platform behaviour.
+    // The extraction was required to preserve the gate's answers, and adding a
+    // Windows-drive test here changed one: on POSIX `path.isAbsolute('C:/x')`
+    // is false, so such a path used to fall through to the manifest comparison
+    // and surface as ARTIFACT_SET_DRIFT. Tightening it silently turned that
+    // into INVALID_ARTIFACT_PATH — stricter, and still a behaviour change this
+    // refactor had no authority to make.
     if (
-      artifact.path.startsWith('/') ||
-      /^[A-Za-z]:[\\/]/.test(artifact.path) ||
+      isAbsolutePath(artifact.path) ||
       artifact.path.includes('\\') ||
       artifact.path.split('/').includes('..') ||
       artifact.path === REVIEW_FILE ||

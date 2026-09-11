@@ -14,6 +14,12 @@ import { fileURLToPath } from 'node:url'
 
 import { canonicalizeStateText, decodeUtf8, evaluateState } from './governance/model/index.mjs'
 import { createGitTreeObserver } from './governance/git-tree/index.mjs'
+import {
+  ContainmentError,
+  checkoutPathExists,
+  checkoutTree,
+  readContainedBytes,
+} from './governance/git-tree/contained-read.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -53,16 +59,17 @@ function safePath(root, requested) {
   return absolute
 }
 
+/**
+ * Every filesystem-backed read goes through the one containment primitive.
+ *
+ * The previous implementation checked lexical containment and then inspected
+ * only the FINAL entry for a symlink, so an archive reached through a symlinked
+ * ancestor pointing outside the repository was read as though it were inside.
+ * A containment refusal is a checker refusal, not an absent file: returning
+ * `undefined` here would let an escape satisfy a required-absence rule.
+ */
 function readRepositoryBytes(root, requested) {
-  const absolute = safePath(root, requested)
-  let stats
-  try {
-    stats = lstatSync(absolute)
-  } catch {
-    return undefined
-  }
-  if (!stats.isFile() || stats.isSymbolicLink()) return undefined
-  return new Uint8Array(readFileSync(absolute))
+  return readContainedBytes(root, requested)
 }
 
 function hasLocalGitObject(root, identity) {
@@ -135,10 +142,18 @@ export function checkGovernanceState({
   }
 
   return evaluateState(text, {
+    // The original bytes, so the canonical check is a byte check.
+    stateBytes: bytes,
     readBytes: (path) => readRepositoryBytes(resolvedRoot, path),
     // Rules-free repository observations. The checker supplies them; the model
     // decides what they mean.
     observe: createGitTreeObserver(resolvedRoot),
+    // The filesystem half. Git answers what a commit contains; this answers
+    // what the checkout contains, which is where a dirty or extra member shows.
+    checkout: {
+      tree: (rootPath) => checkoutTree(resolvedRoot, rootPath),
+      pathExists: (repoPath) => checkoutPathExists(resolvedRoot, repoPath),
+    },
     hasLocalGitObject: (identity) => hasLocalGitObject(resolvedRoot, identity),
   })
 }

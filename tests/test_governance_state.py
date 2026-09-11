@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -550,7 +551,7 @@ def complete_state(
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery",
+            "type": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "content-sha256",
                 "value": artifact_digest,
@@ -641,7 +642,7 @@ def spike_state(root: Path) -> dict[str, Any]:
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-spike-evidence",
+            "type": "reviewed-spike-evidence-v1",
             "deliveredIdentity": {
                 "class": "external-git-commit",
                 "value": "8" * 40,
@@ -948,7 +949,7 @@ def test_completion_requires_policy_specific_scoped_evidence(tmp_path: Path) -> 
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery",
+            "type": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "external-git-commit",
                 "value": "3" * 40,
@@ -987,7 +988,18 @@ def test_valid_completion_binds_scope_and_separates_historical_authorization(
 
     root = copy_fixture(tmp_path / "evidence-binding")
     state = complete_state(root)
-    state["landings"][0]["delivery"]["completion"]["evidence"]["type"] = "reviewed-delivery-v1"
+    # The legacy discriminator alias is refused on its own terms; the evidence
+    # branch short-circuits before the digest check, which is why only the
+    # shape refusal is asserted here. The digest binding has its own case below.
+    state["landings"][0]["delivery"]["completion"]["evidence"]["type"] = "reviewed-delivery"
+    write_state(root, state)
+    assert_refused(root, "ADV-G30")
+
+    root = copy_fixture(tmp_path / "digest-binding")
+    state = complete_state(root)
+    # A well-formed digest that is simply not the computed one, so nothing but
+    # the preimage binding can refuse it.
+    state["landings"][0]["delivery"]["completion"]["digest"] = "9" * 64
     write_state(root, state)
     assert_refused(root, "ADV-G19")
 
@@ -1037,7 +1049,7 @@ def test_spike_policy_requires_bound_evidence_and_no_retrospective_openspec(
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-spike-evidence",
+            "type": "reviewed-spike-evidence-v1",
             "deliveredIdentity": {
                 "class": "external-git-commit",
                 "value": "8" * 40,
@@ -1188,7 +1200,7 @@ def test_missing_local_commit_does_not_prove_completion(tmp_path: Path) -> None:
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery",
+            "type": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "local-git-commit",
                 "value": "5" * 40,
@@ -1473,6 +1485,33 @@ def unreachable_commit(root: Path) -> str:
     stray = git(root, "rev-parse", "HEAD")
     git(root, "checkout", "-q", "main")
     git(root, "branch", "-qD", "side")
+    return stray
+
+
+def unreachable_commit_carrying_active_package(root: Path, built: dict[str, Any]) -> str:
+    """An unreachable commit that would otherwise satisfy every stage rule.
+
+    The point of the durability guard is that this commit is indistinguishable
+    from a valid reviewed snapshot except for reachability: the active root is
+    present, the archive root is absent, and the scoped tree matches the
+    declared members exactly. Anything less and the mutation below would be
+    refused by some other rule, proving nothing.
+    """
+    head = git(root, "rev-parse", "HEAD")
+    reviewed = built["reviewedCommit"]
+    git(root, "checkout", "-q", "-b", "side", reviewed)
+    stray = git(root, "rev-parse", "HEAD")
+    git(root, "checkout", "-q", "main")
+    git(root, "branch", "-qD", "side")
+    assert stray == reviewed, "the side branch must name the reviewed snapshot"
+    # Rewrite main so the reviewed snapshot is no longer an ancestor, while the
+    # archive it produced stays exactly as it is.
+    git(root, "checkout", "-q", "--orphan", "detached")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "re-rooted history without the reviewed snapshot")
+    git(root, "branch", "-qM", "main")
+    void = git(root, "rev-parse", "HEAD")
+    assert void != head
     return stray
 
 
@@ -1784,76 +1823,60 @@ def test_the_governance_model_has_no_copy_of_the_review_contract() -> None:
 
 
 def test_one_acceptance_rule_change_moves_both_consumers(tmp_path: Path) -> None:
-    """The load-bearing proof of sharing.
+    """F12. The load-bearing proof that the owner is SHARED.
 
-    One acceptance rule is weakened inside the shared component and BOTH
-    consumers must change their answer. If only one moves, the component is
-    imported but not authoritative — the same defect wearing a better name.
+    One acceptance rule is weakened inside the shared component and BOTH REAL
+    consumers must change their answer: the OpenSpec review gate CLI, and the
+    governance checker reading a content-backed reviewed identity. A component
+    that only one consumer actually reads is the same defect wearing a better
+    name, and it passes every structural check.
+
+    The rule chosen is the unresolved-P1 count, because it is owned ONLY by the
+    shared component — the gate's prose checks have no equivalent, so a flip
+    cannot come from anywhere else.
     """
+    import test_openspec_review_gate as gate_tests
+
+    # Consumer A: the review gate CLI, over a real planning repository.
+    gate_repo = gate_tests._planning_repo(tmp_path / "gate")
+    gate_tests._accept(gate_repo, gate_overrides={"unresolved_p1_count": 1})
+
+    def ask_gate() -> tuple[int, str]:
+        result = gate_tests._gate(gate_repo, "verify")
+        return result.returncode, result.stdout + result.stderr
+
+    # Consumer B: the governance checker, over a content-backed reviewed identity.
+    state_root = copy_fixture(tmp_path / "governance")
+    complete_state(state_root, review_overrides={"unresolved_p1_count": 1})
+
+    def ask_governance() -> int:
+        return run_checker(state_root)[0].returncode
+
+    before_gate, before_gate_output = ask_gate()
+    before_governance = ask_governance()
+
     contract = REPOSITORY_ROOT / "scripts/openspec-review-contract.mjs"
     original = contract.read_text(encoding="utf-8")
-    anchor = "  if (gate.verdict !== ACCEPTED_VERDICT) {"
+    anchor = "  if (gate.unresolved_p1_count !== 0) {"
     assert original.count(anchor) == 1
     mutated = original.replace(anchor, "  if (false) {", 1)
     assert mutated != original, "the mutation did not change the subject bytes"
-
-    probe = tmp_path / "probe"
-    probe.mkdir()
-    review = probe / "review.md"
-    review.write_text(
-        review_block(
-            [{"path": "proposal.md", "sha256": "0" * 64}], verdict="ARCHITECTURE_REJECTED"
-        ),
-        encoding="utf-8",
-    )
-
-    script = """
-import fs from 'node:fs'
-import {
-  extractReviewBlock,
-  validateReviewRecordShapeAndAcceptance,
-} from './scripts/openspec-review-contract.mjs'
-const text = fs.readFileSync(process.env.REVIEW, 'utf8')
-try {
-  validateReviewRecordShapeAndAcceptance(extractReviewBlock(text))
-  process.stdout.write('accepted')
-} catch (error) {
-  process.stdout.write(error.code)
-}
-"""
-
-    def ask() -> str:
-        return subprocess.run(
-            ["node", "--input-type=module", "-e", script],
-            cwd=REPOSITORY_ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-            env={**os.environ, "REVIEW": str(review)},
-        ).stdout
-
-    before_shared = ask()
-    before_gate = subprocess.run(
-        ["node", str(REPOSITORY_ROOT / "scripts/openspec-review-gate.mjs"), "--help"],
-        cwd=REPOSITORY_ROOT,
-        capture_output=True,
-        text=True,
-    ).returncode
-
     try:
         contract.write_text(mutated, encoding="utf-8")
-        after_shared = ask()
+        after_gate, _ = ask_gate()
+        after_governance = ask_governance()
     finally:
         contract.write_text(original, encoding="utf-8")
         assert contract.read_text(encoding="utf-8") == original
 
-    assert before_shared == "REVIEW_NOT_ACCEPTED", before_shared
-    assert after_shared == "accepted", after_shared
-    # The gate imports the same module, so it cannot be running a private copy.
-    gate_source = (REPOSITORY_ROOT / "scripts/openspec-review-gate.mjs").read_text(encoding="utf-8")
-    assert "validateReviewRecordShapeAndAcceptance" in gate_source
-    assert "from './openspec-review-contract.mjs'" in gate_source
-    assert before_gate == 0 or before_gate == 1
+    assert before_gate != 0 and "UNRESOLVED_P1" in before_gate_output, before_gate_output
+    assert before_governance != 0
+    assert after_gate == 0, (
+        "the review gate did not respond to the shared rule, so it is not reading the owner"
+    )
+    assert after_governance == 0, (
+        "the governance checker did not respond to the shared rule, so it is not reading the owner"
+    )
 
 
 # ── the real delivered archive, as the conformance example ──────────────────
@@ -1966,10 +1989,14 @@ def test_replacing_projection_equality_with_containment_reopens_the_hole(
 
 
 def test_weakening_durability_to_object_presence_reopens_the_hole(tmp_path: Path) -> None:
-    """MUTATION. Reachability, not presence, is what refuses a fetched PR ref."""
+    """MUTATION. Reachability, not presence, is what refuses a fetched PR ref.
+
+    The mutation must make the hostile case ACCEPT. A mutation that merely
+    changes which refusal fires proves nothing: the guard could be redundant.
+    """
     root = copy_fixture(tmp_path)
     built = build_archived_repository(root)
-    stray = unreachable_commit(root)
+    stray = unreachable_commit_carrying_active_package(root, built)
     complete_state(
         root,
         built=built,
@@ -1981,20 +2008,714 @@ def test_weakening_durability_to_object_presence_reopens_the_hole(tmp_path: Path
             }
         },
     )
-    assert_refused(root, "ADV-G81")
+    payload = assert_refused(root, "ADV-G81")
+    assert any("not reachable" in p["message"] for p in payload["problems"]), payload
 
     result, _payload = run_mutated_checker(
         tmp_path,
         root,
         REPOSITORY_ROOT / "scripts/governance/git-tree/index.mjs",
-        "      if (!this.commitExists(oid)) return false\n      return (\n"
-        "        run(repoRoot, ['merge-base', '--is-ancestor', oid, head], { allowFailure: true })"
-        " !==\n        undefined\n      )",
-        "      return this.commitExists(oid)",
+        "      const result = run(repoRoot, ['merge-base', '--is-ancestor', oid, head])",
+        "      return PRESENT\n      const result = run(repoRoot, "
+        "['merge-base', '--is-ancestor', oid, head])",
     )
-    # The stray commit has no active root, so the stage rules still refuse it —
-    # what must change is WHICH refusal fires, proving reachability was the one
-    # that did.
-    _result, payload = run_checker(root)
-    assert any("not reachable" in p["message"] for p in payload["problems"]), payload
+    assert result.returncode == 0, (
+        "presence-only durability did not ACCEPT the fetched-but-unreachable case, so "
+        "reachability is not the guard that refuses it"
+    )
+
+
+# ── independent-review closure regressions (F01-F16) ────────────────────────
+#
+# Each reproduces a finding against the pre-fix implementation and pins the
+# refusal the production fix now produces. They drive the shipped checker over
+# real Git repositories and a real checkout; none asserts from source alone.
+
+
+def substitute_review_bytes(root: Path, **overrides: Any) -> str:
+    """Replace the CHECKED-OUT review artifact with a different accepting one."""
+    archive = root / ARCHIVE_ROOT
+    artifacts = [
+        {"path": p, "sha256": hashlib.sha256((archive / p).read_bytes()).hexdigest()}
+        for p in PLANNING_MEMBERS
+    ]
+    substituted = review_block(artifacts, **({"reviewer": "Someone Else", **overrides}))
+    (archive / REVIEW_FILE).write_text(substituted, encoding="utf-8")
+    return hashlib.sha256(substituted.encode("utf-8")).hexdigest()
+
+
+def test_f01_worktree_review_substitution_is_refused(tmp_path: Path) -> None:
+    """F01. The content identity and the member bytes must be the SAME bytes.
+
+    Pre-fix this returned ok:true: the member manifest and every Git-tree
+    observation proved artifact A while the identity was the digest of whatever
+    the read returned — B — and the accepting record validated was the one the
+    archive does not contain.
+    """
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    state = complete_state(root, built=built)
+
+    digest_b = substitute_review_bytes(root)
+    archived = state["landings"][0]["delivery"]["completion"]["evidence"]["archivedOpenSpec"]
+    declared = next(m for m in archived["members"] if m["path"] == REVIEW_FILE)
+    assert declared["contentSha256"] != digest_b, "the substitution changed no bytes"
+    archived["reviewedIdentity"]["value"] = digest_b
+    bind_completion_digest(root, state)
+
+    assert_refused(root, "ADV-G85")
+
+
+def test_f01_the_identity_must_equal_the_declared_member_digest(tmp_path: Path) -> None:
+    """F01, at the seam.
+
+    The whole-package comparison above refuses the substitution first, so the
+    specific chain link — identity == declared member digest — is driven
+    directly against the semantic owner with observations that AGREE with the
+    manifest and a read that does not.
+    """
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    state = complete_state(root, built=built)
+    archived = state["landings"][0]["delivery"]["completion"]["evidence"]["archivedOpenSpec"]
+
+    script = """
+import fs from 'node:fs'
+import { validateArchivedOpenSpec } from './scripts/governance/model/archived-openspec.mjs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+const archived = JSON.parse(raw)
+const problems = []
+validateArchivedOpenSpec(archived, '$', problems, {
+  // Observations AGREE with the manifest; only the read disagrees.
+  observe: {
+    commitExists: () => 'PRESENT',
+    isReachable: () => 'PRESENT',
+    pathExistsAt: (_o, p) => (p === archived.archiveRoot ? 'PRESENT' : 'ABSENT'),
+    treeAt: () => ({ status: 'PRESENT', entries: toEntries(archived.members) }),
+    currentTree: () => ({ status: 'PRESENT', entries: toEntries(archived.members) }),
+    currentPathExists: () => 'ABSENT',
+  },
+  checkout: {
+    tree: () => toEntries(archived.members),
+    pathExists: () => false,
+  },
+  readBytes: () => Buffer.from(process.env.SUBSTITUTE, 'utf8'),
+})
+function toEntries(members) {
+  return new Map(members.map((m) => [m.path, { mode: '100644', sha256: m.contentSha256 }]))
+}
+process.stdout.write(JSON.stringify(problems))
+"""
+    substitute = review_block(
+        [
+            {
+                "path": p,
+                "sha256": hashlib.sha256((root / ARCHIVE_ROOT / p).read_bytes()).hexdigest(),
+            }
+            for p in PLANNING_MEMBERS
+        ],
+        reviewer="Someone Else Entirely",
+    )
+    substitute_digest = hashlib.sha256(substitute.encode("utf-8")).hexdigest()
+    assert substitute_digest != next(
+        m["contentSha256"] for m in archived["members"] if m["path"] == REVIEW_FILE
+    ), "the substitute must not be the archived bytes, or the case proves nothing"
+    archived["reviewedIdentity"]["value"] = substitute_digest
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(archived),
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "SUBSTITUTE": substitute},
+    ).stdout
+    problems = json.loads(out)
+    assert any("are not the declared" in p["message"] for p in problems), problems
+
+
+@pytest.mark.parametrize("label", ["dirty", "deleted", "extra"])
+def test_f02_the_current_checkout_is_proved_not_just_head(tmp_path: Path, label: str) -> None:
+    """F02. `ls-tree` answers what a COMMIT contains.
+
+    Pre-fix all three returned ok:true, because the "current" observation was
+    HEAD. A checker that cannot see its own working tree is checking a different
+    repository from the one it is running in.
+    """
+    root = copy_fixture(tmp_path / label)
+    complete_state(root)
+    archive = root / ARCHIVE_ROOT
+    if label == "dirty":
+        (archive / "design.md").write_text("# tampered\n", encoding="utf-8")
+    elif label == "deleted":
+        (archive / "design.md").unlink()
+    else:
+        (archive / "sneaked.md").write_text("# extra\n", encoding="utf-8")
+
+    assert_refused(root, "ADV-G85")
+
+
+def test_f03_a_symlinked_ancestor_cannot_escape_the_repository(tmp_path: Path) -> None:
+    """F03. Lexical containment is not containment.
+
+    The archive is moved outside the repository and an ancestor replaced with a
+    symlink; pre-fix the bytes were read as though they were inside, because
+    only the FINAL entry was checked for a symlink.
+    """
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    complete_state(root, built=built)
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    parent = (root / ARCHIVE_ROOT).parent
+    moved = outside / parent.name
+    parent.rename(moved)
+    parent.symlink_to(moved)
+
+    payload = assert_refused(root, "ADV-G84")
+    assert any("symlink" in p["message"] for p in payload["problems"]), payload
+
+
+def test_f03_a_symlinked_final_member_is_refused(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    complete_state(root, built=built)
+    target = root / ARCHIVE_ROOT / "design.md"
+    target.unlink()
+    target.symlink_to(tmp_path / "elsewhere.md")
+    (tmp_path / "elsewhere.md").write_text("# elsewhere\n", encoding="utf-8")
+
+    assert_refused(root, "ADV-G84")
+
+
+def test_f04_an_unanswerable_observation_never_satisfies_absence(tmp_path: Path) -> None:
+    """F04. Absence and failure are different answers.
+
+    Pre-fix every nonzero Git exit became `undefined`, so a corrupt store — or
+    any unexpected failure — was reported as "this path is absent", which is
+    exactly what several stage rules REQUIRE.
+    """
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    objects = root / ".git" / "objects"
+    moved = root / ".git" / "objects-moved"
+    objects.rename(moved)
+    try:
+        payload = assert_refused(root, "ADV-G81")
+        assert any("could not be observed" in p["message"] for p in payload["problems"]), payload
+    finally:
+        moved.rename(objects)
+
+
+def test_f04_the_observer_reports_three_distinct_answers() -> None:
+    """The adapter's own contract, driven rather than read."""
+    script = """
+import { createGitTreeObserver } from './scripts/governance/git-tree/index.mjs'
+const good = createGitTreeObserver(process.cwd())
+const broken = createGitTreeObserver('/')
+process.stdout.write(
+  JSON.stringify({
+    present: good.currentPathExists('package.json'),
+    absent: good.currentPathExists('definitely-not-here-xyz'),
+    error: broken.currentPathExists('package.json'),
+    errorTree: broken.currentTree('package.json').status,
+  }),
+)
+"""
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert json.loads(out) == {
+        "present": "PRESENT",
+        "absent": "ABSENT",
+        "error": "OBSERVATION_ERROR",
+        "errorTree": "OBSERVATION_ERROR",
+    }
+
+
+@pytest.mark.parametrize(
+    ("label", "lifecycle", "field"),
+    [
+        ("complete-with-withdrawal", "Complete", "withdrawal"),
+        ("withdrawn-with-completion", "Withdrawn", "completion"),
+    ],
+)
+def test_f05_mutually_exclusive_terminal_envelopes_are_refused(
+    tmp_path: Path, label: str, lifecycle: str, field: str
+) -> None:
+    """F05. An early return that records nothing is indistinguishable from
+    acceptance.
+
+    Pre-fix a `Complete` landing carrying both envelopes produced no problem at
+    all and went on to satisfy a prerequisite.
+    """
+    root = copy_fixture(tmp_path / label)
+    state = complete_state(root) if lifecycle == "Complete" else withdrawn_state(root)
+    state["landings"][0]["delivery"][field] = {}
+    write_state(root, state)
+
+    payload = assert_refused(root, "ADV-G67")
+    assert any("mutually exclusive" in p["message"] for p in payload["problems"]), payload
+    assert payload["ok"] is False
+
+
+def test_f06_an_identity_whose_scope_does_not_resolve_is_refused(tmp_path: Path) -> None:
+    """F06. Object existence proves only that some commit exists."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    state = complete_state(root, built=built)
+    state["landings"][0]["delivery"]["completion"]["evidence"]["deliveredIdentity"] = {
+        "class": "local-git-commit",
+        "value": built["archivedCommit"],
+        "scope": ["does/not/exist.md"],
+    }
+    bind_completion_digest(root, state)
+
+    payload = assert_refused(root, "ADV-G33")
+    assert any("does not exist at the bound commit" in p["message"] for p in payload["problems"])
+
+
+@pytest.mark.parametrize(
+    ("label", "scope"),
+    [
+        ("traversal", ["../escape"]),
+        ("absolute", ["/etc/passwd"]),
+        ("duplicate", ["a.md", "a.md"]),
+        ("non-string", [123]),
+    ],
+)
+def test_f07_nested_scopes_use_the_shared_canonical_path_set_rule(
+    tmp_path: Path, label: str, scope: list[Any]
+) -> None:
+    """F07. One owner for canonical path sets.
+
+    The nested archive identities checked only "non-empty array", so traversal,
+    absolute paths, duplicates and non-strings reached the observation layer
+    through that door while every other scope refused them.
+    """
+    root = copy_fixture(tmp_path / label)
+    built = build_archived_repository(root)
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "value": built["archivedCommit"],
+                "scope": scope,
+            }
+        },
+    )
+    assert_refused(root, "ADV-G84")
+
+
+def test_f07_canonical_ordering_is_owned_by_the_shared_path_set_rule() -> None:
+    """Ordering is proved at the seam: the canonical writer sorts a scope on
+    its way into the registry, so an unsorted one cannot be expressed through a
+    state file — but the rule the archive identity shares must still have it."""
+    script = """
+import { canonicalPathSetProblems } from './scripts/governance/model/paths.mjs'
+process.stdout.write(
+  JSON.stringify({
+    unsorted: canonicalPathSetProblems(['b.md', 'a.md']),
+    sorted: canonicalPathSetProblems(['a.md', 'b.md']),
+    duplicate: canonicalPathSetProblems(['a.md', 'a.md']),
+    traversal: canonicalPathSetProblems(['../x']),
+  }),
+)
+"""
+    out = json.loads(
+        subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert out["sorted"] == []
+    assert out["unsorted"] and "canonical path order" in out["unsorted"][0]
+    assert out["duplicate"] and "duplicate" in out["duplicate"][0]
+    assert out["traversal"], out
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate"),
+    [
+        ("legacy-alias", {"type": "reviewed-delivery"}),
+        ("cross-branch-field", {"evidenceRoot": "docs/spikes/x/"}),
+        ("unknown-field", {"somethingElse": True}),
+    ],
+)
+def test_f08_evidence_branches_are_closed_per_policy(
+    tmp_path: Path, label: str, mutate: dict[str, Any]
+) -> None:
+    """F08. A broad union let a delivery carry spike fields, and accepted a
+    legacy discriminator alias as a compatibility path."""
+    root = copy_fixture(tmp_path / label)
+    state = complete_state(root)
+    state["landings"][0]["delivery"]["completion"]["evidence"].update(mutate)
+    write_state(root, state)
+
+    result, payload = run_checker(root)
+    assert result.returncode != 0, (label, payload)
+
+
+def test_f09_the_bundle_identity_is_order_insensitive() -> None:
+    """F09. `archivedOpenSpec.members[]` is an entity set keyed by path.
+
+    Pre-fix, reversing the members changed the bundle digest — turning a
+    presentational difference into a different delivery.
+    """
+    script = """
+import { bundleSha256 } from './scripts/governance/model/archived-openspec.mjs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+const archived = JSON.parse(raw)
+const forward = bundleSha256(archived)
+const reverse = bundleSha256({ ...archived, members: [...archived.members].reverse() })
+process.stdout.write(JSON.stringify({ forward, reverse }))
+"""
+    archived = {
+        "schemaVersion": 1,
+        "contract": "archived-openspec-change-v1",
+        "changeId": "demo-change",
+        "activeRoot": "openspec/changes/demo-change",
+        "archiveRoot": "openspec/changes/archive/2026-09-10-demo-change",
+        "members": [
+            {"path": "a.md", "contentSha256": "1" * 64},
+            {"path": "b.md", "contentSha256": "2" * 64},
+        ],
+    }
+    out = json.loads(
+        subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=REPOSITORY_ROOT,
+            input=json.dumps(archived),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+    assert out["forward"] == out["reverse"], out
+
+
+def test_f09_duplicate_member_paths_are_refused(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    duplicated = [*built["members"], built["members"][0]]
+    duplicated.sort(key=lambda m: m["path"].encode("utf-8"))
+    complete_state(root, built=built, archived_overrides={"members": duplicated})
+    assert_refused(root, "ADV-G79")
+
+
+#: An INDEPENDENT golden vector: the expected digest is computed here by a
+#: literal canonical serialization, never by the production preimage function.
+#: A bundle rule that silently dropped a field would agree with itself forever.
+GOLDEN_BUNDLE_INPUT: dict[str, Any] = {
+    "schemaVersion": 1,
+    "contract": "archived-openspec-change-v1",
+    "changeId": "golden-change",
+    "activeRoot": "openspec/changes/golden-change",
+    "archiveRoot": "openspec/changes/archive/2026-01-02-golden-change",
+    "members": [
+        {"path": "a.md", "contentSha256": "a" * 64},
+        {"path": "b.md", "contentSha256": "b" * 64},
+    ],
+}
+#: Written out BY HAND in the repository's canonical form, never produced by
+#: `bundlePreimage`. A preimage function compared only with itself agrees
+#: forever, including about a field it silently stopped including.
+GOLDEN_BUNDLE_PREIMAGE = """{
+  "schemaVersion": 1,
+  "activeRoot": "openspec/changes/golden-change",
+  "archiveRoot": "openspec/changes/archive/2026-01-02-golden-change",
+  "changeId": "golden-change",
+  "contract": "archived-openspec-change-v1",
+  "members": [
+    {
+      "contentSha256": "AAAA",
+      "path": "a.md"
+    },
+    {
+      "contentSha256": "BBBB",
+      "path": "b.md"
+    }
+  ]
+}
+""".replace("AAAA", "a" * 64).replace("BBBB", "b" * 64)
+
+
+def production_bundle_digest(archived: dict[str, Any]) -> str:
+    script = """
+import { bundleSha256 } from './scripts/governance/model/archived-openspec.mjs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+process.stdout.write(bundleSha256(JSON.parse(raw)))
+"""
+    return subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(archived),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def test_f12_the_bundle_matches_an_independently_derived_golden_vector() -> None:
+    expected = hashlib.sha256(GOLDEN_BUNDLE_PREIMAGE.encode("utf-8")).hexdigest()
+    assert production_bundle_digest(GOLDEN_BUNDLE_INPUT) == expected
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["schemaVersion", "contract", "changeId", "activeRoot", "archiveRoot"],
+)
+def test_f12_removing_any_identity_bearing_bundle_field_fails_the_golden_vector(
+    tmp_path: Path, field: str
+) -> None:
+    """F12. Removing `activeRoot` from the preimage left every focused test
+    green, because nothing compared the digest to anything but itself."""
+    expected = hashlib.sha256(GOLDEN_BUNDLE_PREIMAGE.encode("utf-8")).hexdigest()
+    source = REPOSITORY_ROOT / "scripts/governance/model/archived-openspec.mjs"
+    original = source.read_text(encoding="utf-8")
+    anchor = {
+        "schemaVersion": "    schemaVersion: 1,\n",
+        "contract": "    contract: ARCHIVED_CONTRACT,\n",
+        "changeId": "    changeId: archived.changeId,\n",
+        "activeRoot": "    activeRoot: archived.activeRoot,\n",
+        "archiveRoot": "    archiveRoot: archived.archiveRoot,\n",
+    }[field]
+    assert original.count(anchor) == 1, field
+    mutated = original.replace(anchor, "", 1)
+    assert mutated != original, "the mutation did not change the subject bytes"
+    try:
+        source.write_text(mutated, encoding="utf-8")
+        assert production_bundle_digest(GOLDEN_BUNDLE_INPUT) != expected, field
+    finally:
+        source.write_text(original, encoding="utf-8")
+        assert source.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize("index", [0, 1])
+def test_f12_changing_any_member_changes_the_bundle(index: int) -> None:
+    base = production_bundle_digest(GOLDEN_BUNDLE_INPUT)
+    for key, replacement in (("path", "z.md"), ("contentSha256", "c" * 64)):
+        members = [
+            dict(member) for member in cast(list[dict[str, str]], GOLDEN_BUNDLE_INPUT["members"])
+        ]
+        members[index][key] = replacement
+        assert production_bundle_digest({**GOLDEN_BUNDLE_INPUT, "members": members}) != base
+
+
+def test_f10_a_bom_prefixed_registry_is_refused(tmp_path: Path) -> None:
+    """F10. The canonical form is a BYTE contract.
+
+    `TextDecoder` strips a leading U+FEFF, so the decoded text was canonical
+    while the bytes were not.
+    """
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    target = root / "state.json"
+    target.write_bytes(b"\xef\xbb\xbf" + target.read_bytes())
+
+    assert_refused(root, "ADV-G03")
+
+
+def test_f11_a_package_without_a_delta_spec_is_refused(tmp_path: Path) -> None:
+    """F11. Two different questions, deliberately not merged: the review
+    planning projection covers every `specs/**/*.md`; the minimum package
+    requires at least one `specs/**/spec.md`."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    archive = root / ARCHIVE_ROOT
+    for stale in list(archive.glob("specs/*/spec.md")):
+        stale.rename(stale.with_name("notes.md"))
+    planning = [
+        p if not p.endswith("/spec.md") else p[: -len("spec.md")] + "notes.md"
+        for p in PLANNING_MEMBERS
+    ]
+    artifacts = [
+        {"path": p, "sha256": hashlib.sha256((archive / p).read_bytes()).hexdigest()}
+        for p in planning
+    ]
+    (archive / REVIEW_FILE).write_text(review_block(artifacts), encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "specs carry notes.md only")
+
+    complete_state(
+        root,
+        built={
+            **built,
+            "members": observed_members(archive),
+            "archivedCommit": git(root, "rev-parse", "HEAD"),
+        },
+    )
+    payload = assert_refused(root, "ADV-G78")
+    assert any("specs/**/spec.md" in p["message"] for p in payload["problems"]), payload
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("proposedOn", ["2026-08-30"]),
+        ("id", 1234),
+        ("path", {"x": 1}),
+        ("title", ["t"]),
+        ("lifecycle", ["Proposed"]),
+        ("resolves", "U4"),
+        ("supersedes", {"a": 1}),
+    ],
+)
+def test_f14_wrong_json_types_become_refusals_not_crashes(
+    tmp_path: Path, field: str, value: Any
+) -> None:
+    """F14. A RegExp coerces its argument, so `DATE.test(["2026-08-30"])` was
+    TRUE and the next line threw a TypeError out of the checker.
+
+    A crash is not a verdict: it exits nonzero with no problem list, which is
+    indistinguishable from a tooling failure.
+    """
+    root = copy_fixture(tmp_path / field)
+    state = load_state(root)
+    state["adrs"][0][field] = value
+    (root / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    result, payload = run_checker(root)
     assert result.returncode != 0
+    assert "TypeError" not in result.stderr, result.stderr
+    assert payload["problems"], payload
+
+
+def test_f15_an_unparseable_relationship_claim_is_not_no_relationship(tmp_path: Path) -> None:
+    """F15. Parse failure must not collapse to the same value as "no
+    relationship".
+
+    A plain `Closes: U4` line is not the structural form, so it parsed to
+    nothing — and nothing is exactly what an empty registry relation looks like.
+    """
+    root = copy_fixture(tmp_path)
+    accepted_state(root, [])
+    document = root / load_state(root)["adrs"][0]["path"]
+    document.write_text(
+        document.read_text(encoding="utf-8").rstrip("\n") + "\n\nCloses: U4\n", encoding="utf-8"
+    )
+    state = load_state(root)
+    state["adrs"][0]["acceptance"]["contentDigest"] = hashlib.sha256(
+        document.read_bytes()
+    ).hexdigest()
+    write_state(root, bind_acceptance_digest(root, state, 0))
+
+    payload = assert_refused(root, "ADV-G14")
+    assert any("cannot read structurally" in p["message"] for p in payload["problems"]), payload
+
+
+def test_f15_the_structural_relationship_form_still_passes(tmp_path: Path) -> None:
+    """The control. Tightening the parser must not refuse the form the
+    repository actually authors."""
+    root = copy_fixture(tmp_path)
+    accepted_state(root, ["U4"])
+    assert_valid(root)
+
+
+def test_f16_a_resolved_question_names_its_acceptance_date(tmp_path: Path) -> None:
+    """F16. The contract's resolution scenario requires the resolver AND its
+    acceptance date."""
+    root = copy_fixture(tmp_path)
+    accepted_state(root, ["U4"])
+    payload = assert_valid(root)
+    question = payload["derived"]["questions"]["U4"]
+    assert question["resolved"] is True
+    assert question["resolver"] == "ADR-0001"
+    assert question["resolvedAt"] == "2026-08-30T12:00:00Z", question
+
+
+def test_f13_the_extraction_preserved_the_review_gate_answer(tmp_path: Path) -> None:
+    """F13. The extraction was required to preserve the gate's answers.
+
+    A Windows-style drive path is the case that exposed a change. On POSIX
+    `path.isAbsolute('C:/outside')` is FALSE, so pre-extraction such a path fell
+    through the artifact-path check and surfaced later as ARTIFACT_SET_DRIFT.
+    Adding a drive-letter test during the extraction turned that into
+    INVALID_ARTIFACT_PATH — stricter, and still a behaviour change the refactor
+    had no authority to make.
+
+    Both implementations are run over the SAME fixture, so this compares
+    answers rather than asserting one from source.
+    """
+    import test_openspec_review_gate as gate_tests
+
+    pre_source = subprocess.run(
+        [
+            "git",
+            "show",
+            "fc1b9f4eef748f7cd0f6af7818bec94d3045f46e:scripts/openspec-review-gate.mjs",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    def answer(repo: Path, script: Path) -> str:
+        result = subprocess.run(
+            [
+                "node",
+                str(script),
+                "verify",
+                "--change",
+                "demo",
+                "--base",
+                gate_tests.BASE,
+                "--base-sha",
+                subprocess.run(
+                    ["git", "rev-parse", f"{gate_tests.BASE}^{{commit}}"],
+                    cwd=repo,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.strip(),
+            ],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, result.stdout
+        # The refusal CODE, the way the gate's own tests read it.
+        match = re.search(r"REVIEW_GATE_REFUSED \[([A-Z_0-9]+)\]", result.stderr)
+        assert match is not None, result.stderr + result.stdout
+        return match.group(1)
+
+    for name, script_path in (
+        ("pre", None),
+        ("post", REPOSITORY_ROOT / "scripts/openspec-review-gate.mjs"),
+    ):
+        repo = gate_tests._planning_repo(tmp_path / name)
+        manifest = gate_tests._manifest(repo)
+        gate_tests._accept(
+            repo,
+            gate_overrides={
+                "reviewed_artifacts": [
+                    *manifest["reviewed_artifacts"],
+                    {"path": "C:/outside", "sha256": "0" * 64},
+                ]
+            },
+        )
+        if script_path is None:
+            script_path = tmp_path / "pre-gate.mjs"
+            script_path.write_text(pre_source, encoding="utf-8")
+        globals().setdefault("_f13_answers", {})[name] = answer(repo, script_path)
+
+    answers = globals()["_f13_answers"]
+    assert answers["pre"] == answers["post"], (
+        f"the extraction changed the gate's answer: pre={answers['pre']} post={answers['post']}"
+    )
+    assert answers["pre"] == "ARTIFACT_SET_DRIFT", answers
