@@ -335,7 +335,211 @@ process.stdout.write(JSON.stringify(state))
     return updated_state
 
 
-def complete_state(root: Path) -> dict[str, Any]:
+# ── a real archived OpenSpec package, in a real Git repository ───────────────
+#
+# `reviewed-delivery-v1` binds a whole child change and two provenance
+# identities, and the model answers with repository OBSERVATIONS: root presence,
+# scoped trees, exact member bytes, and reachability from current history. None
+# of that can be faked with a JSON literal, so the fixture is a real repository
+# with a real active-to-archive move.
+#
+# The move is byte-identical on purpose — that is what makes the review-time
+# digests still equal the archived member digests, and it is what the content
+# form rests on.
+
+CHANGE_ID = "demo-change"
+ARCHIVE_DATE = "2026-09-10"
+ACTIVE_ROOT = f"openspec/changes/{CHANGE_ID}"
+ARCHIVE_ROOT = f"openspec/changes/archive/{ARCHIVE_DATE}-{CHANGE_ID}"
+REVIEW_FILE = "preimplementation-review.md"
+
+#: The planning projection, plus members deliberately OUTSIDE it. The archive
+#: legitimately carries more than the review read.
+PLANNING_MEMBERS = [
+    ".openspec.yaml",
+    "proposal.md",
+    "specs/alpha/spec.md",
+    "specs/beta/spec.md",
+    "design.md",
+    "assurance.md",
+    "tasks.md",
+]
+NON_PLANNING_MEMBERS = ["README.md", "reviews/1-aaaaaaaaaaaa.md"]
+
+GIT_ENV = {
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@e",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@e",
+}
+
+
+def git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**GIT_ENV, "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(root)},
+    ).stdout.strip()
+
+
+def review_block(artifacts: list[dict[str, str]], **overrides: Any) -> str:
+    record: dict[str, Any] = {
+        "contract": "preimplementation-review-v2",
+        "schema": "governed-spec-driven-v2",
+        "rubric": "governed-preimplementation-review-v1",
+        "reviewed_commit": "a" * 40,
+        "reviewed_base_commit": "b" * 40,
+        "review_epoch": 1,
+        "scope_id": "demo-scope",
+        "reviewed_at": "2026-09-01T10:00:00Z",
+        "reviewer": "An Independent Reviewer",
+        "verdict": "ARCHITECTURE_ACCEPTED",
+        "unresolved_p1_count": 0,
+        "unassigned_p2_p3_count": 0,
+        "invariant_set_changed": False,
+        "authority_allocation_complete": True,
+        "reviewed_artifacts": artifacts,
+    }
+    record.update(overrides)
+    return (
+        "# Review\n\n<!-- openspec-review-gate\n" + json.dumps(record, indent=2) + "\n-->\n\nbody\n"
+    )
+
+
+def observed_members(archive: Path) -> list[dict[str, str]]:
+    """Digests read off disk, never asserted."""
+    return sorted(
+        (
+            {
+                "path": str(p.relative_to(archive)),
+                "contentSha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+            }
+            for p in archive.rglob("*")
+            if p.is_file()
+        ),
+        key=lambda m: m["path"].encode("utf-8"),
+    )
+
+
+def build_archived_repository(
+    root: Path,
+    *,
+    review_overrides: dict[str, Any] | None = None,
+    manifest_paths: list[str] | None = None,
+    corrupt_review_digest: bool = False,
+) -> dict[str, Any]:
+    """Active package committed, then moved to the archive."""
+    git(root, "init", "-q", "-b", "main")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "fixture base")
+
+    active = root / ACTIVE_ROOT
+    for relative in [*PLANNING_MEMBERS, *NON_PLANNING_MEMBERS]:
+        target = active / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"# {relative}\n\ncontent for {relative}\n", encoding="utf-8")
+
+    declared = manifest_paths if manifest_paths is not None else PLANNING_MEMBERS
+    artifacts = [
+        {
+            "path": relative,
+            "sha256": (
+                "0" * 64
+                if corrupt_review_digest
+                else hashlib.sha256((active / relative).read_bytes()).hexdigest()
+            ),
+        }
+        for relative in declared
+    ]
+    (active / REVIEW_FILE).write_text(
+        review_block(artifacts, **(review_overrides or {})), encoding="utf-8"
+    )
+
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "reviewed active package")
+    reviewed_commit = git(root, "rev-parse", "HEAD")
+
+    (root / ARCHIVE_ROOT).parent.mkdir(parents=True, exist_ok=True)
+    git(root, "mv", ACTIVE_ROOT, ARCHIVE_ROOT)
+    git(root, "commit", "-qm", "archive the delivered change")
+
+    return {
+        "reviewedCommit": reviewed_commit,
+        "archivedCommit": git(root, "rev-parse", "HEAD"),
+        "members": observed_members(root / ARCHIVE_ROOT),
+    }
+
+
+def compute_bundle_digest(archived: dict[str, Any]) -> str:
+    """Computed by the shipped model, not reimplemented here."""
+    script = """
+import { bundleSha256 } from './scripts/governance/model/archived-openspec.mjs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+process.stdout.write(bundleSha256(JSON.parse(raw)))
+"""
+    return subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(archived),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def archived_openspec(
+    built: dict[str, Any], *, reviewed_form: str = "content", **overrides: Any
+) -> dict[str, Any]:
+    """The closed `archivedOpenSpec` object."""
+    if reviewed_form == "content":
+        digest = next(m["contentSha256"] for m in built["members"] if m["path"] == REVIEW_FILE)
+        reviewed_identity = {
+            "class": "content-sha256",
+            "value": digest,
+            "scope": [f"{ARCHIVE_ROOT}/{REVIEW_FILE}"],
+        }
+    else:
+        reviewed_identity = {
+            "class": "local-git-commit",
+            "value": built["reviewedCommit"],
+            "scope": [ACTIVE_ROOT],
+        }
+
+    archived = {
+        "schemaVersion": 1,
+        "contract": "archived-openspec-change-v1",
+        "changeId": CHANGE_ID,
+        "activeRoot": ACTIVE_ROOT,
+        "archiveRoot": ARCHIVE_ROOT,
+        "members": built["members"],
+        "bundleSha256": "0" * 64,
+        "reviewedIdentity": reviewed_identity,
+        "archivedPackageIdentity": {
+            "class": "local-git-commit",
+            "value": built["archivedCommit"],
+            "scope": [ARCHIVE_ROOT],
+        },
+    }
+    archived.update(overrides)
+    archived["bundleSha256"] = compute_bundle_digest(archived)
+    return archived
+
+
+def complete_state(
+    root: Path,
+    *,
+    reviewed_form: str = "content",
+    archived_overrides: dict[str, Any] | None = None,
+    built: dict[str, Any] | None = None,
+    **build_kwargs: Any,
+) -> dict[str, Any]:
+    built = built if built is not None else build_archived_repository(root, **build_kwargs)
     state = load_state(root)
     landing = state["landings"][0]
     artifact_path = state["adrs"][0]["path"]
@@ -359,10 +563,9 @@ def complete_state(root: Path) -> dict[str, Any]:
                     "scope": [artifact_path],
                 }
             ],
-            "archivedOpenSpec": {
-                "path": artifact_path,
-                "contentDigest": artifact_digest,
-            },
+            "archivedOpenSpec": archived_openspec(
+                built, reviewed_form=reviewed_form, **(archived_overrides or {})
+            ),
         },
         "attestation": {
             "digest": "0" * 64,
@@ -1247,3 +1450,551 @@ def test_primitive_preimage_changes_when_a_real_field_changes(
     write_state(root, state)
     after = assert_valid(root)["digests"]["primitiveDigest"]
     assert after != before
+
+
+# ── the archived OpenSpec identity: both reviewed forms ─────────────────────
+#
+# Every case below drives the shipped checker over a real Git repository. The
+# model's answers come from repository observations — root presence, scoped
+# trees, exact bytes, reachability — so none of this can be satisfied by a JSON
+# literal that merely looks right.
+
+
+def unreachable_commit(root: Path) -> str:
+    """A real commit that exists and is reachable from nothing.
+
+    Exactly the state `git fetch origin refs/pull/<n>/head` leaves behind: the
+    object is in the store, no ref keeps it alive, and it can be pruned.
+    """
+    git(root, "checkout", "-q", "-b", "side")
+    (root / "stray.txt").write_text("stray\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "unreachable work")
+    stray = git(root, "rev-parse", "HEAD")
+    git(root, "checkout", "-q", "main")
+    git(root, "branch", "-qD", "side")
+    return stray
+
+
+def test_a_content_backed_reviewed_identity_over_the_full_projection_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """The delivery shape a squash produces: the reviewed commit need not
+    survive, and the accepted review record carries the whole-package claim."""
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    payload = assert_valid(root)
+    assert payload["derived"]["readiness"]["runner/L8"]["state"] == "Ready"
+
+
+def test_a_commit_backed_reviewed_identity_reachable_from_head_is_accepted(
+    tmp_path: Path,
+) -> None:
+    root = copy_fixture(tmp_path)
+    complete_state(root, reviewed_form="commit")
+    assert_valid(root)
+
+
+def test_a_reviewed_commit_present_but_unreachable_is_refused(tmp_path: Path) -> None:
+    """Object presence is not durability, and the checker must NOT silently
+    downgrade the recorded form to the content one: the form is authored
+    evidence, not a repair the checker performs."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    stray = unreachable_commit(root)
+
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "reviewedIdentity": {
+                "class": "local-git-commit",
+                "value": stray,
+                "scope": [ACTIVE_ROOT],
+            }
+        },
+    )
+    payload = assert_refused(root, "ADV-G81")
+    assert any("not reachable" in p["message"] for p in payload["problems"]), payload
+
+
+def test_an_unreachable_archived_package_identity_is_refused(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    stray = unreachable_commit(root)
+
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "value": stray,
+                "scope": [ARCHIVE_ROOT],
+            }
+        },
+    )
+    payload = assert_refused(root, "ADV-G81")
+    assert any("not reachable" in p["message"] for p in payload["problems"]), payload
+
+
+def test_an_external_git_commit_cannot_be_a_reviewed_identity(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "reviewedIdentity": {
+                "class": "external-git-commit",
+                "value": "c" * 40,
+                "scope": [ACTIVE_ROOT],
+            }
+        },
+    )
+    assert_refused(root, "ADV-G81")
+
+
+@pytest.mark.parametrize(
+    ("label", "overrides"),
+    [
+        ("closure-verdict", {"verdict": "FOCUSED_CLOSURE_REQUIRED"}),
+        ("rejection-verdict", {"verdict": "ARCHITECTURE_REJECTED"}),
+        ("unresolved-p1", {"unresolved_p1_count": 1}),
+        ("unassigned-p2-p3", {"unassigned_p2_p3_count": 2}),
+        ("authority-incomplete", {"authority_allocation_complete": False}),
+        ("invariant-set-changed", {"invariant_set_changed": True}),
+        ("old-contract-version", {"contract": "preimplementation-review-v1"}),
+        ("wrong-schema", {"schema": "governed-spec-driven-v1"}),
+        ("wrong-rubric", {"rubric": "something-else-v1"}),
+        ("placeholder-reviewer", {"reviewer": "REPLACE_WITH_INDEPENDENT_REVIEWER"}),
+        ("impossible-instant", {"reviewed_at": "2026-02-30T00:00:00Z"}),
+        ("malformed-reviewed-commit", {"reviewed_commit": "not-a-commit"}),
+        ("epoch-below-one", {"review_epoch": 0}),
+    ],
+)
+def test_a_review_record_that_is_not_a_complete_acceptance_is_refused(
+    tmp_path: Path, label: str, overrides: dict[str, Any]
+) -> None:
+    """Every declared digest still matches in each of these.
+
+    Digest agreement proves the bytes are the ones the record names; it never
+    converts a record that was not an acceptance into one.
+    """
+    root = copy_fixture(tmp_path / label)
+    complete_state(root, review_overrides=overrides)
+    payload = assert_refused(root, "ADV-G81")
+    assert any(
+        "not a complete accepting" in problem["message"] for problem in payload["problems"]
+    ), (label, payload)
+
+
+@pytest.mark.parametrize(
+    ("label", "declared"),
+    [
+        ("single-member", [".openspec.yaml"]),
+        ("missing-delta-spec", [p for p in PLANNING_MEMBERS if p != "specs/beta/spec.md"]),
+        ("missing-tasks", [p for p in PLANNING_MEMBERS if p != "tasks.md"]),
+        ("non-planning-member", [*PLANNING_MEMBERS, "README.md"]),
+    ],
+)
+def test_an_incomplete_planning_manifest_is_refused(
+    tmp_path: Path, label: str, declared: list[str]
+) -> None:
+    """Equality against the planning projection, not containment.
+
+    Every digest these declare is correct. A subset rule would accept a record
+    that read one file and call it a review of the package.
+    """
+    root = copy_fixture(tmp_path / label)
+    complete_state(root, manifest_paths=declared)
+    payload = assert_refused(root, "ADV-G81")
+    assert any(
+        "complete planning projection" in problem["message"] for problem in payload["problems"]
+    ), (label, payload)
+
+
+def test_archive_members_outside_the_planning_projection_are_accepted(tmp_path: Path) -> None:
+    """The control for the rule above.
+
+    The fixture archive carries a README and a historical review round the
+    review never read. Requiring the manifest to name them would have failed the
+    first real package.
+    """
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    member_paths = {member["path"] for member in built["members"]}
+    assert {"README.md", "reviews/1-aaaaaaaaaaaa.md", REVIEW_FILE} <= member_paths
+    assert set(PLANNING_MEMBERS) < member_paths, "the projection must be a proper subset here"
+
+    complete_state(root, built=built)
+    assert_valid(root)
+
+
+def test_a_reviewed_artifact_digest_mismatch_is_refused(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    complete_state(root, corrupt_review_digest=True)
+    assert_refused(root, "ADV-G81")
+
+
+def test_an_arbitrary_member_is_not_a_whole_package_reviewed_identity(tmp_path: Path) -> None:
+    """A `content-sha256` over `proposal.md` is a valid digest of one file and
+    carries no whole-package claim; the review record is what carries it."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    digest = next(m["contentSha256"] for m in built["members"] if m["path"] == "proposal.md")
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "reviewedIdentity": {
+                "class": "content-sha256",
+                "value": digest,
+                "scope": [f"{ARCHIVE_ROOT}/proposal.md"],
+            }
+        },
+    )
+    assert_refused(root, "ADV-G81")
+
+
+def test_a_correct_bundle_without_a_review_witness_is_refused(tmp_path: Path) -> None:
+    """`bundleSha256` is computed at completion over the delivered package. It
+    proves what was delivered, never that those bytes were reviewed."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    (root / ARCHIVE_ROOT / REVIEW_FILE).write_text(
+        "# Review\n\nno gate block at all\n", encoding="utf-8"
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "strip the review witness")
+
+    complete_state(
+        root,
+        built={
+            **built,
+            "members": observed_members(root / ARCHIVE_ROOT),
+            "archivedCommit": git(root, "rev-parse", "HEAD"),
+        },
+    )
+    assert_refused(root, "ADV-G81")
+
+
+def test_an_empty_member_set_is_refused(tmp_path: Path) -> None:
+    """Non-vacuity. An empty membership is an unanswered question, not a package
+    with nothing in it."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    complete_state(root, built=built, archived_overrides={"members": []})
+    assert_refused(root, "ADV-G79")
+
+
+def test_a_commit_stage_rule_against_a_content_identity_is_a_class_error() -> None:
+    """Refused as a class error, not passed vacuously and not skipped silently.
+
+    A rule that quietly stops applying and a rule that vacuously passes look
+    identical from outside the checker; this makes them different.
+    """
+    script = """
+import { assertStageRuleApplicable } from './scripts/governance/model/archived-openspec.mjs'
+const content = { class: 'content-sha256', value: 'x', scope: ['a'] }
+const commit = { class: 'local-git-commit', value: 'y', scope: ['a'] }
+let refused = null
+try {
+  assertStageRuleApplicable(content, 'active-root presence')
+} catch (error) {
+  refused = error.code
+}
+const allowed = assertStageRuleApplicable(commit, 'active-root presence')
+process.stdout.write(JSON.stringify({ refused, allowed }))
+"""
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert json.loads(out) == {"refused": "IDENTITY_CLASS_ERROR", "allowed": True}
+
+
+@pytest.mark.parametrize(
+    ("label", "body"),
+    [
+        ("all-unchecked", "- [ ] 1.1 one\n- [ ] 1.2 two\n"),
+        ("all-checked", "- [x] 1.1 one\n- [x] 1.2 two\n"),
+        ("partially-checked", "- [x] 1.1 one\n- [ ] 1.2 two\n"),
+    ],
+)
+def test_planning_checkboxes_do_not_affect_completion(
+    tmp_path: Path, label: str, body: str
+) -> None:
+    """Reviewed planning is immutable evidence; `delivery.lifecycle` plus its
+    completion evidence is the mutable authority. The checkbox population is
+    inside `bundleSha256` and is never read to derive completion."""
+    root = copy_fixture(tmp_path / label)
+    built = build_archived_repository(root)
+    archive = root / ARCHIVE_ROOT
+
+    (archive / "tasks.md").write_text(body, encoding="utf-8")
+    # The bytes changed, so the member digest and the review-time digest are
+    # re-derived. What must NOT change is the completion verdict.
+    artifacts = [
+        {"path": p, "sha256": hashlib.sha256((archive / p).read_bytes()).hexdigest()}
+        for p in PLANNING_MEMBERS
+    ]
+    (archive / REVIEW_FILE).write_text(review_block(artifacts), encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", f"tasks.md: {label}")
+
+    complete_state(
+        root,
+        built={
+            **built,
+            "members": observed_members(archive),
+            "archivedCommit": git(root, "rev-parse", "HEAD"),
+        },
+    )
+    payload = assert_valid(root)
+    assert payload["derived"]["readiness"]["runner/L8"]["state"] == "Ready", label
+
+
+# ── the shared review contract is shared in BEHAVIOUR, not in name ──────────
+
+
+def test_the_governance_model_has_no_copy_of_the_review_contract() -> None:
+    """A component that is imported while its rules are ALSO restated elsewhere
+    passes every structural check and still leaves two authorities."""
+    governance = REPOSITORY_ROOT / "scripts/governance"
+    owned = {
+        "preimplementation-review-v2",
+        "governed-preimplementation-review-v1",
+        "ARCHITECTURE_ACCEPTED",
+        "unresolved_p1_count",
+        "authority_allocation_complete",
+        "invariant_set_changed",
+    }
+    offenders: list[str] = []
+    for source in governance.rglob("*.mjs"):
+        text = source.read_text(encoding="utf-8")
+        for constant in owned:
+            # A comment may name it; a string literal would be a second copy.
+            if f'"{constant}"' in text or f"'{constant}'" in text:
+                offenders.append(f"{source.relative_to(REPOSITORY_ROOT)}: {constant}")
+    assert offenders == [], offenders
+
+
+def test_one_acceptance_rule_change_moves_both_consumers(tmp_path: Path) -> None:
+    """The load-bearing proof of sharing.
+
+    One acceptance rule is weakened inside the shared component and BOTH
+    consumers must change their answer. If only one moves, the component is
+    imported but not authoritative — the same defect wearing a better name.
+    """
+    contract = REPOSITORY_ROOT / "scripts/openspec-review-contract.mjs"
+    original = contract.read_text(encoding="utf-8")
+    anchor = "  if (gate.verdict !== ACCEPTED_VERDICT) {"
+    assert original.count(anchor) == 1
+    mutated = original.replace(anchor, "  if (false) {", 1)
+    assert mutated != original, "the mutation did not change the subject bytes"
+
+    probe = tmp_path / "probe"
+    probe.mkdir()
+    review = probe / "review.md"
+    review.write_text(
+        review_block(
+            [{"path": "proposal.md", "sha256": "0" * 64}], verdict="ARCHITECTURE_REJECTED"
+        ),
+        encoding="utf-8",
+    )
+
+    script = """
+import fs from 'node:fs'
+import {
+  extractReviewBlock,
+  validateReviewRecordShapeAndAcceptance,
+} from './scripts/openspec-review-contract.mjs'
+const text = fs.readFileSync(process.env.REVIEW, 'utf8')
+try {
+  validateReviewRecordShapeAndAcceptance(extractReviewBlock(text))
+  process.stdout.write('accepted')
+} catch (error) {
+  process.stdout.write(error.code)
+}
+"""
+
+    def ask() -> str:
+        return subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "REVIEW": str(review)},
+        ).stdout
+
+    before_shared = ask()
+    before_gate = subprocess.run(
+        ["node", str(REPOSITORY_ROOT / "scripts/openspec-review-gate.mjs"), "--help"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    ).returncode
+
+    try:
+        contract.write_text(mutated, encoding="utf-8")
+        after_shared = ask()
+    finally:
+        contract.write_text(original, encoding="utf-8")
+        assert contract.read_text(encoding="utf-8") == original
+
+    assert before_shared == "REVIEW_NOT_ACCEPTED", before_shared
+    assert after_shared == "accepted", after_shared
+    # The gate imports the same module, so it cannot be running a private copy.
+    gate_source = (REPOSITORY_ROOT / "scripts/openspec-review-gate.mjs").read_text(encoding="utf-8")
+    assert "validateReviewRecordShapeAndAcceptance" in gate_source
+    assert "from './openspec-review-contract.mjs'" in gate_source
+    assert before_gate == 0 or before_gate == 1
+
+
+# ── the real delivered archive, as the conformance example ──────────────────
+
+
+def test_the_real_archived_typescript_change_satisfies_the_content_form() -> None:
+    """The first change this repository actually delivered under this contract.
+
+    A rule that only its own fixtures satisfy has not been tested against
+    reality. This reads the shipped archive and the shipped review record
+    through the SHARED contract, with no fixture in sight — the counts are
+    derived, never hard-coded, because they belong to that package and not to
+    the schema.
+    """
+    archives = sorted((REPOSITORY_ROOT / "openspec/changes/archive").glob("*-typescript-7-*"))
+    assert len(archives) == 1, archives
+    archive = archives[0]
+
+    members = observed_members(archive)
+    projection_script = """
+import {
+  deltaSpecPaths,
+  extractReviewBlock,
+  planningProjection,
+  validateReviewRecordShapeAndAcceptance,
+} from './scripts/openspec-review-contract.mjs'
+import fs from 'node:fs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+const paths = JSON.parse(raw)
+const record = validateReviewRecordShapeAndAcceptance(
+  extractReviewBlock(fs.readFileSync(process.env.REVIEW, 'utf8')),
+)
+process.stdout.write(
+  JSON.stringify({
+    projection: planningProjection(deltaSpecPaths(paths)),
+    declared: record.reviewed_artifacts,
+    verdict: record.verdict,
+  }),
+)
+"""
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", projection_script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps([m["path"] for m in members]),
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "REVIEW": str(archive / REVIEW_FILE)},
+    ).stdout
+    result = json.loads(out)
+
+    assert result["verdict"] == "ARCHITECTURE_ACCEPTED"
+    assert sorted(a["path"] for a in result["declared"]) == sorted(result["projection"])
+    assert len(result["projection"]) < len(members), (
+        "the planning projection must be a PROPER subset of the archive members, or the "
+        "non-planning members this rule tolerates are not present to tolerate"
+    )
+
+    by_path = {m["path"]: m["contentSha256"] for m in members}
+    mismatched = [
+        artifact["path"]
+        for artifact in result["declared"]
+        if by_path.get(artifact["path"]) != artifact["sha256"]
+    ]
+    assert mismatched == [], mismatched
+
+
+# ── the new rules are load-bearing ──────────────────────────────────────────
+
+
+def run_mutated_checker(
+    tmp_path: Path, root: Path, source: Path, old: str, new: str
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    """Mutate a shipped module, run the real checker, and restore it.
+
+    The mutation asserts its own effect on the subject bytes first: a mutation
+    that changed nothing re-runs the unmutated checker under a different name.
+    """
+    original = source.read_text(encoding="utf-8")
+    assert original.count(old) == 1, f"mutation anchor is not unique in {source.name}"
+    mutated = original.replace(old, new, 1)
+    assert mutated != original, "the mutation did not change the subject bytes"
+    try:
+        source.write_text(mutated, encoding="utf-8")
+        return run_checker(root)
+    finally:
+        source.write_text(original, encoding="utf-8")
+        assert source.read_text(encoding="utf-8") == original
+
+
+def test_replacing_projection_equality_with_containment_reopens_the_hole(
+    tmp_path: Path,
+) -> None:
+    """MUTATION. Completeness is what refuses a one-file review manifest."""
+    root = copy_fixture(tmp_path)
+    complete_state(root, manifest_paths=[".openspec.yaml"])
+    assert_refused(root, "ADV-G81")
+
+    result, _payload = run_mutated_checker(
+        tmp_path,
+        root,
+        REPOSITORY_ROOT / "scripts/governance/model/archived-openspec.mjs",
+        "  if (JSON.stringify(declared) !== JSON.stringify(wanted)) {",
+        "  if (!declared.every((p) => wanted.includes(p))) {",
+    )
+    assert result.returncode == 0, (
+        "containment did not reopen the hole, so equality is not what closes it"
+    )
+
+
+def test_weakening_durability_to_object_presence_reopens_the_hole(tmp_path: Path) -> None:
+    """MUTATION. Reachability, not presence, is what refuses a fetched PR ref."""
+    root = copy_fixture(tmp_path)
+    built = build_archived_repository(root)
+    stray = unreachable_commit(root)
+    complete_state(
+        root,
+        built=built,
+        archived_overrides={
+            "reviewedIdentity": {
+                "class": "local-git-commit",
+                "value": stray,
+                "scope": [ACTIVE_ROOT],
+            }
+        },
+    )
+    assert_refused(root, "ADV-G81")
+
+    result, _payload = run_mutated_checker(
+        tmp_path,
+        root,
+        REPOSITORY_ROOT / "scripts/governance/git-tree/index.mjs",
+        "      if (!this.commitExists(oid)) return false\n      return (\n"
+        "        run(repoRoot, ['merge-base', '--is-ancestor', oid, head], { allowFailure: true })"
+        " !==\n        undefined\n      )",
+        "      return this.commitExists(oid)",
+    )
+    # The stray commit has no active root, so the stage rules still refuse it —
+    # what must change is WHICH refusal fires, proving reachability was the one
+    # that did.
+    _result, payload = run_checker(root)
+    assert any("not reachable" in p["message"] for p in payload["problems"]), payload
+    assert result.returncode != 0

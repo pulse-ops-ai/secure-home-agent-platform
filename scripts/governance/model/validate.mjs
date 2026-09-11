@@ -20,6 +20,7 @@ import {
   transitionDigest,
   withdrawalDigest,
 } from './digests.mjs'
+import { validateArchivedOpenSpec } from './archived-openspec.mjs'
 
 const ADR_LIFECYCLES = new Set(['Proposed', 'Accepted', 'Superseded', 'Rejected'])
 const DELIVERY_LIFECYCLES = new Set(['Planned', 'InProgress', 'Complete', 'Withdrawn'])
@@ -600,7 +601,11 @@ function validateEvidence(value, path, problems, context, policy) {
         verifyIdentity(member, memberPath, memberProblems, context)
       },
     )
-    validateArtifact(value.archivedOpenSpec, path + '.archivedOpenSpec', problems, context)
+    // The whole child change, not a single artifact. A `{path, contentDigest}`
+    // pair proved one file existed; `reviewed-delivery-v1` binds the complete
+    // package, both stage roots, every member digest, the bundle identity, and
+    // the two provenance identities.
+    validateArchivedOpenSpec(value.archivedOpenSpec, path + '.archivedOpenSpec', problems, context)
     return true
   }
 

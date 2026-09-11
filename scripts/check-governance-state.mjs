@@ -13,6 +13,7 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { canonicalizeStateText, decodeUtf8, evaluateState } from './governance/model/index.mjs'
+import { createGitTreeObserver } from './governance/git-tree/index.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -135,6 +136,9 @@ export function checkGovernanceState({
 
   return evaluateState(text, {
     readBytes: (path) => readRepositoryBytes(resolvedRoot, path),
+    // Rules-free repository observations. The checker supplies them; the model
+    // decides what they mean.
+    observe: createGitTreeObserver(resolvedRoot),
     hasLocalGitObject: (identity) => hasLocalGitObject(resolvedRoot, identity),
   })
 }
