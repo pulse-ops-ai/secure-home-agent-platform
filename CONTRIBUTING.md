@@ -28,8 +28,8 @@ There is intentionally **no deployed or activated runtime**: no launcher, no
 process spawn, no household service running anywhere. Landed code is not a
 running system, and the distinction is the point.
 
-ADR-0001 through ADR-0019 and ADR-0021 are accepted, so implementation may
-proceed against them under an authorizing task contract. **ADR-0020 remains
+ADR-0001 through ADR-0019, ADR-0021 and ADR-0022 are accepted, so implementation
+may proceed against them under an authorizing task contract. **ADR-0020 remains
 Proposed, and acceptance is not authorization to deploy.** Of the tracked set
 U1–U11, [U6](docs/architecture/unresolved-decisions.md#u6) was closed by
 ADR-0013 (2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7)
@@ -111,7 +111,7 @@ pnpm run deps:check                        # Syncpack: dependency version policy
 pnpm run format:check                      # Prettier
 pnpm run check:workspace                   # workspace taxonomy and declared direction
 pnpm run check:imports                     # what source actually imports
-pnpm lint                                  # ESLint, every package
+pnpm lint                                  # repository lint policy, every package
 pnpm typecheck                             # tsc --noEmit, every package
 pnpm test                                  # vitest, every package
 pnpm build                                 # tsc build, every package
@@ -119,6 +119,42 @@ pnpm build                                 # tsc build, every package
 
 If a tool is unavailable on your machine, say so in the PR rather than dropping
 the check silently.
+
+### Which authority owns what
+
+Each row is owned by exactly one place. When two of them disagree, the file
+named here is right and the other is a projection to be corrected.
+
+| Fact | Authority |
+| --- | --- |
+| lint policy — what is enforced | `packages/lint-config/policy.json` |
+| engine translation — which rule realises a policy | `packages/lint-config/engine-mappings.json` |
+| blocking lint implementation | Oxlint 1.80.0 + `oxlint-tsgolint` 7.0.2001 |
+| normal compiler | TypeScript 7.0.2 |
+| traditional parser compatibility seam | `@typescript/typescript6` 6.0.2 |
+| sole admitted seam consumer | `scripts/check-source-imports.mjs` |
+| source architecture — what code imports | `scripts/check-source-imports.mjs` + `scripts/workspace-model.mjs` |
+| manifest architecture — what manifests declare | `scripts/check-workspace.mjs` + `scripts/workspace-model.mjs` |
+| formatting | Prettier |
+| versions | the `pnpm-workspace.yaml` catalog |
+| resolved graph | `pnpm-lock.yaml` |
+| native platform proof | [`.github/workflows/toolchain-platform.yml`](.github/workflows/toolchain-platform.yml) |
+| trusted maintenance invocation | [`.github/workflows/toolchain-maintenance-boundary.yml`](.github/workflows/toolchain-maintenance-boundary.yml) |
+| maintenance-delta classifier | `scripts/check-toolchain-boundaries.mjs` |
+
+Four distinctions in that table are load-bearing, and each was a real defect
+before it was made structural:
+
+- **Oxlint does not own lint policy.** It is the engine that currently realises
+  it. `policy.json` states the 117 policies in the repository's own vocabulary;
+  a vendor rule identity in that file is a leak.
+- **`oxlint-tsgolint` is not compiler authority.** It reads types to decide lint
+  questions. Whether the repository compiles is `tsc`'s answer, and no lint
+  entry point may substitute for it.
+- **The TS6 seam is not a second compiler.** It is a parser, admitted for one
+  consumer. No `typecheck`, `build` or `generate` command may resolve it.
+- **Prettier owns formatting, not the lint engine.** A formatting rule inside
+  lint policy would give the same question two answers.
 
 ### The merge gate
 
@@ -141,7 +177,7 @@ skipped target job still reports a conclusion so a required check cannot vanish.
 Target selection follows the **dependency graph**: a change to
 `packages/contracts` runs every dependent. Root configuration —
 `pnpm-workspace.yaml`, `package.json`, the lockfile, Syncpack config, shared
-`tsconfig` or ESLint packages, the workflow, the classifier — fans out to
+`tsconfig` or lint-config packages, the workflow, the classifier — fans out to
 everything.
 
 Three properties of that gate are deliberate and must not be eroded:

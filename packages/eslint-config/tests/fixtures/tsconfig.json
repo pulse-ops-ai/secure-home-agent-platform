@@ -1,4 +1,0 @@
-{
-  "extends": "@secure-home/tsconfig/library",
-  "include": ["."]
-}

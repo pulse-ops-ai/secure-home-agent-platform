@@ -16,13 +16,21 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`secret-scan-allowlist.txt`](secret-scan-allowlist.txt) | Narrow, commented exceptions for the scanner |
 | [`workspace-model.mjs`](workspace-model.mjs) | The workspace's shape — taxonomy, the **layer map**, package roles. Imported by the two checks below so they cannot disagree. No side effects |
 | [`check-workspace.mjs`](check-workspace.mjs) | What a manifest may **declare**: taxonomy, naming, script surface, dependency direction, `catalog:`/`workspace:*` |
-| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file with the TypeScript compiler and enforces direction on the real import nodes |
+| [`check-source-imports.mjs`](check-source-imports.mjs) | What source may **import**: parses each file through the bounded `@typescript/typescript6` seam and enforces direction on the real import nodes |
 | [`affected-targets.mjs`](affected-targets.mjs) | Computes which CI target gates must run, by **dependency graph** — never by directory alone |
 | [`check-knowledge.mjs`](check-knowledge.mjs) | Knowledge **registry** conformance: modules, sets, statuses, gates, and README-only while a module's toolchain gate is closed. **Not** the content validator |
 | [`check-knowledge-content.mjs`](check-knowledge-content.mjs) | Invokes the knowledge toolchain over **real authored bytes** — admission, prohibited-content indicators, and the review attestation bound to the exact source digest |
 | [`check-set-releases.mjs`](check-set-releases.mjs) | Hands **real release-manifest bytes** to the toolchain: canonical form, digest, review binding, family/version agreement. Deliberately **one revision** — it never re-derives a release from the catalog |
 | [`check-release-history.mjs`](check-release-history.mjs) | The **two-revision** properties, compared against the prior governed revision: no released identity deleted or re-identified, only `Released → Deprecated → Retired`, and a **new** release must satisfy the ADR-0019 §6 member preconditions |
+| [`openspec-review-gate.mjs`](openspec-review-gate.mjs) | The governed-spec-driven-v2 **pre-apply** review gate: binds an accepting review to one planning commit and the exact bytes of every planning artifact. Run **once**, immediately before the first implementation change — **never** as a continuous check, because it refuses repository change after the reviewed commit |
+| [`check-openspec-review-history.mjs`](check-openspec-review-history.mjs) | The **two-revision** companion: admitted rounds are append-only. Adding is allowed; modifying, deleting, or renaming one is refused; a byte-identical move into `changes/archive/**` is allowed. A round is a **direct child** of `reviews/` named `<epoch>-<reviewed-sha12>.md` — a nested path is refused rather than skipped, because it is the only shape whose admission provenance this check can prove. Runs always |
+| [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
+| [`openspec-review-pins.mjs`](openspec-review-pins.mjs) | Enumerates the historical `reviewed_commit` identities a candidate's `reviews/` rounds cite, read from git objects, so the trusted boundary can fetch those commits **as inert objects** before the gate's `cat-file` identity proof needs them. Necessary after a **squash merge**, which orphans a reviewed commit so a fresh runner has never fetched it. Decides nothing about acceptance — it reads one field and refuses anything but lowercase full 40-hex, a filename that disagrees with its block, or an ambiguous round |
+| [`build-maintenance-plan.mjs`](build-maintenance-plan.mjs) | Assembles a classification plan from two Git **revisions**, read out of the object database as inert file maps — neither side is checked out and nothing from the candidate executes. The path universe is **derived** here (what changed, plus everything the predecessor's protected projections cover) rather than taken from either revision, because a candidate that could shrink the universe could hide a change inside it |
+| [`check-toolchain-boundaries.mjs`](check-toolchain-boundaries.mjs) | The **predecessor-bound** maintenance classifier. Decides admissible *data difference* between a trusted predecessor and a candidate under one of the **closed** maintenance classes in [`toolchain-boundaries.json`](toolchain-boundaries.json), and nothing else — it never resolves, selects, or trusts a revision, because a candidate that could choose its own predecessor could authorize itself. Comparison is by **projection**, a named function over content, so one file can be protected and permitted at once: `engine-mappings.json` is protected under `mapping-coverage` (no policy may lose a mapping) and permitted under `mapping-detail` (vendor rule identity may move). Resolved-graph movement is bounded by the **derived** transitive closure of the selected roots, never a declared one. Run with no arguments it checks the policy's own consistency at rest. Missing or unreadable predecessor, malformed class, unknown class, an undeclared changed path, protected drift, class union, or a class touching its own verifier all **fail closed** |
 | [`check-images.mjs`](check-images.mjs) | Image **lock and lineage** invariants (`deploy/images/image-lock.yaml`): closed lineage classes, immutable external pins, the base→derived digest chain, provider-neutral base/gates definitions, and image inertness. Structural only — real digests come from the governed images workflow |
+| [`image-impact.mjs`](image-impact.mjs) | Fail-closed semantic image-impact analysis: compares a trusted Git revision with the candidate, derives build inputs and dependency closure from the image lock/Dockerfiles/toolchain inventory, and selects no build only when irrelevance is positively proved. Exports `GLOBAL_BUILD_INPUTS`, the repository-level inputs that force the complete set; each must appear on the workflow's outer `paths` perimeter (structurally enforced) or the checker never runs |
+| [`pr-merge-plan.mjs`](pr-merge-plan.mjs) | Composed-tree PR proof planning: resolves the **live** target-branch tip, composes a synthetic `merge(live base, PR head)` with Git plumbing (no branch mutated), gates the previous-head fast path on base incorporation, and re-checks both identities at run end (TOCTOU). The synthetic `MERGE_SHA` is deterministic — fixed identity, input-derived commit dates, and normalized UTF-8 commit encoding — so identical inputs reproduce the same evidence SHA despite ambient clock or Git encoding configuration. Fails closed on an unresolvable base/head or a merge conflict. A global image-proof input, so it is on the `images.yml` perimeter |
 
 ## What belongs here
 
@@ -51,12 +59,30 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
    `workspace-model.mjs`, and `affected-targets.mjs` are likewise dependency-free;
    `affected-targets.mjs` in particular runs in a CI job that never installs.
 
-   **One deliberate exception:** `check-source-imports.mjs` imports `typescript`
-   to parse source. Deciding whether a token is an import requires a lexer, and
-   a governance gate that guesses is a governance gate with bypasses. It runs
-   after `pnpm install --frozen-lockfile` in both CI and `check.sh`, and
-   `tests/test_source_imports.py` asserts that ordering and that this is the
-   only third-party import any of these scripts takes.
+   **One deliberate exception:** `check-source-imports.mjs` imports
+   `@typescript/typescript6` to parse source. Deciding whether a token is an
+   import requires a lexer, and a governance gate that guesses is a governance
+   gate with bypasses.
+
+   It does **not** import the normal `typescript` compiler, and the distinction
+   is not cosmetic. The normal compiler is TypeScript 7.0.2, whose root export
+   no longer carries the traditional AST API this gate is written against;
+   `@typescript/typescript6` 6.0.2 is a bounded **parser seam** that does. Two
+   consequences follow, and both are deliberate:
+
+   - the gate needs a parser, not compiler authority. Importing `typescript`
+     would couple them, so a future compiler cutover would silently change how
+     architecture is parsed.
+   - the seam is **not a second compiler**. No `typecheck`, `build` or
+     `generate` command may resolve it, its `tsc6` binary, or
+     `typescript/unstable/*`.
+
+   Exactly one file in the repository may load the seam — this one — and
+   `packages/lint-config/tests/compatibility-seam.test.ts` refuses a second
+   consumer anywhere in the tree. It runs after `pnpm install --frozen-lockfile`
+   in both CI and `check.sh`, and `tests/test_source_imports.py` asserts that
+   ordering and that the seam is the only third-party import any of these
+   scripts takes.
 
    **A second, first-party exception:** `check-set-releases.mjs` and
    `check-release-history.mjs` import `@secure-home/knowledge-toolchain` — the
@@ -115,7 +141,14 @@ node scripts/check-knowledge.mjs       # knowledge registry conformance
 # first, or they fail with a module-resolution error instead of a verdict.
 node scripts/check-set-releases.mjs    # real release records and manifest bytes
 node scripts/check-release-history.mjs # what changed since the prior revision
+node scripts/check-openspec-review-history.mjs  # reviews/ rounds are append-only
+#   (stdlib-only: check.sh runs it beside the other node checks, not behind pnpm)
+
+# Pre-apply only — once, before the first implementation change of a v2 change:
+pnpm run review:manifest -- --change <change-name>
+pnpm run review:verify   -- --change <change-name>
 node scripts/check-images.mjs          # image lock and lineage invariants
+node scripts/image-impact.mjs --base <trusted-commit> --head HEAD
 node scripts/affected-targets.mjs <changed-files...>
 bash scripts/check.sh               # all of the above, plus both workspaces
 ```
@@ -152,7 +185,7 @@ stop agreeing about what "inward" means without anything failing.
 
 `check-workspace.mjs` excludes `devDependencies` from layering on purpose: every
 member devDepends on `@secure-home/testing` (layer 6) and
-`@secure-home/eslint-config` (layer 0), so counting those as architectural edges
+`@secure-home/lint-config` (layer 0), so counting those as architectural edges
 would make the layer map unusable while preventing nothing.
 
 That exclusion is correct for manifest policy and **false as a claim about the
@@ -189,7 +222,8 @@ Three deliberate properties of the source check:
   `import { log } from /* c */ '@secure-home/logging'`. Masking comments and
   strings by hand fixes those two and leaves regular-expression literals
   containing quotes, template substitutions, and JSX text containing an
-  apostrophe. So the checker uses TypeScript's own parser and walks the AST —
+  apostrophe. So the checker uses a real TypeScript parser — the bounded
+  `@typescript/typescript6` seam — and walks the AST —
   a construct either is an import node or it is not. A file whose syntax the
   parser rejects **fails**; a file that cannot be parsed cannot be verified,
   and skipping it would restore the bypass.
@@ -203,3 +237,128 @@ Three deliberate properties of the source check:
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).
+
+## Maintenance-boundary lifecycle state
+
+This repository has produced **no authoritative maintenance evidence**, and PR-B
+(the landing that creates the boundary) cannot produce any. That is the explicit
+genesis-only record, and it is a fact about where the executable authority comes
+from rather than a status field:
+
+- `repository_dispatch` always runs the **default-branch** definition of
+  [`toolchain-maintenance-boundary.yml`](../.github/workflows/toolchain-maintenance-boundary.yml).
+  That file is now on the default branch, so the invocation exists; what does
+  not yet exist is a candidate whose PREDECESSOR already contains it.
+- `classifyMaintenance()` separately refuses a predecessor that does not contain
+  the verifier authorities (`PREDECESSOR_LACKS_VERIFIER`). PR-B is judged against
+  a predecessor that lacks them, so no revision exists at which it admits itself.
+
+An earlier draft encoded this as a `genesisState: GENESIS_ONLY` field the
+classifier read. That was wrong, and removing it was a correction rather than a
+relaxation: no accepted task defines the transition that would flip such a flag
+to `OPERATIONAL`, so it would have refused the *first real maintenance candidate*
+forever — deadlocking the authority it existed to protect. The presence of the
+verifier at the predecessor expresses the same condition and becomes true simply
+by merging.
+
+The protocol is proved here by executable fixtures and ordinary hosted CI. Those
+results are **not** predecessor-hosted maintenance evidence and are not
+represented as such. The first authoritative run belongs to a later candidate
+whose predecessor already contains this boundary.
+
+## Updating the toolchain: the security-maintenance procedure
+
+A compiler, lint-engine or parser-seam version change is **not**
+
+```text
+edit the version → run the tests → merge
+```
+
+It is a two-revision, predecessor-bound proof. The reason is that the thing
+being changed is the thing that would otherwise verify the change: a toolchain
+update that graded its own homework could relax a policy and report green. So a
+candidate is treated as untrusted data, and the authority that judges it comes
+from the revision before it.
+
+```text
+trusted predecessor
+      ↓             the verifier and its dependencies are loaded from here
+closed maintenance class
+      ↓             a named, bounded set of admissible differences
+candidate changes only allowed projections
+      ↓             anything outside the class is refused, not argued about
+trusted maintenance workflow
+      ↓             .github/workflows/toolchain-maintenance-boundary.yml,
+      ↓             always the DEFAULT-BRANCH definition
+candidate treated as untrusted subject / data
+      ↓             it executes in isolation; it never becomes the verifier
+classifier / verifier proves protected projections unchanged
+      ↓             scripts/check-toolchain-boundaries.mjs
+native platform proof
+      ↓             .github/workflows/toolchain-platform.yml, x64 AND arm64
+freshness / merge checks
+```
+
+The executable authorities are
+[`check-toolchain-boundaries.mjs`](check-toolchain-boundaries.mjs) and
+[`toolchain-boundaries.json`](toolchain-boundaries.json). Read the current
+classes and protected projections there rather than here: a package list copied
+into prose is a second authority that starts drifting the moment either changes.
+
+### What a version update must still prove
+
+- **Semantic lint policy cannot disappear with an engine update.** `policy.json`
+  states the policies; an engine change may alter which rule realises one, never
+  whether one exists.
+- **Mapping detail may change only where the class permits it**, and **mapping
+  coverage stays protected** — every policy keeps a mapping for every engine.
+- **Compiler and typed-lint movement respect the composite boundary.** The typed
+  lint backend reads types; moving it and the compiler together is a coupled
+  change the class governs, not two independent bumps.
+- **Frozen install and native x64/ARM64 proof are part of the update**, not a
+  follow-up. A toolchain that has not been shown to run on both architectures
+  has not been shown to work.
+- **A new `onlyBuiltDependencies` exception is not routine maintenance.** The
+  posture is empty on purpose; an install lifecycle script is a decision, and it
+  stops the update rather than being absorbed into it.
+
+### Running the native platform proof deliberately
+
+The proof normally runs itself: `toolchain-platform.yml` triggers on any pull
+request touching the catalog, the lockfile, `packages/lint-config/**`,
+`toolchain-boundaries.json`, or the workflow. To run it on demand:
+
+```sh
+gh workflow run toolchain-platform.yml --ref <your-branch>
+```
+
+There is no wrapper script and should not be one. A dispatch runs **both**
+native rows — `ubuntu-24.04` and `ubuntu-24.04-arm` — and the aggregate job
+requires both to have concluded `success`. Missing and skipped are not pass, so
+one architecture cannot quietly carry the other.
+
+### Rolling back a bad toolchain update
+
+Rollback restores an authority; it does not suspend one. None of these is a
+rollback:
+
+- reinstating a retired lint engine;
+- bypassing `policy.json`, or lowering a policy to non-blocking;
+- pointing the architecture gate at the normal compiler instead of the seam;
+- widening the seam's admitted-consumer allowlist;
+- dropping the ARM64 row;
+- adding an install-script exception to get the install through.
+
+The rollback is: restore the last accepted predecessor-compatible toolchain
+state through an ordinary reviewed Git change, then re-run the same conformance,
+maintenance and native platform proofs against it. If those pass, the state is
+accepted again on the same evidence as any other candidate — which is the point.
+A revert that skipped the proofs would leave the repository trusting a version
+precisely because it used to be trusted.
+
+One caveat specific to the TypeScript 7 migration: **TypeScript 6's emitted
+serialization is not a compatibility contract.** No TypeScript 7 output was ever
+delivered, so what the migration preserves is the repository's semantics and
+shipped artifacts — runtime JavaScript and generated files byte-for-byte,
+declarations by type and API meaning. Rolling back to reproduce TypeScript 6's
+exact declaration bytes would be restoring a serializer, not an interface.

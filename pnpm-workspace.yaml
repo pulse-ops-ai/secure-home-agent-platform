@@ -53,20 +53,56 @@ catalog:
   '@types/node': 24.10.1
   # Type checking and build.
   #
-  # PINNED TO 6.x DELIBERATELY. typescript-eslint 8.66 supports
-  # '>=4.8.4 <6.1.0' and throws outright on TS 7 ("does not support TS 7.0"),
-  # which makes type-aware linting fail or, worse, pass or fail depending on
-  # which TypeScript copy resolves first. Raising this past 6.0.x requires a
-  # typescript-eslint release that supports it — tests/ asserts the pairing.
-  typescript: 6.0.3
+  # THE ONE AUTHORITATIVE NORMAL COMPILER. Task 3.2 moved this from 6.0.3.
+  #
+  # It was pinned to 6.x because typescript-eslint 8.66 supported
+  # '>=4.8.4 <6.1.0' and threw outright on TS 7, so type-aware linting would
+  # fail — or, worse, pass or fail depending on which TypeScript copy resolved
+  # first. Task 3.4 retired that engine, which is what made this move possible;
+  # the pin moved only afterwards, so a single change never both removed an
+  # engine and changed the compiler.
+  #
+  # Exact, never a range. Every `typecheck`, `build` and `generate` entry point
+  # must resolve THIS package at THIS version, proved by the compiler-identity
+  # tests rather than assumed. `@typescript/typescript6` below is a bounded
+  # PARSER seam, not a compiler: no ordinary entry point may resolve it, its
+  # `tsc6` binary, or `typescript/unstable/*`.
+  typescript: 7.0.2
   # Linting.
-  eslint: 10.8.0
-  '@eslint/js': 10.0.1
-  typescript-eslint: 8.66.0
   # Lint globals (Node/browser sets) — tiny, data-only.
-  globals: 17.9.0
+  # THE BOUNDED TRADITIONAL-API COMPATIBILITY SEAM, added by PR-B task 1.13.
+  #
+  # NOT a compiler. `typescript` above remains the sole authority for typecheck,
+  # build, and every generator; nothing here may satisfy one of those. This
+  # package exists so ONE consumer -- scripts/check-source-imports.mjs -- can
+  # keep parsing source with the traditional TypeScript API while the normal
+  # compiler moves on. Without the seam, the architecture gate would be coupled
+  # to compiler authority, and a compiler cutover would drag the gate with it.
+  #
+  # Its major track follows the API generation it exposes, not the compiler's:
+  # 6.0.2 here presents the traditional TypeScript 6 API.
+  '@typescript/typescript6': 6.0.2
+  # THE LINT ENGINE, added by PR-B/Scope 1 (ADR-0022).
+  #
+  # Scope 1 ran it alongside ESLint so behavioural parity could be proved for
+  # all 117 policies before any retirement. That retirement is task 3.4, and it
+  # has happened: this is now the only lint engine in the workspace, and the
+  # only one that blocks.
+  #
+  # Pinned exactly. A floating range would let the engine under test change
+  # between the run that proved parity and the run that consumes the proof.
+  oxlint: 1.80.0
+  # Type-aware lint for the replacement engine. Its major track follows the
+  # TypeScript it reads, not oxlint's.
+  oxlint-tsgolint: 7.0.2001
   # Manifest governance.
   syncpack: 15.3.2
+  # The real OpenSpec implementation. Pinned exactly, never `latest`: this
+  # repository AUTHORS an OpenSpec workflow schema, so its structural checks
+  # must be confirmed by the parser that will actually read them rather than by
+  # grep and awk. A floating version would let an upstream change silently
+  # invalidate a schema the repository governs.
+  '@fission-ai/openspec': 1.11.0
   # Formatting. Prettier is the SINGLE formatting authority (#25); ESLint 10
   # ships no formatting rules in core and this workspace adds no stylistic
   # plugin, so the two cannot conflict.

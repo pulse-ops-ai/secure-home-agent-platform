@@ -36,9 +36,11 @@
  *
  * What is NOT proved here: that a digest matches a real build. That proof
  * belongs to the governed build path (.github/workflows/images.yml), which
- * rebuilds every definition and compares. The bootstrap sentinel
- * `pending-first-governed-build` is valid syntax here and a loud failure
- * there — bootstrap is visible, never complete.
+ * rebuilds the classifier-selected dependency closure and compares every
+ * produced identity; a no-build result requires its own deterministic
+ * no-impact proof. The bootstrap sentinel `pending-first-governed-build` is
+ * valid syntax here and a loud failure there — bootstrap is visible, never
+ * complete.
  */
 import { existsSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
@@ -103,11 +105,7 @@ const structuralVocabulary = (root) => {
 // (pnpm). The gates-toolchain image must mirror these exactly — a pin moved
 // at the source while the image stays stale refuses in the always-on
 // governance gate, not in a path-filtered workflow.
-const gatePins = (root) => {
-  const checksPath = join(root, '.github', 'workflows', 'checks.yml')
-  const manifestPath = join(root, 'package.json')
-  if (!existsSync(checksPath) || !existsSync(manifestPath)) return undefined
-  const checks = readFileSync(checksPath, 'utf8')
+export const gatePinsFromSources = (checks, manifest) => {
   const node = checks.match(/NODE_VERSION:\s*'([^']+)'/)?.[1]
   const uv = checks.match(/UV_VERSION:\s*'([^']+)'/)?.[1]
   let pnpm
@@ -115,14 +113,19 @@ const gatePins = (root) => {
     // packageManager may carry corepack's integrity suffix
     // (pnpm@1.2.3+sha512.<hex>). The image mirrors the VERSION; the artifact
     // itself is pinned separately, by ARG PNPM_SHA256 over the same tarball.
-    pnpm = JSON.parse(readFileSync(manifestPath, 'utf8')).packageManager?.match(
-      /^pnpm@([^+]+)/,
-    )?.[1]
+    pnpm = JSON.parse(manifest).packageManager?.match(/^pnpm@([^+]+)/)?.[1]
   } catch {
     pnpm = undefined
   }
   if (node === undefined || uv === undefined || pnpm === undefined) return undefined
   return { node, uv, pnpm }
+}
+
+const gatePins = (root) => {
+  const checksPath = join(root, '.github', 'workflows', 'checks.yml')
+  const manifestPath = join(root, 'package.json')
+  if (!existsSync(checksPath) || !existsSync(manifestPath)) return undefined
+  return gatePinsFromSources(readFileSync(checksPath, 'utf8'), readFileSync(manifestPath, 'utf8'))
 }
 
 const CREDENTIAL_NAME = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
@@ -138,7 +141,7 @@ const REPO_DIRS = ['services', 'packages', 'knowledge', 'profiles']
  * spellings against the original single-pattern rule. An instruction the
  * parser cannot read is refused, never skipped.
  */
-const parseCopySources = (instruction) => {
+export const parseCopySources = (instruction) => {
   let rest = instruction.replace(/^(COPY|ADD)\s+/i, '')
   let fromValue
   for (;;) {
@@ -162,6 +165,27 @@ const parseCopySources = (instruction) => {
   }
   if (args.length < 2) return { error: 'missing source or destination' }
   return { fromValue, sources: args.slice(0, -1) }
+}
+
+export const dockerfileInstructions = (text) => {
+  // BuildKit reads a backslash-continued instruction as one logical line and
+  // discards full-line comments inside that continuation. Every consumer of
+  // Dockerfile semantics must fold the bytes the same way or a classifier can
+  // disagree with the lineage gate about which files are copied.
+  const lines = []
+  let carry = ''
+  for (const raw of text.split('\n')) {
+    if (carry !== '' && /^\s*#/.test(raw)) continue
+    const joined = carry + raw
+    if (/\\\s*$/.test(joined) && !/^\s*#/.test(joined)) {
+      carry = joined.replace(/\\\s*$/, ' ')
+      continue
+    }
+    lines.push(joined)
+    carry = ''
+  }
+  if (carry !== '') lines.push(carry)
+  return lines
 }
 const LAUNCHER_TOKENS = [
   'dockerode',
@@ -273,6 +297,19 @@ export function parseLock(text) {
   if (at < rows.length) problems.push(`${rows[at].where}: unexpected structure`)
   if (problems.length > 0) return { problems }
   return { root }
+}
+
+export const plainLock = (node) => {
+  if (node instanceof Map)
+    return Object.fromEntries([...node].map(([key, value]) => [key, plainLock(value)]))
+  if (Array.isArray(node)) return node.map(plainLock)
+  return node
+}
+
+export function parsePlainLock(text) {
+  const parsed = parseLock(text)
+  if (parsed.problems !== undefined) return { problems: parsed.problems }
+  return { lock: plainLock(parsed.root) }
 }
 
 // --- validation --------------------------------------------------------------
@@ -679,22 +716,7 @@ export function checkImages(root = DEFAULT_ROOT) {
     const text = readFileSync(path, 'utf8')
     // Instruction-level rules read LOGICAL lines: a backslash continuation
     // must not be able to hide an argument from any scan below.
-    const lines = []
-    let carry = ''
-    for (const raw of text.split('\n')) {
-      // BuildKit strips full-line comments INSIDE a continuation; the fold
-      // must too, or a real instruction detaches at its first mid-block
-      // comment and the tail's arguments escape every instruction scan.
-      if (carry !== '' && /^\s*#/.test(raw)) continue
-      const joined = carry + raw
-      if (/\\\s*$/.test(joined) && !/^\s*#/.test(joined)) {
-        carry = joined.replace(/\\\s*$/, ' ')
-        continue
-      }
-      lines.push(joined)
-      carry = ''
-    }
-    if (carry !== '') lines.push(carry)
+    const lines = dockerfileInstructions(text)
 
     const fromLines = lines.map((l) => l.trim()).filter((l) => /^FROM\s/i.test(l))
     const stageAliases = new Set(
@@ -1404,13 +1426,8 @@ if (invokedDirectly) {
   if (options.get('--print') === true) {
     // Machine-readable projection for the governed build scripts: ONE parser
     // (this file) feeds them, so the build cannot read the lock differently.
-    const parsed = parseLock(readFileSync(join(root, LOCK_PATH), 'utf8'))
-    const plain = (node) => {
-      if (node instanceof Map) return Object.fromEntries([...node].map(([k, v]) => [k, plain(v)]))
-      if (Array.isArray(node)) return node.map(plain)
-      return node
-    }
-    process.stdout.write(JSON.stringify(plain(parsed.root), null, 2))
+    const parsed = parsePlainLock(readFileSync(join(root, LOCK_PATH), 'utf8'))
+    process.stdout.write(JSON.stringify(parsed.lock, null, 2))
     process.stdout.write('\n')
   } else {
     const note =

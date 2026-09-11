@@ -8,19 +8,24 @@ each script refuses outside CI unless a human deliberately sets
 
 | Script | Does |
 |---|---|
-| [`build.sh`](build.sh) | Builds every image registered in [`../image-lock.yaml`](../image-lock.yaml), for every declared platform, as OCI **layouts** (no registry, no push, no produced image executed — the pinned binfmt helper and BuildKit container are the build infrastructure that runs), with the reproducibility posture fixed: attestations off, `SOURCE_DATE_EPOCH=0`, timestamps rewritten, the derived image's parent resolved from the lock's `parent_digest` via an OCI-layout build context. Emits `digests.json` evidence |
-| [`verify.sh`](verify.sh) | Compares the freshly built digests to the lock. Mismatch → fail naming both digests. Bootstrap sentinel → fail printing the built digests as the exact evidence to record. Match → the rebuild-and-compare reproducibility proof |
+| [`build.sh`](build.sh) | Public governed-build entry point. With no arguments it still builds the complete lock. CI uses its additive `plan`/`collect` phases to build only the classifier-selected transitive closure, while materializing and verifying any unchanged parent needed by a selected child |
+| [`build-plan.mjs`](build-plan.mjs) | Projects the validated lock into deterministic BuildKit Bake phases: independent roots together, then derived children together after parent verification. Emits one stable GHA cache scope per image, preserves every lock-declared platform, and collects OCI index/per-platform digest evidence |
+| [`verify.sh`](verify.sh) | Compares every OCI output named by the build plan to the lock, including a materialized parent. Mismatch → fail naming both digests. Bootstrap sentinel → final failure printing the exact evidence to record. Match → the rebuild-and-compare proof for the selected outputs |
 | [`inspect.sh`](inspect.sh) | Human-readable lineage: built index and per-platform manifest digests, the parent chain, and the pinned runtime, against the lock |
 
 ## Boundary rules
 
-1. **One lock parser.** The scripts read the lock exclusively through
-   `scripts/check-images.mjs --print`, so the build can never read the lock
-   differently than the merge gate validates it.
+1. **One lock parser.** The scripts import the strict parser and validator from
+   `scripts/check-images.mjs`, so classification/planning cannot assign a
+   second meaning to the lock.
 2. **Build outputs live outside the repository** (`$RUNNER_TEMP` or
    `/tmp`). Nothing generated is ever tracked.
 3. **No publish, no launch, no deploy.** Digest evidence is the only
    product.
+4. **Cache is not evidence.** `type=gha` can satisfy BuildKit layers, but the
+   exported OCI identities are still compared with `image-lock.yaml`.
+5. **A derived build waits for its parent proof.** The root phase's OCI layout
+   must equal the recorded `parent_digest` before the child phase consumes it.
 
 ## Governed by
 

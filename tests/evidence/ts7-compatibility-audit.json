@@ -1,0 +1,600 @@
+{
+  "schemaVersion": 1,
+  "task": "3.1",
+  "scope": "typescript7-cutover",
+  "probe": {
+    "compiler": "typescript",
+    "version": "7.0.2",
+    "executedFrom": "an install outside the workspace; no repository dependency moved",
+    "note": "A ONE-TIME isolated probe, recorded so its identity and result survive. It is not re-executed by ordinary CI: TypeScript 7 is not in the repository dependency graph until task 3.2, which installs it through the normal path and re-proves these results. Until then this file says exactly WHICH files the successful probe covered, so it cannot later be read as evidence for different ones."
+  },
+  "surface": {
+    "compilerOptions": [
+      "allowJs",
+      "composite",
+      "declaration",
+      "declarationMap",
+      "emitDecoratorMetadata",
+      "exactOptionalPropertyTypes",
+      "experimentalDecorators",
+      "forceConsistentCasingInFileNames",
+      "isolatedModules",
+      "lib",
+      "module",
+      "moduleResolution",
+      "noEmit",
+      "noEmitOnError",
+      "noFallthroughCasesInSwitch",
+      "noImplicitOverride",
+      "noImplicitReturns",
+      "noPropertyAccessFromIndexSignature",
+      "noUncheckedIndexedAccess",
+      "outDir",
+      "removeComments",
+      "rootDir",
+      "skipLibCheck",
+      "sourceMap",
+      "strict",
+      "target",
+      "types",
+      "useUnknownInCatchVariables",
+      "verbatimModuleSyntax"
+    ],
+    "compilerCommands": [
+      {
+        "manifest": "agents/adapters/coding/claude-code/package.json",
+        "script": "typecheck",
+        "body": "pnpm run deps && tsc --noEmit"
+      },
+      {
+        "manifest": "agents/adapters/coding/claude-code/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "agents/adapters/coding/copilot-cli/package.json",
+        "script": "typecheck",
+        "body": "pnpm run deps && tsc --noEmit"
+      },
+      {
+        "manifest": "agents/adapters/coding/copilot-cli/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "apps/web/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "apps/web/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/api-contracts/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/api-contracts/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/contracts/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/contracts/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/contracts/package.json",
+        "script": "generate",
+        "body": "tsc -p tsconfig.build.json && node dist/tools/generate.js"
+      },
+      {
+        "manifest": "packages/errors/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/errors/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/eslint-config/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/events/package.json",
+        "script": "typecheck",
+        "body": "pnpm run deps && tsc --noEmit"
+      },
+      {
+        "manifest": "packages/events/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/events/package.json",
+        "script": "generate",
+        "body": "pnpm run deps && tsc -p tsconfig.build.json && node dist/tools/generate.js"
+      },
+      {
+        "manifest": "packages/knowledge-toolchain/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/knowledge-toolchain/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/lint-config/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/logging/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/logging/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/observability/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/observability/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/query-model/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/query-model/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/runner-core/package.json",
+        "script": "typecheck",
+        "body": "pnpm run deps && tsc --noEmit"
+      },
+      {
+        "manifest": "packages/runner-core/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/testing/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/testing/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "packages/tsconfig/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/worker-base/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "packages/worker-base/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "services/control-plane/package.json",
+        "script": "typecheck",
+        "body": "tsc --noEmit"
+      },
+      {
+        "manifest": "services/control-plane/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      },
+      {
+        "manifest": "services/runner-control/package.json",
+        "script": "typecheck",
+        "body": "pnpm run deps && tsc --noEmit"
+      },
+      {
+        "manifest": "services/runner-control/package.json",
+        "script": "build",
+        "body": "tsc -p tsconfig.build.json"
+      }
+    ],
+    "generatorCommands": [
+      {
+        "manifest": "packages/contracts/package.json",
+        "script": "generate"
+      },
+      {
+        "manifest": "packages/events/package.json",
+        "script": "generate"
+      }
+    ],
+    "compilerConfigs": [
+      "agents/adapters/coding/claude-code/tsconfig.build.json",
+      "agents/adapters/coding/claude-code/tsconfig.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.build.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.json",
+      "apps/web/tsconfig.build.json",
+      "apps/web/tsconfig.json",
+      "packages/api-contracts/tsconfig.build.json",
+      "packages/api-contracts/tsconfig.json",
+      "packages/contracts/tsconfig.build.json",
+      "packages/contracts/tsconfig.json",
+      "packages/errors/tsconfig.build.json",
+      "packages/errors/tsconfig.json",
+      "packages/eslint-config/tests/fixtures/tsconfig.json",
+      "packages/eslint-config/tsconfig.json",
+      "packages/events/tsconfig.build.json",
+      "packages/events/tsconfig.json",
+      "packages/knowledge-toolchain/tsconfig.build.json",
+      "packages/knowledge-toolchain/tsconfig.json",
+      "packages/lint-config/tests/fixtures/tsconfig.json",
+      "packages/lint-config/tests/lint-subject/tsconfig.json",
+      "packages/lint-config/tsconfig.json",
+      "packages/logging/tsconfig.build.json",
+      "packages/logging/tsconfig.json",
+      "packages/observability/tsconfig.build.json",
+      "packages/observability/tsconfig.json",
+      "packages/query-model/tsconfig.build.json",
+      "packages/query-model/tsconfig.json",
+      "packages/runner-core/tsconfig.build.json",
+      "packages/runner-core/tsconfig.json",
+      "packages/testing/tsconfig.build.json",
+      "packages/testing/tsconfig.json",
+      "packages/tsconfig/application.json",
+      "packages/tsconfig/base.json",
+      "packages/tsconfig/library.json",
+      "packages/tsconfig/service.json",
+      "packages/tsconfig/test.json",
+      "packages/tsconfig/tsconfig.json",
+      "packages/worker-base/tsconfig.build.json",
+      "packages/worker-base/tsconfig.json",
+      "services/control-plane/tsconfig.build.json",
+      "services/control-plane/tsconfig.json",
+      "services/runner-control/tsconfig.build.json",
+      "services/runner-control/tsconfig.json"
+    ],
+    "compilerConfigSurfaceRule": "Tracked files whose BASENAME is tsconfig*.json, plus the shared compiler-config JSON files packages/tsconfig exports. packages/tsconfig/package.json is excluded: it is a package manifest, and a glob matching on directory name turned it into a tsconfig. It remains governed by the compiler-command inventory."
+  },
+  "probeResults": {
+    "typecheckedConfigs": [
+      "agents/adapters/coding/claude-code/tsconfig.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.json",
+      "apps/web/tsconfig.json",
+      "packages/api-contracts/tsconfig.json",
+      "packages/contracts/tsconfig.json",
+      "packages/errors/tsconfig.json",
+      "packages/eslint-config/tsconfig.json",
+      "packages/events/tsconfig.json",
+      "packages/knowledge-toolchain/tsconfig.json",
+      "packages/lint-config/tests/lint-subject/tsconfig.json",
+      "packages/lint-config/tsconfig.json",
+      "packages/logging/tsconfig.json",
+      "packages/observability/tsconfig.json",
+      "packages/query-model/tsconfig.json",
+      "packages/runner-core/tsconfig.json",
+      "packages/testing/tsconfig.json",
+      "packages/tsconfig/tsconfig.json",
+      "packages/worker-base/tsconfig.json",
+      "services/control-plane/tsconfig.json",
+      "services/runner-control/tsconfig.json"
+    ],
+    "emittedConfigs": [
+      "agents/adapters/coding/claude-code/tsconfig.build.json",
+      "agents/adapters/coding/copilot-cli/tsconfig.build.json",
+      "apps/web/tsconfig.build.json",
+      "packages/api-contracts/tsconfig.build.json",
+      "packages/contracts/tsconfig.build.json",
+      "packages/errors/tsconfig.build.json",
+      "packages/events/tsconfig.build.json",
+      "packages/knowledge-toolchain/tsconfig.build.json",
+      "packages/logging/tsconfig.build.json",
+      "packages/observability/tsconfig.build.json",
+      "packages/query-model/tsconfig.build.json",
+      "packages/runner-core/tsconfig.build.json",
+      "packages/testing/tsconfig.build.json",
+      "packages/worker-base/tsconfig.build.json",
+      "services/control-plane/tsconfig.build.json",
+      "services/runner-control/tsconfig.build.json"
+    ],
+    "configParsedConfigs": [
+      "packages/eslint-config/tests/fixtures/tsconfig.json",
+      "packages/lint-config/tests/fixtures/tsconfig.json",
+      "packages/tsconfig/application.json",
+      "packages/tsconfig/base.json",
+      "packages/tsconfig/library.json",
+      "packages/tsconfig/service.json",
+      "packages/tsconfig/test.json"
+    ],
+    "generatorsCompiled": [
+      {
+        "manifest": "packages/contracts/package.json",
+        "script": "generate"
+      },
+      {
+        "manifest": "packages/events/package.json",
+        "script": "generate"
+      }
+    ],
+    "ts7LanguageFixtures": {
+      "accessor-keyword.ts": "256d5df4167f8166a6a040475419edf1519b97e74c2e3424272e7fbff4c3bf22",
+      "await-using.ts": "b7b745e52fd6ad5be0c50dd8361fbe213b3a9c0294ed973dd6bac546e8fb1886",
+      "const-type-parameter.ts": "d05d66807d261a22ebae76f59bc76c60b1397bd055ebb84f831c3681c5130f5b",
+      "explicit-resource-management.ts": "5633e46a555c5f71a2a83ddc7d1aabd965cbe7fa26b3282e812c3b411014072a",
+      "import-attributes.ts": "cb8f3dca60320b5215f891b108edc637d7173917bb845b2fb664bbc13bc88016",
+      "import-defer.ts": "df5e47aa0e2d45f98584f374bdb899af808964d22949e81f582f9624b5224035",
+      "modern-decorator.ts": "c7ff676fc40ff90da1cf3b7776727ca2abec37203802c4384105728526cb4bc0",
+      "satisfies-operator.ts": "cafe0453470b0403f69962cf1fdc8f9f47e6fe20b3186cae7347785aae6618f1",
+      "using-declaration.ts": "0b65a9070907464f27e360ecced78c831b8dd4f723ffb851a898920778471186"
+    }
+  },
+  "dispositions": [
+    {
+      "subject": "packages/tsconfig/application.json, library.json, service.json",
+      "disposition": "not standalone -p subjects",
+      "reason": "Reusable role configs, extended by members and never compiled directly. `-p` against them reports TS18003 because `${configDir}/src` does not exist under packages/tsconfig. They remain part of the audited surface; they are not members of the probe set."
+    },
+    {
+      "subject": "apps/web/tsconfig.build.json",
+      "disposition": "emits without declaration output",
+      "reason": "apps/web declares no `declaration`, so it emits JavaScript only. An earlier probe passed --declarationDir and drew TS5069; that was the probe's invalid flag, not a TypeScript 7 incompatibility. It compiles under 7.0.2."
+    },
+    {
+      "subject": "typescript@7.0.2 package exports",
+      "disposition": "traditional API absent from the main export",
+      "reason": "The main export resolves to lib/version.cjs and carries only version and versionMajorMinor; the traditional API lives behind ./unstable/* subpaths. The architecture import gate needs that traditional API, which is why the accepted completion definition RETAINS the bounded @typescript/typescript6 seam rather than retiring it."
+    }
+  ],
+  "configDispositions": {
+    "agents/adapters/coding/claude-code/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "agents/adapters/coding/claude-code/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "agents/adapters/coding/copilot-cli/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "agents/adapters/coding/copilot-cli/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "apps/web/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "apps/web/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/api-contracts/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/api-contracts/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/contracts/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/contracts/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/errors/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/errors/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/eslint-config/tests/fixtures/tsconfig.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "RETIRES_IN_3_4",
+      "lifecycleReason": "Under packages/eslint-config/**, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config never meets TypeScript 7 in the repository -- though its compatibility was measured anyway, because 'it is going away' is a lifecycle fact and not a compatibility answer."
+    },
+    "packages/eslint-config/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "RETIRES_IN_3_4",
+      "lifecycleReason": "Under packages/eslint-config/**, which task 3.4 removes atomically. The accepted sequencing puts 3.4 strictly before 3.2, so this config never meets TypeScript 7 in the repository -- though its compatibility was measured anyway, because 'it is going away' is a lifecycle fact and not a compatibility answer."
+    },
+    "packages/events/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/events/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/knowledge-toolchain/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/knowledge-toolchain/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/lint-config/tests/fixtures/tsconfig.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/lint-config/tests/lint-subject/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/lint-config/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/logging/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/logging/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/observability/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/observability/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/query-model/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/query-model/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/runner-core/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/runner-core/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/testing/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/testing/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/application.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/base.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/library.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/service.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/test.json": {
+      "compatibility": "TS7_CONFIG_PARSE_PASS",
+      "compatibilityReason": "Not a standalone typecheck subject: a reusable role config reports TS18003 or drags in files it never owned, and a fixture config roots deliberately-invalid source whose diagnostics are evidence the corpus works. --showConfig succeeded under 7.0.2.",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/tsconfig/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/worker-base/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "packages/worker-base/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "services/control-plane/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "services/control-plane/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "services/runner-control/tsconfig.build.json": {
+      "compatibility": "TS7_EMIT_PASS",
+      "compatibilityReason": "tsc -p emitted under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    },
+    "services/runner-control/tsconfig.json": {
+      "compatibility": "TS7_TYPECHECK_PASS",
+      "compatibilityReason": "tsc --noEmit -p succeeded under the isolated 7.0.2 probe",
+      "lifecycle": "SURVIVES_TO_TS7"
+    }
+  },
+  "lifecycle": {
+    "retirementScope": "packages/eslint-config/**",
+    "retiringTask": "3.4",
+    "note": "The compilerConfigs baseline is task 3.1's frozen identity set and is NOT rewritten by later tasks. A baseline config may be absent only once 3.4 has actually retired the package it belongs to; a config vanishing on its own is a defect, not a lifecycle."
+  }
+}

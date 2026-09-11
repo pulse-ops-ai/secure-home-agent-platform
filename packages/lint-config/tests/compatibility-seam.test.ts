@@ -1,0 +1,490 @@
+/**
+ * The bounded TypeScript 6 API compatibility seam.
+ *
+ * The architecture gate needs a PARSER, not compiler authority. While it
+ * imported `typescript`, the two were the same object: a compiler cutover would
+ * silently change how architecture is parsed, and the gate would move with the
+ * compiler whether or not anyone intended it.
+ *
+ * The seam separates them, and its failure modes are both silent. Widening it
+ * turns a parsing surface into a general compiler dependency. Reverting it
+ * erases the boundary entirely while everything still passes, because the
+ * traditional API and the current compiler agree today -- the coupling only
+ * reappears at the cutover, when the boundary that was meant to absorb it is
+ * gone.
+ */
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+// @ts-ignore
+import {
+  COMPATIBILITY_PACKAGE,
+  NORMAL_COMPILER,
+  checkCompatibilitySeam,
+  checkNormalCompilerAuthority,
+  members,
+} from '../src/check-policy.mjs'
+
+const HERE = import.meta.dirname
+const REPO_ROOT = path.join(HERE, '..', '..', '..')
+const read = (rel: string): string => readFileSync(path.join(REPO_ROOT, rel), 'utf8')
+const json = (rel: string): any => JSON.parse(read(rel))
+const BOUNDARIES = json('scripts/toolchain-boundaries.json')
+
+// An ISOLATED repository subject, for the two proofs that work by planting
+// something the guard must refuse.
+//
+// Both used to plant into the working tree: a second seam consumer as a new file
+// under three real members' `src/`, and an in-place rewrite of the TRACKED root
+// `package.json`. Each is undone on the happy path and each survives an
+// interrupt, and while it exists a concurrent gate, typecheck or formatter run
+// sees it -- the hygiene defect this repository has already been bitten by.
+//
+// `node_modules/` is gitignored and skipped by every scanner here, and a bare
+// `@typescript/typescript6` specifier still resolves from inside it by walking
+// up, so the copied gate behaves exactly like the original.
+//
+// Nothing is mocked and nothing is reimplemented: the real `checkCompatibilitySeam`
+// runs, and it spawns the real `check-source-imports.mjs --report-loads` over
+// this root.
+const SUBJECT = path.join(REPO_ROOT, 'node_modules', '.compatibility-seam-probe')
+const SUBJECT_SCRIPTS = [
+  'scripts/check-source-imports.mjs',
+  'scripts/workspace-model.mjs',
+  'scripts/toolchain-boundaries.json',
+]
+const SUBJECT_MEMBERS = ['packages/lint-config', 'packages/contracts', 'services/runner-control']
+// Extensions vary deliberately: the scan must cover a package's `.mjs` as well
+// as its `.ts`, which is the half a `scripts/*.mjs` scan got right by accident.
+const PLANTED = [
+  'packages/lint-config/src/regression-second-consumer.mjs',
+  'packages/contracts/src/regression-second-consumer.ts',
+  'services/runner-control/src/regression-second-consumer.ts',
+]
+
+function materializeSubject(): string {
+  rmSync(SUBJECT, { recursive: true, force: true })
+  mkdirSync(path.join(SUBJECT, 'scripts'), { recursive: true })
+  for (const rel of SUBJECT_SCRIPTS) writeFileSync(path.join(SUBJECT, rel), read(rel))
+  writeFileSync(path.join(SUBJECT, 'package.json'), read('package.json'))
+  for (const rel of SUBJECT_MEMBERS) {
+    mkdirSync(path.join(SUBJECT, rel, 'src'), { recursive: true })
+    writeFileSync(path.join(SUBJECT, rel, 'package.json'), read(`${rel}/package.json`))
+    writeFileSync(path.join(SUBJECT, rel, 'src', 'index.ts'), 'export const marker = 1\n')
+  }
+  return SUBJECT
+}
+
+beforeAll(() => {
+  materializeSubject()
+})
+afterAll(() => {
+  rmSync(SUBJECT, { recursive: true, force: true })
+})
+
+describe('the seam exists and is a singleton', () => {
+  it('passes both guards as committed', () => {
+    expect(checkCompatibilitySeam(REPO_ROOT)).toEqual([])
+    expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+  })
+
+  it('admits exactly one consumer', () => {
+    expect(BOUNDARIES.compatibilityConsumers).toEqual(['scripts/check-source-imports.mjs'])
+  })
+
+  it('the admitted consumer really imports the seam', () => {
+    // Presence, not just narrowness. An allowlist naming a file that no longer
+    // imports the seam describes a boundary that does not exist.
+    expect(read('scripts/check-source-imports.mjs')).toMatch(
+      new RegExp(`from '${COMPATIBILITY_PACKAGE}'`),
+    )
+  })
+
+  it('no other script imports it', () => {
+    const offenders = (
+      readFileSync(path.join(REPO_ROOT, 'scripts', 'check-source-imports.mjs'), 'utf8') ? [] : []
+    ) as string[]
+    void offenders
+    // Derived from the tree by the guard itself; asserted here as a fact.
+    expect(checkCompatibilitySeam(REPO_ROOT)).toEqual([])
+  })
+
+  it('the allowlist names a file, never a glob', () => {
+    for (const entry of BOUNDARIES.compatibilityConsumers as string[]) {
+      expect(entry).not.toMatch(/\*/)
+    }
+  })
+})
+
+describe('the seam is not a compiler', () => {
+  it('the normal compiler is still declared and still pinned', () => {
+    const root = json('package.json')
+    expect(root.devDependencies[NORMAL_COMPILER as string]).toBe('catalog:')
+    expect(root.devDependencies[COMPATIBILITY_PACKAGE as string]).toBe('catalog:')
+  })
+
+  it('the authoritative compiler pin is exactly the cutover target', () => {
+    // Task 3.2 moved this from 6.0.3. Exact, never a range: a range would let
+    // the compiler that produced the emitted-output evidence differ from the
+    // one a later install resolves.
+    expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}typescript: 7\.0\.2$/m)
+  })
+
+  it('and the seam did NOT move with it', () => {
+    // The seam tracks the API generation it exposes, not the compiler's. Task
+    // 3.5 owns its post-cutover re-proof; 3.2 must leave it exactly where it
+    // was, or a single change would have moved two authorities.
+    expect(read('pnpm-workspace.yaml')).toMatch(/^ {2}'@typescript\/typescript6': 6\.0\.2$/m)
+  })
+
+  it('no guarded entry point reaches the compatibility API', () => {
+    const guarded = BOUNDARIES.normalCompilerEntryPoints as string[]
+    expect(guarded).toContain('typecheck')
+    expect(guarded).toContain('build')
+
+    for (const rel of [
+      'package.json',
+      ...(members(REPO_ROOT) as string[]).map((m) => `${m}/package.json`),
+    ]) {
+      const scripts = (json(rel).scripts ?? {}) as Record<string, string>
+      for (const [name, script] of Object.entries(scripts)) {
+        if (!guarded.some((entry) => name === entry || name.startsWith(`${entry}:`))) continue
+        expect(script, `${rel} ${name}`).not.toMatch(/tsc6|typescript6/)
+      }
+    }
+  })
+
+  it('every member typechecks with the normal compiler', () => {
+    for (const rel of members(REPO_ROOT) as string[]) {
+      const script = String((json(`${rel}/package.json`).scripts ?? {}).typecheck ?? '')
+      if (script === '') continue
+      // Some members run a manifest prerequisite first; what matters is that
+      // the compiler invoked is `tsc`, never a compatibility shim.
+      expect(script, rel).toMatch(/(^|&&\s*)tsc\b/)
+      expect(script, rel).not.toMatch(/tsc6|typescript6/)
+    }
+  })
+
+  it('no member depends on the compatibility package', () => {
+    // Only the root may, because only the root hosts the admitted consumer.
+    for (const rel of members(REPO_ROOT) as string[]) {
+      const pkg = json(`${rel}/package.json`)
+      for (const field of ['dependencies', 'devDependencies', 'peerDependencies']) {
+        expect(pkg[field]?.[COMPATIBILITY_PACKAGE as string], `${rel} ${field}`).toBeUndefined()
+      }
+    }
+  })
+})
+
+describe('behaviour is unchanged by the seam', () => {
+  it('the gate still reports the traditional API version it parsed with', () => {
+    // 6.0.2 of the compatibility package presents traditional API 6.0.3, which
+    // is the identity the accepted audit records.
+    expect(read('scripts/check-source-imports.mjs')).toMatch(/ts\.version/)
+  })
+
+  it('the seam carries the API surface the gate uses, and the compiler does NOT', () => {
+    // Loaded in a SUBPROCESS, with both identities taken from the boundary
+    // policy and passed as arguments.
+    //
+    // Importing them here made this file a second consumer of the seam, and it
+    // did so through a computed specifier -- the exact form that cannot be
+    // resolved by reading the file, and therefore the exact form the closure
+    // check must refuse. A verification that has to hide from the rule it
+    // verifies is not evidence. The specifiers stay auditable because they come
+    // from the declared policy rather than from this test.
+    const used = [
+      'createSourceFile',
+      'flattenDiagnosticMessageText',
+      'forEachChild',
+      'isCallExpression',
+      'isExportDeclaration',
+      'isExternalModuleReference',
+      'isIdentifier',
+      'isImportDeclaration',
+      'isImportEqualsDeclaration',
+      'isImportTypeNode',
+      'isLiteralTypeNode',
+      'isStringLiteral',
+      'ScriptKind',
+      'ScriptTarget',
+      'SyntaxKind',
+    ]
+    const probe = [
+      // argv is read inline: a bare identifier here would be a computed load
+      // site in THIS file, which is precisely what the closure check refuses.
+      'const seam = (await import(process.argv[1])).default',
+      'const compiler = (await import(process.argv[2])).default',
+      'const used = ' + JSON.stringify(used),
+      'console.log(JSON.stringify({',
+      '  seamMissing: used.filter((k) => seam[k] === undefined),',
+      '  compilerMissing: used.filter((k) => compiler[k] === undefined),',
+      '  seamVersion: seam.version, compilerVersion: compiler.version,',
+      '}))',
+    ].join('\n')
+
+    const run = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        probe,
+        COMPATIBILITY_PACKAGE as string,
+        NORMAL_COMPILER as string,
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf8' },
+    )
+    expect(run.status, run.stderr).toBe(0)
+    const report = JSON.parse(run.stdout) as {
+      seamMissing: string[]
+      compilerMissing: string[]
+      seamVersion: string
+      compilerVersion: string
+    }
+    // The seam has every symbol the gate uses.
+    expect(report.seamMissing).toEqual([])
+
+    // The normal compiler has NONE of them, and that is the point.
+    //
+    // Before the cutover both exposed the traditional API, so this could only
+    // assert that they agreed — which made the seam's presence look like a
+    // redundancy anyone could revert without a test noticing. TypeScript 7's
+    // root export has no traditional API surface (D5), so the same probe now
+    // proves the seam is LOAD-BEARING: delete it and the architecture import
+    // gate has nothing to parse with.
+    expect(report.compilerMissing.sort()).toEqual([...used].sort())
+
+    // Two different generations, which is the gap the seam exists to bridge.
+    expect(report.compilerVersion).toBe('7.0.2')
+    expect(report.seamVersion).not.toBe(report.compilerVersion)
+  })
+})
+
+describe('the seam is bounded to one FILE, not to one directory', () => {
+  // The scan read only `scripts/*.mjs`. A second consumer there was caught, but
+  // the same import in any workspace package was caught by nothing at all --
+  // not this check, not the architecture import gate, not the workspace gate.
+  // The allowlist is a claim about the whole repository, so the scan must be
+  // too, and that difference is invisible unless the consumer is placed outside
+  // `scripts/`.
+
+  it('the subject carries the REAL gate and the REAL allowlist, byte for byte', () => {
+    // Isolation is worthless if what runs inside it is a stand-in. These three
+    // files ARE the repository's, so the refusal below is the real mechanism's.
+    for (const rel of SUBJECT_SCRIPTS) {
+      expect(readFileSync(path.join(SUBJECT, rel), 'utf8'), rel).toBe(read(rel))
+    }
+  })
+
+  it('the isolated control is clean before anything is planted', () => {
+    expect(checkCompatibilitySeam(SUBJECT)).toEqual([])
+  })
+
+  it.each(PLANTED)('REFUSES an unadmitted consumer at %s', (rel) => {
+    const absolute = path.join(SUBJECT, rel)
+    expect(
+      absolute.startsWith(`${SUBJECT}${path.sep}`),
+      'the target must be inside the subject',
+    ).toBe(true)
+    writeFileSync(
+      absolute,
+      `import ts from '${COMPATIBILITY_PACKAGE}'\nexport const v = ts.version\n`,
+    )
+    try {
+      // A refusal proves nothing if the thing it refuses was never written.
+      expect(existsSync(absolute), 'the planted consumer must really exist').toBe(true)
+      const problems = checkCompatibilitySeam(SUBJECT)
+      expect(problems.join('\n')).toContain(rel)
+      expect(problems.join('\n')).toMatch(/not an admitted consumer/)
+    } finally {
+      rmSync(absolute, { force: true })
+    }
+  })
+
+  it('still reports a clean tree once the intruder is gone', () => {
+    expect(checkCompatibilitySeam(SUBJECT)).toEqual([])
+  })
+
+  it('and the working tree was never the mutation target', () => {
+    for (const rel of PLANTED) expect(existsSync(path.join(REPO_ROOT, rel)), rel).toBe(false)
+    expect(checkCompatibilitySeam(REPO_ROOT)).toEqual([])
+  })
+})
+
+describe('a lint engine is not a compiler authority', () => {
+  // The check looked only for the compatibility API, so a guarded entry point
+  // could be repointed at the lint engine's type-aware mode and pass. That
+  // retires the compiler authority without any decision being recorded: the
+  // engine reads types to answer lint questions, it does not own whether the
+  // repository compiles.
+  //
+  // Driven against the isolated subject. The mutation rewrites a repository
+  // ROOT manifest, and doing that in place left the tracked `package.json`
+  // holding `"build": "eslint --fix"` for the length of the assertion -- and
+  // permanently if the run were interrupted.
+  const manifest = path.join(SUBJECT, 'package.json')
+
+  it.each([
+    ['typecheck', 'oxlint --type-aware'],
+    ['build', 'eslint --fix'],
+  ])('REFUSES "%s" resolving a lint engine', (entry, script) => {
+    const original = readFileSync(manifest, 'utf8')
+    const pkg = JSON.parse(original) as { scripts: Record<string, string> }
+    pkg.scripts[entry] = script
+    writeFileSync(manifest, `${JSON.stringify(pkg, null, 2)}\n`)
+    try {
+      expect(readFileSync(manifest, 'utf8')).toContain(script)
+      expect(checkNormalCompilerAuthority(SUBJECT).join('\n')).toMatch(
+        /is not a compiler authority/,
+      )
+    } finally {
+      writeFileSync(manifest, original)
+    }
+  })
+
+  it('accepts the committed entry points, which resolve the normal compiler', () => {
+    // Read-only, and against the REAL repository: this is the fact being claimed.
+    expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+    expect(checkNormalCompilerAuthority(SUBJECT)).toEqual([])
+  })
+})
+
+describe('the seam is bounded by AVAILABILITY, not only by who imports it', () => {
+  // A member does not have to import the compatibility parser for the boundary
+  // to have moved. Declaring it makes it locally resolvable, and every
+  // singleton proof above is about SOURCE consumers -- so a dependency edge is
+  // a second, quieter way to widen a bounded parsing surface into a general
+  // one. `optionalDependencies` was the field nobody read, and an optional edge
+  // installs exactly like a required one when the platform matches.
+  const MEMBER = path.join(SUBJECT, 'packages', 'contracts', 'package.json')
+
+  it.each(['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'])(
+    'REFUSES a member declaring the seam in %s',
+    (field) => {
+      const original = readFileSync(MEMBER, 'utf8')
+      const pkg = JSON.parse(original) as Record<string, Record<string, string>>
+      pkg[field] = { ...(pkg[field] ?? {}), [COMPATIBILITY_PACKAGE]: 'catalog:' }
+      writeFileSync(MEMBER, `${JSON.stringify(pkg, null, 2)}\n`)
+      try {
+        expect(readFileSync(MEMBER, 'utf8')).toContain(COMPATIBILITY_PACKAGE)
+        const problems = checkNormalCompilerAuthority(SUBJECT).join('\n')
+        expect(problems).toContain(`declares ${COMPATIBILITY_PACKAGE} in ${field}`)
+        expect(problems).toMatch(/only the root hosts the admitted consumer/)
+      } finally {
+        writeFileSync(MEMBER, original)
+      }
+    },
+  )
+
+  it('and the ROOT declaration stays admitted, because the root hosts the consumer', () => {
+    // Not a vacuous control: the root really does declare it, so an
+    // implementation that refused every declaration would fail here.
+    const root = JSON.parse(readFileSync(path.join(SUBJECT, 'package.json'), 'utf8')) as {
+      devDependencies?: Record<string, string>
+      dependencies?: Record<string, string>
+    }
+    expect({ ...root.dependencies, ...root.devDependencies }).toHaveProperty(COMPATIBILITY_PACKAGE)
+    expect(checkNormalCompilerAuthority(SUBJECT)).toEqual([])
+    expect(checkNormalCompilerAuthority(REPO_ROOT)).toEqual([])
+  })
+})
+
+describe('the seam is bounded by module LOADING, not by one import syntax', () => {
+  // The detector matched `from '<pkg>'` alone. A double-quoted import, a
+  // dynamic import, a require, or `import x = require()` all loaded the
+  // compatibility package while remaining invisible -- the allowlist was being
+  // enforced against one syntax rather than against module loading. Each case
+  // is placed outside `scripts/`, since that is where a miss actually hides.
+  const intruder = 'packages/contracts/src/regression-load-form.ts'
+
+  const withIntruder = (source: string, assertion: (problems: string[]) => void): void => {
+    const absolute = path.join(REPO_ROOT, intruder)
+    mkdirSync(path.dirname(absolute), { recursive: true })
+    writeFileSync(absolute, source)
+    try {
+      assertion(checkCompatibilitySeam(REPO_ROOT))
+    } finally {
+      rmSync(absolute, { force: true })
+    }
+  }
+
+  it.each([
+    ['double-quoted static import', `import ts from "${COMPATIBILITY_PACKAGE}"\n`],
+    ['single-quoted static import', `import ts from '${COMPATIBILITY_PACKAGE}'\n`],
+    ['dynamic import', `export const ts = await import('${COMPATIBILITY_PACKAGE}')\n`],
+    ['require', `const ts = require("${COMPATIBILITY_PACKAGE}")\n`],
+    ['import-equals-require', `import ts = require("${COMPATIBILITY_PACKAGE}")\n`],
+    ['export-from', `export { version } from '${COMPATIBILITY_PACKAGE}'\n`],
+    ['side-effect import', `import '${COMPATIBILITY_PACKAGE}'\n`],
+  ])('REFUSES an unadmitted consumer using %s', (_label, source) => {
+    withIntruder(source, (problems) => {
+      expect(problems.join('\n')).toContain(intruder)
+      expect(problems.join('\n')).toMatch(/not an admitted consumer/)
+    })
+  })
+
+  it.each([
+    ['an environment lookup', `export const f = () => import(process.env['TS_PACKAGE'])\n`],
+    ['a concatenation', `export const f = () => import(prefix + packageName)\n`],
+    ['a call result', `export const f = () => import(resolvePackage())\n`],
+    ['a conditional', `export const f = () => require(condition ? left : right)\n`],
+    ['a bare identifier', `const WHICH = 'typescript'\nexport const f = () => import(WHICH)\n`],
+    ['a template expression', 'export const f = () => import(`${scope}/typescript6`)\n'],
+  ])('FAILS CLOSED on %s, which no read of the file can resolve', (_label, source) => {
+    // The package could be behind any of these. An unresolvable load is an
+    // unanswered question, not an absent one. The text scanner recognised only
+    // the bare-identifier form, so every other shape passed silently.
+    withIntruder(source, (problems) => {
+      expect(problems.join('\n')).toContain(intruder)
+      expect(problems.join('\n')).toMatch(/non-literal specifier/)
+    })
+  })
+
+  it('sees a load that a `//` inside a string would have erased', () => {
+    // The scanner stripped comments from raw text, so a string containing `//`
+    // truncated the rest of the line -- taking a real import with it. Parsing
+    // cannot be fooled this way because it knows the `//` is inside a string.
+    withIntruder(
+      `const marker = "a//b"\nexport const ts = await import("${COMPATIBILITY_PACKAGE}")\n`,
+      (problems) => {
+        expect(problems.join('\n')).toContain(intruder)
+        expect(problems.join('\n')).toMatch(/not an admitted consumer/)
+      },
+    )
+  })
+
+  it('does not count a commented-out load, or prose describing one', () => {
+    withIntruder(
+      `// import ts from '${COMPATIBILITY_PACKAGE}'\n/* require('${COMPATIBILITY_PACKAGE}') */\nexport const x = 1\n`,
+      (problems) => expect(problems).toEqual([]),
+    )
+  })
+})
+
+describe('an inventory that cannot be produced is not a pass', () => {
+  it('REFUSES when the load-site report fails', () => {
+    // The seam's answer now comes from a subprocess. If that subprocess dies,
+    // the honest result is "unproved", not "no consumers found" -- otherwise
+    // breaking the reporter becomes the easiest way to empty the allowlist.
+    const root = mkdtempSync(path.join(tmpdir(), 'seam-inventory-'))
+    mkdirSync(path.join(root, 'scripts'), { recursive: true })
+    writeFileSync(
+      path.join(root, 'scripts', 'toolchain-boundaries.json'),
+      readFileSync(path.join(REPO_ROOT, 'scripts', 'toolchain-boundaries.json'), 'utf8'),
+    )
+    writeFileSync(
+      path.join(root, 'scripts', 'check-source-imports.mjs'),
+      'process.stderr.write("inventory unavailable\\n")\nprocess.exit(1)\n',
+    )
+    try {
+      const problems = checkCompatibilitySeam(root)
+      expect(problems.join('\n')).toMatch(/inventory could not be produced/)
+      expect(problems.join('\n')).toMatch(/unproved/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
