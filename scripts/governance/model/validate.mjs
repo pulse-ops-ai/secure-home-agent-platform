@@ -22,6 +22,7 @@ import {
   withdrawalDigest,
 } from './digests.mjs'
 import { validateArchivedOpenSpec } from './archived-openspec.mjs'
+import { ABSENT, PRESENT } from '../git-tree/index.mjs'
 import { canonicalPathSetProblems } from './paths.mjs'
 
 const ADR_LIFECYCLES = new Set(['Proposed', 'Accepted', 'Superseded', 'Rejected'])
@@ -83,21 +84,50 @@ const ACCEPTANCE_FIELDS = [
   'authority',
 ]
 const ATTESTATION_FIELDS = ['digest', 'actor', 'at', 'outcome', 'authority']
-const EVIDENCE_FIELDS = [
-  'type',
-  'deliveredIdentity',
-  'policyEvidenceIdentities',
-  'archivedOpenSpec',
+/**
+ * THE COMPLETION BRANCHES ARE THE MERGED CONTRACT'S, NOT AN EARLIER DRAFT'S.
+ *
+ * The implementation had grown its own evidence vocabulary — a `type`
+ * discriminator, a `policyEvidenceIdentities` set, and a spike branch built
+ * from `noOpenSpec`, `manifest`, `findings`, `mergedPullRequest` and
+ * `mergedCommit`. None of those names survive in the accepted planning
+ * contract, which discriminates on `policy` and names the spike members
+ * `openSpecApplicability`, `mergedEvidencePullRequest`, `mergedEvidenceIdentity`,
+ * `evidenceRoot`, `evidenceManifestIdentity` and `findingsIdentity`.
+ *
+ * The contract refuses aliases outright, so nothing here is kept for
+ * compatibility: a stale name is an unknown field like any other.
+ */
+const DELIVERY_EVIDENCE_FIELDS = ['policy', 'deliveredIdentity', 'archivedOpenSpec']
+
+/** Every spike member is required; the branch has no optional fields. */
+const SPIKE_EVIDENCE_FIELDS = [
+  'policy',
+  'openSpecApplicability',
+  'mergedEvidencePullRequest',
+  'mergedEvidenceIdentity',
   'evidenceRoot',
-  'manifest',
-  'findings',
-  'mergedPullRequest',
-  'mergedCommit',
-  'noOpenSpec',
-  'contentDigest',
-  'decisionIdentity',
-  'authorityAnchor',
+  'evidenceManifestIdentity',
+  'findingsIdentity',
 ]
+
+const WITHDRAWAL_EVIDENCE_FIELDS = ['type', 'decisionIdentity', 'contentDigest', 'authorityAnchor']
+
+/**
+ * The only v1 value of the spike branch's OpenSpec applicability fact, and the
+ * contract-fixed basename of the evidence manifest.
+ */
+const OPENSPEC_NOT_APPLICABLE = 'not-applicable'
+const EVIDENCE_MANIFEST_FILE = 'MANIFEST.sha256'
+
+const EVIDENCE_FIELDS = [
+  ...new Set([
+    ...DELIVERY_EVIDENCE_FIELDS,
+    ...SPIKE_EVIDENCE_FIELDS,
+    ...WITHDRAWAL_EVIDENCE_FIELDS,
+  ]),
+]
+
 /**
  * Exactly the fields each policy branch owns.
  *
@@ -105,24 +135,9 @@ const EVIDENCE_FIELDS = [
  * is itself refused elsewhere; it is not a compatibility path.
  */
 const POLICY_EVIDENCE_FIELDS = {
-  'reviewed-delivery-v1': [
-    'type',
-    'deliveredIdentity',
-    'policyEvidenceIdentities',
-    'archivedOpenSpec',
-  ],
-  'reviewed-spike-evidence-v1': [
-    'type',
-    'deliveredIdentity',
-    'policyEvidenceIdentities',
-    'noOpenSpec',
-    'evidenceRoot',
-    'manifest',
-    'findings',
-    'mergedPullRequest',
-    'mergedCommit',
-  ],
-  withdrawal: ['type', 'decisionIdentity', 'contentDigest', 'authorityAnchor'],
+  'reviewed-delivery-v1': DELIVERY_EVIDENCE_FIELDS,
+  'reviewed-spike-evidence-v1': SPIKE_EVIDENCE_FIELDS,
+  withdrawal: WITHDRAWAL_EVIDENCE_FIELDS,
 }
 
 const DELIVERY_FIELDS = ['lifecycle', 'completionPolicy', 'completion', 'withdrawal']
@@ -130,7 +145,6 @@ const COMPLETION_FIELDS = ['from', 'to', 'digest', 'evidence', 'attestation']
 const WITHDRAWAL_FIELDS = ['from', 'to', 'digest', 'evidence', 'attestation']
 const REPLACEMENT_FIELDS = ['digest', 'attestation']
 const IDENTITY_FIELDS = ['class', 'value', 'scope']
-const ARTIFACT_FIELDS = ['path', 'contentDigest']
 const EXTERNAL_REFERENCE_FIELDS = ['id', 'reference', 'role']
 const GENESIS_COMPLETION_FIELDS = [
   'envelopeDigest',
@@ -498,25 +512,21 @@ function validateActorEvidence(value, path, problems, expectedOutcome) {
   if (typeof value.actor !== 'string' || !ACTOR.test(value.actor)) {
     addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
   }
-  if (typeof value.at !== 'string' || !validTimestamp(value.at, path + '.at', problems))
-    return false
+  // A MALFORMED TIMESTAMP IS ONE FAILURE, NOT PERMISSION TO SKIP THE REST.
+  //
+  // This guard used to read `typeof value.at !== 'string' ||
+  // !validTimestamp(...)` and then return. Both halves were wrong. The type
+  // test short-circuited, so `validTimestamp` was never reached for a
+  // non-string and NO problem was recorded at all; and the return abandoned
+  // `outcome` and `authority`, which a clock value says nothing about. An
+  // attestation carrying `at: 12345` and a forged outcome therefore validated
+  // clean. `validTimestamp` is type-safe on its own, so it is called
+  // unconditionally and contributes its own ADV-G02 alongside the rest.
+  validTimestamp(value.at, path + '.at', problems)
   if (value.outcome !== expectedOutcome) {
     addProblem(problems, 'ADV-G19', path + '.outcome', 'does not match the protocol outcome')
   }
   validateTypedAnchor(value.authority, path + '.authority', problems)
-  return true
-}
-
-function validateArtifact(value, path, problems, context) {
-  if (!requireObject(value, path, problems)) return false
-  checkFields(value, ARTIFACT_FIELDS, path, problems)
-  requiredFields(value, ARTIFACT_FIELDS, path, problems)
-  if (!validRepoPath(value.path, path + '.path', problems) || !isSha256(value.contentDigest)) {
-    if (!isSha256(value.contentDigest))
-      addProblem(problems, 'ADV-G19', path + '.contentDigest', 'must be a lowercase SHA-256')
-    return false
-  }
-  verifyContent(value.path, value.contentDigest, path, problems, context)
   return true
 }
 
@@ -670,6 +680,236 @@ function verifyIdentity(value, path, problems, context, { requireScopedProof = f
   }
 }
 
+/**
+ * `reviewed-delivery-v1`: a delivered identity and the whole archived change.
+ *
+ * The delivered identity keeps the accepted commit-or-artifact alternative;
+ * `archivedOpenSpec` binds the complete package, both stage roots, every member
+ * digest, the bundle identity, and the two provenance identities — a
+ * `{path, contentDigest}` pair proved only that one file existed.
+ */
+function validateDeliveryEvidence(value, path, problems, context) {
+  if (
+    !validateIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, {
+      requireScope: true,
+      requireOfflineProof: true,
+    })
+  )
+    return false
+  verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context, {
+    requireScopedProof: true,
+  })
+  validateArchivedOpenSpec(value.archivedOpenSpec, path + '.archivedOpenSpec', problems, context)
+  return true
+}
+
+/**
+ * `reviewed-spike-evidence-v1`: an explicit no-OpenSpec fact plus locally
+ * verifiable evidence.
+ *
+ * Every member is required — the branch has no optional fields — and each is
+ * checked independently of the others, so one malformed member cannot conceal a
+ * second.
+ */
+function validateSpikeEvidence(value, path, problems, context) {
+  requiredFields(value, SPIKE_EVIDENCE_FIELDS, path, problems, 'ADV-G27')
+
+  // An explicit STRING fact, not a boolean and not an omission. The retired
+  // `noOpenSpec: true` spelling is an unknown field here, and `true` under the
+  // new name is refused on its own terms rather than coerced.
+  if (value.openSpecApplicability !== OPENSPEC_NOT_APPLICABLE) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      path + '.openSpecApplicability',
+      `must be exactly the string "${OPENSPEC_NOT_APPLICABLE}"; an omitted, null, boolean, ` +
+        'aliased, or differing value does not state the required no-OpenSpec fact',
+    )
+  }
+  // A manufactured archive is its own named adversary, so it keeps its own code
+  // in addition to the unknown-field refusal the closed branch already gives.
+  if (hasOwn(value, 'archivedOpenSpec') && value.archivedOpenSpec !== null) {
+    addProblem(
+      problems,
+      'ADV-G28',
+      path + '.archivedOpenSpec',
+      'spike evidence cannot manufacture or carry an OpenSpec archive',
+    )
+  }
+
+  const rootIsPath = validRepoPath(value.evidenceRoot, path + '.evidenceRoot', problems)
+  const evidenceRoot = rootIsPath ? value.evidenceRoot : undefined
+
+  if (
+    validateTypedAnchor(
+      value.mergedEvidencePullRequest,
+      path + '.mergedEvidencePullRequest',
+      problems,
+    ) &&
+    value.mergedEvidencePullRequest.type !== 'github-pull-request'
+  ) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      path + '.mergedEvidencePullRequest.type',
+      'the supporting merged-evidence reference must be a github-pull-request',
+    )
+  }
+
+  validateMergedEvidenceIdentity(value, path, problems, context, evidenceRoot)
+  requireEvidenceContentIdentity(
+    value.evidenceManifestIdentity,
+    path + '.evidenceManifestIdentity',
+    problems,
+    context,
+    evidenceRoot,
+    evidenceRoot === undefined ? undefined : evidenceRoot + '/' + EVIDENCE_MANIFEST_FILE,
+  )
+  requireEvidenceContentIdentity(
+    value.findingsIdentity,
+    path + '.findingsIdentity',
+    problems,
+    context,
+    evidenceRoot,
+    undefined,
+  )
+  return true
+}
+
+/**
+ * The merged evidence commit must be LOCAL and must cover the WHOLE root.
+ *
+ * `mergedEvidencePullRequest` is supporting external provenance and proves
+ * nothing offline, so the local commit carries the whole burden. A scope naming
+ * one convenient file inside the evidence root proves that file and nothing
+ * else — which is exactly what "an arbitrary issue plus a merged PR" becomes
+ * once someone gives it a path. The declared scope is therefore compared
+ * against the complete enumeration of the evidence root at the bound commit, in
+ * both directions: nothing outside the root, and nothing in the root left out.
+ */
+function validateMergedEvidenceIdentity(value, path, problems, context, evidenceRoot) {
+  const identityPath = path + '.mergedEvidenceIdentity'
+  const identity = value.mergedEvidenceIdentity
+  if (!validateIdentity(identity, identityPath, problems, { requireScope: true })) return
+  if (identity.class !== 'local-git-commit') {
+    addProblem(
+      problems,
+      'ADV-G33',
+      identityPath,
+      'the merged evidence identity must be a local-git-commit; an opaque external commit or a ' +
+        'content digest cannot prove the evidence root offline',
+    )
+    return
+  }
+  verifyIdentity(identity, identityPath, problems, context, { requireScopedProof: true })
+  if (evidenceRoot === undefined) return
+
+  const scopePath = identityPath + '.scope'
+  const declared = Array.isArray(identity.scope) ? identity.scope : []
+  const prefix = evidenceRoot + '/'
+  for (const member of declared) {
+    if (typeof member === 'string' && member.startsWith(prefix)) continue
+    addProblem(
+      problems,
+      'ADV-G27',
+      scopePath,
+      `the scope entry ${JSON.stringify(member)} lies outside the declared evidence root ` +
+        `"${evidenceRoot}"`,
+    )
+  }
+
+  if (!context?.observe) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      scopePath,
+      'evidence-root coverage cannot be proved without a repository observer',
+    )
+    return
+  }
+  const tree = context.observe.treeAt(identity.value, evidenceRoot)
+  if (tree.status !== PRESENT) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      scopePath,
+      tree.status === ABSENT
+        ? `the evidence root "${evidenceRoot}" does not exist at the merged evidence commit`
+        : `the evidence root "${evidenceRoot}" could not be observed at the merged evidence ` +
+            'commit; an unanswered repository question is a refusal',
+    )
+    return
+  }
+  if (tree.entries.size === 0) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      scopePath,
+      `the evidence root "${evidenceRoot}" holds no files at the merged evidence commit, so the ` +
+        'scope proves nothing',
+    )
+    return
+  }
+  const covered = new Set(declared)
+  for (const relative of tree.entries.keys()) {
+    if (covered.has(prefix + relative)) continue
+    addProblem(
+      problems,
+      'ADV-G27',
+      scopePath,
+      `the evidence file "${prefix + relative}" is present at the merged evidence commit but is ` +
+        'not covered by the declared scope',
+    )
+  }
+}
+
+/**
+ * A manifest or findings identity is a locally verified content identity at its
+ * declared exact path.
+ *
+ * `exactPath` is supplied where the contract fixes the name — the evidence
+ * manifest is `MANIFEST.sha256` under the evidence root — and omitted where it
+ * names only a location, as for the findings document.
+ */
+function requireEvidenceContentIdentity(
+  identity,
+  path,
+  problems,
+  context,
+  evidenceRoot,
+  exactPath,
+) {
+  if (!validateIdentity(identity, path, problems, { requireScope: true })) return
+  if (identity.class !== 'content-sha256') {
+    addProblem(
+      problems,
+      'ADV-G27',
+      path,
+      'must be a content-sha256 identity verified against the exact evidence bytes',
+    )
+    return
+  }
+  if (!Array.isArray(identity.scope) || identity.scope.length !== 1) {
+    addProblem(problems, 'ADV-G27', path + '.scope', 'must bind exactly one evidence path')
+    return
+  }
+  const declared = identity.scope[0]
+  if (exactPath !== undefined && declared !== exactPath) {
+    addProblem(problems, 'ADV-G27', path + '.scope', `must be exactly "${exactPath}"`)
+    return
+  }
+  if (evidenceRoot !== undefined && !declared.startsWith(evidenceRoot + '/')) {
+    addProblem(
+      problems,
+      'ADV-G27',
+      path + '.scope',
+      `the path "${declared}" lies outside the declared evidence root "${evidenceRoot}"`,
+    )
+    return
+  }
+  verifyContent(declared, identity.value, path, problems, context)
+}
+
 function validateEvidence(value, path, problems, context, policy) {
   const evidenceCode =
     policy === 'withdrawal'
@@ -686,114 +926,27 @@ function validateEvidence(value, path, problems, context, policy) {
   // field belonging to another branch is an unknown field rather than an
   // ignored one.
   checkFields(value, POLICY_EVIDENCE_FIELDS[policy] ?? EVIDENCE_FIELDS, path, problems)
-  if (typeof value.type !== 'string') {
-    addProblem(problems, 'ADV-G30', path + '.type', 'evidence type is required')
-    return false
-  }
 
-  if (policy === 'reviewed-delivery-v1') {
-    if (value.type !== 'reviewed-delivery-v1') {
+  if (policy === 'reviewed-delivery-v1' || policy === 'reviewed-spike-evidence-v1') {
+    // THE DISCRIMINATOR IS A MIRROR, NOT A SECOND AUTHORITY.
+    //
+    // `evidence.policy` must equal the policy the LANDING selected. Reading the
+    // branch off the evidence itself would let a completion choose the rules it
+    // is judged by; reading it off the landing and then requiring the mirror to
+    // agree means a disagreement is itself the refusal.
+    if (value.policy !== policy) {
       addProblem(
         problems,
         'ADV-G30',
-        path + '.type',
-        'must be exactly reviewed-delivery-v1; the legacy alias is not a compatibility path',
+        path + '.policy',
+        `must be exactly ${policy}, mirroring the landing's selected completion policy; a ` +
+          'missing, aliased, or differing discriminator is refused',
       )
-    }
-    if (
-      !validateIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, {
-        requireScope: true,
-        requireOfflineProof: true,
-      })
-    )
       return false
-    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context, {
-      requireScopedProof: true,
-    })
-    validateSet(
-      value.policyEvidenceIdentities,
-      path + '.policyEvidenceIdentities',
-      problems,
-      (member, memberPath, memberProblems) => {
-        validateIdentity(member, memberPath, memberProblems)
-        verifyIdentity(member, memberPath, memberProblems, context, { requireScopedProof: true })
-      },
-    )
-    // The whole child change, not a single artifact. A `{path, contentDigest}`
-    // pair proved one file existed; `reviewed-delivery-v1` binds the complete
-    // package, both stage roots, every member digest, the bundle identity, and
-    // the two provenance identities.
-    validateArchivedOpenSpec(value.archivedOpenSpec, path + '.archivedOpenSpec', problems, context)
-    return true
-  }
-
-  if (policy === 'reviewed-spike-evidence-v1') {
-    if (value.type !== 'reviewed-spike-evidence-v1') {
-      addProblem(
-        problems,
-        'ADV-G30',
-        path + '.type',
-        'must be exactly reviewed-spike-evidence-v1; the legacy alias is not a compatibility path',
-      )
     }
-    if (
-      !validateIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, {
-        requireScope: true,
-      })
-    )
-      return false
-    verifyIdentity(value.deliveredIdentity, path + '.deliveredIdentity', problems, context, {
-      requireScopedProof: true,
-    })
-    validateSet(
-      value.policyEvidenceIdentities,
-      path + '.policyEvidenceIdentities',
-      problems,
-      (member, memberPath, memberProblems) => {
-        validateIdentity(member, memberPath, memberProblems)
-        verifyIdentity(member, memberPath, memberProblems, context, { requireScopedProof: true })
-      },
-    )
-    for (const field of [
-      'noOpenSpec',
-      'evidenceRoot',
-      'manifest',
-      'findings',
-      'mergedPullRequest',
-      'mergedCommit',
-    ]) {
-      if (!hasOwn(value, field))
-        addProblem(
-          problems,
-          'ADV-G27',
-          path + '.' + field,
-          'spike evidence is missing a required bound field',
-        )
-    }
-    if (value.noOpenSpec !== true)
-      addProblem(
-        problems,
-        'ADV-G28',
-        path + '.noOpenSpec',
-        'spike evidence must explicitly state no OpenSpec applicability',
-      )
-    if (hasOwn(value, 'archivedOpenSpec') && value.archivedOpenSpec !== null)
-      addProblem(
-        problems,
-        'ADV-G28',
-        path + '.archivedOpenSpec',
-        'spike evidence cannot manufacture or carry an OpenSpec archive',
-      )
-    if (!validRepoPath(value.evidenceRoot, path + '.evidenceRoot', problems)) return false
-    validateArtifact(value.manifest, path + '.manifest', problems, context)
-    validateArtifact(value.findings, path + '.findings', problems, context)
-    validateTypedAnchor(value.mergedPullRequest, path + '.mergedPullRequest', problems)
-    validateIdentity(value.mergedCommit, path + '.mergedCommit', problems, { requireScope: true })
-    if (value.mergedCommit)
-      verifyIdentity(value.mergedCommit, path + '.mergedCommit', problems, context, {
-        requireScopedProof: true,
-      })
-    return true
+    return policy === 'reviewed-delivery-v1'
+      ? validateDeliveryEvidence(value, path, problems, context)
+      : validateSpikeEvidence(value, path, problems, context)
   }
 
   if (policy === 'withdrawal') {
@@ -817,7 +970,7 @@ function validateEvidence(value, path, problems, context, policy) {
     return true
   }
 
-  addProblem(problems, 'ADV-G30', path + '.type', 'unknown evidence policy')
+  addProblem(problems, 'ADV-G30', path + '.policy', 'unknown evidence policy')
   return false
 }
 
@@ -844,8 +997,10 @@ function validateAcceptance(adr, path, problems, context) {
   if (typeof acceptance.actor !== 'string' || !ACTOR.test(acceptance.actor)) {
     addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
   }
-  if (typeof acceptance.at !== 'string' || !validTimestamp(acceptance.at, path + '.at', problems))
-    return
+  // Independent of the timestamp: the authority anchor and the exact accepted
+  // bytes. A malformed `at` is recorded and validation continues, so a wrong
+  // `contentDigest` cannot hide behind it.
+  validTimestamp(acceptance.at, path + '.at', problems)
   validateTypedAnchor(acceptance.authority, path + '.authority', problems)
   if (isSha256(acceptance.contentDigest))
     verifyContent(adr.path, acceptance.contentDigest, path + '.contentDigest', problems, context)
@@ -1190,7 +1345,9 @@ function validateGenesisCompletion(value, path, problems) {
   }
   if (typeof value.actor !== 'string' || !ACTOR.test(value.actor))
     addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
-  if (typeof value.at !== 'string' || !validTimestamp(value.at, path + '.at', problems)) return
+  // The envelope digest, the outcome and the authority anchor are all
+  // independent of when the attestation was made.
+  validTimestamp(value.at, path + '.at', problems)
   if (value.outcome !== 'attested')
     addProblem(problems, 'ADV-G19', path + '.outcome', 'must be attested')
   validateTypedAnchor(value.authority, path + '.authority', problems)

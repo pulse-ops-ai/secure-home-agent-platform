@@ -10,14 +10,7 @@ import { TextDecoder } from 'node:util'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 
-const SET_ARRAY_KEYS = new Set([
-  'resolves',
-  'supersedes',
-  'requires',
-  'sources',
-  'scope',
-  'policyEvidenceIdentities',
-])
+const SET_ARRAY_KEYS = new Set(['resolves', 'supersedes', 'requires', 'sources', 'scope'])
 
 const ENTITY_ARRAY_KEYS = new Set(['adrs', 'questions', 'gates', 'landings', 'externalReferences'])
 
@@ -91,7 +84,14 @@ const objectKind = (object, path) => {
   if (key === 'withdrawal') return 'withdrawal'
   if (key === 'replacement') return 'replacement'
   if (key === 'attestation') return 'attestation'
-  if (key === 'identity' || key === 'deliveredIdentity') return 'identity'
+  if (
+    key === 'identity' ||
+    key === 'deliveredIdentity' ||
+    key === 'mergedEvidenceIdentity' ||
+    key === 'evidenceManifestIdentity' ||
+    key === 'findingsIdentity'
+  )
+    return 'identity'
   if (path.includes('adrs')) return 'adr'
   if (path.includes('questions')) return 'question'
   if (path.includes('gates')) return 'gate'
@@ -127,9 +127,6 @@ export function canonicalizeValue(value, path = []) {
       )
     }
     if (SET_ARRAY_KEYS.has(key)) {
-      return [...members].sort(compareCanonical)
-    }
-    if (key === 'evidenceIdentities' || key === 'policyEvidence') {
       return [...members].sort(compareCanonical)
     }
     return members

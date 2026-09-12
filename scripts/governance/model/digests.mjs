@@ -224,10 +224,6 @@ export function acceptanceDigest(state, adr) {
   return digestPreimage(acceptancePreimage(state, adr))
 }
 
-export function policyEvidenceMembers(evidence) {
-  return evidence?.policyEvidenceIdentities ?? []
-}
-
 export function stableDigestSummary(state) {
   return {
     primitiveDigest: primitiveDigest(state),

@@ -551,19 +551,12 @@ def complete_state(
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery-v1",
+            "policy": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "content-sha256",
                 "value": artifact_digest,
                 "scope": [artifact_path],
             },
-            "policyEvidenceIdentities": [
-                {
-                    "class": "content-sha256",
-                    "value": artifact_digest,
-                    "scope": [artifact_path],
-                }
-            ],
             "archivedOpenSpec": archived_openspec(
                 built, reviewed_form=reviewed_form, **(archived_overrides or {})
             ),
@@ -618,7 +611,92 @@ def withdrawn_state(root: Path) -> dict[str, Any]:
     return bind_withdrawal_digest(root, state)
 
 
-def spike_state(root: Path) -> dict[str, Any]:
+# The spike evidence root is a REAL local commit.
+#
+# `mergedEvidenceIdentity` must be a `local-git-commit` covering the complete
+# evidence-root scope, so the fixture commits the evidence root and reads the
+# commit back rather than asserting a literal. A JSON hash would prove nothing,
+# which is the whole point of the requirement.
+
+SPIKE_ROOT = "docs/spikes/runner-spike"
+SPIKE_MANIFEST = f"{SPIKE_ROOT}/MANIFEST.sha256"
+SPIKE_FINDINGS = f"{SPIKE_ROOT}/findings.md"
+SPIKE_NOTES = f"{SPIKE_ROOT}/notes/observations.md"
+
+
+def build_spike_repository(root: Path) -> dict[str, Any]:
+    """Commit the evidence root; report the merged commit and its real scope."""
+    git(root, "init", "-q", "-b", "main")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "fixture base")
+
+    documents = {SPIKE_FINDINGS: "# Spike findings\n", SPIKE_NOTES: "observations\n"}
+    for relative, text in documents.items():
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    (root / SPIKE_MANIFEST).write_text(
+        "".join(
+            f"{hashlib.sha256((root / r).read_bytes()).hexdigest()}  {r}\n"
+            for r in sorted(documents)
+        ),
+        encoding="utf-8",
+    )
+
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "merge spike evidence")
+    return {
+        "mergedCommit": git(root, "rev-parse", "HEAD"),
+        # Every file actually under the evidence root, read off disk.
+        "scope": sorted(
+            str(path.relative_to(root)) for path in (root / SPIKE_ROOT).rglob("*") if path.is_file()
+        ),
+    }
+
+
+def digest_of(root: Path, relative: str) -> str:
+    return hashlib.sha256((root / relative).read_bytes()).hexdigest()
+
+
+def spike_evidence(root: Path, built: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+    """The exact `reviewed-spike-evidence-v1` branch of the merged contract."""
+    evidence: dict[str, Any] = {
+        "policy": "reviewed-spike-evidence-v1",
+        "openSpecApplicability": "not-applicable",
+        "mergedEvidencePullRequest": {
+            "type": "github-pull-request",
+            "repository": "pulse-ops-ai/secure-home-agent-platform",
+            "number": 73,
+        },
+        "mergedEvidenceIdentity": {
+            "class": "local-git-commit",
+            "value": built["mergedCommit"],
+            "scope": built["scope"],
+        },
+        "evidenceRoot": SPIKE_ROOT,
+        "evidenceManifestIdentity": {
+            "class": "content-sha256",
+            "value": digest_of(root, SPIKE_MANIFEST),
+            "scope": [SPIKE_MANIFEST],
+        },
+        "findingsIdentity": {
+            "class": "content-sha256",
+            "value": digest_of(root, SPIKE_FINDINGS),
+            "scope": [SPIKE_FINDINGS],
+        },
+    }
+    evidence.update(overrides)
+    return evidence
+
+
+def spike_state(
+    root: Path,
+    *,
+    built: dict[str, Any] | None = None,
+    evidence: dict[str, Any] | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    built = built if built is not None else build_spike_repository(root)
     state = load_state(root)
     landing = state["landings"][0]
     landing["kind"] = "spike-landing"
@@ -628,45 +706,14 @@ def spike_state(root: Path) -> dict[str, Any]:
         "number": 54,
     }
     landing["delivery"]["completionPolicy"] = "reviewed-spike-evidence-v1"
-    evidence_root = root / "spike"
-    evidence_root.mkdir()
-    manifest_path = "spike/MANIFEST.sha256"
-    findings_path = "spike/findings.md"
-    (root / manifest_path).write_text("findings\n", encoding="utf-8")
-    (root / findings_path).write_text("# Spike findings\n", encoding="utf-8")
-    manifest_digest = hashlib.sha256((root / manifest_path).read_bytes()).hexdigest()
-    findings_digest = hashlib.sha256((root / findings_path).read_bytes()).hexdigest()
     landing["delivery"]["lifecycle"] = "Complete"
     landing["delivery"]["completion"] = {
         "from": "Planned",
         "to": "Complete",
         "digest": "0" * 64,
-        "evidence": {
-            "type": "reviewed-spike-evidence-v1",
-            "deliveredIdentity": {
-                "class": "external-git-commit",
-                "value": "8" * 40,
-                "scope": [manifest_path, findings_path],
-            },
-            "policyEvidenceIdentities": [
-                {"class": "content-sha256", "value": manifest_digest, "scope": [manifest_path]},
-                {"class": "content-sha256", "value": findings_digest, "scope": [findings_path]},
-            ],
-            "noOpenSpec": True,
-            "evidenceRoot": "spike",
-            "manifest": {"path": manifest_path, "contentDigest": manifest_digest},
-            "findings": {"path": findings_path, "contentDigest": findings_digest},
-            "mergedPullRequest": {
-                "type": "github-pull-request",
-                "repository": "pulse-ops-ai/secure-home-agent-platform",
-                "number": 73,
-            },
-            "mergedCommit": {
-                "class": "external-git-commit",
-                "value": "9" * 40,
-                "scope": [manifest_path, findings_path],
-            },
-        },
+        "evidence": (
+            evidence if evidence is not None else spike_evidence(root, built, **overrides)
+        ),
         "attestation": {
             "digest": "0" * 64,
             "actor": "@owner",
@@ -679,9 +726,27 @@ def spike_state(root: Path) -> dict[str, Any]:
             },
         },
     }
-    landing["delivery"]["completion"]["digest"] = "0" * 64
     write_state(root, state)
     return bind_completion_digest(root, state)
+
+
+def completion_digest_of(landing: dict[str, Any]) -> str:
+    """The shipped preimage, asked directly — no reimplementation here."""
+    script = """
+import { completionDigest } from './scripts/governance/model/index.mjs'
+let raw = ''
+for await (const chunk of process.stdin) raw += chunk
+const landing = JSON.parse(raw)
+process.stdout.write(completionDigest(landing, landing.delivery.completion))
+"""
+    return subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(landing),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
 
 
 def test_valid_fixture_derives_separate_readiness_axes(tmp_path: Path) -> None:
@@ -949,7 +1014,7 @@ def test_completion_requires_policy_specific_scoped_evidence(tmp_path: Path) -> 
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery-v1",
+            "policy": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "external-git-commit",
                 "value": "3" * 40,
@@ -988,10 +1053,10 @@ def test_valid_completion_binds_scope_and_separates_historical_authorization(
 
     root = copy_fixture(tmp_path / "evidence-binding")
     state = complete_state(root)
-    # The legacy discriminator alias is refused on its own terms; the evidence
-    # branch short-circuits before the digest check, which is why only the
-    # shape refusal is asserted here. The digest binding has its own case below.
-    state["landings"][0]["delivery"]["completion"]["evidence"]["type"] = "reviewed-delivery"
+    # The discriminator is refused on its own terms; the evidence branch
+    # short-circuits before the digest check, which is why only the shape
+    # refusal is asserted here. The digest binding has its own case below.
+    state["landings"][0]["delivery"]["completion"]["evidence"]["policy"] = "reviewed-delivery"
     write_state(root, state)
     assert_refused(root, "ADV-G30")
 
@@ -1033,66 +1098,37 @@ def test_spike_policy_requires_bound_evidence_and_no_retrospective_openspec(
     spike_state(root)
     assert_valid(root)
 
+    # An arbitrary issue and merged PR, with none of the bound evidence.
     root = copy_fixture(tmp_path / "missing-evidence")
-    state = load_state(root)
-    landing = state["landings"][0]
-    landing["kind"] = "spike-landing"
-    landing["authorityAnchor"] = {
-        "type": "github-issue",
-        "repository": "pulse-ops-ai/secure-home-agent-platform",
-        "number": 54,
-    }
-    landing["delivery"]["completionPolicy"] = "reviewed-spike-evidence-v1"
-    landing["delivery"]["lifecycle"] = "Complete"
-    landing["delivery"]["completion"] = {
-        "from": "Planned",
-        "to": "Complete",
-        "digest": "0" * 64,
-        "evidence": {
-            "type": "reviewed-spike-evidence-v1",
-            "deliveredIdentity": {
-                "class": "external-git-commit",
-                "value": "8" * 40,
-                "scope": ["spike/findings.md"],
-            },
-            "policyEvidenceIdentities": [],
-            "noOpenSpec": True,
-            "mergedPullRequest": {
+    built = build_spike_repository(root)
+    spike_state(
+        root,
+        built=built,
+        evidence={
+            "policy": "reviewed-spike-evidence-v1",
+            "openSpecApplicability": "not-applicable",
+            "mergedEvidencePullRequest": {
                 "type": "github-pull-request",
                 "repository": "pulse-ops-ai/secure-home-agent-platform",
                 "number": 73,
             },
-            "mergedCommit": {
-                "class": "external-git-commit",
-                "value": "9" * 40,
-                "scope": ["spike/findings.md"],
-            },
         },
-        "attestation": {
-            "digest": "0" * 64,
-            "actor": "@owner",
-            "at": "2026-08-30T12:00:00Z",
-            "outcome": "completed",
-            "authority": {
-                "type": "github-issue",
-                "repository": "pulse-ops-ai/secure-home-agent-platform",
-                "number": 54,
-            },
-        },
-    }
-    write_state(root, state)
+    )
     assert_refused(root, "ADV-G27")
 
+    # A manufactured archive cannot stand in for the explicit applicability
+    # fact; it is both a foreign field and its own named adversary.
     root = copy_fixture(tmp_path / "retrospective")
-    state = spike_state(root)
-    evidence = state["landings"][0]["delivery"]["completion"]["evidence"]
-    evidence["noOpenSpec"] = False
-    evidence["archivedOpenSpec"] = {
-        "path": "spike/findings.md",
-        "contentDigest": hashlib.sha256((root / "spike/findings.md").read_bytes()).hexdigest(),
-    }
-    write_state(root, state)
-    assert_refused(root, "ADV-G28")
+    built = build_spike_repository(root)
+    spike_state(
+        root,
+        built=built,
+        archivedOpenSpec={
+            "path": SPIKE_FINDINGS,
+            "contentDigest": digest_of(root, SPIKE_FINDINGS),
+        },
+    )
+    assert_refused(root, "ADV-G28", "ADV-G02")
 
 
 def test_withdrawal_is_typed_and_never_satisfies_prerequisites(tmp_path: Path) -> None:
@@ -1200,13 +1236,12 @@ def test_missing_local_commit_does_not_prove_completion(tmp_path: Path) -> None:
         "to": "Complete",
         "digest": "0" * 64,
         "evidence": {
-            "type": "reviewed-delivery-v1",
+            "policy": "reviewed-delivery-v1",
             "deliveredIdentity": {
                 "class": "local-git-commit",
                 "value": "5" * 40,
                 "scope": [state["adrs"][0]["path"]],
             },
-            "policyEvidenceIdentities": [{"class": "external-git-commit", "value": "6" * 40}],
             "archivedOpenSpec": {
                 "path": state["adrs"][0]["path"],
                 "contentDigest": hashlib.sha256(
@@ -1424,13 +1459,13 @@ def test_attestation_envelope_is_excluded_from_primitive_digest(tmp_path: Path) 
     assert after == before
 
 
-def test_policy_evidence_set_reordering_is_canonical(tmp_path: Path) -> None:
+def test_evidence_identity_scope_set_reordering_is_canonical(tmp_path: Path) -> None:
     root = copy_fixture(tmp_path)
     state = complete_state(root)
     before_canonical = canonicalize(root)
     before = assert_valid(root)
     evidence = state["landings"][0]["delivery"]["completion"]["evidence"]
-    evidence["policyEvidenceIdentities"].reverse()
+    evidence["archivedOpenSpec"]["reviewedIdentity"]["scope"].reverse()
     (root / "state.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     assert canonicalize(root) == before_canonical
     (root / "state.json").write_text(before_canonical, encoding="utf-8")
@@ -2348,7 +2383,7 @@ process.stdout.write(
 @pytest.mark.parametrize(
     ("label", "mutate"),
     [
-        ("legacy-alias", {"type": "reviewed-delivery"}),
+        ("retired-type-discriminator", {"type": "reviewed-delivery-v1"}),
         ("cross-branch-field", {"evidenceRoot": "docs/spikes/x/"}),
         ("unknown-field", {"somethingElse": True}),
     ],
@@ -2853,3 +2888,572 @@ def test_f16b_the_reported_canonical_form_comes_from_the_model(tmp_path: Path) -
         "the checker did not follow the model's serializer, so it is reporting a canonical form "
         "of its own"
     )
+
+
+# ---------------------------------------------------------------------------
+# P2-1. A malformed `at` used to short-circuit every independent rule after it.
+#
+# The three validators guarded the timestamp as
+# `typeof value.at !== 'string' || !validTimestamp(...)` and then returned.
+# Both halves were defects: the type test short-circuited, so a non-string
+# recorded NO problem at all, and the return abandoned fields a clock value
+# says nothing about. Pre-fix, every case below exited 0 with an empty problem
+# list. A malformed timestamp is one failure; it may not buy silence for the
+# rest of the record.
+# ---------------------------------------------------------------------------
+
+MALFORMED_INSTANTS: list[Any] = [12345, None, ["2026-08-31T09:00:00Z"], {"at": "2026-08-31"}, True]
+
+
+def test_p2_1_malformed_acceptance_at_does_not_hide_wrong_accepted_bytes(
+    tmp_path: Path,
+) -> None:
+    for index, malformed in enumerate(MALFORMED_INSTANTS):
+        root = copy_fixture(tmp_path / f"acceptance-{index}")
+        state = accepted_state(root, ["U4"])
+        state["adrs"][0]["acceptance"]["at"] = malformed
+        state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
+        write_state(root, state)
+        # ADV-G02 for the timestamp AND ADV-G04 for the accepted document bytes.
+        assert_refused(root, "ADV-G02", "ADV-G04")
+
+
+def test_p2_1_a_well_typed_but_invalid_acceptance_at_also_reports_both(
+    tmp_path: Path,
+) -> None:
+    """Not merely the type test: a string that is not an instant behaves the same."""
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, ["U4"])
+    state["adrs"][0]["acceptance"]["at"] = "2026-13-45T99:99:99Z"
+    state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
+    write_state(root, state)
+    payload = assert_refused(root, "ADV-G02", "ADV-G04")
+    assert any(
+        problem["path"].endswith(".acceptance.at") and "RFC 3339" in problem["message"]
+        for problem in payload["problems"]
+    ), payload
+
+
+def test_p2_1_malformed_attestation_at_does_not_hide_a_wrong_outcome(
+    tmp_path: Path,
+) -> None:
+    for index, malformed in enumerate(MALFORMED_INSTANTS):
+        root = copy_fixture(tmp_path / f"outcome-{index}")
+        state = complete_state(root)
+        attestation = state["landings"][0]["delivery"]["completion"]["attestation"]
+        attestation["at"] = malformed
+        attestation["outcome"] = "not-completed"
+        write_state(root, state)
+        assert_refused(root, "ADV-G02", "ADV-G19")
+
+
+def test_p2_1_malformed_attestation_at_does_not_hide_a_bad_authority(
+    tmp_path: Path,
+) -> None:
+    for index, malformed in enumerate(MALFORMED_INSTANTS):
+        root = copy_fixture(tmp_path / f"authority-{index}")
+        state = complete_state(root)
+        attestation = state["landings"][0]["delivery"]["completion"]["attestation"]
+        attestation["at"] = malformed
+        attestation["authority"] = {"type": "not-a-typed-anchor"}
+        write_state(root, state)
+        assert_refused(root, "ADV-G02", "ADV-G12")
+
+
+def genesis_completion(**overrides: Any) -> dict[str, Any]:
+    envelope: dict[str, Any] = {
+        "envelopeDigest": "c" * 64,
+        "members": [],
+        "actor": "@owner",
+        "at": "2026-08-30T12:00:00Z",
+        "outcome": "attested",
+        "authority": {
+            "type": "github-issue",
+            "repository": "pulse-ops-ai/secure-home-agent-platform",
+            "number": 106,
+        },
+    }
+    envelope.update(overrides)
+    return envelope
+
+
+def test_p2_1_malformed_genesis_at_does_not_hide_a_wrong_envelope_digest(
+    tmp_path: Path,
+) -> None:
+    for index, malformed in enumerate(MALFORMED_INSTANTS):
+        root = copy_fixture(tmp_path / f"envelope-{index}")
+        state = load_state(root)
+        # `envelopeDigest` is well-formed but is not the recomputed preimage, so
+        # only the preimage comparison can refuse it.
+        state["attestations"]["genesisCompletion"] = genesis_completion(at=malformed)
+        write_state(root, state)
+        payload = assert_refused(root, "ADV-G02", "ADV-G19")
+        assert any(
+            problem["path"].endswith(".envelopeDigest") for problem in payload["problems"]
+        ), payload
+
+
+def test_p2_1_malformed_genesis_at_does_not_hide_a_bad_authority_or_outcome(
+    tmp_path: Path,
+) -> None:
+    for index, malformed in enumerate(MALFORMED_INSTANTS):
+        root = copy_fixture(tmp_path / f"genesis-authority-{index}")
+        state = load_state(root)
+        state["attestations"]["genesisCompletion"] = genesis_completion(
+            at=malformed,
+            outcome="not-attested",
+            authority={"type": "not-a-typed-anchor"},
+        )
+        write_state(root, state)
+        payload = assert_refused(root, "ADV-G02", "ADV-G12", "ADV-G19")
+        assert any(
+            problem["path"].endswith(".outcome") and "attested" in problem["message"]
+            for problem in payload["problems"]
+        ), payload
+
+
+def test_p2_1_valid_timestamps_remain_positive_controls(tmp_path: Path) -> None:
+    """The repair records a refusal; it does not invent one."""
+    root = copy_fixture(tmp_path / "acceptance")
+    accepted_state(root, ["U4"])
+    assert_valid(root)
+
+    root = copy_fixture(tmp_path / "attestation")
+    complete_state(root)
+    assert_valid(root)
+
+    root = copy_fixture(tmp_path / "genesis")
+    state = load_state(root)
+    state["attestations"]["genesisCompletion"] = genesis_completion()
+    write_state(root, state)
+    payload = assert_refused(root, "ADV-G19")
+    # Exactly the envelope-digest refusal the fixture's placeholder earns, and
+    # nothing about the well-formed timestamp.
+    assert not any(problem["path"].endswith(".at") for problem in payload["problems"]), payload
+
+
+# ---------------------------------------------------------------------------
+# P2-2. The implementation's evidence vocabulary had drifted from the merged
+# planning contract.
+#
+# The checker discriminated on `evidence.type`, carried a
+# `policyEvidenceIdentities` set that the contract never defines, and built the
+# spike branch out of `noOpenSpec`, `manifest`, `findings`, `mergedPullRequest`
+# and `mergedCommit`. The accepted contract discriminates on `evidence.policy`
+# and names the spike members `openSpecApplicability`,
+# `mergedEvidencePullRequest`, `mergedEvidenceIdentity`, `evidenceRoot`,
+# `evidenceManifestIdentity` and `findingsIdentity`. It refuses aliases, so
+# nothing below is a compatibility path.
+# ---------------------------------------------------------------------------
+
+
+def spike_with(
+    root: Path, mutate: dict[str, Any] | None = None, *, remove: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    for field in remove:
+        del evidence[field]
+    evidence.update(mutate or {})
+    return spike_state(root, built=built, evidence=evidence)
+
+
+def test_p2_2_the_exact_reviewed_delivery_branch_is_accepted(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    state = complete_state(root)
+    assert_valid(root)
+    assert set(state["landings"][0]["delivery"]["completion"]["evidence"]) == {
+        "policy",
+        "deliveredIdentity",
+        "archivedOpenSpec",
+    }
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate", "code"),
+    [
+        # The retired discriminator, under its retired name.
+        ("type-discriminator", {"type": "reviewed-delivery-v1"}, "ADV-G02"),
+        ("policy-evidence-identities", {"policyEvidenceIdentities": []}, "ADV-G02"),
+        ("spike-field-applicability", {"openSpecApplicability": "not-applicable"}, "ADV-G02"),
+        ("spike-field-evidence-root", {"evidenceRoot": "docs/spikes/x"}, "ADV-G02"),
+        ("spike-field-merged-identity", {"mergedEvidenceIdentity": {}}, "ADV-G02"),
+        ("unknown-field", {"somethingElse": True}, "ADV-G02"),
+        # The discriminator is a mirror of the landing's selected policy.
+        ("cross-policy-discriminator", {"policy": "reviewed-spike-evidence-v1"}, "ADV-G30"),
+        ("absent-discriminator", {"policy": None}, "ADV-G30"),
+    ],
+)
+def test_p2_2_the_reviewed_delivery_branch_is_closed(
+    tmp_path: Path, label: str, mutate: dict[str, Any], code: str
+) -> None:
+    root = copy_fixture(tmp_path / label)
+    state = complete_state(root)
+    state["landings"][0]["delivery"]["completion"]["evidence"].update(mutate)
+    write_state(root, state)
+    assert_refused(root, code)
+
+
+def test_p2_2_a_reviewed_delivery_branch_without_its_discriminator_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = copy_fixture(tmp_path)
+    state = complete_state(root)
+    del state["landings"][0]["delivery"]["completion"]["evidence"]["policy"]
+    write_state(root, state)
+    assert_refused(root, "ADV-G30")
+
+
+def test_p2_2_the_exact_spike_branch_is_accepted(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    state = spike_state(root)
+    assert_valid(root)
+    assert set(state["landings"][0]["delivery"]["completion"]["evidence"]) == {
+        "policy",
+        "openSpecApplicability",
+        "mergedEvidencePullRequest",
+        "mergedEvidenceIdentity",
+        "evidenceRoot",
+        "evidenceManifestIdentity",
+        "findingsIdentity",
+    }
+
+
+def test_p2_2_the_retired_spike_implementation_branch_is_refused(tmp_path: Path) -> None:
+    """Every name the implementation used before the merged contract."""
+    root = copy_fixture(tmp_path)
+    built = build_spike_repository(root)
+    spike_state(
+        root,
+        built=built,
+        evidence={
+            "type": "reviewed-spike-evidence-v1",
+            "deliveredIdentity": {
+                "class": "external-git-commit",
+                "value": "8" * 40,
+                "scope": [SPIKE_FINDINGS],
+            },
+            "policyEvidenceIdentities": [],
+            "noOpenSpec": True,
+            "evidenceRoot": SPIKE_ROOT,
+            "manifest": {"path": SPIKE_MANIFEST, "contentDigest": digest_of(root, SPIKE_MANIFEST)},
+            "findings": {"path": SPIKE_FINDINGS, "contentDigest": digest_of(root, SPIKE_FINDINGS)},
+            "mergedPullRequest": {
+                "type": "github-pull-request",
+                "repository": "pulse-ops-ai/secure-home-agent-platform",
+                "number": 73,
+            },
+            "mergedCommit": {
+                "class": "local-git-commit",
+                "value": built["mergedCommit"],
+                "scope": built["scope"],
+            },
+        },
+    )
+    payload = assert_refused(root, "ADV-G02", "ADV-G30")
+    refused = {problem["path"].rsplit(".", 1)[-1] for problem in payload["problems"]}
+    for retired in [
+        "type",
+        "deliveredIdentity",
+        "policyEvidenceIdentities",
+        "noOpenSpec",
+        "manifest",
+        "findings",
+        "mergedPullRequest",
+        "mergedCommit",
+    ]:
+        assert retired in refused, (retired, payload)
+
+
+@pytest.mark.parametrize(
+    ("label", "applicability"),
+    [
+        ("old-boolean-fact", True),
+        ("boolean-false", False),
+        ("null", None),
+        ("alias", "notApplicable"),
+        ("other-string", "applicable"),
+        ("empty-string", ""),
+    ],
+)
+def test_p2_2_open_spec_applicability_has_exactly_one_value(
+    tmp_path: Path, label: str, applicability: Any
+) -> None:
+    root = copy_fixture(tmp_path / label)
+    spike_with(root, {"openSpecApplicability": applicability})
+    assert_refused(root, "ADV-G27")
+
+
+def test_p2_2_the_retired_no_open_spec_boolean_does_not_state_the_fact(
+    tmp_path: Path,
+) -> None:
+    """`noOpenSpec: true` is a foreign field AND leaves the fact unstated."""
+    root = copy_fixture(tmp_path)
+    spike_with(root, {"noOpenSpec": True}, remove=("openSpecApplicability",))
+    assert_refused(root, "ADV-G02", "ADV-G27")
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "openSpecApplicability",
+        "mergedEvidencePullRequest",
+        "mergedEvidenceIdentity",
+        "evidenceRoot",
+        "evidenceManifestIdentity",
+        "findingsIdentity",
+    ],
+)
+def test_p2_2_every_spike_member_is_required(tmp_path: Path, missing: str) -> None:
+    root = copy_fixture(tmp_path / missing)
+    spike_with(root, remove=(missing,))
+    assert_refused(root, "ADV-G27")
+
+
+@pytest.mark.parametrize(
+    ("label", "mutate"),
+    [
+        (
+            "delivered-identity",
+            {"deliveredIdentity": {"class": "content-sha256", "value": "0" * 64}},
+        ),
+        ("archived-openspec", {"archivedOpenSpec": {"schemaVersion": 1}}),
+        ("unknown-field", {"somethingElse": True}),
+    ],
+)
+def test_p2_2_the_spike_branch_refuses_foreign_fields(
+    tmp_path: Path, label: str, mutate: dict[str, Any]
+) -> None:
+    root = copy_fixture(tmp_path / label)
+    spike_with(root, mutate)
+    assert_refused(root, "ADV-G02")
+
+
+def test_p2_2_a_manufactured_archive_keeps_its_own_named_refusal(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    spike_with(root, {"archivedOpenSpec": {"schemaVersion": 1}})
+    assert_refused(root, "ADV-G28")
+
+
+def test_p2_2_the_spike_discriminator_mirrors_the_landing_policy(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path / "cross-policy")
+    spike_with(root, {"policy": "reviewed-delivery-v1"})
+    assert_refused(root, "ADV-G30")
+
+    root = copy_fixture(tmp_path / "absent")
+    spike_with(root, remove=("policy",))
+    assert_refused(root, "ADV-G30")
+
+
+def test_p2_2_the_merged_evidence_identity_must_cover_the_whole_evidence_root(
+    tmp_path: Path,
+) -> None:
+    """A convenient single file inside the root is not the evidence root.
+
+    `mergedEvidencePullRequest` is supporting external provenance and proves
+    nothing offline, so the local merged commit carries the whole burden. The
+    declared scope is compared against the complete enumeration of the root at
+    that commit, in both directions.
+    """
+    # Control: the complete scope is accepted, and it really is more than one
+    # file — otherwise "complete" would be trivially satisfied.
+    root = copy_fixture(tmp_path / "complete")
+    state = spike_state(root)
+    assert_valid(root)
+    complete_scope = state["landings"][0]["delivery"]["completion"]["evidence"][
+        "mergedEvidenceIdentity"
+    ]["scope"]
+    assert len(complete_scope) >= 3, complete_scope
+
+    # One evidence file left out of the scope.
+    root = copy_fixture(tmp_path / "partial")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["mergedEvidenceIdentity"]["scope"] = [SPIKE_FINDINGS, SPIKE_MANIFEST]
+    evidence["mergedEvidenceIdentity"]["scope"].sort()
+    spike_state(root, built=built, evidence=evidence)
+    payload = assert_refused(root, "ADV-G27")
+    assert any(
+        SPIKE_NOTES in problem["message"] and "not covered" in problem["message"]
+        for problem in payload["problems"]
+    ), payload
+
+    # A scope entry outside the declared evidence root.
+    root = copy_fixture(tmp_path / "outside")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["mergedEvidenceIdentity"]["scope"] = sorted([*built["scope"], "adr.md"])
+    spike_state(root, built=built, evidence=evidence)
+    payload = assert_refused(root, "ADV-G27")
+    assert any("outside the declared evidence root" in p["message"] for p in payload["problems"])
+
+    # A scope entry that does not exist at the bound commit.
+    root = copy_fixture(tmp_path / "nonexistent")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["mergedEvidenceIdentity"]["scope"] = sorted(
+        [*built["scope"], f"{SPIKE_ROOT}/never-committed.md"]
+    )
+    spike_state(root, built=built, evidence=evidence)
+    assert_refused(root, "ADV-G33")
+
+
+@pytest.mark.parametrize(
+    ("label", "identity", "code"),
+    [
+        ("opaque-external", {"class": "external-git-commit", "value": "9" * 40}, "ADV-G33"),
+        ("content-digest", {"class": "content-sha256", "value": "0" * 64}, "ADV-G33"),
+        ("absent-local-object", {"class": "local-git-commit", "value": "5" * 40}, "ADV-G33"),
+    ],
+)
+def test_p2_2_the_merged_evidence_identity_must_be_locally_verifiable(
+    tmp_path: Path, label: str, identity: dict[str, Any], code: str
+) -> None:
+    root = copy_fixture(tmp_path / label)
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["mergedEvidenceIdentity"] = {**identity, "scope": built["scope"]}
+    spike_state(root, built=built, evidence=evidence)
+    assert_refused(root, code)
+
+
+def test_p2_2_the_manifest_and_findings_identities_are_locally_verified(
+    tmp_path: Path,
+) -> None:
+    # Wrong manifest bytes.
+    root = copy_fixture(tmp_path / "manifest-bytes")
+    spike_with(root, {})
+    state = load_state(root)
+    evidence = state["landings"][0]["delivery"]["completion"]["evidence"]
+    evidence["evidenceManifestIdentity"]["value"] = "0" * 64
+    write_state(root, state)
+    assert_refused(root, "ADV-G04")
+
+    # Wrong findings bytes: the digest of a real file, but not THAT file.
+    root = copy_fixture(tmp_path / "findings-bytes")
+    spike_with(root, {})
+    state = load_state(root)
+    evidence = state["landings"][0]["delivery"]["completion"]["evidence"]
+    evidence["findingsIdentity"]["value"] = digest_of(root, SPIKE_MANIFEST)
+    write_state(root, state)
+    assert_refused(root, "ADV-G04")
+
+    # The manifest path is fixed by the contract.
+    root = copy_fixture(tmp_path / "manifest-path")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["evidenceManifestIdentity"] = {
+        "class": "content-sha256",
+        "value": digest_of(root, SPIKE_NOTES),
+        "scope": [SPIKE_NOTES],
+    }
+    spike_state(root, built=built, evidence=evidence)
+    assert_refused(root, "ADV-G27")
+
+    # Findings outside the declared evidence root.
+    root = copy_fixture(tmp_path / "findings-path")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["findingsIdentity"] = {
+        "class": "content-sha256",
+        "value": digest_of(root, "adr.md"),
+        "scope": ["adr.md"],
+    }
+    spike_state(root, built=built, evidence=evidence)
+    payload = assert_refused(root, "ADV-G27")
+    assert any("outside the declared evidence root" in p["message"] for p in payload["problems"])
+
+    # A commit identity cannot stand in for verified bytes.
+    root = copy_fixture(tmp_path / "findings-class")
+    built = build_spike_repository(root)
+    evidence = spike_evidence(root, built)
+    evidence["findingsIdentity"] = {
+        "class": "local-git-commit",
+        "value": built["mergedCommit"],
+        "scope": [SPIKE_FINDINGS],
+    }
+    spike_state(root, built=built, evidence=evidence)
+    assert_refused(root, "ADV-G27")
+
+
+SPIKE_DIGEST_MUTATIONS: list[tuple[str, dict[str, Any]]] = [
+    ("policy", {"policy": "reviewed-delivery-v1"}),
+    ("openSpecApplicability", {"openSpecApplicability": "applicable"}),
+    (
+        "mergedEvidencePullRequest",
+        {
+            "mergedEvidencePullRequest": {
+                "type": "github-pull-request",
+                "repository": "pulse-ops-ai/secure-home-agent-platform",
+                "number": 74,
+            }
+        },
+    ),
+    (
+        "mergedEvidenceIdentity",
+        {"mergedEvidenceIdentity": {"class": "local-git-commit", "value": "4" * 40, "scope": []}},
+    ),
+    ("evidenceRoot", {"evidenceRoot": "docs/spikes/other-spike"}),
+    (
+        "evidenceManifestIdentity",
+        {
+            "evidenceManifestIdentity": {
+                "class": "content-sha256",
+                "value": "1" * 64,
+                "scope": [SPIKE_MANIFEST],
+            }
+        },
+    ),
+    (
+        "findingsIdentity",
+        {
+            "findingsIdentity": {
+                "class": "content-sha256",
+                "value": "2" * 64,
+                "scope": [SPIKE_FINDINGS],
+            }
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize(("field", "mutate"), SPIKE_DIGEST_MUTATIONS)
+def test_p2_2_the_completion_digest_binds_every_spike_evidence_field(
+    tmp_path: Path, field: str, mutate: dict[str, Any]
+) -> None:
+    """The generic completion preimage already binds the whole branch.
+
+    Asked of the shipped `completionDigest`, so a field that stopped
+    participating would show up here rather than in a second, spike-specific
+    digest algorithm this change deliberately does not introduce.
+    """
+    root = copy_fixture(tmp_path / field)
+    state = spike_state(root)
+    landing = state["landings"][0]
+    before = completion_digest_of(landing)
+    assert before == landing["delivery"]["completion"]["digest"]
+
+    landing["delivery"]["completion"]["evidence"].update(mutate)
+    assert completion_digest_of(landing) != before, field
+
+
+def test_p2_2_the_completion_digest_binds_the_reviewed_delivery_branch(
+    tmp_path: Path,
+) -> None:
+    root = copy_fixture(tmp_path)
+    state = complete_state(root)
+    landing = state["landings"][0]
+    before = completion_digest_of(landing)
+    assert before == landing["delivery"]["completion"]["digest"]
+
+    for mutate in (
+        {"policy": "reviewed-spike-evidence-v1"},
+        {"deliveredIdentity": {"class": "content-sha256", "value": "3" * 64, "scope": ["adr.md"]}},
+    ):
+        candidate = json.loads(json.dumps(landing))
+        candidate["delivery"]["completion"]["evidence"].update(mutate)
+        assert completion_digest_of(candidate) != before, mutate
+
+    candidate = json.loads(json.dumps(landing))
+    candidate["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["bundleSha256"] = "4" * 64
+    assert completion_digest_of(candidate) != before
