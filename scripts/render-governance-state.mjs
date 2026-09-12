@@ -40,8 +40,21 @@ const ANY_MARKER = /<!--\s*governance:(begin|end)\s+([A-Za-z0-9][A-Za-z0-9-]*)\s
 
 const compareText = (left, right) => (left === right ? 0 : left < right ? -1 : 1)
 
-/** Markdown table cell escaping: a pipe in a value must not become a column. */
-const cell = (value) => String(value).replace(/\|/gu, '\\|')
+/**
+ * Markdown table-cell escaping, in the one order that is actually safe.
+ *
+ * BACKSLASHES FIRST. Escaping only the pipe is incomplete: a value ending in a
+ * backslash turns the escape we add into an escaped backslash, and the pipe
+ * behind it becomes a live column separator again — so authored free text like
+ * a question title could inject a column into a generated projection. Doubling
+ * backslashes before adding any of our own removes that.
+ *
+ * Newlines collapse to a space for the same reason: a line break inside a cell
+ * ends the table row, and the rest of the value would render as a new row of
+ * the generated region.
+ */
+const cell = (value) =>
+  String(value).replace(/\\/gu, '\\\\').replace(/\|/gu, '\\|').replace(/\r?\n/gu, ' ')
 
 function renderDecisionLifecycle(derived, state) {
   const lines = ['| Decision | Lifecycle | Resolves |', '| --- | --- | --- |']
@@ -56,11 +69,15 @@ function renderDecisionLifecycle(derived, state) {
 }
 
 function renderQuestionSummary(derived, state) {
-  const lines = ['| Question | Severity | State | Resolved by |', '| --- | --- | --- | --- |']
+  const lines = [
+    '| Question | Title | Severity | State | Resolved by |',
+    '| --- | --- | --- | --- | --- |',
+  ]
   for (const question of [...(state.questions ?? [])].sort((a, b) => compareText(a.id, b.id))) {
     const answer = derived.questions[question.id]
     lines.push(
-      `| ${cell(question.id)} | ${cell(question.severity)} | ${answer?.resolved ? 'Resolved' : 'Open'} | ` +
+      `| ${cell(question.id)} | ${cell(question.title)} | ${cell(question.severity)} | ` +
+        `${answer?.resolved ? 'Resolved' : 'Open'} | ` +
         `${answer?.resolver === null || answer?.resolver === undefined ? '—' : cell(answer.resolver)} |`,
     )
   }

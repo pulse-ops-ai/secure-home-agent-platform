@@ -4784,3 +4784,64 @@ def test_the_history_checker_owns_no_current_state_rule() -> None:
         "LEGAL_ADR_TRANSITIONS",
     ]:
         assert owned_elsewhere not in source, owned_elsewhere
+
+
+def structural_pipes(row: str) -> int:
+    """Pipes that actually separate columns: those preceded by an EVEN run of
+    backslashes. A naive "is there a backslash before it" test calls an injected
+    pipe escaped, which is exactly the confusion being tested."""
+    count = 0
+    backslashes = 0
+    for character in row:
+        if character == "\\":
+            backslashes += 1
+            continue
+        if character == "|" and backslashes % 2 == 0:
+            count += 1
+        backslashes = 0
+    return count
+
+
+def question_row(root: Path) -> str:
+    rendered = (root / "governance/STATE.md").read_text(encoding="utf-8")
+    return next(line for line in rendered.split("\n") if line.startswith("| U4 |"))
+
+
+def rendered_with_title(root: Path, title: str) -> str:
+    state = registry(root)
+    state["questions"][0]["title"] = title
+    write_state(root, state, REGISTRY_PATH)
+    assert run_renderer(root, "write").returncode == 0
+    return question_row(root)
+
+
+def test_authored_text_cannot_forge_a_generated_projection(tmp_path: Path) -> None:
+    """A projection must not be forgeable from the content it renders.
+
+    A question title is free-form authored text. Escaping only the pipe left a
+    backslash immediately before one able to close its own cell: the escape we
+    added became an escaped backslash, and the pipe behind it a live column
+    separator. CodeQL named it `js/incomplete-sanitization`; escaping
+    backslashes FIRST is the fix, and the order is what makes it work.
+    """
+    root = projection_root(tmp_path, "forgery")
+
+    # Five columns, so six structural separators, whatever the title contains.
+    assert structural_pipes(rendered_with_title(root, "an ordinary title")) == 6
+
+    # The injection: a backslash immediately before a pipe.
+    row = rendered_with_title(root, "a\\|b")
+    assert structural_pipes(row) == 6, row
+    # And the value still reaches the reader intact.
+    assert "a\\\\\\|b" in row, row
+
+    # A bare pipe is escaped, not structural.
+    assert structural_pipes(rendered_with_title(root, "a | b")) == 6
+
+    # A trailing backslash cannot swallow the separator either.
+    assert structural_pipes(rendered_with_title(root, "ends with a backslash \\")) == 6
+
+    # A newline would otherwise end the row; it collapses into the cell.
+    row = rendered_with_title(root, "first line\nsecond line")
+    assert structural_pipes(row) == 6, row
+    assert "first line second line" in row, row
