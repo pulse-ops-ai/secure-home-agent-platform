@@ -1367,19 +1367,152 @@ function validateGenesisCompletion(value, path, problems) {
   }
 }
 
+/**
+ * THE GENESIS ATTESTATION, AND WHY ITS SHAPE IS CLOSED HERE.
+ *
+ * `attestations.genesis` binds the seed and its relationship equivalence, and
+ * it carries the four facts the history checker needs to admit the one genesis
+ * exception: the source snapshot the candidate was derived from, the exact
+ * activation base, the equivalent freshness result, and the activation
+ * identity. The exception is admitted by BINDING, never by the absence of a
+ * registry in the base — every commit before activation lacks one, so absence
+ * alone would let any of them claim it.
+ *
+ * The schema lives in the model and not in the history entry point because the
+ * current checker must refuse a malformed genesis attestation on its own, and
+ * two readers of one closed shape would be two schemas.
+ *
+ * This is the shape only. Recording a real attestation is a human act reserved
+ * for the activation change; nothing here produces one.
+ */
+const GENESIS_FIELDS = [
+  'digest',
+  'actor',
+  'at',
+  'outcome',
+  'authority',
+  'seedDigest',
+  'relationshipEquivalenceDigest',
+  'sourceSnapshotIdentity',
+  'candidateFreezeIdentity',
+  'activationBaseCommit',
+  'activationIdentity',
+  'activationFreshness',
+]
+
+const FRESHNESS_FIELDS = ['outcome', 'digest']
+const CANDIDATE_BUNDLE_FIELDS = ['schemaVersion', 'type', 'members', 'bundleSha256']
+
+export const CANDIDATE_BUNDLE_TYPE = 'governance-candidate-bundle'
+export const FRESHNESS_EQUIVALENT = 'equivalent'
+
+function validateCandidateFreezeIdentity(value, path, problems) {
+  if (!requireObject(value, path, problems, 'ADV-G76')) return
+  checkFields(value, CANDIDATE_BUNDLE_FIELDS, path, problems)
+  requiredFields(value, CANDIDATE_BUNDLE_FIELDS, path, problems, 'ADV-G76')
+  if (value.schemaVersion !== 1)
+    addProblem(problems, 'ADV-G76', path + '.schemaVersion', 'candidate bundle is version 1')
+  if (value.type !== CANDIDATE_BUNDLE_TYPE)
+    addProblem(problems, 'ADV-G76', path + '.type', 'must be ' + CANDIDATE_BUNDLE_TYPE)
+  if (!isSha256(value.bundleSha256))
+    addProblem(problems, 'ADV-G76', path + '.bundleSha256', 'must be a lowercase SHA-256')
+  // A commit name or label is not a content identity: the members carry the
+  // exact bytes, so a candidate byte change must move a member digest.
+  if (!requireArray(value.members, path + '.members', problems, 'ADV-G76')) return
+  const paths = []
+  for (const [index, member] of value.members.entries()) {
+    const memberPath = path + '.members[' + index + ']'
+    if (!requireObject(member, memberPath, problems, 'ADV-G76')) continue
+    checkFields(member, ['path', 'contentSha256'], memberPath, problems)
+    requiredFields(member, ['path', 'contentSha256'], memberPath, problems, 'ADV-G76')
+    if (!validRepoPath(member.path, memberPath + '.path', problems)) continue
+    if (!isSha256(member.contentSha256))
+      addProblem(problems, 'ADV-G76', memberPath + '.contentSha256', 'must be a lowercase SHA-256')
+    paths.push(member.path)
+  }
+  const pathProblems = canonicalPathSetProblems(paths)
+  if (pathProblems.length > 0)
+    addProblem(problems, 'ADV-G76', path + '.members', pathProblems.join('; '))
+}
+
+function validateGenesisAttestation(value, path, problems) {
+  if (!requireObject(value, path, problems, 'ADV-G19')) return
+  checkFields(value, GENESIS_FIELDS, path, problems)
+  requiredFields(value, GENESIS_FIELDS, path, problems, 'ADV-G19')
+  for (const field of ['digest', 'seedDigest', 'relationshipEquivalenceDigest']) {
+    if (!isSha256(value[field]))
+      addProblem(problems, 'ADV-G19', path + '.' + field, 'must be a lowercase SHA-256')
+  }
+  if (typeof value.actor !== 'string' || !ACTOR.test(value.actor))
+    addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
+  // Independent of the instant: see validateActorEvidence.
+  validTimestamp(value.at, path + '.at', problems)
+  if (value.outcome !== 'attested')
+    addProblem(problems, 'ADV-G19', path + '.outcome', 'must be attested')
+  validateTypedAnchor(value.authority, path + '.authority', problems)
+  validateIdentity(value.sourceSnapshotIdentity, path + '.sourceSnapshotIdentity', problems, {
+    requireScope: false,
+  })
+  validateCandidateFreezeIdentity(
+    value.candidateFreezeIdentity,
+    path + '.candidateFreezeIdentity',
+    problems,
+  )
+  if (
+    typeof value.activationBaseCommit !== 'string' ||
+    !SHA1_OR_SHA256.test(value.activationBaseCommit)
+  )
+    addProblem(
+      problems,
+      'ADV-G19',
+      path + '.activationBaseCommit',
+      'must be a hexadecimal Git commit identity',
+    )
+  validateTypedAnchor(value.activationIdentity, path + '.activationIdentity', problems)
+  if (
+    requireObject(value.activationFreshness, path + '.activationFreshness', problems, 'ADV-G19')
+  ) {
+    checkFields(
+      value.activationFreshness,
+      FRESHNESS_FIELDS,
+      path + '.activationFreshness',
+      problems,
+    )
+    requiredFields(
+      value.activationFreshness,
+      FRESHNESS_FIELDS,
+      path + '.activationFreshness',
+      problems,
+      'ADV-G19',
+    )
+    if (value.activationFreshness.outcome !== FRESHNESS_EQUIVALENT)
+      addProblem(
+        problems,
+        'ADV-G19',
+        path + '.activationFreshness.outcome',
+        'a genesis attestation may bind only an equivalent freshness result',
+      )
+    if (!isSha256(value.activationFreshness.digest))
+      addProblem(
+        problems,
+        'ADV-G19',
+        path + '.activationFreshness.digest',
+        'must be a lowercase SHA-256',
+      )
+  }
+}
+
 function validateAttestations(value, path, problems) {
   if (!requireObject(value, path, problems)) return
   checkFields(value, ['genesis', 'genesisCompletion'], path, problems)
   requiredFields(value, ['genesis'], path, problems)
-  if (!isObject(value.genesis))
+  if (!isObject(value.genesis)) {
     addProblem(problems, 'ADV-G19', path + '.genesis', 'genesis attestation must be an object')
-  else if (Object.keys(value.genesis).length > 0)
-    addProblem(
-      problems,
-      'ADV-G02',
-      path + '.genesis',
-      'genesis attestation machinery is owned by a later PR-2 task',
-    )
+  } else if (Object.keys(value.genesis).length > 0) {
+    // An EMPTY object is the pre-activation state: no genesis has occurred, and
+    // that is not an error. A populated one is the real closed shape.
+    validateGenesisAttestation(value.genesis, path + '.genesis', problems)
+  }
   validateGenesisCompletion(value.genesisCompletion, path + '.genesisCompletion', problems)
 }
 
