@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -3732,11 +3733,12 @@ def test_adv_g35_a_resolved_questions_resolver_cannot_disappear(tmp_path: Path) 
 
 
 def test_adv_g34_a_record_cannot_be_deleted_or_renumbered(tmp_path: Path) -> None:
-    for collection, mutate in [
+    cases: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
         ("landings", lambda state: state["landings"].clear()),
         ("gates", lambda state: state["gates"].clear()),
         ("questions", lambda state: state["questions"].clear()),
-    ]:
+    ]
+    for collection, mutate in cases:
         root = history_repository(tmp_path, "delete-" + collection)
         base = commit_registry(root, registry(root), "base")
         state = registry(root)
