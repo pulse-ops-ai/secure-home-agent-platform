@@ -22,58 +22,31 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-// v2, not v1: the block gained review_epoch, scope_id, and
-// reviewed_base_commit, and its semantics changed from "one review before the
-// first edit" to "one review epoch per independently released scope". A v1
-// block must be REFUSED rather than reinterpreted — silently reading an old
-// block under new rules would treat a review that never considered a scope
-// boundary as though it had.
-const CONTRACT = 'preimplementation-review-v2'
-const SCHEMA = 'governed-spec-driven-v2'
-const RUBRIC = 'governed-preimplementation-review-v1'
-const REVIEW_FILE = 'preimplementation-review.md'
-const REVIEWED_AT_PLACEHOLDER = 'REPLACE_WITH_RFC3339_TIMESTAMP'
+// The record contract itself — the versioned constants, the closed block shape,
+// the acceptance semantics and the planning projection — lives in
+// `openspec-review-contract.mjs`, because the governance-state model validates
+// the SAME record when it reads an archived package as content-backed reviewed
+// identity. Two implementations would drift; the loosest would win. What stays
+// here is everything history-dependent: epoch sequence, base freshness,
+// repository pinning, worktree cleanliness and the review prose structure.
+import {
+  CONTRACT,
+  SCHEMA,
+  RUBRIC,
+  REVIEW_FILE,
+  REVIEWED_AT_PLACEHOLDER,
+  ReviewContractError,
+  compareUtf8,
+  deltaSpecPaths,
+  extractReviewBlock,
+  planningProjection,
+  validateReviewRecordShapeAndAcceptance,
+} from './openspec-review-contract.mjs'
 
-/**
- * RFC 3339 date-time, which is narrower than what `Date.parse` accepts.
- * `Date.parse` takes '2026-08-26', 'August 26 2026', and other host-dependent
- * spellings, so a date-only or locale-flavoured value would have passed while
- * carrying no reviewable instant.
- */
-// Captured, not sliced: slicing around the OPTIONAL fraction meant
-// `2026-08-26T09:15:00.123+24:00` reached the offset check as ".123+24:00",
-// which "starts with a dot", so the +24:00 bound was never validated.
-const RFC3339 =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/
-
-/**
- * RFC 3339 shape is not a calendar.
- *
- * `Date.parse('2026-02-30T00:00:00Z')` NORMALISES to 2 March and returns a
- * number, so a shape check plus `Date.parse` accepts dates that never existed.
- * The components are therefore range-checked directly, including leap years.
- */
-function isRealInstant(value) {
-  const match = RFC3339.exec(value)
-  if (match === null) return false
-
-  const [, y, mo, d, h, mi, sec, , offH, offM] = match
-  const [year, month, day, hour, minute, second] = [y, mo, d, h, mi, sec].map(Number)
-
-  if (month < 1 || month > 12) return false
-  if (hour > 23 || minute > 59) return false
-  // 60 is a leap second, which RFC 3339 permits.
-  if (second > 60) return false
-
-  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
-  const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-  if (day < 1 || day > lengths[month - 1]) return false
-
-  // Validated independently of whether a fraction was present.
-  if (offH !== undefined && (Number(offH) > 23 || Number(offM) > 59)) return false
-
-  return true
-}
+void CONTRACT
+void SCHEMA
+void RUBRIC
+void REVIEWED_AT_PLACEHOLDER
 
 const VERDICT_TOKENS = [
   'REVIEW_REQUIRED',
@@ -337,12 +310,6 @@ function toPosix(value) {
  * exact ordered equality, so that is a reproducibility defect, not a cosmetic
  * one. UTF-8 byte order is defined by the bytes alone.
  */
-function compareUtf8(left, right) {
-  const a = Buffer.from(left, 'utf8')
-  const b = Buffer.from(right, 'utf8')
-  return Buffer.compare(a, b)
-}
-
 function byUtf8Bytes(a, b) {
   return compareUtf8(a.name, b.name)
 }
@@ -548,20 +515,15 @@ function planningPaths(context, ref = 'HEAD') {
 
   const tracked = trackedAtHead(context.repoRoot, context.changeRepoPath, ref)
 
-  const specPaths = [...tracked.keys()]
-    .filter((relative) => relative.startsWith('specs/') && relative.endsWith('.md'))
-    .sort(compareUtf8)
+  const specPaths = deltaSpecPaths([...tracked.keys()])
 
+  // A Git OBSERVATION, so it stays here: the shared contract never reads modes.
   const symlinked = specPaths.filter((relative) => tracked.get(relative) === '120000')
   if (symlinked.length > 0) {
     fail('SPEC_SYMLINK_REFUSED', `delta-spec paths must not be symlinks: ${symlinked.join(', ')}`)
   }
 
-  if (specPaths.length === 0) {
-    fail('NO_DELTA_SPECS', 'governed-spec-driven-v2 requires at least one specs/**/*.md file')
-  }
-
-  return ['.openspec.yaml', 'proposal.md', ...specPaths, 'design.md', 'assurance.md', 'tasks.md']
+  return viaContract(() => planningProjection(specPaths))
 }
 
 function sha256(bytes) {
@@ -621,23 +583,22 @@ function assertManifestWorktreeClean(repoRoot) {
 }
 
 function extractGateBlock(reviewText) {
-  const matches = [...reviewText.matchAll(/<!--\s*openspec-review-gate\s*([\s\S]*?)-->/g)]
+  return viaContract(() => extractReviewBlock(reviewText))
+}
 
-  if (matches.length !== 1) {
-    fail(
-      'GATE_BLOCK_COUNT',
-      `expected exactly one openspec-review-gate block; found ${matches.length}`,
-    )
-  }
-
-  let gate
+/**
+ * Adapt the shared contract's thrown failures to this CLI's `fail()`.
+ *
+ * Same code, same message: the extraction moved where the rule lives, not what
+ * the gate reports. Anything else is not this refactor's to change.
+ */
+function viaContract(run) {
   try {
-    gate = JSON.parse(matches[0][1].trim())
+    return run()
   } catch (error) {
-    fail('GATE_BLOCK_INVALID_JSON', error.message)
+    if (error instanceof ReviewContractError) fail(error.code, error.message)
+    throw error
   }
-
-  return gate
 }
 
 function assertExactKeys(object, expectedKeys, context) {
@@ -663,135 +624,7 @@ function assertString(value, field) {
 }
 
 function validateGateShape(gate) {
-  const keys = [
-    'contract',
-    'schema',
-    'rubric',
-    'reviewed_commit',
-    'reviewed_base_commit',
-    'review_epoch',
-    'scope_id',
-    'reviewed_at',
-    'reviewer',
-    'verdict',
-    'unresolved_p1_count',
-    'unassigned_p2_p3_count',
-    'invariant_set_changed',
-    'authority_allocation_complete',
-    'reviewed_artifacts',
-  ]
-  assertExactKeys(gate, keys, 'review gate')
-
-  if (gate.contract !== CONTRACT) {
-    fail('WRONG_GATE_CONTRACT', `contract must be ${CONTRACT}; got ${String(gate.contract)}`)
-  }
-  if (gate.schema !== SCHEMA) {
-    fail('WRONG_GATE_SCHEMA', `schema must be ${SCHEMA}; got ${String(gate.schema)}`)
-  }
-  if (gate.rubric !== RUBRIC) {
-    fail('WRONG_GATE_RUBRIC', `rubric must be ${RUBRIC}; got ${String(gate.rubric)}`)
-  }
-
-  if (typeof gate.reviewed_commit !== 'string' || !/^[0-9a-f]{40}$/.test(gate.reviewed_commit)) {
-    fail('INVALID_REVIEWED_COMMIT', 'reviewed_commit must be a full lowercase 40-hex Git commit')
-  }
-
-  if (
-    typeof gate.reviewed_base_commit !== 'string' ||
-    !/^[0-9a-f]{40}$/.test(gate.reviewed_base_commit)
-  ) {
-    fail(
-      'INVALID_REVIEWED_BASE_COMMIT',
-      'reviewed_base_commit must be a full lowercase 40-hex Git commit',
-    )
-  }
-
-  if (!Number.isInteger(gate.review_epoch) || gate.review_epoch < 1) {
-    fail(
-      'INVALID_REVIEW_EPOCH',
-      `review_epoch must be an integer >= 1; got ${JSON.stringify(gate.review_epoch)}`,
-    )
-  }
-
-  assertString(gate.scope_id, 'scope_id')
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(gate.scope_id)) {
-    fail('INVALID_SCOPE_ID', `scope_id must match ^[a-z0-9][a-z0-9-]*$; got ${gate.scope_id}`)
-  }
-
-  assertString(gate.reviewed_at, 'reviewed_at')
-  if (gate.reviewed_at === REVIEWED_AT_PLACEHOLDER) {
-    fail(
-      'PLACEHOLDER_REVIEWED_AT',
-      'reviewed_at is still the manifest placeholder; the accepting reviewer ' +
-        'records when the review was made, not the tool that pinned the bytes',
-    )
-  }
-  if (!RFC3339.test(gate.reviewed_at)) {
-    fail(
-      'INVALID_REVIEWED_AT',
-      `reviewed_at must be an RFC 3339 date-time; got ${gate.reviewed_at}`,
-    )
-  }
-  if (!isRealInstant(gate.reviewed_at)) {
-    fail(
-      'INVALID_REVIEWED_AT',
-      `reviewed_at is RFC 3339-shaped but not a real instant: ${gate.reviewed_at}`,
-    )
-  }
-
-  assertString(gate.reviewer, 'reviewer')
-  if (/REPLACE_WITH|TBD|TODO/i.test(gate.reviewer)) {
-    fail('PLACEHOLDER_REVIEWER', 'reviewer still contains a placeholder')
-  }
-
-  if (gate.verdict !== 'ARCHITECTURE_ACCEPTED') {
-    fail(
-      'REVIEW_NOT_ACCEPTED',
-      `verdict is ${String(gate.verdict)}; expected ARCHITECTURE_ACCEPTED`,
-    )
-  }
-
-  if (gate.unresolved_p1_count !== 0) {
-    fail('UNRESOLVED_P1', `unresolved_p1_count must be 0; got ${String(gate.unresolved_p1_count)}`)
-  }
-
-  if (gate.unassigned_p2_p3_count !== 0) {
-    fail(
-      'UNASSIGNED_NON_P1_FINDINGS',
-      `unassigned_p2_p3_count must be 0; got ${String(gate.unassigned_p2_p3_count)}`,
-    )
-  }
-
-  if (gate.invariant_set_changed !== false) {
-    fail('INVARIANT_SET_CHANGED', 'invariant_set_changed must be false for the accepting review')
-  }
-
-  if (gate.authority_allocation_complete !== true) {
-    fail('AUTHORITY_ALLOCATION_INCOMPLETE', 'authority_allocation_complete must be true')
-  }
-
-  if (!Array.isArray(gate.reviewed_artifacts)) {
-    fail('INVALID_ARTIFACT_MANIFEST', 'reviewed_artifacts must be an array')
-  }
-
-  for (const [index, artifact] of gate.reviewed_artifacts.entries()) {
-    assertExactKeys(artifact, ['path', 'sha256'], `reviewed_artifacts[${index}]`)
-    assertString(artifact.path, `reviewed_artifacts[${index}].path`)
-
-    if (
-      path.isAbsolute(artifact.path) ||
-      artifact.path.includes('\\') ||
-      artifact.path.split('/').includes('..') ||
-      artifact.path === REVIEW_FILE ||
-      artifact.path.startsWith('reviews/')
-    ) {
-      fail('INVALID_ARTIFACT_PATH', `unsafe or non-planning artifact path: ${artifact.path}`)
-    }
-
-    if (typeof artifact.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(artifact.sha256)) {
-      fail('INVALID_ARTIFACT_DIGEST', `invalid lowercase SHA-256 for ${artifact.path}`)
-    }
-  }
+  viaContract(() => validateReviewRecordShapeAndAcceptance(gate))
 }
 
 async function verifyArtifactManifest(context, gate, ref = 'HEAD') {
