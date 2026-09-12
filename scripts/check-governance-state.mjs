@@ -164,6 +164,21 @@ function printProblems(problems) {
   }
 }
 
+/**
+ * The canonical form the checker expected, after the diagnostics.
+ *
+ * Bounded and unambiguous: one header line, then the exact model-produced
+ * bytes. It is the model's serialization verbatim — recomputing it here would
+ * make the CLI a second canonicalization authority, and the two could disagree
+ * about precisely the thing being reported.
+ */
+function printExpectedCanonical(canonical) {
+  if (canonical === undefined) return
+  console.error('')
+  console.error('Expected canonical state:')
+  console.error(canonical)
+}
+
 function main() {
   let options
   try {
@@ -200,6 +215,15 @@ function main() {
         problems: result.problems,
         derived: result.derived,
         digests: result.digests,
+        // The canonical form the checker expected. A refusal that says only
+        // "these bytes are not canonical" leaves the author to guess what
+        // canonical would have been; the contract requires the checker to
+        // report it. Passed through from the model, never recomputed here —
+        // a second opinion in the CLI would be a second canonicalizer.
+        //
+        // Absent when parsing failed, because then there is no logical state
+        // to serialize and inventing one would be a fabricated answer.
+        ...(result.canonical === undefined ? {} : { canonical: result.canonical }),
       }),
     )
     if (!result.ok) process.exitCode = 1
@@ -208,6 +232,7 @@ function main() {
   if (!result.ok) {
     console.error('✗ governance state — ' + result.problems.length + ' refusal(s)')
     printProblems(result.problems)
+    printExpectedCanonical(result.canonical)
     process.exitCode = 1
     return
   }

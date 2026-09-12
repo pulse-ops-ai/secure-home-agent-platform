@@ -2719,3 +2719,137 @@ def test_f13_the_extraction_preserved_the_review_gate_answer(tmp_path: Path) -> 
         f"the extraction changed the gate's answer: pre={answers['pre']} post={answers['post']}"
     )
     assert answers["pre"] == "ARTIFACT_SET_DRIFT", answers
+
+
+# ── F16b: a noncanonical registry is told what canonical would have been ────
+
+
+def run_checker_human(root: Path) -> subprocess.CompletedProcess[str]:
+    """The human-mode CLI, which is where the original finding was observed."""
+    return subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/check-governance-state.mjs"),
+            "--root",
+            str(root),
+            "--state",
+            "state.json",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def write_noncanonical(root: Path) -> str:
+    """Re-encode the SAME logical state with different whitespace.
+
+    Logically identical, byte-different: the one case the contract names, and
+    the one where "not canonical" is useless without saying what canonical is.
+    Returns the canonical form the checker must report.
+    """
+    target = root / "state.json"
+    canonical = target.read_text(encoding="utf-8")
+    logical = json.loads(canonical)
+    target.write_text(json.dumps(logical, indent=4) + "\n", encoding="utf-8")
+    assert target.read_text(encoding="utf-8") != canonical, "the re-encoding changed no bytes"
+    return canonical
+
+
+def test_f16b_json_mode_reports_the_expected_canonical_form(tmp_path: Path) -> None:
+    """F16b. The model already produced `canonical`; the CLI dropped it.
+
+    Pre-fix the JSON payload carried only `ok` and `problems`, so a refusal said
+    the bytes were wrong without ever saying what right looked like.
+    """
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    canonical = write_noncanonical(root)
+
+    result, payload = run_checker(root)
+    assert result.returncode != 0
+    assert any(problem["code"] == "ADV-G03" for problem in payload["problems"]), payload
+    assert payload["canonical"] == canonical, "the reported canonical form is not the exact bytes"
+
+
+def test_f16b_human_mode_reports_the_expected_canonical_form(tmp_path: Path) -> None:
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    canonical = write_noncanonical(root)
+
+    result = run_checker_human(root)
+    assert result.returncode != 0
+    assert "ADV-G03" in result.stderr, result.stderr
+    assert "Expected canonical state:" in result.stderr, result.stderr
+    emitted = result.stderr.split("Expected canonical state:\n", 1)[1]
+    assert emitted.rstrip("\n") == canonical.rstrip("\n"), "human mode emitted different bytes"
+
+
+def test_f16b_a_canonical_registry_still_succeeds(tmp_path: Path) -> None:
+    """The positive control. A checker that refused everything would satisfy
+    the requirement above and be useless."""
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+
+    assert_valid(root)
+    human = run_checker_human(root)
+    assert human.returncode == 0, human.stderr
+    assert "Expected canonical state:" not in human.stderr + human.stdout
+
+
+def test_f16b_unparseable_input_does_not_pretend_a_canonical_form_exists(
+    tmp_path: Path,
+) -> None:
+    """The negative control.
+
+    When parsing fails there is no logical state to serialize, so reporting a
+    canonical form would mean inventing one. Absence here is the correct answer,
+    not an omission.
+    """
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    (root / "state.json").write_text("{ this is not json", encoding="utf-8")
+
+    result, payload = run_checker(root)
+    assert result.returncode != 0
+    assert payload["problems"], payload
+    assert "canonical" not in payload, payload
+
+    human = run_checker_human(root)
+    assert human.returncode != 0
+    assert "Expected canonical state:" not in human.stderr, human.stderr
+
+
+def test_f16b_the_reported_canonical_form_comes_from_the_model(tmp_path: Path) -> None:
+    """MUTATION. The CLI must pass the model's serialization through, not hold a
+    second opinion about canonical form.
+
+    Changing the model's serializer must change what the checker reports. If it
+    did not, the CLI would be canonicalizing on its own and the two could
+    disagree about exactly the thing being reported.
+    """
+    root = copy_fixture(tmp_path)
+    complete_state(root)
+    write_noncanonical(root)
+    before = run_checker(root)[1]["canonical"]
+
+    source = REPOSITORY_ROOT / "scripts/governance/model/canonical.mjs"
+    original = source.read_text(encoding="utf-8")
+    anchor = "  return renderCanonical(canonicalizeValue(value), '') + '\\n'"
+    assert original.count(anchor) == 1, "the serializer anchor moved"
+    mutated = original.replace(
+        anchor, "  return renderCanonical(canonicalizeValue(value), '') + '\\n\\n'", 1
+    )
+    assert mutated != original, "the mutation did not change the subject bytes"
+    try:
+        source.write_text(mutated, encoding="utf-8")
+        after = run_checker(root)[1]["canonical"]
+    finally:
+        source.write_text(original, encoding="utf-8")
+        assert source.read_text(encoding="utf-8") == original
+
+    assert after != before, (
+        "the checker did not follow the model's serializer, so it is reporting a canonical form "
+        "of its own"
+    )
