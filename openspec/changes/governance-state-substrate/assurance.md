@@ -91,9 +91,14 @@ registry never authorizes anything. Nothing in this change infers authorization
 from registry state, issue existence, accepted ADRs, or satisfied
 prerequisites.
 
-**Phase boundary.** Phase 1 is the planning contract. Implementation execution
-requires a separate explicit release; `tasks.md` records `NOT_AUTHORIZED`
-accordingly.
+**Current amendment boundary.** Issue #106 comment
+[#5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973)
+authorizes only the four planning artifacts at base
+`7c201e28c027ff73ae6f11cba6c5006bf4c21c84`. PR-1 is landed; PR #124 is frozen at
+`dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e`. PR-2 genesis implementation remains
+suspended through independent review/merge and until a separate owner refresh.
+The earlier baseline table records provenance, not a release for this work.
+No proof below is claimed executed by this planning correction.
 
 ---
 
@@ -190,8 +195,9 @@ accordingly.
   satisfy; a program event v1 cannot represent is preserved as source and
   historical context rather than as an active node.
 - **INV-G39** A genesis historical completion binds the observed lifecycle and
-  no invented prior transition, at the schema-declared location
-  `attestations.genesisCompletion`.
+  no invented prior transition, in the exact non-null per-landing
+  `genesis-historical-completion-v1` variant, whose digest is bound by the
+  existing single `attestations.genesisCompletion` envelope (D6.6b).
 - **INV-G40** The genesis exception applies only to the base bound by the
   genesis evidence; v1 defines no reactivation, so no later change can re-run it.
 - **INV-G41** Every displayed inventory count is generated from the
@@ -230,7 +236,8 @@ accordingly.
   bound in the genesis attestation. At final merge, current `refs/heads/main`,
   the PR-3 current base SHA, and attested `activationBaseCommit` must also be
   equal.
-- **INV-G49** A `reviewed-delivery-v1` completion carries the exact stable
+- **INV-G49** An ordinary post-genesis `reviewed-delivery-v1` completion carries
+  the exact stable
   envelope and closed `archivedOpenSpec` evidence defined in the
   specification: its `changeId`, `activeRoot`, and `archiveRoot` correspond,
   its members are the complete sorted whole-change set of regular tracked files,
@@ -261,10 +268,11 @@ accordingly.
   appeared in that commit. Their scopes and bytes are checked separately from
   the bundle digest and human completion attestation; missing, opaque,
   out-of-scope, wrong-stage, or byte-mismatched provenance fails closed.
-  Historical genesis may record those identities and a human disposition in
-  its source manifest, but that disposition is never a generic
-  ordinary-completion fallback.
-- **INV-G51** The current checker proves the stable envelope, archive shape,
+  Historical genesis uses the exact D6.6a closed source row and disposition;
+  only explicitly absent minimum artifacts are waived. The selected form's
+  review proof remains required. It is never an ordinary-completion fallback.
+- **INV-G51** The current checker proves the applicable closed completion
+  variant, archive shape,
   path, membership, bytes, stage-root presence/absence, scoped provenance, mode
   constraint, and digest binding only. The rules-free Git-tree adapter supplies
   those observations; it does not decide their meaning. The checker does not
@@ -278,6 +286,18 @@ accordingly.
 - **INV-G43** The ordinary completion digest binds prior and target lifecycle
   and applies only post-genesis; a genesis historical completion binds the
   observed lifecycle only. Neither substitutes for the other.
+- **INV-G52** A historical package exception is exactly D6.6a's source-bound
+  `historical-genesis-package-v1` disposition, reused only within D6.6b's
+  historical completion. The archive object and its two reviewed-identity forms
+  are unchanged. Only the exactly observed missing modern minimum artifacts
+  are waived; all member/byte/mode/path/stage/source/digest and selected-form
+  reviewed evidence remains required. No archive or review artifact is invented.
+- **INV-G53** The six seeded Complete variants, matching source rows and
+  dispositions, and the existing outer envelope correspond in both directions.
+  The full historical preimage binds complete policy evidence and disposition
+  without a prior lifecycle or per-landing human act. After activation that
+  terminal evidence and the genesis member set are immutable; an ordinary
+  transition cannot use the route, including with recomputed target digests.
 
 ---
 
@@ -313,8 +333,10 @@ Independent dimensions that materially affect behavior:
 
 ### Archived OpenSpec identity proof contract (PR-1)
 
-The four planning artifacts use one stable completion envelope for both
-supported policies. It is a transition record, not a duplicate of the
+For ordinary post-genesis completion, the four planning artifacts use one
+stable completion envelope for both supported policies. Historical completions
+use only the D6.6b variant; the closed archive object is reused unchanged.
+The ordinary envelope is a transition record, not a duplicate of the
 landing's immutable rule inputs. Its exact fields are:
 
 ```json
@@ -499,8 +521,9 @@ same relative suffix under `archiveRoot`. Members are sorted lexicographically
 by canonical relative path and duplicate-free. The complete sets in each observed tree — the
 reviewed active tree where the reviewed identity is commit-backed, the archive
 tree at `archivedPackageIdentity`, and the current archive root — must each
-equal the declared members by path and exact bytes. Historical genesis may use only its explicit human disposition for an
-older package shape; that disposition is not a generic post-genesis fallback.
+equal the declared members by path and exact bytes. Historical genesis uses
+only D6.6a's exact source-bound disposition and narrowed validation profile;
+it is not a generic post-genesis fallback.
 Missing, extra, unmanifested, non-regular, symlinked, absolute, traversal, or
 empty-segment members fail. Every member in each observed tree must have Git
 mode `100644`; symlink, gitlink, executable, and all other modes fail. Mode is
@@ -518,8 +541,8 @@ archive-only in the current snapshot, and — for a commit-backed reviewed
 identity only — active-only at `reviewedIdentity` with a differing commit
 value. The Git-tree observation adapter supplies
 paths, modes, bytes, and root presence/absence; it applies no semantic rules.
-The three required membership observations are therefore the reviewed active
-tree, the current archive tree, and the declared member set; the selected
+The three required membership observations are therefore the selected-form
+reviewed observation, the current archive tree, and the declared member set; the selected
 archived-package snapshot and stage observations are additional machine-checkable
 constraints.
 
@@ -767,7 +790,9 @@ it.
 | INV-G48 | freshness: `ADV-G69`–`ADV-G74`, `ADV-G76`; final merge: `ADV-G77`; `EX-G28`; `MUT-G14` | hostile + example + mutation |
 | INV-G49 | `EX-G29`; `ADV-G78`–`ADV-G80`, `ADV-G84`, `ADV-G85`; `PROP-G11`; `MUT-G15` | example + hostile + property + mutation |
 | INV-G50 | `ADV-G81`–`ADV-G83`, `ADV-G85`; `EX-G29` | hostile + example |
-| INV-G51 | `MAN-G03`; machine-boundary argument in D4.4 | manual review + construction |
+| INV-G51 | `MAN-G03`; machine-boundary argument in D4.4 / D6.6a | manual review + construction |
+| INV-G52 | `ADV-G86`, `ADV-G87`, `ADV-G83`; `EX-G30`; `MUT-G16` | current + history + example + mutation |
+| INV-G53 | `ADV-G51`–`G53`, `ADV-G57`, `ADV-G63`, `ADV-G83`, `ADV-G87`–`G90`; `EX-G23`, `EX-G30`, `EX-G31`; `MUT-G16` | current + history + example + mutation |
 
 No control is claimed to prove behavior it does not exercise. `INV-G20` is
 proven by construction and manual argument, not by a test.
@@ -820,7 +845,7 @@ Every case must fail the **real** entry point. The corpus is split by which
 checker can actually prove it: a one-revision checker cannot detect that a value
 *changed*, so every "mutated in place" and "regressed" case belongs to history.
 
-### Provable by the current-revision checker (PR-1)
+### Provable by the current-revision checker (PR-1; genesis controls assigned to PR-2 below)
 
 **Representation**
 
@@ -901,7 +926,8 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   evidence, a replacement landing missing or changing its kind-selected policy,
   or a replacement gate carrying delivery state. It does **not** claim to prove
   base-revision currentness or first appearance.
-- **ADV-G78** A `reviewed-delivery-v1` completion object that is not the exact
+- **ADV-G78** An ordinary post-genesis `reviewed-delivery-v1` completion object
+  that is not the exact
   closed policy-specific parent shape, uses an alias or another policy's field,
   offers an ADR, README, arbitrary file, archive subfile, active change, or
   mismatched `changeId`/root in its nested archive object, or uses a correctly
@@ -911,7 +937,7 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G79** An archive member set that is partial, duplicated, missing,
   extra, unsorted, unmanifested, non-regular, symlinked, traversing, or whose
   member bytes or Git modes do not match the closed rule; every member must be
-  a `100644` regular file, the minimum package structure must be present, and
+  a `100644` regular file, the ordinary minimum package structure must be present, and
   the complete recursively enumerated whole-change set is required. It also
   refuses active/archive stage coexistence or a missing required stage root.
 - **ADV-G80** An `archivedOpenSpec` whose `bundleSha256` is absent or wrong,
@@ -1150,9 +1176,14 @@ is read:
   unmatched by the genesis evidence binding, attempting to claim the exception.
 - **ADV-G59** A replacement activation after a revert, attempting a second
   genesis.
-- **ADV-G83** An ordinary post-genesis completion uses a genesis
-  human-disposition record, or otherwise treats the historical genesis archive
-  exception as a generic fallback after activation.
+- **ADV-G83** A genesis historical disposition is legal only in the one bound
+  genesis path and can never satisfy an ordinary post-genesis completion.
+  Prove both refusal surfaces: an ordinary envelope requesting historical
+  relaxation fails current validation, and a registry-bearing base followed by
+  a historical completion of a Planned/InProgress or replacement landing fails
+  history even with recomputed source rows, dispositions, historical digests and
+  outer envelope. A valid retained historical terminal record is the positive
+  contrast (`EX-G31`), never a reusable exception.
 
 ### Candidate freshness mechanism (PR-2)
 
@@ -1189,6 +1220,81 @@ is read:
   `runner/GATE-U6`, `runner/GATE-U4` missing.
 - **ADV-G45** Delivery lifecycle taken from issue state rather than repository
   evidence.
+
+### Historical genesis contract proof (PR-2)
+
+The normative shapes are in the specification's *Historical genesis package
+exceptions are source-bound and closed* and *Seeded Complete landings use one
+closed historical completion variant* requirements, with exact field mapping in
+D6.6a–D6.6c. This proof contract preserves the outer envelope
+`{envelopeDigest, members: [{landingId, digest}], actor, at, outcome, authority}`
+and its member canonicalization. `completionDigest` remains exclusively the
+ordinary transition digest; the historical digest binds observation, complete
+policy evidence and source disposition. No per-landing human attestation exists.
+
+| Rule / interaction | Authoring owner | Proof owner and required result |
+| --- | --- | --- |
+| Exact source row and disposition, both policies, existing archive shape | 6.1, 6.3, 6.5 | 7.2: `EX-G30` passes; `ADV-G86`/`ADV-G87` fail |
+| Historical rows and waiver tokens use existing collection classes, without order meaning or duplicates | 6.1 | 7.2: `PROP-G09` permutations preserve bytes/digests; `ADV-G86`/`ADV-G87` reject duplicates and noncanonical serialized input |
+| Only historically absent minimum artifacts waived; commit form needs no separate review witness; content form retains its complete accepting witness | 6.1, 6.5 | 7.2: `ADV-G86` retained-proof failures; `EX-G30` both reviewed forms, including a commit form without a review artifact |
+| Exact typed non-null completion and full historical preimage; no prior lifecycle or per-landing attestation | 6.5 | 7.2: `EX-G30`, `ADV-G57`, `ADV-G63`, `ADV-G88`; independent literal preimage/serialized-byte/SHA-256 vectors for both policies |
+| Source snapshot, evidence, disposition and member correspondence in both directions | 6.3, 6.5 | 7.2: `ADV-G51`–`G53`, `ADV-G87`; field-by-field digest sensitivity, including null spike disposition |
+| Immutable seeded terminal continuation and fixed genesis member set beside later ordinary completion | 6.5 | 7.2: `EX-G31` passes; `ADV-G89`, `ADV-G83` fail through history |
+| Full validation before readiness; unchanged query and renderer semantics | 6.5 | 7.2: valid seeded prerequisites satisfy; invalid historical evidence fails with no derived readiness; `EX-G29` ordinary regression remains green |
+| Unattested frozen candidate versus test copies versus real owner ceremony | 6.5, 6.6; test construction 6.7 | 6.7: `ADV-G90`, `EX-G24`; immutable candidate bytes; `MAN-G01`/`MAN-G02` in PR-3, never machine-authenticated authorship |
+| Freshness includes dispositions and historical evidence without changing frozen candidate | 6.8 | 6.8: `ADV-G72`/`ADV-G73` and `MUT-G14` include these inputs |
+| Every clarified guard is load-bearing | 6.1, 6.3, 6.5 | 7.3: `MUT-G16` killed through real current/history entry points |
+
+New controls are bounded as follows:
+
+- **ADV-G86** Current checker refuses malformed/unknown disposition fields or
+  discriminator, wrong landing/source/bundle mirrors, an unknown waiver token,
+  duplicate waiver tokens or noncanonical serialized order, waiver of a present
+  artifact, an unlisted absent minimum requirement, or a
+  reviewWitness value inconsistent with the chosen identity form. Independently
+  retain refusal for empty/partial/extra observed members, byte/mode/root drift,
+  unsafe paths, missing/unreachable required commits, unavailable source
+  observation, and absent/non-accepting content-form review witness. A minimum
+  waiver cannot suppress any of those guards.
+- **ADV-G87** Current checker refuses missing/extra/duplicate historical source
+  rows or noncanonical serialized row order,
+  row/record evidence disagreement, source-snapshot mismatch, source archive
+  disagreement, stale disposition/digest binding, or row/member reassociation.
+  Mutate each historical-preimage field, including each disposition field and
+  each policy evidence member, against independent golden vectors.
+- **ADV-G88** Current checker refuses null seeded completion, missing/unknown
+  type, `from`/`to`, a per-landing `attestation`, mixed/aliased policy evidence,
+  or the ordinary digest in a historical record. A record tag or outer member
+  alone cannot satisfy full completion validation.
+- **ADV-G89** History refuses changing/removing a seeded terminal variant,
+  its evidence/source row/disposition, or either genesis envelope, including
+  switching the variant to an ordinary completion or changing the original
+  member set to include a later completion. All target digests may be recomputed
+  in the negative control; immutability must still refuse it.
+- **ADV-G90** Full current validation refuses the raw unattested candidate;
+  structural/preimage success must not become a full completion pass. Isolated
+  test-attested copies pass the mechanical checks (`EX-G24`) without changing
+  frozen bytes. Claims that test authorship is real owner authorship are refused
+  at `MAN-G01`, not attributed to this machine control.
+- **EX-G30** Both exact historical evidence branches pass: delivery with the
+  closed source disposition and unmodified archive, and the real L6 spike
+  evidence with null disposition. Delivery exercises the commit-backed form
+  without a separate review artifact and the content-backed form with its
+  complete accepting witness. Verify an absent-minimum-artifact waiver and a
+  no-waiver package, exact source-snapshot observations, member correspondence,
+  historical preimages, outer envelope, and existing readiness behavior.
+- **EX-G31** A valid seeded terminal state survives a later legal ordinary
+  completion of another landing. The existing six-member genesis envelope and
+  its source rows remain exact; the later landing uses `completionDigest` and
+  its own transition attestation. A valid later replacement leaves the old
+  historical evidence intact, uses the existing current-identity rule, and
+  inherits no completion evidence.
+
+PR-2 executes these through test copies, not real owner attestations. The outer
+envelope is preserved, not redesigned. General genesis evidence is necessary
+source/seed proof, not a second completion authority. Canonical promotion and
+portable-knowledge determination is recorded in D6.6c under ADR-0014; no new
+architecture or knowledge projection is required for these change-local details.
 
 ### Positive examples and integration fixtures
 
@@ -1253,7 +1359,9 @@ is read:
   this from a filename, path convention, issue prose, or a self-consistent
   digest, so it must not claim to refuse an otherwise valid but semantically
   unrelated archive. The owner records this judgment through the human
-  completion attestation over the complete `completionDigest`; a recomputed
+  ordinary completion attestation over the complete `completionDigest`, or at
+  genesis through the single outer `genesisCompletion` attestation over the
+  historical digests including D6.6a dispositions; a recomputed
   archive or reassociated digest without that attestation is not completion
   evidence.
 
@@ -1287,6 +1395,16 @@ no-op that still returns success is the failure mode being hunted.
   each weakened implementation; semantic association remains the separate
   `MAN-G03` human control.
 
+- **MUT-G16** Historical profile/variant guards weakened: waive all package
+  checks instead of only explicitly missing minimum artifacts; accept empty
+  observations; skip source/evidence/disposition equality; omit a historical
+  preimage field; accept a missing/mis-bound outer member; treat an unattested
+  typed record as complete; or allow the genesis variant/disposition in an
+  ordinary transition. Each negative must reach the real current/history entry
+  point and change from refusal to acceptance under its isolated mutation,
+  failing the suite. `EX-G30` also kills rejection of the valid historical
+  variant or reintroduction of an inapplicable commit-form review witness.
+
 ---
 
 ## Traceability plan
@@ -1309,7 +1427,8 @@ no-op that still returns success is the failure mode being hunted.
 | Query | PR-2 | 5 | ADV-G17, G18; PROP-G05; T4 |
 | Genesis primitives and derivation | PR-2 | 6 | ADV-G32, G44, G45; EX-G16, G17, G19 |
 | Genesis source manifest | PR-2 | 6 | ADV-G20, G31, G42, G43, **ADV-G83**; MUT-G10 |
-| Historical archive-to-landing disposition | **PR-2** | 6.1, 6.3, 6.5, 7.2 | `ADV-G83`; genesis archived-package identity and disposition checks |
+| Historical archive-to-landing disposition | **PR-2** | 6.1, 6.3, 6.5; proof 7.2/7.3 | `INV-G52`; `ADV-G83`, `ADV-G86`, `ADV-G87`; `EX-G30`; `MUT-G16`; `MAN-G03` at real genesis |
+| Seeded Complete variant, digest and terminal continuation | **PR-2** | 6.3, 6.5; proof 6.7/7.2/7.3 | `INV-G53`; `ADV-G51`–`G53`, `ADV-G57`, `ADV-G63`, `ADV-G83`, `ADV-G87`–`G90`; `EX-G23`, `EX-G30`, `EX-G31`; `MUT-G16` |
 | Consumer inventory | PR-2 | 6 | ADV-G46, G47; EX-G20 |
 | Namespaced identifiers | PR-1 | 2, 3 | ADV-G50 — proven in PR-1; repeated in PR-2 as integration |
 | Program graph validity | PR-2 | 6 | ADV-G56; the whole-program seed |
@@ -1319,7 +1438,7 @@ no-op that still returns success is the failure mode being hunted.
 | Withdrawal succession/history | **PR-2** | 4, 7 | ADV-G29, ADV-G75; EX-G25 |
 | Node replacement (current model) | **PR-1** | 2, 3 | ADV-G66; PROP-G10 |
 | Node replacement (history) | **PR-2** | 4, 7 | ADV-G16; EX-G26; MUT-G08 |
-| Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62; EX-G24 |
+| Attestation mechanism | PR-2 | 6 (6.6, 6.7) | ADV-G62, ADV-G90; EX-G24; frozen candidate unchanged |
 | Real genesis ceremony | **PR-3** | 8 (8.0, 8.1a, 8.6, 8.6a, 8.7, 8.8) | MAN-G01, MAN-G02 (manual) |
 | Inventory count regeneration | PR-2 | 6 | EX-G21; ADV-G60 |
 | Live-change exemption rule | PR-2 | 6 | ADV-G54 |
@@ -1353,7 +1472,8 @@ registry exists.**
 - **PR-2 — history checker, renderer, query, genesis machinery, canonical
   freshness extraction/comparison and digest proof, and a *candidate* seed at
   `tests/fixtures/governance/candidate/`.** Still no canonical registry. Every
-  mechanism is proven against the candidate, so PR-3 promotes an already-proven
+  mechanism is proven through isolated test-attested copies of the frozen
+  unattested candidate, so PR-3 promotes an already-proven
   artifact rather than authoring a new one.
 - **PR-3 — atomic activation.** The canonical registry's **first appearance**,
   arriving already protected: exact-base freshness equivalence, registry,
@@ -1437,7 +1557,9 @@ reviewed once at its frozen final head.
 ## Assurance completeness
 
 **Unresolved state-model questions.** None trust-critical. Exact field spelling
-inside ADR-0021 §3's decided semantics is refinable at implementation.
+inside ADR-0021 §3's decided semantics is refinable at implementation only
+where no exact shape is fixed. The D6.6a disposition and D6.6b variant/preimage
+are now exact, not deferred spelling or alternative-representation choices.
 
 Severity is **no longer an open question and is no longer deferred**: `design.md`
 D2.3 decides it is authored in v1 as rule-free, non-identity-bearing data,

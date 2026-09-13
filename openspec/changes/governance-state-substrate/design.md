@@ -4,6 +4,14 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
+The PR-2 genesis amendment is limited to D6.6–D6.6c and their schema, digest,
+proof, and task references. It preserves the outer `genesisCompletion` envelope
+and D3.2a member canonicalization. Authority is issue #106 comment
+[#5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973);
+PR #124 remains frozen pending independent review and a separate implementation
+authorization refresh. This is a clarification of ADR-0021 §3D.1 and §7a,
+not an ADR change.
+
 > **Revised again after review 5058723445** — node replacement is **specified**
 > rather than refused, because refusing it contradicted accepted ADR-0021;
 > withdrawal gets real schema fields; and PR-3's commit structure makes
@@ -344,6 +352,12 @@ the existing entity-set class, keyed by its `path`; its member object also binds
 the exact content digest. Every archive member and every identity scope is
 therefore covered by the closed five-class taxonomy.
 
+D6.6a's `historicalCompletions[]` uses the same entity-set class, keyed and
+sorted by `landingId` with duplicate keys rejected. Its
+`waivedMinimumArtifacts[]` uses the same set-valued class, with the closed
+requirement-token vocabulary in D6.6a. Neither introduces a collection class
+or changes the outer envelope's canonicalization.
+
 A sequence-valued field exists only where ADR-0021 §3 D.1's "reviewed ordering
 intent" applies. Every other array is a set: the canonical sort makes logically
 equal states byte-equal, so `primitiveDigest`, `relationshipDigest`, the seed
@@ -365,13 +379,14 @@ defined preimage:
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
 | `candidateFreezeIdentity` | canonical `{schemaVersion: 1, type: "governance-candidate-bundle", members: [the exact three candidate `{path, contentSha256}` tuples]}`; `bundleSha256` hashes that preimage without itself |
 | `activationFreshnessDigest` | `{schemaVersion, candidateFreezeIdentity, activationBaseCommit, primitiveSourceTuples, relationshipTuples, localEvidenceIdentities, consumerInventory}` — the canonical comparison inputs for the pre-seam freshness result |
-| `genesisHistoricalCompletionDigest` | a genesis **observation**: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, policy-specific evidence — **never** a prior lifecycle |
+| `genesisHistoricalCompletionDigest` | the exact D6.6b genesis **observation** preimage: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, the complete policy evidence, and the historical package disposition (explicit `null` for a spike); **never** a prior lifecycle |
 | `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
 | `withdrawalDigest` | `{schemaVersion, landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
 
 `completionDigest` covers a post-genesis **transition** and binds prior and
 target lifecycle; `genesisHistoricalCompletionDigest` covers a genesis
-**observation** and binds neither. The two are never interchangeable, and the
+**observation** and binds the observed lifecycle only, never a prior lifecycle.
+The two are never interchangeable, and the
 normative requirement scopes the ordinary preimage to post-genesis accordingly.
 
 The stable post-genesis completion envelope stores `from` and `to` so the
@@ -449,8 +464,10 @@ repository. They are anchors and mirrors, not proof.
 
 ### D4.4. Closed archived OpenSpec identity for reviewed delivery
 
-`reviewed-delivery-v1` and `reviewed-spike-evidence-v1` use one stable
-completion envelope. The envelope is a transition record, not a copy of the
+For ordinary post-genesis completion, `reviewed-delivery-v1` and
+`reviewed-spike-evidence-v1` use one stable completion envelope. Seeded Complete
+landings use only D6.6b; the archive object itself is unchanged. The ordinary
+envelope is a transition record, not a copy of the
 landing's immutable rule inputs. Its exact fields are:
 
 ```json
@@ -641,8 +658,10 @@ account for every file in each observed tree: the reviewed active tree where the
 reviewed identity is commit-backed, the archive tree named by
 `archivedPackageIdentity`, and the current checkout's archive root. A missing,
 extra, or unmanifested file is a refusal. Historical genesis may use only its
-explicit human disposition for an older package shape; that disposition is not
-a generic post-genesis fallback. Member paths are nonempty relative paths:
+explicit D6.6a human disposition for an older package shape; D6.6a enumerates
+the only waived requirements and the retained proof by reviewed-identity form.
+That disposition is not a generic post-genesis fallback. Member paths are
+nonempty relative paths:
 absolute paths, traversal, empty segments, `.` or `..` components, and symlinks
 at any ancestor or final member are refused. Each `contentSha256` is recomputed
 over the exact bytes after real-path containment has been established. Every
@@ -1091,7 +1110,8 @@ assertion:
 
 - the gate-predicate vocabulary and the node-kind vocabulary (D2.1);
 - the canonical identifier form (D2.2) and canonicalization rules (D3);
-- completion-policy semantics and the envelope protocol (D6.6);
+- completion-policy semantics and the envelope protocol (D6.6–D6.6c), with
+  amendments pinned to their own reviewed merge-commit blob identities;
 - the whole-program enumeration (D6.3);
 - the activation contract (D11).
 
@@ -1185,61 +1205,230 @@ genesis attestation is not a per-landing completion transition. Without this, a
 correct checker must refuse every `Complete` row and no readiness can be
 derived.
 
-For a historical `reviewed-delivery-v1` landing, the genesis source manifest
-records the complete two-stage `archivedOpenSpec` identity from D4.4,
-including the reviewed active-package identity and the archived-package
-snapshot identity, the source snapshot and locally verifiable evidence
-identities, and any human disposition needed to map that existing archive to
-the landing. The `genesisHistoricalCompletionDigest` and
-`attestations.genesisCompletion` bind both package-stage identities and that
-disposition at genesis. This does not rewrite an existing archive and is not an
-ordinary completion evidence shape.
+The one outer envelope remains exactly
+`{envelopeDigest, members: [{landingId, digest}], actor, at, outcome, authority}`,
+with `outcome: "attested"`, the existing actor/time/typed-authority validation,
+and `genesisCompletionEnvelopeDigest` over the D3.2a ordered member tuples.
+It is the single human completion act for `runner/L2`, `runner/L3`, `runner/L4`,
+`runner/L5`, `runner/L6`, and `runner/L7`. It remains a sibling of
+`attestations.genesis`; neither a source row nor the general genesis attestation
+substitutes for it. There is no per-landing human attestation.
 
-Six landings need one: `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`,
-`runner/L6`, `runner/L7`.
+### D6.6a. Historical archive disposition and its exact source-manifest location
 
-**The ordinary completion digest cannot be used, and this matters.** It binds
-*prior and target* lifecycle. At genesis the repository proves the **observed**
-state is `Complete`; it does not generally prove whether the historical
-transition was `Planned -> Complete` or `InProgress -> Complete`. Supplying a
-prior lifecycle would be inventing an unobserved fact — exactly what the
-temporal-honesty rule forbids.
+The source manifest has a required `historicalCompletions` entity set, keyed
+and sorted by `landingId`, with exactly one row per landing seeded Complete.
+Its exact row shape is
+`{landingId, sourceSnapshotIdentity, evidence, packageDisposition}`. The
+source-snapshot identity is exactly `{class: "local-git-commit", value}`,
+where `value` is the full commit ID of the selected historical source snapshot;
+no scope is needed because it names the whole snapshot. It equals the source
+snapshot bound by `attestations.genesis`, exists locally, and is an ancestor
+of or equal to the evaluated revision. Each row's evidence equals that
+landing's D6.6b evidence byte for byte after canonicalization. These are checked
+source mirrors, not another delivery authority. The row remains linked to the
+D6.1 per-primitive extraction/classification records.
 
-**Selected: a distinct `genesisHistoricalCompletionDigest`.** Its preimage binds
-the **observed** lifecycle and no invented transition:
+For `reviewed-delivery-v1`, `packageDisposition` is required and has exactly:
 
 ```text
-{ schemaVersion,
-  landingId,                      // runner/L2 …
-  observedLifecycle: "Complete",  // observed, not a transition
+{
+  type: "historical-genesis-package-v1",
+  landingId,
   sourceSnapshotIdentity,
-  authorityAnchor,
-  completionPolicy,
-  scopedDeliveredIdentity,
-  policyEvidenceIdentities }      // archived OpenSpec / evidence root, manifest,
-                                  // findings, merged PR and commit
+  archiveBundleSha256,
+  packageProfile: "observed-historical-v1",
+  waivedMinimumArtifacts,
+  reviewWitness,
+  rationale
+}
 ```
 
-The alternative — keep the ordinary digest and add a human-disposition row
-fixing each prior lifecycle — was rejected: it manufactures six unobserved
-facts to satisfy a field shape, when genesis is attesting to evidence at one
-snapshot rather than replaying a transition it did not witness.
+All fields are mandatory; aliases and unknown fields fail. `landingId` and
+`sourceSnapshotIdentity` equal the containing row's values;
+`archiveBundleSha256` equals `evidence.archivedOpenSpec.bundleSha256`.
+The complete `archivedOpenSpec` object lives in the row's `evidence`, using
+**exactly D4.4's existing nine-field shape**, contract discriminator, member
+shape and bundle preimage. No historical field is added inside it. The complete
+object, including both provenance identities excluded from its bundle digest,
+and the complete disposition are bound by D6.6b's historical-completion digest.
+`rationale` is nonempty human-reviewed text explaining the historical
+archive-to-landing association and each absent artifact; it is not an actor,
+a signature, an authorization, or a second completion attestation (`MAN-G03`).
 
-**Location in the closed schema:** `attestations.genesisCompletion`. It is a
-sibling of `attestations.genesis`, not nested inside it, because the two attest
-different things — `genesis` binds the seed and its relationship equivalence;
-`genesisCompletion` binds the canonically ordered, duplicate-free set of
-`{landingId, genesisHistoricalCompletionDigest}` tuples classified in D3.2a. A closed, unknown-field-rejecting
-schema cannot be satisfied by "genesis carries an envelope"; the field is named
-here so the checker can require it. Each is excluded from its own preimage.
+`waivedMinimumArtifacts` is a sorted, duplicate-free set-valued collection of
+only these six literal requirement names:
+`.openspec.yaml`, `proposal.md`, `design.md`, `assurance.md`, `tasks.md`,
+`specs/**/spec.md`. The last is a requirement token, not a member path or a glob
+to execute. It means the ordinary requirement for at least one delta spec.
+The set must equal exactly the minimum requirements absent from the complete
+historically observed package. A waiver for a present artifact, an unlisted
+missing requirement, or another token fails. An empty set means no minimum
+artifact is waived. The profile waives **existence of those missing modern
+minimum artifacts only**; it never removes an existing member from observation.
 
-Adding, removing, or altering any member changes the envelope digest. The
-wording is temporally honest: the owner reviewed historical delivery evidence
-**at genesis** and attested that it satisfies the selected policy. It does not
-claim an attestation existed when the original delivery occurred.
+`reviewWitness` is a closed discriminator mirror of the selected
+`archivedOpenSpec.reviewedIdentity.class`:
 
-Option B — one attestation per landing — was rejected because it would imply six
-separate human acts at six separate times; genesis is one review.
+| Form | Required `reviewWitness` | Historical obligation |
+| --- | --- | --- |
+| `local-git-commit` | `not-required-commit-backed` | Complete active-only reviewed tree equals the archive members in exact bytes and `100644` modes; reviewed and archived commits differ and remain reachable. A separate v2 review artifact is not required by this form. |
+| `content-sha256` | `required-content-backed-v2` | Exactly the existing archived `preimplementation-review.md` member, its exact bytes, a complete accepting v2 review record from the shared owner, and full planning-projection equality remain required. No commit-stage claim is made. |
+
+The selected historical profile does **not** waive the content form's review
+witness or reinterpret an arbitrary member as one. A package that never had a
+review artifact can use its available commit-backed reviewed identity; if that
+proof is unavailable too, it fails closed with
+`COMPLETION_REQUIRES_EXTERNAL_VERIFICATION`. This preserves the two-form
+architecture without inventing a retrospective witness. There is no additional
+modern review-witness requirement to waive for the commit form. An artifact's
+absence must be observed, not inferred from an implementation report or a file
+listing that omits dotfiles.
+
+All remaining D4.4 obligations stay mandatory: canonical change/root association;
+complete, nonempty, recursively observed membership; exact member bytes;
+`100644` regular files in every applicable Git tree and regular-file/mode
+checks in the checkout; containment and no traversal or symlink substitution;
+scoped identity and bundle/content integrity; reviewed/archive binding and stage
+exclusivity wherever the chosen form supplies a snapshot; and locally observable,
+reachable commit provenance. The complete archive must also exist at the bound
+source snapshot with the same members, bytes and modes, archive-only there.
+No absence, observation error, missing commit, or evidence mismatch becomes a
+waiver. Existing archive bytes are never rewritten to meet a modern profile.
+Human review still establishes the conceptual landing/package association.
+
+For `reviewed-spike-evidence-v1`, `packageDisposition` is exactly `null`.
+Its explicit `openSpecApplicability: "not-applicable"` remains required; this
+amendment grants the spike no archive or evidence waiver.
+
+### D6.6b. The single seeded Complete representation
+
+A seeded Complete landing has exactly this delivery shape:
+
+```text
+{
+  lifecycle: "Complete",
+  completionPolicy: <the landing's existing kind-selected policy>,
+  completion: {
+    type: "genesis-historical-completion-v1",
+    digest: <genesisHistoricalCompletionDigest>,
+    evidence: <the complete closed policy-specific evidence object>
+  },
+  withdrawal: null
+}
+```
+
+`completion` is **non-null**, a distinct closed variant with exactly `type`,
+`digest`, and `evidence`. It has no `from`, `to`, prior lifecycle, source-row
+alias, or per-landing `attestation`. Its evidence uses the **same exact branch
+fields as D4.4**: delivery is `{policy, deliveredIdentity, archivedOpenSpec}`;
+spike is `{policy, openSpecApplicability, mergedEvidencePullRequest,
+mergedEvidenceIdentity, evidenceRoot, evidenceManifestIdentity, findingsIdentity}`.
+Every nested identity retains its existing closed shape. `evidence.policy`
+equals `delivery.completionPolicy`; the landing still owns its anchor and
+policy. Only the delivery archive's validation profile can differ, under the
+explicit D6.6a disposition. L6 keeps all real spike evidence from ADR-0021 §3D.1.
+
+The exact preimage of `genesisHistoricalCompletionDigest` is:
+
+```text
+{
+  schemaVersion: 1,
+  landingId: landing.id,
+  observedLifecycle: "Complete",
+  sourceSnapshotIdentity: row.sourceSnapshotIdentity,
+  authorityAnchor: landing.authorityAnchor,
+  completionPolicy: landing.delivery.completionPolicy,
+  scopedDeliveredIdentity: <evidence.deliveredIdentity for delivery,
+                            evidence.mergedEvidenceIdentity for spike>,
+  policyEvidenceIdentities: [completion.evidence],
+  historicalPackageDisposition: row.packageDisposition
+}
+```
+
+The policy-evidence identity set is exactly a singleton containing the complete
+closed evidence object, canonically serialized by the existing rules. It is not
+an implementer-selected subset. Its scoped-delivery projection is a checked
+repeat of the same identity, never an independently authored field. The explicit
+`null` disposition participates for a spike. Hash this complete preimage using
+D3 canonical serialization and SHA-256; it excludes `completion.digest`, both
+human attestation envelopes, the source-manifest file's own digest, and every
+prior/target transition field. The seed's primitive projection includes the
+typed completion, digest and evidence while excluding the top-level attestations.
+There is no digest cycle: source observations and disposition → historical
+digest → landing completion and outer member → seed and envelope digests.
+
+For each such landing, exactly one outer member is
+`{landingId: landing.id, digest: completion.digest}`. Conversely every member
+must name a D6.6b record and its matching source row. At genesis this is exactly
+the six Complete landings; after activation it remains that **immutable genesis
+set**, not the growing set of all later Complete landings. Adding, deleting,
+reassociating or altering a member changes the unchanged outer envelope digest.
+
+### D6.6c. Validation, history, and test versus real attestations
+
+The current checker supplies source-manifest bytes and rules-free observations
+to the shared model. At the canonical state path it selects exactly
+`governance/genesis-source-manifest.json`; for the candidate or isolated test
+state it selects sibling `source-manifest.json`. History supplies the same
+inputs from each evaluated revision's tree, not today's checkout. Path selection
+is input wiring, never permission to apply a historical waiver.
+
+The model dispatches the closed completion variant, validates the source row
+and its binding to `attestations.genesis`, checks the selected policy and
+D6.6a disposition, observes all applicable evidence at the source snapshot and
+current revision, recomputes every historical digest, and requires exact
+row/record/outer-member correspondence plus a valid outer attestation. For a
+scoped delivery commit, the delivered bytes are observed at that commit and
+bound to the source evidence; later implementation-file changes are not archive
+drift. For content identities and immutable archive/spike evidence, the exact
+bound bytes must remain available. Missing proof fails before readiness derives.
+A type tag, timestamp, old-looking archive, source row, or envelope membership
+alone never admits the exception. An ordinary envelope always takes the ordinary
+D4.4 validation path, even when the registry retains genesis evidence.
+
+A valid historical Complete record satisfies prerequisites through the existing
+D5.3 rule, subject to current-identity/replacement rules. A failed historical
+proof satisfies none and fails the checker. Query axes, renderer behavior, and
+non-authorization are unchanged. The current checker validates the historical
+claim and bindings; it does not claim to prove first appearance from one state.
+
+History admits introduction of D6.6b records only through the **one bound D8.2
+genesis path**. With a registry-bearing base, an already historical Complete
+record, its source row/disposition, and both genesis envelopes remain immutable;
+its terminal state is carried forward without inventing or replaying a prior
+transition. Switching it to an ordinary envelope is terminal-evidence mutation.
+A new completion of a previously Planned/InProgress landing must use the ordinary
+`completionDigest` transition and per-transition attestation. Adding a historical
+record/member/source row, copying or recomputing a disposition for that landing,
+or using a historical variant on a replacement cannot satisfy that transition.
+The existing history terminal, replacement, base-selection and no-reactivation
+rules remain in force. **ADV-G83** exercises this refusal through current and
+two-revision entry points, including a fully rehashed forged target; retained
+historical evidence is never a reusable post-genesis fallback.
+
+PR-2 freezes candidate primitives, source observations/dispositions and computed
+historical digests **without human attestations**. The candidate uses the existing
+unattested `attestations: {genesis: {}}` placeholder and omits `genesisCompletion`;
+this placeholder is not a valid completed-genesis proof. Task 6.7 clones those
+bytes into isolated test fixtures and adds clearly identified test actor/time/
+authority envelopes there. The full current/history checker must refuse the
+unattested candidate and accept only the correctly bound test fixtures; preimage
+or structural success alone is not a full completion pass. Test attestations do
+not modify the frozen candidate or establish owner authorship. Freshness tests
+use isolated fixtures too; the freeze identity covers the original candidate.
+
+PR-3 promotes those unchanged primitives and manifest, then the owner records
+only the two real top-level attestations after the existing seam freeze and
+manual gates. No per-landing rewrite or attestation is needed. Fixture actors
+are not promoted or treated as owner evidence. `MAN-G01`/`MAN-G02` still prove
+authorship and merge control procedurally; the checker makes no authorship claim.
+
+**Promotion determination (ADR-0014).** These are missing normative details of
+this change's already-decided genesis exception, not a new cross-cutting
+architectural rule. They belong in this specification/design and its eventual
+validated spec sync. No additional architecture document or portable knowledge
+projection is required by this correction.
 
 ## D5a. Replacement and withdrawal transitions
 
@@ -1897,7 +2086,8 @@ the human issue #19 mirror transition, evidenced
 
 **PR-2's candidate seed lives at a fixture path** — under
 `tests/fixtures/governance/candidate/` — never at `governance/state.json`. It is
-validated by PR-1's checker and PR-2's history and genesis machinery, so that
+validated by the shared current checker and PR-2's history/genesis machinery
+using the isolated test-attestation fixtures in D6.6c, so that
 PR-3 promotes an already-proven artifact rather than authoring a new one.
 
 **Rollback.** Reverting PR-3 removes `governance/state.json`, the generated
