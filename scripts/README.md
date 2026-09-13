@@ -32,6 +32,11 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`image-impact.mjs`](image-impact.mjs) | Fail-closed semantic image-impact analysis: compares a trusted Git revision with the candidate, derives build inputs and dependency closure from the image lock/Dockerfiles/toolchain inventory, and selects no build only when irrelevance is positively proved. Exports `GLOBAL_BUILD_INPUTS`, the repository-level inputs that force the complete set; each must appear on the workflow's outer `paths` perimeter (structurally enforced) or the checker never runs |
 | [`pr-merge-plan.mjs`](pr-merge-plan.mjs) | Composed-tree PR proof planning: resolves the **live** target-branch tip, composes a synthetic `merge(live base, PR head)` with Git plumbing (no branch mutated), gates the previous-head fast path on base incorporation, and re-checks both identities at run end (TOCTOU). The synthetic `MERGE_SHA` is deterministic — fixed identity, input-derived commit dates, and normalized UTF-8 commit encoding — so identical inputs reproduce the same evidence SHA despite ambient clock or Git encoding configuration. Fails closed on an unresolvable base/head or a merge conflict. A global image-proof input, so it is on the `images.yml` perimeter |
 
+| [`check-governance-state.mjs`](check-governance-state.mjs) | The **one-revision** governance registry checker: strict canonical parse, closed schema, identity-bound completion and replacement evidence, and the derived answers — question resolution, gate satisfaction, prerequisite readiness. Derives; never authors. Reports the canonical form it expected when the bytes are not canonical |
+| [`check-governance-history.mjs`](check-governance-history.mjs) | The **two-revision** companion. Takes an **explicit, exclusive** `--base`: an invalid, missing, unreadable, or non-commit base fails, and there is **no** fallback to `merge-base`, `HEAD~1`, or any inferred revision. A base that selects the target itself is refused rather than passed, because a window containing no change proves nothing. Invokes the shared model for both revisions and then proves only pairwise facts: lifecycle regression, deleted or renumbered records, vanished resolvers, in-place rule-input mutation, terminal-evidence immutability, withdrawal succession, and post-genesis replacement legality. The one genesis exception is admitted by **binding** — never by a base that merely lacks a registry |
+| [`render-governance-state.mjs`](render-governance-state.mjs) | Deterministic projections from the registry. **`--check` and `--write` are separate invocations.** `--check` renders and compares bytes and **writes nothing**; `--write` renders and writes. The separation is the point: a checker that repaired what it found could never report drift, so a hand edit inside a generated region would be silently reverted in CI and its author would never learn the edit had no effect. Targets and region markers are **registered** — an unregistered target, or a marker the renderer does not own, is an error, because an unowned region is a hand-maintained copy wearing a generated label |
+| [`query-governance-state.mjs`](query-governance-state.mjs) | Read-only query over the same model, in a human form and a JSON form. Reports `deliveryState`, `prerequisiteReadiness` and `authorizationAssessment` as **separate axes**. It never returns `AUTHORIZED`: readiness means nothing blocks the work, authorization is a human decision recorded outside the repository, and collapsing the two is exactly the confusion this substrate exists to prevent |
+
 ## What belongs here
 
 - Validation and check tooling for the repository itself.
@@ -125,6 +130,31 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 ## Governed by
 
 [`../AGENTS.md`](../AGENTS.md)
+
+## Governance projections: write mode versus `--check`
+
+`render-governance-state.mjs` has two modes and they are **separate
+invocations**. Neither implies the other, and there is no combined form.
+
+| Mode | Reads | Writes | Use |
+|---|---|---|---|
+| `--check` | registry + every registered target | **nothing** | CI, and before committing |
+| `--write` | registry + every registered target | the registered targets that differ | after changing the registry, deliberately |
+
+`--check` fails unless the render is a byte-for-byte no-op, and reports which
+target drifted. It does not repair.
+
+That is not an oversight to be tidied up later. A mode that rendered *and*
+wrote would make drift unobservable: the first CI run would rewrite the hand
+edit, every later run would pass, and the author of the edit would never learn
+that the region is generated and their change had no effect. `--check` reports;
+`--write` changes; a human chooses which.
+
+Registered targets and region markers are a closed set owned by the renderer. A
+document carrying `<!-- governance:begin … -->` for a region the renderer does
+not register fails: a generated-region marker nobody regenerates is a
+hand-maintained copy wearing a generated label, which is the precise failure
+mode the registry replaces.
 
 ## Validation
 
