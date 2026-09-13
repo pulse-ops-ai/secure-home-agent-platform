@@ -4,13 +4,19 @@ Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
 
-The PR-2 genesis amendment is limited to D6.6–D6.6c and their schema, digest,
-proof, and task references. It preserves the outer `genesisCompletion` envelope
+The PR-2 genesis amendment is limited to D6.5–D6.6c and their prerequisite,
+schema, digest, proof, and task references. It preserves the outer
+`genesisCompletion` envelope
 and D3.2a member canonicalization. Authority is issue #106 comment
 [#5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973);
 PR #124 remains frozen pending independent review and a separate implementation
 authorization refresh. This is a clarification of ADR-0021 §3D.1 and §7a,
 not an ADR change.
+
+Owner supplement
+[#5653176749](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5653176749)
+authorizes only planning of D6.5's separately merged archive prerequisite.
+It authorizes no archive move and no PR #124 reconciliation or resumption.
 
 > **Revised again after review 5058723445** — node replacement is **specified**
 > rather than refused, because refusing it contradicted accepted ADR-0021;
@@ -1102,9 +1108,11 @@ human review — never silently treated as empty or equivalent.
 **D6.2a — This planning contract becomes a local source at its merge commit.**
 Once PR #107 is reviewed and merged, its five artifacts are content-addressable
 repository bytes. The genesis manifest binds their **exact file blob identities
-at that merge commit** — archival is **not** a prerequisite, because PR-1 and
+at that merge commit** — archival of this governance planning change is **not**
+a prerequisite, because PR-1 and
 PR-2 need this evidence while the change is still active. An eventual archived
-copy may be checked for equivalence later, never required first. These values
+copy may be checked for equivalence later, never required first. This does not
+exempt the three delivered packages from D6.5's archive prerequisite. These values
 are therefore **locally verified** rather than resting on an external human
 assertion:
 
@@ -1196,6 +1204,90 @@ must resolve, and it is recorded as such:
 - The disagreement is recorded in the genesis source manifest with a human
   disposition, and the bootstrap attestation names it. It is not silently
   reconciled.
+
+### D6.5. PR-2A — historical archive preparation, merged before PR-2 resumes
+
+L4, L5 and L7 are delivered but their packages are still at active roots.
+PR-2A materializes the missing durable archive-stage evidence in a **separate
+pull request**, after this planning amendment merges and before PR #124 is
+reconciled or resumed. It owns only these three relocations:
+
+| Landing | Exact source root | Exact destination root |
+| --- | --- | --- |
+| `runner/L4` | `openspec/changes/runner-control-orchestration` | `openspec/changes/archive/2026-09-13-runner-control-orchestration` |
+| `runner/L5` | `openspec/changes/runner-image-lineage` | `openspec/changes/archive/2026-09-13-runner-image-lineage` |
+| `runner/L7` | `openspec/changes/runner-platform-adapters` | `openspec/changes/archive/2026-09-13-runner-platform-adapters` |
+
+The `YYYY-MM-DD` component above is a fixed archive namespace selected by this
+planning contract. It makes no claim about original delivery chronology or
+first archive appearance. A different date or change-id suffix is not an
+equivalent destination.
+
+**Pure relocation.** For each package, compare the exact authorized preparation
+base with the reviewed preparation output, then verify the same result at its
+merge commit. Input is active-only, output is archive-only. Remove only the
+respective root prefix when comparing: the complete normalized member sets
+must be equal, and every member must preserve its relative path, exact bytes
+and Git mode. No content edit, new or removed member, task-checkbox edit,
+generated `.openspec.yaml`, review witness or `reviews/**`, permission/mode
+change, or symlink/gitlink substitution is permitted. Existing D4.4 canonical
+path and regular `100644` file requirements remain in force. All three active
+roots must be absent and all three exact archive roots present afterward;
+there may be no unrelated changed path. This prepares evidence, not a
+retrospective review or historical completion. L2/L3 archives and L6 spike
+evidence remain unchanged.
+
+**Durability requires a separate merge.** An internal PR #124 commit can be
+discarded by a squash merge and therefore cannot supply the required durable,
+reachable `archivedPackageIdentity`. PR #124's future squash merge SHA does
+not exist while its candidate is authored either. Let **M** denote the exact
+commit placed on `refs/heads/main` by merging PR-2A, recorded only after that
+merge. M is a notation for an existing commit, not a new identity class or
+schema field. The preparation output must be verified at M and M must remain
+reachable from the candidate's authorized repository revision.
+
+For L4/L5/L7, `archivedPackageIdentity` remains exactly the existing
+`local-git-commit` identity with `value: M` and `scope` containing only that
+landing's exact destination root. It is never content-backed or weakened.
+The available commit-backed reviewed active snapshots continue to provide
+reviewed-stage proof under D4.4; preparation manufactures no review witness.
+
+**Source refresh.** Candidate extraction must run only after the successful
+merge of PR-2A, from the separately authorized exact main revision containing
+M. The common genesis source snapshot is M: every D6.6a historical row uses
+`sourceSnapshotIdentity: {class: "local-git-commit", value: M}`, including
+L4/L5/L7, and the same snapshot is bound by the eventual general genesis
+attestation. This retains D6.6a's existing single-snapshot equality rule;
+L2/L3 keep their existing archived-package identities and L6 keeps its spike
+identities, observed unchanged at M. Pre-preparation candidates and source
+rows are stale and must not be reused. Tasks 6.1–6.8 rebuild the candidate
+source bindings and resulting historical/seed digests, freeze the refreshed
+three-member `candidateFreezeIdentity`, and prove freshness against the
+prepared archive evidence. No freeze member or digest preimage is added.
+
+**Authorization and branch order.** First PR #125 is independently reviewed
+and merged. The owner then separately authorizes PR-2A against exact
+then-current main. PR-2A is implemented, independently reviewed and merged;
+its exact M is recorded and its output verified. Only afterward may the owner
+issue a **new** PR-2 authorization against exact resulting main, followed by
+reconciliation and resumption of PR #124 on that base. If main advances between
+any exact-base authorization and branch creation/reconciliation, stop for
+another owner refresh; comment #5649203747 does not survive these main
+advances. An open prerequisite PR, branch head or green CI is not a merge.
+External merge/authorization preflight establishes those acts; local identity
+and snapshot proofs remain the existing model's responsibility. This planning
+amendment authorizes neither implementation landing.
+
+Task `AP.1` owns exactly the six root surfaces above and the preparation proof,
+recorded in its PR metadata using temporary verification tooling rather than
+additional repository files. PR-2 tasks 6.1–6.8 depend on **merged PR-2A** and
+fresh owner authority. Proof is limited to `EX-G32`, `ADV-G91`–`ADV-G98` and
+`MUT-G17` in assurance; no ordinary completion or D6.6a–D6.6c rule changes.
+
+**Promotion determination (ADR-0014).** This closes a missing prerequisite for
+this change's concrete historical corpus. Existing archive identity/durability
+rules already govern it; no new architectural truth or portable-knowledge
+projection is required.
 
 **D6.6 — Historical completions need attestations, with a preimage genesis can
 actually compute.** `reviewed-delivery-v1` and `reviewed-spike-evidence-v1` each
@@ -2043,12 +2135,14 @@ head.
 
 ## D11. Landing seams
 
-Three landings. **All machinery is built and proven before the canonical
+Three substrate landings plus the separately merged PR-2A archive prerequisite.
+**All machinery is built and proven before the canonical
 registry exists.**
 
 | Landing | Ships | Canonical `state.json`? | Authority posture |
 | --- | --- | --- | --- |
 | **PR-1** | model, strict reader, collection canonicalization, current checker, its proof net | **no** | none |
+| **PR-2A** | only the three D6.5 byte-preserving relocations and their proof; merges before PR-2 resumes | **no** | none |
 | **PR-2** | history checker, renderer, query, genesis machinery, canonical freshness extraction/comparison and digest proof, **candidate** seed at a fixture path, full proof net | **no** | none |
 | **PR-3** | **atomic activation** after freshness invocation and final base-equality gate | **first appearance** | authoritative |
 

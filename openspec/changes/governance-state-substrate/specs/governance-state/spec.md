@@ -2514,6 +2514,97 @@ never silently reconciled.
 
 ---
 
+### Requirement: Historical archive preparation merges before candidate extraction
+
+PR-2A SHALL be a separately mergeable prerequisite that prepares only the
+missing archive-stage evidence for these delivered packages:
+
+| Landing | Exact source root | Exact destination root |
+| --- | --- | --- |
+| `runner/L4` | `openspec/changes/runner-control-orchestration` | `openspec/changes/archive/2026-09-13-runner-control-orchestration` |
+| `runner/L5` | `openspec/changes/runner-image-lineage` | `openspec/changes/archive/2026-09-13-runner-image-lineage` |
+| `runner/L7` | `openspec/changes/runner-platform-adapters` | `openspec/changes/archive/2026-09-13-runner-platform-adapters` |
+
+The `YYYY-MM-DD` component SHALL be the fixed archive namespace selected by
+this planning contract, with no claim about original delivery chronology or
+first archive appearance. Another date or change-id suffix SHALL refuse.
+
+PR-2A task `AP.1` SHALL own only these six exact root surfaces. For each
+package, the authorized preparation input SHALL be active-only and its output
+SHALL be archive-only. Normalization SHALL remove only the respective source
+or destination root prefix. The complete normalized member sets SHALL be
+equal, with every relative path, exact byte sequence and Git mode preserved.
+No content or task-checkbox edit, added or removed member, generated
+`.openspec.yaml`, review witness or `reviews/**`, permission/mode change, or
+symlink/gitlink substitution SHALL be permitted. Existing canonical-path and
+regular `100644` file requirements SHALL remain mandatory. All three active
+roots SHALL be absent and all three exact archive roots present afterward;
+any unrelated changed path SHALL refuse. L2/L3 archives and L6 spike evidence
+SHALL remain unchanged. Preparation SHALL NOT manufacture a review or a
+historical completion.
+
+The required sequence SHALL be: independent review and merge of PR #125;
+separate owner authorization of PR-2A against exact then-current main;
+implementation, independent review and merge of PR-2A; recording and
+verification of its exact merge commit **M** placed on `refs/heads/main`;
+**new** owner authorization of PR #124 against exact resulting main; then
+reconciliation and resumption of PR #124 on that base. Any main advance between
+an exact-base authorization and branch creation/reconciliation SHALL stop for
+another refresh. Comment #5649203747 SHALL NOT authorize work across those
+main advances. This planning amendment SHALL authorize no archive move or
+PR #124 edit.
+
+PR-2 tasks 6.1–6.8 SHALL depend on the successful **merge** of PR-2A and fresh
+PR-2 authority, never only its branch head or CI result. An internal PR #124
+commit is not durable archive evidence because squash merge can discard it;
+PR #124's future squash merge identity does not exist during candidate
+authoring. For L4/L5/L7, `archivedPackageIdentity` SHALL remain the existing
+`local-git-commit` form with `value: M` and `scope` containing only the exact
+destination root for that landing. M SHALL be observed after merge, its
+preparation output verified, and its reachability from the candidate revision
+proved. No new identity class or content-backed archive-stage form is allowed.
+External preflight SHALL verify merge and authorization; local proofs SHALL
+use the existing model without adding a merge-status field to its schema.
+
+Candidate extraction SHALL run from the separately authorized exact main
+revision containing M. The common genesis source snapshot SHALL be M: every
+historical row's existing `sourceSnapshotIdentity` SHALL be
+`{class: "local-git-commit", value: M}`, matching the eventual general genesis
+attestation. L4/L5/L7 SHALL bind their archive-stage evidence to M; L2/L3 SHALL
+retain their existing archived-package identities and L6 its spike identities,
+observed unchanged at M. Pre-preparation candidate/source rows SHALL be refused
+as stale and rebuilt. The resulting historical/seed digests and the unchanged
+three-member `candidateFreezeIdentity` SHALL be recomputed from the refreshed
+candidate. Task 6.8 freshness proof SHALL cover the prepared archives and source
+bindings. This prerequisite SHALL NOT change the historical disposition,
+completion variants, digest preimages, attestation ceremony or ordinary rules.
+
+#### Scenario: Three exact active packages become durable archive evidence
+
+- **GIVEN** the separately authorized active-only input for each of L4/L5/L7
+- **WHEN** PR-2A's reviewed output and durable merge snapshot M are verified
+- **THEN** all three outputs are archive-only at the exact destinations, with
+  complete member paths, bytes and modes equal after root normalization, no
+  unrelated changes, and PR-2 can extract only after merge and fresh authority
+
+#### Scenario: A purported pure relocation changes evidence or scope
+
+- **GIVEN** a changed byte, omitted or added member, changed mode, surviving
+  active root, wrong destination/date/changeId, or unrelated changed package
+- **WHEN** PR-2A's preparation proof runs
+- **THEN** it refuses; removing the byte-preservation or active-root-removal
+  guard makes the corresponding hostile corpus fail
+
+#### Scenario: An unmerged or stale preparation cannot seed the candidate
+
+- **GIVEN** an unmerged preparation branch, an internal PR #124 commit, or
+  candidate/source rows built before PR-2A merged
+- **WHEN** PR-2 candidate extraction, freeze or freshness admission is attempted
+- **THEN** it refuses as unmerged or stale; a green CI result does not substitute
+  for M, refreshed source bindings or exact-base owner authorization
+
+---
+
 ### Requirement: Historical genesis package exceptions are source-bound and closed
 
 The genesis source manifest SHALL carry a required `historicalCompletions`

@@ -81,7 +81,7 @@ concurrency, public package contracts, deployment isolation.
 | --- | --- | --- | --- |
 | Architecture | ADR-0021, `Accepted`, SHA-256 `0db0b5b7…cd66a` | the contract implemented here | any implementation act |
 | External authority | GitHub issue #106 | the implementation phases | execution of any task in this planning PR |
-| Base revision | `origin/main` `eb6e24806cb76898e74f16208ab40587313c126a` | the genesis source snapshot | any state transition |
+| Historical planning baseline | `origin/main` `eb6e24806cb76898e74f16208ab40587313c126a` | original planning provenance only; D6.5 requires a refreshed genesis source snapshot at PR-2A merge commit M | any state transition or reuse as the candidate source snapshot |
 | This change | planning artifacts only | review of the plan | implementation |
 
 **Chain integrity.** ADR-0021 §3E makes the registry permanently
@@ -96,7 +96,11 @@ prerequisites.
 authorizes only the four planning artifacts at base
 `7c201e28c027ff73ae6f11cba6c5006bf4c21c84`. PR-1 is landed; PR #124 is frozen at
 `dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e`. PR-2 genesis implementation remains
-suspended through independent review/merge and until a separate owner refresh.
+suspended through independent review/merge of this amendment, separately
+authorized implementation/review/merge of PR-2A, and a new owner refresh
+against exact resulting main. Supplement
+[#5653176749](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5653176749)
+authorizes planning of that prerequisite only; no archive move is authorized.
 The earlier baseline table records provenance, not a release for this work.
 No proof below is claimed executed by this planning correction.
 
@@ -1221,6 +1225,53 @@ is read:
 - **ADV-G45** Delivery lifecycle taken from issue state rather than repository
   evidence.
 
+### Historical archive preparation proof (PR-2A prerequisite)
+
+D6.5 and the requirement *Historical archive preparation merges before
+candidate extraction* define the only preparation scope. Task `AP.1` owns
+verification of the exact three input/output root pairs and the durable
+post-merge snapshot M. It records reproducible commands, temporary comparison
+harness source and actual results in PR metadata; no verification script,
+fixture or generated artifact is committed outside the six authorized roots,
+and no package member is added to hold proof.
+
+Compare Git trees at the exact authorized preparation base, reviewed output,
+and actual merge commit. Enumerate complete membership including dotfiles;
+normalize only the corresponding root prefix. Observe full relative paths,
+exact bytes and Git modes, with active-only input and archive-only output.
+The preparation verifier must refuse every mismatch; rename similarity or
+equal counts alone are not equality proof.
+
+| Control | Required case | Owner and expected result |
+| --- | --- | --- |
+| **EX-G32** | For each of L4/L5/L7, active-only input becomes archive-only output at the exact D6.5 destination, with complete normalized member paths, bytes and modes equal and no unrelated change; verify again at M | AP.1: PASS only for all three packages; their existing evidence is relocated, never manufactured |
+| **ADV-G91** | One member byte changes during relocation, including a task checkbox or review artifact | AP.1: REFUSE |
+| **ADV-G92** | One source member is omitted | AP.1: REFUSE |
+| **ADV-G93** | One destination member is added, including `.openspec.yaml`, a review witness or `reviews/**` | AP.1: REFUSE |
+| **ADV-G94** | A Git mode/permission changes, or a symlink/gitlink substitutes for a regular member | AP.1: REFUSE |
+| **ADV-G95** | Any active root survives the move | AP.1: REFUSE |
+| **ADV-G96** | Destination root, fixed `2026-09-13` namespace or changeId differs from D6.5 | AP.1: REFUSE |
+| **ADV-G97** | An unrelated package or any path outside the exact six root surfaces changes | AP.1: REFUSE |
+| **ADV-G98** | Extraction/freeze uses an unmerged preparation branch or internal PR #124 commit, or reuses a pre-preparation candidate/source row instead of M | AP.1 external merge preflight and PR-2 6.1/6.2 admission: REFUSE; 6.6 must not freeze it; 6.8 stale-source/freshness corpus must refuse it |
+
+M is the exact commit placed on `refs/heads/main` by the separate PR-2A merge.
+The external preflight records actual merge and exact-base authority; the
+existing local proof verifies reachability and archive-stage/source bindings.
+An observed branch head or green CI does not discharge the merge prerequisite.
+For L4/L5/L7, archive-stage `value` and the common genesis source snapshot bind
+M under the existing identity shapes. L2/L3 retain their durable archive
+identities; L6 retains its spike evidence. Task 6.8 proves drift detection over
+these prepared archives and refreshed source rows using its existing freshness
+mechanism; the three-member candidate freeze and all accepted preimages stay
+unchanged.
+
+AP.1 must also report strict OpenSpec validation of each package (before the
+move and from an isolated root-normalized output copy), scaffold/secret/review-
+history and applicable repository gates, plus `git diff --check`. Use temporary
+repositories for hostile and mutation cases so preparation remains a pure
+relocation. The receipt records skipped checks and reasons; an unexecuted
+required proof is not a pass. No proof in this section is executed by PR #125.
+
 ### Historical genesis contract proof (PR-2)
 
 The normative shapes are in the specification's *Historical genesis package
@@ -1405,6 +1456,12 @@ no-op that still returns success is the failure mode being hunted.
   failing the suite. `EX-G30` also kills rejection of the valid historical
   variant or reintroduction of an inapplicable commit-form review witness.
 
+- **MUT-G17** In the temporary AP.1 comparison harness, remove the
+  byte-preservation guard or the active-root-removal guard independently.
+  `ADV-G91` and `ADV-G95`, respectively, must then change from refusal to
+  acceptance and make the corpus fail. AP.1 owns both mutation receipts; no
+  production model change or additional repository path is authorized.
+
 ---
 
 ## Traceability plan
@@ -1422,6 +1479,8 @@ no-op that still returns success is the failure mode being hunted.
 | Attestations | PR-1 | 1 | ADV-G19; PROP-G03, G08 |
 | Current-revision validation | PR-1 | 2 | all of the above via the real checker |
 | History validation | **PR-2** | 4, 7 | ADV-G04h, G08, G11, G13–G16, G18, G21, G29, G34, G35, G40, G41, G75; EX-G25, EX-G26, EX-G27; MUT-G08 |
+| Durable historical archive preparation | **PR-2A**, merged before PR-2 resumes | AP.1 | EX-G32; ADV-G91–G97; merge preflight of ADV-G98; MUT-G17 |
+| Candidate admission after preparation merge | **PR-2** | 6.1, 6.2, 6.6, 6.8 | ADV-G98; refreshed source/evidence and three-member freeze |
 | Candidate freshness mechanism | **PR-2** | 6.8 | INV-G48; ADV-G69–G74, G76; EX-G28; MUT-G14 |
 | Rendering | PR-2 | 5 | ADV-G22, G36; EX-G11; PROP-G04 |
 | Query | PR-2 | 5 | ADV-G17, G18; PROP-G05; T4 |
@@ -1462,16 +1521,24 @@ a single snapshot can refute.
 
 ## Landing plan
 
-Three landings. **All machinery is built and proven before the canonical
+Three substrate landings plus the separately merged PR-2A archive prerequisite.
+**All machinery is built and proven before the canonical
 registry exists.**
 
 - **PR-1 — model, strict reader, collection canonicalization, current checker,
   and their proof net.** No `governance/state.json` at the canonical path.
   Fixtures only. Safe to build on because every later landing depends on these
   rules already being proven.
+- **PR-2A — historical archive preparation.** Only D6.5's three pure
+  relocations and AP.1's proof. It requires separate exact-base owner authority,
+  independent review and merge before PR #124 reconciliation/resumption. Its
+  actual durable merge commit M supplies the missing archive-stage snapshots;
+  it creates no canonical registry or historical review/completion act.
 - **PR-2 — history checker, renderer, query, genesis machinery, canonical
   freshness extraction/comparison and digest proof, and a *candidate* seed at
-  `tests/fixtures/governance/candidate/`.** Still no canonical registry. Every
+  `tests/fixtures/governance/candidate/`.** Depends on merged PR-2A and a new
+  exact-base owner authorization; candidate/source rows are extracted afresh
+  under D6.5. Still no canonical registry. Every
   mechanism is proven through isolated test-attested copies of the frozen
   unattested candidate, so PR-3 promotes an already-proven
   artifact rather than authoring a new one.
@@ -1501,7 +1568,7 @@ closed by construction:
    internally valid snapshot, and once history was enabled that corrupted
    snapshot would already be the base.
 
-**Authority posture.** PR-1 and PR-2 carry no governance authority whatsoever.
+**Authority posture.** PR-1, PR-2A and PR-2 carry no governance authority whatsoever.
 PR-3 is the single authority transition, and it accepts, resolves, satisfies and
 authorizes nothing.
 
@@ -1580,9 +1647,10 @@ assigned a landing in the traceability plan.
 
 1. The initial registered projection set in `design.md` D7.1 is correct and
    complete for v1; additions are a reviewed decision per target.
-2. The genesis source snapshot is `origin/main` `eb6e248`, and the human
-   attestation actor and authority reference are supplied by the repository
-   owner at seed time.
+2. D6.5 fixes the common genesis source snapshot to the actual durable PR-2A
+   merge commit M, obtained and verified after merge; no earlier planning
+   baseline is reusable as that snapshot. The owner supplies the human
+   attestation actor and authority reference in the existing real PR-3 ceremony.
 3. The non-contiguous accepted set is recorded as such and never normalized.
 
 **This artifact authorizes nothing.** A complete assurance plan is necessary and

@@ -249,20 +249,45 @@ authorizations.
 | External owner authority | [issue #106 comment #5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973), `OWNER AUTHORIZATION — GOVERNANCE-STATE PR-2 GENESIS CONTRACT AMENDMENT ONLY` |
 | Created / updated | `2026-09-13T04:44:21Z` / `2026-09-13T04:44:21Z` |
 | Exact UTF-8 body SHA-256 | `80f80e6b8d1419018658bd5d380ffefb3ea229aec548ae58c197fdd62250bff2` |
+| Archive-prerequisite planning supplement | [issue #106 comment #5653176749](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5653176749), `OWNER AUTHORIZATION SUPPLEMENT — PR-2 HISTORICAL ARCHIVE PREPARATION PREREQUISITE` |
+| Supplement created / updated | `2026-09-13T12:10:31Z` / `2026-09-13T12:10:31Z` |
+| Supplement exact UTF-8 body SHA-256 | `82d6c51a1b878c882ffcdcc0d94b4084e52290a4a52276315fbc80d680a06b4e` |
 | Exact planning base | `7c201e28c027ff73ae6f11cba6c5006bf4c21c84` — PR #111 merged; PR-1 is already landed |
 | Authorized now | Planning correction of `specs/governance-state/spec.md`, `design.md`, `assurance.md`, and `tasks.md` under this change only |
 | Prior PR-2 release | [comment #5649203747](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5649203747); this amendment does not resume it |
 | Blocked implementation | PR #124, OPEN / DRAFT, frozen at `dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e` |
 | Current implementation status | PR-2 genesis implementation **SUSPENDED**; no PR #124 edit is authorized while this amendment is developed/reviewed |
-| Resume condition | Independent architecture review, amendment merge, then a separate owner refresh against the resulting exact `main`; this planning change supplies none of those approvals |
+| Resume condition | PR #125 review/merge, separately authorized PR-2A implementation/review/merge, its durable merge commit recorded, then a **new** owner PR-2 refresh against exact resulting `main`; follow the sequence below |
+| PR-2A status | **NOT_AUTHORIZED** for implementation; the supplement authorizes its planning only |
 | Later work | PR-3, PR-4 and PR #101 remain **NOT_AUTHORIZED** |
 | PR #101 | UNCHANGED at `559d78cc32cc40f8eaa7aba15a961554f3033b43` |
 
-A mismatch in the exact authorization body requires renewed owner review. No
+A mismatch in either exact authorization body requires renewed owner review. No
 implementation, fixture, candidate, canonical registry, real attestation, ADR
 body/status, runtime or CI file is changed by this amendment. The outer
 `genesisCompletion` envelope and its D3.2a canonicalization are preserved.
 The exact historical rules are D6.6a–D6.6c and their normative spec requirements.
+
+**Required authorization and branch sequence — D6.5.**
+
+1. **A.** PR #125 is independently reviewed and merged.
+2. **B.** The owner separately authorizes **PR-2A — historical archive preparation**
+   against exact then-current `refs/heads/main`, before its branch is created.
+3. **C.** PR-2A is implemented within AP.1's six root surfaces, independently
+   reviewed and merged as a separate PR.
+4. **D.** Record the exact merge commit **M** placed on `refs/heads/main` in
+   PR-2A metadata and verify the preparation output at M.
+5. **E.** The owner issues a **new** PR-2 implementation authorization for
+   PR #124 against exact resulting main, recording M as the merged prerequisite.
+6. **F.** Only then reconcile PR #124 onto that exact authorized main and resume
+   the existing PR-2 implementation scope. Tasks 6.1–6.8 require merged PR-2A.
+
+If main advances between any exact-base authorization and branch creation or
+reconciliation, **STOP for another owner refresh** against the new exact base.
+The prior PR-2 authorization #5649203747 does not survive these main advances.
+Neither the planning supplement nor an unmerged PR-2A branch/green CI resumes
+PR #124. Its current frozen head remains unchanged throughout PR #125 and
+PR-2A; reconciliation itself requires step E.
 
 **Semantic ownership for the resumed PR-2, once separately authorized.** These
 are task-local allocations, not permission borrowed from task 4.2, 6.4, or
@@ -297,7 +322,8 @@ merged.
 | Landing | Ships | Canonical `state.json`? | Authority posture | Completion condition |
 |---|---|---|---|---|
 | **PR-1** | model, strict reader, collection canonicalization, current checker, its proof net | **no** | none | current-revision rules proven; canonical path absent |
-| **PR-2** | history checker, renderer, query, genesis machinery, canonical freshness extraction/comparison and digest proof, **candidate** seed at a fixture path, full proof net | **no** | none | every mechanism and freshness proof proven against the candidate; canonical path still absent |
+| **PR-2A** | only D6.5's three historical package relocations and AP.1 proof | **no** | none | independently reviewed and merged; exact durable M recorded and output verified |
+| **PR-2** | history checker, renderer, query, genesis machinery, canonical freshness extraction/comparison and digest proof, **candidate** seed at a fixture path, full proof net | **no** | none | merged PR-2A and fresh exact-base authority; every mechanism and freshness proof proven against the refreshed candidate; canonical path still absent |
 | **PR-3** | **atomic activation** after freshness invocation and final base-equality gate | **first appearance** | authoritative | exact freshness equivalence proven, whole seam present, all gates on, external index transitioned, final base equality holds |
 | **PR-4** | rebase and narrow PR #101 | — | consumer | only after PR-1–PR-3 merged and reviewed |
 
@@ -830,6 +856,66 @@ PR-1 must not contain — and review has completed on one frozen head.
 
 ---
 
+# PR-2A — Historical archive preparation
+
+**Separately mergeable prerequisite; implementation NOT_AUTHORIZED.** D6.5
+and the current authorization sequence above govern. Existing PR-2 task
+numbers and semantic owners do not move.
+
+- [ ] **AP.1 Relocate the three historical packages and prove preservation**
+  <!-- agent-task: AP.1 paths=openspec/changes/runner-control-orchestration/**,openspec/changes/archive/2026-09-13-runner-control-orchestration/**,openspec/changes/runner-image-lineage/**,openspec/changes/archive/2026-09-13-runner-image-lineage/**,openspec/changes/runner-platform-adapters/**,openspec/changes/archive/2026-09-13-runner-platform-adapters/** checks=git,openspec,scaffold,repository,manual risk=trust-critical prerequisites=pr-125-merged,pr-2a-owner-authorization -->
+
+  **Implements** — *Historical archive preparation merges before candidate
+  extraction*; `D6.5`. This is the sole owner of these exact pairs:
+
+  | Exact source root | Exact archive root |
+  | --- | --- |
+  | `openspec/changes/runner-control-orchestration` | `openspec/changes/archive/2026-09-13-runner-control-orchestration` |
+  | `openspec/changes/runner-image-lineage` | `openspec/changes/archive/2026-09-13-runner-image-lineage` |
+  | `openspec/changes/runner-platform-adapters` | `openspec/changes/archive/2026-09-13-runner-platform-adapters` |
+
+  The date is D6.5's fixed namespace, not delivery chronology or first archive
+  appearance. No arbitrary `openspec/changes/**` or archive-directory authority
+  is granted. No script, fixture, spec-sync, reference-repair or generated
+  review file is part of this landing; no repository path outside the six
+  surfaces may change.
+
+  **Change** — pure relocation of active-only inputs to archive-only outputs.
+  Enumerate complete membership including dotfiles. Strip only the respective
+  root prefix; normalized member sets, every relative path, exact bytes and
+  Git modes must match. No member edit/addition/removal, task-checkbox edit,
+  generated `.openspec.yaml`, review witness or `reviews/**`, permission/mode
+  change, or symlink/gitlink substitution is permitted. All three active roots
+  must be absent and all exact destinations present. L2/L3/L6 evidence is
+  unchanged. Preparation creates archive-stage evidence only.
+
+  **Proof required** — `EX-G32`, `ADV-G91`–`ADV-G97`, `MUT-G17`, and the
+  external merge preflight of `ADV-G98`. Use a temporary comparison harness
+  and isolated hostile/mutation repositories; record exact harness source,
+  commands and outputs in PR metadata, never in a package member or a new
+  repository test/script. Compare the exact authorized base with reviewed
+  output and reverify at the actual merge commit M. Run strict OpenSpec for
+  each package before relocation and from isolated root-normalized output
+  copies, `bash scripts/validate-scaffold.sh`, `bash scripts/scan-secrets.sh`,
+  `node scripts/check-openspec-review-history.mjs`, applicable repository
+  gates (`bash scripts/check.sh`), and `git diff --check`; record every skip
+  and reason. A missing required proof cannot count as a pass.
+
+  **Merge handoff** — independent review and successful merge are required.
+  Record M, the exact commit placed on `refs/heads/main`, and verify the output
+  there before fresh PR-2 authority is requested. An internal PR #124 commit
+  may disappear on squash merge; its future squash SHA is unavailable during
+  candidate authoring. Neither can replace M. `archivedPackageIdentity` stays
+  commit-backed under D4.4; no identity class or schema field is added.
+
+**`pr-2a-merged` means** AP.1's proof and independent review completed, the
+separate PR actually merged, and its exact M recorded with verified output.
+A branch head or CI success alone does not satisfy it. This prerequisite is
+necessary but not sufficient: PR #124 also requires the new owner authority
+in step E before any reconciliation or resumption.
+
+---
+
 # PR-2 — History, renderer, query, and the candidate seed
 
 **Still no canonical `governance/state.json`.** The seed lives at
@@ -924,13 +1010,24 @@ PR-1 must not contain — and review has completed on one frozen head.
 
 ## 6. Genesis machinery and the candidate seed
 
+**Entry prerequisite for every task 6.1–6.8:** successful **merge** of PR-2A
+(`pr-2a-merged`), verified durable M, and a new exact-base owner authorization
+for PR #124. No pre-preparation candidate/source row is reusable. D6.5 fixes
+the common historical source snapshot to M and the L4/L5/L7 archive-stage
+identities to M with their exact destination scopes. Extraction runs from the
+authorized main revision containing M; the accepted schema stays unchanged.
+
 - [ ] **6.1 Closed genesis source manifest**
-  <!-- agent-task: 6.1 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/canonical.mjs,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=4.2 -->
+  <!-- agent-task: 6.1 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/canonical.mjs,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=4.2,pr-2a-merged -->
 
   **Implements** — *The version-one program is seeded whole, from a closed
   source manifest*; `INV-G28`; `D6.1`, `D6.2`
 
   **Change**
+  Enforce D6.5's merged-prerequisite/source-refresh admission (`ADV-G98`).
+  Obtain M from the verified merge handoff; all historical source rows use M,
+  and L4/L5/L7 bind `archivedPackageIdentity` to M at their exact archive scopes.
+  Rebuild stale rows instead of accepting a pre-preparation candidate.
   Per-primitive rows: identity, exact path or typed external reference, source
   revision or content digest, extraction rule,
   `locally-verified | externally-attested`, human disposition.
@@ -949,8 +1046,9 @@ PR-1 must not contain — and review has completed on one frozen head.
   planning contract is merged, the values it states directly are
   content-addressable repository bytes, bound by **exact file blob identity at
   the PR #107 merge commit, with each amendment pinned to its own reviewed
-  merge-commit blob identities** — no archival step is required first, and an
-  eventual archived copy is a later equivalence check:
+  merge-commit blob identities** — this governance planning change itself
+  need not be archived; that does not waive merged PR-2A for L4/L5/L7. An
+  eventual archived copy of this change is a later equivalence check:
 
   | Classification | Covers |
   |---|---|
@@ -966,12 +1064,15 @@ PR-1 must not contain — and review has completed on one frozen head.
   noncanonical-input refusals in `ADV-G86`/`ADV-G87`
 
 - [ ] **6.2 Candidate seed of the whole v1 program**
-  <!-- agent-task: 6.2 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.1 -->
+  <!-- agent-task: 6.2 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.1,pr-2a-merged -->
 
   **Implements** — *Genesis authors primitives only…*; `INV-G25`, `INV-G26`;
   `D6.3`, `D6.4`
 
   **Change**
+  Extract afresh after merged PR-2A and the new authorization, from the exact
+  authorized main containing M. Refuse/rebuild any pre-preparation candidate
+  (`ADV-G98`); retain L2/L3 archive identities and L6 spike evidence unchanged.
   Author **primitives only**: ADR lifecycles including **ADR-0020 `Proposed`**,
   `ADR-0020.resolves = ["U4"]`, the `runner/GATE-U4` predicate, and every node of
   the representable program — `runner/L2`…`runner/L10`, `runner/GATE-U6`,
@@ -1019,7 +1120,7 @@ PR-1 must not contain — and review has completed on one frozen head.
     evidence
 
 - [ ] **6.3 Genesis attestation and relationship equivalence**
-  <!-- agent-task: 6.3 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/digests.mjs,scripts/check-governance-state.mjs,scripts/check-governance-history.mjs checks=node,pytest risk=trust-critical prerequisites=6.2 -->
+  <!-- agent-task: 6.3 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/digests.mjs,scripts/check-governance-state.mjs,scripts/check-governance-history.mjs checks=node,pytest risk=trust-critical prerequisites=6.2,pr-2a-merged -->
   **Change** — bind D6.6a rows/dispositions to their exact source snapshot and
   the general genesis proof through the shared model. Wire canonical
   `governance/genesis-source-manifest.json` or candidate/test sibling
@@ -1036,7 +1137,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   `MUT-G10` equivalence digest → derived-count comparison only
 
 - [ ] **6.4 Closed consumer inventory**
-  <!-- agent-task: 6.4 paths=tests/fixtures/governance/candidate/consumers.json,scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=5.1 -->
+  <!-- agent-task: 6.4 paths=tests/fixtures/governance/candidate/consumers.json,scripts/governance/model/** checks=node,pytest risk=trust-critical prerequisites=5.1,pr-2a-merged -->
 
   **Implements** — *The migration is proven against a closed consumer
   inventory*; `INV-G29`; `D7.1`, `D7.2`
@@ -1055,15 +1156,17 @@ PR-1 must not contain — and review has completed on one frozen head.
   dispositions — `generated-region | stable-pointer | historical-record |
   retained-semantic-prose | not-a-governance-consumer` — the generated-region
   identifier where applicable, the migration landing, and the reason for any
-  retained prose. **No sixth disposition exists**; the 26 surfaces discovered in
+  retained prose. **No sixth disposition exists**; the 26 surfaces originally discovered in
   live, unarchived OpenSpec changes are classified individually into those five,
   never as a category of their own.
 
   Counts are **generated from the enumeration**, never written beside it.
 
   The historical exemption is a **rule, not a glob**: archived, or evidenced as
-  merged and frozen. The 26 files in live, unarchived OpenSpec changes are
-  classified on their own merits.
+  merged and frozen. The 26 files observed in live, unarchived OpenSpec changes
+  before PR-2A are classified on their own merits. Re-enumerate the inventory
+  after merged PR-2A; that earlier observation supplies no reusable candidate
+  paths or count after the three relocations.
 
   Lives at `tests/fixtures/governance/candidate/consumers.json` until
   activation.
@@ -1075,12 +1178,15 @@ PR-1 must not contain — and review has completed on one frozen head.
   regenerate to the enumeration
 
 - [ ] **6.5 Genesis completion envelope**
-  <!-- agent-task: 6.5 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/archived-openspec.mjs,scripts/governance/model/digests.mjs,scripts/governance/model/history.mjs,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.3 -->
+  <!-- agent-task: 6.5 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/archived-openspec.mjs,scripts/governance/model/digests.mjs,scripts/governance/model/history.mjs,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.3,pr-2a-merged -->
 
   **Implements** — *Historical completions carry a genesis completion envelope*;
   `INV-G34`; `D6.6`
 
   **Change**
+  Consume D6.5's verified durable M and refreshed rows: L4/L5/L7 use their
+  exact prepared archives, with archive-stage and common source-snapshot
+  bindings to M. This task performs no archive move and weakens no identity.
   One envelope at the schema-declared location `attestations.genesisCompletion`,
   binding the canonically ordered, duplicate-free set of
   `{landingId, genesisHistoricalCompletionDigest}` tuples (D3.2a) for the six
@@ -1127,11 +1233,14 @@ PR-1 must not contain — and review has completed on one frozen head.
   - `MUT-G16` every narrowed guard is load-bearing through the real entry points
 
 - [ ] **6.6 Freeze the genesis artifacts for review**
-  <!-- agent-task: 6.6 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.4,6.5 -->
+  <!-- agent-task: 6.6 paths=tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=6.4,6.5,pr-2a-merged -->
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
   (step 1)
 
+  Refuse a pre-preparation candidate (`ADV-G98`). Recompute all resulting
+  historical/seed digests and the existing three-member `candidateFreezeIdentity`
+  from the refreshed candidate/source/inventory bytes; no old freeze is reused.
   Freeze the candidate state, source manifest, consumer inventory, evidence
   identities, historical-completion preimages, and every resulting digest, and
   present them as a reviewable set. This task computes and presents; it
@@ -1141,7 +1250,7 @@ PR-1 must not contain — and review has completed on one frozen head.
   preimage/structural checks are reported separately from a full checker pass.
 
 - [ ] **6.7 Prove the attestation mechanism with test attestations**
-  <!-- agent-task: 6.7 paths=tests/fixtures/governance/genesis/**,tests/test_governance_state.py checks=node,pytest risk=trust-critical prerequisites=6.6 -->
+  <!-- agent-task: 6.7 paths=tests/fixtures/governance/genesis/**,tests/test_governance_state.py checks=node,pytest risk=trust-critical prerequisites=6.6,pr-2a-merged -->
 
   **Implements** — *Genesis attestations are a human act on frozen artifacts*
   (step 1); `INV-G42` (the authorship limitation), `INV-G44` (member
@@ -1173,13 +1282,19 @@ PR-1 must not contain — and review has completed on one frozen head.
     completion validation; test-versus-owner provenance remains `MAN-G01`
 
 - [ ] **6.8 Implement and prove candidate freshness extraction**
-  <!-- agent-task: 6.8 paths=scripts/governance/genesis/**,scripts/governance/model/canonical.mjs,scripts/governance/model/validate.mjs,scripts/governance/model/digests.mjs,tests/test_governance_state.py,tests/fixtures/governance/freshness/** checks=node,pytest risk=trust-critical prerequisites=6.7 -->
+  <!-- agent-task: 6.8 paths=scripts/governance/genesis/**,scripts/governance/model/canonical.mjs,scripts/governance/model/validate.mjs,scripts/governance/model/digests.mjs,tests/test_governance_state.py,tests/fixtures/governance/freshness/** checks=node,pytest risk=trust-critical prerequisites=6.7,pr-2a-merged -->
 
   **Implements** — the reusable canonical extraction, comparison, equivalent
   result construction, and `activationFreshnessDigest` mechanism used by the
   activation gate. PR-2 owns this mechanism and its proof; PR-3 task 8.1a may
   only invoke the already-merged implementation against the real activation
   base.
+
+  Include D6.5's durable M, exact prepared archives, refreshed historical source
+  rows and re-extracted consumer inventory in the existing comparison. Prove
+  `ADV-G98`: pre-preparation source/candidate evidence is stale even if its old
+  digests are internally consistent. This adds no freeze member or preimage
+  field and does not move PR-3's final-base equality gate into PR-2.
 
   `candidateFreezeIdentity` is a closed, content-bound identity. Its exact
   shape is:
@@ -1256,6 +1371,10 @@ PR-1 must not contain — and review has completed on one frozen head.
   to historical source rows and waiver tokens; reject duplicate members and
   noncanonical serialized inputs through `ADV-G86`/`ADV-G87`.
 
+  Prove `ADV-G98` candidate/source admission for 6.1/6.2 and refusal to freeze
+  stale rows in 6.6. Task 6.8 retains the freshness portion; AP.1 retains
+  preparation and external merge preflight proof.
+
   Only the controls listed for task 7.2 are owned here. Freshness is owned by
   task 6.8, withdrawal history by task 7.1, and final-base equality by task 8.8;
   those assignments remain explicit in `assurance.md`. The 7.2 completion gate
@@ -1271,6 +1390,11 @@ PR-1 must not contain — and review has completed on one frozen head.
 
 ## PR-2 Completion Gate
 
+- [ ] PR-2A independently reviewed and **merged**, exact M recorded and output
+      verified; new PR-2 authority names the exact reconciliation base. Tasks
+      6.1–6.8 consumed the refreshed source snapshot and prepared archive
+      evidence, `ADV-G98` passed, and the three-member candidate freeze was
+      recomputed. Branch heads, green CI and pre-preparation rows do not count.
 - [ ] Every mechanism — history, renderer, query, genesis — proven against
       isolated test-attested copies of the frozen candidate; the raw unattested
       candidate is correctly refused by full completion validation.
