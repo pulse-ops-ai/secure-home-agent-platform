@@ -794,7 +794,10 @@ describe('the mutation-target map is complete and live', () => {
     // declares a target this map has not registered, the map is stale
     // and the sweep is incomplete.
     const assurance = readFileSync(
-      resolve(srcRoot, '../../../openspec/changes/runner-control-orchestration/assurance.md'),
+      resolve(
+        srcRoot,
+        '../../../openspec/changes/archive/2026-09-13-runner-control-orchestration/assurance.md',
+      ),
       'utf8',
     )
     const declared = [...new Set(assurance.match(/RO-MUT-\d+/g) ?? [])].sort()
@@ -819,7 +822,10 @@ describe('the mutation-target map is complete and live', () => {
     // The scan above reads identifiers from anywhere in the file, so the
     // orphaned half still satisfied it. This asserts the SHAPE instead.
     const assurance = readFileSync(
-      resolve(srcRoot, '../../../openspec/changes/runner-control-orchestration/assurance.md'),
+      resolve(
+        srcRoot,
+        '../../../openspec/changes/archive/2026-09-13-runner-control-orchestration/assurance.md',
+      ),
       'utf8',
     )
     const CLASSES = ['adversarial', 'mutation', 'deterministic example', 'structural', 'property']
