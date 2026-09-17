@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import { declarationShapeSha256 } from './declaration-shape.mjs'
 import { compareMap, expectedEmittedTarget, mapProjection } from './source-map-shape.mjs'
 import { capture as captureRaw, emittingMembers } from './emit-baseline.mjs'
+import { CUTOVER_HEAD, verifyReplaySubject } from './check-emit-history.mjs'
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const digest = (value) => createHash('sha256').update(value, 'utf8').digest('hex')
@@ -437,17 +438,28 @@ if (invokedDirectly) {
         `${declarations} declaration shapes, ${maps} map attributions`,
     )
   } else if (args.includes('--verify')) {
-    const baseline = JSON.parse(
-      readFileSync(resolve(at('--baseline') ?? 'tests/evidence/ts6-emit-baseline.json'), 'utf8'),
-    )
-    const projection = JSON.parse(
-      readFileSync(
-        resolve(at('--projection') ?? 'tests/evidence/ts6-migration-projection-v2.json'),
-        'utf8',
-      ),
-    )
-    const current = captureRaw(REPO_ROOT)
-    const currentProjection = await captureProjection(REPO_ROOT, undefined, current)
+    const from = at('--from')
+    if (
+      from === undefined ||
+      args.some((arg) => arg !== '--verify' && !arg.startsWith('--from='))
+    ) {
+      console.error(
+        `historical replay requires --verify --from=<clean checkout of ${CUTOVER_HEAD}>; ` +
+          'ordinary validation uses check:emit-history',
+      )
+      process.exit(2)
+    }
+    const subjectRoot = path.resolve(from)
+    let evidence
+    try {
+      evidence = verifyReplaySubject(subjectRoot)
+    } catch (error) {
+      console.error(`✗ historical emit replay refused: ${error.message}`)
+      process.exit(1)
+    }
+    const { baseline, projection } = evidence
+    const current = captureRaw(subjectRoot)
+    const currentProjection = await captureProjection(subjectRoot, undefined, current)
     const problems = differential(baseline, projection, current, currentProjection)
     if (problems.length > 0) {
       console.error(`✗ emitted-output conformance — ${problems.length} difference(s)\n`)
@@ -455,14 +467,17 @@ if (invokedDirectly) {
       process.exit(1)
     }
     const compiler = JSON.parse(
-      readFileSync(path.join(REPO_ROOT, 'node_modules', 'typescript', 'package.json'), 'utf8'),
+      readFileSync(path.join(subjectRoot, 'node_modules', 'typescript', 'package.json'), 'utf8'),
     ).version
     console.log(
-      `✓ emitted-output conformance — typescript@${compiler} preserves every surface the ` +
-        `baseline frozen under typescript@${baseline.compiler.version} requires`,
+      `✓ historical emitted-output conformance at ${CUTOVER_HEAD} — typescript@${compiler} ` +
+        `preserves every surface the baseline frozen under typescript@${baseline.compiler.version} ` +
+        'requires; not compiler-maintenance admission',
     )
   } else {
-    console.error('usage: emit-conformance.mjs (--capture [--head=<sha>] | --verify)')
+    console.error(
+      'usage: emit-conformance.mjs (--capture [--head=<sha>] | --verify --from=<historical checkout>)',
+    )
     process.exit(2)
   }
   void execFileSync

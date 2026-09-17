@@ -24,6 +24,8 @@ Repository tooling: validation and aggregate checks. Dependency-light by design.
 | [`check-release-history.mjs`](check-release-history.mjs) | The **two-revision** properties, compared against the prior governed revision: no released identity deleted or re-identified, only `Released → Deprecated → Retired`, and a **new** release must satisfy the ADR-0019 §6 member preconditions |
 | [`openspec-review-gate.mjs`](openspec-review-gate.mjs) | The governed-spec-driven-v2 **pre-apply** review gate: binds an accepting review to one planning commit and the exact bytes of every planning artifact. Run **once**, immediately before the first implementation change — **never** as a continuous check, because it refuses repository change after the reviewed commit |
 | [`check-openspec-review-history.mjs`](check-openspec-review-history.mjs) | The **two-revision** companion: admitted rounds are append-only. Adding is allowed; modifying, deleting, or renaming one is refused; a byte-identical move into `changes/archive/**` is allowed. A round is a **direct child** of `reviews/` named `<epoch>-<reviewed-sha12>.md` — a nested path is refused rather than skipped, because it is the only shape whose admission provenance this check can prove. Runs always |
+| [`check-emit-history.mjs`](check-emit-history.mjs) | Continuous verification of the three frozen TS6 evidence blobs, seals, original capture, and historical cutover binding. Does not compare current source with historical output or admit compiler updates |
+| [`emit-conformance.mjs`](emit-conformance.mjs) | Explicit replay of the completed TS6→TS7 differential against its clean, exact historical cutover checkout; retains runtime/generator bytes, declaration meaning, and map attribution comparisons |
 | [`openspec-candidate-workspace.mjs`](openspec-candidate-workspace.mjs) | Assembles an isolated OpenSpec validation tree: **trusted** config and schemas from the current context, **candidate** change directory read from git objects at a ref. Only regular blobs, always `0644`, so nothing the candidate carries executes or escapes. Used by the trusted review boundary, which never checks the candidate out |
 | [`openspec-review-pins.mjs`](openspec-review-pins.mjs) | Enumerates the historical `reviewed_commit` identities a candidate's `reviews/` rounds cite, read from git objects, so the trusted boundary can fetch those commits **as inert objects** before the gate's `cat-file` identity proof needs them. Necessary after a **squash merge**, which orphans a reviewed commit so a fresh runner has never fetched it. Decides nothing about acceptance — it reads one field and refuses anything but lowercase full 40-hex, a filename that disagrees with its block, or an ambiguous round |
 | [`build-maintenance-plan.mjs`](build-maintenance-plan.mjs) | Assembles a classification plan from two Git **revisions**, read out of the object database as inert file maps — neither side is checked out and nothing from the candidate executes. The path universe is **derived** here (what changed, plus everything the predecessor's protected projections cover) rather than taken from either revision, because a candidate that could shrink the universe could hide a change inside it |
@@ -237,6 +239,39 @@ Three deliberate properties of the source check:
 
 The same checks run as the repository merge gate —
 [`../.github/workflows/checks.yml`](../.github/workflows/checks.yml).
+
+## Historical TypeScript cutover evidence
+
+`pnpm run check:emit-history` runs in CI and the local aggregate check. It verifies
+historical evidence identity and provenance without building current source.
+An ordinary emitted-source change does not require rewriting any TS6 artifact.
+The original raw baseline and both projections remain frozen; v1 remains
+historical and v2 remains the differential's comparison projection.
+
+The [canonical cutover requirement](../openspec/specs/typescript-7-cutover/spec.md)
+(`REQ-TC-002`) defines the per-surface proof at the cutover. To replay that proof,
+prepare a disposable detached worktree at the recorded cutover revision, install
+its frozen dependencies, and invoke the current verifier with that checkout:
+
+```sh
+git worktree add --detach /tmp/ts7-cutover-replay 4de51a4ea30a2480fb003143fc7374218689225d
+pnpm --dir /tmp/ts7-cutover-replay install --frozen-lockfile
+pnpm run check:emit-conformance --from=/tmp/ts7-cutover-replay
+```
+
+Choose an unused destination. Replay refuses an arbitrary current revision, dirty
+or additional source, altered evidence, missing historical objects, or a compiler
+other than the installed 7.0.2 cutover compiler. It produces only historical TS7
+build/generator output and compares in memory; no TS6 capture command is needed.
+The replay's output identifies its historical subject. Missing prerequisites are
+refusals, not skipped passes.
+
+Neither historical integrity nor replay is compiler-update admission. Later
+normal-compiler versions still require the predecessor-bound procedure below,
+including protected policy/configuration/corpus, the trusted boundary, native
+platform execution, and MAN-TS7-01. The correction and its pre-implementation
+contract interpretation are recorded in
+[ts7-emit-proof-lifecycle](../openspec/changes/ts7-emit-proof-lifecycle/design.md).
 
 ## Maintenance-boundary lifecycle state
 
