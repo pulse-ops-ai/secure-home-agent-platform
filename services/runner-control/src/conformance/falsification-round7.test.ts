@@ -42,7 +42,10 @@ import {
 const RUN = 'run-20260812-0001'
 const here = dirname(fileURLToPath(import.meta.url))
 const srcRoot = resolve(here, '..')
-const changeRoot = resolve(srcRoot, '../../../openspec/changes/runner-control-orchestration')
+const changeRoot = resolve(
+  srcRoot,
+  '../../../openspec/changes/archive/2026-09-13-runner-control-orchestration',
+)
 
 const delay = (ms: number): Promise<void> =>
   new Promise<void>((resolveDelay) => {
