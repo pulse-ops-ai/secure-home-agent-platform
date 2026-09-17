@@ -1,5 +1,11 @@
 # Design: governance-state-substrate
 
+> **Contingent temporal amendment:** [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+> is Proposed. D12 below is non-operative until separate human acceptance; its
+> implementation additionally requires a later refreshed owner authorization.
+> ADR-0021's existing RFC 3339 rule remains operative while ADR-0023 is Proposed.
+> No PR #124 implementation/candidate or accepted ADR is changed here.
+
 Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
 nothing, and no task in this change is executed.
@@ -2193,3 +2199,190 @@ authorities again, arrived at from the other direction.
 
 **PR #101 follows all three**, as the first consumer, and is untouched until
 then.
+
+---
+
+## D12. Contingent decision-date amendment (ADR-0023)
+
+**PROPOSED / NOT AUTHORIZED FOR IMPLEMENTATION.** This section is subordinate
+to proposed ADR-0023 §§1–6. While that ADR is Proposed, the existing RFC 3339
+acceptance rule remains operative. Its separate acceptance would select these
+temporal rules; a later exact-base owner refresh is additionally required to
+implement them in PR #124. Merging this planning proposal does neither.
+
+### D12.1 Closed evidence and shared ownership
+
+Only ADR acceptance/rejection changes shape: exactly
+`{transitionDigest, contentDigest, outcome, actor, decisionDate, authority, reviewedIdentity}`.
+All existing non-temporal types remain. `decisionDate` is a real calendar date
+under ADR-0023 §2, never an RFC 3339 instant. `at`, `recordedAt`, `authorAt`,
+unknown members, missing members, and date-or-instant compatibility branches
+are refused in this envelope. Proposed ADRs retain `acceptance: null`;
+Superseded ADRs retain the immutable original Accepted evidence. Genesis,
+completion, withdrawal, and replacement envelopes keep their existing `at`.
+
+The shared model owns parsing, date agreement, provenance validation, digest
+projection, history immutability, and derived resolution dates. Git adapters
+only observe commit parents, message bytes, author/committer instants and tree
+bytes. Genesis orchestration, current/history CLIs, renderer and query consume
+that model; the amendment does not create another semantic checker.
+
+### D12.2 Separate source-manifest decision evidence
+
+Add the closed `decisionEvidence` entity set to the genesis source manifest,
+sorted by `adrId`, with duplicate IDs refused. Its coverage is exactly every
+seed ADR carrying acceptance/rejection evidence, including retained acceptance
+for a Superseded record; a missing or extra row fails. It is **not** another
+canonical registry or a field added to `governance/state.json`.
+
+Each row has exactly:
+
+```text
+adrId, decisionDate, actor, sources, transition,
+extractionRule, classification, recordingDateDiffers, disposition
+```
+
+- `sources` is a nonempty set of closed
+  `{path, revision, contentSha256, selector}` records, canonically ordered by
+  those four fields with duplicates refused. `revision` is a full locally
+  observable commit; `selector` is `adr-decision-header-v1` or
+  `index-decision-record-v1`. The ADR ID selects the applicable structured
+  INDEX record, including an explicitly declared foundational ADR range.
+  Include every applicable governed declaration at the common source snapshot,
+  and the transition's declaration sources; no conflicting source may be omitted.
+- `transition` is exactly
+  `{identity, predecessorIdentity, contentDigest, messageSha256, authorAt, recordedAt}`.
+  Both identities use `{class: "local-git-commit", value: <full commit SHA>}`.
+  The decided ADR path comes from the corresponding seed record; its bytes at
+  `identity` must match `contentDigest`, that seed's decided-byte digest, and
+  the common source snapshot. The predecessor observation must establish
+  Proposed → Accepted/Rejected, not an already-decided occurrence. The whole
+  transition message is byte-bound by `messageSha256`.
+- `authorAt` and `recordedAt` are the observed Git author and committer instants,
+  respectively, normalized losslessly to RFC 3339 UTC. They are never human
+  identity proof. `recordedAt` is never copied into `decisionDate`.
+- `extractionRule` is the literal `governed-decision-date-transition-v1`;
+  `classification` is `locally-verified` only after all required objects and
+  bytes are observed. A missing original object fails, even if a later main
+  delivery exists. Acceptance evidence follows D6.2's object-availability rule,
+  not the distinct archive-stage durability contract; no archive rule is relaxed.
+- `recordingDateDiffers` is recomputed from UTC date of `recordedAt` versus
+  `decisionDate`, never trusted as a claim. If false, `disposition` is `null`.
+  If true, it is exactly
+  `{kind, decisionDate, recordingDate, authority, rationale}`, with kind
+  `decision-date-recording-latency-v1`, the two observed dates, an existing typed
+  authority reference, and nonempty human-reviewed rationale. It must explain
+  the agreeing human sources and the exact transition's explicit same-date
+  declaration; it cannot repair missing/conflicting authoritative evidence.
+
+The historical selection table in D12.3 is proposed as an extraction input,
+bound to this planning artifact's actual reviewed/merged revision when later
+used; this draft is not already reviewed evidence.
+A row cannot select a different transition merely by rehashing its own fields.
+For subsequent decisions outside that observed corpus, require equally explicit
+reviewed transition-selection evidence in the source manifest and the manual
+provenance review; enumeration/search alone never proves the selection correct.
+An explicit conflicting decision declaration in a selected transition requires
+human reconciliation, not suppression of that source.
+
+The current model independently re-observes sources, commit metadata, exact
+bytes and transition selection, compares the row date/actor to seed evidence,
+and refuses discrepancies. A mechanically valid disposition/authority shape is
+not proof of its human authorship: existing MAN-G01 applies. The full manifest
+and its decision-evidence rows participate in candidate byte identity and local
+evidence freshness. Same primitive digest alone cannot establish freshness.
+
+### D12.3 Generic extraction and the positive historical corpus
+
+Audit all historical terminal ADRs before producing any candidate. For each:
+
+1. Structurally parse governed human decision date and actor; require all
+   applicable ADR-header and structured INDEX declarations to agree.
+2. Select the exact reviewed transition, not the first Accepted occurrence on
+   main, a squash delivery, archive event, or an arbitrary same-byte commit.
+3. Observe the expected lifecycle, exact decided bytes, predecessor, and
+   transition's explicit decision-date declaration. Observe both Git instants.
+4. Record the closed row and rule above. Same/different recording dates are both
+   admissible; every difference requires its explicit source-bound disposition.
+5. Collect the **complete** failure set. Missing human dates, conflicting
+   declarations, unavailable transitions, byte mismatches, wrong selection,
+   missing dispositions or unreadable observations block extraction/freeze.
+   Never fill a date-only human record with a time of day.
+
+The audited source is durable PR-2A M
+`83e6cd8fa7d2d05ab246a39de039129b4056966d`. The rows below preserve the exact
+transition selections from that completed audit. The foundational range expands
+to eleven separately checked ADRs, not one synthetic decision.
+
+| ADR(s) | decisionDate | Original transition | recordedAt (committer UTC) |
+| --- | --- | --- | --- |
+| ADR-0001–ADR-0011 | `2026-08-05` | `3bb454d5efc0ff9a7a4be834993863eff9fd2978` | `2026-08-05T23:15:25Z` |
+| ADR-0012 | `2026-08-06` | `05e88a4dfbfcf0e2c09ac3d2790cb62c6ff7d522` | `2026-08-06T05:25:13Z` |
+| ADR-0013 | `2026-08-12` | `d18a1e2e4ff06383a34daf9ffafc961770299b55` | `2026-08-12T15:40:54Z` |
+| ADR-0014 | `2026-08-15` | `f8eb78412fe0ae01442b0ba05696e01cb869222d` | `2026-08-15T13:21:50Z` |
+| ADR-0015 | `2026-08-15` | `a5cc2a739bd9602e30376400a46ebf7b5bab10f1` | `2026-08-15T16:55:25Z` |
+| ADR-0016 | `2026-08-16` | `308177b84081be9afb7760b66ec1955db2558535` | `2026-08-16T13:55:07Z` |
+| ADR-0017 | `2026-08-17` | `0b2be16b7d5b8c852f33375cd4bd90329fa405a4` | `2026-08-17T15:43:48Z` |
+| ADR-0018 | `2026-08-17` | `4c3c421a8d0731a7b333c06ed7c99d5c6b1fa0bd` | `2026-08-17T22:05:02Z` |
+| ADR-0019 | `2026-08-21` | `f18c8797952ebb046211cebefad01b4f18b1b631` | `2026-08-21T10:41:20Z` |
+| ADR-0021 | `2026-08-28` | `7d7ac5488bfe390434958b4fd18525d4b13efafd` | `2026-08-28T23:25:10Z` |
+| ADR-0022 | `2026-09-01` | `4334a7b040b14911b7b0894aeb14717b0418ee84` | `2026-09-02T08:03:21Z` |
+
+The positive corpus is **21 Accepted, 21 exact transitions, 20 same-date cases,
+one date/recording divergence, zero Rejected, zero missing transitions**.
+ADR-0022 uses the disposition in ADR-0023's Context; its `decisionDate` stays
+September 1. Neither this table nor the count exempts later decisions from
+audit. Isolated Rejected fixtures prove the unobserved lifecycle branch.
+
+### D12.4 Digest, history, projection and query consequences
+
+The primitive projection excludes `decisionDate` exactly where it currently
+excludes acceptance `at`, alongside actor, outcome, authority, reviewed identity
+and transition digest. It retains the exact ADR `contentDigest`. The existing
+`transitionDigest` preimage, relationship digest and non-self-reference rules
+are unchanged. Under identical existing preimage inputs, metadata-only variation
+does not change the causal transition identity; that property is **not** a
+validator acceptance condition or an in-place correction permission.
+
+History directly refuses a changed decision date after genesis/acceptance/
+rejection, including across supersession, independently of digest equality.
+It also preserves existing immutable evidence/source-manifest bindings. Test
+both unchanged and maliciously recomputed digests. Frozen candidate file hashes,
+manifest identity and freshness local-evidence inputs include the date and
+recording provenance even though the primitive/seed digest excludes the
+attestation metadata. Recompute affected bindings only under later authority.
+
+Render Accepted/Rejected dates from validated `decisionDate`; derive query
+`resolvedOn` from the current accepted resolver's date, or `null` if unresolved.
+Remove timestamp-shaped `resolvedAt` from this derived-date output, without a
+midnight alias. Renderer `--check`, human explanations and JSON query output
+must agree. Recording provenance may appear only in explicitly labelled audit
+output, not as a source for Accepted/Rejected/U-resolution dates. No readiness
+predicate, current-clock gating, authorization outcome or other query axis changes.
+
+Post-genesis history obtains a new transition's recording provenance from the
+evaluated Git revisions after those objects exist. It must not demand the
+containing commit ID inside that same state's bytes, mutate the historical
+genesis manifest to add ordinary transitions, or replay genesis as an ordinary
+transition path. This preserves the atomic header/registry acceptance seam.
+
+### D12.5 Later source refresh, not a candidate change in this proposal
+
+Acceptance of ADR-0023 will itself add a decision absent from historical M.
+Therefore the later owner refresh must name exact post-acceptance main **S**,
+containing M and the accepted amendment, before reconciling PR #124. Contingent
+on that acceptance/authorization, **S replaces M solely as the common genesis
+extraction snapshot** in D6.5 and all matching source/attestation bindings.
+The historical corpus above remains explicitly bound to M, and the new audit
+enumerates every additional terminal decision at S rather than hard-coding 21.
+
+This does **not** rebind archive-stage identities: runner/L4, L5 and L7 retain
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` at their exact existing archive roots.
+L2/L3 retain their archived-package identities; L6 retains its spike identities.
+Observe those unchanged bytes at S. Historical rows' `sourceSnapshotIdentity`
+and the eventual general genesis source snapshot all use S, preserving the
+one-common-snapshot model. Any affected source-identity preimages, digests and
+freeze/freshness evidence must then be rebuilt, never reused by semantic
+equivalence. This necessary source refresh changes no archive/disposition or
+historical completion proof semantics. No S is selected, no candidate is
+regenerated and no digest is updated in this proposal.

@@ -1,5 +1,11 @@
 # Assurance: governance-state-substrate
 
+> **Contingent temporal proof plan:** [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+> remains Proposed and non-operative. The appended temporal corpus specifies
+> future obligations, not passing implementation tests. ADR-0021's RFC 3339
+> contract remains operative pending separate acceptance; implementation also
+> needs a later owner refresh. PR #124 and its candidate remain paused/unchanged.
+
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.
@@ -1656,3 +1662,86 @@ assigned a landing in the traceability plan.
 **This artifact authorizes nothing.** A complete assurance plan is necessary and
 never sufficient; implementation begins only under an explicit release recorded
 in `tasks.md`.
+
+---
+
+## Contingent temporal proof obligations (ADR-0023)
+
+**Not operative while ADR-0023 is Proposed; not executed by this proposal.**
+Separate human acceptance and a later owner PR-2 implementation refresh are
+prerequisites. These obligations refine only acceptance/rejection temporal
+evidence and directly dependent mechanisms under design D12; all existing
+non-temporal proof remains required. The historical corpus is the audit at M,
+not a future accepted-count constant or an ADR-0022 exception path.
+
+### Additional invariants
+
+| ID | Invariant |
+| --- | --- |
+| **INV-G54** | Human `decisionDate` and recording-system `recordedAt` are different facts. No recording date or manufactured instant substitutes for a governed calendar date. |
+| **INV-G55** | Complete all-ADR temporal evidence is structurally reconciled, exact-transition/byte-bound, and refused as a whole on missing/conflicting evidence; same-date and reviewed different-date recordings are both valid. |
+| **INV-G56** | Acceptance metadata remains excluded from causal primitive/transition digests but directly immutable in history and bound by candidate/source/freshness identities. |
+| **INV-G57** | Accepted/Rejected displays and U-resolution dates use validated decision dates alone; no timestamp-shaped compatibility result or collapsed query axis appears. |
+| **INV-G58** | Proposed temporal semantics cannot become operative through planning, a fixture, an agent-authored envelope, or a generic timestamp-helper change. Other attestation classes retain their existing instant contract. |
+
+### Positive corpus and properties
+
+| ID | Fixture / expected result |
+| --- | --- |
+| **EX-G33** | ADR-0015: date `2026-08-15`, transition `a5cc2a739bd9602e30376400a46ebf7b5bab10f1`, author `2026-08-15T16:39:37Z`, committer `2026-08-15T16:55:25Z`. Same-day extraction passes; renderer and JSON/human query retain August 15 and U7 `resolvedOn: "2026-08-15"`. |
+| **EX-G34** | ADR-0022: date `2026-09-01`, transition `4334a7b040b14911b7b0894aeb14717b0418ee84`, author/committer `2026-09-02T08:03:21Z`, explicit source-bound latency disposition. Extraction and full checks on isolated test-attested copies pass; Accepted displays September 1. A separate arbitrary-ID synthetic delayed-recording ADR also passes, proving no ADR-0022 allowlist. |
+| **EX-G35** | Audit the entire M corpus: 21 Accepted, 21 exact transition objects, 20 same-UTC-date cases, one governed divergence, 0 Rejected, 0 missing objects. Independently enumerate later source S and cover any added decisions. Synthetic Rejected fixtures cover both same-day and delayed recording, header-only/INDEX-only where legitimate, agreement when both exist, and unchanged terminal continuation. No candidate is emitted on a partial audit. |
+| **PROP-G12** | Hold every causal preimage field fixed, vary only decision/recording metadata in isolated model inputs: primitive and transition digests remain identical, while full candidate/manifest/freshness evidence identity changes. This is a digest property, not an admissibility claim. Actual invalid date changes are separately refused by current/history checks even with all digests recomputed. Reordering the source set preserves canonical bytes; duplicate source/ADR rows fail. |
+
+### Hostile corpus
+
+Every case exercises a real production entry point over isolated copies, not
+merely a helper or a test's reconstruction of the rule. Compare explicit Git
+revisions for history cases. Preserve literal historical positive values so a
+mutant cannot redefine the expected outcome to fit its own output.
+
+| ID | Hostile change | Required refusal / proof owner |
+| --- | --- | --- |
+| **ADV-G99** | Replace ADR-0022 `decisionDate` with `2026-09-02`, including a fully rehashed manifest claiming the same false date | Current/source checks refuse disagreement with immutable human records; tasks T.1/T.2 |
+| **ADV-G100** | Put fabricated midnight or noon RFC 3339 in `decisionDate`; keep legacy `at`, both fields, `recordedAt` in canonical ADR evidence, an invalid calendar date, or omit the date | Closed current schema refuses, not truncates/coerces; T.1 |
+| **ADV-G101** | Substitute the first Accepted occurrence on main, even if its ADR bytes and calendar date match | Exact reviewed original transition-selection comparison refuses; T.2 |
+| **ADV-G102** | Substitute squash/merge/archive recording time for original transition provenance; substitute author time for committer time | Git-object metadata observation refuses; T.2 |
+| **ADV-G103** | ADR header and structured INDEX disagree, or a selected transition explicitly declares another decision date | Complete audit refuses and lists every conflict, never chooses a preferred source; T.2 |
+| **ADV-G104** | Remove transition identity/object, supporting source row, or required provenance; change decided bytes or supply a commit already Accepted without the transition | Exact object/lifecycle/byte and coverage checks refuse; local availability is not replaced by opaque evidence; T.2 |
+| **ADV-G105** | Mutate a historical decision date after genesis, ordinary acceptance, rejection, or supersession; recompute every digest | Two-revision history refuses independently of causal digest equality; T.3 |
+| **ADV-G106** | Feed Git recording/delivery time into a U-resolution date or generated Accepted/Rejected date | Real renderer `--check` and validated human/JSON query expectations fail; U7 remains August 15 and ADR-0022 September 1; T.4 |
+| **ADV-G107** | Remove or fabricate the different-date disposition; forge `recordingDateDiffers`; use a disposition to override missing/conflicting dates | Current/source validation refuses; MAN-G01 separately establishes actual human review, never inferred from a string; T.2 |
+| **ADV-G108** | Hide one terminal ADR or malformed declaration, stop at the first error, or reuse the 21-row historical list as the entire later S inventory | Complete enumeration/coverage and all-error-report tests fail; no output candidate/freeze; T.2/T.5 |
+| **ADV-G109** | Drop `decisionDate`/provenance from freeze/freshness bindings, claim same primitive digest proves freshness, or alter the frozen source row later | Freshness/history refuses even after attacker recomputation; T.2/T.3/T.6 |
+| **ADV-G110** | Reuse a pre-amendment candidate or omit a newly accepted decision at S; rebind L4/L5/L7 archive-stage identities away from M | Source completeness and exact archive identities refuse; D12.5 changes source observation time, not the archival stage; T.6 |
+| **ADV-G111** | Generalize date acceptance to genesis/completion/withdrawal/replacement envelopes, remove real/test attestation boundaries, or claim Proposed ADR-0023 releases work | Existing instant/attestation tests remain hostile; authority is a manual release gate, not a machine claim; T.1/T.5 and owner review |
+| **ADV-G112** | Require an ordinary transition to contain its own future Git ID/time, or reuse genesis to add its provenance | Non-self-reference/atomic-transition positive controls fail the mutant; history refuses genesis replay or historical manifest mutation; T.3/T.5 |
+
+### Mutation, ownership and review
+
+- **MUT-G18:** require UTC recording-date equality or special-case ADR-0022.
+  EX-G34's real and arbitrary-ID delayed cases must kill the mutation.
+- **MUT-G19:** select first-main/squash evidence, or use a fabricated time/date
+  conversion. ADV-G100–G104 and ADV-G106 must kill each substitution separately.
+- **MUT-G20:** include `decisionDate` in causal primitive/transition preimages,
+  or remove direct history immutability / full evidence-freshness comparison.
+  PROP-G12, ADV-G105 and ADV-G109 must kill the respective mutation; digest
+  invariance alone never passes the immutability obligation.
+- **MUT-G21:** weaken date-source agreement, all-ADR coverage, disposition
+  validation, or metadata observation. ADV-G103/G104/G107/G108 must each prove
+  refusal becomes acceptance when its decisive check is removed.
+
+These are future PR-2 proofs owned by tasks T.1–T.6, with executable positive,
+hostile and mutation work in T.5 (existing 6.7/7.1/7.2/7.3 seams). Current and
+history use the same model; observation adapters do not acquire semantics.
+All original PR-2 tests must be rerun after reconciliation, including the
+interrupted targeted suite **from zero**, then strict OpenSpec validation, the
+full repository gate and hosted CI under the later authorization. The raw
+unattested candidate must still fail full validation; only isolated copies may
+receive test envelopes. No proof author supplies the real owner ceremony.
+
+Independent review must check the partial-refinement boundary, both storage
+alternatives, source-selection durability, date precision, metadata/causal-digest
+separation, complete error reporting, and D12.5's common source refresh without
+archive rebinding. A proposal/documentation check passing is not any of these
+future implementation tests passing.

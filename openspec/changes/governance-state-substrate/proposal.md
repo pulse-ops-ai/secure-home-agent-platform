@@ -1,5 +1,37 @@
 # Change Proposal: governance-state-substrate
 
+## Contingent temporal amendment — proposal only
+
+[ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+is **Proposed and non-operative**. It proposes a partial refinement of
+ADR-0021 §7a's acceptance/rejection temporal evidence, not whole-ADR
+supersession. While it is Proposed, ADR-0021's RFC 3339 contract remains
+operative. The explicitly contingent D12/spec/assurance/task additions in this
+package describe what could be implemented **only after separate human
+acceptance and a later refreshed implementation authorization**. They do not
+silently replace the operative requirements elsewhere in this package.
+
+The historical audit at PR-2A merge
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` contains 21 Accepted ADRs with exact
+transition objects: 20 recordings share the human date and ADR-0022's recording
+is the following UTC day. There are no Rejected ADRs or missing transitions.
+The corpus disproves a general date-equality rule; ADR-0022 is a positive case,
+not an exception. The proposed ADR owns the rationale and exact historical
+examples; [design D12](design.md#d12-contingent-decision-date-amendment-adr-0023)
+owns the subordinate evidence/extraction plan.
+
+This proposal changes only one new Proposed ADR, its minimal decision-index
+registration, and this change's five planning artifacts. It changes no accepted
+ADR, historical acceptance record, script, fixture, candidate, digest, archive,
+canonical registry, CI gate, or runtime. PR #124 remains frozen/paused at the
+temporal-semantics boundary; PR-3 and PR-4 remain unauthorized and PR #101 is
+untouched. The current proposal-only authority is recorded in
+[tasks.md](tasks.md#current-temporal-proposal-authority--not-implementation-authority).
+
+Promotion determination: this durable precision/authority distinction belongs
+in the proposed ADR, not only the extraction audit. No portable knowledge or
+operative architecture projection is authored before separate acceptance.
+
 ## Why
 
 Mutable cross-cutting governance facts are duplicated as hand-maintained prose
