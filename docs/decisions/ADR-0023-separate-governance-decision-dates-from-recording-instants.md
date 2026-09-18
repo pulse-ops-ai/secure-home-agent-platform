@@ -1,4 +1,4 @@
-# ADR-0023: Separate governance decision dates from repository recording instants
+# ADR-0023: Separate governance decision dates from Git commit timestamps
 
 - **Status:** Proposed
 - **Date:** 2026-09-17
@@ -17,39 +17,45 @@ contract, not contradictory human decisions. ADR-0021 §7a requires RFC 3339 tim
 in the human acceptance attestation. Its same paragraph separates the human act
 from a containing commit recorded later. Historical decision records sometimes
 establish a **calendar date**, without establishing an instant within that day.
-The implementation cannot meet both facts by assigning Git's recording instant
+The implementation cannot meet both facts by assigning Git's committer timestamp
 to the human decision or inventing an unobserved time of day.
 
 The complete historical audit at durable PR-2A merge
 `83e6cd8fa7d2d05ab246a39de039129b4056966d` found 21 Accepted ADRs, 21 exact
-transition objects, 20 same-UTC-calendar-date recordings, one different-date
-recording, zero Rejected ADRs, and zero missing transitions. These are measured
-corpus facts, not a closed future ADR count. The different-date case falsifies
-date equality as a general rule; it is not an exception to a retained 20/21 rule.
+transition objects, 20 same-UTC-calendar-date committer timestamps, one
+different-date committer timestamp, zero Rejected ADRs, and zero missing
+transitions. These are measured corpus facts, not a closed future ADR count.
+The different-date case falsifies date equality as a general rule; it is not
+an exception to a retained 20/21 rule.
 
-| Positive historical case | Human decision date | Exact transition commit | Git committer instant (UTC) |
+| Positive historical case | Human decision date | Exact transition commit | Encoded Git committer timestamp (UTC) |
 | --- | --- | --- | --- |
 | ADR-0015 | `2026-08-15` | `a5cc2a739bd9602e30376400a46ebf7b5bab10f1` | `2026-08-15T16:55:25Z` |
 | ADR-0022 | `2026-09-01` | `4334a7b040b14911b7b0894aeb14717b0418ee84` | `2026-09-02T08:03:21Z` |
 
-For ADR-0015 the author instant is `2026-08-15T16:39:37Z`; it is not the
-committer instant. The August 18 delivery to main is neither original instant.
+For ADR-0015 the encoded author timestamp is `2026-08-15T16:39:37Z`; it is not
+the committer timestamp. The August 18 delivery to main is not the original
+transition and supplies neither metadata value.
 Its accepted header, structured INDEX record, and original transition record
 all identify August 15, consistent with U7's recorded resolution date.
 
 For ADR-0022 the accepted header, structured INDEX acceptance record, transition
 commit message, and [PR #117 / PR-A2 record](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/117)
-all say Accepted September 1. Both Git author and committer instants are
+all say Accepted September 1. Both encoded Git author and committer timestamps are
 `2026-09-02T08:03:21Z`; PR #117 was created at `2026-09-02T08:04:12Z`.
-Those recording-system observations do not supply a September 1 human decision
-instant. A mutable PR description is supporting provenance, not an immutable
-replacement for the byte-bound ADR, INDEX snapshot, and commit message.
+The Git metadata and the separate GitHub PR-creation observation do not supply
+a September 1 human decision instant. A mutable PR description is supporting
+provenance, not an immutable replacement for the byte-bound ADR, INDEX snapshot,
+and commit message.
 
 **ADR-0022 disposition:** the owner-recorded decision became effective as an
-ADR acceptance dated 2026-09-01. The repository transition carrying that accepted
-state was recorded in Git on 2026-09-02. Recording latency does not rewrite the
-governance date. No September 1 time of day is asserted or recoverable from the
-identified Git/GitHub recording events.
+ADR acceptance dated 2026-09-01. The exact transition encodes a September 2
+committer timestamp. The separate September 2 GitHub PR-creation observation
+supports later PR recording in this case; the Git timestamp alone does not
+establish when the commit was created, received, published or materialized.
+Neither the metadata divergence nor that case-specific GitHub evidence rewrites
+the governance date. No September 1 time of day is asserted or recoverable from
+the identified evidence.
 
 ## Decision
 
@@ -80,7 +86,7 @@ change. RFC 3339 `at` remains required by the existing genesis, completion,
 withdrawal, and replacement attestation contracts. This is not a generic change
 to every attestation timestamp or an alias accepted by a shared time parser.
 
-### 2. Decision date is canonical evidence; recording time is provenance
+### 2. Decision date is canonical evidence; Git timestamps are provenance
 
 `decisionDate` is the date a governed human record declares the ADR accepted or
 rejected. Its closed representation is a valid ISO calendar date `YYYY-MM-DD`
@@ -89,27 +95,34 @@ conversion. It does not assert midnight, noon, the beginning of an enforcement
 window, or any sub-day ordering. No current-clock rule or implementation
 authorization is derived from it.
 
-`recordedAt` is an RFC 3339 UTC instant of materialization in a named recording
-system. For Git-transition provenance it means the exact transition object's
-**committer** instant; the author instant is recorded separately as `authorAt`.
-Neither authenticates the declared human actor. Other recording systems need
-their own typed evidence identity and rule; a Git timestamp is not relabelled as
-a human acceptance instant.
+`gitCommitterAt` is the timestamp **encoded in the exact Git transition object's
+committer metadata**, normalized losslessly to RFC 3339 UTC. `gitAuthorAt`
+separately represents its encoded author timestamp. Git permits these values to
+be supplied by the commit creator (including through `GIT_COMMITTER_DATE` and
+`GIT_AUTHOR_DATE`). Observing them proves what the identified object encodes,
+not when it was actually created, recorded, received, published or materialized,
+and not the declared human actor's identity or decision instant.
+
+`recordedAt`, if used to mean an independently observed recording-system event,
+is a different evidence concept; this proposal does not define or add such a
+field. Any actual recording-time claim needs separately identified evidence
+and its own observation rule. Git metadata must not be relabelled as that proof.
 
 **Storage decision evaluated:** keeping both values in canonical state would
-make each recording-system observation another authored field to maintain,
+make each Git metadata observation another authored field to maintain,
 despite no lifecycle, gate, readiness, or display rule needing it. It would also
 invite treating the two fields as rival dates and tempt a containing commit to
-store its own identity/time. Omitting recording provenance altogether would
+store its own identity/time. Omitting transition provenance altogether would
 lose the exact-transition replay and make delivery-time substitution undetectable.
 
 **Proposed choice:** keep `decisionDate` in canonical ADR evidence because
-human-facing semantics require it. Keep transition identity and recording
-instants in byte-bound genesis/source-manifest or history audit evidence, not
+human-facing semantics require it. Keep transition identity and encoded Git
+timestamps in byte-bound genesis/source-manifest or history audit evidence, not
 as new mutable governance primitives. Preserve the existing typed
 `reviewedIdentity` evidence field; moving observations outside state does not
-delete existing reviewed-byte identity or human evidence. No `recordedAt`,
-`authorAt`, or second acceptance-time field is added to canonical ADR evidence.
+delete existing reviewed-byte identity or human evidence. No `gitCommitterAt`,
+`gitAuthorAt`, `recordedAt`, or second acceptance-time field is added to canonical
+ADR evidence.
 
 ### 3. Closed evidence and authoritative agreement
 
@@ -140,29 +153,32 @@ digest-bound. A generated INDEX date is checked output, not a new independent
 human declaration from which state may bootstrap itself. Retained historical
 INDEX acceptance records remain immutable sources.
 
-### 4. Exact transitions and recording latency
+### 4. Exact transitions and decision-date / Git-committer-date divergence
 
 For every historical Accepted/Rejected ADR, including the original acceptance
 of a now-Superseded ADR, the source manifest must bind the exact reviewed
 lifecycle-transition commit, the expected lifecycle, exact decided bytes,
-declared decision date/actor, author and committer instants, extraction rule, and
-the structural sources used. Original locally available transition objects are
-local evidence even if main received their bytes through a later squash.
+declared decision date/actor, encoded author and committer timestamps, extraction
+rule, and the structural sources used. Original locally available transition
+objects are local evidence even if main received their bytes through a later squash.
 Missing objects fail closed; an opaque identity is not silently promoted to
 local proof. Main delivery, squash merge, and archive commits are not substitutes.
 
-The comparison `UTC-date(recordedAt) != decisionDate` is an observed provenance
-fact, **not a refusal by itself**. Every difference requires explicit reviewed
-source-manifest disposition linking the agreeing decision records and the exact
-transition's explicit record of the same decision date. A disposition explains
-recording latency; it cannot override conflicting decision records, missing
-bytes, a missing transition, or a changed date. It is not an ADR-ID allowlist.
+`committerUtcDateDiffers` is the comparison
+`UTC-date(gitCommitterAt) != decisionDate`: a comparison fact only, **not a
+refusal by itself** and not proof of recording latency or temporal ordering.
+Every difference requires explicit reviewed source-manifest disposition linking
+the agreeing decision records and the exact
+transition's explicit record of the same decision date. The generic disposition
+describes decision-date / Git-committer-date divergence, not proven delay. It
+cannot override conflicting decision records, missing bytes, a missing transition,
+or a changed date. It is not an ADR-ID allowlist.
 ADR-0015 and ADR-0022 are both ordinary positive applications of this rule.
 
 For future post-activation transitions, history observes the actual committed
 transition and may emit a separate audit receipt **after** the commit exists.
 No state or containing manifest must contain its own future commit ID or
-recording instant. The human attestation still binds final bytes and the
+encoded timestamp. The human attestation still binds final bytes and the
 transition digest in the atomic registry/header change; a later audit receipt
 cannot supply a missing human attestation or authorize a transition.
 
@@ -173,7 +189,7 @@ the former `at`, not a new input to the lifecycle primitive projection.
 
 - **`primitiveDigest`:** excludes `decisionDate` with the other acceptance
   attestation metadata. The acceptance `contentDigest` remains included. No
-  recording-system timestamp is introduced into that projection.
+  Git timestamp is introduced into that projection.
 - **`transitionDigest`:** preserves ADR-0021 §7a's exact preimage and
   attestation exclusion. Replacing metadata representation does not create a
   different causal Proposed → Accepted/Rejected identity when all existing
@@ -201,15 +217,16 @@ alias is provided. ADR-0022 displays Accepted `2026-09-01`.
 
 Git author/committer time, squash time, first main occurrence, and archive time
 must never supply these dates. An explicitly labelled provenance report may
-show a recording instant alongside the date, without feeding a derived
+show an encoded Git timestamp alongside the date, without feeding a derived
 governance result. Existing query delivery/readiness/authorization axes and
 fail-closed validation remain unchanged.
 
 ## Consequences
 
-Positive: historical records remain honest at their actual precision; recording
-latency is representable; one shared model supplies dates to every consumer.
-The audit retains exact objects without claiming Git authenticates a human.
+Positive: historical records remain honest at their actual precision; decision
+dates may differ from encoded Git dates; one shared model supplies dates to every
+consumer. The audit retains exact objects without claiming Git authenticates a
+human or establishes actual recording time.
 
 Cost: a closed schema change and source-manifest/history/projection proof are
 required before PR-2 can resume. Previously prepared candidate bytes and digests
@@ -221,16 +238,17 @@ dependency, compiler gate, runtime, or canonical registry changes here.
 
 ## Alternatives considered
 
-1. **Use Git recording time as acceptance time.** Rejected: it falsifies
-   ADR-0022's agreeing September 1 decision records and confuses separate acts.
+1. **Use the Git committer timestamp as acceptance time.** Rejected: it falsifies
+   ADR-0022's agreeing September 1 decision records and gives Git metadata a
+   human-decision meaning it does not establish.
 2. **Invent a time on the human date.** Rejected: midnight/noon and truncation
    introduce precision no source provides; offset manipulation does the same.
 3. **Keep a date-or-instant union.** Rejected: projections and comparisons would
    need two meanings for one field, and a fallback could recreate the defect.
-4. **Store both date and Git instant in canonical state.** Considered in §2;
+4. **Store both date and Git timestamp in canonical state.** Considered in §2;
    rejected because provenance evidence provides replay without another
    mutable primitive or self-referential commit requirement.
-5. **Drop recording evidence, or waive only ADR-0022.** Rejected: the first loses
+5. **Drop transition provenance, or waive only ADR-0022.** Rejected: the first loses
    exact-transition proof; the second preserves a rule the corpus disproves.
 6. **Retrospectively attest a new September 1 instant.** Rejected: a new human
    review now is neither the historical decision nor an observation of its
@@ -238,7 +256,7 @@ dependency, compiler gate, runtime, or canonical registry changes here.
 
 ## Security implications
 
-Date agreement and exact-byte/transition checks remain fail-closed. A latency
+Date agreement and exact-byte/transition checks remain fail-closed. A date-divergence
 disposition cannot launder conflicting evidence, bypass the manual provenance
 boundary, weaken accepted-byte immutability, or issue authorization. The history
 check protects excluded evidence metadata independently of causal digest
@@ -247,7 +265,7 @@ identity. No device, credential, trust-zone, or runtime boundary changes.
 ## Availability implications
 
 Validation stays offline and dependency-light. Required historical objects must
-be locally available; recording provenance that cannot be observed is a visible
+be locally available; transition provenance that cannot be observed is a visible
 refusal, never an invented timestamp. The complete audit prevents a partly
 validated corpus from becoming a frozen seed. Governance tooling remains a
 repository control, not a household runtime dependency.
@@ -265,7 +283,8 @@ repository control, not a household runtime dependency.
    owns the source-manifest details, extraction, and dependent source refresh.
 4. Prove both named positive cases, the complete source-bound historical corpus,
    rejection fixtures, exact-transition replay, digest invariance, immutable
-   dates, and renderer/query date behavior. The contingent
+   dates, renderer/query date behavior, and the boundary between encoded Git
+   metadata and independently observed recording events. The contingent
    [assurance corpus](../../openspec/changes/governance-state-substrate/assurance.md#contingent-temporal-proof-obligations-adr-0023)
    requires hostile production-entry-point tests, not just example prose.
 5. This proposal runs documentation/scaffold and strict OpenSpec validation
@@ -285,7 +304,7 @@ operative architecture.
 - [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md#7a-relationship-provenance-bootstrap-proof-and-evidence-identity) — operative contract pending separate acceptance
 - [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) and [promotion model](../architecture/knowledge-promotion-model.md) — canonical home and subordinate projections
 - [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) and [original transition](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/a5cc2a739bd9602e30376400a46ebf7b5bab10f1) — same-day positive case
-- [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) and [original transition](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/4334a7b040b14911b7b0894aeb14717b0418ee84) — delayed-recording positive case
+- [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) and [original transition](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/4334a7b040b14911b7b0894aeb14717b0418ee84) — decision-date / Git-committer-date divergence positive case
 - [Contingent proposal](../../openspec/changes/governance-state-substrate/proposal.md), [design](../../openspec/changes/governance-state-substrate/design.md), [assurance](../../openspec/changes/governance-state-substrate/assurance.md), [tasks](../../openspec/changes/governance-state-substrate/tasks.md), and [specification delta](../../openspec/changes/governance-state-substrate/specs/governance-state/spec.md)
 
 ---

@@ -3116,7 +3116,7 @@ decision dates SHALL stop extraction/current validation, never fall back to Git.
 - **WHEN** the proposed closed schema is exercised in an authorized implementation
 - **THEN** it refuses without coercion, truncation or default time generation
 
-#### Scenario: Recording date cannot overwrite the human decision date
+#### Scenario: Git committer date cannot overwrite the human decision date
 
 - **GIVEN** ADR-0022's immutable September 1 decision records
 - **WHEN** the candidate instead declares `decisionDate: "2026-09-02"`, including
@@ -3130,18 +3130,29 @@ The complete all-ADR audit SHALL use design D12.2's closed source-manifest
 SHALL enumerate every terminal historical decision, including retained
 acceptance for a Superseded record, and independently observe the expected
 lifecycle, original Proposed-to-decided transition, exact ADR bytes, structural
-human declarations, full commit identity, message identity, and distinct author
-and committer instants. `recordedAt` SHALL mean the committer observation, not
-human decision time. Missing/unreadable objects or required provenance SHALL
+human declarations, full commit identity, message identity, and distinct encoded
+author and committer timestamps. `gitAuthorAt` and `gitCommitterAt` SHALL mean
+the corresponding values encoded in the exact Git object, normalized losslessly
+to RFC 3339 UTC, not human decision time or independently observed recording
+events. Creator-supplied Git metadata SHALL NOT be treated as proof of actual
+creation, recording, receipt, publication or materialization time.
+Missing/unreadable objects or required provenance SHALL
 fail closed. Original locally available objects need not have survived squash
 delivery as main ancestors; that does not relax archive identity requirements.
 
-The commit's UTC calendar date SHALL NOT be required to equal `decisionDate`.
-A difference SHALL require D12.2's explicit source-bound latency disposition
+The encoded committer timestamp's UTC calendar date SHALL NOT be required to
+equal `decisionDate`. `committerUtcDateDiffers` SHALL report only that comparison.
+A difference SHALL require D12.2's explicit source-bound
+`decision-date-git-committer-date-divergence-v1` disposition
 and the exact transition's explicit record of that same human date. A
 disposition SHALL NOT override contradictory decision sources, select an
 unreviewed transition, or fill missing evidence. Mechanical checks SHALL make
 no human-authorship claim; the existing manual provenance gate remains.
+The comparison/disposition SHALL NOT infer recording latency or actual temporal
+ordering from Git metadata alone. Any actual recording-time claim SHALL require separately identified
+external evidence and its own observation rule; ADR-0022's GitHub evidence
+SHALL NOT be generalized into a Git-metadata rule. The closed source row SHALL
+NOT admit a `recordedAt` alias or the former latency fields/kind.
 
 The audit SHALL report the complete failure set and produce no candidate if
 any terminal decision fails. It SHALL NOT substitute first Accepted occurrence
@@ -3151,19 +3162,32 @@ hard-code an ADR-0022 waiver or use the historical count as the future inventory
 #### Scenario: Same-day ADR-0015 is a positive case
 
 - **GIVEN** decision date `2026-08-15`, exact transition
-  `a5cc2a739bd9602e30376400a46ebf7b5bab10f1`, and observed committer instant
+  `a5cc2a739bd9602e30376400a46ebf7b5bab10f1`, and encoded `gitCommitterAt`
   `2026-08-15T16:55:25Z`, with matching decided bytes and structural records
 - **WHEN** historical extraction and isolated test-envelope validation run
 - **THEN** the temporal evidence passes and the date remains August 15
 
-#### Scenario: Delayed-recording ADR-0022 is also a positive case
+#### Scenario: Different-date Git metadata for ADR-0022 is also a positive case
 
 - **GIVEN** decision date `2026-09-01`, exact transition
-  `4334a7b040b14911b7b0894aeb14717b0418ee84`, observed author/committer instant
-  `2026-09-02T08:03:21Z`, and the explicit recording-latency disposition
+  `4334a7b040b14911b7b0894aeb14717b0418ee84`, encoded author/committer timestamps
+  `2026-09-02T08:03:21Z`, and the explicit decision-date / Git-committer-date disposition
 - **WHEN** historical extraction and isolated test-envelope validation run
 - **THEN** they accept the temporal evidence without changing September 1,
-  and an arbitrary-ID fixture with the same relationship also passes
+  and arbitrary-ID fixtures with committer dates before or after the governed
+  date also pass with valid dispositions, without inferring actual recording time
+
+#### Scenario: Creator-supplied Git dates do not establish recording latency
+
+- **GIVEN** isolated exact-transition objects with deliberately supplied author
+  and committer dates, matching governed sources and reviewed divergence dispositions
+- **WHEN** the source validator and provenance-report entry point run
+- **THEN** they observe encoded `gitAuthorAt`/`gitCommitterAt` and compute only
+  `committerUtcDateDiffers`; output claiming actual recording/receipt/publication
+  time from those values alone fails conformance
+- **AND** source rows using `recordedAt`, `recordingDateDiffers`, `recordingDate`
+  or kind `decision-date-recording-latency-v1` are refused by the closed schema;
+  any separate external recording claim remains subject to manual provenance review
 
 #### Scenario: Delivery provenance cannot impersonate the original transition
 
@@ -3186,7 +3210,7 @@ hard-code an ADR-0022 waiver or use the historical count as the future inventory
 `decisionDate` SHALL replace `at` among acceptance metadata excluded from
 `primitiveDigest`; the acceptance content digest SHALL remain included.
 `transitionDigest` SHALL retain its existing preimage and attestation exclusion.
-Recording provenance SHALL NOT become a new causal primitive. Identical causal
+Git metadata provenance SHALL NOT become a new causal primitive. Identical causal
 preimage inputs SHALL yield identical digests despite metadata-only differences;
 that SHALL NOT imply either input is valid evidence or may mutate in place.
 
@@ -3197,9 +3221,9 @@ and local-evidence freshness SHALL bind decision-date and provenance metadata;
 equality of primitive/seed digests alone SHALL NOT prove freshness. No new
 in-place evidence correction route SHALL be introduced.
 
-For ordinary transitions, recording evidence SHALL be observed from committed
+For ordinary transitions, encoded Git metadata SHALL be observed from committed
 history and may be reported after the commit exists. Canonical state SHALL NOT
-be required to contain its own future commit ID or recording time. Historical
+be required to contain its own future commit ID or encoded timestamp. Historical
 genesis manifests SHALL NOT be mutated to append ordinary transition evidence,
 and genesis SHALL NOT be replayed as an ordinary acceptance route.
 
@@ -3225,11 +3249,11 @@ Accepted/Rejected displays SHALL use validated `decisionDate`. Derived question
 resolution SHALL use the current accepted resolver's decision date, exposed as
 `resolvedOn` (or `null` if unresolved), not timestamp-shaped `resolvedAt` or a
 fabricated compatibility instant. The real renderer, `--check`, and human/JSON
-queries SHALL agree. Explicitly labelled provenance output MAY show recording
-instants, but those SHALL NOT feed displayed or derived governance dates.
+queries SHALL agree. Explicitly labelled provenance output MAY show encoded Git
+timestamps, but those SHALL NOT feed displayed or derived governance dates.
 All existing non-authorizing query axes and validation requirements remain.
 
-#### Scenario: Recording latency cannot move a governance or resolution date
+#### Scenario: Git timestamp divergence cannot move a governance or resolution date
 
 - **GIVEN** the two positive historical cases and U7 resolved by ADR-0015
 - **WHEN** the renderer and query run on a mechanically valid isolated test copy
@@ -3248,7 +3272,7 @@ remain actual M at their existing archive roots; L2/L3 and L6 evidence identitie
 SHALL remain unchanged. No archive bytes or completion proof semantics change.
 
 The complete M audit remains a positive historical corpus: 21 Accepted, 21 exact
-transitions, 20 same-UTC-date recordings, ADR-0022's one divergence, zero Rejected
+transitions, 20 same-UTC-date committer timestamps, ADR-0022's one divergence, zero Rejected
 and zero missing objects. Audit at S SHALL additionally enumerate every later
 terminal decision; it SHALL NOT omit the accepted refinement to preserve an old
 count. Every affected identity/preimage SHALL be recomputed under later authority.

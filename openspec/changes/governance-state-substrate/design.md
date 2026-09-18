@@ -2215,16 +2215,16 @@ implement them in PR #124. Merging this planning proposal does neither.
 Only ADR acceptance/rejection changes shape: exactly
 `{transitionDigest, contentDigest, outcome, actor, decisionDate, authority, reviewedIdentity}`.
 All existing non-temporal types remain. `decisionDate` is a real calendar date
-under ADR-0023 §2, never an RFC 3339 instant. `at`, `recordedAt`, `authorAt`,
-unknown members, missing members, and date-or-instant compatibility branches
+under ADR-0023 §2, never an RFC 3339 instant. `at`, `gitCommitterAt`, `gitAuthorAt`,
+`recordedAt`, unknown members, missing members, and date-or-instant compatibility branches
 are refused in this envelope. Proposed ADRs retain `acceptance: null`;
 Superseded ADRs retain the immutable original Accepted evidence. Genesis,
 completion, withdrawal, and replacement envelopes keep their existing `at`.
 
 The shared model owns parsing, date agreement, provenance validation, digest
 projection, history immutability, and derived resolution dates. Git adapters
-only observe commit parents, message bytes, author/committer instants and tree
-bytes. Genesis orchestration, current/history CLIs, renderer and query consume
+only observe commit parents, message bytes, encoded author/committer timestamps
+and tree bytes. Genesis orchestration, current/history CLIs, renderer and query consume
 that model; the amendment does not create another semantic checker.
 
 ### D12.2 Separate source-manifest decision evidence
@@ -2239,7 +2239,7 @@ Each row has exactly:
 
 ```text
 adrId, decisionDate, actor, sources, transition,
-extractionRule, classification, recordingDateDiffers, disposition
+extractionRule, classification, committerUtcDateDiffers, disposition
 ```
 
 - `sources` is a nonempty set of closed
@@ -2251,29 +2251,42 @@ extractionRule, classification, recordingDateDiffers, disposition
   Include every applicable governed declaration at the common source snapshot,
   and the transition's declaration sources; no conflicting source may be omitted.
 - `transition` is exactly
-  `{identity, predecessorIdentity, contentDigest, messageSha256, authorAt, recordedAt}`.
+  `{identity, predecessorIdentity, contentDigest, messageSha256, gitAuthorAt, gitCommitterAt}`.
   Both identities use `{class: "local-git-commit", value: <full commit SHA>}`.
   The decided ADR path comes from the corresponding seed record; its bytes at
   `identity` must match `contentDigest`, that seed's decided-byte digest, and
   the common source snapshot. The predecessor observation must establish
   Proposed → Accepted/Rejected, not an already-decided occurrence. The whole
   transition message is byte-bound by `messageSha256`.
-- `authorAt` and `recordedAt` are the observed Git author and committer instants,
-  respectively, normalized losslessly to RFC 3339 UTC. They are never human
-  identity proof. `recordedAt` is never copied into `decisionDate`.
+- `gitAuthorAt` and `gitCommitterAt` are the author and committer timestamps
+  encoded in that exact Git object, respectively, normalized losslessly to
+  RFC 3339 UTC. Observing the object establishes these metadata values, not the
+  actual wall-clock creation, recording, receipt, publication or materialization
+  time. Git permits creator-supplied timestamps; they establish neither human
+  identity nor the human decision instant. Neither is copied into `decisionDate`.
+  No `recordedAt` alias or untyped actual-recording-time claim is admitted by
+  this closed row. Independent recording-system evidence needs its own explicit
+  provenance identity/rule outside this row; it is not inferred from Git metadata.
 - `extractionRule` is the literal `governed-decision-date-transition-v1`;
   `classification` is `locally-verified` only after all required objects and
   bytes are observed. A missing original object fails, even if a later main
   delivery exists. Acceptance evidence follows D6.2's object-availability rule,
   not the distinct archive-stage durability contract; no archive rule is relaxed.
-- `recordingDateDiffers` is recomputed from UTC date of `recordedAt` versus
+  Local verification establishes the identified objects/bytes and encoded
+  metadata, not independently verified recording time or human identity.
+- `committerUtcDateDiffers` is recomputed from UTC date of `gitCommitterAt` versus
   `decisionDate`, never trusted as a claim. If false, `disposition` is `null`.
   If true, it is exactly
-  `{kind, decisionDate, recordingDate, authority, rationale}`, with kind
-  `decision-date-recording-latency-v1`, the two observed dates, an existing typed
-  authority reference, and nonempty human-reviewed rationale. It must explain
+  `{kind, decisionDate, committerUtcDate, authority, rationale}`, with kind
+  `decision-date-git-committer-date-divergence-v1`, the governed decision date,
+  UTC date of the encoded committer timestamp, an existing typed authority
+  reference, and nonempty human-reviewed rationale. It must explain
   the agreeing human sources and the exact transition's explicit same-date
   declaration; it cannot repair missing/conflicting authoritative evidence.
+  This is a comparison fact, not proof of recording latency, actual chronology
+  or a late/early decision. Rationale must not infer such claims from Git
+  metadata alone. The generic rule admits either direction of date divergence;
+  independent GitHub evidence for ADR-0022 does not become a universal Git rule.
 
 The historical selection table in D12.3 is proposed as an extraction input,
 bound to this planning artifact's actual reviewed/merged revision when later
@@ -2301,9 +2314,10 @@ Audit all historical terminal ADRs before producing any candidate. For each:
 2. Select the exact reviewed transition, not the first Accepted occurrence on
    main, a squash delivery, archive event, or an arbitrary same-byte commit.
 3. Observe the expected lifecycle, exact decided bytes, predecessor, and
-   transition's explicit decision-date declaration. Observe both Git instants.
-4. Record the closed row and rule above. Same/different recording dates are both
-   admissible; every difference requires its explicit source-bound disposition.
+   transition's explicit decision-date declaration. Observe both encoded Git
+   timestamps.
+4. Record the closed row and rule above. Same/different Git committer UTC dates
+   are both admissible; every difference requires its explicit source-bound disposition.
 5. Collect the **complete** failure set. Missing human dates, conflicting
    declarations, unavailable transitions, byte mismatches, wrong selection,
    missing dispositions or unreadable observations block extraction/freeze.
@@ -2314,7 +2328,7 @@ The audited source is durable PR-2A M
 transition selections from that completed audit. The foundational range expands
 to eleven separately checked ADRs, not one synthetic decision.
 
-| ADR(s) | decisionDate | Original transition | recordedAt (committer UTC) |
+| ADR(s) | decisionDate | Original transition | gitCommitterAt (encoded committer timestamp, UTC) |
 | --- | --- | --- | --- |
 | ADR-0001–ADR-0011 | `2026-08-05` | `3bb454d5efc0ff9a7a4be834993863eff9fd2978` | `2026-08-05T23:15:25Z` |
 | ADR-0012 | `2026-08-06` | `05e88a4dfbfcf0e2c09ac3d2790cb62c6ff7d522` | `2026-08-06T05:25:13Z` |
@@ -2329,7 +2343,7 @@ to eleven separately checked ADRs, not one synthetic decision.
 | ADR-0022 | `2026-09-01` | `4334a7b040b14911b7b0894aeb14717b0418ee84` | `2026-09-02T08:03:21Z` |
 
 The positive corpus is **21 Accepted, 21 exact transitions, 20 same-date cases,
-one date/recording divergence, zero Rejected, zero missing transitions**.
+one decision-date / Git-committer-date divergence, zero Rejected, zero missing transitions**.
 ADR-0022 uses the disposition in ADR-0023's Context; its `decisionDate` stays
 September 1. Neither this table nor the count exempts later decisions from
 audit. Isolated Rejected fixtures prove the unobserved lifecycle branch.
@@ -2349,18 +2363,18 @@ rejection, including across supersession, independently of digest equality.
 It also preserves existing immutable evidence/source-manifest bindings. Test
 both unchanged and maliciously recomputed digests. Frozen candidate file hashes,
 manifest identity and freshness local-evidence inputs include the date and
-recording provenance even though the primitive/seed digest excludes the
+Git metadata provenance even though the primitive/seed digest excludes the
 attestation metadata. Recompute affected bindings only under later authority.
 
 Render Accepted/Rejected dates from validated `decisionDate`; derive query
 `resolvedOn` from the current accepted resolver's date, or `null` if unresolved.
 Remove timestamp-shaped `resolvedAt` from this derived-date output, without a
 midnight alias. Renderer `--check`, human explanations and JSON query output
-must agree. Recording provenance may appear only in explicitly labelled audit
+must agree. Git metadata provenance may appear only in explicitly labelled audit
 output, not as a source for Accepted/Rejected/U-resolution dates. No readiness
 predicate, current-clock gating, authorization outcome or other query axis changes.
 
-Post-genesis history obtains a new transition's recording provenance from the
+Post-genesis history obtains a new transition's encoded Git metadata from the
 evaluated Git revisions after those objects exist. It must not demand the
 containing commit ID inside that same state's bytes, mutate the historical
 genesis manifest to add ordinary transitions, or replay genesis as an ordinary

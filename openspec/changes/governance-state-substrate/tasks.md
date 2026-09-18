@@ -1806,16 +1806,18 @@ dropped when the temporal correction changes a shared rule.
 - [ ] **T.2 — Exact historical extraction and manifest validation.** Owners:
   6.1/6.3 and current entry-point 2.4. Existing genesis source helpers supply
   observations; the shared model owns D12's closed `decisionEvidence`, source
-  agreement, selection, disposition and complete-audit rules. Paths:
+  agreement, selection, disposition and complete-audit rules. Encoded
+  `gitAuthorAt`/`gitCommitterAt` and `committerUtcDateDiffers` must not be presented
+  as proof of actual recording time or latency. Paths:
   `scripts/governance/genesis/`, `scripts/governance/model/validate.mjs`, and
   `scripts/check-governance-state.mjs`; no wider scripts authority. Proof:
-  EX-G33–G35 and ADV-G101–G104/G107/G108/G109; no candidate emission on refusal.
+  EX-G33–G35 and ADV-G101–G104/G107/G108/G109/G113; no candidate emission on refusal.
 - [ ] **T.3 — History and non-self-reference.** Owner: 4.x. Paths:
   `scripts/governance/model/history.mjs`, rules-free
   `scripts/governance/history/` observations, and
   `scripts/check-governance-history.mjs`. Refuse changed historical dates and
   evidence even with recomputed digests; retain terminal acceptance through
-  supersession; observe ordinary recording events after the commit exists
+  supersession; observe encoded Git metadata after the commit exists
   without self-reference, genesis replay, or a new mutable authority. Proof:
   ADV-G105/G109/G112 and existing PR-2 two-revision obligations.
 - [ ] **T.4 — Date-precision projection/query.** Owners: 5.1/5.2. Paths:

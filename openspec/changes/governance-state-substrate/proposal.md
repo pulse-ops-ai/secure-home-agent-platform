@@ -13,12 +13,16 @@ silently replace the operative requirements elsewhere in this package.
 
 The historical audit at PR-2A merge
 `83e6cd8fa7d2d05ab246a39de039129b4056966d` contains 21 Accepted ADRs with exact
-transition objects: 20 recordings share the human date and ADR-0022's recording
-is the following UTC day. There are no Rejected ADRs or missing transitions.
+transition objects: 20 encoded committer timestamps share the human date and
+ADR-0022's encodes the following UTC day. There are no Rejected ADRs or missing
+transitions.
 The corpus disproves a general date-equality rule; ADR-0022 is a positive case,
 not an exception. The proposed ADR owns the rationale and exact historical
 examples; [design D12](design.md#d12-contingent-decision-date-amendment-adr-0023)
-owns the subordinate evidence/extraction plan.
+owns the subordinate evidence/extraction plan. `gitCommitterAt` is encoded Git
+metadata, not proof of actual recording time; `committerUtcDateDiffers` and the
+generic disposition describe date divergence, not proven recording latency.
+ADR-0022's separate GitHub evidence is case-specific, not a universal Git rule.
 
 This proposal changes only one new Proposed ADR, its minimal decision-index
 registration, and this change's five planning artifacts. It changes no accepted
