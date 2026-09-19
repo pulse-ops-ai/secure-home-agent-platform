@@ -1116,10 +1116,11 @@ in step E before any reconciliation or resumption.
 
 **Entry prerequisite for every task 6.1–6.8:** successful **merge** of PR-2A
 (`pr-2a-merged`), verified durable M, and a new exact-base owner authorization
-for PR #124. No pre-preparation candidate/source row is reusable. D6.5 fixes
-the common historical source snapshot to M and the L4/L5/L7 archive-stage
-identities to M with their exact destination scopes. Extraction runs from the
-authorized main revision containing M; the accepted schema stays unchanged.
+for PR #124. No pre-preparation candidate/source row is reusable. D6.5 originally
+bound the common historical snapshot and archive stages to M. Accepted ADR-0023
+and D12.5 now advance only the common source to exact post-bridge S under the
+current owner authorization. L4/L5/L7 retain M and their exact archive scopes.
+The authorized temporal schema correction is limited to D12/T below.
 
 - [ ] **6.1 Closed genesis source manifest**
   <!-- agent-task: 6.1 paths=scripts/governance/genesis/**,scripts/governance/model/validate.mjs,scripts/governance/model/canonical.mjs,tests/fixtures/governance/candidate/** checks=node,pytest risk=trust-critical prerequisites=4.2,pr-2a-merged -->

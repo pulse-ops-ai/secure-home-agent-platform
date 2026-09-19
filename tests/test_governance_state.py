@@ -4929,7 +4929,13 @@ def temporal_genesis_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     ]:
         write_state(root, prepared[key], "tests/fixtures/governance/candidate/" + name)
     git(root, "add", "-A")
-    git(root, "commit", "-qm", "isolated temporal TEST candidate, not a real freeze")
+    git(
+        root,
+        "commit",
+        "--allow-empty",
+        "-qm",
+        "isolated temporal TEST candidate, not a real freeze",
+    )
     state = install_test_genesis(root)
     commit_registry(root, state, "isolated temporal TEST genesis, never owner attestation")
     assert_valid(root, REGISTRY_PATH)
@@ -5770,10 +5776,13 @@ def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
     if case == "lifecycle":
         adr.write_text(adr.read_text().replace("**Status:** Proposed", "**Status:** Accepted", 1))
     elif case == "relationship":
-        adr.write_text(adr.read_text().replace("**Decides:** [U4]", "**Decides:** [U3]", 1))
+        text = adr.read_text()
+        old = "**Decides:** [U4](../architecture/unresolved-decisions.md#u4)"
+        assert old in text
+        adr.write_text(text.replace("U4", "U3").replace("#u4", "#u3"))
     elif case == "new-adr":
-        (root / "docs/decisions/ADR-0023-fixture-only.md").write_text(
-            "# ADR-0023: Fixture only\n\n- **Status:** Proposed\n- **Date:** 2026-09-16\n"
+        (root / "docs/decisions/ADR-0025-fixture-only.md").write_text(
+            "# ADR-0025: Fixture only\n\n- **Status:** Proposed\n- **Date:** 2026-09-20\n"
             "- **Closes:** no unresolved decision\n\n---\n\nNo real decision.\n"
         )
     elif case in {"yaml-consumer", "binary-consumer"}:
@@ -5804,7 +5813,9 @@ def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
         "HEAD",
     ],
 )
-def test_adv_g98_extraction_never_substitutes_a_branch_or_preparation_head(revision: str) -> None:
+def test_adv_g98_g110_extraction_never_substitutes_a_branch_or_preparation_head(
+    revision: str,
+) -> None:
     result = subprocess.run(
         [
             "node",
@@ -5819,7 +5830,7 @@ def test_adv_g98_extraction_never_substitutes_a_branch_or_preparation_head(revis
         text=True,
     )
     assert result.returncode == 1
-    assert "ADV-G98" in result.stderr
+    assert "ADV-G110" in result.stderr  # D12 now requires the post-bridge source, not just M.
     assert result.stdout == ""
 
 

@@ -9,20 +9,21 @@
 > Canonical state and PR-3 remain excluded. Historical D12/D13 headings remain
 > stable link anchors only; historical bridge evidence is unchanged.
 
-Technical design for the ADR-0021 governance-state substrate. This artifact
-defines **how** the accepted behavior will be implemented. It implements
-nothing, and no task in this change is executed.
+Technical design for the ADR-0021 governance-state substrate, partially refined
+by ADR-0023/ADR-0024. This artifact defines **how** accepted behavior is
+implemented; it grants no implementation authority. PR-2 execution is separately
+authorized by the exact-S owner instruction recorded in tasks.md.
 
-The PR-2 genesis amendment is limited to D6.5–D6.6c and their prerequisite,
+The historical PR #125 genesis amendment was limited to D6.5–D6.6c and their prerequisite,
 schema, digest, proof, and task references. It preserves the outer
 `genesisCompletion` envelope
 and D3.2a member canonicalization. Authority is issue #106 comment
 [#5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973);
-PR #124 remains frozen pending independent review and a separate implementation
-authorization refresh. This is a clarification of ADR-0021 §3D.1 and §7a,
+PR #124 then remained frozen pending independent review and a separate
+implementation authorization refresh. This was a clarification of ADR-0021 §3D.1 and §7a,
 not an ADR change.
 
-Owner supplement
+The historical owner supplement
 [#5653176749](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5653176749)
 authorizes only planning of D6.5's separately merged archive prerequisite.
 It authorizes no archive move and no PR #124 reconciliation or resumption.

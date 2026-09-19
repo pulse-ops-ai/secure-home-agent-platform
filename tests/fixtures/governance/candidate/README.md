@@ -29,6 +29,21 @@ temporal proof. Their new byte identities replace, rather than reinterpret,
 the old provisional hashes. Final identities and validation results are recorded
 in draft PR #124; independent review is still required.
 
+The byte freeze was committed at
+`70f609576f3b5f92c58e4fb7d795423bede5af77`. Later proof/status commits must
+preserve these members or explicitly refresh every affected binding:
+
+| Member | SHA-256 |
+| --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `133d91a6360f340c2d754dec0da36c8c122ca002c637f3700ec557d55c27a472` |
+| `consumers.json` | `a827e5e4ab941c66a801cac16ce29ca76e5a75cbcafd24c253ca236741ecde20` |
+
+The closed three-member bundle SHA-256 is
+`fe63c11298b3068cbb56d85c3a86819eb7d23c11ddd1de3956294601b0665df4`.
+Re-extraction at exact S reproduces all three members byte-for-byte. This is
+a content freeze for review, not independent approval or an owner attestation.
+
 The state deliberately has `attestations: {genesis: {}}` and no human completion
 envelope. **Full state validation must refuse this raw candidate.** Production
 entry points are proven with [isolated test envelopes](../genesis/README.md),
