@@ -1,6 +1,6 @@
 # Design: governance-state-substrate
 
-> **Contingent temporal amendment:** [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+> **Contingent temporal amendment:** [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
 > is Proposed. D12 below is non-operative until separate human acceptance; its
 > implementation additionally requires a later refreshed owner authorization.
 > ADR-0021's existing RFC 3339 rule remains operative while ADR-0023 is Proposed.
@@ -2210,6 +2210,11 @@ acceptance rule remains operative. Its separate acceptance would select these
 temporal rules; a later exact-base owner refresh is additionally required to
 implement them in PR #124. Merging this planning proposal does neither.
 
+**Acceptance-path clarification, itself Proposed:** D13 offers the bounded
+atomic ADR-0024 + ADR-0023 bridge under ADR-0021 §12. Nothing in D12 permits
+ADR-0023-only manual acceptance. D13 does not become operative by being merged
+as planning; its bootstrap-legality review and future joint owner act are required.
+
 ### D12.1 Closed evidence and shared ownership
 
 Only ADR acceptance/rejection changes shape: exactly
@@ -2400,3 +2405,191 @@ freeze/freshness evidence must then be rebuilt, never reused by semantic
 equivalence. This necessary source refresh changes no archive/disposition or
 historical completion proof semantics. No S is selected, no candidate is
 regenerated and no digest is updated in this proposal.
+
+Under proposed D13, the later bridge's actual durable main target is the exact
+post-acceptance S above; it contains BOTH newly Accepted decisions. This adds
+no new archive identity and selects no S in the current proposal.
+
+---
+
+## D13. Contingent one-shot bootstrap bridge (ADR-0024)
+
+**PROPOSED / NON-OPERATIVE. No bridge checker, receipt instance or acceptance
+is implemented here.** Proposed ADR-0024 owns the legality, exact scope and
+expiry. ADR-0021 §§7–7a/12 remain the operative boundary. This section cannot
+authorize its own use; independent review must affirm the exception-selection
+argument before a later explicit joint owner acceptance instruction.
+
+### D13.1 Closed identity and evidence contract
+
+The future acceptance-only PR may carry one immutable receipt at
+`openspec/changes/governance-state-substrate/bridge-evidence.json` and a human
+verification/source record at `bridge-verification.md` in that same directory.
+Neither exists in this proposal. These are historical evidence, not a registry,
+reusable authorization file, candidate seed or implementation mechanism.
+
+The receipt has exactly `{preimage, bridgeDigest, acceptances}`. Its preimage
+has exactly these keys, in this order:
+
+```text
+contract, base, temporalProposalLineage, subjects
+```
+
+- `contract` is the literal `pre-registry-adr-pair-v1`, never an alias/version
+  selector admitting another bridge. No other value is supported by this exception.
+- `base` is the exact full locally observed commit identity for live main B,
+  using D2.1's `{class: "local-git-commit", value}` shape, not a branch name.
+- `temporalProposalLineage` is exactly `{reviewedHead, mergedMain}` with full
+  local commit identities `a443e192ee02e66c9fbaefefbadfbb877650ea32` and
+  `5815094efcc85164bf9bf95fd0cda03192ebb7dc`, respectively. Compare actual
+  ADR-0023 bytes, not the identity strings alone. The rename must already be in B.
+- `subjects` is an entity set of exactly two rows, sorted by `id` ascending:
+  ADR-0023 and ADR-0024. Each row is exactly
+  `{id, path, proposalIdentity, proposalContentDigest, from, to, contentDigest}`.
+  `path` is its final canonical ADR filename; `proposalIdentity` is its exact
+  reviewed local commit or reviewed `content-sha256` identity under D2.1.
+  `proposalContentDigest` hashes the proposal bytes at B. `from` is `Proposed`;
+  `to` is `Accepted`; `contentDigest` hashes the final Accepted bytes.
+  ADR-0023's proposal hash is
+  `86c118c26a1632f6448bf2ce54d262c67ff1d25f7768df0fc90177ee2c38a7fb`.
+  ADR-0024's future reviewed hash is not invented or embedded in its own ADR.
+
+`bridgeDigest` is SHA-256 of the canonical preimage: D3.1 UTF-8/LF JSON,
+two-space indent, the field orders above, one trailing LF, no duplicate or
+unknown keys, no noncanonical encoding. Nested identity keys are `class, value`;
+lineage keys and subject keys use their declared order. SHA-256 values are
+64 lowercase hex; commit identities are full commit hashes, never abbreviations.
+
+For each subject, `transitionDigest` hashes this ordered canonical preimage:
+
+```text
+{contract: "pre-registry-adr-pair-subject-v1", bridgeDigest,
+ subject, from: "Proposed", to: "Accepted", contentDigest}
+```
+
+This explicitly domain-separated pre-registry digest is **not** D3.3's ordinary
+registry transition digest. No prior/target registry digests are fabricated,
+and `priorStateDigest: null` is not a bridge/genesis shortcut. The exception
+changes only this pair's carrier/preimage; all ordinary digest semantics remain.
+
+`acceptances` is an entity set sorted by `subject`, exactly those two subjects,
+with each row exactly
+`{subject, transitionDigest, contentDigest, outcome, actor, at, authority, evidenceIdentity}`.
+`outcome` is `accepted`; `actor` is the actual repository owner; `at` is the
+exact RFC 3339 UTC timestamp associated with that subject's explicit acceptance
+in the controlling evidence source, preserving available precision.
+`authority` uses an existing D2.1 typed authority reference, such as the actual
+`task-contract`, never an invented GitHub comment. `evidenceIdentity` is an
+exact `content-sha256` binding to the retained human instruction and associated
+timestamp evidence. Missing source bytes/locators or ambiguous attribution fail
+the separate manual provenance gate even if the JSON shape is valid.
+
+Both envelopes use pre-transition ADR-0021 §7a time semantics, not D12's future
+date-only schema. A single joint instruction may support both distinct rows;
+two digest-bound rows are still required. Prior ADR-0023-only acceptance,
+proposal authorization and independent review approval cannot supply either
+missing joint instruction. The owner explicitly declares each governed date
+for the final header and INDEX record. Date precision does not manufacture `at`.
+
+Human envelopes, actor/time/authority and evidence source are excluded from
+the bridge/subject causal preimages. The final receipt bytes and source evidence
+are separately pinned by the acceptance review and become immutable at S.
+The accepted ADR content digests still bind all their exact final bytes,
+including acceptance metadata; excluding an envelope never permits mutation.
+No receipt self-digest or containing commit/tree identity appears inside itself.
+Final candidate revision/tree and receipt hashes are recorded externally after
+those bytes exist; neither accepted ADR contains its own future identity.
+
+### D13.2 Pair process, freshness and complete diff proof
+
+Future process proof is owned by a separately authorized acceptance-only PR,
+not by PR #124 or this planning proposal. Before the owner act, review the
+Proposed ADR-0024 legality argument and exact proposal/accepted-byte candidates.
+Record exact then-current main B before creating the acceptance PR; it must
+contain this proposal's reviewed landing, both Proposed ADRs and the rename.
+After the explicit joint act, assemble the receipt, structured INDEX records
+and required manual mirrors in one atomic candidate. Independent final review
+then binds the completed candidate revision/tree and all evidence.
+
+The verification record must enumerate the exact base/target path set and all
+ADR lifecycles, U/gate states and landing/authority facts. Accepted ADR bytes and
+existing historical acceptance records must be identical; the only lifecycle
+deltas are the two subject rows. Review every changed hunk: path allowlisting
+alone cannot prove that a planning or README edit hides no new authority.
+Only lifecycle metadata/status sentences falsified by acceptance may change in
+the two ADR bodies, with an exact before/after allowed-delta manifest. No semantic
+rewrite is admitted by stripping arbitrary paragraphs before hashing.
+
+Bind and verify the existing PR #124 remote head
+`dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e`, local reconciliation head
+`bffc11c6c1f93b57ada459b04cfcbdad1301ef19`, complete frozen implementation diff
+and candidate member bytes, plus PR #101 head
+`559d78cc32cc40f8eaa7aba15a961554f3033b43`. Preserve draft/paused state and
+record the observations and their limitations; an inaccessible local candidate
+cannot be declared unchanged from remote head equality. No frozen digest is
+regenerated. The bridge excludes executable governance code, CI/dependency
+changes, new authority primitives, canonical state and real genesis attestations.
+
+The complete manual-mirror inventory is reviewed against the base, with
+`docs/decisions/INDEX.md`, root `AGENTS.md`, `docs/AGENTS.md` and `docs/README.md`
+as known consumers, not a claim that no others exist. Reconcile only current
+status and the planning acceptance prerequisites; never edit historical records
+or activate generated projections. Both Accepted records explicitly confer no
+implementation authority. T.1–T.7 remain unchecked and unexecuted.
+
+Re-read live main and candidate immediately before merge. If either differs
+from the authorized/reviewed identities, REFUSE, no rebase/refresh by inference.
+Verify `governance/state.json` is absent in B and target and has never appeared
+in preceding durable main history; missing/unreadable history is REFUSE.
+Similarly prove no earlier singleton/pair consumption. All ADR-0024 §5
+preconditions are conjunctive, including actual human provenance review.
+
+Every new commit made reachable on main must preserve the pair invariant:
+neither can be accepted earlier than the other. The single pair-changing
+candidate commit must be retained in S's durable ancestry for original-transition
+replay; a merge wrapper with the same tree is not a second use. The actual main
+target must have exactly the reviewed candidate tree and the authorized B as
+its preceding main state. Do not silently squash away the bound original pair
+object. Record original transition identity and actual main S **after** merge
+in external/post-transition evidence, not inside either identity's own bytes.
+
+### D13.3 One-shot expiry and no reset
+
+Expiry is derived from durable history: the legal pair at S consumes the bridge
+as it selects it. There is no enabled/remaining-use field. Any subsequent
+pre-registry acceptance under ADR-0024 is refused, even after a revert, attempted
+ADR deletion, bridge alias/version, or changed subject IDs. Canonical state
+appearing first makes the bridge unusable permanently, not merely while that
+file exists. An earlier singleton is an illegal history, not half a remaining
+allowance. A failed attempt, stale base or changed reviewed bytes grants no
+retry authority; re-establishing authority requires new reviewed architecture.
+
+### D13.4 Historical retention and PR-2 handoff
+
+Record exact resulting `refs/heads/main` as S and prove expiry. Under this
+proposed bridge S is D12.5's common source snapshot, not a later arbitrarily
+chosen main, candidate head or synthetic merge. The future PR #124 owner
+authorization must name exact S. If main changes before that handoff, STOP
+rather than silently substituting another source or refreshing authority.
+
+Later separately authorized PR-2 observes both Accepted ADRs, the exact original
+pair transition, both governed decision dates, the complete bridge receipt and
+its human evidence. Retain the original RFC 3339 envelopes as source evidence;
+the canonical ADR evidence uses D12 `decisionDate` after the temporal decision
+is operative. The receipt is not accepted as an ordinary registry transition
+digest or a real genesis attestation. Preserve non-self-reference, all-ADR audit,
+history immutability, full source/freshness bindings and the raw unattested
+candidate's required refusal. No bridge evidence erases ADR-0022's historical
+process inconsistency: require a separate explicit source/provenance disposition
+where genesis needs it, never a claim of retrospective authorization.
+
+Only the common source snapshot becomes S. L4/L5/L7 archived-package identities
+remain exact M `83e6cd8fa7d2d05ab246a39de039129b4056966d` at their exact roots;
+L2/L3 and L6 bindings are unchanged. The historical M temporal corpus stays
+bound to M; the S audit enumerates every terminal decision including both new
+members. No source row, candidate or digest is refreshed here or in the bridge
+acceptance-only PR. Under later PR-2 authority, retain/revalidate delivered
+4.x/5.x behavior, complete T.1–T.7 and its full proof, regenerate/freeze, then
+obtain independent PR-2 review and merge. PR-3 requires its own later authority,
+real owner ceremony and atomic canonical activation. ADR-0020 and PR #101 wait
+for the canonical mechanism and their own authority, never bridge precedent.

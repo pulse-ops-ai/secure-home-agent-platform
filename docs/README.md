@@ -34,7 +34,7 @@ All governed documentation for this repository.
 - **ADR-0001 through ADR-0019, ADR-0021, and ADR-0022 are `Accepted`** and
   immutable (foundational set 2026-08-05; ADR-0012 2026-08-06; ADR-0017 and
   ADR-0018 2026-08-17; ADR-0019 2026-08-21; ADR-0021 2026-08-28; ADR-0022
-  2026-09-01). ADR-0020 alone remains `Proposed` and non-operative. A new ADR
+  2026-09-01). ADR-0020, ADR-0023 and ADR-0024 remain `Proposed` and non-operative. A new ADR
   starts `Proposed`; acceptance is a human decision, never an agent's.
 - **Accepting ADR-0022 authorized no implementation.** TypeScript remains 6.0.3
   and ESLint remains installed and current. Its parity foundation (PR-B) and

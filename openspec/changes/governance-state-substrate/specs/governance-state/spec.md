@@ -1,6 +1,6 @@
 # governance-state Specification Delta
 
-> **Temporal amendment status:** [ADR-0023](../../../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+> **Temporal amendment status:** [ADR-0023](../../../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
 > is Proposed and non-operative. The expressly contingent requirements appended
 > below do not replace ADR-0021's operative RFC 3339 acceptance contract while
 > it is Proposed. Separate human acceptance and a later refreshed owner
@@ -3287,3 +3287,139 @@ checks; only isolated copies use test envelopes, never agent/owner equivalence.
 - **THEN** it includes all decisions at S and preserves archive-stage M; omitted
   later decisions, pre-amendment candidate reuse, or rebinding archive identity
   to S are refused
+
+### Requirement: Proposed bootstrap bridge cannot authorize its own use
+
+The following requirements describe Proposed ADR-0024 and design D13 only.
+They SHALL remain non-operative while the proposal is merely authored, reviewed
+or merged. ADR-0021 §§7–7a/12 SHALL remain the governing boundary. Independent
+review SHALL explicitly evaluate §12's authority to define and atomically
+select/consume this bounded exception before any owner bridge-acceptance act.
+OpenSpec, review approval and the proposal's existence SHALL NOT supply that act.
+This proposal SHALL NOT accept either ADR, implement a bridge checker, resume
+PR #124, mutate candidate bytes/digests, create canonical state or touch PR #101.
+
+#### Scenario: Approval of the proposal supplies no acceptance envelope
+
+- **GIVEN** both ADRs remain Proposed and this proposal passes checks or merges
+- **WHEN** a process attempts either acceptance from that event alone
+- **THEN** it refuses; a future exact joint owner act and the reviewed legality
+  argument are required, not acceptance of ADR-0024 first as a separate step
+
+### Requirement: The sole proposed bridge is one exact atomic pair
+
+If separately selected under the reviewed exception, `pre-registry-adr-pair-v1`
+SHALL accept exactly ADR-0023 and ADR-0024 in one resulting main revision with
+canonical state absent in base and target. Both SHALL be Proposed at exact
+reviewed bytes in exact live owner-authorized B. D13.1's closed receipt SHALL
+bind B, both proposal/accepted identities and the PR #128 lineage:
+`a443e192ee02e66c9fbaefefbadfbb877650ea32` reviewed,
+`5815094efcc85164bf9bf95fd0cda03192ebb7dc` durably merged. The ADR-0023 filename
+cleanup SHALL precede accepted-byte freezing and preserve its proposal content.
+No singleton, third subject, landing, U4/GATE-U4 or authorization transition
+SHALL be admitted. No intermediate main/reachable revision SHALL split the pair.
+
+#### Scenario: Exactly the pair is the positive control
+
+- **GIVEN** the bound proposals, fresh B, both explicit owner envelopes, complete
+  D13 receipt, matching mirrors and all unchanged-boundary evidence
+- **WHEN** later authorized process verification evaluates the exact atomic pair
+- **THEN** it admits only that pair, preserves canonical absence and establishes
+  immediate permanent expiry; synthetic tests do not perform human acceptance
+
+#### Scenario: Matching endpoints do not excuse a split or widened transition
+
+- **GIVEN** a candidate accepting only one member, another adding ADR-0020 or a
+  third ADR, or a final pair reached through two separate main transitions
+- **WHEN** complete delta and history verification runs
+- **THEN** every candidate is refused, even if its final summary says both
+  intended ADRs are Accepted
+
+### Requirement: Both bridge envelopes preserve pre-transition human time evidence
+
+Both subject envelopes SHALL use ADR-0021 §7a's pre-transition RFC 3339 `at`
+requirement, with D13.1's explicitly domain-separated bridge/subject digests.
+Neither SHALL use the date-only rule that becomes operative after the pair.
+Exact source-backed owner acceptance SHALL cover both final byte candidates;
+the prior ADR-0023-only instruction SHALL NOT be reused as joint acceptance.
+No Git/branch/PR/review/CI/merge timestamp or fabricated time SHALL substitute.
+
+Both original envelopes and sources SHALL remain immutable historical evidence
+after ADR-0023 takes effect. Later authorized genesis SHALL use declared human
+`decisionDate` values, retain both RFC 3339 envelopes in provenance and not add
+a canonical timestamp primitive. It SHALL NOT require UTC-date equality or
+manufacture dates from `at`. D13's receipt SHALL NOT masquerade as an ordinary
+registry transition or real genesis. Human envelopes SHALL be excluded from
+their own causal preimages; their full bytes SHALL remain separately review-bound.
+No ADR/receipt SHALL be required to contain its own future commit/tree/digest.
+
+#### Scenario: Missing or substituted evidence refuses the complete pair
+
+- **GIVEN** a missing member envelope, ambiguous timestamp/source, wrong digest,
+  unknown field, fabricated time, or a D12 date-only bridge envelope
+- **WHEN** receipt checks and independent provenance review run
+- **THEN** the pair is refused with no partial acceptance and no inferred owner act
+
+### Requirement: All bridge preconditions are conjunctive and freshness-bound
+
+The future process SHALL verify every ADR-0024 §5 / D13.2 condition: fresh live
+B and unchanged reviewed candidate; exact proposal/accepted bytes; unchanged
+ADR-0021 and all Accepted history; ADR-0020 Proposed, U4 open, GATE-U4 unsatisfied;
+canonical state absent with no prior activation; PR #124 head, complete paused
+implementation and candidate unchanged; PR #101 unchanged; two explicit owner
+envelopes; exact pair only; complete manual-mirror agreement; no executable,
+CI/dependency, candidate or real-genesis changes; replayable exact transition;
+and no earlier consumption. Missing, ambiguous or mismatched observations SHALL
+REFUSE, including inaccessible local candidate bytes or incomplete history.
+
+#### Scenario: Drift or a hidden implementation edit invalidates the candidate
+
+- **GIVEN** moved live main, changed reviewed bytes for either ADR, a stale
+  mirror, mutated candidate/implementation or a modified Accepted ADR
+- **WHEN** preparation or pre-merge freshness/scope checks run
+- **THEN** they refuse, even with recomputed digests; no inferred retry or rebase
+  supplies new authority
+
+### Requirement: Bridge expiry is structural and survives rollback
+
+The one legal target SHALL consume the exception as both ADRs become Accepted.
+No mutable enabled/remaining-use field SHALL exist. Every subsequent use,
+singleton-history repair, rollback, evidence deletion, alias/version or subject
+substitution under ADR-0024 SHALL be refused. Canonical state appearing first
+SHALL permanently disable this path, even if later deleted. A stale identity or
+failed attempt SHALL grant no fallback; new reviewed governance architecture
+is required to re-establish authority. ADR-0024 SHALL NOT authorize any future
+pre-registry acceptance or become a precedent for ADR-0020.
+
+#### Scenario: Current absence cannot reset a consumed bridge
+
+- **GIVEN** durable history containing the pair or canonical state, followed by
+  a revert restoring Proposed headers and deleting current evidence/state
+- **WHEN** a caller invokes any bridge alias or attempts the pair again
+- **THEN** history verification refuses; the apparent base cannot reset expiry
+
+### Requirement: Post-bridge S does not rebind archives or legitimize history
+
+After separate final review and merge, actual resulting main SHALL be recorded
+as S and expiry verified. The original pair transition SHALL remain replayable
+in S's durable history. Only a NEW owner PR #124 authorization against exact S
+SHALL release reconciliation/T work; the bridge supplies no implementation
+authority. D12.5's common source SHALL use S and include both Accepted decisions.
+Archive-stage M `83e6cd8fa7d2d05ab246a39de039129b4056966d` for L4/L5/L7 and all
+other existing archive/spike bindings SHALL remain unchanged. This proposal and
+the future acceptance-only PR SHALL NOT regenerate a candidate or select S early.
+
+ADR-0022 SHALL remain immutable historical evidence of the bootstrap process
+inconsistency, not precedent or retroactive authorization. Any necessary
+historical-process disposition SHALL be explicit source/provenance evidence.
+PR-2 reconciliation, full audit/proof, candidate regeneration/freeze and review/
+merge SHALL precede separately authorized PR-3 atomic activation. ADR-0020
+SHALL remain Proposed until the canonical mechanism and its own authority exist.
+
+#### Scenario: A source label cannot move archive identity or authorize PR-2
+
+- **GIVEN** a candidate/synthetic/pre-bridge S, an archive rebound from M to S,
+  missing new decisions, or a bridge cited as PR-2 authority/ADR-0022 precedent
+- **WHEN** the proposed handoff and later authorized genesis review run
+- **THEN** they refuse; only actual bridge main S, unchanged archive bindings,
+  honest historical disposition and separate owner implementation authority suffice
