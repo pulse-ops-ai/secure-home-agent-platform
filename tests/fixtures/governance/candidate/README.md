@@ -29,20 +29,37 @@ temporal proof. Their new byte identities replace, rather than reinterpret,
 the old provisional hashes. Final identities and validation results are recorded
 in draft PR #124; independent review is still required.
 
-The byte freeze was committed at
-`70f609576f3b5f92c58e4fb7d795423bede5af77`. Later proof/status commits must
-preserve these members or explicitly refresh every affected binding:
+The final review bundle below supersedes the intermediate freeze at
+`70f609576f3b5f92c58e4fb7d795423bede5af77`. Its complete five-file planning
+preparation checkpoint is `d2763e66253599b35a3d1bf4c8d71252d54845d7`;
+this binds implementation/status bytes without replacing source S or archive M.
+The final containing head is recorded externally in PR #124, not inside its
+own preimage. Later proof/status commits must preserve these members or
+explicitly refresh every affected binding:
 
 | Member | SHA-256 |
 | --- | --- |
 | `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
-| `source-manifest.json` | `133d91a6360f340c2d754dec0da36c8c122ca002c637f3700ec557d55c27a472` |
+| `source-manifest.json` | `2055e83e8868dd03ac841dc15988020c34d6b64126c6c6c0c7eda04a9c26dac0` |
 | `consumers.json` | `a827e5e4ab941c66a801cac16ce29ca76e5a75cbcafd24c253ca236741ecde20` |
 
 The closed three-member bundle SHA-256 is
-`fe63c11298b3068cbb56d85c3a86819eb7d23c11ddd1de3956294601b0665df4`.
-Re-extraction at exact S reproduces all three members byte-for-byte. This is
-a content freeze for review, not independent approval or an owner attestation.
+`63612330004b76b8033ac2970f999fe47a4212c3f7848dff2966ef5d4b6b7419`.
+Re-extraction at exact S and the explicit preparation checkpoint reproduces
+all three members byte-for-byte, including after a later proof commit:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source d2763e66253599b35a3d1bf4c8d71252d54845d7
+```
+
+This prints JSON and writes nothing. It is a content freeze for review, not
+independent approval or an owner attestation. The complete governance state/audit
+suite passed 433 tests from zero before this final refresh; exact-final-head
+aggregate and hosted CI evidence is recorded in PR #124. T.7 independent review
+remains a separate, unperformed act.
 
 The state deliberately has `attestations: {genesis: {}}` and no human completion
 envelope. **Full state validation must refuse this raw candidate.** Production

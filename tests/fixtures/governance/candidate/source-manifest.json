@@ -1697,6 +1697,36 @@
       "revision": "c82fda72927464d813ec769aee53f4079ebe3b20"
     },
     {
+      "blobOid": "f902f83855f5908e9c919035f0b283751d52ef1a",
+      "contentSha256": "62cd85a529f968c210f6e4120c07057f3b3c582bae1808e1a780438f1d92c679",
+      "path": "openspec/changes/governance-state-substrate/assurance.md",
+      "revision": "d2763e66253599b35a3d1bf4c8d71252d54845d7"
+    },
+    {
+      "blobOid": "49719364d6cb34fdc0fa7f6540c76b18da85b94e",
+      "contentSha256": "de063498e2dec6fb6e401db75f76407bf8266ccab4c9bb57a0f462d090e71bf4",
+      "path": "openspec/changes/governance-state-substrate/design.md",
+      "revision": "d2763e66253599b35a3d1bf4c8d71252d54845d7"
+    },
+    {
+      "blobOid": "685e5342c83910ad80852921617b8d53b79497dd",
+      "contentSha256": "8231e319da209d5ce62d1dd02df9033ad46a73d378541a85c2a2c1f86721bdf4",
+      "path": "openspec/changes/governance-state-substrate/proposal.md",
+      "revision": "d2763e66253599b35a3d1bf4c8d71252d54845d7"
+    },
+    {
+      "blobOid": "33946f971e0a983c36bd652cd60d4d870f65e1e0",
+      "contentSha256": "e374fce8c433ff67deef902026c0c1a6f878228c3728afef3ccfa07983f1c3be",
+      "path": "openspec/changes/governance-state-substrate/specs/governance-state/spec.md",
+      "revision": "d2763e66253599b35a3d1bf4c8d71252d54845d7"
+    },
+    {
+      "blobOid": "6ea628a4e52e92c48c16a84d845298ca317d3f3f",
+      "contentSha256": "50c29eebabd64d53d46dbac90eea1433072e14f8fdeb0addf3af610dd3ec2599",
+      "path": "openspec/changes/governance-state-substrate/tasks.md",
+      "revision": "d2763e66253599b35a3d1bf4c8d71252d54845d7"
+    },
+    {
       "blobOid": "72d4247b21acb3276b22d751cadd5be2c237f4a2",
       "contentSha256": "ab10d076807d61c8a05acaac55846b7972539295bd7bc2749da0c6bca00cada2",
       "path": "openspec/changes/governance-state-substrate/assurance.md",
