@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,6 +22,20 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHECKER = REPOSITORY_ROOT / "scripts/check-governance-state.mjs"
 FIXTURE_ROOT = REPOSITORY_ROOT / "tests/fixtures/governance/current"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def historical_objects() -> None:
+    subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "tests/fixtures/governance/genesis/objects.mjs"),
+            str(REPOSITORY_ROOT),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def copy_fixture(tmp_path: Path) -> Path:
@@ -129,7 +144,9 @@ def add_landing(
     return landing
 
 
-def bind_acceptance_digest(root: Path, state: dict[str, Any], index: int) -> dict[str, Any]:
+def bind_acceptance_digest(
+    root: Path, state: dict[str, Any], index: int, path: str = "state.json"
+) -> dict[str, Any]:
     digest_script = """
 import fs from 'node:fs'
 import { acceptanceDigest } from './scripts/governance/model/index.mjs'
@@ -148,7 +165,7 @@ process.stdout.write(JSON.stringify(state))
         env={**os.environ, "ADR_INDEX": str(index)},
     )
     updated_state = cast(dict[str, Any], json.loads(updated.stdout))
-    write_state(root, updated_state)
+    write_state(root, updated_state, path)
     return updated_state
 
 
@@ -172,6 +189,7 @@ def accepted_state(root: Path, question_ids: list[str]) -> dict[str, Any]:
     )
     document.write_text(
         document.read_text(encoding="utf-8").replace("Proposed", "Accepted", 1)
+        + "\n- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
         + f"\n{relationship_header}\n",
         encoding="utf-8",
     )
@@ -185,7 +203,7 @@ def accepted_state(root: Path, question_ids: list[str]) -> dict[str, Any]:
             "value": "1" * 40,
         },
         "actor": "@owner",
-        "at": "2026-08-30T12:00:00Z",
+        "decisionDate": "2026-08-30",
         "outcome": "accepted",
         "authority": {
             "type": "github-issue",
@@ -286,7 +304,9 @@ process.stdout.write(JSON.stringify(state))
     return updated_state
 
 
-def bind_completion_digest(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+def bind_completion_digest(
+    root: Path, state: dict[str, Any], path: str = "state.json"
+) -> dict[str, Any]:
     digest_script = """
 import fs from 'node:fs'
 import { completionDigest } from './scripts/governance/model/index.mjs'
@@ -307,11 +327,13 @@ process.stdout.write(JSON.stringify(state))
         check=True,
     )
     updated_state = cast(dict[str, Any], json.loads(updated.stdout))
-    write_state(root, updated_state)
+    write_state(root, updated_state, path)
     return updated_state
 
 
-def bind_withdrawal_digest(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+def bind_withdrawal_digest(
+    root: Path, state: dict[str, Any], path: str = "state.json"
+) -> dict[str, Any]:
     digest_script = """
 import fs from 'node:fs'
 import { withdrawalDigest } from './scripts/governance/model/index.mjs'
@@ -332,7 +354,7 @@ process.stdout.write(JSON.stringify(state))
         check=True,
     )
     updated_state = cast(dict[str, Any], json.loads(updated.stdout))
-    write_state(root, updated_state)
+    write_state(root, updated_state, path)
     return updated_state
 
 
@@ -437,7 +459,7 @@ def build_archived_repository(
     """Active package committed, then moved to the archive."""
     git(root, "init", "-q", "-b", "main")
     git(root, "add", "-A")
-    git(root, "commit", "-qm", "fixture base")
+    git(root, "commit", "-q", "--allow-empty", "-m", "fixture base")
 
     active = root / ACTIVE_ROOT
     for relative in [*PLANNING_MEMBERS, *NON_PLANNING_MEMBERS]:
@@ -538,10 +560,11 @@ def complete_state(
     reviewed_form: str = "content",
     archived_overrides: dict[str, Any] | None = None,
     built: dict[str, Any] | None = None,
+    path: str = "state.json",
     **build_kwargs: Any,
 ) -> dict[str, Any]:
     built = built if built is not None else build_archived_repository(root, **build_kwargs)
-    state = load_state(root)
+    state = load_state(root, path)
     landing = state["landings"][0]
     artifact_path = state["adrs"][0]["path"]
     artifact_digest = hashlib.sha256((root / artifact_path).read_bytes()).hexdigest()
@@ -573,12 +596,12 @@ def complete_state(
             },
         },
     }
-    write_state(root, state)
-    return bind_completion_digest(root, state)
+    write_state(root, state, path)
+    return bind_completion_digest(root, state, path)
 
 
-def withdrawn_state(root: Path) -> dict[str, Any]:
-    state = load_state(root)
+def withdrawn_state(root: Path, path: str = "state.json") -> dict[str, Any]:
+    state = load_state(root, path)
     landing = state["landings"][0]
     artifact_path = state["adrs"][0]["path"]
     artifact_digest = hashlib.sha256((root / artifact_path).read_bytes()).hexdigest()
@@ -607,8 +630,8 @@ def withdrawn_state(root: Path) -> dict[str, Any]:
             },
         },
     }
-    write_state(root, state)
-    return bind_withdrawal_digest(root, state)
+    write_state(root, state, path)
+    return bind_withdrawal_digest(root, state, path)
 
 
 # The spike evidence root is a REAL local commit.
@@ -927,7 +950,9 @@ def test_two_current_accepted_resolvers_are_refused(tmp_path: Path) -> None:
     second_document = root / "docs/decisions/ADR-0002.md"
     second_document.parent.mkdir(parents=True, exist_ok=True)
     second_document.write_text(
-        "# Second fixture\n\n- **Status:** Accepted\n- **Closes:** [U4](../unresolved.md#u4)\n",
+        "# ADR-0002: Second fixture\n\n- **Status:** Accepted\n"
+        "- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
+        "- **Closes:** [U4](../unresolved.md#u4)\n",
         encoding="utf-8",
     )
     second = {
@@ -946,8 +971,8 @@ def test_two_current_accepted_resolvers_are_refused(tmp_path: Path) -> None:
                 "value": "2" * 40,
             },
             "actor": "@owner",
-            "at": "2026-08-30T12:00:00Z",
             "outcome": "accepted",
+            "decisionDate": "2026-08-30",
             "authority": {
                 "type": "github-issue",
                 "repository": "pulse-ops-ai/secure-home-agent-platform",
@@ -1455,7 +1480,25 @@ def test_attestation_envelope_is_excluded_from_primitive_digest(tmp_path: Path) 
     before = assert_valid(root)["digests"]
     state["adrs"][0]["acceptance"]["actor"] = "@different-owner"
     write_state(root, state)
-    after = assert_valid(root)["digests"]
+    # Digest invariance is not permission to mutate governed evidence.
+    assert_refused(root, "ADV-G99")
+    result = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest, relationshipDigest} "
+            "from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs'; const s=JSON.parse(fs.readFileSync(0,'utf8'));"
+            "console.log(JSON.stringify({primitiveDigest:primitiveDigest(s),relationshipDigest:relationshipDigest(s)}))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    after = json.loads(result.stdout)
     assert after == before
 
 
@@ -2669,7 +2712,8 @@ def test_f16_a_resolved_question_names_its_acceptance_date(tmp_path: Path) -> No
     question = payload["derived"]["questions"]["U4"]
     assert question["resolved"] is True
     assert question["resolver"] == "ADR-0001"
-    assert question["resolvedAt"] == "2026-08-30T12:00:00Z", question
+    assert question["resolvedOn"] == "2026-08-30", question
+    assert "resolvedAt" not in question
 
 
 def test_f13_the_extraction_preserved_the_review_gate_answer(tmp_path: Path) -> None:
@@ -2911,7 +2955,7 @@ def test_p2_1_malformed_acceptance_at_does_not_hide_wrong_accepted_bytes(
     for index, malformed in enumerate(MALFORMED_INSTANTS):
         root = copy_fixture(tmp_path / f"acceptance-{index}")
         state = accepted_state(root, ["U4"])
-        state["adrs"][0]["acceptance"]["at"] = malformed
+        state["adrs"][0]["acceptance"]["decisionDate"] = malformed
         state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
         write_state(root, state)
         # ADV-G02 for the timestamp AND ADV-G04 for the accepted document bytes.
@@ -2924,12 +2968,13 @@ def test_p2_1_a_well_typed_but_invalid_acceptance_at_also_reports_both(
     """Not merely the type test: a string that is not an instant behaves the same."""
     root = copy_fixture(tmp_path)
     state = accepted_state(root, ["U4"])
-    state["adrs"][0]["acceptance"]["at"] = "2026-13-45T99:99:99Z"
+    state["adrs"][0]["acceptance"]["decisionDate"] = "2026-13-45T99:99:99Z"
     state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
     write_state(root, state)
     payload = assert_refused(root, "ADV-G02", "ADV-G04")
     assert any(
-        problem["path"].endswith(".acceptance.at") and "RFC 3339" in problem["message"]
+        problem["path"].endswith(".acceptance.decisionDate")
+        and "calendar date" in problem["message"]
         for problem in payload["problems"]
     ), payload
 
@@ -3457,3 +3502,3461 @@ def test_p2_2_the_completion_digest_binds_the_reviewed_delivery_branch(
     candidate = json.loads(json.dumps(landing))
     candidate["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["bundleSha256"] = "4" * 64
     assert completion_digest_of(candidate) != before
+
+
+# ===========================================================================
+# PR-2 · Task 4 — two-revision history validation
+#
+# Every case below runs the real `check-governance-history.mjs` against a real
+# Git repository. A history rule proven against a Python reimplementation would
+# prove that the reimplementation works.
+# ===========================================================================
+
+HISTORY_CHECKER = REPOSITORY_ROOT / "scripts/check-governance-history.mjs"
+RENDERER = REPOSITORY_ROOT / "scripts/render-governance-state.mjs"
+QUERY = REPOSITORY_ROOT / "scripts/query-governance-state.mjs"
+
+#: Inside a throwaway fixture repository only. The prohibition this landing is
+#: under is that the path must not exist in THIS repository's tree, which
+#: `test_pr2_the_canonical_registry_does_not_exist_yet` asserts directly.
+REGISTRY_PATH = "governance/state.json"
+
+
+def history_repository(tmp_path: Path, name: str = "history") -> Path:
+    """A real repository whose registry can be advanced commit by commit."""
+    root = tmp_path / name
+    shutil.copytree(FIXTURE_ROOT, root)
+    (root / "governance").mkdir()
+    (root / REGISTRY_PATH).write_text(
+        (root / "state.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (root / "state.json").unlink()
+    git(root, "init", "-q", "-b", "main")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "genesis-free base")
+    return root
+
+
+def registry(root: Path) -> dict[str, Any]:
+    return load_state(root, REGISTRY_PATH)
+
+
+def commit_registry(root: Path, state: dict[str, Any], message: str) -> str:
+    write_state(root, state, REGISTRY_PATH)
+    git(root, "add", "-A")
+    # `--allow-empty` on purpose: a revision that changes nothing about the
+    # registry is a legal comparison window, and the checker must pass it.
+    git(root, "commit", "-q", "--allow-empty", "-m", message)
+    return git(root, "rev-parse", "HEAD")
+
+
+def run_history(
+    root: Path,
+    *,
+    base: str | None,
+    target: str | None = None,
+    state: str = REGISTRY_PATH,
+    checker: Path = HISTORY_CHECKER,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    command = ["node", str(checker), "--root", str(root), "--state", state, "--json"]
+    if base is not None:
+        command += ["--base", base]
+    if target is not None:
+        command += ["--target", target]
+    result = subprocess.run(command, cwd=REPOSITORY_ROOT, capture_output=True, text=True)
+    return result, json.loads(result.stdout)
+
+
+def assert_history_refused(
+    root: Path, *codes: str, base: str | None, target: str | None = None
+) -> dict[str, Any]:
+    result, payload = run_history(root, base=base, target=target)
+    assert result.returncode != 0, (payload, result.stderr)
+    reported = {problem["code"] for problem in payload["problems"]}
+    assert set(codes) <= reported, (payload, result.stderr)
+    return payload
+
+
+def assert_history_clean(root: Path, *, base: str, target: str | None = None) -> dict[str, Any]:
+    result, payload = run_history(root, base=base, target=target)
+    assert result.returncode == 0, (payload, result.stderr)
+    assert payload["ok"] is True
+    return payload
+
+
+def two_revisions(tmp_path: Path, mutate: Any, *, name: str = "history") -> tuple[Path, str, str]:
+    """Commit the fixture registry, apply `mutate`, commit again."""
+    root = history_repository(tmp_path, name)
+    base = commit_registry(root, registry(root), "base registry")
+    state = registry(root)
+    mutate(root, state)
+    target = commit_registry(root, state, "target registry")
+    return root, base, target
+
+
+def test_pr2_the_canonical_registry_does_not_exist_yet() -> None:
+    """The PR-2 completion gate, asserted rather than asserted about.
+
+    The canonical authority first appears in PR-3. A fixture path is a
+    candidate; a tracked `governance/state.json` would be the authority itself.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "governance"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert tracked == [], tracked
+    assert not (REPOSITORY_ROOT / "governance").exists()
+
+
+# --- 4.2 · explicit base selection -----------------------------------------
+
+
+def test_adv_g21_the_base_is_explicit_and_has_no_fallback(tmp_path: Path) -> None:
+    root, base, target = two_revisions(tmp_path, lambda root, state: None)
+
+    # No base at all: the checker infers none.
+    result, payload = run_history(root, base=None, target=target)
+    assert result.returncode != 0
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G21"}
+    assert "infers none" in payload["problems"][0]["message"]
+
+    # An unresolvable base is a refusal, never a fallback to merge-base or HEAD~1.
+    for unusable in ["0" * 40, "refs/heads/does-not-exist", "not a revision"]:
+        payload = assert_history_refused(root, "ADV-G21", base=unusable, target=target)
+        assert payload["comparison"] == "refused"
+
+    # A name that resolves to a NON-commit is answered, and the answer is no.
+    blob = git(root, "rev-parse", "HEAD:" + REGISTRY_PATH)
+    assert_history_refused(root, "ADV-G21", base=blob, target=target)
+
+    assert_history_clean(root, base=base, target=target)
+
+
+def test_adv_g21_a_self_selecting_window_is_refused(tmp_path: Path) -> None:
+    """A window containing no change proves nothing, so it may not pass."""
+    root, base, target = two_revisions(tmp_path, lambda root, state: None)
+    payload = assert_history_refused(root, "ADV-G21", base=target, target=target)
+    assert any("selects the target revision itself" in p["message"] for p in payload["problems"])
+    # And the same revision reached by a different name is still the same revision.
+    assert_history_refused(root, "ADV-G21", base="HEAD", target=target)
+    assert_history_clean(root, base=base, target=target)
+
+
+# --- 4.2 · decision history ------------------------------------------------
+
+
+def accepted_registry(root: Path) -> dict[str, Any]:
+    """The fixture registry with ADR-0001 accepted, committed-ready."""
+    state = registry(root)
+    adr = state["adrs"][0]
+    document = root / adr["path"]
+    document.write_text(
+        document.read_text(encoding="utf-8").replace("Proposed", "Accepted", 1)
+        + "\n- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
+        + "\n- **Closes:** [U4](unresolved.md#u4)\n",
+        encoding="utf-8",
+    )
+    adr["lifecycle"] = "Accepted"
+    adr["resolves"] = ["U4"]
+    adr["acceptance"] = {
+        "transitionDigest": "0" * 64,
+        "contentDigest": hashlib.sha256(document.read_bytes()).hexdigest(),
+        "reviewedIdentity": {"class": "external-git-commit", "value": "1" * 40},
+        "actor": "@owner",
+        "outcome": "accepted",
+        "decisionDate": "2026-08-30",
+        "authority": {
+            "type": "github-issue",
+            "repository": "pulse-ops-ai/secure-home-agent-platform",
+            "number": 106,
+        },
+    }
+    write_state(root, state, REGISTRY_PATH)
+    return bind_acceptance_digest(root, state, 0, path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("regressed", ["Proposed", "Rejected"])
+def test_adv_g08_an_accepted_decision_cannot_regress(tmp_path: Path, regressed: str) -> None:
+    root = history_repository(tmp_path, "regress-" + regressed)
+    accepted_registry(root)
+    base = commit_registry(root, registry(root), "accepted")
+
+    state = registry(root)
+    state["adrs"][0]["lifecycle"] = regressed
+    document = root / state["adrs"][0]["path"]
+    document.write_text(
+        document.read_text(encoding="utf-8").replace("Accepted", regressed, 1), encoding="utf-8"
+    )
+    state["adrs"][0]["acceptance"]["contentDigest"] = hashlib.sha256(
+        document.read_bytes()
+    ).hexdigest()
+    state["adrs"][0]["acceptance"]["outcome"] = (
+        "rejected" if regressed == "Rejected" else "accepted"
+    )
+    commit_registry(root, state, "regress the decision")
+
+    payload = assert_history_refused(root, "ADV-G08", base=base)
+    assert any("not a legal decision transition" in p["message"] for p in payload["problems"])
+
+
+def test_adv_g04h_accepted_bytes_and_the_recorded_digest_cannot_move_together(
+    tmp_path: Path,
+) -> None:
+    """The attack the one-revision checker cannot see.
+
+    Rewriting the accepted document AND its recorded digest leaves a
+    self-consistent snapshot: every current-revision check passes, because the
+    digest really does describe the bytes on disk. Only the prior revision knows
+    the bytes were different.
+    """
+    root = history_repository(tmp_path, "bytes")
+    accepted_registry(root)
+    base = commit_registry(root, registry(root), "accepted")
+
+    state = registry(root)
+    document = root / state["adrs"][0]["path"]
+    document.write_text(
+        document.read_text(encoding="utf-8") + "\nsilently added after acceptance\n",
+        encoding="utf-8",
+    )
+    state["adrs"][0]["acceptance"]["contentDigest"] = hashlib.sha256(
+        document.read_bytes()
+    ).hexdigest()
+    target = commit_registry(root, state, "rewrite accepted bytes and the digest together")
+
+    # The target is internally consistent: the one-revision checker accepts it.
+    single = subprocess.run(
+        ["node", str(CHECKER), "--root", str(root), "--state", REGISTRY_PATH, "--json"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert single.returncode == 0, single.stdout
+
+    assert_history_refused(root, "ADV-G40", base=base, target=target)
+
+
+def test_adv_g40_acceptance_evidence_of_a_decided_adr_is_immutable(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "evidence")
+    accepted_registry(root)
+    base = commit_registry(root, registry(root), "accepted")
+
+    state = registry(root)
+    state["adrs"][0]["acceptance"]["actor"] = "@someone-else"
+    commit_registry(root, state, "rewrite the acceptance actor")
+    assert_history_refused(root, "ADV-G40", base=base)
+
+
+def test_adv_g35_a_resolved_questions_resolver_cannot_disappear(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "resolver")
+    accepted_registry(root)
+    base = commit_registry(root, registry(root), "accepted, U4 resolved")
+    assert registry(root)["adrs"][0]["resolves"] == ["U4"]
+
+    state = registry(root)
+    state["adrs"][0]["resolves"] = []
+    document = root / state["adrs"][0]["path"]
+    document.write_text(
+        document.read_text(encoding="utf-8").replace(
+            "- **Closes:** [U4](unresolved.md#u4)", "- **Closes:** no unresolved decision"
+        ),
+        encoding="utf-8",
+    )
+    state["adrs"][0]["acceptance"]["contentDigest"] = hashlib.sha256(
+        document.read_bytes()
+    ).hexdigest()
+    commit_registry(root, state, "drop the resolver relationship")
+
+    # Both the disappearance and the acceptance-record mutation are reported:
+    # one rule does not excuse the other.
+    assert_history_refused(root, "ADV-G35", "ADV-G40", base=base)
+
+
+def test_adv_g34_a_record_cannot_be_deleted_or_renumbered(tmp_path: Path) -> None:
+    cases: list[tuple[str, Callable[[dict[str, Any]], None]]] = [
+        ("landings", lambda state: state["landings"].clear()),
+        ("gates", lambda state: state["gates"].clear()),
+        ("questions", lambda state: state["questions"].clear()),
+    ]
+    for collection, mutate in cases:
+        root = history_repository(tmp_path, "delete-" + collection)
+        base = commit_registry(root, registry(root), "base")
+        state = registry(root)
+        mutate(state)
+        # Removing a question orphans the gate predicate; removing a gate is
+        # clean. Either way the pairwise fact is the deletion.
+        if collection == "questions":
+            state["gates"].clear()
+        if collection == "gates":
+            pass
+        commit_registry(root, state, "delete " + collection)
+        assert_history_refused(root, "ADV-G34", base=base)
+
+
+# --- 4.2 · rule inputs are immutable in place ------------------------------
+
+
+@pytest.mark.parametrize(
+    ("code", "mutate"),
+    [
+        ("ADV-G11", lambda state: state["gates"][0]["predicate"].__setitem__("question", "U6")),
+        ("ADV-G13", lambda state: state["landings"][0].__setitem__("requires", [])),
+        (
+            "ADV-G14",
+            lambda state: state["landings"][0]["authorityAnchor"].__setitem__("number", 999),
+        ),
+        ("ADV-G15", lambda state: state["landings"][0].__setitem__("kind", "spike-landing")),
+        (
+            "ADV-G15",
+            lambda state: state["landings"][0]["delivery"].__setitem__(
+                "completionPolicy", "reviewed-spike-evidence-v1"
+            ),
+        ),
+    ],
+)
+def test_rule_inputs_cannot_be_mutated_in_place(tmp_path: Path, code: str, mutate: Any) -> None:
+    """ADV-G11/G13/G14/G15 — one mechanism, distinct refusals."""
+    root = history_repository(tmp_path, "rule-" + code + str(abs(hash(str(mutate))))[:6])
+    state = registry(root)
+    # A second question, so a repointed predicate stays EVALUABLE: otherwise the
+    # target is refused for being unevaluable and the rule-input mutation this
+    # case exists to prove is never reached.
+    state["questions"].append(
+        {
+            "id": "U6",
+            "anchor": "unresolved.md#u6",
+            "title": "A second open question",
+            "severity": "medium",
+        }
+    )
+    (root / "unresolved.md").write_text(
+        (root / "unresolved.md").read_text(encoding="utf-8")
+        + "\n## U6\n\nA second open question\n",
+        encoding="utf-8",
+    )
+    # A prerequisite, so its removal is observable.
+    state["landings"][0]["requires"] = ["runner/GATE-U4"]
+    base = commit_registry(root, state, "base with a prerequisite")
+
+    state = registry(root)
+    mutate(state)
+    commit_registry(root, state, "mutate a rule input")
+    assert_history_refused(root, code, base=base)
+
+
+# --- 4.2 · delivery succession --------------------------------------------
+
+
+def delivery_history_repository(tmp_path: Path, name: str) -> tuple[Path, dict[str, Any]]:
+    """A real repository carrying the registry AND a real archived package."""
+    root = tmp_path / name
+    shutil.copytree(FIXTURE_ROOT, root)
+    (root / "governance").mkdir()
+    (root / REGISTRY_PATH).write_text(
+        (root / "state.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (root / "state.json").unlink()
+    built = build_archived_repository(root)
+    return root, built
+
+
+def test_ex_g27_a_legal_completion_transition_passes(tmp_path: Path) -> None:
+    """The positive control. Without it every refusal below could be vacuous."""
+    root, built = delivery_history_repository(tmp_path, "complete")
+    base = commit_registry(root, registry(root), "planned")
+    assert registry(root)["landings"][0]["delivery"]["lifecycle"] == "Planned"
+
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "complete the landing")
+
+    payload = assert_history_clean(root, base=base)
+    assert payload["comparison"] == "pairwise"
+
+
+def test_adv_g15_a_policy_cannot_be_changed_during_completion(tmp_path: Path) -> None:
+    root, built = delivery_history_repository(tmp_path, "policy-swap")
+    state = registry(root)
+    state["landings"][0]["delivery"]["completionPolicy"] = "reviewed-spike-evidence-v1"
+    state["landings"][0]["kind"] = "spike-landing"
+    base = commit_registry(root, state, "planned as a spike landing")
+
+    # The completion arrives AND the policy changes with it.
+    state = registry(root)
+    state["landings"][0]["kind"] = "implementation-landing"
+    state["landings"][0]["delivery"]["completionPolicy"] = "reviewed-delivery-v1"
+    write_state(root, state, REGISTRY_PATH)
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "complete, changing the policy")
+
+    assert_history_refused(root, "ADV-G15", base=base)
+
+
+def test_adv_g29_terminal_delivery_evidence_is_immutable(tmp_path: Path) -> None:
+    root, built = delivery_history_repository(tmp_path, "terminal")
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "completed")
+    base = git(root, "rev-parse", "HEAD")
+
+    # Mutated: the attestation actor is provenance the envelope pins.
+    state = registry(root)
+    state["landings"][0]["delivery"]["completion"]["attestation"]["actor"] = "@someone-else"
+    commit_registry(root, state, "rewrite terminal evidence")
+    assert_history_refused(root, "ADV-G29", base=base)
+
+    # Removed: a terminal envelope cannot be dropped by regressing the lifecycle.
+    root, built = delivery_history_repository(tmp_path, "terminal-removed")
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "completed")
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    state["landings"][0]["delivery"]["lifecycle"] = "Planned"
+    state["landings"][0]["delivery"]["completion"] = None
+    commit_registry(root, state, "un-complete the landing")
+    payload = assert_history_refused(root, "ADV-G29", base=base)
+    assert any("terminal" in problem["message"] for problem in payload["problems"])
+
+
+def test_ex_g25_withdrawal_succession_is_proved_pairwise(tmp_path: Path) -> None:
+    for source in ["Planned", "InProgress"]:
+        root = history_repository(tmp_path, "withdraw-" + source)
+        state = registry(root)
+        state["landings"][0]["delivery"]["lifecycle"] = source
+        base = commit_registry(root, state, "base " + source)
+
+        withdrawn_state(root, REGISTRY_PATH)
+        state = registry(root)
+        state["landings"][0]["delivery"]["withdrawal"]["from"] = source
+        bind_withdrawal_digest(root, state, REGISTRY_PATH)
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "withdraw")
+        payload = assert_history_clean(root, base=base)
+        assert payload["comparison"] == "pairwise"
+
+
+def test_adv_g75_an_illegal_withdrawal_source_lifecycle_is_refused(tmp_path: Path) -> None:
+    """Target-state validity cannot infer a legal predecessor.
+
+    The withdrawn target is perfectly well formed on its own; only the base
+    revision knows the landing was already `Complete`.
+    """
+    root, built = delivery_history_repository(tmp_path, "withdraw-complete")
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "completed")
+    base = git(root, "rev-parse", "HEAD")
+
+    state = registry(root)
+    state["landings"][0]["delivery"]["lifecycle"] = "Planned"
+    state["landings"][0]["delivery"]["completion"] = None
+    write_state(root, state, REGISTRY_PATH)
+    withdrawn_state(root, REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "withdraw a completed landing")
+
+    payload = assert_history_refused(root, "ADV-G75", base=base)
+    assert any("Planned or InProgress base" in p["message"] for p in payload["problems"])
+
+
+def test_adv_g75_a_withdrawal_envelope_cannot_claim_a_source_it_did_not_have(
+    tmp_path: Path,
+) -> None:
+    root = history_repository(tmp_path, "withdraw-from")
+    base = commit_registry(root, registry(root), "planned")
+
+    withdrawn_state(root, REGISTRY_PATH)
+    state = registry(root)
+    state["landings"][0]["delivery"]["withdrawal"]["from"] = "InProgress"
+    bind_withdrawal_digest(root, state, REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "withdraw claiming InProgress")
+
+    assert_history_refused(root, "ADV-G75", base=base)
+
+
+def test_adv_g29_terminal_withdrawal_evidence_is_immutable(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "withdrawn-terminal")
+    withdrawn_state(root, REGISTRY_PATH)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "withdrawn")
+    base = git(root, "rev-parse", "HEAD")
+
+    state = registry(root)
+    state["landings"][0]["delivery"]["withdrawal"]["attestation"]["actor"] = "@someone-else"
+    commit_registry(root, state, "rewrite withdrawal evidence")
+    assert_history_refused(root, "ADV-G29", base=base)
+
+
+# --- 4.2 · post-genesis node identity --------------------------------------
+
+
+def replacement_pair(root: Path, state: dict[str, Any], old_id: str, new_id: str) -> dict[str, Any]:
+    """Add `new_id` as a sanctioned replacement of `old_id`, digest bound."""
+    old = next(node for node in state["landings"] if node["id"] == old_id)
+    replacement = json.loads(json.dumps(old))
+    replacement["id"] = new_id
+    replacement["replaces"] = old_id
+    # `replaces` and `replacement` are paired on the NEW identity: the envelope
+    # is the evidence for the transition that introduced it.
+    replacement["replacement"] = {
+        "digest": "0" * 64,
+        "attestation": {
+            "digest": "0" * 64,
+            "actor": "@owner",
+            "at": "2026-08-30T12:00:00Z",
+            "outcome": "replaced",
+            "authority": {
+                "type": "github-issue",
+                "repository": "pulse-ops-ai/secure-home-agent-platform",
+                "number": 106,
+            },
+        },
+    }
+    replacement["delivery"] = {
+        "lifecycle": "Planned",
+        "completionPolicy": old["delivery"]["completionPolicy"],
+        "completion": None,
+        "withdrawal": None,
+    }
+    state["landings"].append(replacement)
+    return state
+
+
+def bind_replacements(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+    script = """
+import fs from 'node:fs'
+import { replacementDigest } from './scripts/governance/model/index.mjs'
+const state = JSON.parse(fs.readFileSync(0, 'utf8'))
+const nodes = [...state.gates, ...state.landings]
+for (const node of nodes) {
+  if (!node.replacement || node.replaces === null) continue
+  const oldNode = nodes.find((member) => member.id === node.replaces)
+  const digest = replacementDigest(oldNode, node)
+  node.replacement.digest = digest
+  node.replacement.attestation.digest = digest
+}
+process.stdout.write(JSON.stringify(state))
+"""
+    updated = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return cast(dict[str, Any], json.loads(updated.stdout))
+
+
+def test_ex_g26_a_legal_replacement_first_appearance_passes(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "replace-legal")
+    base = commit_registry(root, registry(root), "base")
+
+    state = bind_replacements(
+        root, replacement_pair(root, registry(root), "runner/L8", "runner/L8-v2")
+    )
+    commit_registry(root, state, "replace runner/L8")
+    assert_history_clean(root, base=base)
+
+
+def test_adv_g16_an_unlinked_post_genesis_identity_is_refused(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "replace-unlinked")
+    base = commit_registry(root, registry(root), "base")
+
+    state = registry(root)
+    fresh = json.loads(json.dumps(state["landings"][0]))
+    fresh["id"] = "runner/L11"
+    fresh["requires"] = []
+    state["landings"].append(fresh)
+    commit_registry(root, state, "introduce a brand new landing")
+
+    payload = assert_history_refused(root, "ADV-G16", base=base)
+    assert any("without a replacement relationship" in p["message"] for p in payload["problems"])
+
+
+def test_adv_g16_a_replacement_target_must_have_been_current_in_the_base(
+    tmp_path: Path,
+) -> None:
+    """The fact only a second revision holds.
+
+    In the target the cascade is perfectly well formed, so the shared model
+    accepts it. Whether `runner/L8` was still current BEFORE the change is
+    invisible from one snapshot.
+    """
+    root = history_repository(tmp_path, "replace-stale")
+    state = bind_replacements(
+        root, replacement_pair(root, registry(root), "runner/L8", "runner/L8-v2")
+    )
+    base = commit_registry(root, state, "L8 already replaced by L8a")
+
+    # A second replacement naming the ALREADY non-current runner/L8.
+    state = registry(root)
+    state = replacement_pair(root, state, "runner/L8", "runner/L8-v3")
+    commit_registry(root, bind_replacements(root, state), "replace an already-replaced identity")
+
+    payload = assert_history_refused(root, "ADV-G16", base=base)
+    assert any("non-current in the base revision" in p["message"] for p in payload["problems"])
+
+
+def test_adv_g16_an_existing_replacement_relationship_cannot_be_edited(
+    tmp_path: Path,
+) -> None:
+    root = history_repository(tmp_path, "replace-edited")
+    state = bind_replacements(
+        root, replacement_pair(root, registry(root), "runner/L8", "runner/L8-v2")
+    )
+    base = commit_registry(root, state, "L8 replaced")
+
+    state = registry(root)
+    for landing in state["landings"]:
+        if landing["id"] == "runner/L8-v2":
+            landing["replaces"] = None
+    commit_registry(root, state, "detach the replacement relationship")
+    assert_history_refused(root, "ADV-G16", base=base)
+
+
+# --- 4.2 · authorization records -------------------------------------------
+
+
+def test_adv_g18_an_authorization_record_is_refused_as_an_introduction(
+    tmp_path: Path,
+) -> None:
+    """Both facts are reported: the unknown field, and that it was INTRODUCED.
+
+    The current model can say the field is unknown. Only a second revision can
+    say it appeared — which is the fact a reviewer needs.
+    """
+    root = history_repository(tmp_path, "authorization")
+    base = commit_registry(root, registry(root), "base")
+
+    state = registry(root)
+    state["landings"][0]["authorizationEvidence"] = {
+        "actor": "@owner",
+        "outcome": "authorized",
+    }
+    commit_registry(root, state, "introduce an authorization record")
+
+    payload = assert_history_refused(root, "ADV-G18", "ADV-G02", base=base)
+    assert any("was introduced" in p["message"] for p in payload["problems"])
+
+
+# --- 4.2 · the one genesis exception, admitted by binding -------------------
+
+
+def registry_less_repository(tmp_path: Path, name: str) -> tuple[Path, str]:
+    """A registry-less repository with real source/freeze/freshness proof inputs."""
+    root = isolated_genesis(tmp_path, name)
+    return root, git(root, "rev-parse", "HEAD")
+
+
+def activate(root: Path, base: str, **overrides: Any) -> str:
+    state = install_test_genesis(root, base)
+    state["attestations"]["genesis"].update(overrides)
+    return commit_registry(root, state, "activation")
+
+
+def test_the_bound_activation_revision_is_the_one_genesis_exception(tmp_path: Path) -> None:
+    root, base = registry_less_repository(tmp_path, "genesis-legal")
+    activate(root, base)
+    payload = assert_history_clean(root, base=base)
+    assert payload["comparison"] == "genesis"
+
+
+def test_adv_g58_an_unbound_registry_less_base_cannot_claim_the_exception(
+    tmp_path: Path,
+) -> None:
+    """Absence is not a binding.
+
+    Every commit before activation lacks a registry, so if absence alone
+    qualified, any of them could be supplied as the exceptional base.
+    """
+    root, base = registry_less_repository(tmp_path, "genesis-unbound")
+    (root / "note.md").write_text("another pre-activation commit\n", encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "a second registry-less commit")
+    older = base
+    newer = git(root, "rev-parse", "HEAD")
+    activate(root, newer)
+
+    assert_history_clean(root, base=newer)
+    payload = assert_history_refused(root, "ADV-G58", base=older)
+    assert any("not the bound activation base" in p["message"] for p in payload["problems"])
+
+
+@pytest.mark.parametrize(
+    ("label", "overrides"),
+    [
+        ("stale-freshness", {"activationFreshness": {"outcome": "stale", "digest": "5" * 64}}),
+        ("wrong-base", {"activationBaseCommit": "9" * 40}),
+    ],
+)
+def test_adv_g58_the_exception_requires_the_complete_binding(
+    tmp_path: Path, label: str, overrides: dict[str, Any]
+) -> None:
+    root, base = registry_less_repository(tmp_path, "genesis-" + label)
+    activate(root, base, **overrides)
+    assert_history_refused(root, "ADV-G58", base=base)
+
+
+def test_adv_g41_a_registry_appearing_without_genesis_evidence_is_refused(
+    tmp_path: Path,
+) -> None:
+    root, base = registry_less_repository(tmp_path, "genesis-absent")
+    state = load_state(root, "tests/fixtures/governance/candidate/state.json")
+    (root / "governance").mkdir(exist_ok=True)
+    shutil.copyfile(
+        root / "tests/fixtures/governance/candidate/source-manifest.json",
+        root / "governance/genesis-source-manifest.json",
+    )
+    commit_registry(root, state, "registry with an empty genesis attestation")
+    payload = assert_history_refused(root, "ADV-G41", base=base)
+    assert any("records no genesis attestation" in p["message"] for p in payload["problems"])
+
+
+def test_adv_g41_and_g59_a_replacement_activation_is_not_a_second_genesis(
+    tmp_path: Path,
+) -> None:
+    """A registry-less base whose ancestry once held a registry is a revert.
+
+    Version one defines no reactivation, and the difference between "before the
+    first activation" and "after a revert" is a fact about the ancestry, not
+    about the base's own tree.
+    """
+    root, first_base = registry_less_repository(tmp_path, "reactivation")
+    activate(root, first_base)
+
+    # Revert: the registry is deleted.
+    (root / REGISTRY_PATH).unlink()
+    (root / "governance/genesis-source-manifest.json").unlink()
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "revert the activation")
+    reverted = git(root, "rev-parse", "HEAD")
+
+    # A second activation, bound to the post-revert base.
+    activate(root, reverted)
+
+    payload = assert_history_refused(root, "ADV-G41", "ADV-G59", base=reverted)
+    assert any("post-activation" in p["message"] for p in payload["problems"])
+    assert any("no reactivation protocol" in p["message"] for p in payload["problems"])
+
+
+# --- 4.1 · the adapter carries no rules ------------------------------------
+
+
+HISTORY_ADAPTER = REPOSITORY_ROOT / "scripts/governance/history/index.mjs"
+GIT_TREE_ADAPTER = REPOSITORY_ROOT / "scripts/governance/git-tree/index.mjs"
+
+#: Vocabulary that would mean a governance RULE had moved into the adapter.
+RULE_VOCABULARY = [
+    "Accepted",
+    "Proposed",
+    "Rejected",
+    "Superseded",
+    "Complete",
+    "Withdrawn",
+    "regression",
+    "reviewed-delivery-v1",
+    "reviewed-spike-evidence-v1",
+    "ADV-G",
+    "activationBaseCommit",
+]
+
+
+def test_mut_g06_a_rule_moved_into_the_history_adapter_is_detected() -> None:
+    """The boundary, and proof the boundary test can fail.
+
+    First the real adapter is checked. Then a rule is planted in a copy and the
+    same check is run over it — otherwise a scan that matched nothing would look
+    identical to a scan that could never match.
+    """
+    source = HISTORY_ADAPTER.read_text(encoding="utf-8")
+    found = [word for word in RULE_VOCABULARY if word in source]
+    assert found == [], found
+
+    planted = source.replace(
+        "  const reader = {",
+        "  const reader = {\n    isRegression(from, to) {\n"
+        "      return from === 'Accepted' && to === 'Proposed'\n    },",
+        1,
+    )
+    assert planted != source, "the mutation did not change the subject bytes"
+    replanted = [word for word in RULE_VOCABULARY if word in planted]
+    assert "Accepted" in replanted and "Proposed" in replanted, replanted
+
+
+def test_the_two_adapters_agree_on_which_git_failures_are_answers() -> None:
+    """One Git, one vocabulary for 'that name does not resolve'.
+
+    Two adapters that classified the same stderr differently would disagree
+    about whether a required absence had been observed or merely not looked for.
+    """
+    pattern = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import { EXPECTED_MISS_PATTERN } from './scripts/governance/history/index.mjs'\n"
+            "process.stdout.write(EXPECTED_MISS_PATTERN)",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert pattern, "the history adapter exports no miss vocabulary"
+    assert pattern in GIT_TREE_ADAPTER.read_text(encoding="utf-8"), pattern
+
+
+# ===========================================================================
+# PR-2 · Task 5 — renderer and query
+# ===========================================================================
+
+BEGIN = "<!-- governance:begin {} -->"
+END = "<!-- governance:end {} -->"
+
+
+def projection_root(tmp_path: Path, name: str = "projections") -> Path:
+    """A root carrying the registry and every registered projection target."""
+    root = tmp_path / name
+    shutil.copytree(FIXTURE_ROOT, root)
+    (root / "governance").mkdir()
+    (root / REGISTRY_PATH).write_text(
+        (root / "state.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (root / "state.json").unlink()
+    (root / "docs" / "decisions").mkdir(parents=True)
+    (root / "docs" / "architecture").mkdir(parents=True)
+    (root / "docs/decisions/INDEX.md").write_text(
+        "# Decisions\n\nprose above\n\n"
+        + BEGIN.format("decision-lifecycle")
+        + "\n"
+        + END.format("decision-lifecycle")
+        + "\n\nprose below\n",
+        encoding="utf-8",
+    )
+    (root / "docs/architecture/unresolved-decisions.md").write_text(
+        "# Unresolved\n\n"
+        + BEGIN.format("question-summary")
+        + "\n"
+        + END.format("question-summary")
+        + "\n\nmiddle prose\n\n"
+        + BEGIN.format("resolution-banners")
+        + "\n"
+        + END.format("resolution-banners")
+        + "\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def run_renderer(root: Path, mode: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["node", str(RENDERER), "--root", str(root), "--state", REGISTRY_PATH, "--" + mode],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+
+def target_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        name: (root / name).read_bytes()
+        for name in [
+            "governance/STATE.md",
+            "docs/decisions/INDEX.md",
+            "docs/architecture/unresolved-decisions.md",
+        ]
+        if (root / name).exists()
+    }
+
+
+def test_ex_g11_check_is_a_byte_exact_no_op_and_writes_nothing(tmp_path: Path) -> None:
+    root = projection_root(tmp_path)
+
+    # Before any write, `--check` fails — and changes nothing on disk.
+    before = target_bytes(root)
+    failed = run_renderer(root, "check")
+    assert failed.returncode != 0, failed.stdout
+    assert "ADV-G36" in failed.stderr, failed.stderr
+    assert target_bytes(root) == before, "--check wrote to the working tree"
+    assert not (root / "governance/STATE.md").exists()
+
+    # Write mode is the separate invocation that changes bytes.
+    written = run_renderer(root, "write")
+    assert written.returncode == 0, written.stderr
+    assert (root / "governance/STATE.md").exists()
+
+    # Now `--check` is a no-op, and still writes nothing.
+    after = target_bytes(root)
+    clean = run_renderer(root, "check")
+    assert clean.returncode == 0, clean.stderr
+    assert "byte-for-byte no-op" in clean.stdout
+    assert target_bytes(root) == after
+
+    # Idempotent: a second write changes nothing either.
+    assert run_renderer(root, "write").returncode == 0
+    assert target_bytes(root) == after
+
+
+def test_adv_g36_a_hand_edited_generated_region_is_detected(tmp_path: Path) -> None:
+    root = projection_root(tmp_path)
+    assert run_renderer(root, "write").returncode == 0
+
+    index = root / "docs/decisions/INDEX.md"
+    index.write_text(
+        index.read_text(encoding="utf-8").replace("| Proposed |", "| Accepted |", 1),
+        encoding="utf-8",
+    )
+    result = run_renderer(root, "check")
+    assert result.returncode != 0
+    assert "ADV-G36" in result.stderr
+    assert "docs/decisions/INDEX.md" in result.stderr
+
+    # Prose OUTSIDE a generated region is not drift.
+    assert run_renderer(root, "write").returncode == 0
+    index.write_text(
+        index.read_text(encoding="utf-8").replace("prose below", "different prose below"),
+        encoding="utf-8",
+    )
+    assert run_renderer(root, "check").returncode == 0
+
+
+def test_adv_g22_an_unregistered_marker_or_missing_target_is_an_error(
+    tmp_path: Path,
+) -> None:
+    root = projection_root(tmp_path)
+    assert run_renderer(root, "write").returncode == 0
+
+    index = root / "docs/decisions/INDEX.md"
+    index.write_text(
+        index.read_text(encoding="utf-8")
+        + "\n"
+        + BEGIN.format("program-blockers")
+        + "\nhand written\n"
+        + END.format("program-blockers")
+        + "\n",
+        encoding="utf-8",
+    )
+    result = run_renderer(root, "check")
+    assert result.returncode != 0
+    assert "ADV-G22" in result.stderr
+    assert "program-blockers" in result.stderr
+
+    # A registered target that has lost its markers is an error, not a skip.
+    root = projection_root(tmp_path / "missing-markers")
+    (root / "docs/decisions/INDEX.md").write_text("# Decisions\n\nno markers\n", encoding="utf-8")
+    result = run_renderer(root, "check")
+    assert result.returncode != 0
+    assert "ADV-G22" in result.stderr
+
+
+def test_prop_g04_rendering_is_deterministic_and_order_insensitive(
+    tmp_path: Path,
+) -> None:
+    """The same logical state renders the same bytes, however it was written."""
+    root = projection_root(tmp_path, "deterministic")
+    assert run_renderer(root, "write").returncode == 0
+    first = target_bytes(root)
+
+    other = projection_root(tmp_path, "reordered")
+    state = registry(other)
+    # A set-valued relationship reversed: canonically the same value.
+    state["landings"][0]["requires"] = list(reversed(state["landings"][0].get("requires", [])))
+    state["questions"] = list(reversed(state["questions"]))
+    write_state(other, state, REGISTRY_PATH)
+    assert run_renderer(other, "write").returncode == 0
+
+    assert target_bytes(other) == first
+
+
+def test_mut_g07_check_must_be_byte_exact(tmp_path: Path) -> None:
+    """A `--check` that compared loosely would pass a real hand edit."""
+    root = projection_root(tmp_path)
+    assert run_renderer(root, "write").returncode == 0
+    index = root / "docs/decisions/INDEX.md"
+    # Whitespace only, inside the generated region: a trimming comparison would
+    # call this equal.
+    index.write_text(
+        index.read_text(encoding="utf-8").replace("| ADR-0001 |", "|  ADR-0001  |", 1),
+        encoding="utf-8",
+    )
+    assert run_renderer(root, "check").returncode != 0
+
+    anchor = "    if (expected === actual) continue"
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "render-governance-state.mjs",
+                anchor,
+                "    if (expected.replace(/\\s+/gu, '') === "
+                "String(actual).replace(/\\s+/gu, '')) continue",
+            )
+        ],
+    )
+    weakened = subprocess.run(
+        [
+            "node",
+            str(subject / "scripts/render-governance-state.mjs"),
+            "--root",
+            str(root),
+            "--state",
+            REGISTRY_PATH,
+            "--check",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert weakened.returncode == 0, "the byte-exact comparison is not load-bearing"
+
+
+# --- 5.2 · the query never authorizes --------------------------------------
+
+
+def run_query(
+    root: Path, *, json_form: bool, node: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    command = ["node", str(QUERY), "--root", str(root), "--state", REGISTRY_PATH]
+    if json_form:
+        command.append("--json")
+    if node is not None:
+        command += ["--node", node]
+    return subprocess.run(command, cwd=REPOSITORY_ROOT, capture_output=True, text=True)
+
+
+def test_prop_g05_no_query_output_ever_contains_authorized(tmp_path: Path) -> None:
+    """Over every shape the fixture can take, in both output forms."""
+    shapes: list[tuple[str, Any]] = [
+        ("planned-blocked", lambda root: None),
+        ("ready", lambda root: registry_requires(root, [])),
+        ("complete", lambda root: None),
+        ("withdrawn", lambda root: withdrawn_state(root, REGISTRY_PATH)),
+    ]
+    for label, prepare in shapes:
+        root = projection_root(tmp_path / ("query-" + label))
+        if label == "complete":
+            built = build_archived_repository(root)
+            complete_state(root, built=built, path=REGISTRY_PATH)
+        else:
+            prepare(root)
+        for json_form in [True, False]:
+            result = run_query(root, json_form=json_form)
+            assert result.returncode == 0, (label, result.stderr)
+            assert "AUTHORIZED" not in result.stdout, (label, json_form, result.stdout)
+            assert "AUTHORIZED" not in result.stderr
+
+
+def registry_requires(root: Path, requires: list[str]) -> None:
+    state = registry(root)
+    state["landings"][0]["requires"] = requires
+    write_state(root, state, REGISTRY_PATH)
+
+
+def test_adv_g17_readiness_is_reported_as_readiness_not_permission(
+    tmp_path: Path,
+) -> None:
+    root = projection_root(tmp_path, "blocked")
+    registry_requires(root, ["runner/GATE-U4"])
+    payload = json.loads(run_query(root, json_form=True).stdout)
+    landing = payload["nodes"][0]
+    assert landing["prerequisiteReadiness"]["state"] == "NotReady"
+    assert landing["prerequisiteReadiness"]["unsatisfied"] == ["runner/GATE-U4"]
+    assert landing["authorizationAssessment"] == "PREREQUISITES_NOT_READY"
+    assert landing["authorityAnchor"]["number"] == 56
+
+    # Ready is still not permission.
+    registry_requires(root, [])
+    payload = json.loads(run_query(root, json_form=True).stdout)
+    landing = payload["nodes"][0]
+    assert landing["prerequisiteReadiness"]["state"] == "Ready"
+    assert landing["authorizationAssessment"] == "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION"
+
+
+def test_a_completed_landing_is_not_described_as_awaiting_start_authorization(
+    tmp_path: Path,
+) -> None:
+    root = projection_root(tmp_path, "terminal-query")
+    built = build_archived_repository(root)
+    complete_state(root, built=built, path=REGISTRY_PATH)
+    payload = json.loads(run_query(root, json_form=True).stdout)
+    landing = payload["nodes"][0]
+    assert landing["deliveryState"] == "Complete"
+    assert landing["authorizationAssessment"] is None
+    assert (
+        landing["historicalAuthorization"] == "RECORDED_DELIVERY_WITHOUT_LOCAL_AUTHORIZATION_CLAIM"
+    )
+
+    explanation = run_query(root, json_form=False).stdout
+    assert "not applicable to a terminal delivery" in explanation
+
+
+def test_mut_g05_collapsing_the_axes_is_detected(tmp_path: Path) -> None:
+    """A single collapsed status would read as permission."""
+    root = projection_root(tmp_path, "axes")
+    registry_requires(root, [])
+    payload = json.loads(run_query(root, json_form=True).stdout)
+    landing = payload["nodes"][0]
+    assert {"deliveryState", "prerequisiteReadiness", "authorizationAssessment"} <= set(landing)
+
+    source = QUERY.read_text(encoding="utf-8")
+    anchor = "    authorizationAssessment: readiness?.authorizationAssessment ?? null,"
+    assert source.count(anchor) == 1, "the axis anchor moved"
+    mutated = source.replace(anchor, "    status: readiness?.state ?? 'NotReady',", 1)
+    assert mutated != source, "the mutation did not change the subject bytes"
+    try:
+        QUERY.write_text(mutated, encoding="utf-8")
+        collapsed = json.loads(run_query(root, json_form=True).stdout)
+    finally:
+        QUERY.write_text(source, encoding="utf-8")
+        assert QUERY.read_text(encoding="utf-8") == source
+    assert "authorizationAssessment" not in collapsed["nodes"][0], (
+        "the separate authorization axis is not load-bearing"
+    )
+
+
+def test_ex_g18_a_hypothetical_acceptance_is_proven_as_a_fixture(
+    tmp_path: Path,
+) -> None:
+    """The derived chain for a hypothetical ADR-0020 acceptance.
+
+    Proven over a FIXTURE. No registry is transitioned, and nothing here
+    accepts ADR-0020, resolves U4, or satisfies GATE-U4 in this repository.
+    """
+    root = projection_root(tmp_path, "hypothetical")
+    registry_requires(root, ["runner/GATE-U4"])
+
+    before = json.loads(run_query(root, json_form=True).stdout)
+    assert before["questions"][0]["resolved"] is False
+    assert before["gates"][0]["satisfied"] is False
+    assert before["nodes"][0]["prerequisiteReadiness"]["state"] == "NotReady"
+
+    accepted_registry(root)
+    state = registry(root)
+    state["landings"][0]["requires"] = ["runner/GATE-U4"]
+    write_state(root, state, REGISTRY_PATH)
+
+    after = json.loads(run_query(root, json_form=True).stdout)
+    assert after["questions"][0]["resolved"] is True
+    assert after["gates"][0]["satisfied"] is True
+    assert after["nodes"][0]["prerequisiteReadiness"]["state"] == "Ready"
+    # And still not permission.
+    assert after["nodes"][0]["authorizationAssessment"] == (
+        "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION"
+    )
+
+
+def test_the_query_writes_nothing(tmp_path: Path) -> None:
+    root = projection_root(tmp_path, "read-only")
+    before = {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+    assert run_query(root, json_form=True).returncode == 0
+    assert run_query(root, json_form=False).returncode == 0
+    after = {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+    assert after == before
+
+
+# ===========================================================================
+# PR-2 · Task 7.3 — mutation coverage
+#
+# Every mutation first proves it changed the subject bytes. A mutation runner
+# that silently failed to apply its edit would report "the rule is load-bearing"
+# for a rule it never removed.
+# ===========================================================================
+
+HISTORY_MODEL = REPOSITORY_ROOT / "scripts/governance/model/history.mjs"
+
+
+def with_mutated_source(
+    tmp_path: Path, path: Path, anchor: str, replacement: str, action: Any
+) -> Any:
+    subject = mutant_subject(
+        tmp_path, [(str(path.relative_to(REPOSITORY_ROOT / "scripts")), anchor, replacement)]
+    )
+    return action(subject / "scripts/check-governance-history.mjs")
+
+
+def test_mut_g04_explicit_base_exclusivity_is_load_bearing(tmp_path: Path) -> None:
+    """Weaken the base rule to a silent fallback and the corpus must notice."""
+    root, _base, target = two_revisions(tmp_path, lambda root, state: None, name="mut-base")
+
+    assert run_history(root, base=None, target=target)[0].returncode != 0
+
+    fallback = with_mutated_source(
+        tmp_path,
+        HISTORY_CHECKER,
+        "  if (base === undefined || base === null || base === '') {",
+        "  base = base ?? 'HEAD~1' // MUTANT: silently inferred base\n"
+        "  if (base === undefined || base === null || base === '') {",
+        lambda checker: run_history(root, base=None, target=target, checker=checker),
+    )
+    assert fallback[0].returncode == 0, (fallback[1], fallback[0].stderr)
+
+
+def test_mut_g04_the_self_selecting_window_refusal_is_load_bearing(
+    tmp_path: Path,
+) -> None:
+    root, _base, target = two_revisions(tmp_path, lambda root, state: None, name="mut-window")
+    assert run_history(root, base=target, target=target)[0].returncode != 0
+
+    allowed = with_mutated_source(
+        tmp_path,
+        HISTORY_MODEL,
+        "  if (baseCommit === targetCommit) {",
+        "  if (false) {",
+        lambda checker: run_history(root, base=target, target=target, checker=checker),
+    )
+    assert allowed[0].returncode == 0, "a base==target window is refused by something else"
+
+
+def test_mut_g08_rule_input_immutability_is_load_bearing(tmp_path: Path) -> None:
+    """Remove the in-place mutation rule and an edited anchor must pass."""
+    root = history_repository(tmp_path, "mut-rule-input")
+    state = registry(root)
+    state["landings"][0]["requires"] = ["runner/GATE-U4"]
+    base = commit_registry(root, state, "base")
+    state = registry(root)
+    state["landings"][0]["authorityAnchor"]["number"] = 999
+    commit_registry(root, state, "repoint the authority anchor")
+
+    assert run_history(root, base=base)[0].returncode != 0
+
+    permitted = with_mutated_source(
+        tmp_path,
+        HISTORY_MODEL,
+        "      if (canonicalText(baseIdentity[field]) === "
+        "canonicalText(targetIdentity[field])) continue",
+        "      if (true) continue",
+        lambda checker: run_history(root, base=base, checker=checker),
+    )
+    assert permitted[0].returncode == 0, "the rule-input comparison is not load-bearing"
+
+
+def test_mut_g08_replacement_relationship_immutability_is_load_bearing(
+    tmp_path: Path,
+) -> None:
+    """MUT-G08 covers identity-bearing replacement evidence, not only ordinary edits."""
+    root = history_repository(tmp_path, "mut-replacement")
+    state = bind_replacements(
+        root, replacement_pair(root, registry(root), "runner/L8", "runner/L8-v2")
+    )
+    base = commit_registry(root, state, "L8 replaced")
+    state = registry(root)
+    for landing in state["landings"]:
+        if landing["id"] == "runner/L8-v2":
+            landing["replacement"]["attestation"]["actor"] = "@someone-else"
+    commit_registry(root, state, "edit the replacement attestation")
+
+    assert run_history(root, base=base)[0].returncode != 0
+
+    permitted = with_mutated_source(
+        tmp_path,
+        HISTORY_MODEL,
+        "      if (canonicalText(baseNode.replacement) !== "
+        "canonicalText(targetNode.replacement)) {",
+        "      if (false) {",
+        lambda checker: run_history(root, base=base, checker=checker),
+    )
+    assert permitted[0].returncode == 0, "replacement-evidence immutability is not load-bearing"
+
+
+def test_the_history_checker_owns_no_current_state_rule() -> None:
+    """The entry point selects revisions, reads bytes and reports. Nothing else."""
+    source = HISTORY_CHECKER.read_text(encoding="utf-8")
+    for owned_elsewhere in [
+        "exactly-one-current-accepted-resolver",
+        "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION",
+        "reviewed-delivery-v1",
+        "canonicalSerialize",
+        "LEGAL_ADR_TRANSITIONS",
+    ]:
+        assert owned_elsewhere not in source, owned_elsewhere
+
+
+def structural_pipes(row: str) -> int:
+    """Pipes that actually separate columns: those preceded by an EVEN run of
+    backslashes. A naive "is there a backslash before it" test calls an injected
+    pipe escaped, which is exactly the confusion being tested."""
+    count = 0
+    backslashes = 0
+    for character in row:
+        if character == "\\":
+            backslashes += 1
+            continue
+        if character == "|" and backslashes % 2 == 0:
+            count += 1
+        backslashes = 0
+    return count
+
+
+def question_row(root: Path) -> str:
+    rendered = (root / "governance/STATE.md").read_text(encoding="utf-8")
+    return next(line for line in rendered.split("\n") if line.startswith("| U4 |"))
+
+
+def rendered_with_title(root: Path, title: str) -> str:
+    state = registry(root)
+    state["questions"][0]["title"] = title
+    write_state(root, state, REGISTRY_PATH)
+    assert run_renderer(root, "write").returncode == 0
+    return question_row(root)
+
+
+def test_authored_text_cannot_forge_a_generated_projection(tmp_path: Path) -> None:
+    """A projection must not be forgeable from the content it renders.
+
+    A question title is free-form authored text. Escaping only the pipe left a
+    backslash immediately before one able to close its own cell: the escape we
+    added became an escaped backslash, and the pipe behind it a live column
+    separator. CodeQL named it `js/incomplete-sanitization`; escaping
+    backslashes FIRST is the fix, and the order is what makes it work.
+    """
+    root = projection_root(tmp_path, "forgery")
+
+    # Five columns, so six structural separators, whatever the title contains.
+    assert structural_pipes(rendered_with_title(root, "an ordinary title")) == 6
+
+    # The injection: a backslash immediately before a pipe.
+    row = rendered_with_title(root, "a\\|b")
+    assert structural_pipes(row) == 6, row
+    # And the value still reaches the reader intact.
+    assert "a\\\\\\|b" in row, row
+
+    # A bare pipe is escaped, not structural.
+    assert structural_pipes(rendered_with_title(root, "a | b")) == 6
+
+    # A trailing backslash cannot swallow the separator either.
+    assert structural_pipes(rendered_with_title(root, "ends with a backslash \\")) == 6
+
+    # A newline would otherwise end the row; it collapses into the cell.
+    row = rendered_with_title(root, "first line\nsecond line")
+    assert structural_pipes(row) == 6, row
+    assert "first line second line" in row, row
+
+
+# PR-2 resumption: the real post-PR-2A genesis recipe, exercised only in copies.
+DURABLE_PR2A = "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+CANDIDATE_ROOT = REPOSITORY_ROOT / "tests/fixtures/governance/candidate"
+POST_BRIDGE_SOURCE = "c82fda72927464d813ec769aee53f4079ebe3b20"
+TEST_ENVELOPE = REPOSITORY_ROOT / "tests/fixtures/governance/genesis/envelope.mjs"
+FRESHNESS = REPOSITORY_ROOT / "scripts/governance/genesis/freshness.mjs"
+
+
+def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
+    """Full historical objects, but independent refs, index, and working tree."""
+    root = tmp_path / name
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", "--no-checkout", str(REPOSITORY_ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(root, "checkout", "--quiet", "--detach", git(REPOSITORY_ROOT, "rev-parse", "HEAD"))
+    changed = subprocess.run(
+        ["git", "diff", "--name-only", "-z", "HEAD"],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    for name in sorted(set((changed + untracked).split("\0")) - {""}):
+        source, target = REPOSITORY_ROOT / name, root / name
+        if source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        elif target.is_file():
+            target.unlink()
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--allow-empty", "-m", "isolated TEST pre-activation source")
+    return root
+
+
+def install_test_genesis(root: Path, base: str | None = None) -> dict[str, Any]:
+    """No owner act: the actor and authority explicitly name an isolated fixture."""
+    result = subprocess.run(
+        ["node", str(TEST_ENVELOPE), str(root), base or git(root, "rev-parse", "HEAD")],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    state = cast(dict[str, Any], json.loads(result.stdout))
+    (root / "governance").mkdir(exist_ok=True)
+    shutil.copyfile(
+        root / "tests/fixtures/governance/candidate/source-manifest.json",
+        root / "governance/genesis-source-manifest.json",
+    )
+    write_state(root, state, REGISTRY_PATH)
+    return state
+
+
+@pytest.fixture(scope="session")
+def temporal_genesis_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Prepare T.5 copies before T.6 changes the three real candidate members."""
+    root = isolated_genesis(tmp_path_factory.mktemp("temporal-proof"))
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    prepared = json.loads(result.stdout)
+    for name, key in [
+        ("state.json", "state"),
+        ("source-manifest.json", "manifest"),
+        ("consumers.json", "inventory"),
+    ]:
+        write_state(root, prepared[key], "tests/fixtures/governance/candidate/" + name)
+    git(root, "add", "-A")
+    git(
+        root,
+        "commit",
+        "--allow-empty",
+        "-qm",
+        "isolated temporal TEST candidate, not a real freeze",
+    )
+    state = install_test_genesis(root)
+    commit_registry(root, state, "isolated temporal TEST genesis, never owner attestation")
+    assert_valid(root, REGISTRY_PATH)
+    return root
+
+
+@pytest.fixture
+def temporal_genesis(tmp_path: Path, temporal_genesis_template: Path) -> Path:
+    root = tmp_path / "temporal-genesis"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(temporal_genesis_template), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(root, "config", "user.name", "fixture")
+    git(root, "config", "user.email", "fixture@example.invalid")
+    git(root, "config", "commit.gpgsign", "false")
+    return root
+
+
+def test_temporal_real_source_and_archive_split(temporal_genesis: Path) -> None:
+    root = temporal_genesis
+    payload = assert_valid(root, REGISTRY_PATH)
+    state = registry(root)
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    assert manifest["sourceSnapshotIdentity"]["value"] == POST_BRIDGE_SOURCE
+    assert len(manifest["decisionEvidence"]) == 23
+    assert payload["derived"]["questions"]["U7"]["resolvedOn"] == "2026-08-15"
+    assert "resolvedAt" not in payload["derived"]["questions"]["U7"]
+    assert (
+        next(a for a in state["adrs"] if a["id"] == "ADR-0022")["acceptance"]["decisionDate"]
+        == "2026-09-01"
+    )
+    for landing in state["landings"]:
+        if landing["id"] in ["runner/L4", "runner/L5", "runner/L7"]:
+            archive = landing["delivery"]["completion"]["evidence"]["archivedOpenSpec"]
+            assert archive["archivedPackageIdentity"]["value"] == DURABLE_PR2A
+
+
+@pytest.fixture
+def temporal_candidate(temporal_genesis: Path) -> Path:
+    base = registry(temporal_genesis)["attestations"]["genesis"]["activationBaseCommit"]
+    git(temporal_genesis, "checkout", "--quiet", "--detach", base)
+    return temporal_genesis
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        20260901,
+        "2026-02-30",
+        "0000-01-01",
+        "2026-09-01T00:00:00Z",
+        "2026-09-01T12:00:00Z",
+        "2026-09-01+00:00",
+    ],
+)
+def test_temporal_adv_g100_closed_calendar_date(tmp_path: Path, value: Any) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    state["adrs"][0]["acceptance"]["decisionDate"] = value
+    write_state(root, state)
+    assert_refused(root, "ADV-G02")
+
+
+@pytest.mark.parametrize("field", ["at", "recordedAt", "gitCommitterAt", "gitAuthorAt"])
+def test_temporal_adv_g100_no_legacy_alias(tmp_path: Path, field: str) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    state["adrs"][0]["acceptance"][field] = "2026-08-30T00:00:00Z"
+    write_state(root, state)
+    assert_refused(root, "ADV-G02")
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "date",
+        "missing-row",
+        "duplicate-row",
+        "missing-transition",
+        "missing-source",
+        "duplicate-source",
+        "wrong-source-revision",
+        "source-hash",
+        "selector",
+        "delivery-transition",
+        "predecessor",
+        "decided-bytes",
+        "message",
+        "author",
+        "committer",
+        "author-as-committer",
+        "external-transition",
+        "no-disposition",
+        "false-comparison",
+        "wrong-comparison-date",
+        "legacy-kind",
+        "legacy-recorded",
+        "legacy-differs",
+        "legacy-date",
+        "extra",
+        "unknown-adr",
+    ],
+)
+def test_temporal_rehashed_manifest_refuses(temporal_candidate: Path, case: str) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0022")
+    transition = row["transition"]
+    if case == "date":
+        row["decisionDate"] = "2026-09-02"
+        candidate = load_state(root, "tests/fixtures/governance/candidate/state.json")
+        next(a for a in candidate["adrs"] if a["id"] == "ADR-0022")["acceptance"][
+            "decisionDate"
+        ] = "2026-09-02"
+        write_state(root, candidate, "tests/fixtures/governance/candidate/state.json")
+    elif case == "missing-row":
+        manifest["decisionEvidence"].remove(row)
+    elif case == "duplicate-row":
+        manifest["decisionEvidence"].append(row.copy())
+    elif case == "missing-transition":
+        del row["transition"]
+    elif case == "missing-source":
+        row["sources"].pop()
+    elif case == "duplicate-source":
+        row["sources"].append(row["sources"][0].copy())
+    elif case == "wrong-source-revision":
+        row["sources"][0]["revision"] = POST_BRIDGE_SOURCE
+    elif case == "source-hash":
+        row["sources"][0]["contentSha256"] = "a" * 64
+    elif case == "selector":
+        row["sources"][0]["selector"] = "first-main-v1"
+    elif case == "delivery-transition":
+        transition["identity"]["value"] = git(
+            root,
+            "rev-list",
+            "--first-parent",
+            "--reverse",
+            POST_BRIDGE_SOURCE,
+            "--",
+            "docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md",
+        ).splitlines()[-1]
+    elif case == "predecessor":
+        transition["predecessorIdentity"]["value"] = POST_BRIDGE_SOURCE
+    elif case == "decided-bytes":
+        transition["contentDigest"] = "b" * 64
+    elif case == "message":
+        transition["messageSha256"] = "c" * 64
+    elif case == "author":
+        transition["gitAuthorAt"] = "2026-09-01T12:00:00Z"
+    elif case == "committer":
+        transition["gitCommitterAt"] = "2026-09-01T12:00:00Z"
+    elif case == "author-as-committer":
+        row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0015")
+        row["transition"]["gitCommitterAt"] = row["transition"]["gitAuthorAt"]
+    elif case == "external-transition":
+        transition["identity"]["class"] = "external-git-commit"
+    elif case == "no-disposition":
+        row["disposition"] = None
+    elif case == "false-comparison":
+        row["committerUtcDateDiffers"] = False
+    elif case == "wrong-comparison-date":
+        row["disposition"]["committerUtcDate"] = "2026-09-01"
+    elif case == "legacy-kind":
+        row["disposition"]["kind"] = "decision-date-recording-latency-v1"
+    elif case == "legacy-recorded":
+        row["recordedAt"] = transition["gitCommitterAt"]
+    elif case == "legacy-differs":
+        row["recordingDateDiffers"] = True
+    elif case == "legacy-date":
+        row["disposition"]["recordingDate"] = "2026-09-02"
+    elif case == "extra":
+        row["futureCommit"] = "d" * 40
+    else:
+        row["adrId"] = "ADR-0099"
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("lifecycle", ["Accepted", "Rejected", "Superseded"])
+def test_temporal_adv_g105_rehashed_date_history(tmp_path: Path, lifecycle: str) -> None:
+    root = history_repository(tmp_path, "temporal-history")
+    state = accepted_registry(root)
+    adr = state["adrs"][0]
+    document = root / adr["path"]
+    if lifecycle == "Rejected":
+        document.write_text(
+            document.read_text()
+            .replace("Accepted", "Rejected")
+            .replace("- **Closes:** [U4](unresolved.md#u4)", "- **Closes:** no unresolved decision")
+        )
+        adr["lifecycle"], adr["resolves"], adr["acceptance"]["outcome"] = "Rejected", [], "rejected"
+    elif lifecycle == "Superseded":
+        successor = json.loads(json.dumps(adr))
+        successor["id"], successor["path"], successor["supersedes"] = (
+            "ADR-0002",
+            "successor.md",
+            [adr["id"]],
+        )
+        successor_bytes = (
+            document.read_text().replace("ADR-0001", "ADR-0002")
+            + "\n- **Supersedes:** [ADR-0001](adr.md)\n"
+        )
+        (root / successor["path"]).write_text(successor_bytes)
+        successor["acceptance"]["contentDigest"] = hashlib.sha256(
+            successor_bytes.encode()
+        ).hexdigest()
+        state["adrs"].append(successor)
+        adr["lifecycle"] = "Superseded"
+    adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    base = commit_registry(root, state, "TEST terminal decision")
+    assert_valid(root, REGISTRY_PATH)
+    before = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest} from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs';"
+            "console.log(primitiveDigest(JSON.parse(fs.readFileSync(0,'utf8'))))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    adr["acceptance"]["decisionDate"] = "2026-08-31"
+    # First the excluded-metadata property, independently of admissibility.
+    after = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest} from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs';"
+            "console.log(primitiveDigest(JSON.parse(fs.readFileSync(0,'utf8'))))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert after == before
+    # Then change even the mirror/content hash: history still owns immutability.
+    document.write_text(document.read_text().replace("2026-08-30", "2026-08-31"))
+    adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    state = bind_acceptance_digest(root, state, 0, REGISTRY_PATH)
+    commit_registry(root, state, "HOSTILE rewritten decision date with recomputed digests")
+    assert_valid(root, REGISTRY_PATH)
+    assert_history_refused(root, "ADV-G40", base=base)
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/history.mjs",
+                "if (canonicalText(baseAdr.acceptance) !== canonicalText(targetAdr.acceptance)) {",
+                "if (false) {",
+            )
+        ],
+    )
+    result, payload = run_subject(subject, root, base=base)
+    assert result.returncode == 0, payload  # Independent MUT-G20 kill.
+
+
+@pytest.mark.parametrize(
+    "field", ["gitCommitterAt", "sources", "disposition", "coverage", "recordedAt"]
+)
+def test_temporal_mut_g21_independent_manifest_kills(
+    temporal_candidate: Path, tmp_path: Path, field: str
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0022")
+    if field == "gitCommitterAt":
+        row["transition"][field] = "2026-09-01T00:00:00Z"
+    elif field == "sources":
+        row["sources"].pop()
+    elif field == "disposition":
+        row[field] = None
+    elif field == "coverage":
+        manifest["decisionEvidence"].pop()
+    else:
+        row[field] = "2026-09-02T08:03:21Z"
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/decision-evidence.mjs",
+                "if (!same(manifest.decisionEvidence, expected))",
+                "if (false)",
+            )
+        ],
+    )
+    result, payload = run_subject(subject, root)
+    assert result.returncode == 0, payload
+
+
+@pytest.mark.parametrize("mutation", ["primitive-date", "transition-date"])
+def test_temporal_prop_g12_mut_g20_causal_exclusions(tmp_path: Path, mutation: str) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    script = """
+import {pathToFileURL} from 'node:url'
+import fs from 'node:fs'
+const m=await import(pathToFileURL(process.argv[1]).href)
+const a=JSON.parse(fs.readFileSync(0,'utf8')), b=structuredClone(a)
+b.adrs[0].acceptance.decisionDate='2026-08-31'
+const values=s=>[m.primitiveDigest(s),m.acceptanceDigest(s,s.adrs[0])]
+console.log(JSON.stringify({before:values(a),after:values(b),bytesDiffer:m.canonicalSerialize(a)!==m.canonicalSerialize(b)}))
+"""
+
+    def evaluate(subject: Path) -> dict[str, Any]:
+        result = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                str(subject / "scripts/governance/model/index.mjs"),
+            ],
+            cwd=REPOSITORY_ROOT,
+            input=json.dumps(state),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return cast(dict[str, Any], json.loads(result.stdout))
+
+    control = evaluate(REPOSITORY_ROOT)
+    assert control["before"] == control["after"] and control["bytesDiffer"]
+    anchor, replacement = (
+        ("      delete adr.acceptance.decisionDate", "      void adr.acceptance.decisionDate")
+        if mutation == "primitive-date"
+        else (
+            "    targetPrimitiveDigest: target,",
+            "    targetPrimitiveDigest: sha256Text(target + adr.acceptance.decisionDate),",
+        )
+    )
+    subject = mutant_subject(tmp_path, [("governance/model/digests.mjs", anchor, replacement)])
+    mutant = evaluate(subject)
+    assert mutant["before"] != mutant["after"]
+
+
+def test_temporal_projection_and_query_dates(temporal_genesis: Path) -> None:
+    root = temporal_genesis
+    for path, regions in [
+        ("docs/decisions/INDEX.md", ["decision-lifecycle"]),
+        ("docs/architecture/unresolved-decisions.md", ["question-summary", "resolution-banners"]),
+    ]:
+        with (root / path).open("a", encoding="utf-8") as stream:
+            for region in regions:
+                stream.write("\n" + BEGIN.format(region) + "\n" + END.format(region) + "\n")
+    result = run_renderer(root, "write")
+    assert result.returncode == 0, result.stderr
+    assert run_renderer(root, "check").returncode == 0
+    rendered = (root / "governance/STATE.md").read_text()
+    assert "| ADR-0022 | Accepted | 2026-09-01 |" in rendered
+    resolutions = (root / "docs/architecture/unresolved-decisions.md").read_text()
+    assert "**U7** — resolved on 2026-08-15" in resolutions
+    query = run_query(root, json_form=True)
+    assert query.returncode == 0, query.stderr
+    data = json.loads(query.stdout)
+    assert next(q for q in data["questions"] if q["id"] == "U7")["resolvedOn"] == "2026-08-15"
+    assert next(q for q in data["questions"] if q["id"] == "U4")["resolvedOn"] is None
+    assert "resolvedAt" not in query.stdout
+    assert "U7  resolved by ADR-0015 on 2026-08-15" in run_query(root, json_form=False).stdout
+    (root / "governance/STATE.md").write_text(rendered.replace("2026-09-01", "2026-09-02"))
+    assert run_renderer(root, "check").returncode != 0
+
+
+def test_temporal_frozen_planning_bytes_and_rule_values_both_bind(temporal_candidate: Path) -> None:
+    root = temporal_candidate
+    tasks = root / "openspec/changes/governance-state-substrate/tasks.md"
+    tasks.write_text(tasks.read_text() + "\nTEST bookkeeping progress only.\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "TEST task progress without governance input changes")
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode != 0 and "ADV-G73" in {p["code"] for p in payload["problems"]}, payload
+    design = root / "openspec/changes/governance-state-substrate/design.md"
+    text = design.read_text()
+    old = "| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** |"
+    assert text.count(old) == 1
+    design.write_text(text.replace(old, old.replace("**Planned**", "**InProgress**")))
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "HOSTILE changed planning source primitive")
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode != 0 and "ADV-G69" in {p["code"] for p in payload["problems"]}
+
+
+@pytest.mark.parametrize("case", ["missing", "mixed-revision", "hash", "dropped-preparation"])
+def test_temporal_preparation_planning_bindings_refuse_rehashed_drift(
+    temporal_candidate: Path,
+    case: str,
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    historic = {
+        "7a2d731837ea9f14cae09436ddb78e6e47607ee5",
+        "fc1b9f4eef748f7cd0f6af7818bec94d3045f46e",
+        "5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a",
+        POST_BRIDGE_SOURCE,
+    }
+    prepared = [row for row in manifest["planningSources"] if row["revision"] not in historic]
+    assert len(prepared) == 5
+    if case == "missing":
+        manifest["planningSources"].remove(prepared[0])
+    elif case == "mixed-revision":
+        prepared[0]["revision"] = git(root, "rev-parse", "HEAD")
+    elif case == "hash":
+        prepared[0]["contentSha256"] = "a" * 64
+    else:
+        manifest["planningSources"] = [r for r in manifest["planningSources"] if r not in prepared]
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(
+        root, "ADV-G73" if case == "dropped-preparation" else "ADV-G31", path=REGISTRY_PATH
+    )
+
+
+def test_temporal_extraction_replays_exact_preparation_without_rebinding(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    preparation = git(root, "rev-parse", "HEAD")
+    command = [
+        "node",
+        str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+        "--root",
+        str(root),
+        "--source",
+        POST_BRIDGE_SOURCE,
+        "--inventory-source",
+        "WORKTREE",
+    ]
+    original = subprocess.run(command, capture_output=True, text=True)
+    assert original.returncode == 0, original.stderr
+    git(root, "commit", "--allow-empty", "-qm", "TEST later proof commit")
+    replay = subprocess.run(
+        [*command, "--planning-source", preparation], capture_output=True, text=True
+    )
+    assert replay.returncode == 0, replay.stderr
+    assert replay.stdout == original.stdout
+    ambiguous = subprocess.run(
+        [*command, "--planning-source", "HEAD"], capture_output=True, text=True
+    )
+    assert ambiguous.returncode != 0 and not ambiguous.stdout
+    assert "full commit identity" in ambiguous.stderr
+    tasks = root / "openspec/changes/governance-state-substrate/tasks.md"
+    tasks.write_text(tasks.read_text() + "\nHOSTILE planning drift after checkpoint.\n")
+    changed = subprocess.run(
+        [*command, "--planning-source", preparation], capture_output=True, text=True
+    )
+    assert changed.returncode != 0 and not changed.stdout
+    assert "checkpoint current planning bytes" in changed.stderr
+
+
+def test_temporal_missing_transition_never_emits_partial_candidate(tmp_path: Path) -> None:
+    root = tmp_path / "shallow-evidence"
+    root.mkdir()
+    git(root, "init", "-q")
+    git(root, "remote", "add", "origin", str(REPOSITORY_ROOT))
+    git(root, "fetch", "--depth=1", "origin", POST_BRIDGE_SOURCE)
+    git(root, "checkout", "--quiet", "--detach", "FETCH_HEAD")
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--patch",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0 and not result.stdout
+    assert "historical acceptance audit blocks candidate generation" in result.stderr
+    assert "ADR-0015" in result.stderr and "ADR-0022" in result.stderr
+    assert not (root / "tests/fixtures/governance/candidate").exists()
+
+
+def test_temporal_archive_stage_cannot_be_rebound_to_common_source(
+    temporal_candidate: Path,
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["historicalCompletions"] if r["landingId"] == "runner/L4")
+    archive = row["evidence"]["archivedOpenSpec"]
+    archive["archivedPackageIdentity"]["value"] = POST_BRIDGE_SOURCE
+    script = (
+        "import fs from 'node:fs';import {bundleSha256} from "
+        "'./scripts/governance/model/archived-openspec.mjs';"
+        "console.log(bundleSha256(JSON.parse(fs.readFileSync(0,'utf8'))))"
+    )
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(archive),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    archive["bundleSha256"] = result.stdout.strip()
+    row["packageDisposition"]["archiveBundleSha256"] = archive["bundleSha256"]
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G98", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("member", ["bridge-evidence.json", "bridge-verification.md"])
+def test_temporal_consumed_bridge_is_immutable_historical_evidence(
+    temporal_genesis: Path,
+    member: str,
+) -> None:
+    root = temporal_genesis
+    path = root / "openspec/changes/governance-state-substrate" / member
+    path.write_bytes(path.read_bytes() + b"\n")
+    assert_refused(root, "ADV-G31", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("lifecycle", ["Accepted", "Rejected"])
+def test_temporal_ordinary_non_self_reference_and_no_genesis_replay(
+    tmp_path: Path, lifecycle: str
+) -> None:
+    root = history_repository(tmp_path, "ordinary-temporal")
+    before = registry(root)
+    base = git(root, "rev-parse", "HEAD")
+    state = accepted_registry(root)
+    adr = state["adrs"][0]
+    if lifecycle == "Rejected":
+        adr["lifecycle"], adr["resolves"], adr["acceptance"]["outcome"] = "Rejected", [], "rejected"
+        document = root / adr["path"]
+        document.write_text(
+            document.read_text()
+            .replace("Accepted", "Rejected")
+            .replace("- **Closes:** [U4](unresolved.md#u4)", "- **Closes:** no unresolved decision")
+        )
+        adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    script = """
+import fs from 'node:fs'
+import {transitionDigest,primitiveDigest,relationshipDigest}
+  from './scripts/governance/model/index.mjs'
+const {before,state}=JSON.parse(fs.readFileSync(0,'utf8')), adr=state.adrs[0]
+adr.acceptance.transitionDigest=transitionDigest({schemaVersion:1,priorStateDigest:primitiveDigest(before),targetPrimitiveDigest:primitiveDigest(state),subject:adr.id,from:'Proposed',to:adr.lifecycle,contentDigest:adr.acceptance.contentDigest,relationshipDigest:relationshipDigest(state)})
+console.log(JSON.stringify(state))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"before": before, "state": state}),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    state = json.loads(result.stdout)
+    target = commit_registry(root, state, "TEST atomic date-only decision")
+    assert target not in (root / REGISTRY_PATH).read_text()
+    payload = assert_history_clean(root, base=base)
+    observation = payload["decisionObservations"][0]
+    assert observation["evaluatedRevision"] == target
+    assert observation["decisionDate"] == "2026-08-30"
+    # A genesis-null preimage cannot admit an ordinary transition.
+    state = bind_acceptance_digest(root, state, 0, REGISTRY_PATH)
+    commit_registry(root, state, "HOSTILE null predecessor digest")
+    assert_history_refused(root, "ADV-G19", base=base)
+
+
+def test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority() -> None:
+    state = load_state(REPOSITORY_ROOT, "tests/fixtures/governance/candidate/state.json")
+    assert state["attestations"] == {"genesis": {}}
+    assert not (REPOSITORY_ROOT / REGISTRY_PATH).exists()
+    result, payload = run_checker(REPOSITORY_ROOT, "tests/fixtures/governance/candidate/state.json")
+    assert result.returncode == 1, result.stderr
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G90", "ADV-G51"}
+
+
+def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    frozen_before = {path.name: path.read_bytes() for path in CANDIDATE_ROOT.glob("*.json")}
+    state = install_test_genesis(root)
+    result, payload = run_checker(root, REGISTRY_PATH)
+    assert result.returncode == 0, (payload, result.stderr)
+    assert payload["ok"] is True
+    accepted = {adr["id"] for adr in state["adrs"] if adr["lifecycle"] == "Accepted"}
+    assert accepted == {f"ADR-{number:04}" for number in [*range(1, 20), 21, 22, 23, 24]}
+    assert payload["derived"]["questions"]["U4"]["resolved"] is False
+    assert payload["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is False
+    assert payload["derived"]["readiness"]["runner/L9"]["state"] == "NotReady"
+    assert len(state["landings"]) + len(state["gates"]) == 11
+    members = state["attestations"]["genesisCompletion"]["members"]
+    assert {member["landingId"] for member in members} == {
+        f"runner/L{number}" for number in range(2, 8)
+    }
+    assert state["attestations"]["genesis"]["actor"] == "fixture:genesis-mechanism"
+    assert frozen_before == {path.name: path.read_bytes() for path in CANDIDATE_ROOT.glob("*.json")}
+    for landing in state["landings"]:
+        completion = landing["delivery"]["completion"]
+        if completion is not None:
+            assert set(completion) == {"type", "digest", "evidence"}
+            assert completion["type"] == "genesis-historical-completion-v1"
+
+
+def test_ex_g31_genesis_terminal_records_survive_pairwise_continuation(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    activation_base = git(root, "rev-parse", "HEAD")
+    state = install_test_genesis(root)
+    base = commit_registry(root, state, "TEST activation only")
+    assert_history_clean(root, base=activation_base)
+    state["questions"][0]["severity"] = "medium"
+    commit_registry(root, state, "ordinary severity update after TEST genesis")
+    assert_history_clean(root, base=base)
+
+
+@pytest.fixture(scope="session")
+def attested_genesis_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    root = isolated_genesis(tmp_path_factory.mktemp("genesis-template"))
+    state = install_test_genesis(root)
+    commit_registry(root, state, "isolated TEST genesis template")
+    assert_valid(root, REGISTRY_PATH)
+    return root
+
+
+@pytest.fixture
+def attested_genesis(tmp_path: Path, attested_genesis_template: Path) -> Path:
+    root = tmp_path / "attested"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(attested_genesis_template), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return root
+
+
+@pytest.mark.parametrize(
+    ("case", "code"),
+    [
+        ("ordinary-digest", "ADV-G88"),
+        ("prior-lifecycle", "ADV-G02"),
+        ("per-landing-attestation", "ADV-G02"),
+        ("type-alias", "ADV-G88"),
+        ("extra-row", "ADV-G87"),
+        ("missing-row", "ADV-G87"),
+        ("source-mismatch", "ADV-G87"),
+        ("evidence-mismatch", "ADV-G87"),
+        ("extra-waiver", "ADV-G86"),
+        ("missing-waiver", "ADV-G86"),
+        ("wildcard-waiver", "ADV-G86"),
+        ("duplicate-waiver", "ADV-G86"),
+        ("misbound-landing", "ADV-G86"),
+        ("wrong-profile", "ADV-G86"),
+        ("wrong-witness", "ADV-G86"),
+        ("spike-disposition", "ADV-G86"),
+        ("missing-member", "ADV-G51"),
+        ("extra-member", "ADV-G51"),
+        ("duplicate-member", "ADV-G65"),
+        ("reassociated-digest", "ADV-G65"),
+        ("manifest-as-attestation", "ADV-G02"),
+        ("unattested", "ADV-G90"),
+        ("general-source", "ADV-G87"),
+        ("seed-digest", "ADV-G62"),
+        ("relationship-count", "ADV-G20"),
+        ("freeze-label", "ADV-G76"),
+        ("freeze-missing-member", "ADV-G76"),
+        ("freshness-skipped", "ADV-G74"),
+        ("closed-row-alias", "ADV-G02"),
+    ],
+)
+def test_adv_g51_g52_g57_g62_g65_g76_g86_g87_g88_genesis_hostile_bindings(
+    attested_genesis: Path,
+    case: str,
+    code: str,
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    landing = next(node for node in state["landings"] if node["id"] == "runner/L4")
+    completion = landing["delivery"]["completion"]
+    row = next(
+        item for item in manifest["historicalCompletions"] if item["landingId"] == "runner/L4"
+    )
+    if case in {"missing-waiver", "duplicate-waiver"}:
+        row = next(
+            item for item in manifest["historicalCompletions"] if item["landingId"] == "runner/L5"
+        )
+    disposition = row["packageDisposition"]
+    genesis = state["attestations"]["genesis"]
+    members = state["attestations"]["genesisCompletion"]["members"]
+    if case == "ordinary-digest":
+        completion["digest"] = "a" * 64
+    elif case == "prior-lifecycle":
+        completion["from"] = "Planned"
+    elif case == "per-landing-attestation":
+        completion["attestation"] = {}
+    elif case == "type-alias":
+        completion["type"] = "historical-completion"
+    elif case == "extra-row":
+        extra = json.loads(json.dumps(row))
+        extra["landingId"] = "runner/L8"
+        manifest["historicalCompletions"].append(extra)
+    elif case == "missing-row":
+        manifest["historicalCompletions"].remove(row)
+    elif case == "source-mismatch":
+        row["sourceSnapshotIdentity"]["value"] = git(root, "rev-parse", DURABLE_PR2A + "^")
+    elif case == "evidence-mismatch":
+        row["evidence"]["archivedOpenSpec"]["bundleSha256"] = "a" * 64
+    elif case == "extra-waiver":
+        disposition["waivedMinimumArtifacts"].append("proposal.md")
+    elif case == "missing-waiver":
+        assert disposition["waivedMinimumArtifacts"]
+        disposition["waivedMinimumArtifacts"] = []
+    elif case == "wildcard-waiver":
+        disposition["waivedMinimumArtifacts"] = ["*"]
+    elif case == "duplicate-waiver":
+        disposition["waivedMinimumArtifacts"] *= 2
+    elif case == "misbound-landing":
+        disposition["landingId"] = "runner/L5"
+    elif case == "wrong-profile":
+        disposition["packageProfile"] = "ordinary"
+    elif case == "wrong-witness":
+        disposition["reviewWitness"] = "required-content-backed-v2"
+    elif case == "spike-disposition":
+        spike = next(
+            item for item in manifest["historicalCompletions"] if item["landingId"] == "runner/L6"
+        )
+        spike["packageDisposition"] = disposition
+    elif case == "missing-member":
+        members.pop()
+    elif case == "extra-member":
+        members.append({"landingId": "runner/L8", "digest": "8" * 64})
+    elif case == "duplicate-member":
+        members.append(members[0].copy())
+    elif case == "reassociated-digest":
+        members[1]["digest"] = members[0]["digest"]
+    elif case == "manifest-as-attestation":
+        state["attestations"]["genesisCompletion"] = manifest
+    elif case == "unattested":
+        state["attestations"] = {"genesis": {}}
+    elif case == "general-source":
+        genesis["sourceSnapshotIdentity"]["value"] = git(root, "rev-parse", DURABLE_PR2A + "^")
+    elif case == "seed-digest":
+        genesis["seedDigest"] = "a" * 64
+    elif case == "relationship-count":
+        genesis["relationshipEquivalenceDigest"] = hashlib.sha256(b"2 resolved").hexdigest()
+    elif case == "freeze-label":
+        genesis["candidateFreezeIdentity"] = {"label": "reviewed-candidate"}
+    elif case == "freeze-missing-member":
+        genesis["candidateFreezeIdentity"]["members"].pop()
+    elif case == "freshness-skipped":
+        genesis["activationFreshness"]["digest"] = "a" * 64
+    elif case == "closed-row-alias":
+        row["rationale"] = "a forbidden row-level alias"
+    else:
+        raise AssertionError(case)
+    write_state(root, manifest, "governance/genesis-source-manifest.json")
+    write_state(root, state, REGISTRY_PATH)
+    assert_refused(root, code, path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("case", ["missing", "duplicate-key", "noncanonical", "symlink"])
+def test_adv_g87_source_manifest_must_be_available_strict_and_canonical(
+    attested_genesis: Path,
+    tmp_path: Path,
+    case: str,
+) -> None:
+    source = attested_genesis / "governance/genesis-source-manifest.json"
+    if case == "missing":
+        source.unlink()
+    elif case == "duplicate-key":
+        source.write_text(
+            source.read_text().replace(
+                '"schemaVersion": 1,', '"schemaVersion": 1, "schemaVersion": 1,', 1
+            )
+        )
+    elif case == "noncanonical":
+        source.write_text(json.dumps(json.loads(source.read_text())))
+    else:
+        outside = tmp_path / "outside-manifest.json"
+        outside.write_bytes(source.read_bytes())
+        source.unlink()
+        source.symlink_to(outside)
+    assert_refused(attested_genesis, "ADV-G87", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("case", ["changed", "deleted", "extra", "executable", "symlink"])
+def test_adv_g86_historical_waivers_do_not_waive_existing_archive_members(
+    attested_genesis: Path,
+    tmp_path: Path,
+    case: str,
+) -> None:
+    archive = attested_genesis / "openspec/changes/archive/2026-09-13-runner-control-orchestration"
+    member = archive / "proposal.md"
+    if case == "changed":
+        member.write_bytes(member.read_bytes() + b"\nchanged historical bytes\n")
+    elif case == "deleted":
+        member.unlink()
+    elif case == "extra":
+        (archive / ".extra-evidence").write_text("unreviewed member\n")
+    elif case == "executable":
+        member.chmod(0o755)
+    else:
+        outside = tmp_path / "outside-proposal.md"
+        outside.write_bytes(member.read_bytes())
+        member.unlink()
+        member.symlink_to(outside)
+    result, payload = run_checker(attested_genesis, REGISTRY_PATH)
+    assert result.returncode == 1, (payload, result.stderr)
+    assert any(
+        problem["code"] in {"ADV-G80", "ADV-G84", "ADV-G85"} for problem in payload["problems"]
+    ), payload
+
+
+@pytest.fixture
+def fresh_genesis(tmp_path: Path, attested_genesis_template: Path) -> Path:
+    root = tmp_path / "freshness"
+    base = registry(attested_genesis_template)["attestations"]["genesis"]["activationBaseCommit"]
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--shared",
+            "--no-checkout",
+            str(attested_genesis_template),
+            str(root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(root, "checkout", "--quiet", "--detach", base)
+    return root
+
+
+def run_freshness(root: Path, base: str) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    result = subprocess.run(
+        ["node", str(FRESHNESS), "--root", str(root), "--base", base],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result, cast(dict[str, Any], json.loads(result.stdout))
+
+
+def test_ex_g28_equivalent_different_commit_is_not_commit_only_freshness(
+    fresh_genesis: Path,
+) -> None:
+    root = fresh_genesis
+    before_run, before = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert before_run.returncode == 0, (before, before_run.stderr)
+    (root / "unrelated-note.txt").write_text("No source or governance fact changes.\n")
+    git(root, "add", "unrelated-note.txt")
+    git(root, "commit", "-qm", "unrelated equivalent test base")
+    after_run, after = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert after_run.returncode == 0, (after, after_run.stderr)
+    assert before["result"]["candidateFreezeIdentity"] == after["result"]["candidateFreezeIdentity"]
+    assert (
+        before["result"]["comparisonTupleIdentities"]
+        == after["result"]["comparisonTupleIdentities"]
+    )
+    assert (
+        before["result"]["activationFreshnessDigest"]
+        != after["result"]["activationFreshnessDigest"]
+    )
+    assert after["result"]["outcome"] == "equivalent"
+
+
+@pytest.mark.parametrize(
+    ("case", "code"),
+    [
+        ("lifecycle", "ADV-G69"),
+        ("relationship", "ADV-G69"),
+        ("new-adr", "ADV-G70"),
+        ("yaml-consumer", "ADV-G71"),
+        ("binary-consumer", "ADV-G71"),
+        ("archive-evidence", "ADV-G72"),
+        ("source-artifact", "ADV-G73"),
+    ],
+)
+def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
+    fresh_genesis: Path,
+    case: str,
+    code: str,
+) -> None:
+    root = fresh_genesis
+    candidate = root / "tests/fixtures/governance/candidate"
+    before = {path.name: path.read_bytes() for path in candidate.glob("*.json")}
+    adr = root / "docs/decisions/ADR-0020-place-runner-control-by-workload-class.md"
+    if case == "lifecycle":
+        adr.write_text(adr.read_text().replace("**Status:** Proposed", "**Status:** Accepted", 1))
+    elif case == "relationship":
+        text = adr.read_text()
+        old = "**Decides:** [U4](../architecture/unresolved-decisions.md#u4)"
+        assert old in text
+        adr.write_text(text.replace("U4", "U3").replace("#u4", "#u3"))
+    elif case == "new-adr":
+        (root / "docs/decisions/ADR-0025-fixture-only.md").write_text(
+            "# ADR-0025: Fixture only\n\n- **Status:** Proposed\n- **Date:** 2026-09-20\n"
+            "- **Closes:** no unresolved decision\n\n---\n\nNo real decision.\n"
+        )
+    elif case in {"yaml-consumer", "binary-consumer"}:
+        claim = b"current_decisions: ADR-0001 through ADR-0022 are Accepted\n"
+        (root / "unregistered-consumer.yaml").write_bytes(
+            claim + (b"\xff" if case == "binary-consumer" else b"")
+        )
+    elif case == "archive-evidence":
+        member = root / "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md"
+        member.write_bytes(member.read_bytes() + b"\nchanged historical evidence\n")
+    else:
+        source = root / "openspec/changes/governance-state-substrate/proposal.md"
+        source.write_bytes(source.read_bytes() + b"\nsource bytes changed, same derived counts\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "hostile activation base: " + case)
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode == 1, (payload, result.stderr)
+    assert code in {problem["code"] for problem in payload["problems"]}, payload
+    assert "result" not in payload, payload
+    assert before == {path.name: path.read_bytes() for path in candidate.glob("*.json")}
+
+
+@pytest.mark.parametrize(
+    "revision",
+    [
+        "dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e",
+        "7309acb17e8e8d4a855d25c4d24317f621692b82",
+        "HEAD",
+    ],
+)
+def test_adv_g98_g110_extraction_never_substitutes_a_branch_or_preparation_head(
+    revision: str,
+) -> None:
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(REPOSITORY_ROOT),
+            "--source",
+            revision,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "ADV-G110" in result.stderr  # D12 now requires the post-bridge source, not just M.
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["row", "classification", "program", "waiver", "source", "digest", "inventory", "reason"],
+)
+def test_adv_g42_g43_g44_g46_g47_g76_g98_frozen_input_mutations_are_refused(
+    fresh_genesis: Path,
+    case: str,
+) -> None:
+    root = fresh_genesis
+    prefix = "tests/fixtures/governance/candidate/"
+    manifest = load_state(root, prefix + "source-manifest.json")
+    seed = load_state(root, prefix + "state.json")
+    inventory = load_state(root, prefix + "consumers.json")
+    if case == "row":
+        manifest["rows"].pop()
+    elif case == "classification":
+        row = next(
+            row for row in manifest["rows"] if row["classification"] == "externally-attested"
+        )
+        row["classification"] = "locally-verified"
+    elif case == "program":
+        seed["landings"] = [node for node in seed["landings"] if node["id"] != "runner/L10"]
+    elif case == "waiver":
+        row = next(
+            row for row in manifest["historicalCompletions"] if row["landingId"] == "runner/L5"
+        )
+        row["packageDisposition"]["waivedMinimumArtifacts"].append("tasks.md")
+    elif case == "source":
+        manifest["sourceSnapshotIdentity"]["value"] = "24b34a0c0fe42a47d3e1710b87e3ef22e07f387b"
+    elif case == "digest":
+        node = next(node for node in seed["landings"] if node["id"] == "runner/L5")
+        node["delivery"]["completion"]["digest"] = "a" * 64
+    elif case == "inventory":
+        inventory["rows"] = [
+            row for row in inventory["rows"] if row["path"] != "openspec/config.yaml"
+        ]
+    else:
+        row = next(
+            row for row in inventory["rows"] if row["disposition"] == "retained-semantic-prose"
+        )
+        row["retainedReason"] = ""
+    for name, value in [
+        ("state.json", seed),
+        ("source-manifest.json", manifest),
+        ("consumers.json", inventory),
+    ]:
+        write_state(root, value, prefix + name)
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode == 1, (payload, result.stderr)
+    expected = {
+        "row": "ADV-G42",
+        "classification": "ADV-G43",
+        "program": "ADV-G44",
+        "waiver": "ADV-G86",
+        "source": "ADV-G87",
+        "digest": "ADV-G88",
+        "inventory": "ADV-G46",
+        "reason": "ADV-G47",
+    }[case]
+    assert expected in {problem["code"] for problem in payload["problems"]}, payload
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected_digest"),
+    [
+        ("delivery", "a4d58baa78f63d9c1657d5a781a49da9b2493b6009209802e46e4ad6cf55e8d6"),
+        ("spike", "1ed508f48d1487ee69fa0aaf4b1ec3f8de7edb323181901dab157890d15a27a9"),
+    ],
+)
+def test_adv_g53_g57_g63_g87_literal_historical_vectors_and_every_input_field(
+    policy: str,
+    expected_digest: str,
+) -> None:
+    """Hand-ordered literal preimages, independently SHA-256 checked.
+
+    These files were not obtained from the subject's preimage/serializer/digest
+    functions. A wrong subject cannot regenerate the expected vector for itself.
+    """
+    raw = (TEST_ENVELOPE.parent / (policy + "-preimage.json")).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == expected_digest
+    script = """
+import {canonicalSerialize, genesisHistoricalCompletionPreimage,
+  genesisHistoricalCompletionDigest, genesisCompletionEnvelopeDigest}
+  from './scripts/governance/model/index.mjs'
+let text = ''; for await (const chunk of process.stdin) text += chunk
+const expected = JSON.parse(text)
+const input = {landing: {id: expected.landingId, authorityAnchor: expected.authorityAnchor,
+  delivery: {completionPolicy: expected.completionPolicy,
+    completion: {evidence: expected.policyEvidenceIdentities[0]}}},
+  row: {sourceSnapshotIdentity: expected.sourceSnapshotIdentity,
+    packageDisposition: expected.historicalPackageDisposition}}
+const digest = genesisHistoricalCompletionDigest(input.landing, input.row)
+const paths = []
+function visit(value, path) {
+  if (value !== null && typeof value === 'object') {
+    for (const [key, member] of Object.entries(value)) visit(member, [...path, key])
+  } else paths.push(path)
+}
+visit(input, [])
+for (const path of paths) {
+  const changed = structuredClone(input)
+  let holder = changed; for (const key of path.slice(0, -1)) holder = holder[key]
+  const key = path.at(-1), old = holder[key]
+  holder[key] = old === null ? {} : typeof old === 'number' ? old + 1 : String(old) + '-changed'
+  if (genesisHistoricalCompletionDigest(changed.landing, changed.row) === digest)
+    throw new Error('unbound preimage input: ' + path.join('.'))
+}
+const original = canonicalSerialize(genesisHistoricalCompletionPreimage(input.landing, input.row))
+input.landing.delivery.completion.from = 'Planned'
+input.landing.delivery.completion.to = 'Complete'
+if (genesisHistoricalCompletionDigest(input.landing, input.row) !== digest)
+  throw new Error('an ordinary transition leaked into the historical preimage')
+const member = {landingId: expected.landingId, digest}
+const before = genesisCompletionEnvelopeDigest([member])
+member.digest = '0'.repeat(64)
+if (before === genesisCompletionEnvelopeDigest([member])) throw new Error('unbound envelope member')
+console.log(JSON.stringify({preimage: original, digest, fields: paths.length}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=raw.decode(),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["preimage"].encode() == raw
+    assert payload["digest"] == expected_digest
+    assert payload["fields"] >= 20
+
+
+def test_prop_g09_genesis_source_waiver_and_member_permutations_are_canonical(
+    attested_genesis: Path,
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    before_state = (root / REGISTRY_PATH).read_bytes()
+    before_manifest = (root / "governance/genesis-source-manifest.json").read_bytes()
+    state["attestations"]["genesisCompletion"]["members"].reverse()
+    state["landings"].reverse()
+    state["adrs"].reverse()
+    manifest["rows"].reverse()
+    manifest["planningSources"].reverse()
+    manifest["historicalCompletions"].reverse()
+    manifest["decisionEvidence"].reverse()
+    for row in manifest["decisionEvidence"]:
+        row["sources"].reverse()
+    for row in manifest["historicalCompletions"]:
+        if row["packageDisposition"] is not None:
+            row["packageDisposition"]["waivedMinimumArtifacts"].reverse()
+    write_state(root, state, REGISTRY_PATH)
+    write_state(root, manifest, "governance/genesis-source-manifest.json")
+    assert (root / REGISTRY_PATH).read_bytes() == before_state
+    assert (root / "governance/genesis-source-manifest.json").read_bytes() == before_manifest
+    assert_valid(root, REGISTRY_PATH)
+
+
+def ordinary_l8_completion(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+    """A NEW ordinary delivery in an isolated repository, not a historical waiver."""
+    built = build_archived_repository(root)
+    landing = next(node for node in state["landings"] if node["id"] == "runner/L8")
+    landing["delivery"]["lifecycle"] = "Complete"
+    landing["delivery"]["completion"] = {
+        "from": "Planned",
+        "to": "Complete",
+        "digest": "0" * 64,
+        "evidence": {
+            "policy": "reviewed-delivery-v1",
+            "deliveredIdentity": {
+                "class": "local-git-commit",
+                "value": built["archivedCommit"],
+                "scope": [ARCHIVE_ROOT],
+            },
+            "archivedOpenSpec": archived_openspec(built, reviewed_form="commit"),
+        },
+        "attestation": {
+            "digest": "0" * 64,
+            "actor": "fixture:ordinary-completion",
+            "at": "2026-09-16T01:00:00Z",
+            "outcome": "completed",
+            "authority": landing["authorityAnchor"],
+        },
+    }
+    digest = completion_digest_of(landing)
+    landing["delivery"]["completion"]["digest"] = digest
+    landing["delivery"]["completion"]["attestation"]["digest"] = digest
+    return state
+
+
+def test_ex_g31_later_ordinary_completion_keeps_exact_genesis_set(attested_genesis: Path) -> None:
+    root = attested_genesis
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    before_envelopes = json.dumps(state["attestations"], sort_keys=True)
+    before_source = (root / "governance/genesis-source-manifest.json").read_bytes()
+    ordinary_l8_completion(root, state)
+    commit_registry(root, state, "isolated ordinary L8 completion after TEST genesis")
+    assert_valid(root, REGISTRY_PATH)
+    assert_history_clean(root, base=base)
+    assert json.dumps(registry(root)["attestations"], sort_keys=True) == before_envelopes
+    assert (root / "governance/genesis-source-manifest.json").read_bytes() == before_source
+    assert len(state["attestations"]["genesisCompletion"]["members"]) == 6
+
+
+def test_adv_g83_ordinary_completion_cannot_borrow_retained_historical_profile(
+    attested_genesis: Path,
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    ordinary_l8_completion(root, state)
+    l8 = next(node for node in state["landings"] if node["id"] == "runner/L8")
+    l5 = next(node for node in state["landings"] if node["id"] == "runner/L5")
+    completion = l8["delivery"]["completion"]
+    completion["evidence"] = json.loads(json.dumps(l5["delivery"]["completion"]["evidence"]))
+    digest = completion_digest_of(l8)
+    completion["digest"] = digest
+    completion["attestation"]["digest"] = digest
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, path=REGISTRY_PATH)
+    assert any(".openspec.yaml" in problem["message"] for problem in payload["problems"]), payload
+    assert "derived" not in payload
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "member-set",
+        "general-envelope",
+        "completion-envelope",
+        "historical-source",
+        "terminal-variant",
+    ],
+)
+def test_adv_g89_historical_genesis_records_are_pairwise_immutable(
+    attested_genesis: Path, case: str
+) -> None:
+    root = attested_genesis
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    if case == "member-set":
+        state["attestations"]["genesisCompletion"]["members"].pop()
+    elif case == "general-envelope":
+        state["attestations"]["genesis"]["actor"] = "fixture:changed-general"
+    elif case == "completion-envelope":
+        state["attestations"]["genesisCompletion"]["actor"] = "fixture:changed-completion"
+    elif case == "historical-source":
+        manifest = load_state(root, "governance/genesis-source-manifest.json")
+        manifest["historicalCompletions"][0]["packageDisposition"]["rationale"] += " edited"
+        write_state(root, manifest, "governance/genesis-source-manifest.json")
+    else:
+        node = next(node for node in state["landings"] if node["id"] == "runner/L5")
+        node["delivery"]["completion"]["from"] = "Planned"
+        del node["delivery"]["completion"]["type"]
+    commit_registry(root, state, "hostile TEST terminal edit: " + case)
+    payload = assert_history_refused(root, base=base)
+    assert any(problem["code"] in {"ADV-G89", "ADV-G29"} for problem in payload["problems"]), (
+        payload
+    )
+
+
+def rebind_test_candidate(
+    root: Path, source: str | None = None, *, subject: Path = REPOSITORY_ROOT
+) -> None:
+    """Recompute all dependent values, only inside a disposable fixture."""
+    assert root.resolve() != REPOSITORY_ROOT.resolve()
+    helper = subject / "tests/fixtures/governance/genesis/rebind.mjs"
+    command = ["node", str(helper), str(root), "candidate"]
+    if source is not None:
+        command.append(source)
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    for path, text in json.loads(result.stdout).items():
+        (root / path).write_text(text, encoding="utf-8")
+
+
+def forged_test_genesis(root: Path, *, subject: Path = REPOSITORY_ROOT) -> dict[str, Any]:
+    """A deliberately unvalidated, fully rehashed claim: the checker must refuse it."""
+    assert root.resolve() != REPOSITORY_ROOT.resolve()
+    git(root, "add", "-A")
+    git(
+        root, "commit", "-q", "--allow-empty", "-m", "HOSTILE test candidate, not owner attestation"
+    )
+    base = git(root, "rev-parse", "HEAD")
+    result = subprocess.run(
+        [
+            "node",
+            str(subject / "tests/fixtures/governance/genesis/rebind.mjs"),
+            str(root),
+            "forged-envelope",
+            base,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    state = cast(dict[str, Any], json.loads(result.stdout))
+    (root / "governance").mkdir(exist_ok=True)
+    write_state(root, state, REGISTRY_PATH)
+    write_state(
+        root,
+        load_state(root, "tests/fixtures/governance/candidate/source-manifest.json"),
+        "governance/genesis-source-manifest.json",
+    )
+    return state
+
+
+def content_backed_historical_candidate(root: Path, **kwargs: Any) -> str:
+    """Synthetic history for EX-G30, never rewriting the actual M-bound archives.
+
+    MAN-G03 association is a TEST assertion. Machines cannot establish the
+    conceptual association from a valid package or its filename.
+    """
+    built = build_archived_repository(root, **kwargs)
+    source = built["archivedCommit"]
+    manifest = load_state(root, "tests/fixtures/governance/candidate/source-manifest.json")
+    row = next(
+        item for item in manifest["historicalCompletions"] if item["landingId"] == "runner/L4"
+    )
+    row["evidence"] = {
+        "policy": "reviewed-delivery-v1",
+        "deliveredIdentity": {
+            "class": "local-git-commit",
+            "value": source,
+            "scope": [ARCHIVE_ROOT],
+        },
+        "archivedOpenSpec": archived_openspec(built, reviewed_form="content"),
+    }
+    row["packageDisposition"]["waivedMinimumArtifacts"] = []
+    row["packageDisposition"]["reviewWitness"] = "required-content-backed-v2"
+    row["packageDisposition"]["rationale"] = (
+        "TEST-only association with a synthetic content-backed package; not MAN-G03 owner judgment."
+    )
+    write_state(root, manifest, "tests/fixtures/governance/candidate/source-manifest.json")
+    rebind_test_candidate(root, source)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "synthetic reviewed historical fixture candidate")
+    return git(root, "rev-parse", "HEAD")
+
+
+def test_ex_g30_content_backed_historical_delivery_retains_complete_accepting_witness(
+    fresh_genesis: Path,
+) -> None:
+    root = fresh_genesis
+    base = content_backed_historical_candidate(root)
+    state = install_test_genesis(root)
+    commit_registry(root, state, "TEST-only content-backed historical genesis")
+    assert_valid(root, REGISTRY_PATH)
+    assert_history_clean(root, base=base)
+    completion = next(node for node in state["landings"] if node["id"] == "runner/L4")["delivery"][
+        "completion"
+    ]
+    assert (
+        completion["evidence"]["archivedOpenSpec"]["reviewedIdentity"]["class"] == "content-sha256"
+    )
+
+
+@pytest.mark.parametrize("case", ["partial", "nonaccepting", "wrong-reviewed-bytes"])
+def test_adv_g86_content_historical_witness_is_not_waived(fresh_genesis: Path, case: str) -> None:
+    root = fresh_genesis
+    kwargs: dict[str, Any] = {}
+    if case == "partial":
+        kwargs["manifest_paths"] = [".openspec.yaml"]
+    elif case == "nonaccepting":
+        kwargs["review_overrides"] = {"verdict": "CHANGES_REQUIRED"}
+    else:
+        kwargs["corrupt_review_digest"] = True
+    content_backed_historical_candidate(root, **kwargs)
+    forged_test_genesis(root)
+    payload = assert_refused(root, path=REGISTRY_PATH)
+    assert any(problem["code"] == "ADV-G81" for problem in payload["problems"]), payload
+    assert "derived" not in payload
+
+
+def mutant_subject(tmp_path: Path, changes: list[tuple[str, str, str]]) -> Path:
+    """Copy the real entry points and dependencies; never mutate shipped code."""
+    subject = tmp_path / "mutated-subject"
+    shutil.copytree(REPOSITORY_ROOT / "scripts", subject / "scripts")
+    shutil.copytree(TEST_ENVELOPE.parent, subject / "tests/fixtures/governance/genesis")
+    for name, old, new in changes:
+        target = subject / "scripts" / name
+        original = target.read_text(encoding="utf-8")
+        assert original.count(old) == 1, (name, old)
+        assert old != new
+        target.write_text(original.replace(old, new, 1), encoding="utf-8")
+    return subject
+
+
+def run_subject(
+    subject: Path,
+    root: Path,
+    *,
+    base: str | None = None,
+    freshness: bool = False,
+    state: str = REGISTRY_PATH,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    if freshness:
+        command = [
+            "node",
+            str(subject / "scripts/governance/genesis/freshness.mjs"),
+            "--root",
+            str(root),
+            "--base",
+            str(base),
+        ]
+    else:
+        script = (
+            "check-governance-history.mjs" if base is not None else "check-governance-state.mjs"
+        )
+        command = [
+            "node",
+            str(subject / "scripts" / script),
+            "--root",
+            str(root),
+            "--state",
+            state,
+            "--json",
+        ]
+        if base is not None:
+            command += ["--base", base]
+    result = subprocess.run(command, capture_output=True, text=True)
+    return result, json.loads(result.stdout)
+
+
+def test_mut_g14_each_independent_freshness_source_class_is_load_bearing(
+    fresh_genesis: Path,
+    tmp_path: Path,
+) -> None:
+    root = fresh_genesis
+    source = root / "openspec/changes/governance-state-substrate/proposal.md"
+    source.write_text(
+        source.read_text(encoding="utf-8") + "\nUnrelated wording drift.\n", encoding="utf-8"
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "hostile source-only drift")
+    base = git(root, "rev-parse", "HEAD")
+    result, payload = run_freshness(root, base)
+    assert result.returncode != 0 and {p["code"] for p in payload["problems"]} == {"ADV-G73"}, (
+        payload
+    )
+    subject = mutant_subject(
+        tmp_path,
+        [("governance/model/validate.mjs", "      ['localEvidenceIdentities', 'ADV-G72'],\n", "")],
+    )
+    mutated, after = run_subject(subject, root, base=base, freshness=True)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_mut_g14_non_markdown_consumer_extraction_is_load_bearing(
+    fresh_genesis: Path, tmp_path: Path
+) -> None:
+    root = fresh_genesis
+    (root / "unregistered-governance-copy.yml").write_text(
+        "decision: ADR-0020 Proposed\n", encoding="utf-8"
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "hostile unclassified YAML claim")
+    base = git(root, "rev-parse", "HEAD")
+    result, payload = run_freshness(root, base)
+    assert result.returncode != 0 and "ADV-G71" in {p["code"] for p in payload["problems"]}, payload
+    subject = mutant_subject(
+        tmp_path,
+        [("governance/model/validate.mjs", "      ['consumerInventory', 'ADV-G71'],\n", "")],
+    )
+    mutated, after = run_subject(subject, root, base=base, freshness=True)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def rehash_outer(state: dict[str, Any]) -> None:
+    script = """
+import {genesisCompletionEnvelopeDigest,genesisAttestationDigest}
+  from './scripts/governance/model/index.mjs'
+let raw=''; for await (const chunk of process.stdin) raw+=chunk
+const state=JSON.parse(raw)
+if (state.attestations.genesisCompletion)
+  state.attestations.genesisCompletion.envelopeDigest=genesisCompletionEnvelopeDigest(state.attestations.genesisCompletion.members)
+if (Object.keys(state.attestations.genesis).length)
+  state.attestations.genesis.digest=genesisAttestationDigest(state.attestations.genesis)
+console.log(JSON.stringify(state.attestations))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    state["attestations"] = json.loads(result.stdout)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_mut_g16_rehashed_outer_member_binding_is_load_bearing(
+    attested_genesis: Path, tmp_path: Path, missing: bool
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    members = state["attestations"]["genesisCompletion"]["members"]
+    if missing:
+        members.pop()
+    else:
+        members[0]["digest"] = "0" * 64
+    rehash_outer(state)
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, "ADV-G51", path=REGISTRY_PATH)
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G51"}, payload
+    changes = [
+        (
+            "governance/model/validate.mjs",
+            "    members.filter(\n      (member) => member?.landingId === landing.id && "
+            "member.digest === completion.digest,\n    ).length !== 1",
+            "    false",
+        )
+    ]
+    if missing:
+        # One logical membership guard has per-record AND exact-set enforcement.
+        changes.append(
+            (
+                "governance/model/validate.mjs",
+                "    canonicalSerialize(members.map((member) => member?.landingId)"
+                ".sort(compareText)) !==\n      canonicalSerialize(historicalIds)",
+                "    false",
+            )
+        )
+    subject = mutant_subject(tmp_path, changes)
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+@pytest.mark.parametrize("case", ["profile", "waiver", "disposition-source", "disposition-bundle"])
+def test_mut_g16_rehashed_historical_disposition_guards_are_load_bearing(
+    fresh_genesis: Path,
+    tmp_path: Path,
+    case: str,
+) -> None:
+    root = fresh_genesis
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(
+        item for item in manifest["historicalCompletions"] if item["landingId"] == "runner/L5"
+    )
+    disposition = row["packageDisposition"]
+    if case == "profile":
+        disposition["packageProfile"] = "waive-everything"
+        old, new = "    disposition.packageProfile !== 'observed-historical-v1' ||\n", ""
+    elif case == "waiver":
+        disposition["waivedMinimumArtifacts"].append("proposal.md")
+        old, new = (
+            "  if (JSON.stringify(disposition.waivedMinimumArtifacts) !== JSON.stringify(absent))",
+            "  if (false)",
+        )
+    elif case == "disposition-source":
+        disposition["sourceSnapshotIdentity"]["value"] = git(root, "rev-parse", "HEAD")
+        old, new = (
+            "    canonicalSerialize(disposition.sourceSnapshotIdentity) !== "
+            "canonicalSerialize(source)",
+            "    false",
+        )
+    else:
+        disposition["archiveBundleSha256"] = "0" * 64
+        old, new = "    disposition.archiveBundleSha256 !== value.bundleSha256 ||\n", ""
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    payload = assert_refused(root, "ADV-G86", path=REGISTRY_PATH)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G86"}, payload
+    subject = mutant_subject(tmp_path, [("governance/model/archived-openspec.mjs", old, new)])
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_mut_g10_relationship_equivalence_is_not_a_row_count(
+    attested_genesis: Path, tmp_path: Path
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    count = sum(
+        row["collection"] == "adrs" and row["field"] in {"resolves", "supersedes"}
+        for row in manifest["rows"]
+    )
+    # A fully rehashed envelope over a mere count is not equivalence proof.
+    state["attestations"]["genesis"]["relationshipEquivalenceDigest"] = hashlib.sha256(
+        (str(count) + "\n").encode()
+    ).hexdigest()
+    rehash_outer(state)
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, "ADV-G20", path=REGISTRY_PATH)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G20"}, payload
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/digests.mjs",
+                "  return digestPreimage([...rows].sort((a, b) => compareText(a.id, b.id)))",
+                "  return digestPreimage(rows.length)",
+            )
+        ],
+    )
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_mut_g16_raw_typed_records_do_not_satisfy_prerequisites_without_envelopes(
+    fresh_genesis: Path,
+    tmp_path: Path,
+) -> None:
+    root = fresh_genesis
+    path = "tests/fixtures/governance/candidate/state.json"
+    payload = assert_refused(root, "ADV-G51", "ADV-G90", path=path)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G51", "ADV-G90"}, payload
+    model = "governance/model/validate.mjs"
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                model,
+                "    addProblem(problems, 'ADV-G90', path, "
+                "'the unattested candidate is not completed genesis proof')",
+                "    void 0 // MUTANT: unattended typed records are trusted",
+            ),
+            (
+                model,
+                "  const members = context.state.attestations?.genesisCompletion?.members\n  if (",
+                "  const members = context.state.attestations?.genesisCompletion?.members\n"
+                "  if (false && (",
+            ),
+            (
+                model,
+                "    ).length !== 1\n  )\n    addProblem(",
+                "    ).length !== 1\n  ))\n    addProblem(",
+            ),
+            (
+                model,
+                "  const members = state.attestations?.genesisCompletion?.members\n  if (",
+                "  const members = state.attestations?.genesisCompletion?.members\n"
+                "  if (false && (",
+            ),
+            (
+                model,
+                "      canonicalSerialize(historicalIds)\n  )\n    addProblem(",
+                "      canonicalSerialize(historicalIds)\n  ))\n    addProblem(",
+            ),
+        ],
+    )
+    mutated, after = run_subject(subject, root, state=path)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
+    attested_genesis: Path,
+    tmp_path: Path,
+    empty: bool,
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    landing = next(node for node in state["landings"] if node["id"] == "runner/L5")
+    archive = (
+        root / landing["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["archiveRoot"]
+    )
+    assert archive.is_relative_to(root) and root.resolve() != REPOSITORY_ROOT.resolve()
+    if empty:
+        # Delete fixture members only; keep the empty directory observable.
+        for path in archive.rglob("*"):
+            if path.is_file():
+                path.unlink()
+    else:
+        target = archive / "proposal.md"
+        target.write_text("Hostile edit of an existing member.\n", encoding="utf-8")
+    assert_refused(root, "ADV-G85", path=REGISTRY_PATH)
+    anchor = (
+        "  const before = problems.length\n"
+        "  if (!validateArchive(value, path, problems, context, disposition)"
+    )
+    predicate = "context.checkout.tree(value.archiveRoot)?.size === 0" if empty else "true"
+    replacement = f"  if ({predicate}) return true // MUTANT: historical profile bypass\n" + anchor
+    subject = mutant_subject(
+        tmp_path, [("governance/model/archived-openspec.mjs", anchor, replacement)]
+    )
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_mut_g16_historical_row_evidence_must_mirror_the_record(
+    attested_genesis: Path, tmp_path: Path
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    node = next(item for item in state["landings"] if item["id"] == "runner/L4")
+    node["delivery"]["completion"]["evidence"]["deliveredIdentity"]["scope"] = [
+        "services/runner-control/README.md"
+    ]
+    script = """
+import {genesisHistoricalCompletionDigest} from './scripts/governance/model/index.mjs'
+let raw='';for await(const chunk of process.stdin) raw+=chunk
+const {node,row}=JSON.parse(raw);console.log(genesisHistoricalCompletionDigest(node,row))
+"""
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    row = next(
+        item for item in manifest["historicalCompletions"] if item["landingId"] == node["id"]
+    )
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"node": node, "row": row}),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    node["delivery"]["completion"]["digest"] = result.stdout.strip()
+    member = next(
+        item
+        for item in state["attestations"]["genesisCompletion"]["members"]
+        if item["landingId"] == node["id"]
+    )
+    member["digest"] = result.stdout.strip()
+    rehash_outer(state)
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, "ADV-G87", path=REGISTRY_PATH)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G87"}, payload
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/validate.mjs",
+                "    !equal(row.evidence, completion.evidence) ||\n",
+                "",
+            )
+        ],
+    )
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_genesis_task_7_2_projection_and_query_use_the_full_validated_seed(
+    attested_genesis: Path,
+) -> None:
+    root = attested_genesis
+    for path, regions in [
+        ("docs/decisions/INDEX.md", ["decision-lifecycle"]),
+        ("docs/architecture/unresolved-decisions.md", ["question-summary", "resolution-banners"]),
+    ]:
+        target = root / path
+        text = target.read_text(encoding="utf-8")
+        for region in regions:
+            text += "\n" + BEGIN.format(region) + "\n" + END.format(region) + "\n"
+        target.write_text(text, encoding="utf-8")
+    result = run_renderer(root, "write")
+    assert result.returncode == 0, result.stderr
+    first = target_bytes(root)
+    assert run_renderer(root, "check").returncode == 0
+    assert first == target_bytes(root)
+    rendered = (root / "governance/STATE.md").read_text(encoding="utf-8")
+    assert "L1 is the post-ratification human program-materialization event" in rendered
+    assert "L2←L1" in rendered and "issue #19 saying L5 is next" in rendered
+    assert "| ADR-0020 | Proposed | — | U4 |" in rendered
+    assert "| runner/GATE-U4 | gate | — | Unsatisfied |" in rendered
+    assert "| runner/L9 | implementation-landing | Planned | NotReady |" in rendered
+    inventory = load_state(root, "tests/fixtures/governance/candidate/consumers.json")
+    for disposition in {row["disposition"] for row in inventory["rows"]}:
+        count = sum(row["disposition"] == disposition for row in inventory["rows"])
+        assert f"| {disposition} | {count} |" in rendered
+    for json_form in [False, True]:
+        query = run_query(root, json_form=json_form)
+        assert query.returncode == 0, query.stderr
+        assert "AUTHORIZED" not in query.stdout
+    payload = json.loads(run_query(root, json_form=True).stdout)
+    l8 = next(node for node in payload["nodes"] if node["id"] == "runner/L8")
+    l9 = next(node for node in payload["nodes"] if node["id"] == "runner/L9")
+    assert l8["prerequisiteReadiness"]["state"] == "Ready"
+    assert l8["authorizationAssessment"] == "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION"
+    assert l9["prerequisiteReadiness"]["state"] == "NotReady"
+    (root / "governance/STATE.md").write_text(
+        rendered.replace("| historical-record |", "| tampered-count |"), encoding="utf-8"
+    )
+    drift = run_renderer(root, "check")
+    assert drift.returncode != 0 and "ADV-G36" in drift.stderr
+
+
+def test_ex_g31_terminal_genesis_survives_multilevel_ordinary_replacement(
+    attested_genesis: Path,
+) -> None:
+    root = attested_genesis
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    original = json.dumps(state["attestations"], sort_keys=True)
+    terminal = {
+        node["id"]: json.dumps(node, sort_keys=True)
+        for node in state["landings"]
+        if node["delivery"]["lifecycle"] == "Complete"
+    }
+    for old, new in [
+        ("runner/L8", "runner/L8-v2"),
+        ("runner/L9", "runner/L9-v2"),
+        ("runner/L10", "runner/L10-v2"),
+    ]:
+        replacement_pair(root, state, old, new)
+    for node in state["landings"]:
+        if node["id"].endswith("-v2"):
+            node["requires"] = [
+                item + "-v2" if item in {"runner/L8", "runner/L9"} else item
+                for item in node["requires"]
+            ]
+            node["replacement"]["attestation"]["actor"] = "fixture:ordinary-replacement"
+    state = bind_replacements(root, state)
+    commit_registry(root, state, "TEST ordinary replacement closure after genesis")
+    assert_valid(root, REGISTRY_PATH)
+    assert_history_clean(root, base=base)
+    assert json.dumps(state["attestations"], sort_keys=True) == original
+    assert all(
+        json.dumps(node, sort_keys=True) == terminal[node["id"]]
+        for node in state["landings"]
+        if node["id"] in terminal
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "undeclared-relationship",
+        "stored-resolution",
+        "accepted-lifecycle",
+        "bare-node",
+        "impossible-prerequisite",
+    ],
+)
+def test_task_7_2_invalid_seed_never_yields_readiness(fresh_genesis: Path, case: str) -> None:
+    root = fresh_genesis
+    path = "tests/fixtures/governance/candidate/state.json"
+    state = load_state(root, path)
+    if case == "undeclared-relationship":
+        next(adr for adr in state["adrs"] if adr["id"] == "ADR-0020")["resolves"].append("U5")
+        code = "ADV-G20"
+    elif case == "stored-resolution":
+        state["questions"][0]["resolved"] = True
+        code = "ADV-G02"
+    elif case == "accepted-lifecycle":
+        next(adr for adr in state["adrs"] if adr["id"] == "ADR-0020")["lifecycle"] = "Accepted"
+        code = "ADV-G20"
+    elif case == "bare-node":
+        state["landings"][0]["requires"] = ["L1"]
+        code = "ADV-G12"
+    else:
+        next(node for node in state["landings"] if node["id"] == "runner/L2")["requires"] = [
+            "runner/GATE-U4"
+        ]
+        code = "ADV-G56"
+    write_state(root, state, path)
+    rebind_test_candidate(root)
+    # Even recomputing all content identities is not a source-equivalence proof.
+    forged_test_genesis(root)
+    payload = assert_refused(root, code, path=REGISTRY_PATH)
+    assert "derived" not in payload
+    query = run_query(root, json_form=True)
+    assert query.returncode != 0 and '"prerequisiteReadiness"' not in query.stdout
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "schemaVersion",
+        "landingId",
+        "observedLifecycle",
+        "sourceSnapshotIdentity",
+        "authorityAnchor",
+        "completionPolicy",
+        "scopedDeliveredIdentity",
+        "policyEvidenceIdentities",
+        "historicalPackageDisposition",
+    ],
+)
+def test_mut_g16_every_historical_preimage_field_is_load_bearing(
+    fresh_genesis: Path, tmp_path: Path, field: str
+) -> None:
+    root = fresh_genesis
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/digests.mjs",
+                "  return digestPreimage(genesisHistoricalCompletionPreimage(landing, row))",
+                "  const preimage = genesisHistoricalCompletionPreimage(landing, row)\n"
+                f"  delete preimage.{field}\n  return digestPreimage(preimage)",
+            )
+        ],
+    )
+    # Rehash every dependent candidate/envelope value using the deficient digest.
+    # Stale outer hashes must not be what makes the production checker refuse it.
+    rebind_test_candidate(root, subject=subject)
+    forged_test_genesis(root, subject=subject)
+    assert_refused(root, "ADV-G88", path=REGISTRY_PATH)
+    mutated, after = run_subject(subject, root)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_adv_g83_mut_g16_fully_rehashed_genesis_cannot_replace_ordinary_transitions(
+    fresh_genesis: Path,
+    tmp_path: Path,
+) -> None:
+    root = fresh_genesis
+    # A current-valid registry-bearing base, deliberately with no genesis
+    # exception available. Its normal completion transitions need normal proof.
+    state = load_state(root, "tests/fixtures/governance/candidate/state.json")
+    for node in state["landings"]:
+        node["delivery"]["lifecycle"] = "Planned"
+        node["delivery"]["completion"] = None
+    (root / "governance").mkdir()
+    write_state(root, state, REGISTRY_PATH)
+    inventory = load_state(root, "tests/fixtures/governance/candidate/consumers.json")
+    # Isolated-test inventory includes this deliberately pre-existing authority.
+    copied = next(
+        row
+        for row in inventory["rows"]
+        if row["path"] == "tests/fixtures/governance/candidate/state.json"
+    ).copy()
+    copied.update(
+        path=REGISTRY_PATH,
+        disposition="stable-pointer",
+        retainedReason=None,
+        historicalIdentity=None,
+        generatedRegions=[],
+    )
+    inventory["rows"].append(copied)
+    write_state(root, inventory, "tests/fixtures/governance/candidate/consumers.json")
+    base = commit_registry(root, state, "current-valid ordinary registry without genesis exception")
+    assert_valid(root, REGISTRY_PATH)
+    state = install_test_genesis(root, base)
+    commit_registry(root, state, "HOSTILE fully rehashed post-genesis historical fallback")
+    assert_valid(root, REGISTRY_PATH)  # No stale digest is responsible for refusal.
+    payload = assert_history_refused(root, "ADV-G83", "ADV-G89", base=base)
+    assert {p["code"] for p in payload["problems"]} <= {"ADV-G83", "ADV-G89", "ADV-G29"}, payload
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/history.mjs",
+                "  compareGenesisPreservation(base, target, problems)\n",
+                "",
+            ),
+            (
+                "governance/model/history.mjs",
+                "      } else if (completion.from !== from) {",
+                "      } else if (completion.type !== 'genesis-historical-completion-v1' "
+                "&& completion.from !== from) {",
+            ),
+        ],
+    )
+    mutated, after = run_subject(subject, root, base=base)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_adv_g89_mut_g16_rehashed_genesis_envelope_remains_immutable(
+    attested_genesis: Path, tmp_path: Path
+) -> None:
+    root = attested_genesis
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    state["attestations"]["genesis"]["actor"] = "fixture:changed-general-envelope"
+    rehash_outer(state)
+    commit_registry(root, state, "HOSTILE fully rehashed envelope edit")
+    assert_valid(root, REGISTRY_PATH)
+    payload = assert_history_refused(root, "ADV-G89", base=base)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G89"}, payload
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/history.mjs",
+                "  compareGenesisPreservation(base, target, problems)\n",
+                "",
+            )
+        ],
+    )
+    mutated, after = run_subject(subject, root, base=base)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+def test_mut_g14_matching_source_commit_is_not_complete_freshness(
+    fresh_genesis: Path, tmp_path: Path
+) -> None:
+    root = fresh_genesis
+    result, payload = run_freshness(root, POST_BRIDGE_SOURCE)
+    assert result.returncode != 0 and "ADV-G71" in {p["code"] for p in payload["problems"]}, payload
+    old = """    const classes = [
+      ['primitiveSourceTuples', 'ADV-G69'],
+      ['relationshipTuples', 'ADV-G69'],
+      ['localEvidenceIdentities', 'ADV-G72'],
+      ['consumerInventory', 'ADV-G71'],
+    ]"""
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/validate.mjs",
+                old,
+                old.replace(
+                    "const classes = [",
+                    "const classes = activationBaseCommit === source.commit ? [] : [",
+                ),
+            )
+        ],
+    )
+    mutated, after = run_subject(subject, root, base=POST_BRIDGE_SOURCE, freshness=True)
+    assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["missing-source", "unparseable-relationship", "conflicting-status", "duplicate-relationship"],
+)
+def test_adv_g31_source_failures_are_observed_at_the_explicit_revision(
+    fresh_genesis: Path, case: str
+) -> None:
+    root = fresh_genesis
+    state = load_state(root, "tests/fixtures/governance/candidate/state.json")
+    adr = next(item for item in state["adrs"] if item["id"] == "ADR-0020")
+    source = root / adr["path"]
+    if case == "missing-source":
+        source.unlink()
+    else:
+        text = source.read_text(encoding="utf-8")
+        if case == "unparseable-relationship":
+            text = text.replace(
+                "- **Status:** Proposed",
+                "- **Status:** Proposed\n- **Closes:** U5 without a structural source link",
+            )
+        elif case == "conflicting-status":
+            text = text.replace(
+                "- **Status:** Proposed", "- **Status:** Proposed\n- **Status:** Accepted"
+            )
+        else:
+            text = text.replace(
+                "- **Status:** Proposed",
+                "- **Status:** Proposed\n- **Closes:** None\n"
+                "- **Closes:** [U5](../architecture/unresolved-decisions.md#u5)",
+            )
+        source.write_text(text, encoding="utf-8")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "HOSTILE unreadable or conflicting genesis source")
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode != 0 and payload["ok"] is False, payload
+    assert any(p["code"] in {"ADV-G31", "ADV-G74"} for p in payload["problems"]), payload
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("extract.mjs", ["--source", DURABLE_PR2A, "--historical-mode"]),
+        ("freshness.mjs", ["--base", DURABLE_PR2A, "--skip-source"]),
+    ],
+)
+def test_genesis_clis_have_no_hidden_bypass_switch(name: str, args: list[str]) -> None:
+    result = subprocess.run(
+        ["node", str(FRESHNESS.with_name(name)), "--root", str(REPOSITORY_ROOT), *args],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0 and "Unknown option" in result.stderr

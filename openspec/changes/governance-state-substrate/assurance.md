@@ -1,12 +1,14 @@
 # Assurance: governance-state-substrate
 
-> **Accepted architecture; implementation proof remains future work.**
-> ADR-0023 and ADR-0024 are accepted together in this target; their two bridge
-> envelopes use pre-transition RFC 3339 evidence. Temporal tests are not run.
-> PR #124 and its candidate remain paused/unchanged pending NEW exact-S authority.
+> **Accepted architecture; PR-2 proof in progress under exact-S authority.**
+> ADR-0023 and ADR-0024 landed together at S
+> `c82fda72927464d813ec769aee53f4079ebe3b20`; their original bridge
+> envelopes retain pre-transition RFC 3339 evidence. The current owner release
+> resumes PR #124 and its temporal tests/candidate preparation only.
 > [Bridge verification](bridge-verification.md) records acceptance-stage process
 > proof separately from independent human provenance/final review and future
-> post-merge S/expiry proof. Historical section headings remain stable anchors.
+> post-merge S/expiry proof. S/expiry is now recorded in tasks.md; historical
+> section headings remain stable anchors.
 
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
@@ -90,7 +92,8 @@ concurrency, public package contracts, deployment isolation.
 | Architecture | ADR-0021, `Accepted`, SHA-256 `0db0b5b7…cd66a` | the contract implemented here | any implementation act |
 | External authority | GitHub issue #106 | the implementation phases | execution of any task in this planning PR |
 | Historical planning baseline | `origin/main` `eb6e24806cb76898e74f16208ab40587313c126a` | original planning provenance only; D6.5 requires a refreshed genesis source snapshot at PR-2A merge commit M | any state transition or reuse as the candidate source snapshot |
-| This change | planning artifacts only | review of the plan | implementation |
+| Original planning landing | planning artifacts only | review of the plan | implementation |
+| Current PR-2 implementation | exact-S owner instruction recorded in tasks.md | existing PR #124 through T.1–T.7 preparation | independent approval, merge, PR-3 or canonical activation |
 
 **Chain integrity.** ADR-0021 §3E makes the registry permanently
 non-authorizing: it records typed references and evidence, and never accepts a
@@ -99,7 +102,7 @@ registry never authorizes anything. Nothing in this change infers authorization
 from registry state, issue existence, accepted ADRs, or satisfied
 prerequisites.
 
-**Current amendment boundary.** Issue #106 comment
+**Historical PR #125 amendment boundary.** Issue #106 comment
 [#5651203973](https://github.com/pulse-ops-ai/secure-home-agent-platform/issues/106#issuecomment-5651203973)
 authorizes only the four planning artifacts at base
 `7c201e28c027ff73ae6f11cba6c5006bf4c21c84`. PR-1 is landed; PR #124 is frozen at
@@ -1669,8 +1672,9 @@ in `tasks.md`.
 
 ## Contingent temporal proof obligations (ADR-0023)
 
-**Accepted architecture; NOT EXECUTED.** The pair acceptance satisfies the
-architecture prerequisite, not the later owner PR-2 implementation refresh.
+**Accepted architecture; implementation proof in progress.** The pair acceptance
+satisfied the architecture prerequisite. The later exact-S owner instruction
+now releases PR-2; proof results are recorded separately from this obligation list.
 These obligations refine only acceptance/rejection temporal
 evidence and directly dependent mechanisms under design D12; all existing
 non-temporal proof remains required. The historical corpus is the audit at M,
@@ -1737,7 +1741,7 @@ mutant cannot redefine the expected outcome to fit its own output.
   ADV-G113's output assertions must also kill relabelling encoded metadata as
   proven recording latency; observing a Git value alone cannot satisfy that claim.
 
-These are future PR-2 proofs owned by tasks T.1–T.6, with executable positive,
+These are PR-2 proofs owned by tasks T.1–T.6, with executable positive,
 hostile and mutation work in T.5 (existing 6.7/7.1/7.2/7.3 seams). Current and
 history use the same model; observation adapters do not acquire semantics.
 All original PR-2 tests must be rerun after reconciliation, including the
@@ -1750,7 +1754,7 @@ Independent review must check the partial-refinement boundary, both storage
 alternatives, source-selection durability, date precision, metadata/causal-digest
 separation, complete error reporting, and D12.5's common source refresh without
 archive rebinding. A proposal/documentation check passing is not any of these
-future implementation tests passing.
+implementation tests passing.
 
 ---
 

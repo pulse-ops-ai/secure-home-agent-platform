@@ -10,20 +10,41 @@ import {
 } from './canonical.mjs'
 import {
   completionDigest,
+  candidateFreezeIdentity,
+  CANDIDATE_PATHS,
+  activationFreshnessPreimage,
   contentDigest,
+  digestPreimage,
+  genesisAttestationDigest,
   genesisCompletionEnvelopeDigest,
+  genesisHistoricalCompletionDigest,
   isSha256,
   primitiveDigest,
+  primitiveSourceTuples,
   relationshipDigest,
+  relationshipEquivalenceDigest,
+  relationshipTuples,
   replacementDigest,
   semanticIdentityDigest,
   sha256Text,
   transitionDigest,
   withdrawalDigest,
 } from './digests.mjs'
-import { validateArchivedOpenSpec } from './archived-openspec.mjs'
+import {
+  validateArchivedOpenSpec,
+  validateHistoricalArchivedOpenSpec,
+} from './archived-openspec.mjs'
 import { ABSENT, PRESENT } from '../git-tree/index.mjs'
 import { canonicalPathSetProblems } from './paths.mjs'
+import { consumerCounts, discoverConsumers, validateConsumerInventory } from './consumers.mjs'
+import {
+  ARCHIVE_STAGE,
+  BRIDGE_RECORDS,
+  PREPARED_ARCHIVES,
+  TEMPORAL_SOURCE,
+  decisionDeclaration,
+  validateDecisionEvidence,
+} from './decision-evidence.mjs'
 
 const ADR_LIFECYCLES = new Set(['Proposed', 'Accepted', 'Superseded', 'Rejected'])
 const DELIVERY_LIFECYCLES = new Set(['Planned', 'InProgress', 'Complete', 'Withdrawn'])
@@ -79,7 +100,7 @@ const ACCEPTANCE_FIELDS = [
   'contentDigest',
   'reviewedIdentity',
   'actor',
-  'at',
+  'decisionDate',
   'outcome',
   'authority',
 ]
@@ -238,6 +259,7 @@ function validDate(value, path, problems) {
   const [year, month, day] = value.split('-').map(Number)
   const parsed = new Date(value + 'T00:00:00Z')
   if (
+    year === 0 ||
     Number.isNaN(parsed.getTime()) ||
     parsed.getUTCFullYear() !== year ||
     parsed.getUTCMonth() + 1 !== month ||
@@ -369,6 +391,90 @@ function parseHeaderRelationship(text, labels, expression, path, problems) {
 function compareSets(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
+}
+
+/** Source parsers are shared by extraction and validation, not copied by CLIs. */
+export function parseGenesisAdrHeader(path, bytes) {
+  const text = decodeUtf8(bytes)
+  const preamble = headerPreamble(text)
+  for (const label of ['Status', 'Date', 'Closes', 'Decides', 'Supersedes']) {
+    const claims = [...preamble.matchAll(new RegExp('^- \\*\\*' + label + ':\\*\\*.*$', 'gmu'))]
+    if (claims.length > 1)
+      throw new Error('ADV-G31: repeated/conflicting ' + label + ' source label: ' + path)
+    if (claims.length && ['Closes', 'Decides', 'Supersedes'].includes(label)) {
+      const declaration = claims[0][0].split(':**')[1].trim()
+      const prose = declaration.replace(/\[[^\]]+\]\([^)]*\)/gu, '')
+      const linked = new Set(
+        [...declaration.matchAll(/\[(U\d+|ADR-\d{4})\]/gu)].map((match) => match[1]),
+      )
+      if (
+        !/^(?:none|nothing\b|no unresolved decision\b|no ADR in full\b)/iu.test(declaration) &&
+        [...prose.matchAll(/\b(?:U\d+|ADR-\d{4})\b/gu)].some((match) => !linked.has(match[0]))
+      )
+        throw new Error('ADV-G31: unlinked relationship identifier in source: ' + path)
+    }
+  }
+  const title = /^# (ADR-\d{4}): (.+)$/mu.exec(preamble)
+  const lifecycle = /^- \*\*Status:\*\* ([A-Za-z]+)$/mu.exec(preamble)?.[1]
+  const proposedOn = /^- \*\*Date:\*\* (\d{4}-\d{2}-\d{2})$/mu.exec(preamble)?.[1]
+  const problems = []
+  const resolves = parseHeaderRelationship(text, ['Closes', 'Decides'], QUESTION_ID, path, problems)
+  const supersedes = parseHeaderRelationship(text, ['Supersedes'], ADR_ID, path, problems)
+  if (!title || !ADR_LIFECYCLES.has(lifecycle) || !proposedOn || problems.length)
+    throw new Error('ADV-G31: unsupported or conflicting ADR source: ' + path)
+  return { id: title[1], path, title: title[2], lifecycle, proposedOn, resolves, supersedes }
+}
+
+export function parseGenesisQuestions(path, bytes) {
+  const text = decodeUtf8(bytes)
+  const rows = []
+  for (const match of text.matchAll(
+    /^\| \[(U\d+)\]\(#(u\d+)\) \| (.*?) \| (.*?) \| (.*?) \|$/gmu,
+  )) {
+    const severity = match[5].replaceAll('**', '')
+    if (!new RegExp('^## ' + match[1] + '$', 'mu').test(text))
+      throw new Error('ADV-G31: question has no source heading: ' + match[1])
+    rows.push({
+      id: match[1],
+      anchor: path + '#' + match[2],
+      title: match[3],
+      severity: SEVERITIES.has(severity) ? severity : null,
+    })
+  }
+  if (rows.length === 0 || new Set(rows.map((row) => row.id)).size !== rows.length)
+    throw new Error('ADV-G31: missing or ambiguous question table')
+  return rows
+}
+
+export function parseGenesisProgram(bytes) {
+  const text = decodeUtf8(bytes)
+  const start = text.indexOf('**D6.3 — Complete v1 program enumeration.**')
+  const end = text.indexOf('**Not every node carries a delivery lifecycle.**', start)
+  if (start < 0 || end < start) throw new Error('ADV-G31: missing closed program enumeration')
+  const rows = []
+  for (const match of text
+    .slice(start, end)
+    .matchAll(/^\| `([^`]+)` \| (.*?) \| (.*?) \| (.*?) \| (.*?) \| (.*?) \|$/gmu)) {
+    const id = match[1]
+    const kind = match[2]
+    const requires = [...match[3].matchAll(/`(runner\/[^`]+)`/gu)].map((entry) => entry[1]).sort()
+    const issue = Number(/issue #(\d+)/u.exec(match[4])?.[1])
+    const lifecycle = match[5].replaceAll('**', '')
+    const completionPolicy = match[6].replaceAll('`', '')
+    if (
+      !NODE_ID.test(id) ||
+      !NODE_KINDS.has(kind) ||
+      !Number.isInteger(issue) ||
+      issue < 1 ||
+      (kind !== 'gate' &&
+        (!DELIVERY_LIFECYCLES.has(lifecycle) || !COMPLETION_POLICIES.has(completionPolicy)))
+    )
+      throw new Error('ADV-G31: unparseable program row: ' + id)
+    rows.push({ id, kind, requires, issue, lifecycle, completionPolicy })
+  }
+  if (rows.length !== 11 || new Set(rows.map((row) => row.id)).size !== rows.length)
+    throw new Error('ADV-G44: program enumeration must name all eleven distinct nodes')
+  return rows
 }
 
 function validId(value, expression, path, problems, code = 'ADV-G02') {
@@ -605,6 +711,24 @@ function verifyHeader(adr, path, problems, context) {
     path + '.relationships',
     problems,
   )
+  if (adr.acceptance) {
+    try {
+      // INDEX is a generated projection after activation, not a second input.
+      const declaration = decisionDeclaration(adr.path, bytes)
+      if (
+        declaration.decisionDate !== adr.acceptance.decisionDate ||
+        declaration.actor !== adr.acceptance.actor
+      )
+        addProblem(
+          problems,
+          'ADV-G99',
+          path + '.decisionDate',
+          'decision date/actor differs from the governed header',
+        )
+    } catch (error) {
+      addProblem(problems, 'ADV-G99', path + '.decisionDate', error.message)
+    }
+  }
   const headerSupersedes = parseHeaderRelationship(
     text,
     ['Supersedes'],
@@ -997,10 +1121,10 @@ function validateAcceptance(adr, path, problems, context) {
   if (typeof acceptance.actor !== 'string' || !ACTOR.test(acceptance.actor)) {
     addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
   }
-  // Independent of the timestamp: the authority anchor and the exact accepted
-  // bytes. A malformed `at` is recorded and validation continues, so a wrong
+  // Independent of the date: the authority anchor and the exact accepted
+  // bytes. A malformed `decisionDate` is recorded and validation continues, so a wrong
   // `contentDigest` cannot hide behind it.
-  validTimestamp(acceptance.at, path + '.at', problems)
+  validDate(acceptance.decisionDate, path + '.decisionDate', problems)
   validateTypedAnchor(acceptance.authority, path + '.authority', problems)
   if (isSha256(acceptance.contentDigest))
     verifyContent(adr.path, acceptance.contentDigest, path + '.contentDigest', problems, context)
@@ -1162,6 +1286,10 @@ function validateDelivery(value, path, problems, context, landing) {
       return
     }
     if (!requireObject(value.completion, path + '.completion', problems, 'ADV-G26')) return
+    if (hasOwn(value.completion, 'type')) {
+      validateHistoricalCompletion(landing, path + '.completion', problems, context)
+      return
+    }
     checkFields(value.completion, COMPLETION_FIELDS, path + '.completion', problems)
     requiredFields(value.completion, COMPLETION_FIELDS, path + '.completion', problems)
     if (value.completion.from !== 'Planned' && value.completion.from !== 'InProgress') {
@@ -1272,6 +1400,1007 @@ function validateDelivery(value, path, problems, context, landing) {
   }
 }
 
+const HISTORICAL_COMPLETION = 'genesis-historical-completion-v1'
+const HISTORICAL_ROW_FIELDS = [
+  'landingId',
+  'sourceSnapshotIdentity',
+  'evidence',
+  'packageDisposition',
+]
+
+function exactSnapshot(value, path, problems, context) {
+  if (!requireObject(value, path, problems, 'ADV-G87')) return false
+  checkFields(value, ['class', 'value'], path, problems)
+  requiredFields(value, ['class', 'value'], path, problems, 'ADV-G87')
+  if (
+    value.class !== 'local-git-commit' ||
+    !/^[0-9a-f]{40}$/.test(value.value ?? '') ||
+    context.observe?.commitExists(value.value) !== PRESENT ||
+    context.observe?.isReachable(value.value) !== PRESENT
+  ) {
+    addProblem(
+      problems,
+      'ADV-G87',
+      path,
+      'COMPLETION_REQUIRES_EXTERNAL_VERIFICATION: source snapshot must be an available, reachable local commit',
+    )
+    return false
+  }
+  return true
+}
+
+/** The caller supplies bytes, never a historical-mode permission flag. */
+function readSourceManifest(context, problems) {
+  if (context.sourceManifestBytes === undefined) return undefined
+  try {
+    const text = decodeUtf8(context.sourceManifestBytes)
+    const manifest = parseStrictJson(text)
+    if (canonicalSerialize(manifest) !== text)
+      addProblem(problems, 'ADV-G87', '$.sourceManifest', 'source manifest must be byte-canonical')
+    return manifest
+  } catch (error) {
+    addProblem(
+      problems,
+      'ADV-G87',
+      '$.sourceManifest',
+      'source manifest is unreadable: ' + error.message,
+    )
+    return undefined
+  }
+}
+
+function validateHistoricalCompletion(landing, path, problems, context) {
+  const completion = landing.delivery.completion
+  const start = problems.length
+  checkFields(completion, ['type', 'digest', 'evidence'], path, problems)
+  requiredFields(completion, ['type', 'digest', 'evidence'], path, problems, 'ADV-G88')
+  if (completion.type !== HISTORICAL_COMPLETION)
+    addProblem(problems, 'ADV-G88', path + '.type', 'unknown historical completion variant')
+  const manifest = context.sourceManifest
+  const rows = Array.isArray(manifest?.historicalCompletions) ? manifest.historicalCompletions : []
+  const matching = rows.filter((row) => row?.landingId === landing.id)
+  if (matching.length !== 1) {
+    addProblem(problems, 'ADV-G87', path, 'historical completion needs exactly one source row')
+    return
+  }
+  const row = matching[0]
+  checkFields(row, HISTORICAL_ROW_FIELDS, path + '.sourceRow', problems)
+  requiredFields(row, HISTORICAL_ROW_FIELDS, path + '.sourceRow', problems, 'ADV-G87')
+  exactSnapshot(row.sourceSnapshotIdentity, path + '.sourceSnapshotIdentity', problems, context)
+  const equal = (a, b) => canonicalSerialize(a ?? null) === canonicalSerialize(b ?? null)
+  if (
+    !equal(row.evidence, completion.evidence) ||
+    !equal(row.sourceSnapshotIdentity, manifest.sourceSnapshotIdentity)
+  )
+    addProblem(
+      problems,
+      'ADV-G87',
+      path,
+      'row evidence/source must mirror the historical record and manifest',
+    )
+  const genesis = context.state.attestations?.genesis
+  if (!isObject(genesis) || Object.keys(genesis).length === 0)
+    addProblem(problems, 'ADV-G90', path, 'the unattested candidate is not completed genesis proof')
+  else if (!equal(row.sourceSnapshotIdentity, genesis.sourceSnapshotIdentity))
+    addProblem(problems, 'ADV-G87', path, 'source snapshot differs from the genesis attestation')
+  const evidence = completion.evidence
+  const policy = landing.delivery.completionPolicy
+  if (!requireObject(evidence, path + '.evidence', problems, 'ADV-G88')) return
+  checkFields(evidence, POLICY_EVIDENCE_FIELDS[policy] ?? [], path + '.evidence', problems)
+  requiredFields(
+    evidence,
+    POLICY_EVIDENCE_FIELDS[policy] ?? [],
+    path + '.evidence',
+    problems,
+    'ADV-G88',
+  )
+  if (evidence.policy !== policy)
+    addProblem(
+      problems,
+      'ADV-G88',
+      path,
+      'historical evidence must mirror the existing kind-selected policy',
+    )
+  if (policy === 'reviewed-delivery-v1') {
+    validateIdentity(evidence.deliveredIdentity, path + '.evidence.deliveredIdentity', problems, {
+      requireScope: true,
+      requireOfflineProof: true,
+    })
+    verifyIdentity(
+      evidence.deliveredIdentity,
+      path + '.evidence.deliveredIdentity',
+      problems,
+      context,
+      { requireScopedProof: true },
+    )
+    if (row.packageDisposition?.landingId !== landing.id)
+      addProblem(problems, 'ADV-G86', path, 'disposition is bound to another landing')
+    validateHistoricalArchivedOpenSpec(
+      evidence.archivedOpenSpec,
+      row.packageDisposition,
+      row.sourceSnapshotIdentity,
+      path + '.evidence.archivedOpenSpec',
+      problems,
+      context,
+    )
+  } else if (policy === 'reviewed-spike-evidence-v1') {
+    if (row.packageDisposition !== null)
+      addProblem(problems, 'ADV-G86', path, 'a spike requires an explicit null package disposition')
+    validateSpikeEvidence(evidence, path + '.evidence', problems, context)
+  }
+  if (
+    completion.type === HISTORICAL_COMPLETION &&
+    isSha256(completion.digest) &&
+    isObject(row.sourceSnapshotIdentity) &&
+    hasOwn(row, 'packageDisposition')
+  ) {
+    if (completion.digest !== genesisHistoricalCompletionDigest(landing, row))
+      addProblem(
+        problems,
+        'ADV-G88',
+        path + '.digest',
+        'historical preimage differs; an ordinary digest is not a historical digest',
+      )
+  } else
+    addProblem(
+      problems,
+      'ADV-G88',
+      path + '.digest',
+      'historical type, digest and complete preimage are required',
+    )
+  const members = context.state.attestations?.genesisCompletion?.members
+  if (
+    !Array.isArray(members) ||
+    members.filter(
+      (member) => member?.landingId === landing.id && member.digest === completion.digest,
+    ).length !== 1
+  )
+    addProblem(
+      problems,
+      'ADV-G51',
+      path,
+      'historical record needs exactly one bound outer completion member',
+    )
+  return problems.length === start
+}
+
+function validateHistoricalCorrespondence(state, context, problems) {
+  const historical = (Array.isArray(state.landings) ? state.landings : []).filter(
+    (landing) => landing?.delivery?.completion?.type === HISTORICAL_COMPLETION,
+  )
+  const manifest = context.sourceManifest
+  if (historical.length === 0 && manifest === undefined) return
+  if (!requireObject(manifest, '$.sourceManifest', problems, 'ADV-G87')) return
+  if (
+    !requireArray(
+      manifest.historicalCompletions,
+      '$.sourceManifest.historicalCompletions',
+      problems,
+      'ADV-G87',
+    )
+  )
+    return
+  const rowIds = manifest.historicalCompletions.map((row) => row?.landingId)
+  const historicalIds = historical.map((landing) => landing.id).sort(compareText)
+  if (canonicalSerialize([...rowIds].sort(compareText)) !== canonicalSerialize(historicalIds))
+    addProblem(
+      problems,
+      'ADV-G87',
+      '$.sourceManifest.historicalCompletions',
+      'historical source rows and records must correspond exactly, without extras or duplicates',
+    )
+  const members = state.attestations?.genesisCompletion?.members
+  if (
+    !Array.isArray(members) ||
+    canonicalSerialize(members.map((member) => member?.landingId).sort(compareText)) !==
+      canonicalSerialize(historicalIds)
+  )
+    addProblem(
+      problems,
+      'ADV-G51',
+      '$.attestations.genesisCompletion',
+      'the outer members are exactly the historical records, never all later completions',
+    )
+}
+
+const MANIFEST_FIELDS = [
+  'schemaVersion',
+  'sourceSnapshotIdentity',
+  'planningSources',
+  'rows',
+  'historicalCompletions',
+  'historicalContext',
+  'decisionEvidence',
+]
+const SOURCE_ROW_FIELDS = [
+  'id',
+  'collection',
+  'entityId',
+  'field',
+  'value',
+  'source',
+  'classification',
+  'humanDisposition',
+]
+const LOCAL_SOURCE_FIELDS = ['path', 'revision', 'contentSha256', 'extractionRule']
+const HUMAN_FIELDS = new Set([
+  'authorityAnchor',
+  'predicate',
+  'sources',
+  'delivery.completionPolicy',
+])
+const PLANNING_ROOT = 'openspec/changes/governance-state-substrate/'
+const PLANNING_FILES = [
+  'proposal.md',
+  'design.md',
+  'assurance.md',
+  'tasks.md',
+  'specs/governance-state/spec.md',
+]
+const PLANNING_HISTORY = new Set([
+  '7a2d731837ea9f14cae09436ddb78e6e47607ee5',
+  'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
+  '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
+  TEMPORAL_SOURCE,
+])
+
+/** Existing planningSources can also bind one complete preparation snapshot.
+ * It observes execution/status bytes, not new architectural authority. All
+ * primitive inputs and mandatory reviewed sources remain bound independently.
+ */
+function preparationPlanningSources(manifest) {
+  const rows = manifest.planningSources.filter((row) => !PLANNING_HISTORY.has(row.revision))
+  if (!rows.length)
+    return manifest.planningSources.filter(
+      (row) =>
+        row.revision === TEMPORAL_SOURCE &&
+        PLANNING_FILES.some((name) => row.path === PLANNING_ROOT + name),
+    )
+  if (
+    new Set(rows.map((row) => row.revision)).size !== 1 ||
+    rows.length !== PLANNING_FILES.length ||
+    !PLANNING_FILES.every(
+      (name) => rows.filter((row) => row.path === PLANNING_ROOT + name).length === 1,
+    )
+  )
+    throw new Error('planning preparation must bind one complete five-artifact snapshot')
+  return rows
+}
+
+function observedSource(source, context) {
+  const snapshot = context.readSnapshot(source.revision)
+  const entry = snapshot.entries.get(source.path)
+  if (!entry || entry.mode !== '100644' || !(entry.bytes instanceof Uint8Array))
+    throw new Error('source is missing, not a regular file, or unreadable: ' + source.path)
+  if (contentDigest(entry.bytes) !== source.contentSha256)
+    throw new Error('source bytes differ: ' + source.path)
+  return entry
+}
+
+/** Re-extract a field, without treating a row's claimed value as observation. */
+function extractSourceField(row, entry, manifest) {
+  const rule = row.source.extractionRule
+  if (rule === 'adr-header-v1' || rule === 'adr-bytes-v1') {
+    const adr = parseGenesisAdrHeader(row.source.path, entry.bytes)
+    const declaredPath = manifest.rows.find(
+      (item) =>
+        item.collection === 'adrs' && item.entityId === row.entityId && item.field === 'path',
+    )?.value
+    if (
+      adr.id !== row.entityId ||
+      declaredPath !== row.source.path ||
+      row.source.revision !== manifest.sourceSnapshotIdentity.value
+    )
+      throw new Error('ADR source must name this decision at the common source snapshot')
+    if (rule === 'adr-header-v1') return adr[row.field]
+  }
+  if (rule === 'adr-bytes-v1' && row.field === 'acceptance') {
+    const adr = parseGenesisAdrHeader(row.source.path, entry.bytes)
+    return adr.lifecycle === 'Proposed' ? null : { contentDigest: contentDigest(entry.bytes) }
+  }
+  if (rule === 'question-table-v1') {
+    const question = parseGenesisQuestions(row.source.path, entry.bytes).find(
+      (item) => item.id === row.entityId,
+    )
+    if (!question || question[row.field] === null)
+      throw new Error('missing or unparseable question primitive: ' + row.id)
+    return question[row.field]
+  }
+  if (rule === 'schema-v1' && row.id === 'schemaVersion') return 1
+  if (rule === 'program-table-v1') {
+    const node = parseGenesisProgram(entry.bytes).find((item) => item.id === row.entityId)
+    if (!node) throw new Error('node absent from whole-program source: ' + row.entityId)
+    if (['id', 'kind', 'requires'].includes(row.field)) return node[row.field]
+    if (['replaces', 'replacement', 'delivery.withdrawal'].includes(row.field)) return null
+    if (row.field === 'delivery.lifecycle' && node.lifecycle !== 'Complete') return node.lifecycle
+    if (row.field === 'delivery.completion' && node.lifecycle !== 'Complete') return null
+  }
+  if (rule === 'historical-completion-v1') {
+    const node = parseGenesisProgram(entry.bytes).find((item) => item.id === row.entityId)
+    if (!node || node.lifecycle !== 'Complete')
+      throw new Error('historical completion is not declared by the whole-program source')
+    const historical = manifest.historicalCompletions.find(
+      (item) => item.landingId === row.entityId,
+    )
+    if (!historical) throw new Error('missing historical repository evidence: ' + row.entityId)
+    if (row.field === 'delivery.lifecycle') return 'Complete'
+    if (row.field === 'delivery.completion') {
+      const anchor = manifest.rows.find(
+        (item) => item.entityId === row.entityId && item.field === 'authorityAnchor',
+      )?.value
+      const landing = {
+        id: node.id,
+        authorityAnchor: anchor,
+        delivery: {
+          completionPolicy: node.completionPolicy,
+          completion: { evidence: historical.evidence },
+        },
+      }
+      return {
+        type: HISTORICAL_COMPLETION,
+        digest: genesisHistoricalCompletionDigest(landing, historical),
+        evidence: historical.evidence,
+      }
+    }
+  }
+  if (
+    rule === 'human-declaration-v1' &&
+    HUMAN_FIELDS.has(row.field) &&
+    ['gates', 'landings'].includes(row.collection)
+  ) {
+    const node = parseGenesisProgram(entry.bytes).find((item) => item.id === row.entityId)
+    if (!node) throw new Error('human declaration names a node outside the whole program')
+    if (row.field === 'authorityAnchor')
+      return {
+        type: 'github-issue',
+        repository: 'pulse-ops-ai/secure-home-agent-platform',
+        number: node.issue,
+      }
+    if (row.field === 'delivery.completionPolicy') return node.completionPolicy
+    if (row.field === 'predicate')
+      return {
+        name: 'exactly-one-current-accepted-resolver',
+        question: node.id.slice('runner/GATE-'.length),
+      }
+    if (row.field === 'sources') {
+      const adrId = node.id === 'runner/GATE-U6' ? 'ADR-0013' : 'ADR-0020'
+      const path = manifest.rows.find(
+        (item) => item.collection === 'adrs' && item.entityId === adrId && item.field === 'path',
+      )?.value
+      if (typeof path !== 'string') throw new Error('gate declaration lacks its ADR source')
+      return [path + '#decision']
+    }
+  }
+  throw new Error('unsupported extraction rule or field: ' + rule + ' / ' + row.field)
+}
+
+/** Closed source coverage and field-by-field equivalence, independent of prior state. */
+export function validateGenesisSources(seed, manifest, context, problems = []) {
+  const path = '$.sourceManifest'
+  const start = problems.length
+  if (!requireObject(manifest, path, problems, 'ADV-G31')) return false
+  checkFields(manifest, MANIFEST_FIELDS, path, problems)
+  requiredFields(manifest, MANIFEST_FIELDS, path, problems, 'ADV-G31')
+  validateDecisionEvidence(seed, manifest, context, problems)
+  if (manifest.schemaVersion !== 1)
+    addProblem(problems, 'ADV-G31', path, 'manifest version must be 1')
+  exactSnapshot(
+    manifest.sourceSnapshotIdentity,
+    path + '.sourceSnapshotIdentity',
+    problems,
+    context,
+  )
+  if (
+    !Array.isArray(manifest.rows) ||
+    !Array.isArray(manifest.planningSources) ||
+    !Array.isArray(manifest.historicalCompletions) ||
+    !context.readSnapshot
+  ) {
+    addProblem(
+      problems,
+      'ADV-G31',
+      path,
+      'complete source arrays and exact-revision observations are required',
+    )
+    return false
+  }
+  const expected = primitiveSourceTuples(seed)
+  const seen = new Set()
+  for (const [index, row] of manifest.rows.entries()) {
+    const rowPath = path + '.rows[' + index + ']'
+    if (!requireObject(row, rowPath, problems, 'ADV-G42')) continue
+    checkFields(row, SOURCE_ROW_FIELDS, rowPath, problems)
+    requiredFields(row, SOURCE_ROW_FIELDS, rowPath, problems, 'ADV-G42')
+    if (seen.has(row.id))
+      addProblem(problems, 'ADV-G42', rowPath, 'duplicate primitive source identity')
+    seen.add(row.id)
+    const tuple = expected.find((item) => item.id === row.id)
+    if (
+      !tuple ||
+      ['collection', 'entityId', 'field', 'value'].some(
+        (field) =>
+          canonicalSerialize(tuple[field] ?? null) !== canonicalSerialize(row[field] ?? null),
+      )
+    ) {
+      addProblem(problems, 'ADV-G42', rowPath, 'source tuple differs from the candidate primitive')
+      continue
+    }
+    if (!requireObject(row.source, rowPath + '.source', problems, 'ADV-G31')) continue
+    checkFields(row.source, LOCAL_SOURCE_FIELDS, rowPath + '.source', problems)
+    requiredFields(row.source, LOCAL_SOURCE_FIELDS, rowPath + '.source', problems, 'ADV-G31')
+    const human = row.source.extractionRule === 'human-declaration-v1'
+    if (row.classification !== (human ? 'externally-attested' : 'locally-verified'))
+      addProblem(
+        problems,
+        'ADV-G43',
+        rowPath,
+        'verification class must reflect the extraction rule, never launder human judgment',
+      )
+    if (human && (typeof row.humanDisposition !== 'string' || row.humanDisposition.trim() === ''))
+      addProblem(
+        problems,
+        'ADV-G43',
+        rowPath,
+        'external declaration needs an explicit review disposition',
+      )
+    if (!human && row.humanDisposition !== null)
+      addProblem(
+        problems,
+        'ADV-G43',
+        rowPath,
+        'a mechanically extracted row has no human substitute',
+      )
+    try {
+      if (context.observe?.isReachable(row.source.revision) !== PRESENT)
+        throw new Error('source revision is not reachable')
+      const entry = observedSource(row.source, context)
+      const extracted = extractSourceField(row, entry, manifest)
+      if (
+        extracted === undefined ||
+        canonicalSerialize(extracted) !== canonicalSerialize(row.value)
+      )
+        addProblem(
+          problems,
+          'ADV-G20',
+          rowPath,
+          'source field differs; equal derived counts do not establish relationship equivalence',
+        )
+    } catch (error) {
+      addProblem(problems, 'ADV-G31', rowPath, error.message)
+    }
+  }
+  for (const tuple of expected)
+    if (!seen.has(tuple.id))
+      addProblem(problems, 'ADV-G42', path, 'primitive has no source row: ' + tuple.id)
+  const planningSeen = new Set()
+  for (const source of manifest.planningSources) {
+    if (!isObject(source)) {
+      addProblem(problems, 'ADV-G31', path, 'invalid planning source')
+      continue
+    }
+    checkFields(source, ['path', 'revision', 'blobOid', 'contentSha256'], path, problems)
+    requiredFields(
+      source,
+      ['path', 'revision', 'blobOid', 'contentSha256'],
+      path,
+      problems,
+      'ADV-G31',
+    )
+    const key = source.revision + ':' + source.path
+    if (planningSeen.has(key)) addProblem(problems, 'ADV-G31', path, 'duplicate planning source')
+    planningSeen.add(key)
+    try {
+      if (context.observe?.isReachable(source.revision) !== PRESENT)
+        throw new Error('planning source is not reachable')
+      const observed = observedSource(source, context)
+      if (observed.oid !== source.blobOid) throw new Error('planning blob identity differs')
+      if (BRIDGE_RECORDS.includes(source.path) && context.readBytes) {
+        const current = context.readBytes(source.path)
+        if (!current || contentDigest(current) !== source.contentSha256)
+          throw new Error('immutable historical bridge evidence changed or disappeared')
+      }
+    } catch (error) {
+      addProblem(problems, 'ADV-G31', path, error.message)
+    }
+  }
+  for (const file of [
+    'proposal.md',
+    'design.md',
+    'assurance.md',
+    'tasks.md',
+    'specs/governance-state/spec.md',
+  ]) {
+    if (!planningSeen.has('7a2d731837ea9f14cae09436ddb78e6e47607ee5:' + PLANNING_ROOT + file))
+      addProblem(problems, 'ADV-G31', path, 'missing exact PR-107 planning blob: ' + file)
+  }
+  for (const revision of [
+    'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
+    '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
+    TEMPORAL_SOURCE,
+  ]) {
+    for (const file of [
+      'proposal.md',
+      'design.md',
+      'assurance.md',
+      'tasks.md',
+      'specs/governance-state/spec.md',
+    ])
+      if (!planningSeen.has(revision + ':' + PLANNING_ROOT + file))
+        addProblem(
+          problems,
+          'ADV-G31',
+          path,
+          'missing reviewed amendment binding: ' + revision + ':' + file,
+        )
+  }
+  for (const file of BRIDGE_RECORDS) {
+    if (!planningSeen.has(TEMPORAL_SOURCE + ':' + file))
+      addProblem(
+        problems,
+        'ADV-G104',
+        path,
+        'missing immutable post-bridge source binding: ' + file,
+      )
+  }
+  try {
+    preparationPlanningSources(manifest)
+    const snapshot = context.readSnapshot(manifest.sourceSnapshotIdentity.value)
+    const design = snapshot.entries.get(PLANNING_ROOT + 'design.md')
+    if (!design?.bytes) throw new Error('whole-program source is missing')
+    const program = parseGenesisProgram(design.bytes)
+    const nodes = [...seed.gates, ...seed.landings].map((node) => node.id).sort()
+    if (canonicalSerialize(nodes) !== canonicalSerialize(program.map((node) => node.id).sort()))
+      addProblem(
+        problems,
+        'ADV-G44',
+        path,
+        'candidate must seed the complete representable program',
+      )
+    const adrs = [...snapshot.entries.keys()]
+      .filter((item) => /^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(item))
+      .sort()
+    if (canonicalSerialize(seed.adrs.map((adr) => adr.path).sort()) !== canonicalSerialize(adrs))
+      addProblem(
+        problems,
+        'ADV-G44',
+        path,
+        'candidate ADR inventory differs from its source snapshot',
+      )
+    const questions = parseGenesisQuestions(
+      'docs/architecture/unresolved-decisions.md',
+      snapshot.entries.get('docs/architecture/unresolved-decisions.md').bytes,
+    )
+    if (
+      canonicalSerialize(seed.questions.map((item) => item.id).sort()) !==
+      canonicalSerialize(questions.map((item) => item.id).sort())
+    )
+      addProblem(
+        problems,
+        'ADV-G44',
+        path,
+        'candidate question inventory differs from its source snapshot',
+      )
+    for (const id of ['runner/L4', 'runner/L5', 'runner/L7']) {
+      const evidence = manifest.historicalCompletions.find((row) => row.landingId === id)?.evidence
+      const archive = evidence?.archivedOpenSpec
+      // The three actual preparation archives have a separately bound stage.
+      // Other independently constructed packages retain their own observed
+      // stage; this is not a blanket identity exception for a landing number.
+      const requiredStage =
+        archive?.archiveRoot === PREPARED_ARCHIVES.get(id) ? ARCHIVE_STAGE : snapshot.commit
+      if (archive?.archivedPackageIdentity?.value !== requiredStage)
+        addProblem(
+          problems,
+          'ADV-G98',
+          path,
+          'prepared archive identity must remain bound to durable archive-stage M: ' + id,
+        )
+    }
+  } catch (error) {
+    addProblem(problems, 'ADV-G31', path, error.message)
+  }
+  const historicalContext = manifest.historicalContext
+  if (!requireObject(historicalContext, path + '.historicalContext', problems, 'ADV-G31'))
+    return false
+  const fields = [
+    'programMaterialization',
+    'originalRatifiedDag',
+    'sourceConflictDisposition',
+    'source',
+  ]
+  checkFields(historicalContext, fields, path + '.historicalContext', problems)
+  requiredFields(historicalContext, fields, path + '.historicalContext', problems, 'ADV-G31')
+  for (const field of fields.filter((item) => item !== 'source'))
+    nonEmptyString(historicalContext[field], path + '.historicalContext.' + field, problems)
+  try {
+    const source = historicalContext.source
+    if (
+      !isObject(source) ||
+      Object.keys(source).sort().join(',') !== [...LOCAL_SOURCE_FIELDS].sort().join(',') ||
+      source.revision !== manifest.sourceSnapshotIdentity.value ||
+      source.extractionRule !== 'historical-context-v1' ||
+      source.path !== 'openspec/changes/archive/2026-08-09-runner-baseline-adoption/tasks.md'
+    )
+      throw new Error(
+        'historical program context must bind the original ratified task source at the common snapshot',
+      )
+    observedSource(historicalContext.source, context)
+  } catch (error) {
+    addProblem(problems, 'ADV-G31', path + '.historicalContext', error.message)
+  }
+  return problems.length === start
+}
+
+export function genesisRelationshipRows(manifest) {
+  return manifest.rows.filter(
+    (row) => row.collection === 'adrs' && ['resolves', 'supersedes'].includes(row.field),
+  )
+}
+
+function readFrozenCandidate(context, problems) {
+  try {
+    const bytes = new Map(CANDIDATE_PATHS.map((path) => [path, context.readBytes?.(path)]))
+    const identity = candidateFreezeIdentity(bytes)
+    const values = CANDIDATE_PATHS.map((path) => {
+      const text = decodeUtf8(bytes.get(path))
+      const value = parseStrictJson(text)
+      if (canonicalSerialize(value) !== text)
+        throw new Error('noncanonical candidate bytes: ' + path)
+      return value
+    })
+    const [inventory, manifest, seed] = values
+    if (canonicalSerialize(seed.attestations) !== canonicalSerialize({ genesis: {} }))
+      throw new Error('the frozen seed must contain no human or fixture genesis envelope')
+    return { bytes, identity, inventory, manifest, seed }
+  } catch (error) {
+    addProblem(problems, 'ADV-G76', '$.candidate', error.message)
+    return undefined
+  }
+}
+
+/** Structural proof ONLY. Absence of both human envelopes is required here,
+ * not accepted as full current-state validity. evaluateState never filters it.
+ * Historical headers are checked at their source, so a later legal Proposed
+ * transition does not rewrite the immutable genesis candidate.
+ */
+function validateFrozenSeedStructure(frozen, context, problems) {
+  const snapshot = context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value)
+  const local = []
+  const seedContext = {
+    ...context,
+    state: frozen.seed,
+    sourceManifest: frozen.manifest,
+    readBytes: (path) => snapshot.entries.get(path)?.bytes,
+    checkout: {
+      pathExists: (path) =>
+        snapshot.entries.has(path) ||
+        [...snapshot.entries.keys()].some((name) => name.startsWith(path + '/')),
+      tree: (root) =>
+        new Map(
+          [...snapshot.entries]
+            .filter(([path]) => path.startsWith(root + '/'))
+            .map(([path, entry]) => [
+              path.slice(root.length + 1),
+              { mode: entry.mode, sha256: entry.bytes ? contentDigest(entry.bytes) : undefined },
+            ]),
+        ),
+    },
+  }
+  validateTopLevel(frozen.seed, local, seedContext)
+  validateHistoricalCorrespondence(frozen.seed, seedContext, local)
+  validateAdrRelationships(frozen.seed, local)
+  for (const problem of local)
+    if (!['ADV-G51', 'ADV-G90'].includes(problem.code)) problems.push(problem)
+  if (local.some((problem) => !['ADV-G51', 'ADV-G90'].includes(problem.code))) return
+  const questions = deriveQuestions(frozen.seed, problems)
+  const nodes = deriveNodes(frozen.seed, problems, seedContext)
+  const gates = deriveGates(frozen.seed, questions, problems)
+  const readiness = deriveReadiness(frozen.seed, nodes, gates)
+  for (const landing of frozen.seed.landings)
+    if (landing.delivery.lifecycle === 'Complete' && readiness[landing.id].state !== 'Ready')
+      addProblem(
+        problems,
+        'ADV-G56',
+        '$.candidate.' + landing.id,
+        'the seed has a completed landing behind an unsatisfied prerequisite',
+      )
+}
+
+export function checkCandidateFreshness(activationBaseCommit, context) {
+  const problems = []
+  const frozen = readFrozenCandidate(context, problems)
+  let result
+  try {
+    if (frozen) {
+      validateFrozenSeedStructure(frozen, context, problems)
+      if (problems.length === 0)
+        result = compareCandidateFreshness(frozen, activationBaseCommit, context, problems)
+    }
+  } catch (error) {
+    addProblem(problems, 'ADV-G74', '$.freshness', error.message)
+  }
+  return { ok: problems.length === 0 && result !== undefined, problems, result }
+}
+
+/** Extract all four freshness classes at an explicit revision. No class may be skipped. */
+export function extractFreshnessInputs(frozen, snapshot, context) {
+  const { manifest, inventory } = frozen
+  const primitiveTuples = manifest.rows.map((row) => {
+    const current = snapshot.entries.get(row.source.path)
+    if (!current?.bytes || current.mode !== '100644')
+      throw new Error('ADV-G74: missing source artifact: ' + row.source.path)
+    // A historical severity, whose live cell was replaced by a resolution banner,
+    // remains a historical input. The LIVE artifact digest below is still compared.
+    const historicalSeverity =
+      row.collection === 'questions' &&
+      row.field === 'severity' &&
+      row.source.revision !== manifest.sourceSnapshotIdentity.value
+    const entry = historicalSeverity ? observedSource(row.source, context) : current
+    return {
+      ...row,
+      value: extractSourceField(row, entry, manifest),
+      observedSourceSha256: contentDigest(current.bytes),
+    }
+  })
+  const adrPaths = [...snapshot.entries.keys()]
+    .filter((path) => /^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(path))
+    .sort()
+  const adrs = adrPaths.map((path) => parseGenesisAdrHeader(path, snapshot.entries.get(path).bytes))
+  // Enumeration is compared too: a new ADR cannot hide outside old manifest rows.
+  primitiveTuples.push({ id: '$.adrInventory', paths: adrPaths })
+  const evidencePaths = new Set([
+    ...manifest.rows.map((row) => row.source.path),
+    ...manifest.planningSources.map((source) => source.path),
+    manifest.historicalContext.source.path,
+    ...manifest.decisionEvidence.flatMap((row) => row.sources.map((source) => source.path)),
+  ])
+  const historical = []
+  for (const row of manifest.historicalCompletions) {
+    const root = row.evidence.archivedOpenSpec?.archiveRoot ?? row.evidence.evidenceRoot
+    const members = [...snapshot.entries]
+      .filter(([path]) => path.startsWith(root + '/'))
+      .map(([path, entry]) => ({
+        path,
+        mode: entry.mode,
+        contentSha256: entry.bytes ? contentDigest(entry.bytes) : null,
+      }))
+      .sort((a, b) => compareText(a.path, b.path))
+    if (members.length === 0) throw new Error('ADV-G73: historical evidence is absent: ' + root)
+    historical.push({ ...row, observedMembers: members })
+  }
+  const artifactIdentities = [...evidencePaths].sort().map((path) => {
+    const entry = snapshot.entries.get(path)
+    if (!entry?.bytes || entry.mode !== '100644')
+      throw new Error('ADV-G74: source artifact unavailable: ' + path)
+    return { path, contentSha256: contentDigest(entry.bytes) }
+  })
+  const discovered = new Map(discoverConsumers(snapshot).map((row) => [row.path, row.factClasses]))
+  const inventoryPaths = new Set(inventory.rows.map((row) => row.path))
+  const consumerInventory = {
+    schemaVersion: 1,
+    rows: inventory.rows.map((row) => ({
+      ...row,
+      factClasses: discovered.get(row.path) ?? [],
+      present: snapshot.entries.has(row.path),
+    })),
+  }
+  for (const [path, factClasses] of discovered)
+    if (!inventoryPaths.has(path))
+      consumerInventory.rows.push({ path, factClasses, disposition: null, present: true })
+  return {
+    primitiveSourceTuples: primitiveTuples,
+    relationshipTuples: relationshipTuples({ adrs }),
+    localEvidenceIdentities: {
+      artifactIdentities,
+      historical,
+      decisionEvidence: manifest.decisionEvidence,
+      // All historical and preparation revision+blob bindings remain immutable.
+      planningSources: manifest.planningSources,
+    },
+    consumerInventory,
+  }
+}
+
+/** Reusable PR-2 mechanism; PR-3 supplies the actual final activation base. */
+export function compareCandidateFreshness(frozen, activationBaseCommit, context, problems = []) {
+  const start = problems.length
+  if (!/^[0-9a-f]{40}$/u.test(activationBaseCommit)) {
+    addProblem(
+      problems,
+      'ADV-G74',
+      '$.freshness',
+      'an explicit full activation-base commit is required',
+    )
+    return undefined
+  }
+  try {
+    validateGenesisSources(frozen.seed, frozen.manifest, context, problems)
+    const source = context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value)
+    const activation = context.readSnapshot(activationBaseCommit)
+    const candidate = extractFreshnessInputs(frozen, source, context)
+    // Governance primitives come from S; execution/status documents were
+    // checkpointed separately before freezing the candidate. Compare their
+    // COMPLETE bytes at the activation base, never a status-stripped projection.
+    // This adjustment applies only to the frozen reference, not observations
+    // of the evaluated base. Source/rule values above remain extracted from S.
+    for (const planning of preparationPlanningSources(frozen.manifest)) {
+      for (const row of candidate.primitiveSourceTuples)
+        if (row.source?.path === planning.path) row.observedSourceSha256 = planning.contentSha256
+      const artifact = candidate.localEvidenceIdentities.artifactIdentities.find(
+        (row) => row.path === planning.path,
+      )
+      if (!artifact) throw new Error('planning artifact absent from freshness reference')
+      artifact.contentSha256 = planning.contentSha256
+    }
+    // Inventory is an authored, frozen migration enumeration, not a claim that
+    // PR-2's new tooling already existed at historical S. Compare THAT complete
+    // enumeration against an independent scan of the explicit activation base.
+    // Common source remains S; original archive-stage identities remain M.
+    candidate.consumerInventory = {
+      schemaVersion: 1,
+      rows: frozen.inventory.rows.map((row) => ({ ...row, present: true })),
+    }
+    const base = extractFreshnessInputs(frozen, activation, context)
+    if (CANDIDATE_PATHS.some((path) => activation.entries.has(path))) {
+      for (const member of frozen.identity.members) {
+        const bytes = activation.entries.get(member.path)?.bytes
+        if (!bytes || contentDigest(bytes) !== member.contentSha256)
+          addProblem(
+            problems,
+            'ADV-G76',
+            '$.freshness.' + member.path,
+            'activation base carries different or incomplete frozen candidate bytes',
+          )
+      }
+    }
+    const classes = [
+      ['primitiveSourceTuples', 'ADV-G69'],
+      ['relationshipTuples', 'ADV-G69'],
+      ['localEvidenceIdentities', 'ADV-G72'],
+      ['consumerInventory', 'ADV-G71'],
+    ]
+    for (const [name, defaultCode] of classes) {
+      if (name === 'consumerInventory')
+        validateConsumerInventory(frozen.inventory, activation, problems, source)
+      if (canonicalSerialize(candidate[name]) !== canonicalSerialize(base[name])) {
+        let code = defaultCode
+        if (
+          name === 'primitiveSourceTuples' &&
+          canonicalSerialize(candidate[name].find((row) => row.id === '$.adrInventory')) !==
+            canonicalSerialize(base[name].find((row) => row.id === '$.adrInventory'))
+        )
+          code = 'ADV-G70'
+        if (
+          name === 'localEvidenceIdentities' &&
+          canonicalSerialize(candidate[name].artifactIdentities) !==
+            canonicalSerialize(base[name].artifactIdentities)
+        )
+          code = 'ADV-G73'
+        addProblem(
+          problems,
+          code,
+          '$.freshness.' + name,
+          'complete extracted source tuples differ at the explicit activation base',
+        )
+      }
+    }
+    if (problems.length !== start) return undefined
+    return {
+      outcome: 'equivalent',
+      candidateFreezeIdentity: frozen.identity,
+      activationBaseCommit,
+      comparisonTupleIdentities: Object.fromEntries(
+        classes.map(([name]) => [name, digestPreimage(base[name])]),
+      ),
+      activationFreshnessDigest: digestPreimage(
+        activationFreshnessPreimage(frozen.identity, activationBaseCommit, base),
+      ),
+    }
+  } catch (error) {
+    addProblem(problems, 'ADV-G74', '$.freshness', error.message)
+    return undefined
+  }
+}
+
+function validateGenesisBindings(state, context, problems) {
+  const genesis = state.attestations?.genesis
+  const hasGenesis = isObject(genesis) && Object.keys(genesis).length > 0
+  if (!context.sourceManifest && !hasGenesis) return
+  if (!context.sourceManifest) {
+    addProblem(
+      problems,
+      'ADV-G31',
+      '$.sourceManifest',
+      'genesis requires its revision-bound source manifest',
+    )
+    return
+  }
+  const frozen = readFrozenCandidate(context, problems)
+  if (!frozen) return
+  context.genesisInventory = frozen.inventory
+  if (canonicalSerialize(context.sourceManifest) !== canonicalSerialize(frozen.manifest))
+    addProblem(
+      problems,
+      'ADV-G87',
+      '$.sourceManifest',
+      'the evaluated revision must carry the unchanged frozen source manifest',
+    )
+  validateFrozenSeedStructure(frozen, context, problems)
+  validateGenesisSources(frozen.seed, frozen.manifest, context, problems)
+  try {
+    validateConsumerInventory(
+      frozen.inventory,
+      hasGenesis
+        ? context.readSnapshot(genesis.activationBaseCommit)
+        : context.readPreparationSnapshot
+          ? context.readPreparationSnapshot()
+          : context.readSnapshot(context.evaluatedRevision),
+      problems,
+      context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value),
+    )
+  } catch (error) {
+    addProblem(problems, 'ADV-G46', '$.consumers', error.message)
+  }
+  if (!hasGenesis) return // Completion validation still REFUSES the raw candidate.
+  if (
+    canonicalSerialize(genesis.candidateFreezeIdentity ?? null) !==
+    canonicalSerialize(frozen.identity)
+  )
+    addProblem(
+      problems,
+      'ADV-G76',
+      '$.attestations.genesis.candidateFreezeIdentity',
+      'identity differs from the exact three frozen byte streams',
+    )
+  if (genesis.seedDigest !== primitiveDigest(frozen.seed))
+    addProblem(
+      problems,
+      'ADV-G62',
+      '$.attestations.genesis.seedDigest',
+      'genesis seed differs from the frozen primitives',
+    )
+  if (
+    genesis.relationshipEquivalenceDigest !==
+    relationshipEquivalenceDigest(genesisRelationshipRows(frozen.manifest))
+  )
+    addProblem(
+      problems,
+      'ADV-G20',
+      '$.attestations.genesis.relationshipEquivalenceDigest',
+      'source-comparison tuples differ; counts are not equivalence',
+    )
+  if (
+    canonicalSerialize(genesis.sourceSnapshotIdentity ?? null) !==
+    canonicalSerialize(frozen.manifest.sourceSnapshotIdentity)
+  )
+    addProblem(
+      problems,
+      'ADV-G87',
+      '$.attestations.genesis.sourceSnapshotIdentity',
+      'general genesis and historical source snapshot differ',
+    )
+  if (genesis.digest !== genesisAttestationDigest(genesis))
+    addProblem(
+      problems,
+      'ADV-G62',
+      '$.attestations.genesis.digest',
+      'genesis preimage binding differs',
+    )
+  const freshness = compareCandidateFreshness(
+    frozen,
+    genesis.activationBaseCommit,
+    context,
+    problems,
+  )
+  if (freshness && genesis.activationFreshness?.digest !== freshness.activationFreshnessDigest)
+    addProblem(
+      problems,
+      'ADV-G74',
+      '$.attestations.genesis.activationFreshness',
+      'freshness digest differs from complete re-extraction',
+    )
+}
+
 function validateLanding(value, path, problems, context) {
   if (!requireObject(value, path, problems)) return
   checkFields(value, LANDING_FIELDS, path, problems)
@@ -1367,19 +2496,164 @@ function validateGenesisCompletion(value, path, problems) {
   }
 }
 
+/**
+ * THE GENESIS ATTESTATION, AND WHY ITS SHAPE IS CLOSED HERE.
+ *
+ * `attestations.genesis` binds the seed and its relationship equivalence, and
+ * it carries the four facts the history checker needs to admit the one genesis
+ * exception: the source snapshot the candidate was derived from, the exact
+ * activation base, the equivalent freshness result, and the activation
+ * identity. The exception is admitted by BINDING, never by the absence of a
+ * registry in the base — every commit before activation lacks one, so absence
+ * alone would let any of them claim it.
+ *
+ * The schema lives in the model and not in the history entry point because the
+ * current checker must refuse a malformed genesis attestation on its own, and
+ * two readers of one closed shape would be two schemas.
+ *
+ * This is the shape only. Recording a real attestation is a human act reserved
+ * for the activation change; nothing here produces one.
+ */
+const GENESIS_FIELDS = [
+  'digest',
+  'actor',
+  'at',
+  'outcome',
+  'authority',
+  'seedDigest',
+  'relationshipEquivalenceDigest',
+  'sourceSnapshotIdentity',
+  'candidateFreezeIdentity',
+  'activationBaseCommit',
+  'activationIdentity',
+  'activationFreshness',
+]
+
+const FRESHNESS_FIELDS = ['outcome', 'digest']
+const CANDIDATE_BUNDLE_FIELDS = ['schemaVersion', 'type', 'members', 'bundleSha256']
+
+export const CANDIDATE_BUNDLE_TYPE = 'governance-candidate-bundle'
+export const FRESHNESS_EQUIVALENT = 'equivalent'
+
+function validateCandidateFreezeIdentity(value, path, problems) {
+  if (!requireObject(value, path, problems, 'ADV-G76')) return
+  checkFields(value, CANDIDATE_BUNDLE_FIELDS, path, problems)
+  requiredFields(value, CANDIDATE_BUNDLE_FIELDS, path, problems, 'ADV-G76')
+  if (value.schemaVersion !== 1)
+    addProblem(problems, 'ADV-G76', path + '.schemaVersion', 'candidate bundle is version 1')
+  if (value.type !== CANDIDATE_BUNDLE_TYPE)
+    addProblem(problems, 'ADV-G76', path + '.type', 'must be ' + CANDIDATE_BUNDLE_TYPE)
+  if (!isSha256(value.bundleSha256))
+    addProblem(problems, 'ADV-G76', path + '.bundleSha256', 'must be a lowercase SHA-256')
+  // A commit name or label is not a content identity: the members carry the
+  // exact bytes, so a candidate byte change must move a member digest.
+  if (!requireArray(value.members, path + '.members', problems, 'ADV-G76')) return
+  const paths = []
+  for (const [index, member] of value.members.entries()) {
+    const memberPath = path + '.members[' + index + ']'
+    if (!requireObject(member, memberPath, problems, 'ADV-G76')) continue
+    checkFields(member, ['path', 'contentSha256'], memberPath, problems)
+    requiredFields(member, ['path', 'contentSha256'], memberPath, problems, 'ADV-G76')
+    if (!validRepoPath(member.path, memberPath + '.path', problems)) continue
+    if (!isSha256(member.contentSha256))
+      addProblem(problems, 'ADV-G76', memberPath + '.contentSha256', 'must be a lowercase SHA-256')
+    paths.push(member.path)
+  }
+  const pathProblems = canonicalPathSetProblems(paths)
+  if (pathProblems.length > 0)
+    addProblem(problems, 'ADV-G76', path + '.members', pathProblems.join('; '))
+  if (canonicalSerialize(paths) !== canonicalSerialize(CANDIDATE_PATHS))
+    addProblem(
+      problems,
+      'ADV-G76',
+      path + '.members',
+      'candidate identity has exactly the three contract-declared members',
+    )
+  if (
+    value.bundleSha256 !==
+    digestPreimage({ schemaVersion: value.schemaVersion, type: value.type, members: value.members })
+  )
+    addProblem(problems, 'ADV-G76', path + '.bundleSha256', 'candidate bundle preimage differs')
+}
+
+function validateGenesisAttestation(value, path, problems) {
+  if (!requireObject(value, path, problems, 'ADV-G19')) return
+  checkFields(value, GENESIS_FIELDS, path, problems)
+  requiredFields(value, GENESIS_FIELDS, path, problems, 'ADV-G19')
+  for (const field of ['digest', 'seedDigest', 'relationshipEquivalenceDigest']) {
+    if (!isSha256(value[field]))
+      addProblem(problems, 'ADV-G19', path + '.' + field, 'must be a lowercase SHA-256')
+  }
+  if (typeof value.actor !== 'string' || !ACTOR.test(value.actor))
+    addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
+  // Independent of the instant: see validateActorEvidence.
+  validTimestamp(value.at, path + '.at', problems)
+  if (value.outcome !== 'attested')
+    addProblem(problems, 'ADV-G19', path + '.outcome', 'must be attested')
+  validateTypedAnchor(value.authority, path + '.authority', problems)
+  validateIdentity(value.sourceSnapshotIdentity, path + '.sourceSnapshotIdentity', problems, {
+    requireScope: false,
+  })
+  validateCandidateFreezeIdentity(
+    value.candidateFreezeIdentity,
+    path + '.candidateFreezeIdentity',
+    problems,
+  )
+  if (
+    typeof value.activationBaseCommit !== 'string' ||
+    !SHA1_OR_SHA256.test(value.activationBaseCommit)
+  )
+    addProblem(
+      problems,
+      'ADV-G19',
+      path + '.activationBaseCommit',
+      'must be a hexadecimal Git commit identity',
+    )
+  validateTypedAnchor(value.activationIdentity, path + '.activationIdentity', problems)
+  if (
+    requireObject(value.activationFreshness, path + '.activationFreshness', problems, 'ADV-G19')
+  ) {
+    checkFields(
+      value.activationFreshness,
+      FRESHNESS_FIELDS,
+      path + '.activationFreshness',
+      problems,
+    )
+    requiredFields(
+      value.activationFreshness,
+      FRESHNESS_FIELDS,
+      path + '.activationFreshness',
+      problems,
+      'ADV-G19',
+    )
+    if (value.activationFreshness.outcome !== FRESHNESS_EQUIVALENT)
+      addProblem(
+        problems,
+        'ADV-G19',
+        path + '.activationFreshness.outcome',
+        'a genesis attestation may bind only an equivalent freshness result',
+      )
+    if (!isSha256(value.activationFreshness.digest))
+      addProblem(
+        problems,
+        'ADV-G19',
+        path + '.activationFreshness.digest',
+        'must be a lowercase SHA-256',
+      )
+  }
+}
+
 function validateAttestations(value, path, problems) {
   if (!requireObject(value, path, problems)) return
   checkFields(value, ['genesis', 'genesisCompletion'], path, problems)
   requiredFields(value, ['genesis'], path, problems)
-  if (!isObject(value.genesis))
+  if (!isObject(value.genesis)) {
     addProblem(problems, 'ADV-G19', path + '.genesis', 'genesis attestation must be an object')
-  else if (Object.keys(value.genesis).length > 0)
-    addProblem(
-      problems,
-      'ADV-G02',
-      path + '.genesis',
-      'genesis attestation machinery is owned by a later PR-2 task',
-    )
+  } else if (Object.keys(value.genesis).length > 0) {
+    // An EMPTY object is the pre-activation state: no genesis has occurred, and
+    // that is not an error. A populated one is the real closed shape.
+    validateGenesisAttestation(value.genesis, path + '.genesis', problems)
+  }
   validateGenesisCompletion(value.genesisCompletion, path + '.genesisCompletion', problems)
 }
 
@@ -1549,7 +2823,7 @@ function deriveQuestions(state, problems) {
       // The contract's resolution scenario requires the resolver AND its
       // acceptance date, so the date is part of the derived answer rather than
       // something a consumer has to go and look up.
-      resolvedAt: null,
+      resolvedOn: null,
     }
   }
   const resolvers = Object.create(null)
@@ -1573,14 +2847,14 @@ function deriveQuestions(state, problems) {
           'multiple current accepted resolvers exist for ' + questionId,
         )
       }
-      resolvers[questionId] = { id: adr.id, at: adr.acceptance?.at ?? null }
+      resolvers[questionId] = { id: adr.id, decisionDate: adr.acceptance?.decisionDate ?? null }
     }
   }
   for (const question of Object.values(questions)) {
     if (resolvers[question.id]) {
       question.resolved = true
       question.resolver = resolvers[question.id].id
-      question.resolvedAt = resolvers[question.id].at
+      question.resolvedOn = resolvers[question.id].decisionDate
     }
   }
   return questions
@@ -1853,10 +3127,30 @@ export function evaluateState(stateText, context = {}) {
     return { ok: false, problems }
   }
   checkCanonical(stateText, state, problems, context.stateBytes)
+  context = { ...context, state, sourceManifest: readSourceManifest(context, problems) }
   validateTopLevel(state, problems, context)
+  if (isObject(state)) validateHistoricalCorrespondence(state, context, problems)
+  if (isObject(state)) {
+    try {
+      validateGenesisBindings(state, context, problems)
+    } catch (error) {
+      addProblem(
+        problems,
+        'ADV-G31',
+        '$.genesis',
+        'genesis inputs could not be validated: ' + error.message,
+      )
+    }
+  }
   if (isObject(state)) validateAdrRelationships(state, problems)
   if (problems.length > 0)
-    return { ok: false, problems, state, canonical: canonicalSerialize(state) }
+    return {
+      ok: false,
+      problems,
+      state,
+      sourceManifest: context.sourceManifest,
+      canonical: canonicalSerialize(state),
+    }
 
   const questions = deriveQuestions(state, problems)
   if (problems.length > 0)
@@ -1868,6 +3162,26 @@ export function evaluateState(stateText, context = {}) {
   if (problems.length > 0)
     return { ok: false, problems, state, canonical: canonicalSerialize(state) }
   const readiness = deriveReadiness(state, nodeInfo, gates)
+  for (const landing of state.landings) {
+    if (
+      landing.delivery.completion?.type === HISTORICAL_COMPLETION &&
+      readiness[landing.id].state !== 'Ready'
+    )
+      addProblem(
+        problems,
+        'ADV-G56',
+        '$.landings.' + landing.id,
+        'a seeded Complete landing has unsatisfied prerequisites',
+      )
+  }
+  if (problems.length > 0)
+    return {
+      ok: false,
+      problems,
+      state,
+      sourceManifest: context.sourceManifest,
+      canonical: canonicalSerialize(state),
+    }
   const digests = {
     primitiveDigest: primitiveDigest(state),
     relationshipDigest: relationshipDigest(state),
@@ -1877,8 +3191,20 @@ export function evaluateState(stateText, context = {}) {
     problems,
     state,
     canonical: canonicalSerialize(state),
-    derived: { questions, gates, currentNodeIds: [...nodeInfo.currentIds].sort(), readiness },
+    derived: {
+      questions,
+      gates,
+      currentNodeIds: [...nodeInfo.currentIds].sort(),
+      readiness,
+      ...(context.sourceManifest
+        ? { historicalContext: context.sourceManifest.historicalContext }
+        : {}),
+      ...(context.genesisInventory
+        ? { consumerCounts: consumerCounts(context.genesisInventory) }
+        : {}),
+    },
     digests,
+    sourceManifest: context.sourceManifest,
   }
   return result
 }

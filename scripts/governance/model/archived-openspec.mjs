@@ -435,7 +435,7 @@ function verifyCommitReviewedIdentity(archived, identity, path, problems, contex
  * @param context.observe a rules-free repository observer
  * @param context.readBytes exact bytes of a repository-relative path
  */
-export function validateArchivedOpenSpec(value, path, problems, context) {
+function validateArchive(value, path, problems, context, historicalDisposition) {
   if (!isObject(value)) {
     return add(problems, 'ADV-G78', path, 'archivedOpenSpec must be an object')
   }
@@ -509,7 +509,7 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
     return add(problems, 'ADV-G79', path + '.members', 'must be sorted by canonical member path')
   }
   for (const required of REQUIRED_MEMBERS) {
-    if (!seen.has(required)) {
+    if (!seen.has(required) && !historicalDisposition?.waivedMinimumArtifacts.includes(required)) {
       return add(
         problems,
         'ADV-G78',
@@ -527,7 +527,10 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
   const deltaSpecs = [...seen].filter(
     (member) => member.startsWith('specs/') && member.endsWith('/spec.md'),
   )
-  if (deltaSpecs.length === 0) {
+  if (
+    deltaSpecs.length === 0 &&
+    !historicalDisposition?.waivedMinimumArtifacts.includes('specs/**/spec.md')
+  ) {
     return add(
       problems,
       'ADV-G78',
@@ -767,6 +770,126 @@ export function validateArchivedOpenSpec(value, path, problems, context) {
   return reviewed.class === 'local-git-commit'
     ? verifyCommitReviewedIdentity(value, reviewed, path + '.reviewedIdentity', problems, context)
     : verifyContentReviewedIdentity(value, reviewed, path + '.reviewedIdentity', problems, context)
+}
+
+/** Ordinary callers never receive a historical profile from a flag or context. */
+export function validateArchivedOpenSpec(value, path, problems, context) {
+  return validateArchive(value, path, problems, context, undefined)
+}
+
+export function absentMinimumArtifacts(members) {
+  const paths = new Set(members.map((member) => member.path))
+  return [
+    ...REQUIRED_MEMBERS.filter((member) => !paths.has(member)),
+    ...([...paths].some((member) => member.startsWith('specs/') && member.endsWith('/spec.md'))
+      ? []
+      : ['specs/**/spec.md']),
+  ].sort(compareUtf8)
+}
+
+/** D6.6a's bounded profile: only exact absent-minimum existence is waived. */
+export function validateHistoricalArchivedOpenSpec(
+  value,
+  disposition,
+  source,
+  path,
+  problems,
+  context,
+) {
+  const fields = [
+    'type',
+    'landingId',
+    'sourceSnapshotIdentity',
+    'archiveBundleSha256',
+    'packageProfile',
+    'waivedMinimumArtifacts',
+    'reviewWitness',
+    'rationale',
+  ]
+  if (!isObject(disposition) || !exactKeys(disposition, fields, path, problems, 'ADV-G86'))
+    return add(
+      problems,
+      'ADV-G86',
+      path,
+      'a closed source-bound historical disposition is required',
+    )
+  if (
+    disposition.type !== 'historical-genesis-package-v1' ||
+    disposition.packageProfile !== 'observed-historical-v1' ||
+    typeof disposition.rationale !== 'string' ||
+    disposition.rationale.trim() === ''
+  )
+    return add(
+      problems,
+      'ADV-G86',
+      path,
+      'unknown historical profile or empty association rationale',
+    )
+  if (
+    !isObject(value) ||
+    !Array.isArray(value.members) ||
+    !value.members.every((member) => isObject(member) && typeof member.path === 'string') ||
+    !isObject(source) ||
+    !isObject(disposition.sourceSnapshotIdentity)
+  )
+    return add(problems, 'ADV-G86', path, 'the complete archive identity is required')
+  if (
+    disposition.archiveBundleSha256 !== value.bundleSha256 ||
+    canonicalSerialize(disposition.sourceSnapshotIdentity) !== canonicalSerialize(source)
+  )
+    return add(problems, 'ADV-G86', path, 'historical source/bundle mirror differs')
+  const absent = absentMinimumArtifacts(value.members)
+  if (JSON.stringify(disposition.waivedMinimumArtifacts) !== JSON.stringify(absent))
+    return add(
+      problems,
+      'ADV-G86',
+      path,
+      'waivers must equal exactly the absent minimum requirements',
+    )
+  const witness =
+    value.reviewedIdentity?.class === 'local-git-commit'
+      ? 'not-required-commit-backed'
+      : 'required-content-backed-v2'
+  if (disposition.reviewWitness !== witness)
+    return add(problems, 'ADV-G86', path, 'reviewWitness disagrees with the selected reviewed form')
+  const before = problems.length
+  if (!validateArchive(value, path, problems, context, disposition) || problems.length !== before)
+    return false
+  const observe = context?.observe
+  if (
+    source?.class !== 'local-git-commit' ||
+    !OID.test(source.value) ||
+    observe?.commitExists(source.value) !== PRESENT ||
+    observe.isReachable(source.value) !== PRESENT
+  )
+    return add(
+      problems,
+      'ADV-G87',
+      path,
+      'COMPLETION_REQUIRES_EXTERNAL_VERIFICATION: source snapshot is not durable',
+    )
+  if (
+    observe.pathExistsAt(source.value, value.activeRoot) !== ABSENT ||
+    observe.pathExistsAt(source.value, value.archiveRoot) !== PRESENT
+  )
+    return add(
+      problems,
+      'ADV-G87',
+      path,
+      'source snapshot must be archive-only; observation failure is not absence',
+    )
+  const tree = observe.treeAt(source.value, value.archiveRoot)
+  if (tree.status !== PRESENT)
+    return add(problems, 'ADV-G87', path, 'historical source archive could not be observed')
+  const observedSource = observedMembers(tree.entries, path, problems, 'ADV-G87', 'source archive')
+  if (!sameMembers(observedSource, value.members))
+    return add(
+      problems,
+      'ADV-G87',
+      path,
+      'source archive members/bytes differ from the complete archive',
+    )
+  return problems.length === before
 }
 
 /**

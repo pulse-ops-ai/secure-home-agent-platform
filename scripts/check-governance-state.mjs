@@ -15,6 +15,13 @@ import { fileURLToPath } from 'node:url'
 import { canonicalizeStateText, decodeUtf8, evaluateState } from './governance/model/index.mjs'
 import { createGitTreeObserver } from './governance/git-tree/index.mjs'
 import {
+  cacheTreeObservations,
+  createGenesisReader,
+  createCommitReader,
+  readCheckoutSnapshot,
+  sourceManifestPath,
+} from './governance/genesis/observations.mjs'
+import {
   ContainmentError,
   checkoutPathExists,
   checkoutTree,
@@ -141,13 +148,38 @@ export function checkGovernanceState({
     }
   }
 
+  let sourceManifestBytes
+  try {
+    sourceManifestBytes = readRepositoryBytes(
+      resolvedRoot,
+      sourceManifestPath(relative(resolvedRoot, resolvedState)),
+    )
+  } catch (error) {
+    return {
+      ok: false,
+      problems: [
+        {
+          code: 'ADV-G87',
+          path: sourceManifestPath(statePath),
+          message:
+            (error instanceof ContainmentError
+              ? 'source manifest containment refused: '
+              : 'source manifest unreadable: ') + error.message,
+        },
+      ],
+    }
+  }
   return evaluateState(text, {
     // The original bytes, so the canonical check is a byte check.
     stateBytes: bytes,
+    sourceManifestBytes,
+    readSnapshot: createGenesisReader(resolvedRoot),
+    ...createCommitReader(resolvedRoot),
+    readPreparationSnapshot: () => readCheckoutSnapshot(resolvedRoot),
     readBytes: (path) => readRepositoryBytes(resolvedRoot, path),
     // Rules-free repository observations. The checker supplies them; the model
     // decides what they mean.
-    observe: createGitTreeObserver(resolvedRoot),
+    observe: cacheTreeObservations(createGitTreeObserver(resolvedRoot)),
     // The filesystem half. Git answers what a commit contains; this answers
     // what the checkout contains, which is where a dirty or extra member shows.
     checkout: {
