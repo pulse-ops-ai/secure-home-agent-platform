@@ -26,6 +26,11 @@ import {
   createHistoryReader,
 } from './governance/history/index.mjs'
 import { createGitTreeObserver } from './governance/git-tree/index.mjs'
+import {
+  cacheTreeObservations,
+  createGenesisReader,
+  sourceManifestPath,
+} from './governance/genesis/observations.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_STATE = 'governance/state.json'
@@ -116,13 +121,25 @@ function readRevision(reader, root, revision, statePath) {
   // repository state. `observe` is the exception on purpose: Git objects are
   // global, so reachability and object presence are the same question at any
   // revision.
-  const observer = createGitTreeObserver(root, { head: resolved.oid })
+  const observer = cacheTreeObservations(createGitTreeObserver(root, { head: resolved.oid }))
+  const source = reader.readBytesAt(resolved.oid, sourceManifestPath(statePath))
+  if (source.status !== PRESENT && source.status !== ABSENT) {
+    return {
+      resolved: true,
+      commit: resolved.oid,
+      present: undefined,
+      reason: 'source manifest could not be read at this revision',
+    }
+  }
   return {
     resolved: true,
     commit: resolved.oid,
     present: true,
     evaluation: evaluateState(text, {
       stateBytes: read.bytes,
+      evaluatedRevision: resolved.oid,
+      sourceManifestBytes: source.status === PRESENT ? source.bytes : undefined,
+      readSnapshot: createGenesisReader(root),
       readBytes: (repoPath) => {
         const bytes = reader.readBytesAt(resolved.oid, repoPath)
         if (bytes.status === PRESENT) return bytes.bytes

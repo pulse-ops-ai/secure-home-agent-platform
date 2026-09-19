@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "authorityAnchor": {
+    "type": "github-issue",
+    "repository": "fixture/offline",
+    "number": 56
+  },
+  "completionPolicy": "reviewed-delivery-v1",
+  "historicalPackageDisposition": {
+    "archiveBundleSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "landingId": "runner/L8",
+    "packageProfile": "observed-historical-v1",
+    "rationale": "Literal fixture association, not an owner attestation.",
+    "reviewWitness": "not-required-commit-backed",
+    "sourceSnapshotIdentity": {
+      "class": "local-git-commit",
+      "value": "1111111111111111111111111111111111111111"
+    },
+    "type": "historical-genesis-package-v1",
+    "waivedMinimumArtifacts": [".openspec.yaml"]
+  },
+  "landingId": "runner/L8",
+  "observedLifecycle": "Complete",
+  "policyEvidenceIdentities": [
+    {
+      "archivedOpenSpec": {
+        "activeRoot": "openspec/changes/demo",
+        "archiveRoot": "openspec/changes/archive/2026-09-01-demo",
+        "archivedPackageIdentity": {
+          "class": "local-git-commit",
+          "scope": ["openspec/changes/archive/2026-09-01-demo"],
+          "value": "3333333333333333333333333333333333333333"
+        },
+        "bundleSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "changeId": "demo",
+        "contract": "archived-openspec-change-v1",
+        "members": [
+          {
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "path": "assurance.md"
+          },
+          {
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "path": "design.md"
+          },
+          {
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "path": "proposal.md"
+          },
+          {
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "path": "specs/demo/spec.md"
+          },
+          {
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "path": "tasks.md"
+          }
+        ],
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "scope": ["openspec/changes/demo"],
+          "value": "2222222222222222222222222222222222222222"
+        },
+        "schemaVersion": 1
+      },
+      "deliveredIdentity": {
+        "class": "local-git-commit",
+        "value": "2222222222222222222222222222222222222222",
+        "scope": ["src/feature.ts"]
+      },
+      "policy": "reviewed-delivery-v1"
+    }
+  ],
+  "scopedDeliveredIdentity": {
+    "class": "local-git-commit",
+    "scope": ["src/feature.ts"],
+    "value": "2222222222222222222222222222222222222222"
+  },
+  "sourceSnapshotIdentity": {
+    "class": "local-git-commit",
+    "value": "1111111111111111111111111111111111111111"
+  }
+}

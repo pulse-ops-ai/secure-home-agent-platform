@@ -1,0 +1,1161 @@
+{
+  "schemaVersion": 1,
+  "adrs": [
+    {
+      "id": "ADR-0001",
+      "path": "docs/decisions/ADR-0001-adopt-security-first-architecture.md",
+      "title": "Adopt the security-first platform architecture by pinned reference",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "3eb05ceea8f546e823e0657e9a46fc61cae0480a8030ade8ca0ac4e59bc4be19",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "fdcbd0fb42f4f07455cc5d4346c913cea5a4b7c19734482aadf1cf4c29365533"
+      }
+    },
+    {
+      "id": "ADR-0002",
+      "path": "docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md",
+      "title": "Adopt a hybrid-home deployment profile",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "6451589151caac83e54a420cc1e47bda32d76c114a261c090ff779e252dc8961",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "bc61321aa521044f82c3888ccc505c42a4db45e18d388befd20bac8a12b3f4cd"
+      }
+    },
+    {
+      "id": "ADR-0003",
+      "path": "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md",
+      "title": "Use framework-neutral runner contracts and execution profiles",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "dd56c90df74b3eed8ce6e5d71f48288a4f0a0c8975933df35906e1fa4a036541",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "fc4f5112f32cee1efee370a79996fffd718a052e013b3803384c356c18e1ed70"
+      }
+    },
+    {
+      "id": "ADR-0004",
+      "path": "docs/decisions/ADR-0004-treat-agents-as-clients.md",
+      "title": "Treat agents as clients, not insiders",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "58eb8b209764bc6051616adb441ce9a4730d2ddeff5e0724de102d40209ba035",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "399c25c48e0184a618a03bacdaea02b71ad75fdc9b90c001d562a98904e9f9f7"
+      }
+    },
+    {
+      "id": "ADR-0005",
+      "path": "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+      "title": "Separate sandbox capability, platform authorization, and safety policy",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "9f3ea38010ff4a2f711f233f10312ba718969ba39fccf95462e3d0e1ba0cd8fb",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "0f1671bb259b2ccbe2deb23b91a22e6bdc700da7bf81113a2846fdb9df529b43"
+      }
+    },
+    {
+      "id": "ADR-0006",
+      "path": "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+      "title": "Separate agent implementation, execution profile, run, and automation",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "985fcd685921481b7f6595d645eacadde2bfe9686c72bb43f1ba509005ebd147",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "5722984bbe8bc3084aded8635418a978bc1bb0f419b9e73cb3e4f5571e80368b"
+      }
+    },
+    {
+      "id": "ADR-0007",
+      "path": "docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md",
+      "title": "Route local, remote, and cloud execution explicitly",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "364e727f45e42f34349b2f14ceb691dfa3c0e6a491132fc1622848772c4a7b4a",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "9a27b4de6c1aaf6aeb701009ea4a9cde9980157c9fcc47e075c47ff00f98e1d3"
+      }
+    },
+    {
+      "id": "ADR-0008",
+      "path": "docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md",
+      "title": "Use OpenFGA for relationship decisions and deterministic policy for safety",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "86aa638aa8c458fbf7fb6af79f296f5680afb3d4e392267f65759c6e97de84ff",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "505500b76493ea497acf7993d235a7430b35287ac2e57526740333de9ee48b11"
+      }
+    },
+    {
+      "id": "ADR-0009",
+      "path": "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
+      "title": "Define degraded mode and offline authorization posture",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "2ce525b1c703322848c82631ae0a77ebc35e993c8e5a4ffa8710f733a94c893f",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "93b5dd110d45aed95d8a7a22310d43362dea029da34705975bd3828172aa9f97"
+      }
+    },
+    {
+      "id": "ADR-0010",
+      "path": "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+      "title": "Use OKF for portable knowledge only",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "f8ef4a9136bd74d121de7f6ea0249937b4ecd56c3f82fff3d928edd4957a4f54",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "215b3ebf08a473418ce5c94d1f25f92bc11da28ccbe4e9ba1bf2997a0381232b"
+      }
+    },
+    {
+      "id": "ADR-0011",
+      "path": "docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md",
+      "title": "Keep the base runner provider-neutral and coding-agent images provider-specific",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-03",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-05T23:34:15Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 2
+        },
+        "contentDigest": "9f253a3f17353806a4716e008b712f4b2be6fe026605b30e3d4631da94d5eae3",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+        },
+        "transitionDigest": "5a6d414de29dcf24aa87b2613b8c5956951f06694a8049fd26bc3622876c0bc0"
+      }
+    },
+    {
+      "id": "ADR-0012",
+      "path": "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+      "title": "Adopt TypeScript, NestJS, and pnpm as the primary implementation stack",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-06",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-06T06:07:48Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 42
+        },
+        "contentDigest": "7ea82a0172f41bce1eacf8f3238ef1ccdb9897d063c6be2adad94eebb9345e9b",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "62c584926c22b9f26234342a7ed3a6948fd2a361"
+        },
+        "transitionDigest": "ad7357af2cb0f299f078a144712c994c2f6a9bd7947a90fb4950e90e28238214"
+      }
+    },
+    {
+      "id": "ADR-0013",
+      "path": "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md",
+      "title": "Define the runner adapter SPI",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-12",
+      "resolves": ["U6"],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-12T16:01:43Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 75
+        },
+        "contentDigest": "169828a455af7f33bcc05f1296bb2c708503abfb2c8dcdfc933d641b69ab5624",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "846753b6fe875f13d6267bf9b8895d51af1bf63d"
+        },
+        "transitionDigest": "d14832b583eb263896a891d77fea224cc33fc95209252a7ab1a7c9b5c27b915e"
+      }
+    },
+    {
+      "id": "ADR-0014",
+      "path": "docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md",
+      "title": "Promote durable lessons into canonical architecture and portable knowledge",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-15",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-18T14:00:52Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 83
+        },
+        "contentDigest": "102b1e9d5d77760e0201e357bb32dda46f2740abf0d3ad94bfe592fbf8b803cf",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+        },
+        "transitionDigest": "ced758f6f8f261a6b9ecfe22134b7597131f51a5248b6e7c4cdbb9ce29449cd6"
+      }
+    },
+    {
+      "id": "ADR-0015",
+      "path": "docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md",
+      "title": "Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-15",
+      "resolves": ["U7"],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-18T14:00:52Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 83
+        },
+        "contentDigest": "3dcbdcd0c150f844d7c07584184e9f7a75763cbfd1bb694044010325beddeddc",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+        },
+        "transitionDigest": "b33efdff228b54bf3390494664b13b8f3b22f711934539ba756ee6f7b770cc78"
+      }
+    },
+    {
+      "id": "ADR-0016",
+      "path": "docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md",
+      "title": "Hybrid admission assurance for prohibited content",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-15",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-18T14:00:52Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 83
+        },
+        "contentDigest": "83835eb0cb09737c0673241e695edeacb1dc31543980a5d0e2b837b04cb01e09",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+        },
+        "transitionDigest": "ecc464e67f5dc08e27605dcd86b4ca21bb64237d71a0011f6fcd993a31cef251"
+      }
+    },
+    {
+      "id": "ADR-0017",
+      "path": "docs/decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md",
+      "title": "Classify asynchronous effects and enforce their semantics at runner boundaries",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-16",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-18T14:00:52Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 83
+        },
+        "contentDigest": "7e4bf3e0a66ce655658dcc2fe950b8520de2f7929afe0bc244cfabb19df62ec4",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+        },
+        "transitionDigest": "378e7b80f330d24ad6099238762a47ddbf830094ca9bc3a4dc487fd89c4bf677"
+      }
+    },
+    {
+      "id": "ADR-0018",
+      "path": "docs/decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md",
+      "title": "Separate orchestration-attempt, durable-fact, and finalization-transaction identity",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-16",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-18T14:00:52Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 83
+        },
+        "contentDigest": "c558bd8ace74622302201cb5c988339d7b9e8f6d8fe356b7e878d86d047047ed",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+        },
+        "transitionDigest": "61718d0cb4d749c3142a3c3a37f5aa9b69f70959fccf3d74d1b73f78b98bc347"
+      }
+    },
+    {
+      "id": "ADR-0019",
+      "path": "docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md",
+      "title": "Version and release knowledge sets as immutable compositions",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-21",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-21T10:41:20Z",
+        "authority": {
+          "type": "task-contract",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "id": "docs/decisions/INDEX.md#adr-0019-acceptance-record"
+        },
+        "contentDigest": "572b93fa3e9603aa04eb6727592fcd978839716c463a8bf4c359173f12f5a9a0",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "f18c8797952ebb046211cebefad01b4f18b1b631"
+        },
+        "transitionDigest": "dab385d4a71bd7a61bd1a6c204ed577e30bb5b1d8599e11c672172150cafa888"
+      }
+    },
+    {
+      "id": "ADR-0020",
+      "path": "docs/decisions/ADR-0020-place-runner-control-by-workload-class.md",
+      "title": "Place runner-control by workload class — household control on the Pi, coding execution off it",
+      "lifecycle": "Proposed",
+      "proposedOn": "2026-08-24",
+      "resolves": ["U4"],
+      "supersedes": [],
+      "acceptance": null
+    },
+    {
+      "id": "ADR-0021",
+      "path": "docs/decisions/ADR-0021-establish-machine-readable-governance-state.md",
+      "title": "Establish a machine-readable authority for mutable cross-cutting governance state",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-28",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-08-29T04:16:43Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 105
+        },
+        "contentDigest": "0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "eb6e24806cb76898e74f16208ab40587313c126a"
+        },
+        "transitionDigest": "2d52f4f5103a27765f78ce9a9338d679f9364b7caccefea028397a58dd9d8f5b"
+      }
+    },
+    {
+      "id": "ADR-0022",
+      "path": "docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md",
+      "title": "Decouple TypeScript policy enforcement from the lint engine",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-08-31",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "at": "2026-09-02T08:37:21Z",
+        "authority": {
+          "type": "github-pull-request",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "number": 117
+        },
+        "contentDigest": "f6709c12ae60d0285d588de717c21354a2e56b1577c8aae24c1fd5fe974088ab",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "cb7836148db24971826b886361593950570b4af4"
+        },
+        "transitionDigest": "df2d38859cdd59a766c7679849ba5e489f5200c549ed15e25d0c09b233cf14c4"
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "U1",
+      "anchor": "docs/architecture/unresolved-decisions.md#u1",
+      "title": "Local OpenFGA replica vs. signed grants vs. bounded cache",
+      "severity": "critical"
+    },
+    {
+      "id": "U10",
+      "anchor": "docs/architecture/unresolved-decisions.md#u10",
+      "title": "Home Assistant credential strategy",
+      "severity": "high"
+    },
+    {
+      "id": "U11",
+      "anchor": "docs/architecture/unresolved-decisions.md#u11",
+      "title": "Persistence toolkit selection",
+      "severity": "high"
+    },
+    {
+      "id": "U2",
+      "anchor": "docs/architecture/unresolved-decisions.md#u2",
+      "title": "Workload-identity mechanism for runner credentials",
+      "severity": "high"
+    },
+    {
+      "id": "U3",
+      "anchor": "docs/architecture/unresolved-decisions.md#u3",
+      "title": "Which service issues the L6 internal identity envelope",
+      "severity": "high"
+    },
+    {
+      "id": "U4",
+      "anchor": "docs/architecture/unresolved-decisions.md#u4",
+      "title": "`runner-control` placement — Pi vs. VPS",
+      "severity": "medium"
+    },
+    {
+      "id": "U5",
+      "anchor": "docs/architecture/unresolved-decisions.md#u5",
+      "title": "Automation persistence and scheduler",
+      "severity": "medium"
+    },
+    {
+      "id": "U6",
+      "anchor": "docs/architecture/unresolved-decisions.md#u6",
+      "title": "The framework-adapter SPI",
+      "severity": "medium"
+    },
+    {
+      "id": "U7",
+      "anchor": "docs/architecture/unresolved-decisions.md#u7",
+      "title": "OKF validator and toolchain",
+      "severity": "medium"
+    },
+    {
+      "id": "U8",
+      "anchor": "docs/architecture/unresolved-decisions.md#u8",
+      "title": "Whether shared and household OpenFGA share a runtime",
+      "severity": "medium"
+    },
+    {
+      "id": "U9",
+      "anchor": "docs/architecture/unresolved-decisions.md#u9",
+      "title": "Policy-decision caching semantics",
+      "severity": "high"
+    }
+  ],
+  "gates": [
+    {
+      "id": "runner/GATE-U4",
+      "kind": "gate",
+      "predicate": {
+        "name": "exactly-one-current-accepted-resolver",
+        "question": "U4"
+      },
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 9
+      },
+      "sources": ["docs/decisions/ADR-0020-place-runner-control-by-workload-class.md#decision"],
+      "replaces": null,
+      "replacement": null
+    },
+    {
+      "id": "runner/GATE-U6",
+      "kind": "gate",
+      "predicate": {
+        "name": "exactly-one-current-accepted-resolver",
+        "question": "U6"
+      },
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 11
+      },
+      "sources": ["docs/decisions/ADR-0013-define-the-runner-adapter-spi.md#decision"],
+      "replaces": null,
+      "replacement": null
+    }
+  ],
+  "landings": [
+    {
+      "id": "runner/L10",
+      "kind": "implementation-landing",
+      "requires": ["runner/L8", "runner/L9"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 58
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Planned",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": null,
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L2",
+      "kind": "implementation-landing",
+      "requires": [],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 51
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "f00f06177f07c9619d68c3e6a33f2caf77a3cb4f49ace6ff7096b2a6b91c09f2",
+          "evidence": {
+            "archivedOpenSpec": {
+              "activeRoot": "openspec/changes/runner-domain-contracts",
+              "archiveRoot": "openspec/changes/archive/2026-08-10-runner-domain-contracts",
+              "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/archive/2026-08-10-runner-domain-contracts"],
+                "value": "1ca1311081b0483afa8ec060677aa039589b73f3"
+              },
+              "bundleSha256": "493bd8d53b0b9394ad9e33dc35e223112d2db1ce8592758d0615c08831f8fb2f",
+              "changeId": "runner-domain-contracts",
+              "contract": "archived-openspec-change-v1",
+              "members": [
+                {
+                  "contentSha256": "d02a066360f9a2b5c8a872076282075af76818175bfef385732bab2c0f3c38d3",
+                  "path": ".openspec.yaml"
+                },
+                {
+                  "contentSha256": "86c8d870f098d61f43e3b18e3c865b4f37952f02ac6bec627f0e23fa1c0ec642",
+                  "path": "assurance.md"
+                },
+                {
+                  "contentSha256": "2394e0240f278e0685229a14639e3a110d8abcb0fbe556439121fee4c17c28fe",
+                  "path": "design.md"
+                },
+                {
+                  "contentSha256": "6a9d71d9ba6a0e942959c110a031543cccc30560dd69fd8f61a81617d0e80357",
+                  "path": "proposal.md"
+                },
+                {
+                  "contentSha256": "bb1ebcba343bc233439266c0d402c81bdf0111c4387c7dd108c17a079c000d00",
+                  "path": "specs/execution-profile/spec.md"
+                },
+                {
+                  "contentSha256": "8f2602c2db1824a32c18b93aa42fcce67e319503ed299e158111bfb8829b7d7d",
+                  "path": "specs/runner-evidence/spec.md"
+                },
+                {
+                  "contentSha256": "84acc5be6b83c8c2fa9f15d29ef1a5c3ab276665a4589387568dafe0dfcebd8a",
+                  "path": "specs/runner-execution/spec.md"
+                },
+                {
+                  "contentSha256": "daae6cdaa04b078e04c003414c0330ec2e975b99d9217804682ca2574c40c52b",
+                  "path": "specs/runner-verification/spec.md"
+                },
+                {
+                  "contentSha256": "b291a9fcb1e02af033623f21ad4a697a50b29b7ccf5832c0af6f488eef624e13",
+                  "path": "tasks.md"
+                }
+              ],
+              "reviewedIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/runner-domain-contracts"],
+                "value": "07b93cfa399dfd3d45e13c50aac08eafe2de8206"
+              },
+              "schemaVersion": 1
+            },
+            "deliveredIdentity": {
+              "class": "local-git-commit",
+              "value": "07b93cfa399dfd3d45e13c50aac08eafe2de8206",
+              "scope": ["packages/contracts", "packages/events", "schemas"]
+            },
+            "policy": "reviewed-delivery-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L3",
+      "kind": "implementation-landing",
+      "requires": ["runner/L2"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 52
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "0a72ab5d62481817a6c4c0f057bf077b3a11ac26ee3cb3aae3508c660c5e368f",
+          "evidence": {
+            "archivedOpenSpec": {
+              "activeRoot": "openspec/changes/runner-core",
+              "archiveRoot": "openspec/changes/archive/2026-08-10-runner-core",
+              "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/archive/2026-08-10-runner-core"],
+                "value": "e67d5ca677a8a8f64c2c6a94ee8328fd93e0134f"
+              },
+              "bundleSha256": "1ded0d70cb1d04d5fd7238719ca2e1f54e8dcb43926ebc0c4e84074aca53630f",
+              "changeId": "runner-core",
+              "contract": "archived-openspec-change-v1",
+              "members": [
+                {
+                  "contentSha256": "d02a066360f9a2b5c8a872076282075af76818175bfef385732bab2c0f3c38d3",
+                  "path": ".openspec.yaml"
+                },
+                {
+                  "contentSha256": "6cfad0d1ceee8d32cd5c09d5134607341f813547963297fbfbcb005a478a11d8",
+                  "path": "assurance.md"
+                },
+                {
+                  "contentSha256": "16c2b00d69646de5e088562851d5206a898b21622439f3958369ae4cf02f661d",
+                  "path": "design.md"
+                },
+                {
+                  "contentSha256": "b4488f98ee7f94a908c30d7198fe757a77d31a11b5695f6b80a0308734ba1e29",
+                  "path": "proposal.md"
+                },
+                {
+                  "contentSha256": "6db3b98bf73ac535e0e7b36896f5fe65268a983cdd4ea2fddfd9980d876966d6",
+                  "path": "specs/runner-authority/spec.md"
+                },
+                {
+                  "contentSha256": "339a0a3c8cef22854486208214cb3cbf49dd058e1ef6f2e86b71f73e9104b51f",
+                  "path": "specs/runner-evidence-derivation/spec.md"
+                },
+                {
+                  "contentSha256": "0bfe09d3c44191af27a5f0638485e0f9d6a66b7b8149180547c73540216bd974",
+                  "path": "specs/runner-path-decisions/spec.md"
+                },
+                {
+                  "contentSha256": "a0144bebf008fc94dff1891d6e5e5bd8cc8c420b5be459fef8508c7ced4a8039",
+                  "path": "specs/runner-workspace-observation/spec.md"
+                },
+                {
+                  "contentSha256": "bce0587a136a4256fd9a5ad7dbed9f450d8e606fb4b5155e1f8e140e9cb84bcb",
+                  "path": "tasks.md"
+                }
+              ],
+              "reviewedIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/runner-core"],
+                "value": "2d1b21e21731d989c29ed7c2abee0ebf9015c7f5"
+              },
+              "schemaVersion": 1
+            },
+            "deliveredIdentity": {
+              "class": "local-git-commit",
+              "value": "2d1b21e21731d989c29ed7c2abee0ebf9015c7f5",
+              "scope": ["packages/runner-core"]
+            },
+            "policy": "reviewed-delivery-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L4",
+      "kind": "implementation-landing",
+      "requires": ["runner/L3"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 27
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "29d390c121564e21f9644844c805af3b9df24c70944a6d1702e33043565f653c",
+          "evidence": {
+            "archivedOpenSpec": {
+              "activeRoot": "openspec/changes/runner-control-orchestration",
+              "archiveRoot": "openspec/changes/archive/2026-09-13-runner-control-orchestration",
+              "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/archive/2026-09-13-runner-control-orchestration"],
+                "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+              },
+              "bundleSha256": "bf2718bf77ff0dcafe2e6d95f4e088e0b610732741d89c718d276f620976481e",
+              "changeId": "runner-control-orchestration",
+              "contract": "archived-openspec-change-v1",
+              "members": [
+                {
+                  "contentSha256": "b86a950ed023a2dd5ccfc2341339a8309fee07191b7c19020317b905875818f0",
+                  "path": ".openspec.yaml"
+                },
+                {
+                  "contentSha256": "3f6fd78895e3b051301830a47f20518b07f0f55667b5951b0dc532845e95d40e",
+                  "path": "assurance.md"
+                },
+                {
+                  "contentSha256": "efc6fae766a8837d9946c353505328924cb83c2869625ae03a083210f48883d2",
+                  "path": "design.md"
+                },
+                {
+                  "contentSha256": "0790a4b3b83105199756476854586f9bf6c701868176d4135f339c218285f950",
+                  "path": "proposal.md"
+                },
+                {
+                  "contentSha256": "404a787b785378309d72310af6aee22d4a8f573865cc2fe299d5200a5e9a4f26",
+                  "path": "specs/runner-authority-acquisition/spec.md"
+                },
+                {
+                  "contentSha256": "a0d4a3d2526585c2281913b454ab8c270f40bf9726a015d00decd121993924d6",
+                  "path": "specs/runner-execution-boundary/spec.md"
+                },
+                {
+                  "contentSha256": "ab39be8207fdb2bf0b1f435a8a08c39c11b6187e2dae5006884383b0db449850",
+                  "path": "specs/runner-gate-orchestration/spec.md"
+                },
+                {
+                  "contentSha256": "1e346002b56bdec0ee362e14585cbed99c5caaef213a5f396c09db1225cda76c",
+                  "path": "specs/runner-lifecycle/spec.md"
+                },
+                {
+                  "contentSha256": "dc430b8eee49dc7adf22134fb6b3a7b096c2ce9b4f0afe6e7dd73fc890404acb",
+                  "path": "tasks.md"
+                }
+              ],
+              "reviewedIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/runner-control-orchestration"],
+                "value": "1bc56e22624189a4fb6ddc731815de4ade298d54"
+              },
+              "schemaVersion": 1
+            },
+            "deliveredIdentity": {
+              "class": "local-git-commit",
+              "value": "1bc56e22624189a4fb6ddc731815de4ade298d54",
+              "scope": ["services/runner-control"]
+            },
+            "policy": "reviewed-delivery-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L5",
+      "kind": "implementation-landing",
+      "requires": ["runner/L4"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 53
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "0d953fe36f7e5c22ef60ff786f1b43ebb376c31779753b993faf16ef2821f4b9",
+          "evidence": {
+            "archivedOpenSpec": {
+              "activeRoot": "openspec/changes/runner-image-lineage",
+              "archiveRoot": "openspec/changes/archive/2026-09-13-runner-image-lineage",
+              "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/archive/2026-09-13-runner-image-lineage"],
+                "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+              },
+              "bundleSha256": "6f565037958f96b01768f6d5eedf70052d136b23bd22469e205c4de5fb1a239a",
+              "changeId": "runner-image-lineage",
+              "contract": "archived-openspec-change-v1",
+              "members": [
+                {
+                  "contentSha256": "ce557e8c74308d50cac5909546137bab1d2ea5921d02fbe131267456e08f322c",
+                  "path": "assurance.md"
+                },
+                {
+                  "contentSha256": "0aed2e6efab19b554f0cc3d7ac96770605cf7965c77e922cbab5116804045468",
+                  "path": "design.md"
+                },
+                {
+                  "contentSha256": "ffd729e97ff74d45e32a2fb006e45045178e507842bfbe58c6c0a9cb3441a501",
+                  "path": "proposal.md"
+                },
+                {
+                  "contentSha256": "6707b0aaef1cedca7bd0c379e52a6f08381c7b204035849ea4cae7ae5d43d02b",
+                  "path": "specs/runner-image-lineage/spec.md"
+                },
+                {
+                  "contentSha256": "a43cdc7e66c87a7aba2f07fd8aaaa0ce608f5316b9171300bd6a290ca17c89e0",
+                  "path": "tasks.md"
+                }
+              ],
+              "reviewedIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/runner-image-lineage"],
+                "value": "f9ebace7affbd023e2fdd57d6a05fe7418b1b7d9"
+              },
+              "schemaVersion": 1
+            },
+            "deliveredIdentity": {
+              "class": "local-git-commit",
+              "value": "f9ebace7affbd023e2fdd57d6a05fe7418b1b7d9",
+              "scope": ["deploy/images"]
+            },
+            "policy": "reviewed-delivery-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L6",
+      "kind": "spike-landing",
+      "requires": [],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 54
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-spike-evidence-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "963fd61593a2c42824353561b1c185a084fe299f2de95c4d5f7403687e007676",
+          "evidence": {
+            "evidenceManifestIdentity": {
+              "class": "content-sha256",
+              "value": "db7fdc1746dad6a481be295f32125353a07f3edb6e1b13add689648f23fec984",
+              "scope": ["docs/spikes/l6-copilot-cli/MANIFEST.sha256"]
+            },
+            "evidenceRoot": "docs/spikes/l6-copilot-cli",
+            "findingsIdentity": {
+              "class": "content-sha256",
+              "value": "f9bb9082da596b264f569c47ebd33eee117cc10663f2ee5c0c7522371abde592",
+              "scope": ["docs/spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md"]
+            },
+            "mergedEvidenceIdentity": {
+              "class": "local-git-commit",
+              "value": "e0e8b786201d3e92bbe05f286ae55b9e002c4109",
+              "scope": [
+                "docs/spikes/l6-copilot-cli/COMMAND-RESULTS.txt",
+                "docs/spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md",
+                "docs/spikes/l6-copilot-cli/MANIFEST.sha256",
+                "docs/spikes/l6-copilot-cli/README.md",
+                "docs/spikes/l6-copilot-cli/SPIKE-01-structured-output.md",
+                "docs/spikes/l6-copilot-cli/SPIKE-02-tool-allowlisting.md",
+                "docs/spikes/l6-copilot-cli/SPIKE-03-transcript.md",
+                "docs/spikes/l6-copilot-cli/SPIKE-04-usage-cost.md",
+                "docs/spikes/l6-copilot-cli/SPIKE-05-credential-isolation.md",
+                "docs/spikes/l6-copilot-cli/requirements-and-cases.md",
+                "docs/spikes/l6-copilot-cli/usage-summary.tsv"
+              ]
+            },
+            "mergedEvidencePullRequest": {
+              "number": 73,
+              "repository": "pulse-ops-ai/secure-home-agent-platform",
+              "type": "github-pull-request"
+            },
+            "openSpecApplicability": "not-applicable",
+            "policy": "reviewed-spike-evidence-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L7",
+      "kind": "implementation-landing",
+      "requires": ["runner/GATE-U6", "runner/L5", "runner/L6"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 55
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Complete",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": {
+          "type": "genesis-historical-completion-v1",
+          "digest": "ec77d89cd8dbed4056d182ff97819b4b79d68790408237dbb9ebef01020efdad",
+          "evidence": {
+            "archivedOpenSpec": {
+              "activeRoot": "openspec/changes/runner-platform-adapters",
+              "archiveRoot": "openspec/changes/archive/2026-09-13-runner-platform-adapters",
+              "archivedPackageIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/archive/2026-09-13-runner-platform-adapters"],
+                "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+              },
+              "bundleSha256": "95d846fe1502d65926f09773d1ba82ce602209d6200f628d997f660a8ab65d5b",
+              "changeId": "runner-platform-adapters",
+              "contract": "archived-openspec-change-v1",
+              "members": [
+                {
+                  "contentSha256": "dd972fd9bf827e02368da29a0c978e6698ea78759e41433e07f9f99294ea4123",
+                  "path": "assurance.md"
+                },
+                {
+                  "contentSha256": "b3dafe76e4a286816d627206873e6e5e35614b9d2c43fe9d455636170fa8e38b",
+                  "path": "design.md"
+                },
+                {
+                  "contentSha256": "d16466afa4cac5b952c818e43596a9906cdee75887a1ebcae408151b53199b11",
+                  "path": "proposal.md"
+                },
+                {
+                  "contentSha256": "801adc5efede75434e5b296154c838087d7c982ab9fc05b14e6f33a773cf90af",
+                  "path": "specs/platform-adapters/spec.md"
+                },
+                {
+                  "contentSha256": "62e00c286891f722f1aaa781e7ec5e778bb76c5fe49df290cb0e8827e35af5dd",
+                  "path": "specs/runner-image-lineage/spec.md"
+                },
+                {
+                  "contentSha256": "abfe8e46dae66bd3ce1ee54db3d6feb1f7837d89eb37926c47d0923da35636c0",
+                  "path": "tasks.md"
+                }
+              ],
+              "reviewedIdentity": {
+                "class": "local-git-commit",
+                "scope": ["openspec/changes/runner-platform-adapters"],
+                "value": "5403a8525f0e45f99ae7631a9c6f9741092e7f75"
+              },
+              "schemaVersion": 1
+            },
+            "deliveredIdentity": {
+              "class": "local-git-commit",
+              "value": "5403a8525f0e45f99ae7631a9c6f9741092e7f75",
+              "scope": [
+                "agents/adapters/coding/claude-code",
+                "agents/adapters/coding/copilot-cli",
+                "deploy/images"
+              ]
+            },
+            "policy": "reviewed-delivery-v1"
+          }
+        },
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L8",
+      "kind": "implementation-landing",
+      "requires": ["runner/L7"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 56
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Planned",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": null,
+        "withdrawal": null
+      }
+    },
+    {
+      "id": "runner/L9",
+      "kind": "implementation-landing",
+      "requires": ["runner/GATE-U4", "runner/L8"],
+      "authorityAnchor": {
+        "type": "github-issue",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "number": 57
+      },
+      "replaces": null,
+      "replacement": null,
+      "delivery": {
+        "lifecycle": "Planned",
+        "completionPolicy": "reviewed-delivery-v1",
+        "completion": null,
+        "withdrawal": null
+      }
+    }
+  ],
+  "externalReferences": [],
+  "attestations": {
+    "genesis": {}
+  }
+}

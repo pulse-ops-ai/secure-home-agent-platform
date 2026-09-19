@@ -18,7 +18,7 @@
  */
 
 import { canonicalSerialize, canonicalizeValue, isObject } from './canonical.mjs'
-import { semanticIdentity } from './digests.mjs'
+import { semanticIdentity, primitiveDigest } from './digests.mjs'
 
 /** The observation vocabulary, as the adapters report it. */
 const PRESENT = 'PRESENT'
@@ -140,6 +140,47 @@ function compareRecordSurvival(baseState, targetState, problems) {
         'an existing record was deleted or renumbered; identifiers are permanent',
       )
     }
+  }
+}
+
+function compareGenesisPreservation(base, target, problems) {
+  const before = base.evaluation?.state
+  const after = target.evaluation?.state
+  for (const key of ['genesis', 'genesisCompletion']) {
+    if (canonicalText(before?.attestations?.[key]) !== canonicalText(after?.attestations?.[key]))
+      problem(
+        problems,
+        'ADV-G89',
+        '$.attestations.' + key,
+        'genesis envelopes are immutable after introduction',
+      )
+  }
+  if (
+    canonicalText(base.evaluation?.sourceManifest) !==
+    canonicalText(target.evaluation?.sourceManifest)
+  )
+    problem(
+      problems,
+      'ADV-G89',
+      '$.sourceManifest',
+      'genesis source rows, dispositions and historical evidence are immutable',
+    )
+  const historical = new Set(
+    (before?.landings ?? [])
+      .filter((node) => node.delivery?.completion?.type === 'genesis-historical-completion-v1')
+      .map((node) => node.id),
+  )
+  for (const node of after?.landings ?? []) {
+    if (
+      node.delivery?.completion?.type === 'genesis-historical-completion-v1' &&
+      !historical.has(node.id)
+    )
+      problem(
+        problems,
+        'ADV-G83',
+        '$.landings.' + node.id,
+        'an ordinary transition or replacement cannot introduce historical genesis completion',
+      )
   }
 }
 
@@ -629,6 +670,17 @@ export function evaluateHistory({
       ancestry,
       problems,
     })
+    if (
+      target.evaluation?.state &&
+      target.evaluation.state.attestations?.genesis?.seedDigest !==
+        primitiveDigest(target.evaluation.state)
+    )
+      problem(
+        problems,
+        'ADV-G62',
+        '$.attestations.genesis.seedDigest',
+        'the first registry must contain exactly the attested frozen seed primitives',
+      )
     for (const member of stateProblems) problems.push(member)
     return {
       ok: admitted && problems.length === 0,
@@ -642,6 +694,7 @@ export function evaluateHistory({
 
   compareAuthorizationRecords(baseState, targetState, problems)
   compareRecordSurvival(baseState, targetState, problems)
+  compareGenesisPreservation(base, target, problems)
   compareDecisions(baseState, targetState, problems)
   compareResolvers(base, target, problems)
   compareRuleInputs(baseState, targetState, problems)

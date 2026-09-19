@@ -130,6 +130,23 @@ function renderStateDocument(derived, state) {
         `${cell(readiness?.state ?? '—')} | ${unsatisfied.length === 0 ? '—' : cell(unsatisfied.join(', '))} |`,
     )
   }
+  if (derived.historicalContext) {
+    lines.push(
+      '',
+      '## Historical program context',
+      '',
+      derived.historicalContext.programMaterialization,
+      '',
+      derived.historicalContext.originalRatifiedDag,
+      '',
+      derived.historicalContext.sourceConflictDisposition,
+    )
+  }
+  if (derived.consumerCounts) {
+    lines.push('', '## Frozen migration inventory', '', '| Disposition | Count |', '| --- | --- |')
+    for (const [disposition, count] of Object.entries(derived.consumerCounts))
+      lines.push(`| ${cell(disposition)} | ${count} |`)
+  }
   lines.push('')
   return lines.join('\n')
 }

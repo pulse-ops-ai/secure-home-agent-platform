@@ -205,6 +205,122 @@ export function genesisCompletionEnvelopeDigest(members) {
   return digestPreimage(tuples)
 }
 
+/** D6.6b: an observation, never an invented lifecycle transition. */
+export function genesisHistoricalCompletionPreimage(landing, row) {
+  const evidence = landing.delivery.completion.evidence
+  return {
+    schemaVersion: 1,
+    landingId: landing.id,
+    observedLifecycle: 'Complete',
+    sourceSnapshotIdentity: row.sourceSnapshotIdentity,
+    authorityAnchor: landing.authorityAnchor,
+    completionPolicy: landing.delivery.completionPolicy,
+    scopedDeliveredIdentity:
+      evidence.policy === 'reviewed-delivery-v1'
+        ? evidence.deliveredIdentity
+        : evidence.mergedEvidenceIdentity,
+    policyEvidenceIdentities: [evidence],
+    historicalPackageDisposition: row.packageDisposition,
+  }
+}
+
+export function genesisHistoricalCompletionDigest(landing, row) {
+  return digestPreimage(genesisHistoricalCompletionPreimage(landing, row))
+}
+
+export const CANDIDATE_PATHS = Object.freeze([
+  'tests/fixtures/governance/candidate/consumers.json',
+  'tests/fixtures/governance/candidate/source-manifest.json',
+  'tests/fixtures/governance/candidate/state.json',
+])
+
+export function candidateFreezeIdentity(bytesByPath) {
+  const members = CANDIDATE_PATHS.map((path) => {
+    const bytes = bytesByPath.get(path)
+    if (!(bytes instanceof Uint8Array)) throw new Error(`ADV-G76: missing candidate bytes: ${path}`)
+    return { path, contentSha256: sha256Bytes(bytes) }
+  })
+  const preimage = { schemaVersion: 1, type: 'governance-candidate-bundle', members }
+  return { ...preimage, bundleSha256: digestPreimage(preimage) }
+}
+
+export function relationshipEquivalenceDigest(rows) {
+  return digestPreimage([...rows].sort((a, b) => compareText(a.id, b.id)))
+}
+
+export function genesisAttestationPreimage(value) {
+  return {
+    schemaVersion: 1,
+    priorStateDigest: null,
+    actor: value.actor,
+    at: value.at,
+    outcome: value.outcome,
+    authority: value.authority,
+    seedDigest: value.seedDigest,
+    relationshipEquivalenceDigest: value.relationshipEquivalenceDigest,
+    sourceSnapshotIdentity: value.sourceSnapshotIdentity,
+    candidateFreezeIdentity: value.candidateFreezeIdentity,
+    activationBaseCommit: value.activationBaseCommit,
+    activationIdentity: value.activationIdentity,
+    activationFreshness: value.activationFreshness,
+  }
+}
+
+/** One row per primitive field; delivery's four independent fields stay distinct. */
+export function primitiveSourceTuples(state) {
+  const projection = primitiveProjection(state)
+  const tuples = [
+    {
+      id: 'schemaVersion',
+      collection: null,
+      entityId: null,
+      field: 'schemaVersion',
+      value: projection.schemaVersion,
+    },
+  ]
+  for (const collection of ['adrs', 'questions', 'gates', 'landings', 'externalReferences']) {
+    for (const entity of projection[collection] ?? []) {
+      for (const [field, value] of Object.entries(entity)) {
+        if (field === 'delivery') {
+          for (const [member, item] of Object.entries(value))
+            tuples.push({
+              id: `${collection}/${entity.id}/delivery.${member}`,
+              collection,
+              entityId: entity.id,
+              field: 'delivery.' + member,
+              value: item,
+            })
+        } else
+          tuples.push({
+            id: `${collection}/${entity.id}/${field}`,
+            collection,
+            entityId: entity.id,
+            field,
+            value,
+          })
+      }
+    }
+  }
+  return tuples.sort((left, right) => compareText(left.id, right.id))
+}
+
+export function genesisAttestationDigest(value) {
+  return digestPreimage(genesisAttestationPreimage(value))
+}
+
+/** D3/D8.2a: all extraction classes participate; no commit-only shortcut. */
+export function activationFreshnessPreimage(candidateIdentity, activationBaseCommit, extracted) {
+  return {
+    schemaVersion: 1,
+    candidateFreezeIdentity: candidateIdentity,
+    activationBaseCommit,
+    primitiveSourceTuples: extracted.primitiveSourceTuples,
+    relationshipTuples: extracted.relationshipTuples,
+    localEvidenceIdentities: extracted.localEvidenceIdentities,
+    consumerInventory: extracted.consumerInventory,
+  }
+}
+
 export function acceptancePreimage(state, adr) {
   const target = primitiveDigest(state)
   const relationships = relationshipDigest(state)
