@@ -1,6 +1,38 @@
 # Change Proposal: governance-state-substrate
 
-## Contingent bootstrap bridge amendment — proposal only
+## Current atomic acceptance candidate — no implementation authority
+
+ADR-0023 and ADR-0024 are Accepted together, dated 2026-09-19, in this
+acceptance-only target based on exact
+`ff7b240397385e8d2571ee1208e2e440cb77825c` (PR #129's durable Proposed landing).
+The target selects and consumes `pre-registry-adr-pair-v1` in the same
+transition; its permanent durable expiry follows merge. Both subject envelopes
+retain pre-transition ADR-0021 RFC 3339 evidence from the one joint owner act.
+See the [receipt](bridge-evidence.json), [source/process record](bridge-verification.md)
+and [current authority](tasks.md#current-joint-acceptance-authority--no-implementation-authority).
+
+D12/T temporal architecture is no longer contingent on ADR acceptance.
+Implementation remains **NOT AUTHORIZED**: PR #124 and its entire candidate
+remain frozen, T.1–T.7 unchecked/unexecuted, PR #101 untouched, ADR-0020
+Proposed, U4 open and GATE-U4 unsatisfied. No executable governance mechanism,
+canonical state, real genesis attestation or PR-3/PR-4 work is created.
+
+Independent final review is still required. This PR must remain draft and
+unmerged. Future merge must use a **merge commit, not squash or rebase-merge**,
+preserving the single pair-changing commit. Actual durable main **S does not
+yet exist** and must be recorded externally after merge; only a NEW exact-S
+owner authorization may resume PR-2. Archive-stage M remains
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` for L4/L5/L7 at their exact roots.
+
+Promotion determination: no new architectural meaning is introduced by
+acceptance. The reviewed ADRs own the decisions; planning remains subordinate.
+No portable knowledge or generated governance projection is authorized here.
+
+## Historical bootstrap bridge amendment (PR #129) — proposal-epoch record
+
+The following two sections retain the proposal epochs' scope and status
+language as history only. Their former "current"/"Proposed" wording does not
+describe this acceptance target or override the current boundary above.
 
 [ADR-0024](../../../docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md)
 proposes one atomic pre-registry ADR-0024 + ADR-0023 acceptance bridge. It
@@ -30,13 +62,13 @@ The future bridge's actual main target becomes D12.5 source S only after merge,
 expiry proof and a separate PR-2 owner refresh. Archive M stays
 `83e6cd8fa7d2d05ab246a39de039129b4056966d`. No S or future accepted-byte digest
 is selected here. See [design D13](design.md#d13-contingent-one-shot-bootstrap-bridge-adr-0024)
-and the [current proposal-only authority](tasks.md#current-bootstrap-bridge-proposal-authority--not-acceptance-or-implementation-authority).
+and the [historical proposal-only authority](tasks.md#historical-bootstrap-bridge-proposal-authority--not-acceptance-or-implementation-authority).
 
 Promotion determination: the exception belongs in the Proposed ADR, with
 subordinate planning here, not in coding-agent instructions or an unreviewed
 manual workaround. No operative architecture/knowledge projection is added.
 
-## Historical temporal amendment (PR #128) — still non-operative
+## Historical temporal amendment (PR #128) — proposal-epoch record
 
 [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
 is **Proposed and non-operative**. It proposes a partial refinement of

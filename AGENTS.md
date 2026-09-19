@@ -261,13 +261,19 @@ service, no OpenFGA, no Keycloak, no published or activated runner image (the
 L5 definitions are inert — referenced by no profile, launched by nothing), no
 launcher, no L9 physical enforcement, no credentials, no database connection.
 
-**ADR-0001 through ADR-0019, ADR-0021, and ADR-0022 are `Accepted`** and
+**ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted`** and
 **immutable** — the foundational set on 2026-08-05, the implementation stack
 (ADR-0012) on 2026-08-06, the runner effect-boundary and identity decisions
 (ADR-0017, ADR-0018) on 2026-08-17, ADR-0019 on 2026-08-21, ADR-0021 on
-2026-08-28, and ADR-0022 on 2026-09-01. **ADR-0020, ADR-0023 and ADR-0024 remain `Proposed`; the
+2026-08-28, ADR-0022 on 2026-09-01, and ADR-0023/ADR-0024 jointly on
+2026-09-19. **ADR-0020 remains `Proposed`; the
 accepted set is intentionally non-contiguous.** Supersede, never edit, and
 **never change an ADR's status without an explicit human-acceptance task**.
+
+ADR-0023/ADR-0024 acceptance selects and consumes the one-shot bridge together;
+it grants no implementation authority. PR #124 remains paused pending a NEW
+owner authorization against actual post-merge S. Canonical state remains absent;
+PR-3 is not authorized and ADR-0024 grants no future manual acceptance.
 
 ADR-0022 is accepted as the compiler/lint/tooling authority contract, but
 **acceptance is not implementation authorization**. Nothing executable moved with

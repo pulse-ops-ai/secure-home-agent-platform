@@ -1,10 +1,12 @@
 # Assurance: governance-state-substrate
 
-> **Contingent temporal proof plan:** [ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
-> remains Proposed and non-operative. The appended temporal corpus specifies
-> future obligations, not passing implementation tests. ADR-0021's RFC 3339
-> contract remains operative pending separate acceptance; implementation also
-> needs a later owner refresh. PR #124 and its candidate remain paused/unchanged.
+> **Accepted architecture; implementation proof remains future work.**
+> ADR-0023 and ADR-0024 are accepted together in this target; their two bridge
+> envelopes use pre-transition RFC 3339 evidence. Temporal tests are not run.
+> PR #124 and its candidate remain paused/unchanged pending NEW exact-S authority.
+> [Bridge verification](bridge-verification.md) records acceptance-stage process
+> proof separately from independent human provenance/final review and future
+> post-merge S/expiry proof. Historical section headings remain stable anchors.
 
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
@@ -1667,9 +1669,9 @@ in `tasks.md`.
 
 ## Contingent temporal proof obligations (ADR-0023)
 
-**Not operative while ADR-0023 is Proposed; not executed by this proposal.**
-Separate human acceptance and a later owner PR-2 implementation refresh are
-prerequisites. These obligations refine only acceptance/rejection temporal
+**Accepted architecture; NOT EXECUTED.** The pair acceptance satisfies the
+architecture prerequisite, not the later owner PR-2 implementation refresh.
+These obligations refine only acceptance/rejection temporal
 evidence and directly dependent mechanisms under design D12; all existing
 non-temporal proof remains required. The historical corpus is the audit at M,
 not a future accepted-count constant or an ADR-0022 exception path.
@@ -1754,11 +1756,12 @@ future implementation tests passing.
 
 ## Contingent bootstrap bridge proof obligations (ADR-0024)
 
-**Proposed, non-operative and not executed here.** These obligations apply only
-to ADR-0024's proposed exception and design D13. They do not authorize a bridge
-checker or PR-2 implementation. Independent review must decide the bootstrap-
-legality argument before any joint owner act; an agent's well-formed receipt,
-proposal approval or CI pass does not select the exception.
+**Acceptance-stage process obligations, not production tests.** These obligations
+apply only to ADR-0024's exact exception and design D13. The target selects and
+consumes the bridge; permanent durable expiry is established when it lands.
+The source record retains the supplied prior legality disposition and joint
+owner act. A well-formed receipt, proposal approval or CI pass cannot substitute
+for either. No bridge checker or PR-2 implementation is authorized here.
 
 ### Bridge invariants and positive control
 
@@ -1805,7 +1808,7 @@ claimed here, and these rows are not a record of passing tests.
 
 ### Proof ownership and independent review
 
-Future B tasks own bridge process proof. Later authorized PR-2 T tasks own
+B tasks own bridge process proof. Later authorized PR-2 T tasks own
 genesis ingestion/history/source-freshness proof over S, including preservation
 of both legacy `at` envelopes, derived decision dates, expired bridge evidence
 and the explicit ADR-0022 process disposition. They must not implement a reusable

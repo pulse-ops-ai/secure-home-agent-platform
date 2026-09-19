@@ -1,13 +1,14 @@
 # Implementation Tasks: governance-state-substrate
 
-> **Current temporal boundary:** ADR-0023 is Proposed and non-operative.
-> PR #124 implementation and candidate preparation remain paused. The temporal
-> tasks below are contingent, unchecked planning only; they require separate
-> ADR acceptance and a later exact-base owner implementation refresh.
+> **Current temporal boundary:** ADR-0023 is Accepted architecture in this target.
+> PR #124 implementation and candidate preparation remain PAUSED / NOT AUTHORIZED
+> under the old base. T.1–T.7 remain unchecked/unexecuted pending a NEW owner
+> implementation authorization against actual durable post-bridge S.
 
-> **Current bridge boundary:** ADR-0024 is Proposed and non-operative. D13/B
-> propose one atomic acceptance pair with ADR-0023, not permission to accept
-> either now. All PR #124 implementation/candidate work remains paused.
+> **Current bridge boundary:** ADR-0024 is Accepted together with ADR-0023;
+> this target selects and consumes the bridge. Durable expiry follows landing.
+> Independent final review and merge remain outstanding. No S is selected here,
+> no future manual acceptance is permitted, and all PR #124 work stays paused.
 
 ## Contract
 
@@ -87,8 +88,8 @@ This section RECORDS external authorization. It can never create it.
 
 The PR-1/PR #113 and PR #125 genesis-amendment records below are historical
 authorization provenance for their named epochs, not current execution
-instructions. Their historical "Current" labels do not override the temporal
-proposal-only boundary below. Existing task checkboxes remain unchanged and
+instructions. Their historical "Current" labels do not override the current
+acceptance-only boundary below. Existing task checkboxes remain unchanged and
 are not execution-progress authority.
 
 ### Historical temporal proposal authority — not implementation authority
@@ -111,7 +112,7 @@ record or accepted ADR byte changes. Proposal review, ADR acceptance and
 implementation authorization remain separate acts. No task below is executed
 in this proposal.
 
-### Current bootstrap bridge proposal authority — not acceptance or implementation authority
+### Historical bootstrap bridge proposal authority — not acceptance or implementation authority
 
 | Field | Value |
 | --- | --- |
@@ -124,8 +125,32 @@ in this proposal.
 | Excluded | Either acceptance; all T work; candidate regeneration/freeze; canonical state; real genesis attestations; PR-3/PR-4; ADR-0020/U4/GATE-U4; L8/L9; PR #101 changes |
 
 The historical temporal proposal record above is preserved for its named epoch.
-The current B/D13 proposal owns the proposed acceptance-path qualification; it
-does not make a Proposed exception operative. No existing checkbox is changed.
+The B/D13 proposal owned the proposed acceptance-path qualification; it did
+not make a Proposed exception operative. No existing checkbox is changed.
+
+### Current joint acceptance authority — no implementation authority
+
+The owner's **OWNER CORRECTION — PR #130 JOINT ACCEPTANCE EVIDENCE ONLY**
+instruction supplies the fresh joint acceptance and supersedes all earlier
+acceptance instructions. Its exact session timestamp is
+`2026-09-19T09:59:46.7922478Z`, retained in [bridge-verification.md](bridge-verification.md).
+The durable issue #106 review comment `5740741488` was created at
+`2026-09-19T09:23:12Z`; the process proof requires that instant to precede
+this fresh owner act. Review provenance and human acceptance remain separate.
+It binds exact B `ff7b240397385e8d2571ee1208e2e440cb77825c` and the reviewed
+PR #129 head `89c5669e8a858adae3dcd9987c03cf7f5d5ea2ad`. It authorizes only
+this pair's acceptance candidate, receipt, manual mirrors and process proof,
+then one draft PR and independent review. It does not authorize merge.
+
+The target accepts both ADRs, consumes the bridge and grants no implementation
+authority. No T task runs. PR #124's remote/local heads, complete provisional
+work and candidate member digests remain frozen; PR #101 remains untouched.
+Actual durable S does not yet exist. After independent review and a separately
+authorized **merge commit (not squash/rebase)** preserving the pair object,
+record S and expiry externally; only a NEW exact-S owner implementation task
+may resume PR-2. Archive-stage M remains
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` for L4/L5/L7. No real genesis
+attestation, canonical state, PR-3 or PR-4 is authorized.
 
 ### External authority
 
@@ -1809,16 +1834,17 @@ registry appears, and it appears already protected.
 
 ## T. Contingent temporal work — blocked, not executed
 
-All T tasks depend on **separate human acceptance of ADR-0023 and a later
-explicit owner implementation refresh**. The historical task assignments below
+The joint acceptance satisfies only the architecture prerequisite. All T tasks
+still depend on a **NEW explicit owner implementation refresh against actual S**.
+The historical task assignments below
 identify semantic owners, not a release. No implementation authorization is
 inferred from issue #106, this plan's merge, an Accepted ADR, or a green check.
 The existing PR-2 4.x/5.x work must be preserved and revalidated, not silently
 dropped when the temporal correction changes a shared rule.
 
-Proposed D13/B qualifies the acceptance path as the single atomic ADR-0024 +
-ADR-0023 bridge, with expiry and exact S handoff. It does not execute any T task
-or grant an ADR-0023-only manual path while either proposal remains unaccepted.
+D13/B fixes the acceptance path as the single atomic ADR-0024 + ADR-0023
+bridge, selected and consumed by this target, with expiry and exact S handoff.
+It executes no T task and grants no subsequent manual acceptance path.
 
 - [ ] **T.1 — Closed decision evidence and digest projection.** Owners: existing
   1.1/1.2/2.1 semantic seams, corrected within later-authorized PR-2. Paths:
@@ -1872,7 +1898,7 @@ or grant an ADR-0023-only manual path while either proposal remains unaccepted.
   disposition. Document commands, failures/skips and exact identities. Keep
   #124 draft and stop for independent review; do not merge or start PR-3.
 
-The current proposal's independent review is **not** T.7 and cannot mark any T
+The acceptance candidate's independent review is **not** T.7 and cannot mark any T
 task complete. These additions leave every existing task checkbox unchanged.
 
 ---
@@ -1890,11 +1916,13 @@ deferrals and from T.1–T.7; none is an implementation release.
 | Nested `governance/AGENTS.md` | a later decision; v1 has none |
 | Fact families beyond ADR-0021 §3 | a later ADR |
 
-## B. Contingent one-shot bridge process — not executed
+## B. One-shot bridge process — acceptance candidate, final review pending
 
-These future stages are subordinate to Proposed ADR-0024 and design D13.
-No B checkbox is evidence of a human acceptance. This proposal creates no
-bridge checker, acceptance envelope or receipt instance.
+These stages are subordinate to ADR-0024 and design D13. The source record
+retains B.1's supplied prior review and Proposed landing, B.2's joint owner act,
+and B.3's candidate process proof. Checkboxes remain unchanged pending review;
+no checkbox authenticates a human. B.4–B.6 remain outstanding. The receipt is
+historical evidence, not a checker, genesis or implementation authorization.
 
 - [ ] **B.1 — Independent proposal/legality review and Proposed landing.**
   Review ADR-0024's §12 selection argument, exact bridge shape, both temporal

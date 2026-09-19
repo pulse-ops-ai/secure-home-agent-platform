@@ -52,7 +52,7 @@ Work that falls out of scope is reported, not attempted.
 
 ## Constraints
 
-- **Never edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 are
+- **Never edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are
   `Accepted` and immutable; ADR-0020 remains `Proposed`. Supersede an accepted
   ADR with a new ADR.
 - **Never change an ADR's status without an explicit human-acceptance task.** A

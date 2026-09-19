@@ -1,10 +1,11 @@
 # governance-state Specification Delta
 
-> **Temporal amendment status:** [ADR-0023](../../../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
-> is Proposed and non-operative. The expressly contingent requirements appended
-> below do not replace ADR-0021's operative RFC 3339 acceptance contract while
-> it is Proposed. Separate human acceptance and a later refreshed owner
-> implementation authorization are required; this proposal changes no mechanism.
+> **Accepted architecture; implementation remains NOT AUTHORIZED.** ADR-0023
+> and ADR-0024 are Accepted together in this target. The temporal amendment is
+> no longer contingent on architecture acceptance; a NEW exact-S owner refresh
+> is still required for PR #124. Both bridge envelopes retain pre-transition
+> RFC 3339 evidence. The target consumes the bridge; durable expiry follows
+> landing. No executable behavior, candidate or canonical state changes here.
 
 ## ADDED Requirements
 
@@ -1545,10 +1546,11 @@ The human attestation SHALL record the `transitionDigest`, exact content digest,
 outcome, actor, RFC 3339 time, and authority reference. The attestation SHALL be
 **excluded from its own preimage**, so that no record is its own proof.
 
-This remains the operative temporal rule while ADR-0023 is Proposed. Its ADR
-acceptance/rejection time member alone is the subject of the expressly
-contingent decision-date requirements below; all other attestation classes and
-the non-self-referential protocol retain their existing contract.
+Accepted ADR-0023 refines only the ADR acceptance/rejection time member through
+the decision-date requirements below; all other attestation classes and the
+non-self-referential protocol retain their existing contract. The atomic
+ADR-0023/ADR-0024 bridge retains this pre-transition RFC 3339 evidence and D13's
+domain-separated preimage; it is neither an ordinary registry transition nor genesis.
 
 The genesis attestation SHALL additionally bind the canonical seed digest, a
 separate canonical relationship-equivalence digest, and the source-snapshot
@@ -3076,14 +3078,14 @@ inferred.
 
 ### Requirement: Contingent temporal rules require separate architecture acceptance and implementation authority
 
-The following contingent requirements describe proposed ADR-0023, not an
-operative override. While ADR-0023 is Proposed, ADR-0021's existing RFC 3339
-acceptance contract SHALL remain operative. After separate human acceptance,
-implementing these rules SHALL additionally require a later explicit owner
-authorization for PR #124 against exact current main. The proposal SHALL NOT
-accept the ADR, resume PR-2, change/freeze the candidate, create canonical
+The following requirements describe Accepted ADR-0023. Their historical
+"Contingent" headings retain the planning requirement identities, not an
+unmet architecture prerequisite. Implementation SHALL still require a NEW
+explicit owner authorization for PR #124 against actual durable post-bridge S.
+Acceptance SHALL NOT resume PR-2, change/freeze the candidate, create canonical
 governance state, start PR-3, or modify PR #101. The partial refinement SHALL
-NOT create a formal whole-decision supersession of ADR-0021.
+NOT create a formal whole-decision supersession of ADR-0021. Before this joint
+transition, ADR-0021's RFC 3339 acceptance contract governed both bridge envelopes.
 
 #### Scenario: A merged proposal cannot release implementation
 
@@ -3290,14 +3292,14 @@ checks; only isolated copies use test envelopes, never agent/owner equivalence.
 
 ### Requirement: Proposed bootstrap bridge cannot authorize its own use
 
-The following requirements describe Proposed ADR-0024 and design D13 only.
-They SHALL remain non-operative while the proposal is merely authored, reviewed
-or merged. ADR-0021 §§7–7a/12 SHALL remain the governing boundary. Independent
-review SHALL explicitly evaluate §12's authority to define and atomically
-select/consume this bounded exception before any owner bridge-acceptance act.
+The following requirements describe ADR-0024 and D13's exact bridge, selected
+and consumed by this atomic acceptance target. Durable expiry follows landing.
+Merely authoring, reviewing or merging its prior proposal supplied no acceptance
+authority. Independent review SHALL explicitly evaluate §12's authority to
+define and atomically select/consume the exception before the owner act.
 OpenSpec, review approval and the proposal's existence SHALL NOT supply that act.
-This proposal SHALL NOT accept either ADR, implement a bridge checker, resume
-PR #124, mutate candidate bytes/digests, create canonical state or touch PR #101.
+This acceptance SHALL NOT implement a bridge checker, resume PR #124, mutate
+candidate bytes/digests, create canonical state or touch PR #101.
 
 #### Scenario: Approval of the proposal supplies no acceptance envelope
 
