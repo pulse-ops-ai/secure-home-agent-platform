@@ -1,12 +1,13 @@
 # ADR-0023: Separate governance decision dates from Git commit timestamps
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-17
-- **Deciders:** @mikegtech (repository owner) — acceptance is a separate explicit human act
+- **Accepted:** 2026-09-19
+- **Deciders:** @mikegtech (repository owner)
 - **Refines in part:** [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) §7a **only for the temporal evidence of ADR acceptance/rejection**, with the directly dependent §7 rejection shape, §8 current checks, §9 history checks, and §§10–11 projection/query dates. See §1 for the exact boundary
 - **Supersedes:** no ADR in full. ADR-0021 remains Accepted and immutable
 - **Closes:** no unresolved decision
-- **Related change:** [governance-state-substrate](../../openspec/changes/governance-state-substrate/proposal.md) — contingent temporal amendment, not implementation authority
+- **Related change:** [governance-state-substrate](../../openspec/changes/governance-state-substrate/proposal.md) — accepted temporal architecture, not implementation authority
 
 ---
 
@@ -59,10 +60,11 @@ the identified evidence.
 
 ## Decision
 
-**Proposed only.** Every rule in this section is a proposed replacement within
-the stated boundary. While this ADR is Proposed, ADR-0021's existing RFC 3339
-contract remains operative. This file and its contingent planning amendment
-cannot release PR #124 or change a validator.
+**Accepted 2026-09-19 in the same atomic bridge as ADR-0024.** The temporal
+replacement below is accepted architecture within the stated boundary.
+Both bridge envelopes retain ADR-0021's pre-transition RFC 3339 evidence;
+this decision and its planning amendment grant no PR #124 implementation
+authority and change no validator.
 
 ### 1. Partial refinement, not whole-decision supersession
 
@@ -104,7 +106,7 @@ not when it was actually created, recorded, received, published or materialized,
 and not the declared human actor's identity or decision instant.
 
 `recordedAt`, if used to mean an independently observed recording-system event,
-is a different evidence concept; this proposal does not define or add such a
+is a different evidence concept; this decision does not define or add such a
 field. Any actual recording-time claim needs separately identified evidence
 and its own observation rule. Git metadata must not be relabelled as that proof.
 
@@ -115,7 +117,7 @@ invite treating the two fields as rival dates and tempt a containing commit to
 store its own identity/time. Omitting transition provenance altogether would
 lose the exact-transition replay and make delivery-time substitution undetectable.
 
-**Proposed choice:** keep `decisionDate` in canonical ADR evidence because
+**Accepted choice:** keep `decisionDate` in canonical ADR evidence because
 human-facing semantics require it. Keep transition identity and encoded Git
 timestamps in byte-bound genesis/source-manifest or history audit evidence, not
 as new mutable governance primitives. Preserve the existing typed
@@ -126,7 +128,7 @@ ADR evidence.
 
 ### 3. Closed evidence and authoritative agreement
 
-The proposed acceptance/rejection evidence members are exactly:
+The acceptance/rejection evidence members are exactly:
 
 ```text
 transitionDigest, contentDigest, outcome, actor,
@@ -203,7 +205,7 @@ the former `at`, not a new input to the lifecycle primitive projection.
 - **History:** after genesis or ordinary acceptance/rejection, `decisionDate`
   is immutable, including across later supersession. Direct field comparison
   and source-evidence/history checks refuse mutation even when an attacker
-  recomputes every digest. This proposal creates no in-place date-correction or
+  recomputes every digest. This decision creates no in-place date-correction or
   provenance-rebinding exception to existing immutable evidence rules.
 
 ### 6. Projections and queries preserve date precision
@@ -231,10 +233,11 @@ human or establishes actual recording time.
 Cost: a closed schema change and source-manifest/history/projection proof are
 required before PR-2 can resume. Previously prepared candidate bytes and digests
 cannot be reused as if representation were unchanged. Their later regeneration
-needs a refreshed implementation authorization, not this proposal.
+needs a refreshed implementation authorization, not this acceptance.
 
-Neutral: no operative state, accepted ADR, historical acceptance record,
-dependency, compiler gate, runtime, or canonical registry changes here.
+Neutral: this acceptance changes no implementation, dependency, compiler gate,
+runtime or canonical registry, and no previously Accepted ADR or historical
+acceptance record.
 
 ## Alternatives considered
 
@@ -272,27 +275,26 @@ repository control, not a household runtime dependency.
 
 ## Validation and follow-up obligations
 
-1. Independently review this partial refinement and its storage/digest choice.
-   Acceptance is a separate human-reviewed change; proposing is not accepting.
-2. While Proposed, preserve ADR-0021's operative RFC 3339 rule. Keep PR #124
+1. Preserve the independently reviewed partial refinement and storage/digest
+   choice; acceptance is the separate human act, not proposal approval.
+2. Preserve the bridge's pre-transition ADR-0021 RFC 3339 evidence. Keep PR #124
    paused, candidate bytes/digests unchanged, `governance/state.json` absent,
    PR-3 unauthorized, ADR-0020 Proposed, and PR #101 untouched.
-3. After separate acceptance and a later exact-base owner implementation
+3. After this acceptance lands and a later exact-base owner implementation
    refresh, implement through the existing shared model and thin entry points.
-   The contingent [design D12](../../openspec/changes/governance-state-substrate/design.md#d12-contingent-decision-date-amendment-adr-0023)
+   The [design D12](../../openspec/changes/governance-state-substrate/design.md#d12-contingent-decision-date-amendment-adr-0023)
    owns the source-manifest details, extraction, and dependent source refresh.
 4. Prove both named positive cases, the complete source-bound historical corpus,
    rejection fixtures, exact-transition replay, digest invariance, immutable
    dates, renderer/query date behavior, and the boundary between encoded Git
-   metadata and independently observed recording events. The contingent
+   metadata and independently observed recording events. The
    [assurance corpus](../../openspec/changes/governance-state-substrate/assurance.md#contingent-temporal-proof-obligations-adr-0023)
    requires hostile production-entry-point tests, not just example prose.
-5. This proposal runs documentation/scaffold and strict OpenSpec validation
-   only; it supplies no executed temporal implementation proof, candidate freeze,
-   real owner attestation, or activation review.
+5. Acceptance validation supplies no executed temporal implementation proof,
+   candidate freeze, real owner genesis attestation, or activation review.
 
 **Promotion determination (ADR-0014):** the decision/provenance distinction is
-durable architectural meaning and belongs in this proposed ADR, with subordinate
+durable architectural meaning and belongs in this accepted ADR, with subordinate
 planning details. It must not live only in the PR-2 audit or coding-agent notes.
 A portable governance-knowledge projection may be useful after acceptance, but
 none is authorized or authored here; it must never project a Proposed rule as
@@ -300,14 +302,14 @@ operative architecture.
 
 ## Links
 
-- [Decision index](INDEX.md) — Proposed registration, not an acceptance record
-- [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md#7a-relationship-provenance-bootstrap-proof-and-evidence-identity) — operative contract pending separate acceptance
+- [Decision index](INDEX.md) — joint bridge acceptance records
+- [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md#7a-relationship-provenance-bootstrap-proof-and-evidence-identity) — unchanged contract, partially refined only as specified above
 - [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) and [promotion model](../architecture/knowledge-promotion-model.md) — canonical home and subordinate projections
 - [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) and [original transition](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/a5cc2a739bd9602e30376400a46ebf7b5bab10f1) — same-day positive case
 - [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) and [original transition](https://github.com/pulse-ops-ai/secure-home-agent-platform/commit/4334a7b040b14911b7b0894aeb14717b0418ee84) — decision-date / Git-committer-date divergence positive case
-- [Contingent proposal](../../openspec/changes/governance-state-substrate/proposal.md), [design](../../openspec/changes/governance-state-substrate/design.md), [assurance](../../openspec/changes/governance-state-substrate/assurance.md), [tasks](../../openspec/changes/governance-state-substrate/tasks.md), and [specification delta](../../openspec/changes/governance-state-substrate/specs/governance-state/spec.md)
+- [Planning proposal](../../openspec/changes/governance-state-substrate/proposal.md), [design](../../openspec/changes/governance-state-substrate/design.md), [assurance](../../openspec/changes/governance-state-substrate/assurance.md), [tasks](../../openspec/changes/governance-state-substrate/tasks.md), and [specification delta](../../openspec/changes/governance-state-substrate/specs/governance-state/spec.md)
 
 ---
 
-**Proposed and non-operative.** Do not accept or implement this decision as part
-of its proposal, and do not use it to resume PR #124.
+**Accepted and immutable.** Accepted with ADR-0024 in one atomic bridge.
+Acceptance grants no implementation authority and does not resume PR #124.

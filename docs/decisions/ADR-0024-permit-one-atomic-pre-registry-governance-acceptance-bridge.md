@@ -1,12 +1,13 @@
 # ADR-0024: Permit one atomic pre-registry governance acceptance bridge
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-19
-- **Deciders:** @mikegtech (repository owner) — a future explicit joint acceptance act is required
+- **Accepted:** 2026-09-19
+- **Deciders:** @mikegtech (repository owner)
 - **Refines in part:** [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) §12's bounded-bootstrap-exception boundary, and only the directly dependent §§7–7a pre-registry acceptance protocol for the single pair below
 - **Supersedes:** no ADR in full. ADR-0021 remains Accepted and byte-immutable
 - **Closes:** no unresolved decision
-- **Related change:** [governance-state-substrate](../../openspec/changes/governance-state-substrate/proposal.md) — contingent bridge planning, not implementation authority
+- **Related change:** [governance-state-substrate](../../openspec/changes/governance-state-substrate/proposal.md) — selected and consumed bridge, not implementation authority
 
 ## Context
 
@@ -27,7 +28,7 @@ cross ADR-0021 §12. This is a bootstrap cycle, not implementation permission.
 The proposal is based on exact main
 `5815094efcc85164bf9bf95fd0cda03192ebb7dc`, the durable merge of PR #128's
 independently reviewed head `a443e192ee02e66c9fbaefefbadfbb877650ea32`.
-ADR-0023 remains Proposed. Its filename cleanup in this proposal preserves
+ADR-0023 was Proposed at that base. Its filename cleanup in the proposal preserved
 every ADR byte: SHA-256
 `86c118c26a1632f6448bf2ce54d262c67ff1d25f7768df0fc90177ee2c38a7fb`.
 
@@ -39,19 +40,21 @@ historical-process disposition explicitly in source/provenance evidence.
 
 ## Decision
 
-**Proposed and non-operative.** The following is the exact exception offered
-for independent architectural review. Its presence or merge while Proposed
-authorizes neither acceptance, implementation nor a changed gate.
+**Accepted 2026-09-19 in the same atomic bridge as ADR-0023.** This joint
+transition selects and consumes the exact exception below. There is no
+Accepted-but-unused exception. Once this transition reaches durable main,
+the bridge is permanently expired; it grants no future pre-registry manual
+acceptance and no implementation authority.
 
 ### 1. Bootstrap-legality argument and narrow boundary
 
 ADR-0021 §12 step 2's final sentence is the existing architectural authority to
 **define** a future bounded exception. It is not an already-open exception or
-permission for a coding agent to waive the registry rule. This ADR proposes the
+permission for a coding agent to waive the registry rule. This ADR defines the
 missing exact scope, refusal conditions and expiry; OpenSpec only specifies
 subordinate proof and procedure.
 
-The proposed legality argument is that a separately reviewed human decision
+The legality argument is that a separately reviewed human decision
 can select that expressly anticipated exception **and consume it in the same
 atomic act**. There is no earlier revision in which a Proposed ADR authorizes
 itself, and no intermediate Accepted exception waiting for a later use.
@@ -114,9 +117,10 @@ The eventual owner act and independent acceptance review must bind:
 - canonical state absence at B and target, unchanged accepted ADRs, unchanged
   PR #124 head/candidate and PR #101 head, and every refusal condition in §5.
 
-The current proposal does not select B, an accepted-byte candidate, acceptance
-date, human attestation or S. Its own future commit/hash is not embedded in
-itself. The later receipt carries the already-existing proposal identities.
+The proposal selected no B, accepted-byte candidate, acceptance date, human
+attestation or S. This acceptance binds those first four facts in the separate
+bridge evidence; S is not selected before merge. No future containing commit/hash
+is embedded in this ADR. The receipt carries the already-existing proposal identities.
 Any changed bound proposal bytes invalidate the candidate and require fresh
 review; owner authority cannot be silently carried over to revised bytes.
 
@@ -246,7 +250,7 @@ for any of its later steps, nor for modifying PR #101.
 
 ## Consequences
 
-The cycle has a proposed exit with no Accepted-but-unused exception interval.
+The cycle has an accepted exit with no Accepted-but-unused exception interval.
 Both RFC 3339 human evidence and governed decision dates survive without invented
 precision, and accepted history is not retrospectively legitimized.
 
@@ -268,7 +272,7 @@ provider, compiler, dependency or operative governance behavior changes now.
    to disclose, not a source of permission or a retroactive authorization.
 6. **Keep the cycle blocked indefinitely.** Fail-closed and preferable to an
    unjustified exception; retain this outcome if independent review rejects
-   §1's legality argument. The atomic pair is the proposed choice, not a waiver
+   §1's legality argument. The atomic pair is the accepted choice, not a waiver
    of that review.
 
 ## Security implications
@@ -295,29 +299,32 @@ for the future bridge handoff.
 2. Prove the sole positive pair and every hostile case in the contingent
    [bridge assurance](../../openspec/changes/governance-state-substrate/assurance.md#contingent-bootstrap-bridge-proof-obligations-adr-0024),
    through later authorized process verification, not claims of implemented tests.
-3. Preserve all existing Accepted ADR bytes, historical acceptance records,
-   candidate files/digests and PR #101. ADR-0020 and ADR-0023 remain Proposed now.
-4. Run proposal-only documentation, scaffold, strict OpenSpec, review-history,
-   link/fence/whitespace, secret and exact-scope checks. Create no bridge checker,
-   canonical state, receipt instance or human attestation in this proposal.
-5. Follow §7's separate authorization/review stages; do not accept, activate,
-   merge this proposal or resume PR #124 on a coding agent's initiative.
+3. Preserve all previously Accepted ADR bytes, historical acceptance records,
+   candidate files/digests and PR #101. ADR-0020 remains Proposed; this same
+   atomic acceptance transitions ADR-0023 with ADR-0024.
+4. Run acceptance documentation, scaffold, strict OpenSpec, review-history,
+   link/fence/whitespace, secret, exact-scope and bridge process checks. The
+   receipt and retained human evidence are historical, not a bridge checker,
+   canonical state or real genesis attestation.
+5. Follow §7's separate authorization/review stages; do not activate, merge
+   this acceptance or resume PR #124 on a coding agent's initiative.
 
 **Promotion determination (ADR-0014):** the bounded bootstrap exception is
-architectural and belongs in this proposed ADR. D13 is subordinate procedure
+architectural and belongs in this accepted ADR. D13 is subordinate procedure
 and proof, not another authority. No operative architecture or portable
-knowledge projection is authored while this decision is Proposed.
+knowledge projection is authored by this acceptance.
 
 ## Links
 
 - [ADR-0021 §§7–7a, 12](ADR-0021-establish-machine-readable-governance-state.md) — unchanged governing boundary and exception-definition seam
-- [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md) — byte-preserved Proposed temporal decision
+- [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md) — temporal decision accepted in this same atomic bridge
 - [PR #128](https://github.com/pulse-ops-ai/secure-home-agent-platform/pull/128) — reviewed temporal proposal lineage, not bridge authority
-- [Decision index](INDEX.md) — Proposed registration only
-- [Design D13](../../openspec/changes/governance-state-substrate/design.md#d13-contingent-one-shot-bootstrap-bridge-adr-0024) and [tasks](../../openspec/changes/governance-state-substrate/tasks.md) — non-operative plan and separate future gates
+- [Decision index](INDEX.md) — joint bridge acceptance records
+- [Design D13](../../openspec/changes/governance-state-substrate/design.md#d13-contingent-one-shot-bootstrap-bridge-adr-0024) and [tasks](../../openspec/changes/governance-state-substrate/tasks.md) — bound bridge evidence and separate future gates
 - [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) and [promotion model](../architecture/knowledge-promotion-model.md) — one canonical home
 
 ---
 
-**Proposed and non-operative.** This file does not accept either ADR, open a
-manual acceptance mode, resume PR #124 or authorize PR-3.
+**Accepted and immutable; bridge selected and consumed by this same atomic
+ADR-0024 + ADR-0023 transition.** Permanently expired on landing at durable main.
+No future pre-registry manual acceptance, PR #124 resumption or PR-3 authority.
