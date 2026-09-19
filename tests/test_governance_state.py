@@ -5319,14 +5319,14 @@ def test_temporal_projection_and_query_dates(temporal_genesis: Path) -> None:
     assert run_renderer(root, "check").returncode != 0
 
 
-def test_temporal_planning_bookkeeping_does_not_hide_rule_drift(temporal_candidate: Path) -> None:
+def test_temporal_frozen_planning_bytes_and_rule_values_both_bind(temporal_candidate: Path) -> None:
     root = temporal_candidate
     tasks = root / "openspec/changes/governance-state-substrate/tasks.md"
     tasks.write_text(tasks.read_text() + "\nTEST bookkeeping progress only.\n")
     git(root, "add", "-A")
     git(root, "commit", "-qm", "TEST task progress without governance input changes")
     result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
-    assert result.returncode == 0, payload
+    assert result.returncode != 0 and "ADV-G73" in {p["code"] for p in payload["problems"]}, payload
     design = root / "openspec/changes/governance-state-substrate/design.md"
     text = design.read_text()
     old = "| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** |"
@@ -5336,6 +5336,73 @@ def test_temporal_planning_bookkeeping_does_not_hide_rule_drift(temporal_candida
     git(root, "commit", "-qm", "HOSTILE changed planning source primitive")
     result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
     assert result.returncode != 0 and "ADV-G69" in {p["code"] for p in payload["problems"]}
+
+
+@pytest.mark.parametrize("case", ["missing", "mixed-revision", "hash", "dropped-preparation"])
+def test_temporal_preparation_planning_bindings_refuse_rehashed_drift(
+    temporal_candidate: Path,
+    case: str,
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    historic = {
+        "7a2d731837ea9f14cae09436ddb78e6e47607ee5",
+        "fc1b9f4eef748f7cd0f6af7818bec94d3045f46e",
+        "5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a",
+        POST_BRIDGE_SOURCE,
+    }
+    prepared = [row for row in manifest["planningSources"] if row["revision"] not in historic]
+    assert len(prepared) == 5
+    if case == "missing":
+        manifest["planningSources"].remove(prepared[0])
+    elif case == "mixed-revision":
+        prepared[0]["revision"] = git(root, "rev-parse", "HEAD")
+    elif case == "hash":
+        prepared[0]["contentSha256"] = "a" * 64
+    else:
+        manifest["planningSources"] = [r for r in manifest["planningSources"] if r not in prepared]
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(
+        root, "ADV-G73" if case == "dropped-preparation" else "ADV-G31", path=REGISTRY_PATH
+    )
+
+
+def test_temporal_extraction_replays_exact_preparation_without_rebinding(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    preparation = git(root, "rev-parse", "HEAD")
+    command = [
+        "node",
+        str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+        "--root",
+        str(root),
+        "--source",
+        POST_BRIDGE_SOURCE,
+        "--inventory-source",
+        "WORKTREE",
+    ]
+    original = subprocess.run(command, capture_output=True, text=True)
+    assert original.returncode == 0, original.stderr
+    git(root, "commit", "--allow-empty", "-qm", "TEST later proof commit")
+    replay = subprocess.run(
+        [*command, "--planning-source", preparation], capture_output=True, text=True
+    )
+    assert replay.returncode == 0, replay.stderr
+    assert replay.stdout == original.stdout
+    ambiguous = subprocess.run(
+        [*command, "--planning-source", "HEAD"], capture_output=True, text=True
+    )
+    assert ambiguous.returncode != 0 and not ambiguous.stdout
+    assert "full commit identity" in ambiguous.stderr
+    tasks = root / "openspec/changes/governance-state-substrate/tasks.md"
+    tasks.write_text(tasks.read_text() + "\nHOSTILE planning drift after checkpoint.\n")
+    changed = subprocess.run(
+        [*command, "--planning-source", preparation], capture_output=True, text=True
+    )
+    assert changed.returncode != 0 and not changed.stdout
+    assert "checkpoint current planning bytes" in changed.stderr
 
 
 def test_temporal_missing_transition_never_emits_partial_candidate(tmp_path: Path) -> None:
@@ -5794,7 +5861,7 @@ def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
         member = root / "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md"
         member.write_bytes(member.read_bytes() + b"\nchanged historical evidence\n")
     else:
-        source = root / "docs/decisions/INDEX.md"
+        source = root / "openspec/changes/governance-state-substrate/proposal.md"
         source.write_bytes(source.read_bytes() + b"\nsource bytes changed, same derived counts\n")
     git(root, "add", "-A")
     git(root, "commit", "-qm", "hostile activation base: " + case)
@@ -5980,6 +6047,9 @@ def test_prop_g09_genesis_source_waiver_and_member_permutations_are_canonical(
     manifest["rows"].reverse()
     manifest["planningSources"].reverse()
     manifest["historicalCompletions"].reverse()
+    manifest["decisionEvidence"].reverse()
+    for row in manifest["decisionEvidence"]:
+        row["sources"].reverse()
     for row in manifest["historicalCompletions"]:
         if row["packageDisposition"] is not None:
             row["packageDisposition"]["waivedMinimumArtifacts"].reverse()
@@ -6260,7 +6330,7 @@ def test_mut_g14_each_independent_freshness_source_class_is_load_bearing(
     tmp_path: Path,
 ) -> None:
     root = fresh_genesis
-    source = root / "docs/decisions/INDEX.md"
+    source = root / "openspec/changes/governance-state-substrate/proposal.md"
     source.write_text(
         source.read_text(encoding="utf-8") + "\nUnrelated wording drift.\n", encoding="utf-8"
     )
@@ -6587,7 +6657,7 @@ def test_genesis_task_7_2_projection_and_query_use_the_full_validated_seed(
     rendered = (root / "governance/STATE.md").read_text(encoding="utf-8")
     assert "L1 is the post-ratification human program-materialization event" in rendered
     assert "L2←L1" in rendered and "issue #19 saying L5 is next" in rendered
-    assert "| ADR-0020 | Proposed | U4 |" in rendered
+    assert "| ADR-0020 | Proposed | — | U4 |" in rendered
     assert "| runner/GATE-U4 | gate | — | Unsatisfied |" in rendered
     assert "| runner/L9 | implementation-landing | Planned | NotReady |" in rendered
     inventory = load_state(root, "tests/fixtures/governance/candidate/consumers.json")

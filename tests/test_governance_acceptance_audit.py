@@ -282,6 +282,7 @@ def test_acceptance_audit_requires_explicit_exact_source(tmp_path: Path) -> None
     "mutation",
     [
         "equality",
+        "adr22-special-case",
         "git-date",
         "author-substitution",
         "first-main",
@@ -296,14 +297,15 @@ def test_temporal_mut_g18_g19_g21_audit_kills(tmp_path: Path, mutation: str) -> 
     transition, source = repository(root, at="2026-08-16T04:55:25Z")
     assert audit(root, source)["ok"]
     module = "governance/model/decision-evidence.mjs"
-    if mutation == "equality":
+    if mutation in {"equality", "adr22-special-case"}:
         anchor = (
             "  const committerUtcDateDiffers = "
             "commit.gitCommitterAt.slice(0, 10) !== declared.decisionDate"
         )
-        replacement = (
-            anchor + "\n  if (committerUtcDateDiffers) throw new Error('mutant equality rule')"
-        )
+        condition = "committerUtcDateDiffers"
+        if mutation == "adr22-special-case":
+            condition += " && declaration.id !== 'ADR-0022'"
+        replacement = anchor + "\n  if (" + condition + ") throw new Error('mutant equality rule')"
     elif mutation == "git-date":
         anchor, replacement = (
             "decisionDate: declared.decisionDate,",
@@ -352,7 +354,7 @@ def test_temporal_mut_g18_g19_g21_audit_kills(tmp_path: Path, mutation: str) -> 
     assert original.count(anchor) == 1 and anchor != replacement
     target.write_text(original.replace(anchor, replacement, 1), encoding="utf-8")
     mutated = audit(root, source, auditor=subject / "scripts/governance/genesis/acceptance.mjs")
-    if mutation in {"equality", "first-main"}:
+    if mutation in {"equality", "adr22-special-case", "first-main"}:
         assert not mutated["ok"]
     elif mutation in {"agreement", "coverage"}:
         assert mutated["ok"], mutated

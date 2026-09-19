@@ -375,7 +375,12 @@ function inventoryFor(snapshot) {
   }
 }
 
-export function extractCandidate({ root, sourceRevision, inventoryRevision = sourceRevision }) {
+export function extractCandidate({
+  root,
+  sourceRevision,
+  inventoryRevision = sourceRevision,
+  planningRevision,
+}) {
   if (sourceRevision !== COMMON_SOURCE)
     throw new Error(
       'ADV-G110: this authorized extraction requires exact post-bridge source S; archive-stage M remains separate',
@@ -544,13 +549,22 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
         : null,
     }
   })
+  const inventorySnapshot =
+    inventoryRevision === 'WORKTREE' ? readCheckoutSnapshot(root) : readSnapshot(inventoryRevision)
+  if (planningRevision !== undefined && !/^[0-9a-f]{40}$/u.test(planningRevision))
+    throw new Error('explicit planning source must be a full commit identity')
+  const preparation = reader.resolveCommit(
+    planningRevision ?? (inventoryRevision === 'WORKTREE' ? 'HEAD' : inventoryRevision),
+  )
+  if (preparation.status !== PRESENT) throw new Error('planning preparation commit unavailable')
   const planningSources = []
-  for (const revision of [
+  for (const revision of new Set([
     '7a2d731837ea9f14cae09436ddb78e6e47607ee5',
     'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
     '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
     COMMON_SOURCE,
-  ]) {
+    preparation.oid,
+  ])) {
     for (const name of [
       'proposal.md',
       'design.md',
@@ -560,6 +574,12 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
     ]) {
       const path = PLAN + name
       const entry = readSnapshot(revision).entries.get(path)
+      if (
+        revision === preparation.oid &&
+        contentDigest(inventorySnapshot.entries.get(path)?.bytes ?? new Uint8Array()) !==
+          contentDigest(entry.bytes)
+      )
+        throw new Error('checkpoint current planning bytes before candidate extraction: ' + path)
       planningSources.push({
         path,
         revision,
@@ -598,8 +618,6 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
       ),
     },
   }
-  const inventorySnapshot =
-    inventoryRevision === 'WORKTREE' ? readCheckoutSnapshot(root) : readSnapshot(inventoryRevision)
   const inventory = inventoryFor(inventorySnapshot)
   const problems = []
   validateGenesisSources(
@@ -620,6 +638,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         root: { type: 'string' },
         source: { type: 'string' },
         'inventory-source': { type: 'string' },
+        'planning-source': { type: 'string' },
         patch: { type: 'boolean' },
       },
     })
@@ -627,7 +646,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const sourceRevision = values.source
     if (!root || !sourceRevision) throw new Error('explicit --root and --source are required')
     const inventoryRevision = values['inventory-source'] ?? sourceRevision
-    const result = extractCandidate({ root, sourceRevision, inventoryRevision })
+    const result = extractCandidate({
+      root,
+      sourceRevision,
+      inventoryRevision,
+      planningRevision: values['planning-source'],
+    })
     const files = {
       'state.json': result.state,
       'source-manifest.json': result.manifest,

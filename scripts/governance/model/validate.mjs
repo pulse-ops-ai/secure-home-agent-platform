@@ -1630,6 +1630,42 @@ const HUMAN_FIELDS = new Set([
   'delivery.completionPolicy',
 ])
 const PLANNING_ROOT = 'openspec/changes/governance-state-substrate/'
+const PLANNING_FILES = [
+  'proposal.md',
+  'design.md',
+  'assurance.md',
+  'tasks.md',
+  'specs/governance-state/spec.md',
+]
+const PLANNING_HISTORY = new Set([
+  '7a2d731837ea9f14cae09436ddb78e6e47607ee5',
+  'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
+  '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
+  TEMPORAL_SOURCE,
+])
+
+/** Existing planningSources can also bind one complete preparation snapshot.
+ * It observes execution/status bytes, not new architectural authority. All
+ * primitive inputs and mandatory reviewed sources remain bound independently.
+ */
+function preparationPlanningSources(manifest) {
+  const rows = manifest.planningSources.filter((row) => !PLANNING_HISTORY.has(row.revision))
+  if (!rows.length)
+    return manifest.planningSources.filter(
+      (row) =>
+        row.revision === TEMPORAL_SOURCE &&
+        PLANNING_FILES.some((name) => row.path === PLANNING_ROOT + name),
+    )
+  if (
+    new Set(rows.map((row) => row.revision)).size !== 1 ||
+    rows.length !== PLANNING_FILES.length ||
+    !PLANNING_FILES.every(
+      (name) => rows.filter((row) => row.path === PLANNING_ROOT + name).length === 1,
+    )
+  )
+    throw new Error('planning preparation must bind one complete five-artifact snapshot')
+  return rows
+}
 
 function observedSource(source, context) {
   const snapshot = context.readSnapshot(source.revision)
@@ -1907,6 +1943,7 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
       )
   }
   try {
+    preparationPlanningSources(manifest)
     const snapshot = context.readSnapshot(manifest.sourceSnapshotIdentity.value)
     const design = snapshot.entries.get(PLANNING_ROOT + 'design.md')
     if (!design?.bytes) throw new Error('whole-program source is missing')
@@ -2102,12 +2139,7 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
     return {
       ...row,
       value: extractSourceField(row, entry, manifest),
-      // Planning bytes are pinned at their historical revision. Current task
-      // status may advance; every owned primitive/rule field above is still
-      // parsed from the evaluated revision and compared independently.
-      observedSourceSha256: row.source.path.startsWith(PLANNING_ROOT)
-        ? row.source.contentSha256
-        : contentDigest(current.bytes),
+      observedSourceSha256: contentDigest(current.bytes),
     }
   })
   const adrPaths = [...snapshot.entries.keys()]
@@ -2117,12 +2149,8 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
   // Enumeration is compared too: a new ADR cannot hide outside old manifest rows.
   primitiveTuples.push({ id: '$.adrInventory', paths: adrPaths })
   const evidencePaths = new Set([
-    ...manifest.rows
-      .map((row) => row.source.path)
-      .filter((path) => !path.startsWith(PLANNING_ROOT)),
-    ...manifest.planningSources
-      .map((source) => source.path)
-      .filter((path) => BRIDGE_RECORDS.includes(path)),
+    ...manifest.rows.map((row) => row.source.path),
+    ...manifest.planningSources.map((source) => source.path),
     manifest.historicalContext.source.path,
     ...manifest.decisionEvidence.flatMap((row) => row.sources.map((source) => source.path)),
   ])
@@ -2166,8 +2194,7 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
       artifactIdentities,
       historical,
       decisionEvidence: manifest.decisionEvidence,
-      // Immutable revision+blob sources, not a freeze of later task status.
-      // Their primitive/rule inputs are independently re-extracted above.
+      // All historical and preparation revision+blob bindings remain immutable.
       planningSources: manifest.planningSources,
     },
     consumerInventory,
@@ -2191,6 +2218,20 @@ export function compareCandidateFreshness(frozen, activationBaseCommit, context,
     const source = context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value)
     const activation = context.readSnapshot(activationBaseCommit)
     const candidate = extractFreshnessInputs(frozen, source, context)
+    // Governance primitives come from S; execution/status documents were
+    // checkpointed separately before freezing the candidate. Compare their
+    // COMPLETE bytes at the activation base, never a status-stripped projection.
+    // This adjustment applies only to the frozen reference, not observations
+    // of the evaluated base. Source/rule values above remain extracted from S.
+    for (const planning of preparationPlanningSources(frozen.manifest)) {
+      for (const row of candidate.primitiveSourceTuples)
+        if (row.source?.path === planning.path) row.observedSourceSha256 = planning.contentSha256
+      const artifact = candidate.localEvidenceIdentities.artifactIdentities.find(
+        (row) => row.path === planning.path,
+      )
+      if (!artifact) throw new Error('planning artifact absent from freshness reference')
+      artifact.contentSha256 = planning.contentSha256
+    }
     // Inventory is an authored, frozen migration enumeration, not a claim that
     // PR-2's new tooling already existed at historical S. Compare THAT complete
     // enumeration against an independent scan of the explicit activation base.

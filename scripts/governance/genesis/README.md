@@ -68,7 +68,17 @@ necessary nor sufficient. This structural/freshness result is not full state
 validation and does not substitute for the PR-3 owner ceremony.
 
 Historical planning sources stay pinned to their original revisions and bytes.
-Current task bookkeeping may advance; owned primitive/rule values are still
-independently extracted and compared at the evaluated base. This does not exempt
-current decision records, immutable bridge evidence, archive members, or the
-complete consumer inventory from freshness comparison.
+Before extraction, checkpoint current planning/status files in Git. Existing
+`planningSources` then binds one complete five-artifact preparation snapshot as
+additional provenance, not architectural authority or a replacement common
+source. Governance primitive/rule values still come from S. Freshness compares
+the complete preparation bytes against the evaluated base, alongside decision
+records, immutable bridge evidence, archive members and the full inventory.
+Later planning drift requires a refreshed candidate; no status-stripping or
+blanket planning-file exception is used.
+
+To replay a frozen extraction after later commits, pass
+`--planning-source <full-preparation-commit-sha>` from its `planningSources`
+rows alongside `--inventory-source WORKTREE`. This selects only the recorded
+preparation checkpoint; all five current planning files must still match its
+exact bytes. It never changes common source S, archive-stage M, or authority.
