@@ -313,10 +313,15 @@ export function validateDecisionEvidence(seed, manifest, context, problems) {
     return
   }
   try {
-    const audit = auditDecisionEvidence(
-      context.readSnapshot(manifest.sourceSnapshotIdentity.value),
-      { ...context, selectionSnapshot: context.readSnapshot(TEMPORAL_SOURCE) },
-    )
+    const source = context.readSnapshot(manifest.sourceSnapshotIdentity.value)
+    const selectionSnapshot = context.readSnapshot(TEMPORAL_SOURCE)
+    // A rehashed pre-bridge seed is not the authorized post-bridge source.
+    // Reconstructed test histories must retain the same immutable receipt too.
+    for (const path of BRIDGE_RECORDS) {
+      if (contentDigest(regular(source, path)) !== contentDigest(regular(selectionSnapshot, path)))
+        throw new Error('ADV-G110: common source must retain the consumed bridge evidence')
+    }
+    const audit = auditDecisionEvidence(source, { ...context, selectionSnapshot })
     for (const problem of audit.problems) refuse(problem.id + ': ' + problem.reason)
     const expected = audit.observations
     if (!same(manifest.decisionEvidence, expected))

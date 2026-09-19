@@ -286,7 +286,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0001-adopt-security-first-architecture.md",
@@ -298,7 +298,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md",
@@ -310,7 +310,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md",
@@ -322,7 +322,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0004-treat-agents-as-clients.md",
@@ -334,7 +334,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
@@ -346,7 +346,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
@@ -358,7 +358,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md",
@@ -370,7 +370,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md",
@@ -382,7 +382,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
@@ -394,7 +394,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
@@ -406,7 +406,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md",
@@ -418,7 +418,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
@@ -430,7 +430,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md",
@@ -442,7 +442,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md",
@@ -454,7 +454,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md",
@@ -466,7 +466,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md",
@@ -478,7 +478,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md",
@@ -490,7 +490,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md",
@@ -502,7 +502,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md",
@@ -523,7 +523,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0021-establish-machine-readable-governance-state.md",
@@ -535,10 +535,34 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md",
       "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
     },
     {
@@ -574,7 +598,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md",
@@ -586,7 +610,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "docs/spikes/l6-copilot-cli/README.md",
@@ -715,7 +739,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/assurance.md",
@@ -727,7 +751,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/design.md",
@@ -739,7 +763,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/proposal.md",
@@ -751,7 +775,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/specs/runner-adoption/spec.md",
@@ -763,7 +787,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/tasks.md",
@@ -775,7 +799,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/assurance.md",
@@ -787,7 +811,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/proposal.md",
@@ -799,7 +823,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/tasks.md",
@@ -811,7 +835,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-core/design.md",
@@ -823,7 +847,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-core/proposal.md",
@@ -835,7 +859,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-core/specs/runner-evidence-derivation/spec.md",
@@ -847,7 +871,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-core/tasks.md",
@@ -859,7 +883,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/assurance.md",
@@ -871,7 +895,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/design.md",
@@ -883,7 +907,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/proposal.md",
@@ -895,7 +919,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-12-runner-early-terminal-record/assurance.md",
@@ -907,7 +931,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-08-12-runner-early-terminal-record/proposal.md",
@@ -919,7 +943,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/README.md",
@@ -931,7 +955,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/assurance.md",
@@ -943,7 +967,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/design.md",
@@ -955,7 +979,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/proposal.md",
@@ -967,7 +991,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/1-aae33fdd217d.md",
@@ -979,7 +1003,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/2-70680c1c3eea.md",
@@ -991,7 +1015,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/3-cd019d42b873.md",
@@ -1003,7 +1027,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/specs/toolchain-authority/spec.md",
@@ -1015,7 +1039,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/tasks.md",
@@ -1027,7 +1051,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/assurance.md",
@@ -1039,7 +1063,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/design.md",
@@ -1051,7 +1075,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/proposal.md",
@@ -1063,7 +1087,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/specs/runner-lifecycle/spec.md",
@@ -1075,7 +1099,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/tasks.md",
@@ -1087,7 +1111,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/assurance.md",
@@ -1099,7 +1123,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/design.md",
@@ -1111,7 +1135,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md",
@@ -1123,7 +1147,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/tasks.md",
@@ -1135,7 +1159,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/design.md",
@@ -1147,7 +1171,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/proposal.md",
@@ -1159,7 +1183,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/tasks.md",
@@ -1173,6 +1197,18 @@
       "migrationLanding": "PR-3",
       "path": "openspec/changes/governance-state-substrate/assurance.md",
       "retainedReason": "Proof obligations and source-era examples, not a new delivery-status authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/bridge-verification.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
     },
     {
       "disposition": "stable-pointer",
@@ -1450,7 +1486,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/specs/runner-adoption/spec.md",
@@ -1462,7 +1498,7 @@
       "generatedRegions": [],
       "historicalIdentity": {
         "class": "local-git-commit",
-        "value": "83e6cd8fa7d2d05ab246a39de039129b4056966d"
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
       },
       "migrationLanding": "PR-3",
       "path": "openspec/specs/toolchain-authority/spec.md",
@@ -1565,6 +1601,15 @@
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "scripts/check-knowledge.mjs",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/governance/genesis/README.md",
       "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
     },
     {
@@ -1672,6 +1717,15 @@
       "generatedRegions": [],
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/candidate/README.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
       "path": "tests/fixtures/governance/candidate/consumers.json",
       "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
     },
@@ -1691,6 +1745,15 @@
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "tests/fixtures/governance/candidate/state.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/current/adr.md",
       "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
     },
     {
@@ -1726,15 +1789,6 @@
       "generatedRegions": [],
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
-      "path": "tests/fixtures/governance/genesis/rebind.mjs",
-      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
-    },
-    {
-      "disposition": "not-a-governance-consumer",
-      "factClasses": ["program-state"],
-      "generatedRegions": [],
-      "historicalIdentity": null,
-      "migrationLanding": "PR-3",
       "path": "tests/fixtures/governance/genesis/spike-preimage.json",
       "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
     },
@@ -1745,6 +1799,15 @@
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "tests/set_release_oracle.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/test_governance_acceptance_audit.py",
       "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
     },
     {

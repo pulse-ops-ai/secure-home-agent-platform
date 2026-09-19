@@ -11,19 +11,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "3eb05ceea8f546e823e0657e9a46fc61cae0480a8030ade8ca0ac4e59bc4be19",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "fdcbd0fb42f4f07455cc5d4346c913cea5a4b7c19734482aadf1cf4c29365533"
+        "transitionDigest": "510a791f0250f75cde707b886fdbb746888a6b9cb7befe69530232be5c8c6ab4"
       }
     },
     {
@@ -36,19 +36,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "6451589151caac83e54a420cc1e47bda32d76c114a261c090ff779e252dc8961",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "bc61321aa521044f82c3888ccc505c42a4db45e18d388befd20bac8a12b3f4cd"
+        "transitionDigest": "7117d9b65bed10d8819d23f27c62b62406734228a6897bb99f215e41cd45d8ee"
       }
     },
     {
@@ -61,19 +61,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "dd56c90df74b3eed8ce6e5d71f48288a4f0a0c8975933df35906e1fa4a036541",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "fc4f5112f32cee1efee370a79996fffd718a052e013b3803384c356c18e1ed70"
+        "transitionDigest": "fc7df8cbf041e659e1412cfd3da30eabcbdf4e7297c545b99060265d5e7f2313"
       }
     },
     {
@@ -86,19 +86,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "58eb8b209764bc6051616adb441ce9a4730d2ddeff5e0724de102d40209ba035",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "399c25c48e0184a618a03bacdaea02b71ad75fdc9b90c001d562a98904e9f9f7"
+        "transitionDigest": "a49f71d0a9beb3bedc8f9d0dbe98f50d803d8eb5b47a30357da63388af38213d"
       }
     },
     {
@@ -111,19 +111,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "9f3ea38010ff4a2f711f233f10312ba718969ba39fccf95462e3d0e1ba0cd8fb",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "0f1671bb259b2ccbe2deb23b91a22e6bdc700da7bf81113a2846fdb9df529b43"
+        "transitionDigest": "c713e0d95ceb271a3f67ea71953ac269d681b036b2f2620f2d9fbcfbf17e90df"
       }
     },
     {
@@ -136,19 +136,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "985fcd685921481b7f6595d645eacadde2bfe9686c72bb43f1ba509005ebd147",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "5722984bbe8bc3084aded8635418a978bc1bb0f419b9e73cb3e4f5571e80368b"
+        "transitionDigest": "b3241eedf81f287d64ac0cb35565ae94c1d6679259e3981e5a79c4b202893a0c"
       }
     },
     {
@@ -161,19 +161,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "364e727f45e42f34349b2f14ceb691dfa3c0e6a491132fc1622848772c4a7b4a",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "9a27b4de6c1aaf6aeb701009ea4a9cde9980157c9fcc47e075c47ff00f98e1d3"
+        "transitionDigest": "3f683a85e6a7f961199b930b9f547774048c0db8bcbd2f79d1d72a1c3c83f587"
       }
     },
     {
@@ -186,19 +186,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "86aa638aa8c458fbf7fb6af79f296f5680afb3d4e392267f65759c6e97de84ff",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "505500b76493ea497acf7993d235a7430b35287ac2e57526740333de9ee48b11"
+        "transitionDigest": "851a3dd438d40dadef3e117f6167dc74b9f5515c7566c63b024974a48f844ce4"
       }
     },
     {
@@ -211,19 +211,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "2ce525b1c703322848c82631ae0a77ebc35e993c8e5a4ffa8710f733a94c893f",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "93b5dd110d45aed95d8a7a22310d43362dea029da34705975bd3828172aa9f97"
+        "transitionDigest": "c1270bf372b5fa8830b52168d5f47ec94b34c821784deea18bec16c081682dfd"
       }
     },
     {
@@ -236,19 +236,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "f8ef4a9136bd74d121de7f6ea0249937b4ecd56c3f82fff3d928edd4957a4f54",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "215b3ebf08a473418ce5c94d1f25f92bc11da28ccbe4e9ba1bf2997a0381232b"
+        "transitionDigest": "36418dfb37cb611ebb24e5b0776031846d34f59bad08e36adacf8f24eb6193a8"
       }
     },
     {
@@ -261,19 +261,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-05T23:34:15Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 2
+          "id": "docs/decisions/INDEX.md#acceptance-record"
         },
         "contentDigest": "9f253a3f17353806a4716e008b712f4b2be6fe026605b30e3d4631da94d5eae3",
+        "decisionDate": "2026-08-05",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3378638308493cba1eabedbc3d826dc7c83643a2"
+          "value": "3bb454d5efc0ff9a7a4be834993863eff9fd2978"
         },
-        "transitionDigest": "5a6d414de29dcf24aa87b2613b8c5956951f06694a8049fd26bc3622876c0bc0"
+        "transitionDigest": "e434426a4f6257374d0aff67f71147d5cdaf680d8409b0ffe92ea54277955cd8"
       }
     },
     {
@@ -286,19 +286,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-06T06:07:48Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 42
+          "id": "docs/decisions/INDEX.md#adr-0012-acceptance-record"
         },
         "contentDigest": "7ea82a0172f41bce1eacf8f3238ef1ccdb9897d063c6be2adad94eebb9345e9b",
+        "decisionDate": "2026-08-06",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "62c584926c22b9f26234342a7ed3a6948fd2a361"
+          "value": "05e88a4dfbfcf0e2c09ac3d2790cb62c6ff7d522"
         },
-        "transitionDigest": "ad7357af2cb0f299f078a144712c994c2f6a9bd7947a90fb4950e90e28238214"
+        "transitionDigest": "6fda27623790e087cb179eeaa3d99725e5ef962e356b458b29115ee025567b4d"
       }
     },
     {
@@ -311,19 +311,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-12T16:01:43Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 75
+          "id": "docs/decisions/INDEX.md#adr-0013-acceptance-record"
         },
         "contentDigest": "169828a455af7f33bcc05f1296bb2c708503abfb2c8dcdfc933d641b69ab5624",
+        "decisionDate": "2026-08-12",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "846753b6fe875f13d6267bf9b8895d51af1bf63d"
+          "value": "d18a1e2e4ff06383a34daf9ffafc961770299b55"
         },
-        "transitionDigest": "d14832b583eb263896a891d77fea224cc33fc95209252a7ab1a7c9b5c27b915e"
+        "transitionDigest": "b5234eb4fbcbc8d7a27cbbef64be28339fe285cfea4ceaabd95a756f6dfe1ef2"
       }
     },
     {
@@ -336,19 +336,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-18T14:00:52Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 83
+          "id": "docs/decisions/INDEX.md#adr-0014-acceptance-record"
         },
         "contentDigest": "102b1e9d5d77760e0201e357bb32dda46f2740abf0d3ad94bfe592fbf8b803cf",
+        "decisionDate": "2026-08-15",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+          "value": "f8eb78412fe0ae01442b0ba05696e01cb869222d"
         },
-        "transitionDigest": "ced758f6f8f261a6b9ecfe22134b7597131f51a5248b6e7c4cdbb9ce29449cd6"
+        "transitionDigest": "e21a14fc674b6e2774a41875b82ce85d560e9a8459c9691ca2e8105954415c3b"
       }
     },
     {
@@ -361,19 +361,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-18T14:00:52Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 83
+          "id": "docs/decisions/INDEX.md#adr-0015-acceptance-record"
         },
         "contentDigest": "3dcbdcd0c150f844d7c07584184e9f7a75763cbfd1bb694044010325beddeddc",
+        "decisionDate": "2026-08-15",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+          "value": "a5cc2a739bd9602e30376400a46ebf7b5bab10f1"
         },
-        "transitionDigest": "b33efdff228b54bf3390494664b13b8f3b22f711934539ba756ee6f7b770cc78"
+        "transitionDigest": "7eb0e32768581fd150d7433b7f4604f70223ab8a91e1f01494bda9f6e4e6d7ca"
       }
     },
     {
@@ -386,19 +386,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-18T14:00:52Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 83
+          "id": "docs/decisions/INDEX.md#adr-0016-acceptance-record"
         },
         "contentDigest": "83835eb0cb09737c0673241e695edeacb1dc31543980a5d0e2b837b04cb01e09",
+        "decisionDate": "2026-08-16",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+          "value": "308177b84081be9afb7760b66ec1955db2558535"
         },
-        "transitionDigest": "ecc464e67f5dc08e27605dcd86b4ca21bb64237d71a0011f6fcd993a31cef251"
+        "transitionDigest": "923217816f8f3257e36761c4c9c4ef355aac96614d2fa00162de37ab8ee38d94"
       }
     },
     {
@@ -411,19 +411,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-18T14:00:52Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 83
+          "id": "docs/decisions/INDEX.md#adr-0017-acceptance-record"
         },
         "contentDigest": "7e4bf3e0a66ce655658dcc2fe950b8520de2f7929afe0bc244cfabb19df62ec4",
+        "decisionDate": "2026-08-17",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+          "value": "0b2be16b7d5b8c852f33375cd4bd90329fa405a4"
         },
-        "transitionDigest": "378e7b80f330d24ad6099238762a47ddbf830094ca9bc3a4dc487fd89c4bf677"
+        "transitionDigest": "28d1df289636fe12a4f0c40fe94f60afb98958dceab9ca0b15ffe8cfea7590c5"
       }
     },
     {
@@ -436,19 +436,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-18T14:00:52Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 83
+          "id": "docs/decisions/INDEX.md#adr-0018-acceptance-record"
         },
         "contentDigest": "c558bd8ace74622302201cb5c988339d7b9e8f6d8fe356b7e878d86d047047ed",
+        "decisionDate": "2026-08-17",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "3bf5892c37dbf309817e85a391b3b5026627f4ca"
+          "value": "4c3c421a8d0731a7b333c06ed7c99d5c6b1fa0bd"
         },
-        "transitionDigest": "61718d0cb4d749c3142a3c3a37f5aa9b69f70959fccf3d74d1b73f78b98bc347"
+        "transitionDigest": "c913fe24f5a708574248eebb9f0ce418381f578750d6d827c9dabdcbc05e52cf"
       }
     },
     {
@@ -461,19 +461,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-21T10:41:20Z",
         "authority": {
           "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
           "id": "docs/decisions/INDEX.md#adr-0019-acceptance-record"
         },
         "contentDigest": "572b93fa3e9603aa04eb6727592fcd978839716c463a8bf4c359173f12f5a9a0",
+        "decisionDate": "2026-08-21",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
           "value": "f18c8797952ebb046211cebefad01b4f18b1b631"
         },
-        "transitionDigest": "dab385d4a71bd7a61bd1a6c204ed577e30bb5b1d8599e11c672172150cafa888"
+        "transitionDigest": "04f443a3a4043c5fff9061697ad066e918de70bd9f2acf1e4f4a2aaf8cec36c0"
       }
     },
     {
@@ -496,19 +496,19 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-08-29T04:16:43Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 105
+          "id": "docs/decisions/INDEX.md#adr-0021-acceptance-record"
         },
         "contentDigest": "0db0b5b7d3342b13b2f23602d3f7017f993705410d3e9a9966b1577cfd8cd66a",
+        "decisionDate": "2026-08-28",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "eb6e24806cb76898e74f16208ab40587313c126a"
+          "value": "7d7ac5488bfe390434958b4fd18525d4b13efafd"
         },
-        "transitionDigest": "2d52f4f5103a27765f78ce9a9338d679f9364b7caccefea028397a58dd9d8f5b"
+        "transitionDigest": "5f1aeabb0956bad36e456d5ae192b5b6e906e73c7f7591b80bc7e30a42b9defe"
       }
     },
     {
@@ -521,19 +521,69 @@
       "supersedes": [],
       "acceptance": {
         "actor": "@mikegtech",
-        "at": "2026-09-02T08:37:21Z",
         "authority": {
-          "type": "github-pull-request",
+          "type": "task-contract",
           "repository": "pulse-ops-ai/secure-home-agent-platform",
-          "number": 117
+          "id": "docs/decisions/INDEX.md#adr-0022-acceptance-record"
         },
         "contentDigest": "f6709c12ae60d0285d588de717c21354a2e56b1577c8aae24c1fd5fe974088ab",
+        "decisionDate": "2026-09-01",
         "outcome": "accepted",
         "reviewedIdentity": {
           "class": "local-git-commit",
-          "value": "cb7836148db24971826b886361593950570b4af4"
+          "value": "4334a7b040b14911b7b0894aeb14717b0418ee84"
         },
-        "transitionDigest": "df2d38859cdd59a766c7679849ba5e489f5200c549ed15e25d0c09b233cf14c4"
+        "transitionDigest": "28c8187f12e8dc5a62cc69a65fe9fd3d761f78a8e6c29a346dc37c3c0fe6cfde"
+      }
+    },
+    {
+      "id": "ADR-0023",
+      "path": "docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md",
+      "title": "Separate governance decision dates from Git commit timestamps",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-09-17",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "authority": {
+          "type": "task-contract",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "id": "docs/decisions/INDEX.md#adr-0023-acceptance-record"
+        },
+        "contentDigest": "16af9b56e4b29fe8d9e4047bf3ca0f9d25046b1d16c2a86315fb38f437ae6487",
+        "decisionDate": "2026-09-19",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "fc7d44ff48de015afd14faa7836fe11c58c457aa"
+        },
+        "transitionDigest": "2f3058fa803f13ca2d10c9c0e51c505d907f9d37178fe8d7a14ea340378830c1"
+      }
+    },
+    {
+      "id": "ADR-0024",
+      "path": "docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md",
+      "title": "Permit one atomic pre-registry governance acceptance bridge",
+      "lifecycle": "Accepted",
+      "proposedOn": "2026-09-19",
+      "resolves": [],
+      "supersedes": [],
+      "acceptance": {
+        "actor": "@mikegtech",
+        "authority": {
+          "type": "task-contract",
+          "repository": "pulse-ops-ai/secure-home-agent-platform",
+          "id": "docs/decisions/INDEX.md#adr-0024-acceptance-record"
+        },
+        "contentDigest": "4201262d2a77357dddef2ff8a560d53b570badd84d374c5e980f0ede321d9b71",
+        "decisionDate": "2026-09-19",
+        "outcome": "accepted",
+        "reviewedIdentity": {
+          "class": "local-git-commit",
+          "value": "fc7d44ff48de015afd14faa7836fe11c58c457aa"
+        },
+        "transitionDigest": "5127b772a0a714be9f8e87acef82c13695c4940b531c09599788f1c25b0ab1db"
       }
     }
   ],
@@ -674,7 +724,7 @@
         "completionPolicy": "reviewed-delivery-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "f00f06177f07c9619d68c3e6a33f2caf77a3cb4f49ace6ff7096b2a6b91c09f2",
+          "digest": "fdfe5155ba49c9c51b41ff3f9021fa6214aa0881c89ea1758bb36862682df056",
           "evidence": {
             "archivedOpenSpec": {
               "activeRoot": "openspec/changes/runner-domain-contracts",
@@ -759,7 +809,7 @@
         "completionPolicy": "reviewed-delivery-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "0a72ab5d62481817a6c4c0f057bf077b3a11ac26ee3cb3aae3508c660c5e368f",
+          "digest": "fd2bea05429b014d6cded3891bc9f3c67630a173f0ea5ad43167afbc038c8734",
           "evidence": {
             "archivedOpenSpec": {
               "activeRoot": "openspec/changes/runner-core",
@@ -844,7 +894,7 @@
         "completionPolicy": "reviewed-delivery-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "29d390c121564e21f9644844c805af3b9df24c70944a6d1702e33043565f653c",
+          "digest": "ba4d8b66687c2bfedced138e33c5940688e604d8d90bf43d46d0fe81c1163f8a",
           "evidence": {
             "archivedOpenSpec": {
               "activeRoot": "openspec/changes/runner-control-orchestration",
@@ -929,7 +979,7 @@
         "completionPolicy": "reviewed-delivery-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "0d953fe36f7e5c22ef60ff786f1b43ebb376c31779753b993faf16ef2821f4b9",
+          "digest": "6e681b4f0a70d490cc636e15b6849a50af2a308933179cea8100987ff81a54ea",
           "evidence": {
             "archivedOpenSpec": {
               "activeRoot": "openspec/changes/runner-image-lineage",
@@ -998,7 +1048,7 @@
         "completionPolicy": "reviewed-spike-evidence-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "963fd61593a2c42824353561b1c185a084fe299f2de95c4d5f7403687e007676",
+          "digest": "22dba55b26b860dea9a9c74aae9ef2a7771fc509ba92300b9bec9a9629cca2ee",
           "evidence": {
             "evidenceManifestIdentity": {
               "class": "content-sha256",
@@ -1056,7 +1106,7 @@
         "completionPolicy": "reviewed-delivery-v1",
         "completion": {
           "type": "genesis-historical-completion-v1",
-          "digest": "ec77d89cd8dbed4056d182ff97819b4b79d68790408237dbb9ebef01020efdad",
+          "digest": "63f41c41daf6752d7920fe13b941269cc8c47aa44fae8acd4e7632d8173f81d8",
           "evidence": {
             "archivedOpenSpec": {
               "activeRoot": "openspec/changes/runner-platform-adapters",
