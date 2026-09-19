@@ -8,11 +8,11 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
-> **Current accepted set:** ADR-0001 through ADR-0019, ADR-0021, **and
-> ADR-0022** are `Accepted` and immutable. **ADR-0020 alone remains
-> `Proposed`.** This non-contiguous accepted set is intentional and must not be
-> rendered as one continuous range: the accepted set is 0001–0019, 0021, 0022,
-> with 0020 excluded.
+> **Current accepted set:** ADR-0001 through ADR-0019 **and ADR-0021 through
+> ADR-0024** are `Accepted` and immutable. **ADR-0020 remains `Proposed`.**
+> This non-contiguous set must not be rendered as one continuous range:
+> 0001–0019, 0021–0024, with 0020 excluded. ADR-0023 and ADR-0024 are accepted
+> together in one consumed bootstrap bridge; neither authorizes implementation.
 >
 > **Neither foundational acceptance resolved anything in
 > [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
@@ -147,6 +147,8 @@ implementation-neutral. These decide how it is built.
 | [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
 | [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | Accepted | future root-level `governance/` domain and its validation, history, projection, and query tooling |
 | [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | Accepted | the TypeScript compiler/lint/format/architecture tooling program across the pnpm workspace and CI |
+| [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md) | Separate governance decision dates from Git commit timestamps | Accepted | ADR-0021 §7a's ADR acceptance/rejection temporal evidence and directly dependent validation/history/projection/query rules only; no implementation authority |
+| [ADR-0024](ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md) | Permit one atomic pre-registry governance acceptance bridge | Accepted — bridge consumed by this pair | ADR-0021 §12 and directly dependent pre-registry acceptance boundary for this exact pair only; permanently expired on durable landing, no future manual acceptance |
 
 > **ADR-0022 is `Accepted`** (2026-09-01) and **immutable**. See
 > [the ADR-0022 acceptance record](#adr-0022-acceptance-record). It **refines
@@ -210,6 +212,47 @@ action in its own change.
 > already define — it changes no accepted ADR and no contract. It surfaces one
 > contract question (whether execution-host placement should be a declared
 > profile property) and deliberately does **not** answer it.
+
+### ADR-0023 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-09-19 |
+| **Accepted by** | @mikegtech (repository owner), in the same joint human act as ADR-0024 |
+| **Scope** | ADR-0023's reviewed partial temporal refinement only: canonical human decision dates distinct from provenance-only encoded Git timestamps, with directly dependent schema/history/projection/query rules; no whole-ADR supersession |
+| **Accepted ADR content SHA-256** | `16af9b56e4b29fe8d9e4047bf3ca0f9d25046b1d16c2a86315fb38f437ae6487` |
+| **Transition digest** | `e3f3dc1cdc90eb3b86def37cdb3e1484dd7afd166dba10d28fac0a5e8181ade1` — domain-separated D13 subject binding, not an ordinary registry transition |
+| **Human evidence** | The exact joint owner instruction at `2026-09-19T09:59:46.7922478Z`, retained in [bridge-verification.md](../../openspec/changes/governance-state-substrate/bridge-verification.md#joint-owner-instruction); its own ADR-0023 envelope is in the [receipt](../../openspec/changes/governance-state-substrate/bridge-evidence.json) |
+| **Review lineage** | PR #128 reviewed `a443e192ee02e66c9fbaefefbadfbb877650ea32`, merged `5815094efcc85164bf9bf95fd0cda03192ebb7dc`; byte-identical final-path proposal in reviewed PR #129 `89c5669e8a858adae3dcd9987c03cf7f5d5ea2ad` |
+| **Implementation authority** | **none**; PR #124 remains paused pending a NEW exact-S owner implementation authorization |
+| **Unresolved decisions resolved** | **none**; ADR-0020 remains Proposed, U4 open, GATE-U4 unsatisfied |
+
+The governed date is 2026-09-19. The separate RFC 3339 envelope preserves
+pre-transition ADR-0021 §7a evidence; the new decision-date contract cannot
+bootstrap its own acceptance. Original evidence remains historical provenance.
+
+### ADR-0024 acceptance record
+
+| | |
+|---|---|
+| **Accepted** | 2026-09-19 |
+| **Accepted by** | @mikegtech (repository owner), in the same joint human act as ADR-0023 |
+| **Scope** | The reviewed `pre-registry-adr-pair-v1` exception only: exact pair, exact bytes/base/evidence, fail-closed preconditions, atomic history and permanent one-shot expiry; partial refinement of ADR-0021 §12 and the directly dependent pre-registry acceptance boundary |
+| **Accepted ADR content SHA-256** | `4201262d2a77357dddef2ff8a560d53b570badd84d374c5e980f0ede321d9b71` |
+| **Transition digest** | `a0cfa7afbf76d611d9cfd04831519aba9546ba0c97aae372e9d74bc70f6d1eca` — its distinct D13 subject binding |
+| **Bridge digest** | `565051d7340f95022a6a0dd6425ea0f5907acc407a65123c69af77a83d7e0a64` |
+| **Human evidence** | The same joint owner instruction at `2026-09-19T09:59:46.7922478Z`, retained in [bridge-verification.md](../../openspec/changes/governance-state-substrate/bridge-verification.md#joint-owner-instruction); its own ADR-0024 envelope is in the [receipt](../../openspec/changes/governance-state-substrate/bridge-evidence.json) |
+| **Reviewed proposal / exact base** | PR #129 head `89c5669e8a858adae3dcd9987c03cf7f5d5ea2ad`; durable Proposed merge B `ff7b240397385e8d2571ee1208e2e440cb77825c` |
+| **Consumption** | Selected and consumed by this same atomic pair; no Accepted-but-unused exception. Permanently expired on durable landing; no future pre-registry manual acceptance |
+| **Implementation authority** | **none**; no canonical state, PR-2 resumption, real genesis attestation or PR-3 |
+| **Unresolved decisions resolved** | **none**; ADR-0020 remains Proposed, U4 open, GATE-U4 unsatisfied |
+
+ADR-0021 remains Accepted and byte-identical, with no whole-ADR supersession.
+All earlier acceptance records remain unchanged. ADR-0022 is historical
+inconsistency evidence, never manual-acceptance precedent or retroactively
+authorized by this bridge. Independent final review and merge remain required;
+actual durable main S is recorded only after a merge commit preserves the
+original pair transition. This candidate does not select S.
 
 ### ADR-0013 acceptance record
 
@@ -681,6 +724,8 @@ GATE-U4 was not satisfied, and PR #113 remains frozen and untouched.
 | versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
 | the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, **ADR-0019**, and **ADR-0021** (`Accepted` — contract; substrate not yet implemented) |
+| the decision-date / Git-timestamp refinement | **ADR-0021** and Accepted [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md), a partial temporal refinement only; implementation remains separately unauthorized |
+| the one-shot pre-registry acceptance bridge | **ADR-0021 §§7–7a/12** and Accepted [ADR-0024](ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md); selected and consumed by its atomic pair, no future manual acceptance |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |

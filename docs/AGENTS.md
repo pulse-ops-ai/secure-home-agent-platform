@@ -14,10 +14,12 @@ Scoped rules for documentation. Inherits everything from
 
 - **`decisions/` records why; `architecture/` records what follows.** If they
   disagree, the ADR wins and the architecture document is the defect to fix.
-- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019, ADR-0021, and
-  ADR-0022 are `Accepted` and immutable. ADR-0020 alone remains `Proposed` and
+- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019 and
+  ADR-0021 through ADR-0024 are `Accepted` and immutable. ADR-0020 remains `Proposed` and
   non-operative. Supersede an accepted ADR with a new ADR; do not "clarify" one
   in place.
+- **ADR-0023/ADR-0024 acceptance is one atomic, consumed bridge, not
+  implementation authority.** PR #124 stays paused and PR-3 unauthorized.
 - **ADR-0022's acceptance decided the architecture, not the work.** TypeScript
   remains 6.0.3 and ESLint remains the installed, current lint engine. Its two
   implementation scopes — the parity foundation (PR-B) and the TypeScript 7

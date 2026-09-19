@@ -31,11 +31,14 @@ All governed documentation for this repository.
 - `decisions/` records **why**; `architecture/` records **what follows**. When
   they disagree, the ADR wins and the architecture document is the defect.
 - An accepted ADR is immutable. Reverse it with a superseding ADR.
-- **ADR-0001 through ADR-0019, ADR-0021, and ADR-0022 are `Accepted`** and
+- **ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted`** and
   immutable (foundational set 2026-08-05; ADR-0012 2026-08-06; ADR-0017 and
   ADR-0018 2026-08-17; ADR-0019 2026-08-21; ADR-0021 2026-08-28; ADR-0022
-  2026-09-01). ADR-0020 alone remains `Proposed` and non-operative. A new ADR
+  2026-09-01; ADR-0023/ADR-0024 jointly 2026-09-19). ADR-0020 remains `Proposed` and non-operative. A new ADR
   starts `Proposed`; acceptance is a human decision, never an agent's.
+- **ADR-0023/ADR-0024's atomic acceptance consumes the one-shot bridge.**
+  It grants no implementation authority, leaves PR #124 paused and does not
+  authorize PR-3 or create canonical governance state.
 - **Accepting ADR-0022 authorized no implementation.** TypeScript remains 6.0.3
   and ESLint remains installed and current. Its parity foundation (PR-B) and
   TypeScript 7 cutover (PR-C) both remain `NOT_AUTHORIZED`, but on **different**

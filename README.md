@@ -31,12 +31,15 @@ when the internet does not.
 > ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
 > running system.
 >
-> **ADR-0001 through ADR-0019 and ADR-0021** are **`Accepted`** and immutable —
+> **ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024** are **`Accepted`** and immutable —
 > the foundational set on 2026-08-05, the implementation stack on 2026-08-06,
 > the runner effect-boundary and identity decisions on 2026-08-17, ADR-0019 on
-> 2026-08-21, and ADR-0021 on 2026-08-28. **ADR-0020 remains `Proposed`; the
+> 2026-08-21, ADR-0021 on 2026-08-28, ADR-0022 on 2026-09-01, and
+> ADR-0023/ADR-0024 jointly on 2026-09-19. **ADR-0020 remains `Proposed`; the
 > accepted set is intentionally non-contiguous.** Implementation may proceed
 > against accepted ADRs only under an authorizing task contract.
+> The joint acceptance consumes the one-shot bridge; it does not resume
+> PR #124, create canonical state or authorize PR-3.
 
 > ADR-0021 is accepted as the governance-state authority contract, but its
 > future `governance/` registry, validators, renderer, query interface, and
@@ -420,7 +423,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0019, ADR-0021 (Accepted, immutable);
+│   ├── decisions/         ADR-0001 … ADR-0019, ADR-0021 … ADR-0024 (Accepted, immutable);
 │   │                       ADR-0020 remains Proposed
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              deployable backend processes — TypeScript

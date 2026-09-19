@@ -1,0 +1,82 @@
+{
+  "preimage": {
+    "contract": "pre-registry-adr-pair-v1",
+    "base": {
+      "class": "local-git-commit",
+      "value": "ff7b240397385e8d2571ee1208e2e440cb77825c"
+    },
+    "temporalProposalLineage": {
+      "reviewedHead": {
+        "class": "local-git-commit",
+        "value": "a443e192ee02e66c9fbaefefbadfbb877650ea32"
+      },
+      "mergedMain": {
+        "class": "local-git-commit",
+        "value": "5815094efcc85164bf9bf95fd0cda03192ebb7dc"
+      }
+    },
+    "subjects": [
+      {
+        "id": "ADR-0023",
+        "path": "docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md",
+        "proposalIdentity": {
+          "class": "local-git-commit",
+          "value": "89c5669e8a858adae3dcd9987c03cf7f5d5ea2ad"
+        },
+        "proposalContentDigest": "86c118c26a1632f6448bf2ce54d262c67ff1d25f7768df0fc90177ee2c38a7fb",
+        "from": "Proposed",
+        "to": "Accepted",
+        "contentDigest": "16af9b56e4b29fe8d9e4047bf3ca0f9d25046b1d16c2a86315fb38f437ae6487"
+      },
+      {
+        "id": "ADR-0024",
+        "path": "docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md",
+        "proposalIdentity": {
+          "class": "local-git-commit",
+          "value": "89c5669e8a858adae3dcd9987c03cf7f5d5ea2ad"
+        },
+        "proposalContentDigest": "ac69103cd41c5c023c3a72a432e92b5bf96a7c7d094e9720d9d6d0186018db5a",
+        "from": "Proposed",
+        "to": "Accepted",
+        "contentDigest": "4201262d2a77357dddef2ff8a560d53b570badd84d374c5e980f0ede321d9b71"
+      }
+    ]
+  },
+  "bridgeDigest": "565051d7340f95022a6a0dd6425ea0f5907acc407a65123c69af77a83d7e0a64",
+  "acceptances": [
+    {
+      "subject": "ADR-0023",
+      "transitionDigest": "e3f3dc1cdc90eb3b86def37cdb3e1484dd7afd166dba10d28fac0a5e8181ade1",
+      "contentDigest": "16af9b56e4b29fe8d9e4047bf3ca0f9d25046b1d16c2a86315fb38f437ae6487",
+      "outcome": "accepted",
+      "actor": "@mikegtech",
+      "at": "2026-09-19T09:59:46.7922478Z",
+      "authority": {
+        "type": "task-contract",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "id": "openspec/changes/governance-state-substrate/bridge-verification.md#joint-owner-instruction"
+      },
+      "evidenceIdentity": {
+        "class": "content-sha256",
+        "value": "abc8eaef58097d57197190f6dbe4d13837dd05488198530bb01755661d32cef4"
+      }
+    },
+    {
+      "subject": "ADR-0024",
+      "transitionDigest": "a0cfa7afbf76d611d9cfd04831519aba9546ba0c97aae372e9d74bc70f6d1eca",
+      "contentDigest": "4201262d2a77357dddef2ff8a560d53b570badd84d374c5e980f0ede321d9b71",
+      "outcome": "accepted",
+      "actor": "@mikegtech",
+      "at": "2026-09-19T09:59:46.7922478Z",
+      "authority": {
+        "type": "task-contract",
+        "repository": "pulse-ops-ai/secure-home-agent-platform",
+        "id": "openspec/changes/governance-state-substrate/bridge-verification.md#joint-owner-instruction"
+      },
+      "evidenceIdentity": {
+        "class": "content-sha256",
+        "value": "abc8eaef58097d57197190f6dbe4d13837dd05488198530bb01755661d32cef4"
+      }
+    }
+  ]
+}
