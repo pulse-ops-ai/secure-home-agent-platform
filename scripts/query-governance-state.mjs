@@ -116,15 +116,19 @@ export function queryGovernanceState({
     .sort((a, b) => compareText(a.id, b.id))
 
   if (node !== undefined) {
-    const found =
-      landings.find((member) => member.id === node) ?? gates.find((member) => member.id === node)
-    if (!found) {
+    const landing = landings.find((member) => member.id === node)
+    const gate = gates.find((member) => member.id === node)
+    if (!landing && !gate) {
       return {
         ok: false,
         problems: [{ code: 'ADV-G12', path: '$.nodes.' + node, message: 'no such node' }],
       }
     }
-    return { ok: true, problems: [], answer: { nodes: [found], gates: [], questions: [] } }
+    return {
+      ok: true,
+      problems: [],
+      answer: { nodes: landing ? [landing] : [], gates: gate ? [gate] : [], questions: [] },
+    }
   }
 
   return { ok: true, problems: [], answer: { nodes: landings, gates, questions } }

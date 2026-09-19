@@ -192,6 +192,19 @@ function compareGenesisPreservation(base, target, problems) {
 function compareDecisions(baseState, targetState, problems) {
   const before = byId(baseState?.adrs)
   const after = byId(targetState?.adrs)
+  // Genesis has its own admission path. In an ordinary comparison, absence is
+  // not a Proposed predecessor: even a well-shaped terminal envelope cannot
+  // introduce a decision that skipped the closed lifecycle.
+  for (const [id, targetAdr] of after) {
+    if (!before.has(id) && targetAdr.lifecycle !== 'Proposed') {
+      problem(
+        problems,
+        'ADV-G08',
+        '$.adrs.' + id + '.lifecycle',
+        'a new ADR must first appear as Proposed; a terminal decision requires its prior lifecycle',
+      )
+    }
+  }
   for (const [id, baseAdr] of before) {
     const targetAdr = after.get(id)
     if (!targetAdr) continue

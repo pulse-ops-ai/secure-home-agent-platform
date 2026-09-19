@@ -3678,6 +3678,102 @@ def accepted_registry(root: Path) -> dict[str, Any]:
     return bind_acceptance_digest(root, state, 0, path=REGISTRY_PATH)
 
 
+def introduce_decision(root: Path, state: dict[str, Any], lifecycle: str) -> None:
+    """Introduce a fixture ADR without manufacturing a Proposed predecessor."""
+    adr = {
+        **state["adrs"][0],
+        "id": "ADR-0002",
+        "path": "adr2.md",
+        "lifecycle": lifecycle,
+        "resolves": ["U4"] if lifecycle == "Accepted" else [],
+        "supersedes": [],
+        "acceptance": None,
+    }
+    header = "Accepted" if lifecycle == "Superseded" else lifecycle
+    text = f"# ADR-0002: Fixture decision\n\n- **Status:** {header}\n\n## Decision\n"
+    if lifecycle != "Proposed":
+        closes = "[U4](unresolved.md#u4)" if lifecycle == "Accepted" else "no unresolved decision"
+        text += f"\n- **{header}:** 2026-08-30\n- **Decider:** @owner\n- **Closes:** {closes}\n"
+        adr["acceptance"] = {
+            "transitionDigest": "0" * 64,
+            "contentDigest": hashlib.sha256(text.encode()).hexdigest(),
+            "reviewedIdentity": {"class": "external-git-commit", "value": "1" * 40},
+            "actor": "@owner",
+            "outcome": header.lower(),
+            "decisionDate": "2026-08-30",
+            "authority": {
+                "type": "github-issue",
+                "repository": "pulse-ops-ai/secure-home-agent-platform",
+                "number": 106,
+            },
+        }
+    (root / adr["path"]).write_text(text, encoding="utf-8")
+    state["adrs"].append(adr)
+
+
+@pytest.mark.parametrize("lifecycle", ["Accepted", "Rejected", "Superseded"])
+@pytest.mark.parametrize("rebind", [False, True], ids=["zero-digest", "recomputed-digest"])
+def test_adv_g08_target_only_terminal_decisions_are_refused(
+    tmp_path: Path, lifecycle: str, rebind: bool
+) -> None:
+    root = history_repository(tmp_path, "terminal-introduction")
+    before = registry(root)
+    assert_valid(root, REGISTRY_PATH)
+    base = git(root, "rev-parse", "HEAD")
+    # A Superseded target also needs a current Accepted successor to make the
+    # single snapshot valid. It still has no prior Accepted revision.
+    state = accepted_registry(root) if lifecycle == "Superseded" else registry(root)
+    introduce_decision(root, state, lifecycle)
+    if lifecycle == "Superseded":
+        state["adrs"][0]["supersedes"] = ["ADR-0002"]
+        document = root / state["adrs"][0]["path"]
+        document.write_text(document.read_text() + "\n- **Supersedes:** [ADR-0002](adr2.md)\n")
+        state["adrs"][0]["acceptance"]["contentDigest"] = hashlib.sha256(
+            document.read_bytes()
+        ).hexdigest()
+    # A forged but mathematically correct Proposed->terminal preimage cannot
+    # supply the absent predecessor. Bind the real successor transition too.
+    script = """
+import fs from 'node:fs'
+import {transitionDigest,primitiveDigest,relationshipDigest}
+  from './scripts/governance/model/index.mjs'
+const {before,state,rebind}=JSON.parse(fs.readFileSync(0,'utf8'))
+for (const adr of state.adrs) {
+  if (!adr.acceptance || (!rebind && adr.id === 'ADR-0002')) continue
+  adr.acceptance.transitionDigest=transitionDigest({schemaVersion:state.schemaVersion,
+    priorStateDigest:primitiveDigest(before),targetPrimitiveDigest:primitiveDigest(state),
+    subject:adr.id,from:'Proposed',to:adr.lifecycle,
+    contentDigest:adr.acceptance.contentDigest,relationshipDigest:relationshipDigest(state)})
+}
+console.log(JSON.stringify(state))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"before": before, "state": state, "rebind": rebind}),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    target = commit_registry(root, json.loads(result.stdout), "hostile terminal first appearance")
+    current = assert_valid(root, REGISTRY_PATH)
+    if lifecycle == "Accepted":
+        assert current["derived"]["questions"]["U4"]["resolved"] is True
+        assert current["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is True
+    payload = assert_history_refused(root, "ADV-G08", base=base, target=target)
+    assert {p["code"] for p in payload["problems"]} == {"ADV-G08"}
+    assert any(p["path"] == "$.adrs.ADR-0002.lifecycle" for p in payload["problems"])
+
+
+def test_a_target_only_proposed_decision_is_legal(tmp_path: Path) -> None:
+    root = history_repository(tmp_path, "proposed-introduction")
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    introduce_decision(root, state, "Proposed")
+    target = commit_registry(root, state, "introduce Proposed decision")
+    assert_history_clean(root, base=base, target=target)
+
+
 @pytest.mark.parametrize("regressed", ["Proposed", "Rejected"])
 def test_adv_g08_an_accepted_decision_cannot_regress(tmp_path: Path, regressed: str) -> None:
     root = history_repository(tmp_path, "regress-" + regressed)
@@ -4528,6 +4624,52 @@ def run_query(
     if node is not None:
         command += ["--node", node]
     return subprocess.run(command, cwd=REPOSITORY_ROOT, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("satisfied", [False, True], ids=["unsatisfied", "satisfied"])
+def test_a_targeted_gate_keeps_its_collection_and_human_explanation(
+    tmp_path: Path, satisfied: bool
+) -> None:
+    root = projection_root(tmp_path, "targeted-gate")
+    if satisfied:
+        accepted_registry(root)
+    full = run_query(root, json_form=True)
+    assert full.returncode == 0, full.stderr
+    expected = json.loads(full.stdout)["gates"][0]
+    result = run_query(root, json_form=True, node="runner/GATE-U4")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"nodes": [], "gates": [expected], "questions": []}
+    human = run_query(root, json_form=False, node="runner/GATE-U4")
+    assert human.returncode == 0, human.stderr
+    status = "satisfied" if satisfied else "unsatisfied"
+    assert f"runner/GATE-U4  {status}" in human.stdout
+    assert "delivery state" not in human.stdout
+    assert "prerequisite readiness" not in human.stdout
+    assert "undefined" not in human.stdout
+
+
+def test_a_targeted_landing_keeps_its_query_axes(tmp_path: Path) -> None:
+    root = projection_root(tmp_path, "targeted-landing")
+    full = run_query(root, json_form=True)
+    assert full.returncode == 0, full.stderr
+    expected = json.loads(full.stdout)["nodes"][0]
+    result = run_query(root, json_form=True, node="runner/L8")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"nodes": [expected], "gates": [], "questions": []}
+    human = run_query(root, json_form=False, node="runner/L8")
+    assert human.returncode == 0, human.stderr
+    assert "delivery state         Planned" in human.stdout
+    assert "prerequisite readiness Ready" in human.stdout
+    assert "AUTHORIZATION_REQUIRES_EXTERNAL_VERIFICATION" in human.stdout
+
+
+@pytest.mark.parametrize("json_form", [False, True], ids=["human", "json"])
+def test_a_targeted_unknown_node_is_still_refused(tmp_path: Path, json_form: bool) -> None:
+    root = projection_root(tmp_path, "unknown-node")
+    result = run_query(root, json_form=json_form, node="runner/missing")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "ADV-G12" in result.stderr
 
 
 def test_prop_g05_no_query_output_ever_contains_authorized(tmp_path: Path) -> None:
