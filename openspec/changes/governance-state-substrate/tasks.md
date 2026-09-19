@@ -1,14 +1,15 @@
 # Implementation Tasks: governance-state-substrate
 
-> **Current temporal boundary:** ADR-0023 is Accepted architecture in this target.
-> PR #124 implementation and candidate preparation remain PAUSED / NOT AUTHORIZED
-> under the old base. T.1–T.7 remain unchecked/unexecuted pending a NEW owner
-> implementation authorization against actual durable post-bridge S.
+> **Current PR-2 implementation authority:** the owner's exact-S authorization
+> resumes existing draft PR #124 through T.1–T.7 preparation. Implementation is
+> in progress; unchecked tasks are not completion claims. See the current
+> authorization receipt below. PR-3 and PR-4 remain NOT AUTHORIZED.
 
 > **Current bridge boundary:** ADR-0024 is Accepted together with ADR-0023;
-> this target selects and consumes the bridge. Durable expiry follows landing.
-> Independent final review and merge remain outstanding. No S is selected here,
-> no future manual acceptance is permitted, and all PR #124 work stays paused.
+> the bridge landed at S `c82fda72927464d813ec769aee53f4079ebe3b20` and is
+> permanently consumed/expired. The original pair-changing commit
+> `fc7d44ff48de015afd14faa7836fe11c58c457aa` remains in durable ancestry.
+> No future manual acceptance is permitted; canonical governance state is absent.
 
 ## Contract
 
@@ -22,9 +23,9 @@ Implementation is governed by:
 These artifacts define the accepted change contract. Task completion does not
 redefine the specification, architecture, or assurance model.
 
-**This PR is a planning and decomposition contract. No implementation task
-below is executed in it.** It creates no `governance/` directory, no
-`state.json`, no scripts, no tests, and no CI change.
+**The original planning landing executed no implementation task.** PR #124
+now implements the separately authorized PR-2 scope below; it creates no
+canonical governance state or activated generated projection.
 
 > **Revised again after review 5058723445** — withdrawal and replacement are
 > owned by implementation and verification tasks, PR-3's seam becomes one
@@ -89,8 +90,37 @@ This section RECORDS external authorization. It can never create it.
 The PR-1/PR #113 and PR #125 genesis-amendment records below are historical
 authorization provenance for their named epochs, not current execution
 instructions. Their historical "Current" labels do not override the current
-acceptance-only boundary below. Existing task checkboxes remain unchanged and
-are not execution-progress authority.
+PR-2 boundary below. Task checkboxes are progress records, not authority.
+
+### Current exact-S PR-2 implementation authorization
+
+External source: the repository owner's **OWNER IMPLEMENTATION AUTHORIZATION —
+GOVERNANCE-STATE PR-2 / PR #124** instruction in the controlling conversation,
+2026-09-19. This records implementation authority; no GitHub identity or human
+attestation instant is invented for that instruction.
+
+- Exact fetched/live main before reconciliation: S
+  `c82fda72927464d813ec769aee53f4079ebe3b20`.
+- Existing draft PR #124 remote head:
+  `dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e`; local head
+  `bffc11c6c1f93b57ada459b04cfcbdad1301ef19` and tracked provisional diff
+  `9d27321e18a12bf9707eecc0ece739a8024362eb217018d5bd6aded61e432d94`
+  verified before any mutation.
+- Preservation checkpoint `48a62642f90673d1efd284b66e791e477e81b500` retained
+  those exact provisional bytes, explicitly unvalidated and not frozen.
+  Ordinary conflict-free merge of S produced
+  `20c10d12c012c1f0ac34e7b16b1c05b374a4ef91`, with checkpoint and S as parents.
+  No rebase, discarded implementation, replacement PR or rewritten history.
+- Scope: preserve/revalidate delivered 4.x/5.x; complete remaining PR-2 genesis,
+  T.1–T.6 and T.7 preparation/proof in this existing draft. The final head and
+  fresh candidate identities are review evidence, not self-approval.
+- M `83e6cd8fa7d2d05ab246a39de039129b4056966d` remains the L4/L5/L7 archive-stage
+  identity at the exact archive roots; only the common genesis source becomes S.
+- PR #101 stays OPEN/DRAFT at `559d78cc32cc40f8eaa7aba15a961554f3033b43`.
+  Accepted ADRs and immutable bridge records remain byte-identical.
+- No canonical state, real owner genesis ceremony, projection activation,
+  PR-3/PR-4, ADR-0020 acceptance, U4/GATE-U4 change, L8/L9 or runtime work.
+- Stop at independent PR-2 review of the exact completed draft head. Do not merge.
 
 ### Historical temporal proposal authority — not implementation authority
 
@@ -129,6 +159,9 @@ The B/D13 proposal owned the proposed acceptance-path qualification; it did
 not make a Proposed exception operative. No existing checkbox is changed.
 
 ### Current joint acceptance authority — no implementation authority
+
+**Historical acceptance-epoch receipt.** PR #130 has since merged at S. The
+wording below records that acceptance-only epoch, not the current PR-2 release.
 
 The owner's **OWNER CORRECTION — PR #130 JOINT ACCEPTANCE EVIDENCE ONLY**
 instruction supplies the fresh joint acceptance and supersedes all earlier
@@ -1832,10 +1865,10 @@ registry appears, and it appears already protected.
 
 ---
 
-## T. Contingent temporal work — blocked, not executed
+## T. Accepted temporal work — PR-2 implementation in progress
 
-The joint acceptance satisfies only the architecture prerequisite. All T tasks
-still depend on a **NEW explicit owner implementation refresh against actual S**.
+The joint acceptance satisfied only the architecture prerequisite. The current
+exact-S owner implementation authorization above now releases these T tasks.
 The historical task assignments below
 identify semantic owners, not a release. No implementation authorization is
 inferred from issue #106, this plan's merge, an Accepted ADR, or a green check.
@@ -1916,29 +1949,32 @@ deferrals and from T.1–T.7; none is an implementation release.
 | Nested `governance/AGENTS.md` | a later decision; v1 has none |
 | Fact families beyond ADR-0021 §3 | a later ADR |
 
-## B. One-shot bridge process — acceptance candidate, final review pending
+## B. One-shot bridge process — completed bridge, PR-2 handoff in progress
 
 These stages are subordinate to ADR-0024 and design D13. The source record
 retains B.1's supplied prior review and Proposed landing, B.2's joint owner act,
-and B.3's candidate process proof. Checkboxes remain unchanged pending review;
-no checkbox authenticates a human. B.4–B.6 remain outstanding. The receipt is
+and B.3's candidate process proof. B.4 completed with independently reviewed
+PR #130 head `fc7d44ff48de015afd14faa7836fe11c58c457aa` and durable S. B.5's
+authority prerequisite is satisfied by the current exact-S instruction; PR-2
+implementation/review remains in progress. B.6 is NOT AUTHORIZED. No checkbox
+authenticates a human. The receipt is
 historical evidence, not a checker, genesis or implementation authorization.
 
-- [ ] **B.1 — Independent proposal/legality review and Proposed landing.**
+- [x] **B.1 — Independent proposal/legality review and Proposed landing.**
   Review ADR-0024's §12 selection argument, exact bridge shape, both temporal
   envelopes and expiry. Verify ADR-0023's pure rename and byte identity with
   PR #128. Merge only after independent review, with both ADRs still Proposed.
-- [ ] **B.2 — Separate exact joint owner authority.** Record live main B and
+- [x] **B.2 — Separate exact joint owner authority.** Record live main B and
   exact reviewed proposal/accepted candidates; require the fresh owner act
   explicitly accepting BOTH with the D13 digests and source-backed RFC 3339
   evidence. No prior single-ADR instruction or proposal approval is reused.
-- [ ] **B.3 — One acceptance-only PR.** Under that separate authority, assemble
+- [x] **B.3 — One acceptance-only PR.** Under that separate authority, assemble
   exactly the pair, closed immutable bridge receipt/source evidence, enumerated
   metadata-only ADR deltas and all required manual mirrors. No canonical state,
   executable governance mechanism, candidate changes or T execution. Run the
   D13/EX-G36/ADV-G114–G134 process proof and the ordinary applicable gates;
   report mechanical checks separately from independent human provenance review.
-- [ ] **B.4 — Independent final review, merge, S and expiry.** Review the exact
+- [x] **B.4 — Independent final review, merge, S and expiry.** Review the exact
   complete candidate after evidence assembly; recheck live B and candidate
   freshness before the separately authorized merge. Preserve the original pair
   transition in durable history. Record resulting main as S externally and

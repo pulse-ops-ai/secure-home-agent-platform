@@ -17,6 +17,7 @@ import { createGitTreeObserver } from './governance/git-tree/index.mjs'
 import {
   cacheTreeObservations,
   createGenesisReader,
+  createCommitReader,
   readCheckoutSnapshot,
   sourceManifestPath,
 } from './governance/genesis/observations.mjs'
@@ -173,6 +174,7 @@ export function checkGovernanceState({
     stateBytes: bytes,
     sourceManifestBytes,
     readSnapshot: createGenesisReader(resolvedRoot),
+    ...createCommitReader(resolvedRoot),
     readPreparationSnapshot: () => readCheckoutSnapshot(resolvedRoot),
     readBytes: (path) => readRepositoryBytes(resolvedRoot, path),
     // Rules-free repository observations. The checker supplies them; the model

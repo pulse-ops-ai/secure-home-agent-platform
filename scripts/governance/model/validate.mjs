@@ -37,6 +37,14 @@ import {
 import { ABSENT, PRESENT } from '../git-tree/index.mjs'
 import { canonicalPathSetProblems } from './paths.mjs'
 import { consumerCounts, discoverConsumers, validateConsumerInventory } from './consumers.mjs'
+import {
+  ARCHIVE_STAGE,
+  BRIDGE_RECORDS,
+  PREPARED_ARCHIVES,
+  TEMPORAL_SOURCE,
+  decisionDeclaration,
+  validateDecisionEvidence,
+} from './decision-evidence.mjs'
 
 const ADR_LIFECYCLES = new Set(['Proposed', 'Accepted', 'Superseded', 'Rejected'])
 const DELIVERY_LIFECYCLES = new Set(['Planned', 'InProgress', 'Complete', 'Withdrawn'])
@@ -92,7 +100,7 @@ const ACCEPTANCE_FIELDS = [
   'contentDigest',
   'reviewedIdentity',
   'actor',
-  'at',
+  'decisionDate',
   'outcome',
   'authority',
 ]
@@ -251,6 +259,7 @@ function validDate(value, path, problems) {
   const [year, month, day] = value.split('-').map(Number)
   const parsed = new Date(value + 'T00:00:00Z')
   if (
+    year === 0 ||
     Number.isNaN(parsed.getTime()) ||
     parsed.getUTCFullYear() !== year ||
     parsed.getUTCMonth() + 1 !== month ||
@@ -702,6 +711,24 @@ function verifyHeader(adr, path, problems, context) {
     path + '.relationships',
     problems,
   )
+  if (adr.acceptance) {
+    try {
+      // INDEX is a generated projection after activation, not a second input.
+      const declaration = decisionDeclaration(adr.path, bytes)
+      if (
+        declaration.decisionDate !== adr.acceptance.decisionDate ||
+        declaration.actor !== adr.acceptance.actor
+      )
+        addProblem(
+          problems,
+          'ADV-G99',
+          path + '.decisionDate',
+          'decision date/actor differs from the governed header',
+        )
+    } catch (error) {
+      addProblem(problems, 'ADV-G99', path + '.decisionDate', error.message)
+    }
+  }
   const headerSupersedes = parseHeaderRelationship(
     text,
     ['Supersedes'],
@@ -1094,10 +1121,10 @@ function validateAcceptance(adr, path, problems, context) {
   if (typeof acceptance.actor !== 'string' || !ACTOR.test(acceptance.actor)) {
     addProblem(problems, 'ADV-G02', path + '.actor', 'must be a bounded actor identifier')
   }
-  // Independent of the timestamp: the authority anchor and the exact accepted
-  // bytes. A malformed `at` is recorded and validation continues, so a wrong
+  // Independent of the date: the authority anchor and the exact accepted
+  // bytes. A malformed `decisionDate` is recorded and validation continues, so a wrong
   // `contentDigest` cannot hide behind it.
-  validTimestamp(acceptance.at, path + '.at', problems)
+  validDate(acceptance.decisionDate, path + '.decisionDate', problems)
   validateTypedAnchor(acceptance.authority, path + '.authority', problems)
   if (isSha256(acceptance.contentDigest))
     verifyContent(adr.path, acceptance.contentDigest, path + '.contentDigest', problems, context)
@@ -1583,6 +1610,7 @@ const MANIFEST_FIELDS = [
   'rows',
   'historicalCompletions',
   'historicalContext',
+  'decisionEvidence',
 ]
 const SOURCE_ROW_FIELDS = [
   'id',
@@ -1717,6 +1745,7 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
   if (!requireObject(manifest, path, problems, 'ADV-G31')) return false
   checkFields(manifest, MANIFEST_FIELDS, path, problems)
   requiredFields(manifest, MANIFEST_FIELDS, path, problems, 'ADV-G31')
+  validateDecisionEvidence(seed, manifest, context, problems)
   if (manifest.schemaVersion !== 1)
     addProblem(problems, 'ADV-G31', path, 'manifest version must be 1')
   exactSnapshot(
@@ -1829,6 +1858,11 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
         throw new Error('planning source is not reachable')
       const observed = observedSource(source, context)
       if (observed.oid !== source.blobOid) throw new Error('planning blob identity differs')
+      if (BRIDGE_RECORDS.includes(source.path) && context.readBytes) {
+        const current = context.readBytes(source.path)
+        if (!current || contentDigest(current) !== source.contentSha256)
+          throw new Error('immutable historical bridge evidence changed or disappeared')
+      }
     } catch (error) {
       addProblem(problems, 'ADV-G31', path, error.message)
     }
@@ -1846,6 +1880,7 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
   for (const revision of [
     'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
     '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
+    TEMPORAL_SOURCE,
   ]) {
     for (const file of [
       'proposal.md',
@@ -1861,6 +1896,15 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
           path,
           'missing reviewed amendment binding: ' + revision + ':' + file,
         )
+  }
+  for (const file of BRIDGE_RECORDS) {
+    if (!planningSeen.has(TEMPORAL_SOURCE + ':' + file))
+      addProblem(
+        problems,
+        'ADV-G104',
+        path,
+        'missing immutable post-bridge source binding: ' + file,
+      )
   }
   try {
     const snapshot = context.readSnapshot(manifest.sourceSnapshotIdentity.value)
@@ -1901,12 +1945,18 @@ export function validateGenesisSources(seed, manifest, context, problems = []) {
       )
     for (const id of ['runner/L4', 'runner/L5', 'runner/L7']) {
       const evidence = manifest.historicalCompletions.find((row) => row.landingId === id)?.evidence
-      if (evidence?.archivedOpenSpec?.archivedPackageIdentity?.value !== snapshot.commit)
+      const archive = evidence?.archivedOpenSpec
+      // The three actual preparation archives have a separately bound stage.
+      // Other independently constructed packages retain their own observed
+      // stage; this is not a blanket identity exception for a landing number.
+      const requiredStage =
+        archive?.archiveRoot === PREPARED_ARCHIVES.get(id) ? ARCHIVE_STAGE : snapshot.commit
+      if (archive?.archivedPackageIdentity?.value !== requiredStage)
         addProblem(
           problems,
           'ADV-G98',
           path,
-          'prepared archive identity must bind the durable common source M: ' + id,
+          'prepared archive identity must remain bound to durable archive-stage M: ' + id,
         )
     }
   } catch (error) {
@@ -2052,7 +2102,12 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
     return {
       ...row,
       value: extractSourceField(row, entry, manifest),
-      observedSourceSha256: contentDigest(current.bytes),
+      // Planning bytes are pinned at their historical revision. Current task
+      // status may advance; every owned primitive/rule field above is still
+      // parsed from the evaluated revision and compared independently.
+      observedSourceSha256: row.source.path.startsWith(PLANNING_ROOT)
+        ? row.source.contentSha256
+        : contentDigest(current.bytes),
     }
   })
   const adrPaths = [...snapshot.entries.keys()]
@@ -2062,9 +2117,14 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
   // Enumeration is compared too: a new ADR cannot hide outside old manifest rows.
   primitiveTuples.push({ id: '$.adrInventory', paths: adrPaths })
   const evidencePaths = new Set([
-    ...manifest.rows.map((row) => row.source.path),
-    ...manifest.planningSources.map((source) => source.path),
+    ...manifest.rows
+      .map((row) => row.source.path)
+      .filter((path) => !path.startsWith(PLANNING_ROOT)),
+    ...manifest.planningSources
+      .map((source) => source.path)
+      .filter((path) => BRIDGE_RECORDS.includes(path)),
     manifest.historicalContext.source.path,
+    ...manifest.decisionEvidence.flatMap((row) => row.sources.map((source) => source.path)),
   ])
   const historical = []
   for (const row of manifest.historicalCompletions) {
@@ -2102,7 +2162,14 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
   return {
     primitiveSourceTuples: primitiveTuples,
     relationshipTuples: relationshipTuples({ adrs }),
-    localEvidenceIdentities: { artifactIdentities, historical },
+    localEvidenceIdentities: {
+      artifactIdentities,
+      historical,
+      decisionEvidence: manifest.decisionEvidence,
+      // Immutable revision+blob sources, not a freeze of later task status.
+      // Their primitive/rule inputs are independently re-extracted above.
+      planningSources: manifest.planningSources,
+    },
     consumerInventory,
   }
 }
@@ -2125,9 +2192,9 @@ export function compareCandidateFreshness(frozen, activationBaseCommit, context,
     const activation = context.readSnapshot(activationBaseCommit)
     const candidate = extractFreshnessInputs(frozen, source, context)
     // Inventory is an authored, frozen migration enumeration, not a claim that
-    // PR-2's new tooling already existed at historical M. Compare THAT complete
+    // PR-2's new tooling already existed at historical S. Compare THAT complete
     // enumeration against an independent scan of the explicit activation base.
-    // Historical primitives and evidence above remain bound to M throughout.
+    // Common source remains S; original archive-stage identities remain M.
     candidate.consumerInventory = {
       schemaVersion: 1,
       rows: frozen.inventory.rows.map((row) => ({ ...row, present: true })),
@@ -2715,7 +2782,7 @@ function deriveQuestions(state, problems) {
       // The contract's resolution scenario requires the resolver AND its
       // acceptance date, so the date is part of the derived answer rather than
       // something a consumer has to go and look up.
-      resolvedAt: null,
+      resolvedOn: null,
     }
   }
   const resolvers = Object.create(null)
@@ -2739,14 +2806,14 @@ function deriveQuestions(state, problems) {
           'multiple current accepted resolvers exist for ' + questionId,
         )
       }
-      resolvers[questionId] = { id: adr.id, at: adr.acceptance?.at ?? null }
+      resolvers[questionId] = { id: adr.id, decisionDate: adr.acceptance?.decisionDate ?? null }
     }
   }
   for (const question of Object.values(questions)) {
     if (resolvers[question.id]) {
       question.resolved = true
       question.resolver = resolvers[question.id].id
-      question.resolvedAt = resolvers[question.id].at
+      question.resolvedOn = resolvers[question.id].decisionDate
     }
   }
   return questions

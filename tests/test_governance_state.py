@@ -24,6 +24,20 @@ CHECKER = REPOSITORY_ROOT / "scripts/check-governance-state.mjs"
 FIXTURE_ROOT = REPOSITORY_ROOT / "tests/fixtures/governance/current"
 
 
+@pytest.fixture(scope="module", autouse=True)
+def historical_objects() -> None:
+    subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "tests/fixtures/governance/genesis/objects.mjs"),
+            str(REPOSITORY_ROOT),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def copy_fixture(tmp_path: Path) -> Path:
     root = tmp_path / "fixture"
     shutil.copytree(FIXTURE_ROOT, root)
@@ -175,6 +189,7 @@ def accepted_state(root: Path, question_ids: list[str]) -> dict[str, Any]:
     )
     document.write_text(
         document.read_text(encoding="utf-8").replace("Proposed", "Accepted", 1)
+        + "\n- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
         + f"\n{relationship_header}\n",
         encoding="utf-8",
     )
@@ -188,7 +203,7 @@ def accepted_state(root: Path, question_ids: list[str]) -> dict[str, Any]:
             "value": "1" * 40,
         },
         "actor": "@owner",
-        "at": "2026-08-30T12:00:00Z",
+        "decisionDate": "2026-08-30",
         "outcome": "accepted",
         "authority": {
             "type": "github-issue",
@@ -935,7 +950,9 @@ def test_two_current_accepted_resolvers_are_refused(tmp_path: Path) -> None:
     second_document = root / "docs/decisions/ADR-0002.md"
     second_document.parent.mkdir(parents=True, exist_ok=True)
     second_document.write_text(
-        "# Second fixture\n\n- **Status:** Accepted\n- **Closes:** [U4](../unresolved.md#u4)\n",
+        "# ADR-0002: Second fixture\n\n- **Status:** Accepted\n"
+        "- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
+        "- **Closes:** [U4](../unresolved.md#u4)\n",
         encoding="utf-8",
     )
     second = {
@@ -954,8 +971,8 @@ def test_two_current_accepted_resolvers_are_refused(tmp_path: Path) -> None:
                 "value": "2" * 40,
             },
             "actor": "@owner",
-            "at": "2026-08-30T12:00:00Z",
             "outcome": "accepted",
+            "decisionDate": "2026-08-30",
             "authority": {
                 "type": "github-issue",
                 "repository": "pulse-ops-ai/secure-home-agent-platform",
@@ -1463,7 +1480,25 @@ def test_attestation_envelope_is_excluded_from_primitive_digest(tmp_path: Path) 
     before = assert_valid(root)["digests"]
     state["adrs"][0]["acceptance"]["actor"] = "@different-owner"
     write_state(root, state)
-    after = assert_valid(root)["digests"]
+    # Digest invariance is not permission to mutate governed evidence.
+    assert_refused(root, "ADV-G99")
+    result = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest, relationshipDigest} "
+            "from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs'; const s=JSON.parse(fs.readFileSync(0,'utf8'));"
+            "console.log(JSON.stringify({primitiveDigest:primitiveDigest(s),relationshipDigest:relationshipDigest(s)}))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    after = json.loads(result.stdout)
     assert after == before
 
 
@@ -2677,7 +2712,8 @@ def test_f16_a_resolved_question_names_its_acceptance_date(tmp_path: Path) -> No
     question = payload["derived"]["questions"]["U4"]
     assert question["resolved"] is True
     assert question["resolver"] == "ADR-0001"
-    assert question["resolvedAt"] == "2026-08-30T12:00:00Z", question
+    assert question["resolvedOn"] == "2026-08-30", question
+    assert "resolvedAt" not in question
 
 
 def test_f13_the_extraction_preserved_the_review_gate_answer(tmp_path: Path) -> None:
@@ -2919,7 +2955,7 @@ def test_p2_1_malformed_acceptance_at_does_not_hide_wrong_accepted_bytes(
     for index, malformed in enumerate(MALFORMED_INSTANTS):
         root = copy_fixture(tmp_path / f"acceptance-{index}")
         state = accepted_state(root, ["U4"])
-        state["adrs"][0]["acceptance"]["at"] = malformed
+        state["adrs"][0]["acceptance"]["decisionDate"] = malformed
         state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
         write_state(root, state)
         # ADV-G02 for the timestamp AND ADV-G04 for the accepted document bytes.
@@ -2932,12 +2968,13 @@ def test_p2_1_a_well_typed_but_invalid_acceptance_at_also_reports_both(
     """Not merely the type test: a string that is not an instant behaves the same."""
     root = copy_fixture(tmp_path)
     state = accepted_state(root, ["U4"])
-    state["adrs"][0]["acceptance"]["at"] = "2026-13-45T99:99:99Z"
+    state["adrs"][0]["acceptance"]["decisionDate"] = "2026-13-45T99:99:99Z"
     state["adrs"][0]["acceptance"]["contentDigest"] = "b" * 64
     write_state(root, state)
     payload = assert_refused(root, "ADV-G02", "ADV-G04")
     assert any(
-        problem["path"].endswith(".acceptance.at") and "RFC 3339" in problem["message"]
+        problem["path"].endswith(".acceptance.decisionDate")
+        and "calendar date" in problem["message"]
         for problem in payload["problems"]
     ), payload
 
@@ -3618,6 +3655,7 @@ def accepted_registry(root: Path) -> dict[str, Any]:
     document = root / adr["path"]
     document.write_text(
         document.read_text(encoding="utf-8").replace("Proposed", "Accepted", 1)
+        + "\n- **Accepted:** 2026-08-30\n- **Decider:** @owner\n"
         + "\n- **Closes:** [U4](unresolved.md#u4)\n",
         encoding="utf-8",
     )
@@ -3628,8 +3666,8 @@ def accepted_registry(root: Path) -> dict[str, Any]:
         "contentDigest": hashlib.sha256(document.read_bytes()).hexdigest(),
         "reviewedIdentity": {"class": "external-git-commit", "value": "1" * 40},
         "actor": "@owner",
-        "at": "2026-08-30T12:00:00Z",
         "outcome": "accepted",
+        "decisionDate": "2026-08-30",
         "authority": {
             "type": "github-issue",
             "repository": "pulse-ops-ai/secure-home-agent-platform",
@@ -4803,6 +4841,7 @@ def test_authored_text_cannot_forge_a_generated_projection(tmp_path: Path) -> No
 # PR-2 resumption: the real post-PR-2A genesis recipe, exercised only in copies.
 DURABLE_PR2A = "83e6cd8fa7d2d05ab246a39de039129b4056966d"
 CANDIDATE_ROOT = REPOSITORY_ROOT / "tests/fixtures/governance/candidate"
+POST_BRIDGE_SOURCE = "c82fda72927464d813ec769aee53f4079ebe3b20"
 TEST_ENVELOPE = REPOSITORY_ROOT / "tests/fixtures/governance/genesis/envelope.mjs"
 FRESHNESS = REPOSITORY_ROOT / "scripts/governance/genesis/freshness.mjs"
 
@@ -4862,6 +4901,551 @@ def install_test_genesis(root: Path, base: str | None = None) -> dict[str, Any]:
     return state
 
 
+@pytest.fixture(scope="session")
+def temporal_genesis_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Prepare T.5 copies before T.6 changes the three real candidate members."""
+    root = isolated_genesis(tmp_path_factory.mktemp("temporal-proof"))
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    prepared = json.loads(result.stdout)
+    for name, key in [
+        ("state.json", "state"),
+        ("source-manifest.json", "manifest"),
+        ("consumers.json", "inventory"),
+    ]:
+        write_state(root, prepared[key], "tests/fixtures/governance/candidate/" + name)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "isolated temporal TEST candidate, not a real freeze")
+    state = install_test_genesis(root)
+    commit_registry(root, state, "isolated temporal TEST genesis, never owner attestation")
+    assert_valid(root, REGISTRY_PATH)
+    return root
+
+
+@pytest.fixture
+def temporal_genesis(tmp_path: Path, temporal_genesis_template: Path) -> Path:
+    root = tmp_path / "temporal-genesis"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(temporal_genesis_template), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    git(root, "config", "user.name", "fixture")
+    git(root, "config", "user.email", "fixture@example.invalid")
+    git(root, "config", "commit.gpgsign", "false")
+    return root
+
+
+def test_temporal_real_source_and_archive_split(temporal_genesis: Path) -> None:
+    root = temporal_genesis
+    payload = assert_valid(root, REGISTRY_PATH)
+    state = registry(root)
+    manifest = load_state(root, "governance/genesis-source-manifest.json")
+    assert manifest["sourceSnapshotIdentity"]["value"] == POST_BRIDGE_SOURCE
+    assert len(manifest["decisionEvidence"]) == 23
+    assert payload["derived"]["questions"]["U7"]["resolvedOn"] == "2026-08-15"
+    assert "resolvedAt" not in payload["derived"]["questions"]["U7"]
+    assert (
+        next(a for a in state["adrs"] if a["id"] == "ADR-0022")["acceptance"]["decisionDate"]
+        == "2026-09-01"
+    )
+    for landing in state["landings"]:
+        if landing["id"] in ["runner/L4", "runner/L5", "runner/L7"]:
+            archive = landing["delivery"]["completion"]["evidence"]["archivedOpenSpec"]
+            assert archive["archivedPackageIdentity"]["value"] == DURABLE_PR2A
+
+
+@pytest.fixture
+def temporal_candidate(temporal_genesis: Path) -> Path:
+    base = registry(temporal_genesis)["attestations"]["genesis"]["activationBaseCommit"]
+    git(temporal_genesis, "checkout", "--quiet", "--detach", base)
+    return temporal_genesis
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        20260901,
+        "2026-02-30",
+        "0000-01-01",
+        "2026-09-01T00:00:00Z",
+        "2026-09-01T12:00:00Z",
+        "2026-09-01+00:00",
+    ],
+)
+def test_temporal_adv_g100_closed_calendar_date(tmp_path: Path, value: Any) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    state["adrs"][0]["acceptance"]["decisionDate"] = value
+    write_state(root, state)
+    assert_refused(root, "ADV-G02")
+
+
+@pytest.mark.parametrize("field", ["at", "recordedAt", "gitCommitterAt", "gitAuthorAt"])
+def test_temporal_adv_g100_no_legacy_alias(tmp_path: Path, field: str) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    state["adrs"][0]["acceptance"][field] = "2026-08-30T00:00:00Z"
+    write_state(root, state)
+    assert_refused(root, "ADV-G02")
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "date",
+        "missing-row",
+        "duplicate-row",
+        "missing-transition",
+        "missing-source",
+        "duplicate-source",
+        "wrong-source-revision",
+        "source-hash",
+        "selector",
+        "delivery-transition",
+        "predecessor",
+        "decided-bytes",
+        "message",
+        "author",
+        "committer",
+        "author-as-committer",
+        "external-transition",
+        "no-disposition",
+        "false-comparison",
+        "wrong-comparison-date",
+        "legacy-kind",
+        "legacy-recorded",
+        "legacy-differs",
+        "legacy-date",
+        "extra",
+        "unknown-adr",
+    ],
+)
+def test_temporal_rehashed_manifest_refuses(temporal_candidate: Path, case: str) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0022")
+    transition = row["transition"]
+    if case == "date":
+        row["decisionDate"] = "2026-09-02"
+        candidate = load_state(root, "tests/fixtures/governance/candidate/state.json")
+        next(a for a in candidate["adrs"] if a["id"] == "ADR-0022")["acceptance"][
+            "decisionDate"
+        ] = "2026-09-02"
+        write_state(root, candidate, "tests/fixtures/governance/candidate/state.json")
+    elif case == "missing-row":
+        manifest["decisionEvidence"].remove(row)
+    elif case == "duplicate-row":
+        manifest["decisionEvidence"].append(row.copy())
+    elif case == "missing-transition":
+        del row["transition"]
+    elif case == "missing-source":
+        row["sources"].pop()
+    elif case == "duplicate-source":
+        row["sources"].append(row["sources"][0].copy())
+    elif case == "wrong-source-revision":
+        row["sources"][0]["revision"] = POST_BRIDGE_SOURCE
+    elif case == "source-hash":
+        row["sources"][0]["contentSha256"] = "a" * 64
+    elif case == "selector":
+        row["sources"][0]["selector"] = "first-main-v1"
+    elif case == "delivery-transition":
+        transition["identity"]["value"] = git(
+            root,
+            "rev-list",
+            "--first-parent",
+            "--reverse",
+            POST_BRIDGE_SOURCE,
+            "--",
+            "docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md",
+        ).splitlines()[-1]
+    elif case == "predecessor":
+        transition["predecessorIdentity"]["value"] = POST_BRIDGE_SOURCE
+    elif case == "decided-bytes":
+        transition["contentDigest"] = "b" * 64
+    elif case == "message":
+        transition["messageSha256"] = "c" * 64
+    elif case == "author":
+        transition["gitAuthorAt"] = "2026-09-01T12:00:00Z"
+    elif case == "committer":
+        transition["gitCommitterAt"] = "2026-09-01T12:00:00Z"
+    elif case == "author-as-committer":
+        row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0015")
+        row["transition"]["gitCommitterAt"] = row["transition"]["gitAuthorAt"]
+    elif case == "external-transition":
+        transition["identity"]["class"] = "external-git-commit"
+    elif case == "no-disposition":
+        row["disposition"] = None
+    elif case == "false-comparison":
+        row["committerUtcDateDiffers"] = False
+    elif case == "wrong-comparison-date":
+        row["disposition"]["committerUtcDate"] = "2026-09-01"
+    elif case == "legacy-kind":
+        row["disposition"]["kind"] = "decision-date-recording-latency-v1"
+    elif case == "legacy-recorded":
+        row["recordedAt"] = transition["gitCommitterAt"]
+    elif case == "legacy-differs":
+        row["recordingDateDiffers"] = True
+    elif case == "legacy-date":
+        row["disposition"]["recordingDate"] = "2026-09-02"
+    elif case == "extra":
+        row["futureCommit"] = "d" * 40
+    else:
+        row["adrId"] = "ADR-0099"
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("lifecycle", ["Accepted", "Rejected", "Superseded"])
+def test_temporal_adv_g105_rehashed_date_history(tmp_path: Path, lifecycle: str) -> None:
+    root = history_repository(tmp_path, "temporal-history")
+    state = accepted_registry(root)
+    adr = state["adrs"][0]
+    document = root / adr["path"]
+    if lifecycle == "Rejected":
+        document.write_text(
+            document.read_text()
+            .replace("Accepted", "Rejected")
+            .replace("- **Closes:** [U4](unresolved.md#u4)", "- **Closes:** no unresolved decision")
+        )
+        adr["lifecycle"], adr["resolves"], adr["acceptance"]["outcome"] = "Rejected", [], "rejected"
+    elif lifecycle == "Superseded":
+        successor = json.loads(json.dumps(adr))
+        successor["id"], successor["path"], successor["supersedes"] = (
+            "ADR-0002",
+            "successor.md",
+            [adr["id"]],
+        )
+        successor_bytes = (
+            document.read_text().replace("ADR-0001", "ADR-0002")
+            + "\n- **Supersedes:** [ADR-0001](adr.md)\n"
+        )
+        (root / successor["path"]).write_text(successor_bytes)
+        successor["acceptance"]["contentDigest"] = hashlib.sha256(
+            successor_bytes.encode()
+        ).hexdigest()
+        state["adrs"].append(successor)
+        adr["lifecycle"] = "Superseded"
+    adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    base = commit_registry(root, state, "TEST terminal decision")
+    assert_valid(root, REGISTRY_PATH)
+    before = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest} from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs';"
+            "console.log(primitiveDigest(JSON.parse(fs.readFileSync(0,'utf8'))))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    adr["acceptance"]["decisionDate"] = "2026-08-31"
+    # First the excluded-metadata property, independently of admissibility.
+    after = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import {primitiveDigest} from './scripts/governance/model/index.mjs';"
+            "import fs from 'node:fs';"
+            "console.log(primitiveDigest(JSON.parse(fs.readFileSync(0,'utf8'))))",
+        ],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert after == before
+    # Then change even the mirror/content hash: history still owns immutability.
+    document.write_text(document.read_text().replace("2026-08-30", "2026-08-31"))
+    adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    state = bind_acceptance_digest(root, state, 0, REGISTRY_PATH)
+    commit_registry(root, state, "HOSTILE rewritten decision date with recomputed digests")
+    assert_valid(root, REGISTRY_PATH)
+    assert_history_refused(root, "ADV-G40", base=base)
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/history.mjs",
+                "if (canonicalText(baseAdr.acceptance) !== canonicalText(targetAdr.acceptance)) {",
+                "if (false) {",
+            )
+        ],
+    )
+    result, payload = run_subject(subject, root, base=base)
+    assert result.returncode == 0, payload  # Independent MUT-G20 kill.
+
+
+@pytest.mark.parametrize(
+    "field", ["gitCommitterAt", "sources", "disposition", "coverage", "recordedAt"]
+)
+def test_temporal_mut_g21_independent_manifest_kills(
+    temporal_candidate: Path, tmp_path: Path, field: str
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["decisionEvidence"] if r["adrId"] == "ADR-0022")
+    if field == "gitCommitterAt":
+        row["transition"][field] = "2026-09-01T00:00:00Z"
+    elif field == "sources":
+        row["sources"].pop()
+    elif field == "disposition":
+        row[field] = None
+    elif field == "coverage":
+        manifest["decisionEvidence"].pop()
+    else:
+        row[field] = "2026-09-02T08:03:21Z"
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/decision-evidence.mjs",
+                "if (!same(manifest.decisionEvidence, expected))",
+                "if (false)",
+            )
+        ],
+    )
+    result, payload = run_subject(subject, root)
+    assert result.returncode == 0, payload
+
+
+@pytest.mark.parametrize("mutation", ["primitive-date", "transition-date"])
+def test_temporal_prop_g12_mut_g20_causal_exclusions(tmp_path: Path, mutation: str) -> None:
+    root = copy_fixture(tmp_path)
+    state = accepted_state(root, [])
+    script = """
+import {pathToFileURL} from 'node:url'
+import fs from 'node:fs'
+const m=await import(pathToFileURL(process.argv[1]).href)
+const a=JSON.parse(fs.readFileSync(0,'utf8')), b=structuredClone(a)
+b.adrs[0].acceptance.decisionDate='2026-08-31'
+const values=s=>[m.primitiveDigest(s),m.acceptanceDigest(s,s.adrs[0])]
+console.log(JSON.stringify({before:values(a),after:values(b),bytesDiffer:m.canonicalSerialize(a)!==m.canonicalSerialize(b)}))
+"""
+
+    def evaluate(subject: Path) -> dict[str, Any]:
+        result = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                str(subject / "scripts/governance/model/index.mjs"),
+            ],
+            cwd=REPOSITORY_ROOT,
+            input=json.dumps(state),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return cast(dict[str, Any], json.loads(result.stdout))
+
+    control = evaluate(REPOSITORY_ROOT)
+    assert control["before"] == control["after"] and control["bytesDiffer"]
+    anchor, replacement = (
+        ("      delete adr.acceptance.decisionDate", "      void adr.acceptance.decisionDate")
+        if mutation == "primitive-date"
+        else (
+            "    targetPrimitiveDigest: target,",
+            "    targetPrimitiveDigest: sha256Text(target + adr.acceptance.decisionDate),",
+        )
+    )
+    subject = mutant_subject(tmp_path, [("governance/model/digests.mjs", anchor, replacement)])
+    mutant = evaluate(subject)
+    assert mutant["before"] != mutant["after"]
+
+
+def test_temporal_projection_and_query_dates(temporal_genesis: Path) -> None:
+    root = temporal_genesis
+    for path, regions in [
+        ("docs/decisions/INDEX.md", ["decision-lifecycle"]),
+        ("docs/architecture/unresolved-decisions.md", ["question-summary", "resolution-banners"]),
+    ]:
+        with (root / path).open("a", encoding="utf-8") as stream:
+            for region in regions:
+                stream.write("\n" + BEGIN.format(region) + "\n" + END.format(region) + "\n")
+    result = run_renderer(root, "write")
+    assert result.returncode == 0, result.stderr
+    assert run_renderer(root, "check").returncode == 0
+    rendered = (root / "governance/STATE.md").read_text()
+    assert "| ADR-0022 | Accepted | 2026-09-01 |" in rendered
+    resolutions = (root / "docs/architecture/unresolved-decisions.md").read_text()
+    assert "**U7** — resolved on 2026-08-15" in resolutions
+    query = run_query(root, json_form=True)
+    assert query.returncode == 0, query.stderr
+    data = json.loads(query.stdout)
+    assert next(q for q in data["questions"] if q["id"] == "U7")["resolvedOn"] == "2026-08-15"
+    assert next(q for q in data["questions"] if q["id"] == "U4")["resolvedOn"] is None
+    assert "resolvedAt" not in query.stdout
+    assert "U7  resolved by ADR-0015 on 2026-08-15" in run_query(root, json_form=False).stdout
+    (root / "governance/STATE.md").write_text(rendered.replace("2026-09-01", "2026-09-02"))
+    assert run_renderer(root, "check").returncode != 0
+
+
+def test_temporal_planning_bookkeeping_does_not_hide_rule_drift(temporal_candidate: Path) -> None:
+    root = temporal_candidate
+    tasks = root / "openspec/changes/governance-state-substrate/tasks.md"
+    tasks.write_text(tasks.read_text() + "\nTEST bookkeeping progress only.\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "TEST task progress without governance input changes")
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode == 0, payload
+    design = root / "openspec/changes/governance-state-substrate/design.md"
+    text = design.read_text()
+    old = "| `runner/L8` | implementation-landing | `runner/L7` | issue #56 | **Planned** |"
+    assert text.count(old) == 1
+    design.write_text(text.replace(old, old.replace("**Planned**", "**InProgress**")))
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "HOSTILE changed planning source primitive")
+    result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
+    assert result.returncode != 0 and "ADV-G69" in {p["code"] for p in payload["problems"]}
+
+
+def test_temporal_missing_transition_never_emits_partial_candidate(tmp_path: Path) -> None:
+    root = tmp_path / "shallow-evidence"
+    root.mkdir()
+    git(root, "init", "-q")
+    git(root, "remote", "add", "origin", str(REPOSITORY_ROOT))
+    git(root, "fetch", "--depth=1", "origin", POST_BRIDGE_SOURCE)
+    git(root, "checkout", "--quiet", "--detach", "FETCH_HEAD")
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--patch",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0 and not result.stdout
+    assert "historical acceptance audit blocks candidate generation" in result.stderr
+    assert "ADR-0015" in result.stderr and "ADR-0022" in result.stderr
+    assert not (root / "tests/fixtures/governance/candidate").exists()
+
+
+def test_temporal_archive_stage_cannot_be_rebound_to_common_source(
+    temporal_candidate: Path,
+) -> None:
+    root = temporal_candidate
+    path = "tests/fixtures/governance/candidate/source-manifest.json"
+    manifest = load_state(root, path)
+    row = next(r for r in manifest["historicalCompletions"] if r["landingId"] == "runner/L4")
+    archive = row["evidence"]["archivedOpenSpec"]
+    archive["archivedPackageIdentity"]["value"] = POST_BRIDGE_SOURCE
+    script = (
+        "import fs from 'node:fs';import {bundleSha256} from "
+        "'./scripts/governance/model/archived-openspec.mjs';"
+        "console.log(bundleSha256(JSON.parse(fs.readFileSync(0,'utf8'))))"
+    )
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(archive),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    archive["bundleSha256"] = result.stdout.strip()
+    row["packageDisposition"]["archiveBundleSha256"] = archive["bundleSha256"]
+    write_state(root, manifest, path)
+    rebind_test_candidate(root)
+    forged_test_genesis(root)
+    assert_refused(root, "ADV-G98", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("member", ["bridge-evidence.json", "bridge-verification.md"])
+def test_temporal_consumed_bridge_is_immutable_historical_evidence(
+    temporal_genesis: Path,
+    member: str,
+) -> None:
+    root = temporal_genesis
+    path = root / "openspec/changes/governance-state-substrate" / member
+    path.write_bytes(path.read_bytes() + b"\n")
+    assert_refused(root, "ADV-G31", path=REGISTRY_PATH)
+
+
+@pytest.mark.parametrize("lifecycle", ["Accepted", "Rejected"])
+def test_temporal_ordinary_non_self_reference_and_no_genesis_replay(
+    tmp_path: Path, lifecycle: str
+) -> None:
+    root = history_repository(tmp_path, "ordinary-temporal")
+    before = registry(root)
+    base = git(root, "rev-parse", "HEAD")
+    state = accepted_registry(root)
+    adr = state["adrs"][0]
+    if lifecycle == "Rejected":
+        adr["lifecycle"], adr["resolves"], adr["acceptance"]["outcome"] = "Rejected", [], "rejected"
+        document = root / adr["path"]
+        document.write_text(
+            document.read_text()
+            .replace("Accepted", "Rejected")
+            .replace("- **Closes:** [U4](unresolved.md#u4)", "- **Closes:** no unresolved decision")
+        )
+        adr["acceptance"]["contentDigest"] = hashlib.sha256(document.read_bytes()).hexdigest()
+    script = """
+import fs from 'node:fs'
+import {transitionDigest,primitiveDigest,relationshipDigest}
+  from './scripts/governance/model/index.mjs'
+const {before,state}=JSON.parse(fs.readFileSync(0,'utf8')), adr=state.adrs[0]
+adr.acceptance.transitionDigest=transitionDigest({schemaVersion:1,priorStateDigest:primitiveDigest(before),targetPrimitiveDigest:primitiveDigest(state),subject:adr.id,from:'Proposed',to:adr.lifecycle,contentDigest:adr.acceptance.contentDigest,relationshipDigest:relationshipDigest(state)})
+console.log(JSON.stringify(state))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"before": before, "state": state}),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    state = json.loads(result.stdout)
+    target = commit_registry(root, state, "TEST atomic date-only decision")
+    assert target not in (root / REGISTRY_PATH).read_text()
+    payload = assert_history_clean(root, base=base)
+    observation = payload["decisionObservations"][0]
+    assert observation["evaluatedRevision"] == target
+    assert observation["decisionDate"] == "2026-08-30"
+    # A genesis-null preimage cannot admit an ordinary transition.
+    state = bind_acceptance_digest(root, state, 0, REGISTRY_PATH)
+    commit_registry(root, state, "HOSTILE null predecessor digest")
+    assert_history_refused(root, "ADV-G19", base=base)
+
+
 def test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority() -> None:
     state = load_state(REPOSITORY_ROOT, "tests/fixtures/governance/candidate/state.json")
     assert state["attestations"] == {"genesis": {}}
@@ -4879,7 +5463,7 @@ def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path
     assert result.returncode == 0, (payload, result.stderr)
     assert payload["ok"] is True
     accepted = {adr["id"] for adr in state["adrs"] if adr["lifecycle"] == "Accepted"}
-    assert accepted == {f"ADR-{number:04}" for number in [*range(1, 20), 21, 22]}
+    assert accepted == {f"ADR-{number:04}" for number in [*range(1, 20), 21, 22, 23, 24]}
     assert payload["derived"]["questions"]["U4"]["resolved"] is False
     assert payload["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is False
     assert payload["derived"]["readiness"]["runner/L9"]["state"] == "NotReady"
@@ -5201,7 +5785,7 @@ def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
         member = root / "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md"
         member.write_bytes(member.read_bytes() + b"\nchanged historical evidence\n")
     else:
-        source = root / "openspec/changes/governance-state-substrate/proposal.md"
+        source = root / "docs/decisions/INDEX.md"
         source.write_bytes(source.read_bytes() + b"\nsource bytes changed, same derived counts\n")
     git(root, "add", "-A")
     git(root, "commit", "-qm", "hostile activation base: " + case)
@@ -5665,7 +6249,7 @@ def test_mut_g14_each_independent_freshness_source_class_is_load_bearing(
     tmp_path: Path,
 ) -> None:
     root = fresh_genesis
-    source = root / "openspec/changes/governance-state-substrate/proposal.md"
+    source = root / "docs/decisions/INDEX.md"
     source.write_text(
         source.read_text(encoding="utf-8") + "\nUnrelated wording drift.\n", encoding="utf-8"
     )
@@ -6218,7 +6802,7 @@ def test_mut_g14_matching_source_commit_is_not_complete_freshness(
     fresh_genesis: Path, tmp_path: Path
 ) -> None:
     root = fresh_genesis
-    result, payload = run_freshness(root, DURABLE_PR2A)
+    result, payload = run_freshness(root, POST_BRIDGE_SOURCE)
     assert result.returncode != 0 and "ADV-G71" in {p["code"] for p in payload["problems"]}, payload
     old = """    const classes = [
       ['primitiveSourceTuples', 'ADV-G69'],
@@ -6239,7 +6823,7 @@ def test_mut_g14_matching_source_commit_is_not_complete_freshness(
             )
         ],
     )
-    mutated, after = run_subject(subject, root, base=DURABLE_PR2A, freshness=True)
+    mutated, after = run_subject(subject, root, base=POST_BRIDGE_SOURCE, freshness=True)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
 

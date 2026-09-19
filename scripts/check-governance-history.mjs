@@ -29,6 +29,7 @@ import { createGitTreeObserver } from './governance/git-tree/index.mjs'
 import {
   cacheTreeObservations,
   createGenesisReader,
+  createCommitReader,
   sourceManifestPath,
 } from './governance/genesis/observations.mjs'
 
@@ -140,6 +141,7 @@ function readRevision(reader, root, revision, statePath) {
       evaluatedRevision: resolved.oid,
       sourceManifestBytes: source.status === PRESENT ? source.bytes : undefined,
       readSnapshot: createGenesisReader(root),
+      ...createCommitReader(root),
       readBytes: (repoPath) => {
         const bytes = reader.readBytesAt(resolved.oid, repoPath)
         if (bytes.status === PRESENT) return bytes.bytes
@@ -235,6 +237,7 @@ export function checkGovernanceHistory({
     baseCommit: baseRevision.commit,
     targetCommit: targetRevision.commit,
     ancestry,
+    observeCommit: createCommitReader(root).readCommit,
   })
 
   return {
@@ -273,6 +276,7 @@ function main() {
         comparison: result.comparison,
         baseCommit: result.baseCommit,
         targetCommit: result.targetCommit,
+        decisionObservations: result.decisionObservations,
         problems: result.problems,
       }),
     )

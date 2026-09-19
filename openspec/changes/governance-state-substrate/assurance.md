@@ -1,12 +1,14 @@
 # Assurance: governance-state-substrate
 
-> **Accepted architecture; implementation proof remains future work.**
-> ADR-0023 and ADR-0024 are accepted together in this target; their two bridge
-> envelopes use pre-transition RFC 3339 evidence. Temporal tests are not run.
-> PR #124 and its candidate remain paused/unchanged pending NEW exact-S authority.
+> **Accepted architecture; PR-2 proof in progress under exact-S authority.**
+> ADR-0023 and ADR-0024 landed together at S
+> `c82fda72927464d813ec769aee53f4079ebe3b20`; their original bridge
+> envelopes retain pre-transition RFC 3339 evidence. The current owner release
+> resumes PR #124 and its temporal tests/candidate preparation only.
 > [Bridge verification](bridge-verification.md) records acceptance-stage process
 > proof separately from independent human provenance/final review and future
-> post-merge S/expiry proof. Historical section headings remain stable anchors.
+> post-merge S/expiry proof. S/expiry is now recorded in tasks.md; historical
+> section headings remain stable anchors.
 
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
@@ -1669,8 +1671,9 @@ in `tasks.md`.
 
 ## Contingent temporal proof obligations (ADR-0023)
 
-**Accepted architecture; NOT EXECUTED.** The pair acceptance satisfies the
-architecture prerequisite, not the later owner PR-2 implementation refresh.
+**Accepted architecture; implementation proof in progress.** The pair acceptance
+satisfied the architecture prerequisite. The later exact-S owner instruction
+now releases PR-2; proof results are recorded separately from this obligation list.
 These obligations refine only acceptance/rejection temporal
 evidence and directly dependent mechanisms under design D12; all existing
 non-temporal proof remains required. The historical corpus is the audit at M,

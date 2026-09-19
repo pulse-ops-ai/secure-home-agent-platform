@@ -6,6 +6,9 @@ import { resolve } from 'node:path'
 import { createHistoryReader, PRESENT } from '../history/index.mjs'
 import { readContainedBytes } from '../git-tree/contained-read.mjs'
 
+// Exact-object evidence must not silently observe a local replacement graph.
+const exactObjects = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: '1' })
+
 export function sourceManifestPath(statePath) {
   if (statePath === 'governance/state.json') return 'governance/genesis-source-manifest.json'
   const slash = statePath.lastIndexOf('/')
@@ -55,6 +58,7 @@ export function createGenesisReader(root) {
     if (cache.has(resolved.oid)) return cache.get(resolved.oid)
     const listing = execFileSync('git', ['ls-tree', '-r', '-z', '--full-tree', resolved.oid], {
       cwd: root,
+      env: exactObjects(),
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     })
@@ -69,6 +73,7 @@ export function createGenesisReader(root) {
     const oids = [...new Set(rows.filter((row) => row.type === 'blob').map((row) => row.oid))]
     const batch = execFileSync('git', ['cat-file', '--batch'], {
       cwd: root,
+      env: exactObjects(),
       input: oids.join('\n') + '\n',
       maxBuffer: 128 * 1024 * 1024,
     })
@@ -101,22 +106,62 @@ export function createGenesisReader(root) {
   }
 }
 
+/** Raw commit-object observations. Encoded dates are not wall-clock evidence. */
+export function createCommitReader(root) {
+  const cache = new Map()
+  const readCommit = (revision) => {
+    if (cache.has(revision)) return cache.get(revision)
+    const bytes = execFileSync('git', ['cat-file', 'commit', revision], {
+      cwd: root,
+      env: exactObjects(),
+    })
+    const separator = bytes.indexOf('\n\n')
+    if (separator < 0) throw new Error('unreadable commit object: ' + revision)
+    const header = bytes.subarray(0, separator).toString('utf8')
+    const timestamp = (role) => {
+      const match = new RegExp('^' + role + ' .+ <[^>]*> (-?\\d+) [+-]\\d{4}$', 'mu').exec(header)
+      if (!match) throw new Error('unreadable encoded ' + role + ' timestamp')
+      return new Date(Number(match[1]) * 1000).toISOString().replace('.000Z', 'Z')
+    }
+    const result = {
+      identity: revision,
+      parents: [...header.matchAll(/^parent ([0-9a-f]{40})$/gmu)].map((m) => m[1]),
+      message: new Uint8Array(bytes.subarray(separator + 2)),
+      gitAuthorAt: timestamp('author'),
+      gitCommitterAt: timestamp('committer'),
+    }
+    cache.set(revision, result)
+    return result
+  }
+  const commitsChangingPath = (revision, path) =>
+    execFileSync('git', ['log', '--full-history', '--format=%H', revision, '--', path], {
+      cwd: root,
+      env: exactObjects(),
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+    })
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+  return { readCommit, commitsChangingPath }
+}
+
 /** Metadata is supporting provenance, never proof that a named human acted. */
 export function readPathHistory(root, revision, path) {
   const output = execFileSync(
     'git',
     ['log', '--reverse', '--format=%H%x09%cI%x09%s', revision, '--', path],
-    { cwd: root, encoding: 'utf8' },
+    { cwd: root, env: exactObjects(), encoding: 'utf8' },
   )
   return output
     .trim()
     .split('\n')
     .filter(Boolean)
     .map((line) => {
-      const [commit, recordedAt, subject] = line.split('\t')
+      const [commit, gitCommitterAt, subject] = line.split('\t')
       return {
         commit,
-        recordedAt: new Date(recordedAt).toISOString().replace('.000Z', 'Z'),
+        gitCommitterAt: new Date(gitCommitterAt).toISOString().replace('.000Z', 'Z'),
         subject,
       }
     })

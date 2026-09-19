@@ -6,6 +6,11 @@ current-snapshot validation. It is repository tooling only; it is not runtime
 code and does not contain the canonical governance registry.
 
 `history.mjs` owns pairwise rules; the Git adapters only supply observations.
+`decision-evidence.mjs` owns the D12 calendar-date/encoded-Git-metadata
+distinction, complete reviewed-transition audit, closed source rows and
+authoritative date/actor agreement. The historical bridge is observed evidence,
+never a new acceptance path. ADR metadata remains excluded from causal digests
+but immutable in history and byte-bound by the candidate/source manifest.
 `validate.mjs` owns source equivalence, historical completion dispatch, candidate
 freeze/freshness validation, and the requirement for both genesis attestations.
 `archived-openspec.mjs` permits only explicitly absent minimum artifacts under

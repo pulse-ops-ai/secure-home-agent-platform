@@ -82,7 +82,7 @@ function questionAnswer(question, derived) {
     severity: question.severity,
     resolved: answer?.resolved ?? false,
     resolver: answer?.resolver ?? null,
-    resolvedAt: answer?.resolvedAt ?? null,
+    resolvedOn: answer?.resolvedOn ?? null,
   }
 }
 
@@ -145,6 +145,7 @@ export function explain(answer) {
       lines.push(
         `  ${question.id}  ${question.resolved ? 'resolved' : 'open'}` +
           `${question.resolver === null ? '' : ' by ' + question.resolver}` +
+          `${question.resolvedOn === null ? '' : ' on ' + question.resolvedOn}` +
           `  (${question.severity})`,
       )
     }

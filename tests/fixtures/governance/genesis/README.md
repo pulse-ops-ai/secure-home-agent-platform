@@ -15,9 +15,18 @@ history entry points must refuse them. Neither helper writes or accepts the
 real ceremony. `delivery-preimage.json` and `spike-preimage.json` are independent
 literal serialized-byte/SHA-256 vectors, not actual delivery evidence.
 
-`acceptance-audit.json` is a read-only audit receipt for the authorized M, not a
-freeze member or owner attestation. It records each exact historical transition,
-source hashes, extraction rule, and the complete blocking exception set. The
-[candidate warning](../candidate/README.md) explains why regeneration is still
-blocked. `tests/test_governance_acceptance_audit.py` exercises generic accepted
-and rejected transitions and hostile recording-time cases in isolated Git trees.
+`acceptance-audit.json` is a read-only audit receipt for authorized common source
+S, not a freeze member or owner attestation. It records all 23 historical terminal
+decisions, exact transitions, source hashes and extraction rules. ADR-0022 is the
+positive decision-date/Git-committer-date divergence, not an exception to a
+date-equality rule. See the [candidate receipt](../candidate/README.md).
+`tests/test_governance_acceptance_audit.py` exercises generic accepted and rejected
+transitions, creator-supplied timestamps, source conflicts and independent mutants.
+
+`objects.mjs` is test setup only. A fresh CI clone can lack original transitions
+that were squash-delivered. This helper reads the reviewed source table and
+fixture identities as inert data, retrieves missing exact commit objects from
+the existing `origin`, and verifies object presence. It never checks out or
+executes retrieved content. Retrieval failure fails the tests. Production
+extraction and validators remain offline, fail closed on missing objects, and
+do not infer human authorship from successful retrieval.

@@ -57,11 +57,11 @@ const cell = (value) =>
   String(value).replace(/\\/gu, '\\\\').replace(/\|/gu, '\\|').replace(/\r?\n/gu, ' ')
 
 function renderDecisionLifecycle(derived, state) {
-  const lines = ['| Decision | Lifecycle | Resolves |', '| --- | --- | --- |']
+  const lines = ['| Decision | Lifecycle | Decision date | Resolves |', '| --- | --- | --- | --- |']
   for (const adr of [...(state.adrs ?? [])].sort((a, b) => compareText(a.id, b.id))) {
     const resolves = [...(adr.resolves ?? [])].sort(compareText)
     lines.push(
-      `| ${cell(adr.id)} | ${cell(adr.lifecycle)} | ${resolves.length === 0 ? '—' : cell(resolves.join(', '))} |`,
+      `| ${cell(adr.id)} | ${cell(adr.lifecycle)} | ${cell(adr.acceptance?.decisionDate ?? '—')} | ${resolves.length === 0 ? '—' : cell(resolves.join(', '))} |`,
     )
   }
   void derived
@@ -90,7 +90,7 @@ function renderResolutionBanners(derived, state) {
     const answer = derived.questions[question.id]
     lines.push(
       `- **${cell(question.id)}** — ${answer?.resolved ? 'resolved' : 'open'}` +
-        `${answer?.resolvedAt === null || answer?.resolvedAt === undefined ? '' : ' on ' + cell(answer.resolvedAt)}` +
+        `${answer?.resolvedOn === null || answer?.resolvedOn === undefined ? '' : ' on ' + cell(answer.resolvedOn)}` +
         `; ${cell(question.title)}`,
     )
   }

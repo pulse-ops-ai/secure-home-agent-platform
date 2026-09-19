@@ -1,5 +1,6 @@
 /** The closed PR-2 inventory. Discovery is across all tracked bytes, not a glob. */
 import { canonicalSerialize, decodeUtf8, isObject } from './canonical.mjs'
+import { BRIDGE_RECORDS } from './decision-evidence.mjs'
 
 export const CONSUMER_DISPOSITIONS = Object.freeze([
   'generated-region',
@@ -114,7 +115,9 @@ export function validateConsumerInventory(
           decodeUtf8(snapshot.entries.get(row.path)?.bytes ?? new Uint8Array()),
         )
       const recordedEvidence =
-        row.path.startsWith('docs/spikes/') || row.path.startsWith('openspec/specs/')
+        row.path.startsWith('docs/spikes/') ||
+        row.path.startsWith('openspec/specs/') ||
+        BRIDGE_RECORDS.includes(row.path)
       // No blanket active-change exemption. An extra identity string is not proof.
       if (!archived && !acceptedDecision && !recordedEvidence)
         add('ADV-G54', path, 'historical status needs an archive or verified immutable record')

@@ -60,7 +60,7 @@ export function primitiveProjection(state) {
       // not change the transition identity it documents.
       delete adr.acceptance.reviewedIdentity
       delete adr.acceptance.actor
-      delete adr.acceptance.at
+      delete adr.acceptance.decisionDate
       delete adr.acceptance.outcome
       delete adr.acceptance.authority
       delete adr.acceptance.transitionDigest

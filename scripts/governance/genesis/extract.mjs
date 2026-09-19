@@ -4,7 +4,19 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-import { createGenesisReader, readCheckoutSnapshot, readPathHistory } from './observations.mjs'
+import {
+  createGenesisReader,
+  createCommitReader,
+  readCheckoutSnapshot,
+  readPathHistory,
+} from './observations.mjs'
+import {
+  ARCHIVE_STAGE,
+  BRIDGE_RECORDS,
+  TEMPORAL_SOURCE,
+  decisionDeclaration,
+  DECISION_INDEX,
+} from '../model/decision-evidence.mjs'
 import { auditHistoricalAcceptances } from './acceptance.mjs'
 import { createHistoryReader, PRESENT } from '../history/index.mjs'
 import { createGitTreeObserver } from '../git-tree/index.mjs'
@@ -32,10 +44,11 @@ import { discoverConsumers, validateConsumerInventory } from '../model/consumers
 // External owner resumption authorization and durable PR-2A merge handoff.
 // A pre-preparation snapshot is not an alternate input to this v1 extraction.
 export const DURABLE_PREPARATION = '83e6cd8fa7d2d05ab246a39de039129b4056966d'
+export const COMMON_SOURCE = TEMPORAL_SOURCE
 const PLAN = 'openspec/changes/governance-state-substrate/'
 const QUESTIONS = 'docs/architecture/unresolved-decisions.md'
 const REPOSITORY = 'pulse-ops-ai/secure-home-agent-platform'
-const SOURCE = { class: 'local-git-commit', value: DURABLE_PREPARATION }
+const SOURCE = { class: 'local-git-commit', value: COMMON_SOURCE }
 const issue = (number) => ({ type: 'github-issue', repository: REPOSITORY, number })
 const commit = (value, scope) => ({ class: 'local-git-commit', value, scope })
 
@@ -162,23 +175,21 @@ function spikeEvidence(snapshot) {
   }
 }
 
-export function acceptanceProvenance(observation) {
-  if (!observation?.selected) throw new Error('no unambiguous audited decision transition')
-  const record = observation.indexRecords[0]
+export function acceptanceProvenance(observation, declaration, path) {
+  if (!observation?.transition) throw new Error('no unambiguous audited decision transition')
   return {
     actor: observation.actor,
-    at: observation.selected.at,
-    outcome: observation.lifecycle === 'Accepted' ? 'accepted' : 'rejected',
+    decisionDate: observation.decisionDate,
     authority: {
       type: 'task-contract',
       repository: REPOSITORY,
-      id: record
-        ? 'docs/decisions/INDEX.md#' + record.toLowerCase().replaceAll(' ', '-')
-        : observation.path,
+      id: declaration.indexRecords.length
+        ? DECISION_INDEX + '#' + declaration.indexRecords[0].toLowerCase().replaceAll(' ', '-')
+        : path,
     },
     // Exact reviewed transition, not the commit that delivered it to main.
     // The declaration supplies the actor; Git metadata never authenticates it.
-    reviewedIdentity: { class: 'local-git-commit', value: observation.selected.revision },
+    reviewedIdentity: observation.transition.identity,
   }
 }
 
@@ -313,6 +324,7 @@ function inventoryFor(snapshot) {
         row.path.startsWith('openspec/changes/archive/') ||
         row.path.startsWith('docs/spikes/') ||
         row.path.startsWith('openspec/specs/') ||
+        BRIDGE_RECORDS.includes(row.path) ||
         (/^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(row.path) &&
           /^- \*\*Status:\*\* Accepted$/mu.test(text))
       ) {
@@ -364,8 +376,11 @@ function inventoryFor(snapshot) {
 }
 
 export function extractCandidate({ root, sourceRevision, inventoryRevision = sourceRevision }) {
-  if (sourceRevision !== DURABLE_PREPARATION)
-    throw new Error('ADV-G98: this authorized extraction requires exact durable PR-2A merge M')
+  if (sourceRevision !== COMMON_SOURCE)
+    throw new Error(
+      'ADV-G110: this authorized extraction requires exact post-bridge source S; archive-stage M remains separate',
+    )
+  if (DURABLE_PREPARATION !== ARCHIVE_STAGE) throw new Error('archive-stage identity disagreement')
   const acceptanceAudit = auditHistoricalAcceptances({ root, sourceRevision })
   if (!acceptanceAudit.ok)
     throw new Error(
@@ -392,8 +407,15 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
             : {
                 contentDigest: contentDigest(entry.bytes),
                 ...acceptanceProvenance(
-                  acceptanceAudit.observations.find((item) => item.path === path),
+                  acceptanceAudit.observations.find((item) => item.adrId === adr.id),
+                  decisionDeclaration(
+                    path,
+                    entry.bytes,
+                    snapshot.entries.get(DECISION_INDEX).bytes,
+                  ),
+                  path,
                 ),
+                outcome: adr.lifecycle === 'Rejected' ? 'rejected' : 'accepted',
                 transitionDigest: '0'.repeat(64),
               },
       }
@@ -527,6 +549,7 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
     '7a2d731837ea9f14cae09436ddb78e6e47607ee5',
     'fc1b9f4eef748f7cd0f6af7818bec94d3045f46e',
     '5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a',
+    COMMON_SOURCE,
   ]) {
     for (const name of [
       'proposal.md',
@@ -545,19 +568,30 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
       })
     }
   }
+  for (const name of ['bridge-evidence.json', 'bridge-verification.md']) {
+    const path = PLAN + name
+    const entry = snapshot.entries.get(path)
+    planningSources.push({
+      path,
+      revision: sourceRevision,
+      blobOid: entry.oid,
+      contentSha256: contentDigest(entry.bytes),
+    })
+  }
   const manifest = {
     schemaVersion: 1,
     sourceSnapshotIdentity: SOURCE,
     rows,
     planningSources,
     historicalCompletions,
+    decisionEvidence: acceptanceAudit.observations,
     historicalContext: {
       programMaterialization:
         'L1 is the post-ratification human program-materialization event (issues #19, #27 and #51–#58), not a lifecycle-less active node. L2 and L6 are roots under D6.3a.',
       originalRatifiedDag:
         'L2←L1 · L3←L2 · L4←L3 · L5←L4 · L6←L1 · L7←L5+GATE-U6(+L6) · L8←L7 · L9←L8+GATE-U4 · L10←L8+L9',
       sourceConflictDisposition:
-        'D6.4 records issue #19 saying L5 is next and L7 waits on L5, with #53/#55 open, while repository delivery is complete. Seed delivery from the bound repository evidence; issue status is neither delivery proof nor authorization. Historical interpretation and MAN-G03 association await the real PR-3 owner ceremony. Existing ADR acceptance actors are copied from INDEX.md, with recording-commit timestamps as provenance, not a newly performed acceptance.',
+        'D6.4 records issue #19 saying L5 is next and L7 waits on L5, with #53/#55 open, while repository delivery is complete. Seed delivery from the bound repository evidence; issue status is neither delivery proof nor authorization. Historical interpretation and MAN-G03 association await the real PR-3 owner ceremony. Decision dates and actors come from governed structural records; encoded Git timestamps are supporting metadata, not human acts or actual recording-time evidence. ADR-0022 post-ADR-0021 manual acceptance is immutable historical-process inconsistency evidence, neither precedent nor retroactive authorization. ADR-0023/ADR-0024 retain their original pre-transition RFC3339 bridge envelopes and source in the immutable historical receipt; the one-shot bridge is consumed and expired, not a runtime authorization primitive.',
       source: sourceFor(
         'openspec/changes/archive/2026-08-09-runner-baseline-adoption/tasks.md',
         'historical-context-v1',
@@ -571,7 +605,7 @@ export function extractCandidate({ root, sourceRevision, inventoryRevision = sou
   validateGenesisSources(
     state,
     manifest,
-    { readSnapshot, observe: createGitTreeObserver(root) },
+    { readSnapshot, ...createCommitReader(root), observe: createGitTreeObserver(root) },
     problems,
   )
   validateConsumerInventory(inventory, inventorySnapshot, problems, snapshot)

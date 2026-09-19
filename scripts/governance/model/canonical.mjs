@@ -140,6 +140,20 @@ export function canonicalizeValue(value, path = []) {
         compareText(String(left?.landingId), String(right?.landingId)),
       )
     }
+    if (key === 'decisionEvidence') {
+      return [...members].sort((left, right) =>
+        compareText(String(left?.adrId), String(right?.adrId)),
+      )
+    }
+    if (key === 'sources' && path.includes('decisionEvidence')) {
+      return [...members].sort((left, right) => {
+        for (const field of ['path', 'revision', 'contentSha256', 'selector']) {
+          const order = compareText(String(left?.[field]), String(right?.[field]))
+          if (order) return order
+        }
+        return 0
+      })
+    }
     if (key === 'rows') {
       return [...members].sort((left, right) =>
         compareText(String(left?.id ?? left?.path), String(right?.id ?? right?.path)),

@@ -15,13 +15,15 @@ Preparation (prints JSON; writes nothing):
 
 ```sh
 node scripts/governance/genesis/extract.mjs --root . \
-  --source 83e6cd8fa7d2d05ab246a39de039129b4056966d --inventory-source WORKTREE
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 --inventory-source WORKTREE
 ```
 
 `acceptance.mjs` audits every historical Accepted/Rejected ADR before extraction
 can emit anything. It parses the declared actor and calendar date, checks exact
 decision bytes at an original Proposed-to-decided transition, and compares its
-UTC committer date with that declaration. Locally available original commit
+encoded UTC committer date with that declaration, without requiring equality.
+The closed manifest records an explicit reviewed divergence disposition.
+Locally available original commit
 objects are examined even when no branch still names them; first-parent main
 delivery and merge commits are not fallback acceptance evidence. Ambiguity,
 unreadable sources, and missing transitions fail closed. The complete audit is
@@ -29,14 +31,22 @@ available without generating a candidate:
 
 ```sh
 node scripts/governance/genesis/acceptance.mjs --root . \
-  --source 83e6cd8fa7d2d05ab246a39de039129b4056966d
+  --source c82fda72927464d813ec769aee53f4079ebe3b20
 ```
 
 This observes the [D6.2 source boundary](../../../openspec/changes/governance-state-substrate/design.md#d6-genesis-a-closed-source-manifest):
-local evidence of a recording instant is not human identity or owner attestation.
-The current [provisional-candidate warning](../../../tests/fixtures/governance/candidate/README.md)
-records the blocking exception and unfinished integration; no freeze is authorized
-by an audit receipt alone.
+encoded Git metadata is neither an observed recording instant nor human identity
+or owner attestation. The [candidate receipt](../../../tests/fixtures/governance/candidate/README.md)
+separates mechanical proof from the still-required independent review and owner
+ceremony. The accepted ADR-0023 date model admits ADR-0022's agreeing September 1
+decision records without changing its September 2 encoded committer timestamp.
+Original transition selection is bound to the reviewed D12 table; the consumed
+ADR-0023/ADR-0024 pair is located through its immutable D13 receipt and exact
+single-parent history, never as a new manual-acceptance permission.
+
+The common source is S. L4/L5/L7 archive-stage identities remain
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` at their exact archive roots. Git
+replacement refs are ignored by exact-object observations.
 
 The source is fixed by the PR-2 resumption authorization. `WORKTREE` is a
 preparation-only inventory view, including newly authored PR-2 tooling; it is
@@ -51,7 +61,14 @@ node scripts/governance/genesis/freshness.mjs --root . --base <full-commit-sha>
 ```
 
 An equivalent result compares primitive tuples, relationship tuples, local
-evidence identities (including historical dispositions and observed members),
+evidence identities (including decision evidence, historical dispositions and
+observed members),
 and the independently scanned consumer inventory. Commit equality is neither
 necessary nor sufficient. This structural/freshness result is not full state
 validation and does not substitute for the PR-3 owner ceremony.
+
+Historical planning sources stay pinned to their original revisions and bytes.
+Current task bookkeeping may advance; owned primitive/rule values are still
+independently extracted and compared at the evaluated base. This does not exempt
+current decision records, immutable bridge evidence, archive members, or the
+complete consumer inventory from freshness comparison.

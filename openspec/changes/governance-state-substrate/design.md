@@ -1,12 +1,13 @@
 # Design: governance-state-substrate
 
-> **Accepted architecture; implementation paused:** ADR-0023 and ADR-0024 are
+> **Accepted architecture; PR-2 implementation authorized at exact S:** ADR-0023 and ADR-0024 are
 > accepted together in this bridge target. D12 is no longer contingent on
 > architecture acceptance; both bridge envelopes retain the pre-transition
 > RFC 3339 rule. D13's exception is selected and consumed by this target,
-> permanently expired when it lands. PR #124 still needs NEW authority against
-> actual durable S. No S, candidate, executable mechanism or canonical state is
-> created here. Historical D12/D13 headings remain stable link anchors only.
+> permanently expired at durable S `c82fda72927464d813ec769aee53f4079ebe3b20`.
+> The exact-S owner authorization recorded in tasks.md resumes PR #124 only.
+> Canonical state and PR-3 remain excluded. Historical D12/D13 headings remain
+> stable link anchors only; historical bridge evidence is unchanged.
 
 Technical design for the ADR-0021 governance-state substrate. This artifact
 defines **how** the accepted behavior will be implemented. It implements
@@ -2206,10 +2207,10 @@ then.
 
 ## D12. Contingent decision-date amendment (ADR-0023)
 
-**ACCEPTED ARCHITECTURE / NOT AUTHORIZED FOR IMPLEMENTATION.** This section is
-subordinate to Accepted ADR-0023 §§1–6. The joint acceptance selects these
-temporal rules, but a NEW exact-S owner refresh is still required for PR #124.
-T.1–T.7 remain unchecked and unexecuted.
+**ACCEPTED ARCHITECTURE / PR-2 AUTHORIZED AT EXACT S.** This section is
+subordinate to Accepted ADR-0023 §§1–6. The later exact-S owner authorization
+recorded in tasks.md now releases PR #124 implementation. Acceptance alone
+did not release it; implementation progress and proof are recorded separately.
 
 **Acceptance-path reconciliation:** the D13 atomic ADR-0024 + ADR-0023 target
 selects and consumes the bounded exception under ADR-0021 §12. Its two envelopes
@@ -2416,12 +2417,14 @@ no new archive identity and selects no S before this acceptance is merged.
 
 ## D13. Contingent one-shot bootstrap bridge (ADR-0024)
 
-**ACCEPTED AND CONSUMED IN THIS TARGET; DURABLE EXPIRY PENDING MERGE.**
+**ACCEPTED, CONSUMED AND PERMANENTLY EXPIRED AT DURABLE S.**
 ADR-0024 owns the exact scope and expiry, partially refining ADR-0021 only as
 reviewed. The supplied prior independent legality disposition and joint owner
 instruction are retained in [bridge-verification.md](bridge-verification.md).
 The receipt is historical evidence, not an executable checker or authority
-for another attempt. Independent final review remains required; S does not exist yet.
+for another attempt. Independent final review and PR #130's merge completed;
+S is `c82fda72927464d813ec769aee53f4079ebe3b20`. D13.1–D13.3 below retain the
+acceptance-stage contract; they grant no new bridge attempt or implementation.
 
 ### D13.1 Closed identity and evidence contract
 

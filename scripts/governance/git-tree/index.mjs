@@ -38,6 +38,7 @@ function run(repoRoot, args, { buffer = false } = {}) {
   try {
     const stdout = execFileSync('git', args, {
       cwd: repoRoot,
+      env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
       encoding: buffer ? undefined : 'utf8',
       maxBuffer: 64 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],

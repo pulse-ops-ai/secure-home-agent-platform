@@ -18,7 +18,12 @@
  */
 
 import { canonicalSerialize, canonicalizeValue, isObject } from './canonical.mjs'
-import { semanticIdentity, primitiveDigest } from './digests.mjs'
+import {
+  semanticIdentity,
+  primitiveDigest,
+  relationshipDigest,
+  transitionDigest,
+} from './digests.mjs'
 
 /** The observation vocabulary, as the adapters report it. */
 const PRESENT = 'PRESENT'
@@ -207,6 +212,29 @@ function compareDecisions(baseState, targetState, problems) {
     // acceptance object is immutable, which is what catches a byte swap that
     // moves the recorded digest along with the document.
     const terminal = baseAdr.lifecycle !== 'Proposed'
+    if (
+      !terminal &&
+      ['Accepted', 'Rejected'].includes(targetAdr.lifecycle) &&
+      targetAdr.acceptance
+    ) {
+      const expected = transitionDigest({
+        schemaVersion: targetState.schemaVersion,
+        priorStateDigest: primitiveDigest(baseState),
+        targetPrimitiveDigest: primitiveDigest(targetState),
+        subject: id,
+        from: 'Proposed',
+        to: targetAdr.lifecycle,
+        contentDigest: targetAdr.acceptance.contentDigest,
+        relationshipDigest: relationshipDigest(targetState),
+      })
+      if (targetAdr.acceptance.transitionDigest !== expected)
+        problem(
+          problems,
+          'ADV-G19',
+          path + '.acceptance.transitionDigest',
+          'ordinary ADR transition must bind the evaluated predecessor, never a genesis or bridge digest',
+        )
+    }
     if (terminal) {
       if (canonicalText(baseAdr.acceptance) !== canonicalText(targetAdr.acceptance)) {
         problem(
@@ -607,6 +635,7 @@ export function evaluateHistory({
   baseCommit,
   targetCommit,
   ancestry = { status: ABSENT, commits: [] },
+  observeCommit,
 }) {
   const problems = []
 
@@ -702,7 +731,32 @@ export function evaluateHistory({
   compareReplacement(baseState, targetState, problems)
 
   for (const member of stateProblems) problems.push(member)
-  return { ok: problems.length === 0, problems, comparison: 'pairwise' }
+  const decisionObservations = []
+  if (problems.length === 0) {
+    const before = byId(baseState.adrs)
+    for (const adr of targetState.adrs) {
+      if (before.get(adr.id)?.lifecycle !== 'Proposed' || adr.lifecycle === 'Proposed') continue
+      try {
+        const metadata = observeCommit(targetCommit)
+        decisionObservations.push({
+          subject: adr.id,
+          evaluatedRevision: targetCommit,
+          decisionDate: adr.acceptance.decisionDate,
+          gitAuthorAt: metadata.gitAuthorAt,
+          gitCommitterAt: metadata.gitCommitterAt,
+          metadataMeaning: 'encoded Git metadata, not human identity or actual recording time',
+        })
+      } catch (error) {
+        problem(
+          problems,
+          'ADV-G112',
+          '$.history',
+          'committed transition metadata unavailable: ' + error.message,
+        )
+      }
+    }
+  }
+  return { ok: problems.length === 0, problems, comparison: 'pairwise', decisionObservations }
 }
 
 export { LEGAL_ADR_TRANSITIONS, LEGAL_DELIVERY_TRANSITIONS, LEGAL_WITHDRAWAL_SOURCES }

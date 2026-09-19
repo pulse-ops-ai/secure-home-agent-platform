@@ -1,31 +1,27 @@
 # Change Proposal: governance-state-substrate
 
-## Current atomic acceptance candidate — no implementation authority
+## Current PR-2 implementation — exact-S owner authorization
 
-ADR-0023 and ADR-0024 are Accepted together, dated 2026-09-19, in this
-acceptance-only target based on exact
-`ff7b240397385e8d2571ee1208e2e440cb77825c` (PR #129's durable Proposed landing).
-The target selects and consumes `pre-registry-adr-pair-v1` in the same
-transition; its permanent durable expiry follows merge. Both subject envelopes
+ADR-0023 and ADR-0024 were Accepted together, dated 2026-09-19, by PR #130.
+Its durable merge is S `c82fda72927464d813ec769aee53f4079ebe3b20`, retaining
+the original pair commit `fc7d44ff48de015afd14faa7836fe11c58c457aa`.
+The bridge `pre-registry-adr-pair-v1` is permanently consumed/expired. Both subject envelopes
 retain pre-transition ADR-0021 RFC 3339 evidence from the one joint owner act.
 See the [receipt](bridge-evidence.json), [source/process record](bridge-verification.md)
-and [current authority](tasks.md#current-joint-acceptance-authority--no-implementation-authority).
+and [current authority](tasks.md#current-exact-s-pr-2-implementation-authorization).
 
 D12/T temporal architecture is no longer contingent on ADR acceptance.
-Implementation remains **NOT AUTHORIZED**: PR #124 and its entire candidate
-remain frozen, T.1–T.7 unchecked/unexecuted, PR #101 untouched, ADR-0020
-Proposed, U4 open and GATE-U4 unsatisfied. No executable governance mechanism,
-canonical state, real genesis attestation or PR-3/PR-4 work is created.
+The later exact-S owner instruction now authorizes T.1–T.7 preparation in
+existing draft PR #124. PR #101 remains untouched, ADR-0020 Proposed, U4 open
+and GATE-U4 unsatisfied. Canonical state, real genesis attestation, projection
+activation and PR-3/PR-4 remain excluded.
 
-Independent final review is still required. This PR must remain draft and
-unmerged. Future merge must use a **merge commit, not squash or rebase-merge**,
-preserving the single pair-changing commit. Actual durable main **S does not
-yet exist** and must be recorded externally after merge; only a NEW exact-S
-owner authorization may resume PR-2. Archive-stage M remains
+Independent PR-2 review is still required; PR #124 stays draft and is not
+merged by this task. Common genesis source is exact S; archive-stage M remains
 `83e6cd8fa7d2d05ab246a39de039129b4056966d` for L4/L5/L7 at their exact roots.
 
-Promotion determination: no new architectural meaning is introduced by
-acceptance. The reviewed ADRs own the decisions; planning remains subordinate.
+Promotion determination: no new architectural meaning is introduced by this
+implementation. The accepted ADRs own the decisions; planning remains subordinate.
 No portable knowledge or generated governance projection is authorized here.
 
 ## Historical bootstrap bridge amendment (PR #129) — proposal-epoch record

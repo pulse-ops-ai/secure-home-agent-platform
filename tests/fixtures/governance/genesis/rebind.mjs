@@ -18,6 +18,7 @@ import {
   primitiveSourceTuples,
 } from '../../../../scripts/governance/model/index.mjs'
 import { bundleSha256 } from '../../../../scripts/governance/model/archived-openspec.mjs'
+import { PREPARED_ARCHIVES } from '../../../../scripts/governance/model/decision-evidence.mjs'
 import { createGenesisReader } from '../../../../scripts/governance/genesis/observations.mjs'
 import { fixtureEnvelopes } from './envelope.mjs'
 
@@ -34,6 +35,14 @@ if (mode === 'candidate') {
   if (nextSource) {
     const oldSource = manifest.sourceSnapshotIdentity.value
     manifest.sourceSnapshotIdentity.value = nextSource
+    for (const row of manifest.decisionEvidence)
+      for (const source of row.sources)
+        if (source.revision === oldSource) {
+          source.revision = nextSource
+          source.contentSha256 = contentDigest(
+            readSnapshot(nextSource).entries.get(source.path).bytes,
+          )
+        }
     for (const row of manifest.rows)
       if (row.source.revision === oldSource) {
         row.source.revision = nextSource
@@ -52,7 +61,10 @@ if (mode === 'candidate') {
     if (nextSource) row.sourceSnapshotIdentity.value = nextSource
     const archive = row.evidence.archivedOpenSpec
     if (archive && nextSource) {
-      if (['runner/L4', 'runner/L5', 'runner/L7'].includes(row.landingId))
+      if (
+        PREPARED_ARCHIVES.has(row.landingId) &&
+        archive.archiveRoot !== PREPARED_ARCHIVES.get(row.landingId)
+      )
         archive.archivedPackageIdentity.value = nextSource
       archive.bundleSha256 = bundleSha256(archive)
       row.packageDisposition.archiveBundleSha256 = archive.bundleSha256

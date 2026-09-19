@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { checkCandidateFreshness } from '../model/index.mjs'
-import { cacheTreeObservations, createGenesisReader } from './observations.mjs'
+import { cacheTreeObservations, createGenesisReader, createCommitReader } from './observations.mjs'
 import { createGitTreeObserver } from '../git-tree/index.mjs'
 import { createHistoryReader, PRESENT } from '../history/index.mjs'
 import { readContainedBytes } from '../git-tree/contained-read.mjs'
@@ -15,6 +15,7 @@ export function evaluateCandidateFreshness({ root, activationBaseCommit }) {
   return checkCandidateFreshness(activationBaseCommit, {
     readBytes: (path) => readContainedBytes(root, path),
     readSnapshot: createGenesisReader(root),
+    ...createCommitReader(root),
     observe: cacheTreeObservations(createGitTreeObserver(root)),
     hasLocalGitObject: (revision) => reader.resolveCommit(revision).status === PRESENT,
   })
