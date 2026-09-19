@@ -1,8 +1,44 @@
 # Change Proposal: governance-state-substrate
 
-## Contingent temporal amendment — proposal only
+## Contingent bootstrap bridge amendment — proposal only
 
-[ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+[ADR-0024](../../../docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md)
+proposes one atomic pre-registry ADR-0024 + ADR-0023 acceptance bridge. It
+partially refines ADR-0021 §12 and the dependent pre-registry acceptance
+boundary, not ADR-0021 as a whole. Both new ADRs remain **Proposed and
+non-operative**; ADR-0020 remains Proposed. ADR-0021 is Accepted and unchanged.
+
+The bootstrap-legality argument must be independently reviewed before any
+future joint owner act. Section 12 permits defining a bounded exception; it
+does not make this proposal acceptance authority. The proposed exception is
+selected and consumed only by one exact joint acceptance, with no Accepted-but-
+unused bridge state. Separate RFC 3339 human evidence for both subjects uses
+the pre-transition contract, retained after decisionDate semantics take effect.
+No bridge checker or receipt instance is implemented here.
+
+Current scope is one new Proposed ADR, the byte-preserving ADR-0023 filename
+rename and necessary links/Proposed-set mirrors, and D13/spec/assurance/B
+planning. The three manual current-state mirrors (root `AGENTS.md`,
+`docs/AGENTS.md`, `docs/README.md`) receive only the required Proposed-set
+correction; no unrelated stale tooling prose is changed. Existing acceptance
+records, Accepted ADRs, runtime/executable governance code and archives are
+untouched. PR #124 and its candidate remain frozen; PR #101 is untouched.
+Neither this proposal nor the future bridge acceptance selects implementation
+authority, creates canonical state, regenerates a candidate or starts PR-3.
+
+The future bridge's actual main target becomes D12.5 source S only after merge,
+expiry proof and a separate PR-2 owner refresh. Archive M stays
+`83e6cd8fa7d2d05ab246a39de039129b4056966d`. No S or future accepted-byte digest
+is selected here. See [design D13](design.md#d13-contingent-one-shot-bootstrap-bridge-adr-0024)
+and the [current proposal-only authority](tasks.md#current-bootstrap-bridge-proposal-authority--not-acceptance-or-implementation-authority).
+
+Promotion determination: the exception belongs in the Proposed ADR, with
+subordinate planning here, not in coding-agent instructions or an unreviewed
+manual workaround. No operative architecture/knowledge projection is added.
+
+## Historical temporal amendment (PR #128) — still non-operative
+
+[ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md)
 is **Proposed and non-operative**. It proposes a partial refinement of
 ADR-0021 §7a's acceptance/rejection temporal evidence, not whole-ADR
 supersession. While it is Proposed, ADR-0021's RFC 3339 contract remains
@@ -30,7 +66,7 @@ ADR, historical acceptance record, script, fixture, candidate, digest, archive,
 canonical registry, CI gate, or runtime. PR #124 remains frozen/paused at the
 temporal-semantics boundary; PR-3 and PR-4 remain unauthorized and PR #101 is
 untouched. The current proposal-only authority is recorded in
-[tasks.md](tasks.md#current-temporal-proposal-authority--not-implementation-authority).
+[tasks.md](tasks.md#historical-temporal-proposal-authority--not-implementation-authority).
 
 Promotion determination: this durable precision/authority distinction belongs
 in the proposed ADR, not only the extraction audit. No portable knowledge or

@@ -265,7 +265,7 @@ launcher, no L9 physical enforcement, no credentials, no database connection.
 **immutable** — the foundational set on 2026-08-05, the implementation stack
 (ADR-0012) on 2026-08-06, the runner effect-boundary and identity decisions
 (ADR-0017, ADR-0018) on 2026-08-17, ADR-0019 on 2026-08-21, ADR-0021 on
-2026-08-28, and ADR-0022 on 2026-09-01. **ADR-0020 alone remains `Proposed`; the
+2026-08-28, and ADR-0022 on 2026-09-01. **ADR-0020, ADR-0023 and ADR-0024 remain `Proposed`; the
 accepted set is intentionally non-contiguous.** Supersede, never edit, and
 **never change an ADR's status without an explicit human-acceptance task**.
 
