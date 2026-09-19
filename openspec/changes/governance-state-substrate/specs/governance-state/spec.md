@@ -1,5 +1,11 @@
 # governance-state Specification Delta
 
+> **Temporal amendment status:** [ADR-0023](../../../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-recording-instants.md)
+> is Proposed and non-operative. The expressly contingent requirements appended
+> below do not replace ADR-0021's operative RFC 3339 acceptance contract while
+> it is Proposed. Separate human acceptance and a later refreshed owner
+> implementation authorization are required; this proposal changes no mechanism.
+
 ## ADDED Requirements
 
 ### Requirement: The registry is the sole authored authority in a closed canonical representation
@@ -1539,6 +1545,11 @@ The human attestation SHALL record the `transitionDigest`, exact content digest,
 outcome, actor, RFC 3339 time, and authority reference. The attestation SHALL be
 **excluded from its own preimage**, so that no record is its own proof.
 
+This remains the operative temporal rule while ADR-0023 is Proposed. Its ADR
+acceptance/rejection time member alone is the subject of the expressly
+contingent decision-date requirements below; all other attestation classes and
+the non-self-referential protocol retain their existing contract.
+
 The genesis attestation SHALL additionally bind the canonical seed digest, a
 separate canonical relationship-equivalence digest, and the source-snapshot
 identity, with `prior-state-digest: null`. It SHALL bind every identity-bearing
@@ -3060,3 +3071,219 @@ inferred.
   acceptance attestation, accepted-byte digest, and atomic header transition
 - **WHEN** the checkers run
 - **THEN** they fail, and U4 remains open
+
+---
+
+### Requirement: Contingent temporal rules require separate architecture acceptance and implementation authority
+
+The following contingent requirements describe proposed ADR-0023, not an
+operative override. While ADR-0023 is Proposed, ADR-0021's existing RFC 3339
+acceptance contract SHALL remain operative. After separate human acceptance,
+implementing these rules SHALL additionally require a later explicit owner
+authorization for PR #124 against exact current main. The proposal SHALL NOT
+accept the ADR, resume PR-2, change/freeze the candidate, create canonical
+governance state, start PR-3, or modify PR #101. The partial refinement SHALL
+NOT create a formal whole-decision supersession of ADR-0021.
+
+#### Scenario: A merged proposal cannot release implementation
+
+- **GIVEN** ADR-0023 remains Proposed or the later owner refresh is absent
+- **WHEN** this planning amendment passes checks or merges
+- **THEN** implementation remains paused; no task execution, schema activation,
+  candidate regeneration or owner-attestation authority is inferred
+
+### Requirement: Contingent ADR evidence uses a closed human decision date
+
+Subject to the preceding acceptance/authorization boundary, ADR acceptance and
+rejection evidence SHALL be exactly
+`{transitionDigest, contentDigest, outcome, actor, decisionDate, authority, reviewedIdentity}`.
+`decisionDate` SHALL be a valid Gregorian ISO calendar date `YYYY-MM-DD`, years
+0001–9999, sourced from governed human decision records. Existing non-temporal
+member types SHALL remain unchanged. Legacy `at`, added canonical recording
+timestamps, date-or-instant unions, and unknown/missing members SHALL be refused.
+Other human attestation classes SHALL retain their existing instant contract.
+
+All applicable authoritative ADR-header and structured INDEX decision dates and
+actors SHALL agree. Generated INDEX output after activation SHALL be checked
+as a projection, never promoted into an independent human authority. Date-only
+evidence SHALL NOT be inflated to a time of day. Missing or conflicting human
+decision dates SHALL stop extraction/current validation, never fall back to Git.
+
+#### Scenario: Invented precision and competing fields are refused
+
+- **GIVEN** ADR evidence carrying midnight/noon RFC 3339 as its decision date,
+  a legacy `at`, both date and instant fields, or an invalid/missing date
+- **WHEN** the proposed closed schema is exercised in an authorized implementation
+- **THEN** it refuses without coercion, truncation or default time generation
+
+#### Scenario: Git committer date cannot overwrite the human decision date
+
+- **GIVEN** ADR-0022's immutable September 1 decision records
+- **WHEN** the candidate instead declares `decisionDate: "2026-09-02"`, including
+  a rehashed source row that claims the same false date
+- **THEN** the current/source checks refuse disagreement with those records
+
+### Requirement: Contingent extraction preserves exact transition provenance without date equality
+
+The complete all-ADR audit SHALL use design D12.2's closed source-manifest
+`decisionEvidence` and D12.3's reviewed historical transition selections. It
+SHALL enumerate every terminal historical decision, including retained
+acceptance for a Superseded record, and independently observe the expected
+lifecycle, original Proposed-to-decided transition, exact ADR bytes, structural
+human declarations, full commit identity, message identity, and distinct encoded
+author and committer timestamps. `gitAuthorAt` and `gitCommitterAt` SHALL mean
+the corresponding values encoded in the exact Git object, normalized losslessly
+to RFC 3339 UTC, not human decision time or independently observed recording
+events. Creator-supplied Git metadata SHALL NOT be treated as proof of actual
+creation, recording, receipt, publication or materialization time.
+Missing/unreadable objects or required provenance SHALL
+fail closed. Original locally available objects need not have survived squash
+delivery as main ancestors; that does not relax archive identity requirements.
+
+The encoded committer timestamp's UTC calendar date SHALL NOT be required to
+equal `decisionDate`. `committerUtcDateDiffers` SHALL report only that comparison.
+A difference SHALL require D12.2's explicit source-bound
+`decision-date-git-committer-date-divergence-v1` disposition
+and the exact transition's explicit record of that same human date. A
+disposition SHALL NOT override contradictory decision sources, select an
+unreviewed transition, or fill missing evidence. Mechanical checks SHALL make
+no human-authorship claim; the existing manual provenance gate remains.
+The comparison/disposition SHALL NOT infer recording latency or actual temporal
+ordering from Git metadata alone. Any actual recording-time claim SHALL require separately identified
+external evidence and its own observation rule; ADR-0022's GitHub evidence
+SHALL NOT be generalized into a Git-metadata rule. The closed source row SHALL
+NOT admit a `recordedAt` alias or the former latency fields/kind.
+
+The audit SHALL report the complete failure set and produce no candidate if
+any terminal decision fails. It SHALL NOT substitute first Accepted occurrence
+on main, squash/merge time, archive time, or a fabricated time. It SHALL NOT
+hard-code an ADR-0022 waiver or use the historical count as the future inventory.
+
+#### Scenario: Same-day ADR-0015 is a positive case
+
+- **GIVEN** decision date `2026-08-15`, exact transition
+  `a5cc2a739bd9602e30376400a46ebf7b5bab10f1`, and encoded `gitCommitterAt`
+  `2026-08-15T16:55:25Z`, with matching decided bytes and structural records
+- **WHEN** historical extraction and isolated test-envelope validation run
+- **THEN** the temporal evidence passes and the date remains August 15
+
+#### Scenario: Different-date Git metadata for ADR-0022 is also a positive case
+
+- **GIVEN** decision date `2026-09-01`, exact transition
+  `4334a7b040b14911b7b0894aeb14717b0418ee84`, encoded author/committer timestamps
+  `2026-09-02T08:03:21Z`, and the explicit decision-date / Git-committer-date disposition
+- **WHEN** historical extraction and isolated test-envelope validation run
+- **THEN** they accept the temporal evidence without changing September 1,
+  and arbitrary-ID fixtures with committer dates before or after the governed
+  date also pass with valid dispositions, without inferring actual recording time
+
+#### Scenario: Creator-supplied Git dates do not establish recording latency
+
+- **GIVEN** isolated exact-transition objects with deliberately supplied author
+  and committer dates, matching governed sources and reviewed divergence dispositions
+- **WHEN** the source validator and provenance-report entry point run
+- **THEN** they observe encoded `gitAuthorAt`/`gitCommitterAt` and compute only
+  `committerUtcDateDiffers`; output claiming actual recording/receipt/publication
+  time from those values alone fails conformance
+- **AND** source rows using `recordedAt`, `recordingDateDiffers`, `recordingDate`
+  or kind `decision-date-recording-latency-v1` are refused by the closed schema;
+  any separate external recording claim remains subject to manual provenance review
+
+#### Scenario: Delivery provenance cannot impersonate the original transition
+
+- **GIVEN** the exact reviewed original transition selection and bytes
+- **WHEN** a candidate substitutes the first Accepted main occurrence, a squash
+  commit/time, archive time, author time for committer time, or missing provenance
+- **THEN** exact-selection and Git-observation checks refuse the substitution,
+  even if lifecycle, date, and ADR content happen to match
+
+#### Scenario: Conflicting human sources stop the complete audit
+
+- **GIVEN** one ADR whose header date disagrees with its structured acceptance
+  record, another with a missing transition, and another with no human date
+- **WHEN** the temporal audit runs
+- **THEN** all three failures are reported, no date is invented, and no candidate
+  is emitted or frozen
+
+### Requirement: Contingent temporal metadata preserves causal digests and remains history-immutable
+
+`decisionDate` SHALL replace `at` among acceptance metadata excluded from
+`primitiveDigest`; the acceptance content digest SHALL remain included.
+`transitionDigest` SHALL retain its existing preimage and attestation exclusion.
+Git metadata provenance SHALL NOT become a new causal primitive. Identical causal
+preimage inputs SHALL yield identical digests despite metadata-only differences;
+that SHALL NOT imply either input is valid evidence or may mutate in place.
+
+After genesis or an ordinary acceptance/rejection, two-revision history SHALL
+refuse mutation of `decisionDate`, including across supersession, independently
+of digest equality or malicious recomputation. Full source/candidate identities
+and local-evidence freshness SHALL bind decision-date and provenance metadata;
+equality of primitive/seed digests alone SHALL NOT prove freshness. No new
+in-place evidence correction route SHALL be introduced.
+
+For ordinary transitions, encoded Git metadata SHALL be observed from committed
+history and may be reported after the commit exists. Canonical state SHALL NOT
+be required to contain its own future commit ID or encoded timestamp. Historical
+genesis manifests SHALL NOT be mutated to append ordinary transition evidence,
+and genesis SHALL NOT be replayed as an ordinary acceptance route.
+
+#### Scenario: Rehashed historical date mutation is still refused
+
+- **GIVEN** a valid base with immutable Accepted/Rejected decision evidence
+- **WHEN** the target changes its decision date and recomputes every candidate,
+  evidence and attestation digest, or makes that edit during supersession
+- **THEN** the history checker refuses the evidence mutation independently of
+  causal digest equality
+
+#### Scenario: Digest invariance does not imply evidence equivalence
+
+- **GIVEN** isolated model inputs with identical causal preimages but different
+  decision/provenance metadata
+- **WHEN** digests and freshness are evaluated independently
+- **THEN** primitive/transition digests are equal, full byte/evidence identities
+  differ, and freshness never accepts the differing evidence on that equality
+
+### Requirement: Contingent projections and queries use decision-date precision
+
+Accepted/Rejected displays SHALL use validated `decisionDate`. Derived question
+resolution SHALL use the current accepted resolver's decision date, exposed as
+`resolvedOn` (or `null` if unresolved), not timestamp-shaped `resolvedAt` or a
+fabricated compatibility instant. The real renderer, `--check`, and human/JSON
+queries SHALL agree. Explicitly labelled provenance output MAY show encoded Git
+timestamps, but those SHALL NOT feed displayed or derived governance dates.
+All existing non-authorizing query axes and validation requirements remain.
+
+#### Scenario: Git timestamp divergence cannot move a governance or resolution date
+
+- **GIVEN** the two positive historical cases and U7 resolved by ADR-0015
+- **WHEN** the renderer and query run on a mechanically valid isolated test copy
+- **THEN** ADR-0022 displays Accepted `2026-09-01`, ADR-0015 displays Accepted
+  `2026-08-15`, and U7 reports `resolvedOn: "2026-08-15"`; any substitution
+  from Git/delivery/archive time fails projection/query conformance
+
+### Requirement: Contingent re-extraction includes the accepted refinement without rebinding archives
+
+After separate acceptance and owner refresh, design D12.5 SHALL select exact
+authorized post-acceptance main S containing durable PR-2A M as the new common
+genesis source snapshot, replacing D6.5's former extraction snapshot M solely
+for this contingent re-extraction. Every matching historical-source and general
+genesis snapshot binding SHALL use S. L4/L5/L7 archived-package identities SHALL
+remain actual M at their existing archive roots; L2/L3 and L6 evidence identities
+SHALL remain unchanged. No archive bytes or completion proof semantics change.
+
+The complete M audit remains a positive historical corpus: 21 Accepted, 21 exact
+transitions, 20 same-UTC-date committer timestamps, ADR-0022's one divergence, zero Rejected
+and zero missing objects. Audit at S SHALL additionally enumerate every later
+terminal decision; it SHALL NOT omit the accepted refinement to preserve an old
+count. Every affected identity/preimage SHALL be recomputed under later authority.
+This proposal SHALL NOT select S, regenerate digests, or modify/freeze candidate
+artifacts. Raw unattested candidates SHALL still fail required owner-attestation
+checks; only isolated copies use test envelopes, never agent/owner equivalence.
+
+#### Scenario: Post-acceptance source completeness does not change archive history
+
+- **GIVEN** separately authorized S containing M and the accepted refinement
+- **WHEN** later PR-2 extraction validates the complete source inventory
+- **THEN** it includes all decisions at S and preserves archive-stage M; omitted
+  later decisions, pre-amendment candidate reuse, or rebinding archive identity
+  to S are refused

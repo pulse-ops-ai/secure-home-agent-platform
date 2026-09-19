@@ -1,5 +1,10 @@
 # Implementation Tasks: governance-state-substrate
 
+> **Current temporal boundary:** ADR-0023 is Proposed and non-operative.
+> PR #124 implementation and candidate preparation remain paused. The temporal
+> tasks below are contingent, unchecked planning only; they require separate
+> ADR acceptance and a later exact-base owner implementation refresh.
+
 ## Contract
 
 Implementation is governed by:
@@ -76,10 +81,31 @@ below is executed in it.** It creates no `governance/` directory, no
 
 This section RECORDS external authorization. It can never create it.
 
-The PR-1/PR #113 records below are historical authorization provenance, not
-current execution instructions. The **Current PR-2 genesis amendment** record
-below supersedes their status/base instructions for this correction; task
-checkboxes remain unchanged and are not execution-progress authority.
+The PR-1/PR #113 and PR #125 genesis-amendment records below are historical
+authorization provenance for their named epochs, not current execution
+instructions. Their historical "Current" labels do not override the temporal
+proposal-only boundary below. Existing task checkboxes remain unchanged and
+are not execution-progress authority.
+
+### Current temporal proposal authority — not implementation authority
+
+| Field | Value |
+| --- | --- |
+| External source | Explicit owner task in this conversation, **OWNER AUTHORIZATION — GOVERNANCE TEMPORAL-SEMANTICS PROPOSAL ONLY**, 2026-09-17; no GitHub comment identity or authenticated authorship is invented |
+| Proposal branch base | Exact fetched main `83e6cd8fa7d2d05ab246a39de039129b4056966d` (durable PR-2A merge M) |
+| Authorized scope now | One new Proposed ADR-0023, its necessary INDEX registration, and this change's five contingent planning artifacts; documentation validation and independent-review handoff only |
+| Operative architecture | ADR-0021 remains Accepted and byte-unchanged, including its RFC 3339 acceptance rule while ADR-0023 is Proposed |
+| Proposed relationship | ADR-0023 refines ADR-0021 §7a's ADR acceptance/rejection temporal evidence only, plus directly dependent checks/projections; no whole-ADR `supersedes` relationship |
+| PR #124 | OPEN / DRAFT; remote head `dcd32f073c4ca6f8da6efd7e38e0f1b327f70e8e`; local reconciliation head `bffc11c6c1f93b57ada459b04cfcbdad1301ef19` and uncommitted provisional work remain frozen/untouched by this proposal |
+| Current execution state | **IMPLEMENTATION_PAUSED_TEMPORAL_SEMANTICS** — do not resume implementation, modify/regenerate candidate files or digests, or freeze the candidate |
+| Resume prerequisite | Separate reviewed human acceptance of ADR-0023 and reviewed contingent plan, then a **later** owner authorization naming exact main/base and PR #124 reconciliation scope; this proposal and prior resumption authority are not that refresh |
+| Later work | Canonical `governance/state.json` absent; PR-3 and PR-4 NOT_AUTHORIZED; no real owner genesis attestation |
+| PR #101 | Untouched at `559d78cc32cc40f8eaa7aba15a961554f3033b43`; no modification, rebase, narrowing, closure or merge |
+
+Only the new Proposed registration changes INDEX; no historical acceptance
+record or accepted ADR byte changes. Proposal review, ADR acceptance and
+implementation authorization remain separate acts. No task below is executed
+in this proposal.
 
 ### External authority
 
@@ -1758,6 +1784,72 @@ registry appears, and it appears already protected.
   reconciliation rather than by hand-editing its five named documents.
 
   **Until then, PR #101 is not modified, rebased, narrowed, closed, or merged.**
+
+---
+
+## T. Contingent temporal work — blocked, not executed
+
+All T tasks depend on **separate human acceptance of ADR-0023 and a later
+explicit owner implementation refresh**. The historical task assignments below
+identify semantic owners, not a release. No implementation authorization is
+inferred from issue #106, this plan's merge, an Accepted ADR, or a green check.
+The existing PR-2 4.x/5.x work must be preserved and revalidated, not silently
+dropped when the temporal correction changes a shared rule.
+
+- [ ] **T.1 — Closed decision evidence and digest projection.** Owners: existing
+  1.1/1.2/2.1 semantic seams, corrected within later-authorized PR-2. Paths:
+  `scripts/governance/model/validate.mjs`, `canonical.mjs`, and `digests.mjs`.
+  Replace only ADR acceptance/rejection `at` with `decisionDate`; preserve
+  non-temporal evidence, other attestation timestamps, and the exact causal
+  preimage. Review the explicit ADR-0023 partial refinement before changing
+  landed PR-1 behavior. Proof: INV-G54/G56/G58, ADV-G99/G100/G111, PROP-G12.
+- [ ] **T.2 — Exact historical extraction and manifest validation.** Owners:
+  6.1/6.3 and current entry-point 2.4. Existing genesis source helpers supply
+  observations; the shared model owns D12's closed `decisionEvidence`, source
+  agreement, selection, disposition and complete-audit rules. Encoded
+  `gitAuthorAt`/`gitCommitterAt` and `committerUtcDateDiffers` must not be presented
+  as proof of actual recording time or latency. Paths:
+  `scripts/governance/genesis/`, `scripts/governance/model/validate.mjs`, and
+  `scripts/check-governance-state.mjs`; no wider scripts authority. Proof:
+  EX-G33–G35 and ADV-G101–G104/G107/G108/G109/G113; no candidate emission on refusal.
+- [ ] **T.3 — History and non-self-reference.** Owner: 4.x. Paths:
+  `scripts/governance/model/history.mjs`, rules-free
+  `scripts/governance/history/` observations, and
+  `scripts/check-governance-history.mjs`. Refuse changed historical dates and
+  evidence even with recomputed digests; retain terminal acceptance through
+  supersession; observe encoded Git metadata after the commit exists
+  without self-reference, genesis replay, or a new mutable authority. Proof:
+  ADV-G105/G109/G112 and existing PR-2 two-revision obligations.
+- [ ] **T.4 — Date-precision projection/query.** Owners: 5.1/5.2. Paths:
+  `scripts/governance/model/validate.mjs`,
+  `scripts/render-governance-state.mjs`, `scripts/query-governance-state.mjs`.
+  Use decision dates and `resolvedOn`, preserve query axes and fail-closed
+  evaluation, and do not activate canonical generated projections. Proof:
+  EX-G33/G34, ADV-G106 and the existing renderer/query corpus.
+- [ ] **T.5 — Full positive, hostile and mutation proof.** Owners: 6.7 and
+  7.1/7.2/7.3. Paths: `tests/test_governance_state.py`,
+  `tests/test_governance_acceptance_audit.py`, and isolated
+  `tests/fixtures/governance/genesis/` proof helpers. Implement all temporal
+  assurance cases through actual entry points and separately killed mutants;
+  no production fix belongs to this proof-only task. Run the interrupted
+  targeted suite from zero plus existing PR-2 proof. Raw unattested candidate
+  refusal is required; test authorship is never owner attestation.
+- [ ] **T.6 — Authorized source refresh and candidate handoff.** Owners:
+  6.2/6.4/6.6/6.8 after T.1–T.5 and a clean full audit at exact S. Reconcile
+  D12.5 with the new owner's exact-base authorization; enumerate added ADRs,
+  preserve archive-stage M, refresh affected source rows, consumer inventory,
+  digests and freshness bindings, and only then prepare/freeze the three
+  existing candidate members under `tests/fixtures/governance/candidate/`
+  with its README. No canonical registry, real attestation or PR-3 seam.
+  Proof: EX-G35, ADV-G108–G110, full existing freshness/candidate obligations.
+- [ ] **T.7 — Independent PR-2 review gate.** Owner: PR-2 completion gate after
+  T.1–T.6. Re-run strict OpenSpec validation and the complete repository gate;
+  require hosted CI evidence on the exact future candidate head before review
+  disposition. Document commands, failures/skips and exact identities. Keep
+  #124 draft and stop for independent review; do not merge or start PR-3.
+
+The current proposal's independent review is **not** T.7 and cannot mark any T
+task complete. These additions leave every existing task checkbox unchanged.
 
 ---
 

@@ -9,7 +9,7 @@ answer to "why is it like this?" eighteen months from now.
 > accepted file.
 >
 > **Current accepted set:** ADR-0001 through ADR-0019, ADR-0021, **and
-> ADR-0022** are `Accepted` and immutable. **ADR-0020 alone remains
+> ADR-0022** are `Accepted` and immutable. **ADR-0020 and ADR-0023 remain
 > `Proposed`.** This non-contiguous accepted set is intentional and must not be
 > rendered as one continuous range: the accepted set is 0001–0019, 0021, 0022,
 > with 0020 excluded.
@@ -202,6 +202,7 @@ action in its own change.
 | ADR | Title | Status | Would govern | Would decide |
 |---|---|---|---|---|
 | [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
+| [ADR-0023](ADR-0023-separate-governance-decision-dates-from-recording-instants.md) | Separate governance decision dates from Git commit timestamps | **Proposed — non-operative** | ADR-0021 §7a's ADR acceptance/rejection temporal evidence and directly dependent validation/projection rules only | Date-precision human decisions versus provenance-only encoded Git timestamps, not proven recording time; partial refinement, not whole-ADR supersession. PR #124 remains paused; the OpenSpec amendment is contingent on separate acceptance and refreshed implementation authority |
 
 > **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
 > **still open**, and L9 (#57) remains gated. It selects a deployment topology
@@ -681,6 +682,7 @@ GATE-U4 was not satisfied, and PR #113 remains frozen and untouched.
 | versioning, releasing, or pinning a knowledge **set** | ADR-0010, ADR-0015, ADR-0016, **ADR-0019** |
 | where a durable lesson from a change or review belongs | **ADR-0014** + [`../architecture/knowledge-promotion-model.md`](../architecture/knowledge-promotion-model.md) |
 | the mutable cross-cutting governance-state authority or its projections | **ADR-0001**, **ADR-0012**, **ADR-0014**, **ADR-0019**, and **ADR-0021** (`Accepted` — contract; substrate not yet implemented) |
+| the proposed decision-date / Git-timestamp refinement | **ADR-0021 §7a remains operative**; read [ADR-0023](ADR-0023-separate-governance-decision-dates-from-recording-instants.md) as a **Proposed, non-operative** partial refinement, never implementation authority |
 | a provider instruction file or provider-native skill | **ADR-0014**, ADR-0011 |
 | deployment assets | ADR-0002, ADR-0011 |
 | a TypeScript package, app, or API contract | **ADR-0012** + [`../architecture/api-contract-model.md`](../architecture/api-contract-model.md) |
