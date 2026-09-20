@@ -1,6 +1,59 @@
 # Unattested governance candidate
 
-## D7.6 correction — current review freeze
+## Consumer / seam reconciliation — current review freeze
+
+The owner-authorized [D7.2b reconciliation](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
+changes four exact inventory dispositions and the matching execution scope,
+not governance facts. Planning preparation checkpoint:
+`bb39f34b1036af0c912375f31f6673f8cbe99d0b`. It must remain reachable after a **merge commit**;
+do not squash or rebase-merge this correction.
+
+The four `runner-adapter-conformance-seed` rows are retained source-era
+semantic prose, not historical exemptions or live authority. Their file bytes
+are untouched. All other row fields/dispositions remain unchanged. The checked
+inventory has 75 pointer rows, 7 retained semantic rows, 2 generated regions,
+66 historical records and 32 non-consumers (182 total). Task 8.4 equals exactly
+the pointer rows; the concrete activation union is 90 paths. The runner-core
+README is absent from both task 8.4 and the inventory. The permanent regression
+reads the real inventory and task metadata, not this receipt as authority.
+
+| Member | Previous D7.6 SHA-256 | Current SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `9108e4460fbbfa1fb49e636c52666d2e14f17cbbab1b47553d12ea085eba87a8` | `cac428acaa5ec18fa4c9246fe5a8abd3bda5cae0f69310239af107e971bf573b` |
+| `consumers.json` | `a827e5e4ab941c66a801cac16ce29ca76e5a75cbcafd24c253ca236741ecde20` | `77b3cd02991ff45693f32488afadfae64a2f6c5b979660142b96dce5bb5a4bcd` |
+
+Bundle changes from
+`4ba911796fc037a36ce26c6285cc149f085e5f41459126ab2b6d0c1e20b57c38` to
+`1b9f2117826ab50ed94f3ebaf14838e8941f984b159b413e326bbb4ea8482738`.
+The full state remains byte-identical. Primitive digest remains
+`9ee9dd25177a81af89f199ba3b7b368488763361e7ad0d6227b7d57783d35bf9`;
+relationship digest remains
+`80089e507b92330f04971aced8f1abc2ce1fd0e4be62cb19a6a2c3a86ac5464d`.
+Common S and archive-stage M below are unchanged. The only manifest changes
+are the five preparation bindings; no source identity or historical record is
+rebound. The empty `attestations.genesis` remains empty; no activation handoff
+or owner envelope is added.
+
+Replay using the existing extraction machinery and the exact checkpoint:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source bb39f34b1036af0c912375f31f6673f8cbe99d0b
+```
+
+The correction PR records exact head/tree, scope lists, old/new hashes and
+validation externally. This freeze grants no activation authority and does not
+change PR #131, PR #101 or the external owner handoff. Independent review and
+merge are still required before a fresh PR #131 activation-base check.
+
+Promotion determination: existing ADR-0021/D7/D8 completeness and scope
+obligations are reconciled, with no new architecture, primitive or authority.
+The historical receipts below are retained provenance, not the current freeze.
+
+## Historical D7.6 receipt — superseded freeze, retained provenance
 
 The owner-authorized [D7.6 carrier correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
 requires new planning provenance, not new governance facts. The preparation
