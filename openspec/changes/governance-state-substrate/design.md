@@ -1753,45 +1753,51 @@ landing, and the reason for any retained current-state-looking prose.
 Dispositions: `generated-region`, `stable-pointer`, `historical-record`,
 `retained-semantic-prose`, `not-a-governance-consumer`.
 
-**D7.2 — Measured inventory at `eb6e248`.** Three contracts that the previous
-version blurred, stated separately:
+**D7.2 — Discovery and the historical measurement.** Three contracts remain
+distinct:
 
 | Contract | Definition |
 | --- | --- |
 | **Scan universe** | every tracked file — `git ls-files`, not only Markdown |
-| **Inventory rows** | every **discovered governance surface**, plus exact classified exclusions. Not one row per tracked file: that would be thousands of rows asserting nothing |
-| **Unknown claim** | a governance-state claim in a file with no row **fails** |
+| **Inventory rows** | every discovered governance surface, plus exact classified exclusions; not one row per tracked file |
+| **Unknown claim** | a governance-state claim in a file with no row fails |
 
-`governance/consumers.json` is the **single source for every displayed count**.
-The table below is generated from it; no count is maintained beside the list.
+The old `eb6e248` measurement reported 38 stable-pointer paths, two generated
+targets and one retained-prose surface (41 live surfaces), alongside 27 historical
+records and five non-consumers. Its additional 26 active-change discoveries were
+analysis, not a disposition or subtotal. Those numbers describe that historical
+measurement, **not the current frozen PR-3 inventory or authoring scope**. No
+old prose enumeration may override the frozen rows.
 
-| Disposition | Count | Members |
-| --- | --- | --- |
-| **generated-region** | 2 | `docs/decisions/INDEX.md` (lifecycle regions), `docs/architecture/unresolved-decisions.md` (summary table, resolution banners) |
-| **stable-pointer** | **38** | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `docs/AGENTS.md`, `docs/README.md`, `docs/architecture/INDEX.md`, `docs/operations/INDEX.md`, `docs/operations/pi-bootstrap.md`, `agents/AGENTS.md`, `agents/adapters/README.md`, `deploy/AGENTS.md`, `deploy/compose/README.md`, `deploy/images/README.md`, `services/AGENTS.md`, `services/README.md`, `services/control-plane/README.md`, `services/runner-control/README.md`, `packages/runner-core/README.md`, `knowledge/README.md`, `knowledge/household/README.md`, `knowledge/platform/README.md`, `knowledge/platform/degraded-operation/README.md`, `knowledge/runbooks/README.md`, `profiles/household/README.md`, `schemas/automation/README.md`, `openspec/AGENTS.md`, **`openspec/config.yaml`**, `.github/copilot-instructions.md`, `.github/agents/architecture.agent.md`, `.github/agents/implementation.agent.md`, `docs/architecture/api-contract-model.md`, `docs/architecture/degraded-mode.md`, `docs/architecture/distributed-effect-lifecycle.md`, `docs/architecture/effect-boundary-model.md`, `docs/architecture/knowledge-promotion-model.md`, `docs/architecture/knowledge-selection-model.md`, `docs/architecture/runner-model.md` |
-| **retained-semantic-prose** | 1 | `docs/architecture/agent-triage-and-escalation.md` — explanatory, not a current-state claim; reason in its row |
-| **historical-record** | 27 | accepted decision bodies, `openspec/changes/archive/**`, `docs/spikes/**`, `openspec/specs/**` |
-| **not-a-governance-consumer** | 5 | `openspec/schemas/**`, `scripts/validate-scaffold.sh`, `tests/test_knowledge_catalog.py` — tooling and template text |
+Before promotion, `tests/fixtures/governance/candidate/consumers.json` owns the
+current dispositions; after exact promotion, `governance/consumers.json` does.
+The task-8.4 concrete `paths=` metadata MUST equal the set of every frozen row
+whose disposition is `stable-pointer`, with no omission, duplicate or additional
+path. The task list is checked execution scope, not a second inventory authority.
+`openspec/config.yaml` remains a named member/regression case.
+`packages/runner-core/README.md` has no discovered governance claim or inventory
+row and is therefore absent from task 8.4; no row may be invented to retain it.
 
-**Live consumers total 41** = 2 generated-region + 1 retained-prose + 38
-stable-pointer. Every row above is one of the **five closed dispositions**;
-there is no sixth, so `consumers.json` can generate this table without an
-undocumented enum.
+The current count projection below is mechanically checked against the frozen
+inventory by the permanent real-inventory/task-metadata regression. It grants
+no authority independently of the rows:
 
-**Scan analysis — not a disposition and not an inventory subtotal.** The scan
-also discovered **26** surfaces in active, unarchived OpenSpec changes under
-`openspec/changes/<id>/`. That number is an *analysis* result recording where
-the scan found governance fact classes; it is deliberately **not** a row above,
-because a blanket classification of 26 files would be an assertion rather than a
-review. Each is classified individually into one of the five dispositions by the
-enumeration task, and until it is, its governance claim has no row and therefore
-**fails**. What is decided here is only that they may not inherit the historical
-exemption (D7.2a).
+<!-- consumer-scope-counts:begin -->
+| Disposition | Count |
+| --- | --- |
+| stable-pointer | 75 |
+| retained-semantic-prose | 7 |
+| generated-region | 2 |
+| historical-record | 66 |
+| not-a-governance-consumer | 32 |
+| total | 182 |
+<!-- consumer-scope-counts:end -->
 
-`openspec/config.yaml` is **listed in the enumeration above**, not added to it by
-a footnote. The previous version wrote "37 measured + `openspec/config.yaml` by
-ADR mandate" and then totalled 40 — two mutually exclusive claims, which is
-exactly the drift this substrate exists to stop. It is one of the 38.
+The exact sorted unique union of tasks 8.2, 8.2a, 8.3, 8.4 and 8.5 is currently
+**90 paths**. The same regression proves that cardinality and exact scope
+membership. Tasks 8.5a/8.6 still demand byte-for-byte set equality with staged
+and committed paths; neither this correction nor a displayed count permits a
+glob, subset, superset or compatibility exception.
 
 **D7.2a — The historical exemption is a rule, not a glob.** Exempting
 `openspec/changes/**` would have swallowed **26 files in active, unarchived
@@ -1811,6 +1817,37 @@ not disappear behind the exemption.
 A file absent from the inventory is a **migration failure**. Prohibited-copy
 enforcement operates over the enumerated `generated-region` and `stable-pointer`
 rows.
+
+**D7.2b — Exact protected PR-101 disposition.** Only these four rows are
+reclassified from `stable-pointer` to `retained-semantic-prose`:
+
+- `openspec/changes/runner-adapter-conformance-seed/assurance.md`
+- `openspec/changes/runner-adapter-conformance-seed/design.md`
+- `openspec/changes/runner-adapter-conformance-seed/proposal.md`
+- `openspec/changes/runner-adapter-conformance-seed/tasks.md`
+
+Their detected `factClasses` remain unchanged, `generatedRegions` remains `[]`,
+`historicalIdentity` remains `null`, and `migrationLanding` remains `PR-3`.
+Each retained reason explicitly records frozen pre-activation/source-era PR-101
+planning context, PR-3 byte preservation, and non-authority after activation.
+Live decision lifecycle, question-resolution and program-state answers then
+come only from `governance/state.json` / the canonical query. PR #101 remains
+separately governed and cannot be modified until the post-PR-3 handoff.
+
+These are not `historical-record` rows: old planning alone does not satisfy
+D7.2a. The other 38 previously out-of-scope pointer rows remain pointers and
+are now explicit task-8.4 targets. No other classification or governance fact
+changes. The existing extraction recipe must reproduce these exact reviewed
+classifications; no validator, digest or authority rule is relaxed.
+
+This D7/D8 implementation-contract reconciliation refines existing ADR-0021
+obligations; it creates no architecture or activation permission. Its two-commit
+correction first freezes all five planning artifacts in a reachable preparation
+checkpoint, then refreshes inventory/source bindings and proof without changing
+state bytes, common source S or archive-stage M. Merge commit only: squash or
+rebase-merge must not orphan that checkpoint. No PR-101 bytes or PR-3 branch
+are changed by this correction. Promotion determination: no new architectural
+truth; the disposition and exact scope belong in this existing contract.
 
 **D7.3 — Markers.** Each generated region carries an explicit begin/end marker
 naming target and region, registered by the renderer. An unregistered target or

@@ -529,10 +529,15 @@ writing code.
   D7.2 separates three contracts: the **scan universe** is every tracked file,
   not only Markdown; **inventory rows** cover every discovered governance surface
   plus exact classified exclusions; and an unclassified governance claim
-  **fails**. The measured result is 2 generated-region targets, **38**
+  **fails**. The historical `eb6e248` measurement was 2 generated-region targets, **38**
   stable-pointer consumers — `openspec/config.yaml` among them, listed rather
   than appended by footnote — and 1 retained-semantic-prose row, for **41** live
   consumers; alongside 27 historical records, 26 artifacts of **live,
   unarchived** OpenSpec changes classified on their own merits rather than
-  exempted, and 5 non-consumers. Every displayed count is generated from the
-  machine-readable inventory.
+  exempted, and 5 non-consumers. This is not the current PR-3 enumeration.
+  The frozen candidate inventory now owns current dispositions; D7.2's count
+  projection and task 8.4's exact `stable-pointer` path set are mechanically
+  checked against it. D7.2b retains exactly four protected PR-101 planning
+  surfaces as non-authoritative source-era semantic prose, without editing
+  them or treating old planning as a historical-record exemption. The exact
+  activation task union remains an equality constraint, never a glob.

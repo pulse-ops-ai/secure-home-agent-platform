@@ -2096,6 +2096,47 @@ A governance-state surface absent from the inventory SHALL be a migration
 failure. Prohibited-copy enforcement SHALL operate over the enumerated
 `generated-region` and `stable-pointer` rows.
 
+Task 8.4's concrete path set SHALL equal exactly the frozen inventory's
+`stable-pointer` paths, with no duplicate, omitted pointer or non-pointer
+addition. The historical 38-path measurement SHALL NOT supply current scope.
+The current mechanically checked projection is 75 pointer rows, 7 retained
+semantic rows, 2 generated-region rows, 66 historical rows and 32 non-consumers:
+182 total. The concrete sorted unique task union for 8.2, 8.2a, 8.3, 8.4 and
+8.5 SHALL contain exactly 90 paths; staged and committed seam paths SHALL still
+equal that exact union. No glob or relaxed equality is permitted.
+
+Exactly the four `runner-adapter-conformance-seed` files enumerated in design
+D7.2b SHALL use `retained-semantic-prose`, with unchanged detected fact classes,
+empty generated regions, null historical identity and migration landing PR-3.
+Each reason SHALL record frozen pre-activation/source-era PR-101 context, PR-3
+byte preservation, no current authority after activation, exclusive live answers
+from `governance/state.json` / canonical query, and separate PR-101 governance
+until the post-PR-3 handoff. Their bytes SHALL NOT be edited by PR-3; old planning
+SHALL NOT become a historical-record exemption. The runner-core README has no
+discovered claim/row and SHALL NOT remain in task 8.4 through an invented row.
+
+#### Scenario: Frozen inventory and concrete activation scope agree
+
+- **GIVEN** the real corrected inventory and real task metadata
+- **WHEN** the permanent scope regression runs with complete tracked-file discovery
+- **THEN** task 8.4 equals all 75 pointer paths, the task union is exactly 90
+  paths, the four protected rows remain retained semantic prose, and displayed
+  counts equal the 182-row inventory
+
+#### Scenario: An omitted pointer or smuggled non-pointer refuses
+
+- **GIVEN** a task path set with an omitted pointer, duplicate path, added
+  non-pointer, protected PR-101 path or stale runner-core README
+- **WHEN** the permanent scope regression compares it with the frozen inventory
+- **THEN** it refuses without widening the seam or reclassifying another row
+
+#### Scenario: Protected planning is retained without historical authority
+
+- **GIVEN** a protected row with a missing reason, historical disposition,
+  changed fact class or non-null historical identity
+- **WHEN** the protected-disposition regression runs
+- **THEN** it refuses; preserving source-era prose never creates live authority
+
 #### Scenario: Displayed counts are generated, never maintained beside the list
 
 - **GIVEN** a prose inventory table whose stated count disagrees with the
