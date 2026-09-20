@@ -2526,8 +2526,51 @@ const GENESIS_FIELDS = [
   'candidateFreezeIdentity',
   'activationBaseCommit',
   'activationIdentity',
+  'externalIndexHandoff',
   'activationFreshness',
 ]
+
+const HANDOFF_FIELDS = [
+  'contract',
+  'index',
+  'commentId',
+  'commentBodySha256',
+  'canonicalRegistryPath',
+]
+
+/** D7.6: offline evidence binding, never a GitHub/authorship observation. */
+function validateExternalIndexHandoff(value, activationIdentity, path, problems) {
+  if (!requireObject(value, path, problems, 'ADV-G49')) return
+  checkFields(value, HANDOFF_FIELDS, path, problems)
+  requiredFields(value, HANDOFF_FIELDS, path, problems, 'ADV-G49')
+  if (value.contract !== 'github-issue-conditional-handoff-v1')
+    addProblem(problems, 'ADV-G49', path + '.contract', 'unknown handoff contract')
+  validateTypedAnchor(value.index, path + '.index', problems)
+  if (
+    value.index?.type !== 'github-issue' ||
+    value.index?.repository !== 'pulse-ops-ai/secure-home-agent-platform' ||
+    value.index?.number !== 19
+  )
+    addProblem(problems, 'ADV-G49', path + '.index', 'must identify this repository issue #19')
+  if (!Number.isSafeInteger(value.commentId) || value.commentId <= 0)
+    addProblem(problems, 'ADV-G49', path + '.commentId', 'must be a positive safe integer')
+  if (!isSha256(value.commentBodySha256))
+    addProblem(problems, 'ADV-G49', path + '.commentBodySha256', 'must be a lowercase SHA-256')
+  if (value.canonicalRegistryPath !== 'governance/state.json')
+    addProblem(
+      problems,
+      'ADV-G49',
+      path + '.canonicalRegistryPath',
+      'must be governance/state.json',
+    )
+  if (value.index?.repository !== activationIdentity?.repository)
+    addProblem(
+      problems,
+      'ADV-G49',
+      path + '.index.repository',
+      'must match activationIdentity.repository',
+    )
+}
 
 const FRESHNESS_FIELDS = ['outcome', 'digest']
 const CANDIDATE_BUNDLE_FIELDS = ['schemaVersion', 'type', 'members', 'bundleSha256']
@@ -2610,6 +2653,19 @@ function validateGenesisAttestation(value, path, problems) {
       'must be a hexadecimal Git commit identity',
     )
   validateTypedAnchor(value.activationIdentity, path + '.activationIdentity', problems)
+  if (value.activationIdentity?.type !== 'github-pull-request')
+    addProblem(
+      problems,
+      'ADV-G49',
+      path + '.activationIdentity',
+      'must identify the activation pull request',
+    )
+  validateExternalIndexHandoff(
+    value.externalIndexHandoff,
+    value.activationIdentity,
+    path + '.externalIndexHandoff',
+    problems,
+  )
   if (
     requireObject(value.activationFreshness, path + '.activationFreshness', problems, 'ADV-G19')
   ) {

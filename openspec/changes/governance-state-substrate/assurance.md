@@ -908,6 +908,18 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G47** `retained-semantic-prose` row with no recorded reason.
 - **ADV-G49** Activation whose evidence does not bind the conditional handoff —
   index identity, conditional body bytes, activation identity, registry path.
+  The real current/history entry points must exercise the D7.6 closed carrier:
+  an otherwise valid isolated test genesis succeeds; missing handoff, unknown
+  field/alias, wrong discriminator or issue identity, invalid/zero comment id,
+  malformed body SHA, wrong canonical path, non-PR activation identity or
+  repository mismatch refuses. `externalReferences[]` and PR metadata alone
+  cannot supply this evidence. Omitting the handoff from the digest preimage
+  must be detected by an independent omission mutant. Every handoff member is
+  immutable in history; rehashing a changed comment id/body digest cannot
+  legalize it. Tests also prove the handoff is excluded from primitive and
+  relationship digests. Fixtures remain explicitly non-owner attestations;
+  offline validation does not authenticate GitHub, its current body, human
+  authorship or continued existence. Task 8.1/final review own those observations.
 - **ADV-G50** A prerequisite or query naming bare `L8` where the registry
   declares `runner/L8` — a dangling reference, never resolved by inference.
 - **ADV-G51** A landing seeded `Complete` with no member in the genesis

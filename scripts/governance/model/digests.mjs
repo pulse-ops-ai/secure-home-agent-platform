@@ -262,6 +262,7 @@ export function genesisAttestationPreimage(value) {
     candidateFreezeIdentity: value.candidateFreezeIdentity,
     activationBaseCommit: value.activationBaseCommit,
     activationIdentity: value.activationIdentity,
+    externalIndexHandoff: value.externalIndexHandoff,
     activationFreshness: value.activationFreshness,
   }
 }

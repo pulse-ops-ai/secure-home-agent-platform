@@ -6995,6 +6995,207 @@ def test_adv_g83_mut_g16_fully_rehashed_genesis_cannot_replace_ordinary_transiti
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
 
+def test_d76_handoff_positive_is_evidence_not_a_primitive(attested_genesis: Path) -> None:
+    root = attested_genesis
+    state = registry(root)
+    genesis = state["attestations"]["genesis"]
+    assert genesis["actor"] == "fixture:genesis-mechanism"
+    assert genesis["authority"]["id"] == "mechanical-test-only"
+    assert genesis["externalIndexHandoff"]["commentId"] == 1  # Not the real owner comment.
+    payload = assert_valid(root, REGISTRY_PATH)
+    assert len(state["adrs"]) == 24
+    assert sum(a["lifecycle"] in {"Accepted", "Rejected"} for a in state["adrs"]) == 23
+    assert next(a for a in state["adrs"] if a["id"] == "ADR-0020")["lifecycle"] == "Proposed"
+    assert payload["derived"]["questions"]["U4"]["resolved"] is False
+    assert payload["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is False
+    assert payload["derived"]["readiness"]["runner/L9"]["state"] == "NotReady"
+    assert_history_clean(root, base=genesis["activationBaseCommit"])
+    script = """
+import {primitiveDigest,relationshipDigest,genesisAttestationDigest}
+  from './scripts/governance/model/index.mjs'
+let raw=''; for await (const chunk of process.stdin) raw+=chunk
+const state=JSON.parse(raw)
+const before=[primitiveDigest(state),relationshipDigest(state)]
+const genesis=state.attestations.genesis
+const digest=genesisAttestationDigest(genesis)
+genesis.externalIndexHandoff.commentId++
+const changed=genesisAttestationDigest(genesis)
+genesis.activationIdentity.number++
+console.log(JSON.stringify({before,after:[primitiveDigest(state),relationshipDigest(state)],
+  bound: digest !== changed && changed !== genesisAttestationDigest(genesis)}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    proof = json.loads(result.stdout)
+    assert proof["before"] == proof["after"]
+    assert proof["bound"] is True
+
+
+@pytest.mark.parametrize(
+    ("member", "value", "code"),
+    [
+        ("missing-handoff", None, "ADV-G49"),
+        ("null-handoff", None, "ADV-G49"),
+        ("extra", True, "ADV-G02"),
+        ("activationIdentity", {}, "ADV-G02"),
+        ("contract", "github-issue-conditional-handoff-v2", "ADV-G49"),
+        ("index", None, "ADV-G49"),
+        ("index.type", "github-pull-request", "ADV-G49"),
+        ("index.number", 20, "ADV-G49"),
+        ("index.number", "19", "ADV-G49"),
+        ("index.repository", "fixture/another-repository", "ADV-G49"),
+        ("index.extra", True, "ADV-G02"),
+        ("commentId", 0, "ADV-G49"),
+        ("commentId", -1, "ADV-G49"),
+        ("commentId", 1.5, "ADV-G49"),
+        ("commentId", True, "ADV-G49"),
+        ("commentId", "1", "ADV-G49"),
+        ("commentId", 9007199254740992, "ADV-G49"),
+        ("commentBodySha256", "A" * 64, "ADV-G49"),
+        ("commentBodySha256", "0" * 63, "ADV-G49"),
+        ("commentBodySha256", None, "ADV-G49"),
+        ("canonicalRegistryPath", "tests/fixtures/governance/candidate/state.json", "ADV-G49"),
+        ("sibling.type", "github-issue", "ADV-G49"),
+        ("sibling.repository", "fixture/another-repository", "ADV-G49"),
+        ("missing-commentId", None, "ADV-G49"),
+    ],
+)
+def test_d76_closed_handoff_refuses_malformed_evidence(
+    attested_genesis: Path, member: str, value: Any, code: str
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    genesis = state["attestations"]["genesis"]
+    handoff = genesis["externalIndexHandoff"]
+    if member == "missing-handoff":
+        del genesis["externalIndexHandoff"]
+    elif member == "null-handoff":
+        genesis["externalIndexHandoff"] = None
+    elif member == "missing-commentId":
+        del handoff["commentId"]
+    elif member.startswith("sibling."):
+        genesis["activationIdentity"][member.split(".")[1]] = value
+    elif member.startswith("index."):
+        handoff["index"][member.split(".")[1]] = value
+    else:
+        handoff[member] = value
+    rehash_outer(state)  # Shape refusal must not merely be an outdated digest.
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, code, path=REGISTRY_PATH)
+    assert "derived" not in payload
+
+
+@pytest.mark.parametrize("substitute", ["externalReferences", "pr-metadata"])
+def test_d76_handoff_cannot_be_supplied_outside_genesis(
+    attested_genesis: Path, substitute: str
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    handoff = state["attestations"]["genesis"].pop("externalIndexHandoff")
+    if substitute == "externalReferences":
+        # Even a shape-valid external reference is not the attested D7.6 carrier.
+        state["externalReferences"].append(
+            {"id": "fixture/handoff", "reference": handoff["index"], "role": json.dumps(handoff)}
+        )
+    else:
+        # Local representation of external PR metadata: never checker authority.
+        (root / "pr-metadata.json").write_text(json.dumps(handoff), encoding="utf-8")
+    rehash_outer(state)
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, "ADV-G49", path=REGISTRY_PATH)
+    assert any(
+        p["path"] == "$.attestations.genesis.externalIndexHandoff" for p in payload["problems"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("member", "value"),
+    [
+        ("contract", "github-issue-conditional-handoff-v2"),
+        ("index.type", "github-pull-request"),
+        ("index.repository", "fixture/another-repository"),
+        ("index.number", 20),
+        ("commentId", 2),
+        ("commentBodySha256", "1" * 64),
+        ("canonicalRegistryPath", "governance/other.json"),
+    ],
+)
+def test_d76_each_handoff_member_is_immutable_even_when_rehashed(
+    attested_genesis: Path, tmp_path: Path, member: str, value: Any
+) -> None:
+    root = attested_genesis
+    base = git(root, "rev-parse", "HEAD")
+    state = registry(root)
+    handoff = state["attestations"]["genesis"]["externalIndexHandoff"]
+    if member.startswith("index."):
+        handoff["index"][member.split(".")[1]] = value
+    else:
+        handoff[member] = value
+    rehash_outer(state)
+    commit_registry(root, state, "HOSTILE test-only D7.6 evidence mutation")
+    if member in {"commentId", "commentBodySha256"}:
+        # Both snapshots are valid alone; only history can detect this mutation.
+        assert_valid(root, REGISTRY_PATH)
+        assert_history_refused(root, "ADV-G89", base=base)
+        subject = mutant_subject(
+            tmp_path,
+            [
+                (
+                    "governance/model/history.mjs",
+                    "  compareGenesisPreservation(base, target, problems)\n",
+                    "",
+                )
+            ],
+        )
+        result, payload = run_subject(subject, root, base=base)
+        assert result.returncode == 0 and payload["ok"] is True, payload
+    else:
+        assert_refused(root, "ADV-G49", path=REGISTRY_PATH)
+        assert_history_refused(root, base=base)
+
+
+def test_d76_digest_omission_mutant_is_detected(attested_genesis: Path, tmp_path: Path) -> None:
+    root = attested_genesis
+    state = registry(root)
+    script = """
+import {genesisAttestationPreimage,digestPreimage} from './scripts/governance/model/digests.mjs'
+let raw=''; for await (const chunk of process.stdin) raw+=chunk
+const preimage=genesisAttestationPreimage(JSON.parse(raw))
+if (!Object.hasOwn(preimage,'externalIndexHandoff')) throw new Error('handoff omitted')
+delete preimage.externalIndexHandoff
+console.log(digestPreimage(preimage))
+"""
+    omitted = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps(state["attestations"]["genesis"]),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    state["attestations"]["genesis"]["digest"] = omitted.stdout.strip()
+    write_state(root, state, REGISTRY_PATH)
+    assert_refused(root, "ADV-G62", path=REGISTRY_PATH)
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/digests.mjs",
+                "    externalIndexHandoff: value.externalIndexHandoff,\n",
+                "",
+            )
+        ],
+    )
+    result, payload = run_subject(subject, root)
+    assert result.returncode == 0 and payload["ok"] is True, payload
+
+
 def test_adv_g89_mut_g16_rehashed_genesis_envelope_remains_immutable(
     attested_genesis: Path, tmp_path: Path
 ) -> None:

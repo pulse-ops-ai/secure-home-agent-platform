@@ -52,8 +52,20 @@ export function fixtureEnvelopes(state, manifest, base, freshness) {
     activationBaseCommit: base,
     activationIdentity: {
       type: 'github-pull-request',
-      repository: 'fixture/isolated-repository',
+      repository: 'pulse-ops-ai/secure-home-agent-platform',
       number: 1,
+    },
+    // Synthetic evidence in an isolated repository, not the owner's real comment.
+    externalIndexHandoff: {
+      contract: 'github-issue-conditional-handoff-v1',
+      index: {
+        type: 'github-issue',
+        repository: 'pulse-ops-ai/secure-home-agent-platform',
+        number: 19,
+      },
+      commentId: 1,
+      commentBodySha256: '0'.repeat(64),
+      canonicalRegistryPath: 'governance/state.json',
     },
     activationFreshness: {
       outcome: 'equivalent',
