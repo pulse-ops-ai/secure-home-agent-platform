@@ -1605,6 +1605,16 @@ registry appears, and it appears already protected.
 
   **Gate:** activation is **refused** unless that binding is present.
 
+  **Carrier:** retain the observed issue/comment identity and exact UTF-8 body
+  SHA-256 (no appended LF) for task 8.7's required
+  `attestations.genesis.externalIndexHandoff` under D7.6. The sibling
+  `activationIdentity` supplies the PR reference; do not duplicate it in the
+  handoff or put the evidence in `externalReferences[]`. PR metadata records
+  the human observation but does not replace the digest-bound carrier. The
+  offline checker cannot establish actual publication, authorship or current
+  external contents. Base/head references explicitly recorded "at allocation"
+  are historical, not the later `activationBaseCommit`.
+
 - [ ] **8.1a Activation-base freshness gate**
   <!-- agent-task: 8.1a paths=none checks=node,manual risk=trust-critical prerequisites=8.1,pr-2-merged -->
 
@@ -1787,7 +1797,7 @@ registry appears, and it appears already protected.
   | Field | Value |
   |---|---|
   | Actor | @mikegtech (repository owner) |
-  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, **`activationBaseCommit` and equivalent `activationFreshness` result/digest**, **`activationIdentity` allocated by 8.0** |
+  | Attests | `attestations.genesis` — seed digest, relationship-equivalence digest, source-snapshot identity, **`activationBaseCommit` and equivalent `activationFreshness` result/digest**, **`activationIdentity` allocated by 8.0**, and **the complete D7.6 `externalIndexHandoff`** in the same genesis digest |
   | Attests | `attestations.genesisCompletion` — envelope digest over the ordered `{landingId, digest}` tuples for `runner/L2`, `runner/L3`, `runner/L4`, `runner/L5`, `runner/L6`, `runner/L7` |
   | Evidence reviewed | exactly the seam frozen by 8.6, plus the allocated identity |
   | Authority reference | issue #106 |
@@ -1800,12 +1810,22 @@ registry appears, and it appears already protected.
   the envelope or who could merge around the owner; the `actor` string and
   merge-control evidence are recorded assertions reviewed by the owner.
 
+  The handoff is required only in this real populated envelope, never in the
+  empty pre-attestation candidate. It is activation evidence, not a primitive;
+  no candidate governance fact changes when the owner binds it. The owner
+  verifies task 8.1's exact issue/comment/body observation and its conditional
+  text before recording the D7.6 shape; the checker remains offline.
+
 - [ ] **8.8 Verify on the post-attestation head**
   <!-- agent-task: 8.8 paths=none checks=node,pytest,scaffold,ci risk=trust-critical prerequisites=8.7 -->
 
   The checker, history checker, hostile suite, formatting, secret scan,
   `git diff --check` and hosted CI all run on the **exact head carrying the
   attestations**. The owner also re-checks `MAN-G02` at the merge gate. Before
+  merge, final activation review reobserves the exact D7.6 external comment,
+  compares its body digest and conditional semantics to the bound envelope,
+  and checks its sibling activation PR identity. This is human external
+  provenance review, not a network operation in the checker. Before
   merge, the final gate rereads `refs/heads/main` and the PR-3 current base SHA
   and requires:
 

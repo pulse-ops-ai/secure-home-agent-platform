@@ -2162,6 +2162,34 @@ conditional body bytes or their SHA-256, the activation change identity, and the
 expected canonical registry path. The activation gate SHALL **refuse activation**
 unless that binding is present.
 
+A populated `attestations.genesis` SHALL contain the required closed member
+`externalIndexHandoff` defined by D7.6, with exactly `contract`, `index`,
+`commentId`, `commentBodySha256`, and `canonicalRegistryPath`. The discriminator
+SHALL be `github-issue-conditional-handoff-v1`; `index` SHALL be the closed
+`github-issue` reference to `pulse-ops-ai/secure-home-agent-platform` issue 19;
+the path SHALL be the literal `governance/state.json`. The comment id SHALL be
+a positive exactly representable JSON integer and its body identity SHALL be
+64 lowercase hexadecimal SHA-256 characters over exact UTF-8 bytes, with no
+appended LF. Unknown fields, aliases and missing members SHALL be refused.
+
+The sibling `activationIdentity` SHALL be a closed `github-pull-request`
+reference in that same repository. It SHALL NOT be duplicated inside the
+handoff. `genesisAttestationDigest` SHALL bind both that activation identity and
+the complete handoff object in the D3.3 preimage. History SHALL refuse any
+subsequent mutation of the genesis envelope, including rehashed mutations.
+This activation evidence SHALL NOT enter `externalReferences[]`,
+`primitiveDigest` or `relationshipDigest`, and SHALL confer no authorization.
+An unattested candidate SHALL retain the empty genesis object; only the later
+owner ceremony records the real envelope.
+
+The offline checker SHALL validate shape, identities, repository consistency,
+digest binding and immutability without network access. Human task 8.1 and
+final activation review SHALL establish actual external existence and the
+reviewed conditional body. Machine validation SHALL NOT claim to prove current
+GitHub contents, authorship or continued existence. PR metadata alone SHALL
+NOT satisfy the binding. Allocation-era identities in the external body SHALL
+NOT replace the separately bound `activationBaseCommit`.
+
 An unconditional demotion performed at the merge boundary SHALL NOT be used: it
 leaves an interval with no authority anywhere, strands the index demoted if the
 merge is abandoned, and inverts the race on revert.
@@ -2173,6 +2201,31 @@ merge is abandoned, and inverts the race on revert.
   expected registry path
 - **WHEN** the activation gate is evaluated
 - **THEN** it fails — otherwise a second mutable authority outlives activation
+
+#### Scenario: A complete handoff binding is valid without authenticating GitHub
+
+- **GIVEN** an otherwise valid isolated test genesis whose D7.6 handoff and
+  sibling activation identity are complete and included in its digest
+- **WHEN** the real current and history entry points validate it offline
+- **THEN** the bound genesis succeeds without asserting actual external
+  publication, human authorship or authorization
+
+#### Scenario: Malformed or substituted handoff evidence is refused
+
+- **GIVEN** a missing handoff, unknown field, wrong contract or issue identity,
+  invalid comment id, malformed body digest, wrong canonical path, wrong
+  activation-reference type, or differing sibling repository
+- **WHEN** the current entry point validates the genesis
+- **THEN** it refuses, including when externalReferences or PR metadata purport
+  to supply the missing evidence instead
+
+#### Scenario: The complete handoff is digest-bound and historically immutable
+
+- **GIVEN** a genesis digest omitting the handoff, or a later change to any
+  handoff member with all digests recomputed
+- **WHEN** the current and two-revision entry points validate the evidence
+- **THEN** omission fails digest validation and mutation fails history; no
+  recomputed envelope can legalize changing recorded genesis evidence
 
 #### Scenario: Reverting activation returns authority to the index
 
@@ -2368,8 +2421,10 @@ landing — and SHALL NOT be required of an earlier landing that would have to
 bind an identity not yet allocated.
 
 `activationIdentity` SHALL be a closed typed reference of the form
-`{ type, repository, number }`, supplied to the checker by CI and compared
+`{ type: "github-pull-request", repository, number }`, supplied to the checker by CI and compared
 byte-for-byte against the value the genesis evidence binds.
+The same genesis digest SHALL bind `externalIndexHandoff` as defined above;
+the two repository identities SHALL agree.
 
 The ceremony SHALL be ordered:
 

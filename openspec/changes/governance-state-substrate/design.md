@@ -395,6 +395,7 @@ defined preimage:
 | `seedDigest` / `relationshipEquivalenceDigest` | genesis registry, and the source-comparison tuples |
 | `candidateFreezeIdentity` | canonical `{schemaVersion: 1, type: "governance-candidate-bundle", members: [the exact three candidate `{path, contentSha256}` tuples]}`; `bundleSha256` hashes that preimage without itself |
 | `activationFreshnessDigest` | `{schemaVersion, candidateFreezeIdentity, activationBaseCommit, primitiveSourceTuples, relationshipTuples, localEvidenceIdentities, consumerInventory}` — the canonical comparison inputs for the pre-seam freshness result |
+| `genesisAttestationDigest` | `{schemaVersion: 1, priorStateDigest: null, actor, at, outcome, authority, seedDigest, relationshipEquivalenceDigest, sourceSnapshotIdentity, candidateFreezeIdentity, activationBaseCommit, activationIdentity, externalIndexHandoff, activationFreshness}` — both the complete D7.6 handoff and its sibling activation identity are bound; the envelope's `digest` is excluded |
 | `genesisHistoricalCompletionDigest` | the exact D6.6b genesis **observation** preimage: landing identity, **observed lifecycle only**, source snapshot, anchor, policy, scoped delivery, the complete policy evidence, and the historical package disposition (explicit `null` for a spike); **never** a prior lifecycle |
 | `genesisCompletionEnvelopeDigest` | `SHA-256(` canonical ordered entity set of `{ landingId, genesisHistoricalCompletionDigest }` `)` — **tuples, not bare digests**, so a digest cannot be reassociated with another landing (D3.2a) |
 | `withdrawalDigest` | `{schemaVersion, landingId, from, to: "Withdrawn", authorityAnchor, withdrawalEvidence}` — the symmetric protocol ADR-0021 §3D requires |
@@ -1732,8 +1733,10 @@ defines it.
 
 **D6.5 — Attestation construction.** Bind `seedDigest`,
 `relationshipEquivalenceDigest`, source-snapshot identity, actor, RFC 3339 time,
-and a typed authority reference, with `priorStateDigest: null`, the attestation
-excluded from its own preimage. The separate equivalence digest is what makes a
+and a typed authority reference, plus the candidate/base/freshness bindings,
+`activationIdentity` and the complete `externalIndexHandoff` from D7.6, using
+the exact D3.3 genesis-attestation preimage. Only the envelope's own `digest`
+is excluded from that preimage; `priorStateDigest` is `null`. The separate equivalence digest is what makes a
 byte-correct seed asserting an undeclared relationship detectable **without** a
 prior registry revision.
 
@@ -1867,6 +1870,52 @@ cross-system transition; it does not pretend the two systems commit together.
 
 The activation gate still **refuses activation** unless that conditional body is
 in place and bound.
+
+**Closed carrier — activation evidence, not a primitive.** A populated
+`attestations.genesis` has exactly one additional required member,
+`externalIndexHandoff`, with this closed shape (no aliases or optional fields):
+
+```json
+{
+  "contract": "github-issue-conditional-handoff-v1",
+  "index": {
+    "type": "github-issue",
+    "repository": "pulse-ops-ai/secure-home-agent-platform",
+    "number": 19
+  },
+  "commentId": 5747024392,
+  "commentBodySha256": "<64 lowercase hex>",
+  "canonicalRegistryPath": "governance/state.json"
+}
+```
+
+The contract discriminator, typed issue #19 identity and canonical path are
+literal. `commentId` is a positive, exactly representable JSON integer;
+`commentBodySha256` hashes the exact UTF-8 GitHub body with no appended LF.
+The sibling `activationIdentity` must be a closed `github-pull-request`
+reference whose repository equals the index repository. It is **not duplicated**
+inside the handoff. D3.3 includes both siblings in `genesisAttestationDigest`.
+The complete genesis envelope, including the handoff, is immutable after
+genesis, even if someone recomputes its digest.
+
+This evidence is excluded from `primitiveDigest` and `relationshipDigest` and
+does not enter `externalReferences[]`, confer authority, or change governance
+facts. The unattested candidate retains `attestations.genesis = {}`: the owner
+records this binding only with the real envelope at task 8.7.
+
+**Offline/manual boundary.** The shared model checks closure, literal/typed
+identities, numeric/digest shape, repository consistency, digest inclusion and
+history immutability. It never fetches GitHub. Task 8.1 and final activation
+review establish the exact external body and conditional semantics; the checker
+does **not** prove current GitHub contents, authorship or continued existence.
+PR metadata records that observation but cannot substitute for the envelope
+binding. Allocation-era base/head references in the comment remain historical
+allocation evidence, not the later `activationBaseCommit`.
+
+This corrects D7.6's missing implementation carrier under ADR-0021; it adds no
+fact family, authorization-evidence contract or activation permission. The
+planning-byte change requires a mechanically refreshed candidate with unchanged
+primitives, common source S and archive-stage M before later activation.
 
 **D7.7 — Exact artifact paths, before and after.**
 
