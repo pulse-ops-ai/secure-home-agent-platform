@@ -1,11 +1,11 @@
 # governance-state Specification Delta
 
-> **Accepted architecture; implementation remains NOT AUTHORIZED.** ADR-0023
-> and ADR-0024 are Accepted together in this target. The temporal amendment is
-> no longer contingent on architecture acceptance; a NEW exact-S owner refresh
-> is still required for PR #124. Both bridge envelopes retain pre-transition
-> RFC 3339 evidence. The target consumes the bridge; durable expiry follows
-> landing. No executable behavior, candidate or canonical state changes here.
+> **Accepted architecture; PR-2 implementation authorized at exact S.** ADR-0023
+> and ADR-0024 landed together at `c82fda72927464d813ec769aee53f4079ebe3b20`.
+> The later owner authorization recorded in tasks.md resumes PR #124 only.
+> Both historical bridge envelopes retain pre-transition RFC 3339 evidence;
+> the bridge is permanently consumed/expired. Canonical state, real genesis
+> attestations and PR-3 remain excluded. Requirements below are unchanged.
 
 ## ADDED Requirements
 

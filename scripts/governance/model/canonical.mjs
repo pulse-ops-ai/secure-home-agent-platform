@@ -10,7 +10,17 @@ import { TextDecoder } from 'node:util'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 
-const SET_ARRAY_KEYS = new Set(['resolves', 'supersedes', 'requires', 'sources', 'scope'])
+const SET_ARRAY_KEYS = new Set([
+  'resolves',
+  'supersedes',
+  'requires',
+  'sources',
+  'scope',
+  'waivedMinimumArtifacts',
+  'policyEvidenceIdentities',
+  'factClasses',
+  'generatedRegions',
+])
 
 const ENTITY_ARRAY_KEYS = new Set(['adrs', 'questions', 'gates', 'landings', 'externalReferences'])
 
@@ -62,6 +72,7 @@ const OBJECT_ORDERS = new Map([
   ['anchor', ['type', 'repository', 'number', 'id']],
   ['delivery', ['lifecycle', 'completionPolicy', 'completion', 'withdrawal']],
   ['completion', ['digest', 'evidence', 'attestation']],
+  ['historicalCompletion', ['type', 'digest', 'evidence']],
   ['withdrawal', ['digest', 'evidence', 'attestation']],
   ['replacement', ['digest', 'attestation']],
   ['attestation', ['digest', 'actor', 'at', 'outcome', 'authority']],
@@ -80,7 +91,10 @@ const objectKind = (object, path) => {
   if (key === 'predicate') return 'predicate'
   if (key === 'authorityAnchor' || key === 'authority') return 'anchor'
   if (key === 'delivery') return 'delivery'
-  if (key === 'completion') return 'completion'
+  if (key === 'completion')
+    return object.type === 'genesis-historical-completion-v1'
+      ? 'historicalCompletion'
+      : 'completion'
   if (key === 'withdrawal') return 'withdrawal'
   if (key === 'replacement') return 'replacement'
   if (key === 'attestation') return 'attestation'
@@ -120,6 +134,46 @@ export function canonicalizeValue(value, path = []) {
 
     if (ENTITY_ARRAY_KEYS.has(key)) {
       return [...members].sort((left, right) => compareText(String(left?.id), String(right?.id)))
+    }
+    if (key === 'historicalCompletions') {
+      return [...members].sort((left, right) =>
+        compareText(String(left?.landingId), String(right?.landingId)),
+      )
+    }
+    if (key === 'decisionEvidence') {
+      return [...members].sort((left, right) =>
+        compareText(String(left?.adrId), String(right?.adrId)),
+      )
+    }
+    if (key === 'sources' && path.includes('decisionEvidence')) {
+      return [...members].sort((left, right) => {
+        for (const field of ['path', 'revision', 'contentSha256', 'selector']) {
+          const order = compareText(String(left?.[field]), String(right?.[field]))
+          if (order) return order
+        }
+        return 0
+      })
+    }
+    if (key === 'rows') {
+      return [...members].sort((left, right) =>
+        compareText(String(left?.id ?? left?.path), String(right?.id ?? right?.path)),
+      )
+    }
+    if (key === 'planningSources') {
+      return [...members].sort((left, right) =>
+        compareText(
+          String(left?.revision) + ':' + String(left?.path),
+          String(right?.revision) + ':' + String(right?.path),
+        ),
+      )
+    }
+    if (key === 'primitiveSourceTuples') {
+      return [...members].sort((left, right) => compareText(String(left?.id), String(right?.id)))
+    }
+    if (key === 'members' && !path.includes('genesisCompletion')) {
+      return [...members].sort((left, right) =>
+        compareText(String(left?.path), String(right?.path)),
+      )
     }
     if (key === 'members' && path.includes('genesisCompletion')) {
       return [...members].sort((left, right) =>

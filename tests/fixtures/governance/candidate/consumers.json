@@ -1,0 +1,1841 @@
+{
+  "schemaVersion": 1,
+  "rows": [
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": ".github/agents/architecture.agent.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": ".github/agents/implementation.agent.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": ".github/copilot-instructions.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": ".github/pull_request_template.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "CLAUDE.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "CONTRIBUTING.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "agents/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "agents/adapters/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "apps/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/compose/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/images/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/images/runner-base/Dockerfile",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/images/runner-base/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "deploy/runtime/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/INDEX.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "retained-semantic-prose",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/agent-triage-and-escalation.md",
+      "retainedReason": "Explains the triage mechanism and examples, not the live decision lifecycle or readiness registry."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/api-contract-model.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/degraded-mode.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/distributed-effect-lifecycle.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/effect-boundary-model.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/knowledge-promotion-model.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/knowledge-selection-model.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/runner-model.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/trust-boundaries.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "generated-region",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": ["question-summary", "resolution-banners"],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/architecture/unresolved-decisions.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0001-adopt-security-first-architecture.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0003-use-framework-neutral-runner-profiles.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0004-treat-agents-as-clients.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0005-separate-capability-authorization-and-safety.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0007-route-local-remote-and-cloud-execution-explicitly.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0013-define-the-runner-adapter-spi.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0016-hybrid-admission-assurance-for-prohibited-content.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "retained-semantic-prose",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0020-place-runner-control-by-workload-class.md",
+      "retainedReason": "Proposed decision text and its validated header mirror remain authored. This is neither acceptance nor a second live status authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0021-establish-machine-readable-governance-state.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "generated-region",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": ["decision-lifecycle"],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/decisions/INDEX.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/operations/INDEX.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "docs/operations/pi-bootstrap.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/spikes/l6-copilot-cli/L6-Copilot-CLI-Spike-Findings.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "docs/spikes/l6-copilot-cli/README.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/catalog.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/household/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/degraded-operation/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/governance/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/governance/decisions.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/governance/precedence.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/platform/worker-conventions/placement.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "knowledge/runbooks/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/specs/runner-adoption/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-09-runner-baseline-adoption/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-contract-corrections/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-core/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-core/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-core/specs/runner-evidence-derivation/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-core/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-10-runner-domain-contracts/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-12-runner-early-terminal-record/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-08-12-runner-early-terminal-record/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/README.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/1-aae33fdd217d.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/2-70680c1c3eea.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/reviews/3-cd019d42b873.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/specs/toolchain-authority/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-10-typescript-7-lint-engine-resilience/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/specs/runner-lifecycle/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-control-orchestration/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/assurance.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-image-lineage/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/design.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/proposal.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/archive/2026-09-13-runner-platform-adapters/tasks.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/assurance.md",
+      "retainedReason": "Proof obligations and source-era examples, not a new delivery-status authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/bridge-verification.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/design.md",
+      "retainedReason": "Governed substrate design; retain definitions and source-era examples, route live governance answers to the canonical query."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/proposal.md",
+      "retainedReason": "Migration proposal; replace live-state assertions with canonical pointers while preserving the authorized scope."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/specs/governance-state/spec.md",
+      "retainedReason": "Normative governance requirements and scenario examples, not stored current conclusions."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/governance-state-substrate/tasks.md",
+      "retainedReason": "Governed execution plan and authorization receipts; preserve historical receipts and route current delivery answers to the query."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-content-assurance/assurance.md",
+      "retainedReason": "Knowledge-assurance proof examples and prerequisite claims, not an exempt historical directory."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-content-assurance/design.md",
+      "retainedReason": "Knowledge-assurance mechanisms and prerequisite references; preserve semantics while linking current state."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-content-assurance/proposal.md",
+      "retainedReason": "Knowledge-assurance scope with copied current blockers; migrate only those current governance claims."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-content-assurance/specs/knowledge-admission/spec.md",
+      "retainedReason": "Admission requirements reference decisions; preserve requirements and point to canonical lifecycle answers."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-content-assurance/tasks.md",
+      "retainedReason": "Knowledge-assurance execution dependencies; replace copied live governance answers with pointers."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-promotion-path/assurance.md",
+      "retainedReason": "Promotion proof cases remain authored, without a separate live blocker list."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-promotion-path/design.md",
+      "retainedReason": "Promotion mechanism definitions remain authored; live decision-state references become pointers."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-promotion-path/proposal.md",
+      "retainedReason": "Promotion proposal with copied governance context; migrate the live assertions only."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-promotion-path/specs/knowledge-promotion/spec.md",
+      "retainedReason": "Promotion requirements retain normative meaning; current lifecycle answers are pointers."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/knowledge-promotion-path/tasks.md",
+      "retainedReason": "Promotion work plan; retain historical tasks and link current governance facts."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/okf-format-decision/assurance.md",
+      "retainedReason": "Format proof requirements remain authored, with no independent resolution authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/okf-format-decision/design.md",
+      "retainedReason": "Format design remains normative; live U7 and lifecycle claims are linked."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/okf-format-decision/proposal.md",
+      "retainedReason": "Format-decision proposal retains its source-era rationale, not a mutable resolution summary."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/okf-format-decision/specs/knowledge-format/spec.md",
+      "retainedReason": "Knowledge-format requirements survive; copied current decision status becomes a pointer."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/okf-format-decision/tasks.md",
+      "retainedReason": "Format execution history remains intact; current resolution answers are linked."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/runner-adapter-conformance-seed/assurance.md",
+      "retainedReason": "Frozen adapter proof plan is not changed here; its own authorization governs any future metadata migration."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/runner-adapter-conformance-seed/design.md",
+      "retainedReason": "Frozen adapter design is not changed here; preserve semantics and require separately authorized pointer migration."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/runner-adapter-conformance-seed/proposal.md",
+      "retainedReason": "Frozen PR-101 planning is not changed by PR-2; any future live-claim migration must respect its separate authorization."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/runner-adapter-conformance-seed/tasks.md",
+      "retainedReason": "Frozen adapter task contract remains untouched; this inventory grants no implementation or editing authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/ts7-emit-proof-lifecycle/assurance.md",
+      "retainedReason": "Proof-lifecycle obligations remain intact; current governance answers must use the canonical query."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/ts7-emit-proof-lifecycle/proposal.md",
+      "retainedReason": "Completed proof-lifecycle proposal; preserve historical reasoning and replace only genuinely live governance copies."
+    },
+    {
+      "disposition": "retained-semantic-prose",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/changes/ts7-emit-proof-lifecycle/verification.md",
+      "retainedReason": "Completed cutover-lifecycle verification receipt, retained as source-era evidence rather than current governance authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/config.yaml",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/schemas/governed-spec-driven-v1/schema.yaml",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/schemas/governed-spec-driven-v1/templates/proposal.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "openspec/schemas/governed-spec-driven-v2/schema.yaml",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/specs/runner-adoption/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "historical-record",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": {
+        "class": "local-git-commit",
+        "value": "c82fda72927464d813ec769aee53f4079ebe3b20"
+      },
+      "migrationLanding": "PR-3",
+      "path": "openspec/specs/toolchain-authority/spec.md",
+      "retainedReason": "Immutable accepted contract or captured evidence at this exact source path; not a mutable current-state authority."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "packages/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "packages/knowledge-toolchain/src/attestation.ts",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "packages/knowledge-toolchain/src/falsification.test.ts",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "packages/lint-config/policy.schema.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "pnpm-workspace.yaml",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "profiles/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "profiles/household/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "pyproject.toml",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "schemas/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "schemas/automation/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/check-knowledge.mjs",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/governance/genesis/README.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/governance/genesis/extract.mjs",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/governance/model/history.mjs",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/governance/model/validate.mjs",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "scripts/validate-scaffold.sh",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/AGENTS.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/control-plane/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "stable-pointer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/runner-control/README.md",
+      "retainedReason": null
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/runner-control/src/conformance/adapter-spi.test.ts",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/runner-control/src/run-state/in-memory.ts",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "services/runner-control/src/run-state/ports.ts",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/candidate/README.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/candidate/consumers.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/candidate/source-manifest.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/candidate/state.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/current/adr.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/current/state.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/current/unresolved.md",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/genesis/delivery-preimage.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["program-state"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/fixtures/governance/genesis/spike-preimage.json",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/set_release_oracle.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/test_governance_acceptance_audit.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "program-state", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/test_governance_state.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle", "question-resolution"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/test_knowledge_catalog.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    },
+    {
+      "disposition": "not-a-governance-consumer",
+      "factClasses": ["decision-lifecycle"],
+      "generatedRegions": [],
+      "historicalIdentity": null,
+      "migrationLanding": "PR-3",
+      "path": "tests/test_openspec_scope2_sequence.py",
+      "retainedReason": "Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state."
+    }
+  ]
+}

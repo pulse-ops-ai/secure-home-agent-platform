@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "authorityAnchor": {
+    "type": "github-issue",
+    "repository": "fixture/offline",
+    "number": 56
+  },
+  "completionPolicy": "reviewed-spike-evidence-v1",
+  "historicalPackageDisposition": null,
+  "landingId": "runner/L6",
+  "observedLifecycle": "Complete",
+  "policyEvidenceIdentities": [
+    {
+      "evidenceManifestIdentity": {
+        "class": "content-sha256",
+        "value": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "scope": ["docs/spikes/demo/MANIFEST.sha256"]
+      },
+      "evidenceRoot": "docs/spikes/demo",
+      "findingsIdentity": {
+        "class": "content-sha256",
+        "value": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": ["docs/spikes/demo/findings.md"]
+      },
+      "mergedEvidenceIdentity": {
+        "class": "local-git-commit",
+        "value": "2222222222222222222222222222222222222222",
+        "scope": ["docs/spikes/demo/MANIFEST.sha256", "docs/spikes/demo/findings.md"]
+      },
+      "mergedEvidencePullRequest": {
+        "number": 73,
+        "repository": "fixture/offline",
+        "type": "github-pull-request"
+      },
+      "openSpecApplicability": "not-applicable",
+      "policy": "reviewed-spike-evidence-v1"
+    }
+  ],
+  "scopedDeliveredIdentity": {
+    "class": "local-git-commit",
+    "scope": ["docs/spikes/demo/MANIFEST.sha256", "docs/spikes/demo/findings.md"],
+    "value": "2222222222222222222222222222222222222222"
+  },
+  "sourceSnapshotIdentity": {
+    "class": "local-git-commit",
+    "value": "1111111111111111111111111111111111111111"
+  }
+}
