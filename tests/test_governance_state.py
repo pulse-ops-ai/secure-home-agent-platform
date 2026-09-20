@@ -7002,7 +7002,13 @@ def test_d76_handoff_positive_is_evidence_not_a_primitive(attested_genesis: Path
     assert genesis["actor"] == "fixture:genesis-mechanism"
     assert genesis["authority"]["id"] == "mechanical-test-only"
     assert genesis["externalIndexHandoff"]["commentId"] == 1  # Not the real owner comment.
-    assert_valid(root, REGISTRY_PATH)
+    payload = assert_valid(root, REGISTRY_PATH)
+    assert len(state["adrs"]) == 24
+    assert sum(a["lifecycle"] in {"Accepted", "Rejected"} for a in state["adrs"]) == 23
+    assert next(a for a in state["adrs"] if a["id"] == "ADR-0020")["lifecycle"] == "Proposed"
+    assert payload["derived"]["questions"]["U4"]["resolved"] is False
+    assert payload["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is False
+    assert payload["derived"]["readiness"]["runner/L9"]["state"] == "NotReady"
     assert_history_clean(root, base=genesis["activationBaseCommit"])
     script = """
 import {primitiveDigest,relationshipDigest,genesisAttestationDigest}
@@ -7175,7 +7181,7 @@ console.log(digestPreimage(preimage))
     )
     state["attestations"]["genesis"]["digest"] = omitted.stdout.strip()
     write_state(root, state, REGISTRY_PATH)
-    assert_refused(root, "ADV-G19", path=REGISTRY_PATH)
+    assert_refused(root, "ADV-G62", path=REGISTRY_PATH)
     subject = mutant_subject(
         tmp_path,
         [

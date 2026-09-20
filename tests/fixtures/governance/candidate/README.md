@@ -1,4 +1,50 @@
-# Unattested PR-2 candidate
+# Unattested governance candidate
+
+## D7.6 correction — current review freeze
+
+The owner-authorized [D7.6 carrier correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
+requires new planning provenance, not new governance facts. The preparation
+checkpoint is `4fa2c6b19516eeda18ee7fac9decdf81451c3630`. The existing extractor
+re-audits common source S and mechanically reproduces state and consumers
+byte-for-byte; only the source manifest's preparation bindings change.
+
+| Member | Previous PR-2 SHA-256 | Current SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `2055e83e8868dd03ac841dc15988020c34d6b64126c6c6c0c7eda04a9c26dac0` | `9108e4460fbbfa1fb49e636c52666d2e14f17cbbab1b47553d12ea085eba87a8` |
+| `consumers.json` | `a827e5e4ab941c66a801cac16ce29ca76e5a75cbcafd24c253ca236741ecde20` | `a827e5e4ab941c66a801cac16ce29ca76e5a75cbcafd24c253ca236741ecde20` |
+
+Bundle SHA-256 changes from
+`63612330004b76b8033ac2970f999fe47a4212c3f7848dff2966ef5d4b6b7419` to
+`4ba911796fc037a36ce26c6285cc149f085e5f41459126ab2b6d0c1e20b57c38`.
+Primitive digest remains
+`9ee9dd25177a81af89f199ba3b7b368488763361e7ad0d6227b7d57783d35bf9`;
+relationship digest remains
+`80089e507b92330f04971aced8f1abc2ce1fd0e4be62cb19a6a2c3a86ac5464d`.
+S and archive-stage M below are unchanged. The candidate remains unattested:
+`attestations.genesis = {}`. It contains no `externalIndexHandoff`; that field
+belongs only to the later owner-authored populated genesis envelope. This
+correction does not resume activation PR #131 or perform its owner ceremony.
+
+Replay with the existing read-only machinery:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source 4fa2c6b19516eeda18ee7fac9decdf81451c3630
+```
+
+The correction PR records its exact containing head, proof and independent
+review disposition externally. This receipt does not authenticate a human or
+authorize activation. Promotion determination: a missing implementation carrier
+for existing Accepted ADR-0021/D7.6 is corrected; no new architecture or portable
+knowledge contract is introduced.
+
+## Historical PR-2 receipt — superseded freeze, retained provenance
+
+The record below describes the earlier PR-2 review stage. Its pending-review
+statements and bundle identity are historical; the current freeze is above.
 
 Review material only. The common genesis source is exact post-bridge **S**:
 `c82fda72927464d813ec769aee53f4079ebe3b20`. L4/L5/L7 retain archive-stage **M**:
