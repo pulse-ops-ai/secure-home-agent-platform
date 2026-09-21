@@ -278,19 +278,19 @@ const ACTIVE_SURFACES = new Map([
   ],
   [
     'runner-adapter-conformance-seed/proposal.md',
-    'Frozen PR-101 planning is not changed by PR-2; any future live-claim migration must respect its separate authorization.',
+    'Frozen pre-activation / source-era PR-101 planning context; PR-3 deliberately leaves these bytes unchanged. After activation this is NOT a current governance authority: live decision lifecycle, question-resolution and program-state answers come only from governance/state.json / the canonical query. PR #101 remains separately governed and cannot be modified until the post-PR-3 handoff.',
   ],
   [
     'runner-adapter-conformance-seed/design.md',
-    'Frozen adapter design is not changed here; preserve semantics and require separately authorized pointer migration.',
+    'Frozen pre-activation / source-era PR-101 planning context; PR-3 deliberately leaves these bytes unchanged. After activation this is NOT a current governance authority: live decision lifecycle, question-resolution and program-state answers come only from governance/state.json / the canonical query. PR #101 remains separately governed and cannot be modified until the post-PR-3 handoff.',
   ],
   [
     'runner-adapter-conformance-seed/assurance.md',
-    'Frozen adapter proof plan is not changed here; its own authorization governs any future metadata migration.',
+    'Frozen pre-activation / source-era PR-101 planning context; PR-3 deliberately leaves these bytes unchanged. After activation this is NOT a current governance authority: live decision lifecycle, question-resolution and program-state answers come only from governance/state.json / the canonical query. PR #101 remains separately governed and cannot be modified until the post-PR-3 handoff.',
   ],
   [
     'runner-adapter-conformance-seed/tasks.md',
-    'Frozen adapter task contract remains untouched; this inventory grants no implementation or editing authority.',
+    'Frozen pre-activation / source-era PR-101 planning context; PR-3 deliberately leaves these bytes unchanged. After activation this is NOT a current governance authority: live decision lifecycle, question-resolution and program-state answers come only from governance/state.json / the canonical query. PR #101 remains separately governed and cannot be modified until the post-PR-3 handoff.',
   ],
   [
     'ts7-emit-proof-lifecycle/proposal.md',
@@ -358,7 +358,17 @@ function inventoryFor(snapshot) {
         retainedReason = ACTIVE_SURFACES.get(row.path.slice('openspec/changes/'.length))
         if (!retainedReason)
           throw new Error('active governance surface needs individual disposition: ' + row.path)
-        if (row.path === 'openspec/changes/ts7-emit-proof-lifecycle/verification.md')
+        // Reviewed D7.2b classification metadata, not a historical exemption.
+        // Exact files only: neighboring active planning still defaults to pointers.
+        if (
+          [
+            'openspec/changes/ts7-emit-proof-lifecycle/verification.md',
+            'openspec/changes/runner-adapter-conformance-seed/assurance.md',
+            'openspec/changes/runner-adapter-conformance-seed/design.md',
+            'openspec/changes/runner-adapter-conformance-seed/proposal.md',
+            'openspec/changes/runner-adapter-conformance-seed/tasks.md',
+          ].includes(row.path)
+        )
           disposition = 'retained-semantic-prose'
       }
       return {

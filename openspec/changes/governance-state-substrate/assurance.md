@@ -906,6 +906,18 @@ checker can actually prove it: a one-revision checker cannot detect that a value
   surviving hand-authored copy.
 - **ADV-G46** Governance surface absent from the consumer inventory.
 - **ADV-G47** `retained-semantic-prose` row with no recorded reason.
+  The permanent D7.2b scope regression reads the real frozen inventory and real
+  task metadata: task 8.4 equals exactly all 75 stable-pointer rows, with no
+  duplicate, omitted pointer, non-pointer addition or stale runner-core README
+  entry. Its four protected PR-101 rows retain unchanged fact classes and
+  explicit source-era/non-authority/post-PR-3-handoff reasons, never historical
+  exemptions. The concrete union for 8.2/8.2a/8.3/8.4/8.5 is exactly 90 paths;
+  8.5a/8.6 retain exact staged/committed scope equality. Mutated in-memory
+  task/inventory inputs must independently demonstrate each refusal. Complete
+  tracked-file rediscovery must validate the corrected 182-row inventory and
+  mechanically check D7.2's displayed disposition counts. Re-extraction must
+  reproduce the freeze while state bytes and primitive/relationship identities
+  remain unchanged; no test or owner attestation is added to the candidate.
 - **ADV-G49** Activation whose evidence does not bind the conditional handoff —
   index identity, conditional body bytes, activation identity, registry path.
   The real current/history entry points must exercise the D7.6 closed carrier:

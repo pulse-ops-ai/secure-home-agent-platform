@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -7303,3 +7304,229 @@ def test_genesis_clis_have_no_hidden_bypass_switch(name: str, args: list[str]) -
         text=True,
     )
     assert result.returncode != 0 and "Unknown option" in result.stderr
+
+
+PR3_PROTECTED_CONTEXT = {
+    "openspec/changes/runner-adapter-conformance-seed/assurance.md": ["program-state"],
+    "openspec/changes/runner-adapter-conformance-seed/design.md": [
+        "decision-lifecycle",
+        "program-state",
+    ],
+    "openspec/changes/runner-adapter-conformance-seed/proposal.md": [
+        "program-state",
+        "question-resolution",
+    ],
+    "openspec/changes/runner-adapter-conformance-seed/tasks.md": ["program-state"],
+}
+PR3_NON_POINTER_SCOPE = {
+    "8.2": {
+        "governance/state.json",
+        "governance/genesis-source-manifest.json",
+        "governance/consumers.json",
+        "governance/README.md",
+        "tests/fixtures/governance/candidate/state.json",
+        "tests/fixtures/governance/candidate/source-manifest.json",
+        "tests/fixtures/governance/candidate/consumers.json",
+    },
+    "8.2a": {"openspec/changes/governance-state-substrate/ACTIVATION-INTENT.md"},
+    "8.3": {
+        "governance/STATE.md",
+        "docs/decisions/INDEX.md",
+        "docs/architecture/unresolved-decisions.md",
+    },
+    "8.5": {
+        ".github/workflows/checks.yml",
+        "scripts/validate-scaffold.sh",
+        "scripts/check-governance-state.mjs",
+        "scripts/check-governance-history.mjs",
+    },
+}
+PR3_INVENTORY_COUNTS = {
+    "stable-pointer": 75,
+    "retained-semantic-prose": 7,
+    "generated-region": 2,
+    "historical-record": 66,
+    "not-a-governance-consumer": 32,
+}
+PR3_RETAINED_MEANING = (
+    "Frozen pre-activation / source-era PR-101 planning context",
+    "PR-3 deliberately leaves these bytes unchanged",
+    "After activation this is NOT a current governance authority",
+    "live decision lifecycle, question-resolution and program-state answers",
+    "come only from governance/state.json / the canonical query",
+    "PR #101 remains separately governed",
+    "cannot be modified until the post-PR-3 handoff",
+)
+
+
+def pr3_scope_inputs() -> tuple[dict[str, list[str]], dict[str, Any]]:
+    """Read actual task metadata and the same frozen inventory across promotion."""
+    tasks = (REPOSITORY_ROOT / "openspec/changes/governance-state-substrate/tasks.md").read_text()
+    scopes: dict[str, list[str]] = {}
+    for task, paths in re.findall(r"<!-- agent-task: (8\.[\da-z]+) paths=(\S+) checks=", tasks):
+        assert task not in scopes, f"duplicate task {task}"
+        scopes[task] = paths.split(",")
+    canonical = REPOSITORY_ROOT / "governance/consumers.json"
+    candidate = REPOSITORY_ROOT / "tests/fixtures/governance/candidate/consumers.json"
+    assert not (canonical.exists() and candidate.exists()), "two usable inventories"
+    inventory = load_state(REPOSITORY_ROOT, str(canonical if canonical.exists() else candidate))
+    return scopes, inventory
+
+
+def assert_pr3_consumer_scope(scopes: dict[str, list[str]], inventory: dict[str, Any]) -> set[str]:
+    """Planning consistency oracle only; does not replace a production state rule."""
+    rows = inventory["rows"]
+    by_path = {row["path"]: row for row in rows}
+    assert len(by_path) == len(rows) == 182
+    assert Counter(row["disposition"] for row in rows) == PR3_INVENTORY_COUNTS
+    pointers = {row["path"] for row in rows if row["disposition"] == "stable-pointer"}
+    assert len(scopes["8.4"]) == len(set(scopes["8.4"])) == len(pointers) == 75
+    assert set(scopes["8.4"]) == pointers, "task 8.4 and stable-pointer rows differ"
+    assert "packages/runner-core/README.md" not in scopes["8.4"]
+    assert "packages/runner-core/README.md" not in by_path
+    assert pointers.isdisjoint(PR3_PROTECTED_CONTEXT)
+    for path, fact_classes in PR3_PROTECTED_CONTEXT.items():
+        row = by_path[path]
+        assert row["disposition"] == "retained-semantic-prose"
+        assert row["factClasses"] == fact_classes
+        assert row["generatedRegions"] == []
+        assert row["historicalIdentity"] is None
+        assert row["migrationLanding"] == "PR-3"
+        assert isinstance(row["retainedReason"], str)
+        for meaning in PR3_RETAINED_MEANING:
+            assert meaning in row["retainedReason"], f"{path}: missing {meaning}"
+    for task, expected in PR3_NON_POINTER_SCOPE.items():
+        assert len(scopes[task]) == len(set(scopes[task]))
+        assert set(scopes[task]) == expected, f"unexpected non-pointer scope {task}"
+    union = set().union(*(scopes[task] for task in ["8.2", "8.2a", "8.3", "8.4", "8.5"]))
+    expected_union = pointers.union(*PR3_NON_POINTER_SCOPE.values())
+    assert union == expected_union
+    assert len(union) == 90
+    assert all(not any(char in path for char in "*?[]") for path in union), "glob scope"
+    return union
+
+
+def test_pr3_consumer_scope_matches_real_inventory_and_task_metadata() -> None:
+    scopes, inventory = pr3_scope_inputs()
+    assert len(assert_pr3_consumer_scope(scopes, inventory)) == 90
+    design = (REPOSITORY_ROOT / "openspec/changes/governance-state-substrate/design.md").read_text()
+    table = design.split("<!-- consumer-scope-counts:begin -->", 1)[1].split(
+        "<!-- consumer-scope-counts:end -->", 1
+    )[0]
+    displayed = {name: int(count) for name, count in re.findall(r"\| ([a-z-]+) \| (\d+) \|", table)}
+    assert displayed == {**PR3_INVENTORY_COUNTS, "total": len(inventory["rows"])}
+    spec = (
+        REPOSITORY_ROOT
+        / "openspec/changes/governance-state-substrate/specs/governance-state/spec.md"
+    ).read_text()
+    assert "75 pointer rows, 7 retained" in spec
+    assert "2 generated-region rows, 66 historical rows and 32 non-consumers" in spec
+    assert "182 total" in spec and "exactly 90 paths" in spec
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "omitted-pointer",
+        "duplicate-pointer",
+        "smuggled-non-pointer",
+        "stale-runner-core",
+        "protected-in-task",
+        "swapped-same-count",
+        "changed-disposition",
+        "historical-protected",
+        "missing-reason",
+        "changed-fact-classes",
+        "generated-protected",
+        "historical-identity",
+        "wrong-landing",
+        "unknown-row",
+        "missing-row",
+        "seam-extra",
+        "seam-omitted",
+        "seam-substitution",
+        "seam-duplicate",
+        "glob",
+    ],
+)
+def test_pr3_consumer_scope_hostile_mutations_refuse(case: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] in PR3_PROTECTED_CONTEXT)
+    if case == "omitted-pointer":
+        scopes["8.4"].pop()
+    elif case == "duplicate-pointer":
+        scopes["8.4"].append(scopes["8.4"][0])
+    elif case == "smuggled-non-pointer":
+        scopes["8.4"].append("docs/decisions/INDEX.md")
+    elif case == "stale-runner-core":
+        scopes["8.4"].append("packages/runner-core/README.md")
+    elif case == "protected-in-task":
+        scopes["8.4"].append(row["path"])
+    elif case == "swapped-same-count":
+        scopes["8.4"][0] = row["path"]
+    elif case == "changed-disposition":
+        next(r for r in inventory["rows"] if r["disposition"] == "stable-pointer")[
+            "disposition"
+        ] = "retained-semantic-prose"
+    elif case == "historical-protected":
+        row["disposition"] = "historical-record"
+    elif case == "missing-reason":
+        row["retainedReason"] = ""
+    elif case == "changed-fact-classes":
+        row["factClasses"] = []
+    elif case == "generated-protected":
+        row["generatedRegions"] = ["decision-lifecycle"]
+    elif case == "historical-identity":
+        row["historicalIdentity"] = {"class": "local-git-commit", "value": POST_BRIDGE_SOURCE}
+    elif case == "wrong-landing":
+        row["migrationLanding"] = "PR-4"
+    elif case == "unknown-row":
+        inventory["rows"].append({**row, "path": "unreviewed.md"})
+    elif case == "missing-row":
+        inventory["rows"].remove(row)
+    elif case == "seam-extra":
+        scopes["8.5"].append("scripts/query-governance-state.mjs")
+    elif case == "seam-omitted":
+        scopes["8.2"].pop()
+    elif case == "seam-substitution":
+        scopes["8.5"][0] = "scripts/query-governance-state.mjs"
+    elif case == "seam-duplicate":
+        scopes["8.2"].append(scopes["8.2"][0])
+    else:
+        scopes["8.4"][0] = "docs/**"
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("meaning", PR3_RETAINED_MEANING)
+def test_pr3_consumer_scope_each_retention_obligation_is_required(meaning: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] in PR3_PROTECTED_CONTEXT)
+    row["retainedReason"] = row["retainedReason"].replace(meaning, "")
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator() -> None:
+    script = """
+import {readFileSync} from 'node:fs'
+import {readCheckoutSnapshot,createGenesisReader}
+  from './scripts/governance/genesis/observations.mjs'
+import {validateConsumerInventory,discoverConsumers} from './scripts/governance/model/consumers.mjs'
+const inventory=JSON.parse(readFileSync('tests/fixtures/governance/candidate/consumers.json'))
+const snapshot=readCheckoutSnapshot('.')
+const source=createGenesisReader('.')('c82fda72927464d813ec769aee53f4079ebe3b20')
+const problems=[]
+validateConsumerInventory(inventory,snapshot,problems,source)
+console.log(JSON.stringify({problems,discovered:discoverConsumers(snapshot).length,rows:inventory.rows.length}))
+process.exitCode=problems.length?1:0
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    payload = json.loads(result.stdout)
+    assert payload == {"problems": [], "discovered": 182, "rows": 182}

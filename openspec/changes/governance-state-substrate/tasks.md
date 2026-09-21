@@ -1707,9 +1707,15 @@ registry appears, and it appears already protected.
   `validate-scaffold.sh` bidirectional index rules
 
 - [ ] **8.4 Replace every remaining enumerated consumer copy with a pointer**
-  <!-- agent-task: 8.4 paths=AGENTS.md,CLAUDE.md,CONTRIBUTING.md,README.md,docs/AGENTS.md,docs/README.md,docs/architecture/INDEX.md,docs/operations/INDEX.md,docs/operations/pi-bootstrap.md,agents/AGENTS.md,agents/adapters/README.md,deploy/AGENTS.md,deploy/compose/README.md,deploy/images/README.md,services/AGENTS.md,services/README.md,services/control-plane/README.md,services/runner-control/README.md,packages/runner-core/README.md,knowledge/README.md,knowledge/household/README.md,knowledge/platform/README.md,knowledge/platform/degraded-operation/README.md,knowledge/runbooks/README.md,profiles/household/README.md,schemas/automation/README.md,openspec/AGENTS.md,openspec/config.yaml,.github/copilot-instructions.md,.github/agents/architecture.agent.md,.github/agents/implementation.agent.md,docs/architecture/api-contract-model.md,docs/architecture/degraded-mode.md,docs/architecture/distributed-effect-lifecycle.md,docs/architecture/effect-boundary-model.md,docs/architecture/knowledge-promotion-model.md,docs/architecture/knowledge-selection-model.md,docs/architecture/runner-model.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
-  Scoped by the inventory, not by glob. `openspec/config.yaml` is the named
-  regression case.
+  <!-- agent-task: 8.4 paths=.github/agents/architecture.agent.md,.github/agents/implementation.agent.md,.github/copilot-instructions.md,.github/pull_request_template.md,AGENTS.md,CLAUDE.md,CONTRIBUTING.md,README.md,agents/AGENTS.md,agents/adapters/README.md,apps/README.md,deploy/AGENTS.md,deploy/README.md,deploy/compose/README.md,deploy/images/README.md,deploy/images/runner-base/Dockerfile,deploy/images/runner-base/README.md,deploy/runtime/README.md,docs/AGENTS.md,docs/README.md,docs/architecture/INDEX.md,docs/architecture/api-contract-model.md,docs/architecture/degraded-mode.md,docs/architecture/distributed-effect-lifecycle.md,docs/architecture/effect-boundary-model.md,docs/architecture/knowledge-promotion-model.md,docs/architecture/knowledge-selection-model.md,docs/architecture/runner-model.md,docs/architecture/trust-boundaries.md,docs/operations/INDEX.md,docs/operations/pi-bootstrap.md,knowledge/AGENTS.md,knowledge/README.md,knowledge/household/README.md,knowledge/platform/README.md,knowledge/platform/degraded-operation/README.md,knowledge/platform/governance/README.md,knowledge/platform/governance/decisions.md,knowledge/platform/governance/precedence.md,knowledge/platform/worker-conventions/placement.md,knowledge/runbooks/README.md,openspec/AGENTS.md,openspec/README.md,openspec/changes/governance-state-substrate/assurance.md,openspec/changes/governance-state-substrate/design.md,openspec/changes/governance-state-substrate/proposal.md,openspec/changes/governance-state-substrate/specs/governance-state/spec.md,openspec/changes/governance-state-substrate/tasks.md,openspec/changes/knowledge-content-assurance/assurance.md,openspec/changes/knowledge-content-assurance/design.md,openspec/changes/knowledge-content-assurance/proposal.md,openspec/changes/knowledge-content-assurance/specs/knowledge-admission/spec.md,openspec/changes/knowledge-content-assurance/tasks.md,openspec/changes/knowledge-promotion-path/assurance.md,openspec/changes/knowledge-promotion-path/design.md,openspec/changes/knowledge-promotion-path/proposal.md,openspec/changes/knowledge-promotion-path/specs/knowledge-promotion/spec.md,openspec/changes/knowledge-promotion-path/tasks.md,openspec/changes/okf-format-decision/assurance.md,openspec/changes/okf-format-decision/design.md,openspec/changes/okf-format-decision/proposal.md,openspec/changes/okf-format-decision/specs/knowledge-format/spec.md,openspec/changes/okf-format-decision/tasks.md,openspec/changes/ts7-emit-proof-lifecycle/assurance.md,openspec/changes/ts7-emit-proof-lifecycle/proposal.md,openspec/config.yaml,packages/README.md,profiles/README.md,profiles/household/README.md,schemas/README.md,schemas/automation/README.md,services/AGENTS.md,services/README.md,services/control-plane/README.md,services/runner-control/README.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.3 -->
+  Scoped by the frozen inventory, not by glob: the concrete `paths=` set above
+  MUST equal exactly every `stable-pointer` row, with no duplicate, omission or
+  non-pointer addition. The current checked count is **75**. The four protected
+  PR-101 planning rows are `retained-semantic-prose` under D7.2b and MUST NOT be
+  edited. `packages/runner-core/README.md` has no discovered governance claim or
+  inventory row and is not an authoring target. `openspec/config.yaml` remains
+  the named regression case. Permanent real-inventory/task-metadata tests prove
+  this equality and the protected dispositions before activation.
 
 - [ ] **8.5 Turn on every gate in this same change**
   <!-- agent-task: 8.5 paths=.github/workflows/checks.yml,scripts/validate-scaffold.sh,scripts/check-governance-state.mjs,scripts/check-governance-history.mjs checks=node,pytest,ci,scaffold risk=trust-critical prerequisites=8.4 -->
@@ -1735,7 +1741,11 @@ registry appears, and it appears already protected.
 
   Before staging, compute `ACTIVATION_SEAM_SCOPE` as the sorted unique union of
   the concrete paths in task scopes 8.2, 8.2a, 8.3, 8.4, and 8.5. Those scopes
-  enumerate the exact candidate-source and activation-intent deletions. After staging, require sorted
+  currently yield exactly **90 paths**, mechanically checked against the frozen
+  inventory and concrete task metadata, never inferred from a subtree glob.
+  The count is a regression expectation, not authority to add a path.
+  These scopes enumerate the exact candidate-source and activation-intent
+  deletions. After staging, require sorted
   `git diff --cached --name-only` to equal `ACTIVATION_SEAM_SCOPE` byte for
   byte. Any changed path outside it,
   including an accepted ADR, a domain authority, an unrelated
@@ -1751,7 +1761,7 @@ registry appears, and it appears already protected.
   named governance scripts/workflow wiring, and the candidate and
   activation-intent deletions already authored by 8.2 and 8.2a. Recompute the
   same `ACTIVATION_SEAM_SCOPE` from the concrete authoring scopes of 8.2, 8.2a,
-  and 8.3–8.5 and require the seam commit's
+  and 8.3–8.5 (the checked **90-path** union) and require the seam commit's
   exact sorted `git diff --name-only <seam-parent> <seam-commit>` to equal it;
   checking only the worktree is insufficient. Any path outside that union
   fails the freeze; this task has no authority to add, remove, or edit content.
