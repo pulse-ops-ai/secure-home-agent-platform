@@ -21,13 +21,23 @@
  * regenerates and therefore a hand-maintained copy wearing a generated label.
  */
 
-import { writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import {
+  accessSync,
+  chmodSync,
+  constants,
+  lstatSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { checkGovernanceState } from './check-governance-state.mjs'
 import { decodeUtf8 } from './governance/model/index.mjs'
-import { readContainedBytes } from './governance/git-tree/contained-read.mjs'
+import { containedPath, readContainedBytes } from './governance/git-tree/contained-read.mjs'
 import { evaluateProjectionPreparation } from './governance/genesis/freshness.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -345,6 +355,104 @@ export function renderGovernanceState({
   return { ok: problems.length === 0, wrote, problems }
 }
 
+/**
+ * Stage the complete preparation output before touching any target. Same-parent
+ * renames preserve the original inode/mode for rollback, including a target
+ * whose replacement fails after its original has moved to the backup.
+ *
+ * This handles filesystem exceptions, not process termination/power loss or a
+ * concurrent writer. If the filesystem also refuses rollback, retain the
+ * original backup and report the unrecovered path; never claim zero writes.
+ * Ordinary rendering deliberately does not use this preparation-only path.
+ */
+function writePreparedProjections(root, rendered, problems) {
+  const staged = []
+  let activeTarget = DEFAULT_STATE
+  try {
+    for (const [target, { expected, actual }] of rendered) {
+      if (expected === actual) continue
+      activeTarget = target
+      const { absolute, missing } = containedPath(root, target)
+      const stats = missing ? undefined : lstatSync(absolute)
+      if ((stats && !stats.isFile()) || readTarget(root, target) !== actual) {
+        throw new Error('projection target changed before staging')
+      }
+      // Renaming could replace a read-only file; do not bypass its protection.
+      if (stats) accessSync(absolute, constants.W_OK)
+      const directory = mkdtempSync(resolve(dirname(absolute), '.governance-projection-'))
+      const entry = {
+        target,
+        absolute,
+        actual,
+        directory,
+        prepared: resolve(directory, 'prepared'),
+        backup: resolve(directory, 'original'),
+        backedUp: false,
+        installed: false,
+        rollbackFailed: false,
+      }
+      staged.push(entry)
+      writeFileSync(entry.prepared, expected, { encoding: 'utf8', flag: 'wx' })
+      if (stats) chmodSync(entry.prepared, stats.mode & 0o777)
+    }
+    for (const entry of staged) {
+      activeTarget = entry.target
+      if (readTarget(root, entry.target) !== entry.actual) {
+        throw new Error('projection target changed before publication')
+      }
+      if (entry.actual !== undefined) {
+        renameSync(entry.absolute, entry.backup)
+        entry.backedUp = true
+      }
+      renameSync(entry.prepared, entry.absolute)
+      entry.installed = true
+    }
+  } catch (error) {
+    problems.push({
+      code: 'ADV-G36',
+      path: activeTarget,
+      message: 'projection preparation write failed: ' + error.message,
+    })
+    for (const entry of [...staged].reverse()) {
+      try {
+        if (entry.backedUp) renameSync(entry.backup, entry.absolute)
+        else if (entry.installed) unlinkSync(entry.absolute)
+        entry.backedUp = false
+        entry.installed = false
+      } catch (rollbackError) {
+        entry.rollbackFailed = true
+        problems.push({
+          code: 'ADV-G36',
+          path: entry.target,
+          message:
+            'projection rollback failed; ' +
+            (entry.backedUp
+              ? `original backup retained at ${entry.backup}: `
+              : 'newly created target could not be removed: ') +
+            rollbackError.message,
+        })
+      }
+    }
+  }
+  const wrote = staged
+    .filter((entry) => entry.installed || entry.backedUp)
+    .map((entry) => entry.target)
+  for (const entry of staged) {
+    // Do not delete the only recoverable original after a rollback failure.
+    if (entry.rollbackFailed) continue
+    try {
+      rmSync(entry.directory, { recursive: true, force: true })
+    } catch (error) {
+      problems.push({
+        code: 'ADV-G36',
+        path: entry.directory,
+        message: 'projection staging cleanup failed: ' + error.message,
+      })
+    }
+  }
+  return wrote
+}
+
 /** Explicit preparation only. Never routes through or weakens ordinary evaluation. */
 export function prepareGovernanceProjections({
   root = DEFAULT_ROOT,
@@ -371,7 +479,7 @@ export function prepareGovernanceProjections({
     })
   }
   if (problems.length) return { ok: false, wrote: [], problems }
-  const wrote = []
+  const wrote = write ? writePreparedProjections(resolvedRoot, rendered, problems) : []
   for (const [target, { expected, actual }] of rendered) {
     if (expected === actual) continue
     if (!write) {
@@ -380,9 +488,6 @@ export function prepareGovernanceProjections({
         path: target,
         message: 'prepared projection is not a byte-for-byte no-op',
       })
-    } else {
-      writeFileSync(resolve(resolvedRoot, target), expected, 'utf8')
-      wrote.push(target)
     }
   }
   return {

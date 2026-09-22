@@ -7643,6 +7643,88 @@ def test_preparation_parity_with_equivalent_normal_test_attested_state(fresh_gen
     assert not refused["ok"] and refused["wrote"] == []
 
 
+@pytest.mark.parametrize("existing_state", [False, True])
+@pytest.mark.parametrize("failure", ["read-only", "stage", "publish-second", "publish-third"])
+def test_preparation_io_failure_restores_all_targets(
+    fresh_genesis: Path, existing_state: bool, failure: str
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    if existing_state:
+        (root / "governance/STATE.md").write_bytes(b"Prior projection bytes.\n")
+        (root / "governance/STATE.md").chmod(0o640)
+    index = root / "docs/decisions/INDEX.md"
+    if failure == "read-only":
+        index.chmod(0o444)
+    before = target_bytes(root)
+    modes = {path: (root / path).stat().st_mode for path in before}
+    # Inject real filesystem failures, not a replacement validator/renderer.
+    # A partial staging write simulates ENOSPC; a late rename failure occurs
+    # after earlier projections have actually been published.
+    script = """
+import fs from 'node:fs'
+import {syncBuiltinESMExports} from 'node:module'
+import {basename} from 'node:path'
+let raw=''; for await (const chunk of process.stdin) raw+=chunk
+const {failure, ...options}=JSON.parse(raw)
+let injected=false, published=0, staged=0
+const write=fs.writeFileSync, rename=fs.renameSync
+fs.writeFileSync=(path, value, ...args)=>{
+  if(basename(String(path))==='prepared' && ++staged===2 && failure==='stage'){
+    injected=true
+    write(path, 'partial staging bytes', ...args)
+    throw Object.assign(new Error('injected partial staging write'), {code:'ENOSPC'})
+  }
+  return write(path,value,...args)
+}
+fs.renameSync=(source,target)=>{
+  if(basename(String(source))==='prepared'){
+    const failAt=failure==='publish-second'?2:failure==='publish-third'?3:0
+    if(published+1===failAt && !injected){
+      injected=true
+      throw Object.assign(new Error('injected late publish failure'), {code:'EACCES'})
+    }
+    const result=rename(source,target); published++; return result
+  }
+  return rename(source,target)
+}
+syncBuiltinESMExports()
+const {prepareGovernanceProjections}=await import(MODULE)
+const result=prepareGovernanceProjections(options)
+console.log(JSON.stringify({result,injected,published}))
+""".replace("MODULE", json.dumps(RENDERER.as_uri()))
+    process = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps({"root": str(root), "write": True, "failure": failure, **binding}),
+        capture_output=True,
+        text=True,
+    )
+    try:
+        # Check restoration even if the entry point threw instead of refusing.
+        assert target_bytes(root) == before
+        assert {path: (root / path).stat().st_mode for path in before} == modes
+        assert not list(root.rglob(".governance-projection-*"))
+        assert process.returncode == 0, process.stderr
+        payload = json.loads(process.stdout)
+        result = payload["result"]
+        assert result["ok"] is False and result["wrote"] == [], result
+        assert any(p["code"] == "ADV-G36" for p in result["problems"]), result
+        if failure != "read-only":
+            assert payload["injected"] is True
+            assert (
+                payload["published"]
+                == {"stage": 0, "publish-second": 1, "publish-third": 2}[failure]
+            )
+    finally:
+        index.chmod(0o644)
+    # A failed attempt leaves no damaged bytes or stale transaction artifacts;
+    # the same bound invocation can prepare and subsequently check normally.
+    assert run_preparation(root, binding)["ok"]
+    assert run_preparation(root, binding, write=False)["ok"]
+
+
 @pytest.mark.parametrize(
     "case",
     [
