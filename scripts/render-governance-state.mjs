@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url'
 import { checkGovernanceState } from './check-governance-state.mjs'
 import { decodeUtf8 } from './governance/model/index.mjs'
 import { readContainedBytes } from './governance/git-tree/contained-read.mjs'
+import { evaluateProjectionPreparation } from './governance/genesis/freshness.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_STATE = 'governance/state.json'
@@ -344,6 +345,55 @@ export function renderGovernanceState({
   return { ok: problems.length === 0, wrote, problems }
 }
 
+/** Explicit preparation only. Never routes through or weakens ordinary evaluation. */
+export function prepareGovernanceProjections({
+  root = DEFAULT_ROOT,
+  write = false,
+  ...binding
+} = {}) {
+  const resolvedRoot = resolve(root)
+  const evaluation = evaluateProjectionPreparation({ root: resolvedRoot, ...binding })
+  if (!evaluation.ok) return { ok: false, wrote: [], problems: evaluation.problems }
+  const problems = []
+  let rendered
+  try {
+    unregisteredMarkers(resolvedRoot, problems)
+    rendered = renderProjections({
+      root: resolvedRoot,
+      state: evaluation.state,
+      derived: evaluation.derived,
+    })
+  } catch (error) {
+    problems.push({
+      code: error.code ?? 'ADV-G22',
+      path: error.path ?? DEFAULT_STATE,
+      message: error.message,
+    })
+  }
+  if (problems.length) return { ok: false, wrote: [], problems }
+  const wrote = []
+  for (const [target, { expected, actual }] of rendered) {
+    if (expected === actual) continue
+    if (!write) {
+      problems.push({
+        code: 'ADV-G36',
+        path: target,
+        message: 'prepared projection is not a byte-for-byte no-op',
+      })
+    } else {
+      writeFileSync(resolve(resolvedRoot, target), expected, 'utf8')
+      wrote.push(target)
+    }
+  }
+  return {
+    ok: problems.length === 0,
+    phase: evaluation.phase,
+    freshness: evaluation.freshness,
+    wrote,
+    problems,
+  }
+}
+
 function usage() {
   return [
     'Usage: node scripts/render-governance-state.mjs --check [--root ROOT] [--state FILE]',
@@ -359,7 +409,28 @@ function main() {
   const options = { root: DEFAULT_ROOT, state: DEFAULT_STATE, mode: undefined }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
-    if (argument === '--root' || argument === '--state') {
+    if (['--base', '--bundle', '--freshness-digest'].includes(argument)) {
+      if (
+        Object.hasOwn(options, argument.slice(2)) ||
+        !argv[index + 1] ||
+        argv[index + 1].startsWith('--')
+      ) {
+        console.error(
+          '✗ governance projections — missing or repeated preparation binding: ' + argument,
+        )
+        process.exitCode = 2
+        return
+      }
+      options[argument.slice(2)] = argv[index + 1]
+      index += 1
+    } else if (argument === '--prepare') {
+      if (options.prepare) {
+        console.error('✗ governance projections — repeated --prepare')
+        process.exitCode = 2
+        return
+      }
+      options.prepare = true
+    } else if (argument === '--root' || argument === '--state') {
       options[argument.slice(2)] = argv[index + 1]
       index += 1
     } else if (argument === '--check' || argument === '--write') {
@@ -386,11 +457,30 @@ function main() {
     return
   }
 
-  const result = renderGovernanceState({
-    root: options.root,
-    statePath: options.state,
-    write: options.mode === 'write',
-  })
+  if (
+    (options.prepare && options.state !== DEFAULT_STATE) ||
+    (!options.prepare &&
+      ['base', 'bundle', 'freshness-digest'].some((key) => options[key] !== undefined))
+  ) {
+    console.error(
+      '✗ governance projections — preparation requires explicit --prepare and the canonical promoted layout',
+    )
+    process.exitCode = 2
+    return
+  }
+  const result = options.prepare
+    ? prepareGovernanceProjections({
+        root: options.root,
+        write: options.mode === 'write',
+        activationBaseCommit: options.base,
+        candidateBundleSha256: options.bundle,
+        activationFreshnessDigest: options['freshness-digest'],
+      })
+    : renderGovernanceState({
+        root: options.root,
+        statePath: options.state,
+        write: options.mode === 'write',
+      })
   if (!result.ok) {
     console.error('✗ governance projections — ' + result.problems.length + ' refusal(s)')
     for (const problem of result.problems) {
@@ -404,6 +494,11 @@ function main() {
       ? '✓ governance projections — ' + result.wrote.length + ' written'
       : '✓ governance projections — byte-for-byte no-op',
   )
+  if (options.prepare)
+    console.log(
+      'Preparation only — no attestation or full state validity: ' +
+        JSON.stringify(result.freshness),
+    )
 }
 
 const invokedDirectly = (() => {

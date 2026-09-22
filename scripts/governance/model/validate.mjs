@@ -2063,8 +2063,12 @@ function readFrozenCandidate(context, problems) {
  * Historical headers are checked at their source, so a later legal Proposed
  * transition does not rewrite the immutable genesis candidate.
  */
-function validateFrozenSeedStructure(frozen, context, problems) {
-  const snapshot = context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value)
+function validateFrozenSeedStructure(
+  frozen,
+  context,
+  problems,
+  snapshot = context.readSnapshot(frozen.manifest.sourceSnapshotIdentity.value),
+) {
   const local = []
   const seedContext = {
     ...context,
@@ -2104,6 +2108,13 @@ function validateFrozenSeedStructure(frozen, context, problems) {
         '$.candidate.' + landing.id,
         'the seed has a completed landing behind an unsatisfied prerequisite',
       )
+  if (problems.length === 0)
+    return {
+      questions,
+      gates,
+      currentNodeIds: [...nodes.currentIds].sort(),
+      readiness,
+    }
 }
 
 export function checkCandidateFreshness(activationBaseCommit, context) {
@@ -2120,6 +2131,138 @@ export function checkCandidateFreshness(activationBaseCommit, context) {
     addProblem(problems, 'ADV-G74', '$.freshness', error.message)
   }
   return { ok: problems.length === 0 && result !== undefined, problems, result }
+}
+
+/** D7.3a: preparation proof, never full current/history validity or an attestation.
+ * Observe one base bundle once; validate and derive only those exact bytes.
+ * The caller supplies expected identities, not a trusted equivalence verdict.
+ */
+export function prepareProjectionState(binding, context) {
+  const problems = []
+  try {
+    const fields = ['activationBaseCommit', 'candidateBundleSha256', 'activationFreshnessDigest']
+    if (!requireObject(binding, '$.preparation', problems, 'ADV-G74'))
+      return { ok: false, problems }
+    checkFields(binding, fields, '$.preparation', problems)
+    requiredFields(binding, fields, '$.preparation', problems, 'ADV-G74')
+    const { activationBaseCommit, candidateBundleSha256, activationFreshnessDigest } = binding
+    if (
+      !/^[0-9a-f]{40}$/u.test(activationBaseCommit ?? '') ||
+      !isSha256(candidateBundleSha256) ||
+      !isSha256(activationFreshnessDigest)
+    )
+      addProblem(
+        problems,
+        'ADV-G74',
+        '$.preparation',
+        'exact base, bundle and freshness identities required',
+      )
+    if (problems.length) return { ok: false, problems }
+    if (context.hasCompleteHistory?.() !== true)
+      throw new Error('complete non-shallow history is required for pre-registry preparation')
+    const base = context.readSnapshot(activationBaseCommit)
+    if (CANDIDATE_PATHS.some((path) => base.entries.get(path)?.mode !== '100644'))
+      throw new Error(
+        'the base must carry all three frozen members as regular non-executable blobs',
+      )
+    if (
+      base.entries.has('governance/state.json') ||
+      context.commitsChangingPath(activationBaseCommit, 'governance/state.json').length !== 0
+    )
+      throw new Error('preparation requires a base with no current or prior canonical registry')
+    const frozen = readFrozenCandidate(
+      { ...context, readBytes: (path) => base.entries.get(path)?.bytes },
+      problems,
+    )
+    if (!frozen) return { ok: false, problems }
+    if (frozen.identity.bundleSha256 !== candidateBundleSha256)
+      addProblem(
+        problems,
+        'ADV-G76',
+        '$.preparation',
+        'base candidate differs from the expected bundle',
+      )
+    if (problems.length) return { ok: false, problems }
+
+    // The complete existing chain, including historical sources, all four
+    // independently observed classes and the actual base's candidate bytes.
+    validateFrozenSeedStructure(frozen, context, problems)
+    if (problems.length) return { ok: false, problems }
+    const freshness = compareCandidateFreshness(frozen, activationBaseCommit, context, problems)
+    if (problems.length || !freshness) return { ok: false, problems }
+    if (freshness.activationFreshnessDigest !== activationFreshnessDigest)
+      addProblem(
+        problems,
+        'ADV-G74',
+        '$.preparation',
+        'freshness digest differs for this exact bundle/base pair',
+      )
+    if (problems.length) return { ok: false, problems }
+
+    const promotedPaths = [
+      'governance/consumers.json',
+      'governance/genesis-source-manifest.json',
+      'governance/state.json',
+    ]
+    const checkout = context.readPreparationSnapshot()
+    for (const [index, path] of CANDIDATE_PATHS.entries()) {
+      if (checkout.entries.has(path))
+        addProblem(problems, 'ADV-G76', path, 'a candidate source member survives promotion')
+      const target = promotedPaths[index]
+      const entry = checkout.entries.get(target)
+      if (
+        entry?.mode !== '100644' ||
+        !(entry.bytes instanceof Uint8Array) ||
+        contentDigest(entry.bytes) !== contentDigest(frozen.bytes.get(path))
+      )
+        addProblem(
+          problems,
+          'ADV-G76',
+          target,
+          'promoted bytes differ from the proven unattested bundle',
+        )
+    }
+    const adrPaths = (snapshot) =>
+      [...snapshot.entries.keys()]
+        .filter((path) => /^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(path))
+        .sort()
+    if (canonicalSerialize(adrPaths(base)) !== canonicalSerialize(adrPaths(checkout)))
+      addProblem(
+        problems,
+        'ADV-G70',
+        '$.preparation',
+        'checkout ADR enumeration differs from the base',
+      )
+    for (const path of adrPaths(base)) {
+      const current = checkout.entries.get(path)
+      if (
+        !current?.bytes ||
+        current.mode !== '100644' ||
+        contentDigest(current.bytes) !== contentDigest(base.entries.get(path).bytes)
+      )
+        addProblem(problems, 'ADV-G73', path, 'checkout ADR bytes differ from the base')
+    }
+    if (problems.length) return { ok: false, problems }
+    // Same seed, same manifest, same semantic functions; validate live historical
+    // artifacts as well. Migrated projection/prose bytes are not source authority.
+    const derived = validateFrozenSeedStructure(frozen, context, problems, checkout)
+    if (problems.length || !derived) return { ok: false, problems }
+    return {
+      ok: true,
+      phase: 'pre-attestation-projection-preparation',
+      problems,
+      freshness,
+      state: frozen.seed,
+      derived: {
+        ...derived,
+        historicalContext: frozen.manifest.historicalContext,
+        consumerCounts: consumerCounts(frozen.inventory),
+      },
+    }
+  } catch (error) {
+    addProblem(problems, 'ADV-G74', '$.preparation', error.message)
+    return { ok: false, problems }
+  }
 }
 
 /** Extract all four freshness classes at an explicit revision. No class may be skipped. */
