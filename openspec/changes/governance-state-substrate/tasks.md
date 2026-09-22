@@ -1703,6 +1703,14 @@ registry appears, and it appears already protected.
   <!-- agent-task: 8.3 paths=governance/STATE.md,docs/decisions/INDEX.md,docs/architecture/unresolved-decisions.md checks=node,pytest,scaffold risk=trust-critical prerequisites=8.2,8.2a -->
   **Atomic with 8.2 and 8.2a.** Each generated region and the deletion of the
   hand-authored values it replaces land together.
+  Invoke the separately reviewed D7.3a preparation interface with the exact
+  8.1a base, candidate bundle and freshness digest. It recomputes the complete
+  frozen-candidate/freshness proof before exposing derivation; the structural
+  helper alone is not permission to render. Use explicit preparation `--write`,
+  then preparation `--check`, against the exact promoted unattested members.
+  Ordinary rendering continues to refuse until both real envelopes exist.
+  This invocation adds no task path and does not authorize renderer changes in
+  the activation seam; the correction must already be reviewed and merged.
   **Proof required** — `EX-G14` generated index still satisfies
   `validate-scaffold.sh` bidirectional index rules
 
@@ -1792,6 +1800,8 @@ registry appears, and it appears already protected.
 
 - [ ] **8.7 Human step: record the two real genesis attestations**
   <!-- agent-task: 8.7 paths=governance/state.json checks=node,pytest,ci risk=trust-critical prerequisites=8.6a -->
+  After both owner envelopes are recorded, use only ordinary full validation and
+  rendering; D7.3a preparation refuses attested input and is never ceremony proof.
 
   **Performed by the repository owner. An implementation agent may compute a
   digest; it may not attest to one.**

@@ -1970,6 +1970,34 @@ fields in registered consumers; a known-pattern scan is defense in depth only;
 human review owns unregistered free prose. No scan SHALL claim to prove that
 arbitrary prose contains no contradiction.
 
+#### Scenario: Pre-attestation preparation is bound to one exact candidate and base
+
+- **GIVEN** task 8.3 before the real task-8.7 envelopes and the exact promoted
+  three-member candidate, with no surviving candidate source members
+- **WHEN** the explicit D7.3a preparation interface runs
+- **THEN** the shared model SHALL validate the complete frozen bundle from the
+  exact registry-less base, its canonical unattested shape and historical sources,
+  and all four freshness classes before exposing derivation
+- **AND** recomputed bundle/freshness identities SHALL equal the explicitly
+  supplied identities, the live ADR bytes/enumeration and historical evidence
+  SHALL validate, and promoted bytes SHALL equal the proven bundle exactly
+- **AND** preparation SHALL use the existing projection functions and reject any
+  missing, ambiguous, changed or malformed input without writes or derived output
+- **AND** preparation SHALL assert neither full state validity nor owner authorship
+
+#### Scenario: Preparation does not weaken ordinary validation
+
+- **GIVEN** the same raw unattested candidate before and after this correction
+- **WHEN** ordinary renderer/current/history entry points run
+- **THEN** their refusals SHALL remain unchanged; a generic ignore-code switch,
+  partial freshness proof, fixture attestation or caller-provided derivation SHALL
+  NOT enable rendering
+- **AND** preparation rendering SHALL be byte-identical to ordinary rendering of
+  the equivalent isolated test-attested state, with identical primitive/source
+  bytes, base and targets, differing only in the two explicitly test envelopes
+- **AND** after real attestation, only ordinary validation/rendering SHALL be used;
+  the preparation interface SHALL refuse the now-attested state
+
 #### Scenario: A hand edit inside a generated region fails
 
 - **GIVEN** a registered generated region edited by hand so it no longer matches

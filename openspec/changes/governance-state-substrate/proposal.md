@@ -1,5 +1,16 @@
 # Change Proposal: governance-state-substrate
 
+## Narrow projection-preparation correction
+
+The owner authorizes the D7.3a implementation-contract correction separately
+from paused activation PR #131. It composes complete frozen-candidate validation
+and activation-base freshness before exposing shared derivation, preserving
+ordinary raw-seed refusal and owner attestation requirements. Its design/diff
+and byte-parity proof require independent review before activation resumes.
+Only mechanical planning bindings are refreshed; governance primitives, common
+S, archive M, consumer scope and accepted ADR bytes remain unchanged. This is
+not a new architectural decision, activation, or authorization for PR #101.
+
 ## Current PR-2 implementation — exact-S owner authorization
 
 ADR-0023 and ADR-0024 were Accepted together, dated 2026-09-19, by PR #130.
