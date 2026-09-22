@@ -2133,6 +2133,24 @@ export function checkCandidateFreshness(activationBaseCommit, context) {
   return { ok: problems.length === 0 && result !== undefined, problems, result }
 }
 
+/** Content identity of the complete observed application layout; not a registry
+ * primitive or an authorization. The file set binds absence as well as presence.
+ */
+export function projectionPreparationLayoutIdentity(snapshot) {
+  if (!Array.isArray(snapshot.layout)) throw new Error('complete preparation layout required')
+  return digestPreimage({
+    contract: 'governance-projection-preparation-layout-v1',
+    layout: snapshot.layout,
+    files: [...snapshot.entries]
+      .sort(([a], [b]) => compareText(a, b))
+      .map(([path, entry]) => ({
+        path,
+        mode: entry.mode,
+        contentSha256: contentDigest(entry.bytes),
+      })),
+  })
+}
+
 /** D7.3a: preparation proof, never full current/history validity or an attestation.
  * Observe one base bundle once; validate and derive only those exact bytes.
  * The caller supplies expected identities, not a trusted equivalence verdict.
@@ -2204,7 +2222,18 @@ export function prepareProjectionState(binding, context) {
       'governance/genesis-source-manifest.json',
       'governance/state.json',
     ]
-    const checkout = context.readPreparationSnapshot()
+    const preparationRoots = [
+      ...new Set([
+        'governance',
+        'tests/fixtures/governance/candidate',
+        'docs/decisions',
+        ...frozen.manifest.historicalCompletions.map(
+          (row) => row.evidence.archivedOpenSpec?.archiveRoot ?? row.evidence.evidenceRoot,
+        ),
+      ]),
+    ].sort(compareText)
+    const checkout = context.readPreparationSnapshot(preparationRoots)
+    const preparationLayoutIdentity = projectionPreparationLayoutIdentity(checkout)
     for (const [index, path] of CANDIDATE_PATHS.entries()) {
       if (checkout.entries.has(path))
         addProblem(problems, 'ADV-G76', path, 'a candidate source member survives promotion')
@@ -2252,6 +2281,14 @@ export function prepareProjectionState(binding, context) {
       phase: 'pre-attestation-projection-preparation',
       problems,
       freshness,
+      preparationLayoutIdentity,
+      preparationRoots,
+      // Only copies of the proven observation escape. The renderer consumes
+      // these bytes, never a second mutable read to construct the output plan.
+      preparationInput: (path) => {
+        const entry = checkout.entries.get(path)
+        return entry ? { bytes: Uint8Array.from(entry.bytes), mode: entry.permissions } : undefined
+      },
       state: frozen.seed,
       derived: {
         ...derived,

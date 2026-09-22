@@ -11,6 +11,7 @@ import {
   createGenesisReader,
   createCommitReader,
   readCheckoutSnapshot,
+  readProjectionPreparationSnapshot,
 } from './observations.mjs'
 import { createGitTreeObserver } from '../git-tree/index.mjs'
 import { createHistoryReader, PRESENT } from '../history/index.mjs'
@@ -22,7 +23,10 @@ export function evaluateCandidateFreshness({ root, activationBaseCommit }) {
 
 /** Offline observations only; the model owns the complete D7.3a proof. */
 export function evaluateProjectionPreparation({ root, ...binding }) {
-  return prepareProjectionState(binding, preparationContext(root))
+  return prepareProjectionState(binding, {
+    ...preparationContext(root),
+    readPreparationSnapshot: (roots) => readProjectionPreparationSnapshot(root, roots),
+  })
 }
 
 function preparationContext(root) {

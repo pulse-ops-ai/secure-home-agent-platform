@@ -7643,8 +7643,52 @@ def test_preparation_parity_with_equivalent_normal_test_attested_state(fresh_gen
     assert not refused["ok"] and refused["wrote"] == []
 
 
+def test_preparation_inputs_are_bound_copies_not_mutable_rereads(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    script = """
+import fs from 'node:fs'
+import {resolve} from 'node:path'
+import {evaluateProjectionPreparation} from './scripts/governance/genesis/freshness.mjs'
+import {readProjectionPreparationSnapshot} from './scripts/governance/genesis/observations.mjs'
+import {projectionPreparationLayoutIdentity} from './scripts/governance/model/index.mjs'
+let raw='';for await(const chunk of process.stdin)raw+=chunk
+const options=JSON.parse(raw), result=evaluateProjectionPreparation(options)
+if(!result.ok)throw new Error(JSON.stringify(result.problems))
+const observe=()=>projectionPreparationLayoutIdentity(
+  readProjectionPreparationSnapshot(options.root,result.preparationRoots))
+const before=observe(), target='docs/decisions/INDEX.md'
+const original=Buffer.from(result.preparationInput(target).bytes)
+const escaped=result.preparationInput(target).bytes
+escaped.fill(0) // The caller cannot mutate the retained observation.
+fs.appendFileSync(resolve(options.root,target),'\\nExternal edit after proof\\n')
+console.log(JSON.stringify({
+  stable:before===result.preparationLayoutIdentity,
+  detectsChange:observe()!==before,
+  captured:Buffer.from(result.preparationInput(target).bytes).equals(original),
+  identity:result.preparationLayoutIdentity,
+}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"root": str(root), **binding}),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["stable"] and payload["detectsChange"] and payload["captured"], payload
+    assert re.fullmatch(r"[0-9a-f]{64}", payload["identity"])
+    assert not (root / "governance/STATE.md").exists()
+
+
 @pytest.mark.parametrize("existing_state", [False, True])
-@pytest.mark.parametrize("failure", ["read-only", "stage", "publish-second", "publish-third"])
+@pytest.mark.parametrize(
+    "failure", ["read-only", "stage", "publish-second", "publish-third", "cleanup"]
+)
 def test_preparation_io_failure_restores_all_targets(
     fresh_genesis: Path, existing_state: bool, failure: str
 ) -> None:
@@ -7670,7 +7714,7 @@ import {basename} from 'node:path'
 let raw=''; for await (const chunk of process.stdin) raw+=chunk
 const {failure, ...options}=JSON.parse(raw)
 let injected=false, published=0, staged=0
-const write=fs.writeFileSync, rename=fs.renameSync
+const write=fs.writeFileSync, rename=fs.renameSync, remove=fs.rmSync
 fs.writeFileSync=(path, value, ...args)=>{
   if(basename(String(path))==='prepared' && ++staged===2 && failure==='stage'){
     injected=true
@@ -7689,6 +7733,16 @@ fs.renameSync=(source,target)=>{
     const result=rename(source,target); published++; return result
   }
   return rename(source,target)
+}
+fs.rmSync=(path,...args)=>{
+  // Remove a backup first, then fail: rollback must not depend solely on a
+  // backup that cleanup may already have deleted.
+  const result=remove(path,...args)
+  if(failure==='cleanup' && !injected){
+    injected=true
+    throw Object.assign(new Error('injected late cleanup failure'), {code:'EIO'})
+  }
+  return result
 }
 syncBuiltinESMExports()
 const {prepareGovernanceProjections}=await import(MODULE)
@@ -7715,7 +7769,7 @@ console.log(JSON.stringify({result,injected,published}))
             assert payload["injected"] is True
             assert (
                 payload["published"]
-                == {"stage": 0, "publish-second": 1, "publish-third": 2}[failure]
+                == {"stage": 0, "publish-second": 1, "publish-third": 2, "cleanup": 3}[failure]
             )
     finally:
         index.chmod(0o644)
@@ -7723,6 +7777,140 @@ console.log(JSON.stringify({result,injected,published}))
     # the same bound invocation can prepare and subsequently check normally.
     assert run_preparation(root, binding)["ok"]
     assert run_preparation(root, binding, write=False)["ok"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "promoted-state",
+        "promoted-manifest",
+        "promoted-inventory",
+        "resurrected-candidate",
+        "target-bytes",
+        "missing-member",
+        "mode",
+        "directory-mode",
+        "target-layout",
+        "new-adr",
+        "archive-bytes",
+        "ignored-extra",
+        "after-staging",
+        "staged-bytes",
+        "staged-mode",
+        "staged-extra",
+    ],
+)
+def test_preparation_snapshot_application_fence(
+    fresh_genesis: Path, tmp_path: Path, case: str
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    before = target_bytes(root)
+    index = "docs/decisions/INDEX.md"
+    if case.startswith("promoted-") or case == "after-staging":
+        path = {
+            "promoted-state": REGISTRY_PATH,
+            "promoted-manifest": "governance/genesis-source-manifest.json",
+            "promoted-inventory": "governance/consumers.json",
+            "after-staging": REGISTRY_PATH,
+        }[case]
+        mutation = f"faultFs.appendFileSync(resolve(root, {json.dumps(path)}), '\\n')"
+    elif case == "resurrected-candidate":
+        mutation = (
+            "faultFs.copyFileSync(resolve(root, 'governance/state.json'),"
+            "resolve(root, 'tests/fixtures/governance/candidate/state.json'))"
+        )
+    elif case == "target-bytes":
+        # This also removes the markers. A mutable input reread would fail with
+        # ADV-G22 before reaching the layout fence, rather than render the
+        # captured valid inputs then refuse ADV-G76 with zero publications.
+        mutation = f"faultFs.writeFileSync(resolve(root, {json.dumps(index)}), 'External edit\\n')"
+        before[index] = b"External edit\n"
+    elif case == "missing-member":
+        mutation = "faultFs.unlinkSync(resolve(root, 'governance/consumers.json'))"
+    elif case == "mode":
+        mutation = (
+            f"faultFs.chmodSync(resolve(root, {json.dumps(index)}),"
+            f" (faultFs.statSync(resolve(root, {json.dumps(index)})).mode & 0o777) ^ 0o040)"
+        )
+    elif case == "directory-mode":
+        mutation = "faultFs.chmodSync(resolve(root, 'docs/decisions'), 0o700)"
+    elif case == "target-layout":
+        mutation = "faultFs.mkdirSync(resolve(root, 'governance/STATE.md'))"
+    elif case == "new-adr":
+        mutation = (
+            "faultFs.writeFileSync(resolve(root, 'docs/decisions/ADR-9999-race.md'), '# New\\n')"
+        )
+    elif case == "archive-bytes":
+        row = next(row for row in registry(root)["landings"] if row["id"] == "runner/L4")
+        path = (
+            row["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["archiveRoot"]
+            + "/proposal.md"
+        )
+        mutation = f"faultFs.appendFileSync(resolve(root, {json.dumps(path)}), '\\n')"
+    elif case.startswith("staged-"):
+        mutation = {
+            "staged-bytes": "faultFs.appendFileSync(staged[0].prepared, 'tampered')",
+            "staged-mode": "faultFs.chmodSync(staged[0].prepared, staged[0].mode ^ 0o040)",
+            "staged-extra": "faultFs.writeFileSync(staged[0].backup, 'unexpected')",
+        }[case]
+    else:
+        # Git ignores .evidence; relevant promotion roots must still include it.
+        mutation = (
+            "faultFs.mkdirSync(resolve(root, 'governance/.evidence'));"
+            "faultFs.writeFileSync(resolve(root, 'governance/.evidence/unexpected'), 'extra')"
+        )
+    hook = (
+        "    fencePreparationLayout(\n      root,\n      evaluation,"
+        if case == "after-staging" or case.startswith("staged-")
+        else "  const problems = []\n  let rendered\n  const read = (target) => {"
+    )
+    # Existing isolated-subject convention: insert one interleaving after real
+    # proof/derivation, without replacing a validator or adding production hooks.
+    # Keep an independently observed replacement counter in the test process.
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "render-governance-state.mjs",
+                "import { dirname, relative, resolve } from 'node:path'",
+                "import * as faultFs from 'node:fs'\n"
+                "import { dirname, relative, resolve } from 'node:path'",
+            ),
+            ("render-governance-state.mjs", hook, mutation + "\n" + hook),
+        ],
+    )
+    script = """
+import fs from 'node:fs'
+import {syncBuiltinESMExports} from 'node:module'
+let publications=0
+const rename=fs.renameSync
+fs.renameSync=(source,target)=>{publications++;return rename(source,target)}
+syncBuiltinESMExports()
+const {prepareGovernanceProjections}=await import(MODULE)
+let raw=''; for await(const chunk of process.stdin) raw+=chunk
+const result=prepareGovernanceProjections(JSON.parse(raw))
+console.log(JSON.stringify({result,publications}))
+""".replace("MODULE", json.dumps((subject / "scripts/render-governance-state.mjs").as_uri()))
+    invocation = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps({"root": str(root), "write": True, **binding}),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(invocation.stdout)
+    assert payload["publications"] == 0, payload
+    assert payload["result"]["ok"] is False and payload["result"]["wrote"] == [], payload
+    assert any(p["code"] == "ADV-G76" for p in payload["result"]["problems"]), payload
+    # Retain the external actor's edit, but never apply the stale render plan.
+    actual = {path: (root / path).read_bytes() for path in before}
+    assert actual == before
+    state_target = root / "governance/STATE.md"
+    assert state_target.is_dir() if case == "target-layout" else not state_target.exists()
+    assert not list(root.rglob(".governance-projection-*"))
 
 
 @pytest.mark.parametrize(

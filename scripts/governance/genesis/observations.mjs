@@ -1,10 +1,10 @@
 /** Rules-free, exact-revision observations for genesis and freshness. */
 import { execFileSync } from 'node:child_process'
-import { lstatSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { lstatSync, readdirSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 
 import { createHistoryReader, PRESENT } from '../history/index.mjs'
-import { readContainedBytes } from '../git-tree/contained-read.mjs'
+import { containedPath, readContainedBytes } from '../git-tree/contained-read.mjs'
 
 // Exact-object evidence must not silently observe a local replacement graph.
 const exactObjects = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: '1' })
@@ -46,6 +46,59 @@ export function readCheckoutSnapshot(root) {
     entries.set(path, { path, mode: (stats.mode & 0o111) === 0 ? '100644' : '100755', bytes })
   }
   return { entries }
+}
+
+/** Preparation/application observation, separate from ordinary source discovery.
+ * Bind every Git-visible authored path (including untracked files), full POSIX
+ * modes and ancestor layout. Recursively observe the model-selected evidence /
+ * promotion roots even when Git ignores a new member there. Never follow links.
+ * Only the writer's exact, privately allocated staging directories are omitted
+ * by the final fence; no CLI input can supply an exclusion.
+ */
+export function readProjectionPreparationSnapshot(root, includeRoots, stagingDirectories = []) {
+  const listing = execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  )
+  const entries = new Map()
+  const layout = new Map()
+  const omitted = (path) =>
+    stagingDirectories.some((directory) => path === directory || path.startsWith(directory + '/'))
+  const observe = (path, recursive = false) => {
+    if (omitted(path)) return
+    if (path !== '.') observe(dirname(path))
+    const { absolute, missing } = containedPath(root, path)
+    if (missing) {
+      layout.set(path, { path, kind: 'absent', mode: null })
+      return
+    }
+    const stats = lstatSync(absolute)
+    if (!stats.isFile() && !stats.isDirectory())
+      throw new Error('unsupported preparation layout member: ' + path)
+    const mode = stats.mode & 0o7777
+    layout.set(path, { path, kind: stats.isDirectory() ? 'directory' : 'file', mode })
+    if (stats.isDirectory()) {
+      if (recursive)
+        for (const name of readdirSync(absolute).sort())
+          observe(path === '.' ? name : path + '/' + name, true)
+    } else if (!entries.has(path)) {
+      const bytes = readContainedBytes(root, path)
+      if (!bytes) throw new Error('preparation member disappeared during observation: ' + path)
+      entries.set(path, {
+        path,
+        mode: mode & 0o111 ? '100755' : '100644',
+        permissions: mode,
+        bytes,
+      })
+    }
+  }
+  for (const path of [...new Set(listing.split('\0').filter(Boolean))].sort()) observe(path)
+  for (const path of includeRoots) observe(path, true)
+  return {
+    entries,
+    layout: [...layout.values()].sort((a, b) => (a.path === b.path ? 0 : a.path < b.path ? -1 : 1)),
+  }
 }
 
 export function createGenesisReader(root) {
