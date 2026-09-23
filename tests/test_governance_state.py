@@ -4583,17 +4583,27 @@ def test_mut_g07_check_must_be_byte_exact(tmp_path: Path) -> None:
         index.read_text(encoding="utf-8").replace("| ADR-0001 |", "|  ADR-0001  |", 1),
         encoding="utf-8",
     )
-    assert run_renderer(root, "check").returncode != 0
+    checked = run_renderer(root, "check")
+    assert checked.returncode != 0
+    assert "ADV-G36" in checked.stderr, checked.stderr
+    assert "docs/decisions/INDEX.md" in checked.stderr, checked.stderr
 
-    anchor = "    if (expected === actual) continue"
+    # Target only the ordinary renderer, not preparation's comparison loops.
+    anchor = (
+        "  const wrote = []\n"
+        "  for (const [target, { expected, actual }] of rendered) {\n"
+        "    if (expected === actual) continue"
+    )
     subject = mutant_subject(
         tmp_path,
         [
             (
                 "render-governance-state.mjs",
                 anchor,
-                "    if (expected.replace(/\\s+/gu, '') === "
-                "String(actual).replace(/\\s+/gu, '')) continue",
+                anchor.replace(
+                    "expected === actual",
+                    "expected.replace(/\\s+/gu, '') === String(actual).replace(/\\s+/gu, '')",
+                ),
             )
         ],
     )
@@ -4611,6 +4621,7 @@ def test_mut_g07_check_must_be_byte_exact(tmp_path: Path) -> None:
         text=True,
     )
     assert weakened.returncode == 0, "the byte-exact comparison is not load-bearing"
+    assert "byte-for-byte no-op" in weakened.stdout, weakened.stdout
 
 
 # --- 5.2 · the query never authorizes --------------------------------------
