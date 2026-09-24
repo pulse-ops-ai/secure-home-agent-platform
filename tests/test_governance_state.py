@@ -4583,17 +4583,27 @@ def test_mut_g07_check_must_be_byte_exact(tmp_path: Path) -> None:
         index.read_text(encoding="utf-8").replace("| ADR-0001 |", "|  ADR-0001  |", 1),
         encoding="utf-8",
     )
-    assert run_renderer(root, "check").returncode != 0
+    checked = run_renderer(root, "check")
+    assert checked.returncode != 0
+    assert "ADV-G36" in checked.stderr, checked.stderr
+    assert "docs/decisions/INDEX.md" in checked.stderr, checked.stderr
 
-    anchor = "    if (expected === actual) continue"
+    # Target only the ordinary renderer, not preparation's comparison loops.
+    anchor = (
+        "  const wrote = []\n"
+        "  for (const [target, { expected, actual }] of rendered) {\n"
+        "    if (expected === actual) continue"
+    )
     subject = mutant_subject(
         tmp_path,
         [
             (
                 "render-governance-state.mjs",
                 anchor,
-                "    if (expected.replace(/\\s+/gu, '') === "
-                "String(actual).replace(/\\s+/gu, '')) continue",
+                anchor.replace(
+                    "expected === actual",
+                    "expected.replace(/\\s+/gu, '') === String(actual).replace(/\\s+/gu, '')",
+                ),
             )
         ],
     )
@@ -4611,6 +4621,7 @@ def test_mut_g07_check_must_be_byte_exact(tmp_path: Path) -> None:
         text=True,
     )
     assert weakened.returncode == 0, "the byte-exact comparison is not load-bearing"
+    assert "byte-for-byte no-op" in weakened.stdout, weakened.stdout
 
 
 # --- 5.2 · the query never authorizes --------------------------------------
@@ -7530,3 +7541,705 @@ process.exitCode=problems.length?1:0
     assert result.returncode == 0, (result.stdout, result.stderr)
     payload = json.loads(result.stdout)
     assert payload == {"problems": [], "discovered": 182, "rows": 182}
+
+
+# D7.3a: explicit preparation composes proof, never substitutes for attestation.
+PREPARATION_BASELINE = "1b0f3d98f36608cddf894526379cca3aadb27616"
+PROMOTION_MEMBERS = {
+    "state.json": "governance/state.json",
+    "source-manifest.json": "governance/genesis-source-manifest.json",
+    "consumers.json": "governance/consumers.json",
+}
+
+
+def preparation_binding(root: Path) -> dict[str, str]:
+    base = git(root, "rev-parse", "HEAD")
+    result, payload = run_freshness(root, base)
+    assert result.returncode == 0, (payload, result.stderr)
+    proof = payload["result"]
+    return {
+        "activationBaseCommit": base,
+        "candidateBundleSha256": proof["candidateFreezeIdentity"]["bundleSha256"],
+        "activationFreshnessDigest": proof["activationFreshnessDigest"],
+    }
+
+
+def promote_preparation_fixture(root: Path) -> None:
+    assert root.resolve() != REPOSITORY_ROOT.resolve()
+    (root / "governance").mkdir(exist_ok=True)
+    for name, target in PROMOTION_MEMBERS.items():
+        (root / "tests/fixtures/governance/candidate" / name).replace(root / target)
+
+
+def add_preparation_markers(root: Path) -> None:
+    for name, regions in {
+        "docs/decisions/INDEX.md": ["decision-lifecycle"],
+        "docs/architecture/unresolved-decisions.md": ["question-summary", "resolution-banners"],
+    }.items():
+        path = root / name
+        path.write_text(
+            path.read_text()
+            + "\n"
+            + "\n".join(BEGIN.format(region) + "\n" + END.format(region) for region in regions)
+            + "\n"
+        )
+
+
+def run_preparation(
+    root: Path,
+    binding: dict[str, str],
+    *,
+    write: bool = True,
+    subject: Path = REPOSITORY_ROOT,
+    model_only: bool = False,
+) -> dict[str, Any]:
+    module = "governance/genesis/freshness.mjs" if model_only else "render-governance-state.mjs"
+    function = "evaluateProjectionPreparation" if model_only else "prepareGovernanceProjections"
+    script = (
+        f"import {{{function}}} from {json.dumps((subject / 'scripts' / module).as_uri())};"
+        "let raw='';for await(const chunk of process.stdin)raw+=chunk;"
+        f"console.log(JSON.stringify({function}(JSON.parse(raw))))"
+    )
+    options: dict[str, Any] = {"root": str(root), **binding}
+    if not model_only:
+        options["write"] = write
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps(options),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return cast(dict[str, Any], json.loads(result.stdout))
+
+
+def test_preparation_parity_with_equivalent_normal_test_attested_state(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    add_preparation_markers(root)
+    initial_targets = target_bytes(root)
+    test_state = install_test_genesis(root, binding["activationBaseCommit"])
+    normal = run_renderer(root, "write")
+    assert normal.returncode == 0, normal.stderr
+    expected = target_bytes(root)
+    # Restore identical target input bytes, then promote the exact RAW seed.
+    for path, value in initial_targets.items():
+        (root / path).write_bytes(value)
+    (root / "governance/STATE.md").unlink()
+    promote_preparation_fixture(root)
+    raw = registry(root)
+    assert {**raw, "attestations": test_state["attestations"]} == test_state
+    assert raw["attestations"] == {"genesis": {}}
+    # Full current and ordinary rendering remain refused before owner attestation.
+    assert run_checker(root, REGISTRY_PATH)[0].returncode == 1
+    assert run_renderer(root, "write").returncode == 1
+    prepared = run_preparation(root, binding)
+    assert prepared["ok"], prepared
+    assert prepared["phase"] == "pre-attestation-projection-preparation"
+    assert prepared["freshness"]["activationBaseCommit"] == binding["activationBaseCommit"]
+    assert (
+        prepared["freshness"]["activationFreshnessDigest"] == binding["activationFreshnessDigest"]
+    )
+    assert target_bytes(root) == expected
+    assert run_preparation(root, binding, write=False)["ok"]
+    assert target_bytes(root) == expected
+    assert registry(root) == raw
+    model = run_preparation(root, binding, model_only=True)
+    assert model["derived"]["questions"]["U4"]["resolved"] is False
+    assert model["derived"]["gates"]["runner/GATE-U4"]["satisfied"] is False
+    assert model["derived"]["readiness"]["runner/L9"]["state"] == "NotReady"
+    # Test-only envelopes remain inadmissible to preparation, including after rendering.
+    write_state(root, test_state, REGISTRY_PATH)
+    refused = run_preparation(root, binding)
+    assert not refused["ok"] and refused["wrote"] == []
+
+
+def test_preparation_inputs_are_bound_copies_not_mutable_rereads(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    script = """
+import fs from 'node:fs'
+import {resolve} from 'node:path'
+import {evaluateProjectionPreparation} from './scripts/governance/genesis/freshness.mjs'
+import {readProjectionPreparationSnapshot} from './scripts/governance/genesis/observations.mjs'
+import {projectionPreparationLayoutIdentity} from './scripts/governance/model/index.mjs'
+let raw='';for await(const chunk of process.stdin)raw+=chunk
+const options=JSON.parse(raw), result=evaluateProjectionPreparation(options)
+if(!result.ok)throw new Error(JSON.stringify(result.problems))
+const observe=()=>projectionPreparationLayoutIdentity(
+  readProjectionPreparationSnapshot(options.root,result.preparationRoots))
+const before=observe(), target='docs/decisions/INDEX.md'
+const original=Buffer.from(result.preparationInput(target).bytes)
+const escaped=result.preparationInput(target).bytes
+escaped.fill(0) // The caller cannot mutate the retained observation.
+fs.appendFileSync(resolve(options.root,target),'\\nExternal edit after proof\\n')
+console.log(JSON.stringify({
+  stable:before===result.preparationLayoutIdentity,
+  detectsChange:observe()!==before,
+  captured:Buffer.from(result.preparationInput(target).bytes).equals(original),
+  identity:result.preparationLayoutIdentity,
+}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"root": str(root), **binding}),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["stable"] and payload["detectsChange"] and payload["captured"], payload
+    assert re.fullmatch(r"[0-9a-f]{64}", payload["identity"])
+    assert not (root / "governance/STATE.md").exists()
+
+
+@pytest.mark.parametrize("existing_state", [False, True])
+@pytest.mark.parametrize(
+    "failure", ["read-only", "stage", "publish-second", "publish-third", "cleanup"]
+)
+def test_preparation_io_failure_restores_all_targets(
+    fresh_genesis: Path, existing_state: bool, failure: str
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    if existing_state:
+        (root / "governance/STATE.md").write_bytes(b"Prior projection bytes.\n")
+        (root / "governance/STATE.md").chmod(0o640)
+    index = root / "docs/decisions/INDEX.md"
+    if failure == "read-only":
+        index.chmod(0o444)
+    before = target_bytes(root)
+    modes = {path: (root / path).stat().st_mode for path in before}
+    # Inject real filesystem failures, not a replacement validator/renderer.
+    # A partial staging write simulates ENOSPC; a late rename failure occurs
+    # after earlier projections have actually been published.
+    script = """
+import fs from 'node:fs'
+import {syncBuiltinESMExports} from 'node:module'
+import {basename} from 'node:path'
+let raw=''; for await (const chunk of process.stdin) raw+=chunk
+const {failure, ...options}=JSON.parse(raw)
+let injected=false, published=0, staged=0
+const write=fs.writeFileSync, rename=fs.renameSync, remove=fs.rmSync
+fs.writeFileSync=(path, value, ...args)=>{
+  if(basename(String(path))==='prepared' && ++staged===2 && failure==='stage'){
+    injected=true
+    write(path, 'partial staging bytes', ...args)
+    throw Object.assign(new Error('injected partial staging write'), {code:'ENOSPC'})
+  }
+  return write(path,value,...args)
+}
+fs.renameSync=(source,target)=>{
+  if(basename(String(source))==='prepared'){
+    const failAt=failure==='publish-second'?2:failure==='publish-third'?3:0
+    if(published+1===failAt && !injected){
+      injected=true
+      throw Object.assign(new Error('injected late publish failure'), {code:'EACCES'})
+    }
+    const result=rename(source,target); published++; return result
+  }
+  return rename(source,target)
+}
+fs.rmSync=(path,...args)=>{
+  // Remove a backup first, then fail: rollback must not depend solely on a
+  // backup that cleanup may already have deleted.
+  const result=remove(path,...args)
+  if(failure==='cleanup' && !injected){
+    injected=true
+    throw Object.assign(new Error('injected late cleanup failure'), {code:'EIO'})
+  }
+  return result
+}
+syncBuiltinESMExports()
+const {prepareGovernanceProjections}=await import(MODULE)
+const result=prepareGovernanceProjections(options)
+console.log(JSON.stringify({result,injected,published}))
+""".replace("MODULE", json.dumps(RENDERER.as_uri()))
+    process = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps({"root": str(root), "write": True, "failure": failure, **binding}),
+        capture_output=True,
+        text=True,
+    )
+    try:
+        # Check restoration even if the entry point threw instead of refusing.
+        assert target_bytes(root) == before
+        assert {path: (root / path).stat().st_mode for path in before} == modes
+        assert not list(root.rglob(".governance-projection-*"))
+        assert process.returncode == 0, process.stderr
+        payload = json.loads(process.stdout)
+        result = payload["result"]
+        assert result["ok"] is False and result["wrote"] == [], result
+        assert any(p["code"] == "ADV-G36" for p in result["problems"]), result
+        if failure != "read-only":
+            assert payload["injected"] is True
+            assert (
+                payload["published"]
+                == {"stage": 0, "publish-second": 1, "publish-third": 2, "cleanup": 3}[failure]
+            )
+    finally:
+        index.chmod(0o644)
+    # A failed attempt leaves no damaged bytes or stale transaction artifacts;
+    # the same bound invocation can prepare and subsequently check normally.
+    assert run_preparation(root, binding)["ok"]
+    assert run_preparation(root, binding, write=False)["ok"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "promoted-state",
+        "promoted-manifest",
+        "promoted-inventory",
+        "resurrected-candidate",
+        "target-bytes",
+        "missing-member",
+        "mode",
+        "directory-mode",
+        "target-layout",
+        "new-adr",
+        "archive-bytes",
+        "ignored-extra",
+        "after-staging",
+        "staged-bytes",
+        "staged-mode",
+        "staged-extra",
+    ],
+)
+def test_preparation_snapshot_application_fence(
+    fresh_genesis: Path, tmp_path: Path, case: str
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    before = target_bytes(root)
+    index = "docs/decisions/INDEX.md"
+    if case.startswith("promoted-") or case == "after-staging":
+        path = {
+            "promoted-state": REGISTRY_PATH,
+            "promoted-manifest": "governance/genesis-source-manifest.json",
+            "promoted-inventory": "governance/consumers.json",
+            "after-staging": REGISTRY_PATH,
+        }[case]
+        mutation = f"faultFs.appendFileSync(resolve(root, {json.dumps(path)}), '\\n')"
+    elif case == "resurrected-candidate":
+        mutation = (
+            "faultFs.copyFileSync(resolve(root, 'governance/state.json'),"
+            "resolve(root, 'tests/fixtures/governance/candidate/state.json'))"
+        )
+    elif case == "target-bytes":
+        # This also removes the markers. A mutable input reread would fail with
+        # ADV-G22 before reaching the layout fence, rather than render the
+        # captured valid inputs then refuse ADV-G76 with zero publications.
+        mutation = f"faultFs.writeFileSync(resolve(root, {json.dumps(index)}), 'External edit\\n')"
+        before[index] = b"External edit\n"
+    elif case == "missing-member":
+        mutation = "faultFs.unlinkSync(resolve(root, 'governance/consumers.json'))"
+    elif case == "mode":
+        mutation = (
+            f"faultFs.chmodSync(resolve(root, {json.dumps(index)}),"
+            f" (faultFs.statSync(resolve(root, {json.dumps(index)})).mode & 0o777) ^ 0o040)"
+        )
+    elif case == "directory-mode":
+        mutation = "faultFs.chmodSync(resolve(root, 'docs/decisions'), 0o700)"
+    elif case == "target-layout":
+        mutation = "faultFs.mkdirSync(resolve(root, 'governance/STATE.md'))"
+    elif case == "new-adr":
+        mutation = (
+            "faultFs.writeFileSync(resolve(root, 'docs/decisions/ADR-9999-race.md'), '# New\\n')"
+        )
+    elif case == "archive-bytes":
+        row = next(row for row in registry(root)["landings"] if row["id"] == "runner/L4")
+        path = (
+            row["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["archiveRoot"]
+            + "/proposal.md"
+        )
+        mutation = f"faultFs.appendFileSync(resolve(root, {json.dumps(path)}), '\\n')"
+    elif case.startswith("staged-"):
+        mutation = {
+            "staged-bytes": "faultFs.appendFileSync(staged[0].prepared, 'tampered')",
+            "staged-mode": "faultFs.chmodSync(staged[0].prepared, staged[0].mode ^ 0o040)",
+            "staged-extra": "faultFs.writeFileSync(staged[0].backup, 'unexpected')",
+        }[case]
+    else:
+        # Git ignores .evidence; relevant promotion roots must still include it.
+        mutation = (
+            "faultFs.mkdirSync(resolve(root, 'governance/.evidence'));"
+            "faultFs.writeFileSync(resolve(root, 'governance/.evidence/unexpected'), 'extra')"
+        )
+    hook = (
+        "    fencePreparationLayout(\n      root,\n      evaluation,"
+        if case == "after-staging" or case.startswith("staged-")
+        else "  const problems = []\n  let rendered\n  const read = (target) => {"
+    )
+    # Existing isolated-subject convention: insert one interleaving after real
+    # proof/derivation, without replacing a validator or adding production hooks.
+    # Keep an independently observed replacement counter in the test process.
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "render-governance-state.mjs",
+                "import { dirname, relative, resolve } from 'node:path'",
+                "import * as faultFs from 'node:fs'\n"
+                "import { dirname, relative, resolve } from 'node:path'",
+            ),
+            ("render-governance-state.mjs", hook, mutation + "\n" + hook),
+        ],
+    )
+    script = """
+import fs from 'node:fs'
+import {syncBuiltinESMExports} from 'node:module'
+let publications=0
+const rename=fs.renameSync
+fs.renameSync=(source,target)=>{publications++;return rename(source,target)}
+syncBuiltinESMExports()
+const {prepareGovernanceProjections}=await import(MODULE)
+let raw=''; for await(const chunk of process.stdin) raw+=chunk
+const result=prepareGovernanceProjections(JSON.parse(raw))
+console.log(JSON.stringify({result,publications}))
+""".replace("MODULE", json.dumps((subject / "scripts/render-governance-state.mjs").as_uri()))
+    invocation = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        input=json.dumps({"root": str(root), "write": True, **binding}),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(invocation.stdout)
+    assert payload["publications"] == 0, payload
+    assert payload["result"]["ok"] is False and payload["result"]["wrote"] == [], payload
+    assert any(p["code"] == "ADV-G76" for p in payload["result"]["problems"]), payload
+    # Retain the external actor's edit, but never apply the stale render plan.
+    actual = {path: (root / path).read_bytes() for path in before}
+    assert actual == before
+    state_target = root / "governance/STATE.md"
+    assert state_target.is_dir() if case == "target-layout" else not state_target.exists()
+    assert not list(root.rglob(".governance-projection-*"))
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing-base",
+        "unknown-base",
+        "wrong-bundle",
+        "wrong-freshness",
+        "unknown-field",
+        "state-bytes",
+        "manifest-bytes",
+        "inventory-bytes",
+        "missing-member",
+        "surviving-source",
+        "test-envelope",
+        "adr-bytes",
+        "adr-enumeration",
+        "archive-bytes",
+        "unregistered-marker",
+        "same-bundle-other-base",
+        "prior-registry",
+    ],
+)
+def test_preparation_hostile_inputs_refuse_without_writes(fresh_genesis: Path, case: str) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    if case in {"same-bundle-other-base", "prior-registry"}:
+        if case == "prior-registry":
+            (root / "governance").mkdir()
+            path = root / REGISTRY_PATH
+            path.write_text("{}\n")
+            git(root, "add", "-A")
+            git(root, "commit", "-qm", "HOSTILE prior registry")
+            path.unlink()
+        git(root, "add", "-A")
+        git(root, "commit", "--allow-empty", "-qm", "different explicit base")
+        binding["activationBaseCommit"] = git(root, "rev-parse", "HEAD")
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    if case == "missing-base":
+        binding.pop("activationBaseCommit")
+    elif case == "unknown-base":
+        binding["activationBaseCommit"] = "0" * 40
+    elif case == "wrong-bundle":
+        binding["candidateBundleSha256"] = "0" * 64
+    elif case == "wrong-freshness":
+        binding["activationFreshnessDigest"] = "0" * 64
+    elif case == "unknown-field":
+        binding["ignore"] = "ADV-G90"
+    elif case in {"state-bytes", "manifest-bytes", "inventory-bytes"}:
+        name = {
+            "state-bytes": "state.json",
+            "manifest-bytes": "source-manifest.json",
+            "inventory-bytes": "consumers.json",
+        }[case]
+        path = root / PROMOTION_MEMBERS[name]
+        path.write_bytes(path.read_bytes() + b"\n")
+    elif case == "missing-member":
+        (root / "governance/consumers.json").unlink()
+    elif case == "surviving-source":
+        shutil.copyfile(
+            root / REGISTRY_PATH, root / "tests/fixtures/governance/candidate/state.json"
+        )
+    elif case == "test-envelope":
+        state = registry(root)
+        state["attestations"]["genesis"] = {"actor": "fixture:never-owner"}
+        write_state(root, state, REGISTRY_PATH)
+    elif case == "adr-bytes":
+        path = root / registry(root)["adrs"][0]["path"]
+        path.write_text(path.read_text() + "\nHOSTILE changed ADR bytes\n")
+    elif case == "adr-enumeration":
+        (root / "docs/decisions/ADR-9999-unreviewed.md").write_text("# Unreviewed\n")
+    elif case == "archive-bytes":
+        row = next(row for row in registry(root)["landings"] if row["id"] == "runner/L4")
+        path = (
+            root
+            / row["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["archiveRoot"]
+            / "proposal.md"
+        )
+        path.write_text(path.read_text() + "\nHOSTILE archive drift\n")
+    elif case == "unregistered-marker":
+        path = root / "docs/decisions/INDEX.md"
+        path.write_text(path.read_text() + "\n" + BEGIN.format("unregistered") + "\n")
+    before = target_bytes(root)
+    payload = run_preparation(root, binding)
+    assert payload["ok"] is False and payload["wrote"] == [], payload
+    assert target_bytes(root) == before
+    if case != "unregistered-marker":
+        model = run_preparation(root, binding, model_only=True)
+        assert not model["ok"] and "derived" not in model, model
+
+
+def test_preparation_normal_raw_diagnostics_identical_to_pre_correction(
+    fresh_genesis: Path,
+    tmp_path: Path,
+) -> None:
+    root = fresh_genesis
+    baseline = tmp_path / "baseline"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--shared",
+            "--no-checkout",
+            str(REPOSITORY_ROOT),
+            str(baseline),
+        ],
+        check=True,
+    )
+    git(baseline, "checkout", "--quiet", "--detach", PREPARATION_BASELINE)
+    state_path = "tests/fixtures/governance/candidate/state.json"
+    before = target_bytes(root)
+    for script, args in [
+        ("check-governance-state.mjs", ["--json"]),
+        ("render-governance-state.mjs", ["--check"]),
+        ("render-governance-state.mjs", ["--write"]),
+    ]:
+        results = [
+            subprocess.run(
+                [
+                    "node",
+                    str(subject / "scripts" / script),
+                    "--root",
+                    str(root),
+                    "--state",
+                    state_path,
+                    *args,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            for subject in [baseline, REPOSITORY_ROOT]
+        ]
+        assert results[0].returncode == results[1].returncode == 1
+        assert results[0].stdout == results[1].stdout
+        assert results[0].stderr == results[1].stderr
+        assert "ADV-G90" in results[1].stdout + results[1].stderr
+        assert "ADV-G51" in results[1].stdout + results[1].stderr
+    assert target_bytes(root) == before
+
+
+@pytest.mark.parametrize(
+    "case,code",
+    [
+        ("primitive", "ADV-G69"),
+        ("relationship", "ADV-G69"),
+        ("evidence", "ADV-G73"),
+        ("consumer", "ADV-G71"),
+    ],
+)
+def test_preparation_recomputes_each_freshness_class(
+    fresh_genesis: Path,
+    case: str,
+    code: str,
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    adr = root / "docs/decisions/ADR-0020-place-runner-control-by-workload-class.md"
+    if case == "primitive":
+        adr.write_text(adr.read_text().replace("**Status:** Proposed", "**Status:** Accepted", 1))
+    elif case == "relationship":
+        adr.write_text(adr.read_text().replace("U4", "U3").replace("#u4", "#u3"))
+    elif case == "evidence":
+        path = root / "openspec/changes/governance-state-substrate/proposal.md"
+        path.write_text(path.read_text() + "\nSource drift.\n")
+    else:
+        (root / "unregistered-consumer.yaml").write_text(
+            "current_decisions: ADR-0001 through ADR-0022 are Accepted\n"
+        )
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "HOSTILE changed base proof class")
+    binding["activationBaseCommit"] = git(root, "rev-parse", "HEAD")
+    promote_preparation_fixture(root)
+    model = run_preparation(root, binding, model_only=True)
+    assert not model["ok"] and "derived" not in model, model
+    assert code in {problem["code"] for problem in model["problems"]}, model
+
+
+@pytest.mark.parametrize("binding_kind", ["freshness", "promoted-bytes"])
+def test_preparation_independent_binding_mutants_are_killed(
+    fresh_genesis: Path,
+    tmp_path: Path,
+    binding_kind: str,
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    if binding_kind == "freshness":
+        binding["activationFreshnessDigest"] = "0" * 64
+        old = "if (freshness.activationFreshnessDigest !== activationFreshnessDigest)"
+        new = "if (false) // MUTANT: omit exact-pair freshness digest comparison"
+    else:
+        path = root / REGISTRY_PATH
+        path.write_bytes(path.read_bytes() + b"\n")
+        old = "contentDigest(entry.bytes) !== contentDigest(frozen.bytes.get(path))"
+        new = "false /* MUTANT: omit promoted-byte binding */"
+    before = target_bytes(root)
+    refused = run_preparation(root, binding)
+    assert not refused["ok"] and refused["wrote"] == [], refused
+    assert target_bytes(root) == before
+    subject = mutant_subject(tmp_path, [("governance/model/validate.mjs", old, new)])
+    bypass = run_preparation(root, binding, subject=subject)
+    assert bypass["ok"] and bypass["wrote"], bypass
+
+
+def test_preparation_cli_requires_explicit_complete_binding(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    arguments = [
+        "--base",
+        binding["activationBaseCommit"],
+        "--bundle",
+        binding["candidateBundleSha256"],
+        "--freshness-digest",
+        binding["activationFreshnessDigest"],
+    ]
+    command = ["node", str(RENDERER), "--root", str(root)]
+    for args in [
+        ["--write", *arguments],
+        ["--prepare", "--write"],
+        ["--prepare", "--write", *arguments, "--ignore-ADV-G90"],
+        ["--prepare", "--write", *arguments, "--bundle", binding["candidateBundleSha256"]],
+        ["--prepare", "--prepare", "--write", *arguments],
+    ]:
+        result = subprocess.run(command + args, capture_output=True, text=True)
+        assert result.returncode != 0
+        assert not (root / "governance/STATE.md").exists()
+    for mode in ["--write", "--check"]:
+        result = subprocess.run(
+            [*command, "--prepare", mode, *arguments], capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr
+        assert "Preparation only" in result.stdout
+
+
+@pytest.mark.parametrize("member", ["state.json", "source-manifest.json"])
+def test_preparation_structural_proof_refuses_rehashed_malformed_base(
+    fresh_genesis: Path,
+    member: str,
+) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    path = "tests/fixtures/governance/candidate/" + member
+    value = load_state(root, path)
+    value["unreviewed"] = "not a schema member"
+    write_state(root, value, path)
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "HOSTILE malformed frozen candidate")
+    binding["activationBaseCommit"] = git(root, "rev-parse", "HEAD")
+    # Bind the actual hostile bytes, so rejection must come from validation,
+    # not merely an old expected bundle digest.
+    script = """
+import fs from 'node:fs'
+import {candidateFreezeIdentity,CANDIDATE_PATHS} from './scripts/governance/model/index.mjs'
+const bytes=new Map(CANDIDATE_PATHS.map(p=>[p,fs.readFileSync(p)]))
+console.log(candidateFreezeIdentity(bytes).bundleSha256)
+"""
+    binding["candidateBundleSha256"] = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    promote_preparation_fixture(root)
+    payload = run_preparation(root, binding, model_only=True)
+    assert not payload["ok"] and "derived" not in payload, payload
+    assert any("unreviewed" in p["path"] for p in payload["problems"]), payload
+
+
+def test_preparation_missing_historical_observation_fails_closed(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    # Inject an observation failure, without deleting shared Git objects or
+    # replacing the production model with a test validator.
+    script = """
+import {prepareProjectionState} from './scripts/governance/model/index.mjs'
+import {createGenesisReader,createCommitReader} from './scripts/governance/genesis/observations.mjs'
+let raw='';for await(const chunk of process.stdin)raw+=chunk
+const {root,binding}=JSON.parse(raw), read=createGenesisReader(root)
+const result=prepareProjectionState(binding,{
+  ...createCommitReader(root),
+  hasCompleteHistory:()=>true,
+  readSnapshot(revision){
+    if(revision!==binding.activationBaseCommit)
+      throw new Error('required historical object unavailable')
+    return read(revision)
+  }
+})
+console.log(JSON.stringify(result))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        input=json.dumps({"root": str(root), "binding": binding}),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert not payload["ok"] and "derived" not in payload
+    assert any(
+        "required historical object unavailable" in p["message"] for p in payload["problems"]
+    )
+
+
+def test_preparation_shallow_history_cannot_prove_no_prior_registry(fresh_genesis: Path) -> None:
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    # Only this isolated clone's shallow metadata changes, never shared objects.
+    (root / ".git/shallow").write_text(binding["activationBaseCommit"] + "\n")
+    payload = run_preparation(root, binding, model_only=True)
+    assert not payload["ok"] and "derived" not in payload
+    assert any("non-shallow history" in p["message"] for p in payload["problems"])

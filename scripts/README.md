@@ -161,6 +161,27 @@ mode the registry replaces.
 
 ## Validation
 
+Pre-attestation task 8.3 uses the explicitly separate
+[D7.3a preparation contract](../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration),
+only after exact promotion and complete activation-base freshness:
+
+```sh
+node scripts/render-governance-state.mjs --prepare --write \
+  --base <full-activation-base> --bundle <candidate-bundle-sha256> \
+  --freshness-digest <activation-freshness-sha256>
+node scripts/render-governance-state.mjs --prepare --check \
+  --base <full-activation-base> --bundle <candidate-bundle-sha256> \
+  --freshness-digest <activation-freshness-sha256>
+```
+
+The shared model rereads the base bundle and recomputes the complete proof;
+these arguments are expected bindings, not caller-provided authorization.
+Preparation writes only registered projections and reports no full validity or
+human attestation. Ordinary renderer/checker behavior is unchanged. After the
+owner's envelopes exist, preparation refuses: use ordinary checks instead.
+The production tooling remains offline; live-main selection is an external
+process obligation, not something these commands authenticate.
+
 ```sh
 bash scripts/validate-scaffold.sh   # structure, taxonomy, indexes, secrets, binaries
 bash scripts/scan-secrets.sh        # secret-shaped values in tracked text

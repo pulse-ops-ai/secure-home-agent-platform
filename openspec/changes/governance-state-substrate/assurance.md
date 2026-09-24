@@ -10,6 +10,31 @@
 > post-merge S/expiry proof. S/expiry is now recorded in tasks.md; historical
 > section headings remain stable anchors.
 
+## D7.3a correction proof — preparation is not activation
+
+The real renderer/model entry points must prove these controls in isolated
+repositories. These are correction-stage obligations, not claims that PR-3 or
+the owner ceremony has happened:
+
+- Positive: one exact promoted bundle and base passes complete freshness and
+  structural proof, renders, then preparation `--check` is a byte no-op.
+- Parity: compare every complete registered output byte with ordinary rendering
+  of the equivalent isolated test-attested state. Only the two test envelopes
+  differ; do not compare summaries or use preparation to supply the normal result.
+- Baseline: ordinary raw-candidate current/renderer diagnostics, exit status and
+  zero-write behavior remain identical to the pre-correction implementation.
+- Refuse missing/changed base, bundle or freshness digest; separately exercise
+  drift in each of the four comparison classes, missing historical objects,
+  altered promoted members, retained candidate sources, malformed seed/source,
+  injected test envelopes, prior canonical-state history and unregistered markers.
+- Refuse swapped candidate/base proofs even when primitive semantics match.
+  No partial or caller-supplied equivalent result exposes derivation.
+- Independently remove freshness or promoted-byte binding in isolated mutant
+  copies and require the corresponding hostile test to detect the bypass.
+- Re-extraction changes only the five preparation bindings. State and inventory
+  bytes, primitive/relationship digests, S/M, 75-pointer equality and 90-path
+  seam equality remain unchanged. Human authorship remains a manual obligation.
+
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.

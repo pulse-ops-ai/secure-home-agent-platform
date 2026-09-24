@@ -1,6 +1,45 @@
 # Unattested governance candidate
 
-## Consumer / seam reconciliation — current review freeze
+## Projection preparation — current review freeze
+
+The owner-authorized [D7.3a correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
+binds pre-attestation rendering to the complete candidate/freshness proof. This
+receipt refreshes planning provenance only. Preparation checkpoint:
+`4fca30700dc590f844b1fb866b2459110911a233`. Preserve it by **merge commit only**;
+do not squash or rebase-merge the correction.
+
+| Member | Prior PR #133 SHA-256 | Current SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `cac428acaa5ec18fa4c9246fe5a8abd3bda5cae0f69310239af107e971bf573b` | `fc031fce6fa534128c622c57f70af6cad9bae31c04cd635cd2c8d9ece606647d` |
+| `consumers.json` | `77b3cd02991ff45693f32488afadfae64a2f6c5b979660142b96dce5bb5a4bcd` | `77b3cd02991ff45693f32488afadfae64a2f6c5b979660142b96dce5bb5a4bcd` |
+
+Bundle SHA-256 changes from
+`1b9f2117826ab50ed94f3ebaf14838e8941f984b159b413e326bbb4ea8482738` to
+`cdcda07102d75e361317428c0777635e599486504c611b9eaf33c4a5431f3a4c`.
+Exactly five preparation rows change revision/blob/content identities and their
+canonical order. All other manifest content is identical. State and inventory
+remain byte-identical, including the empty genesis placeholder. Primitive and
+relationship digests remain those recorded below, as do common S and archive M.
+The 182-row inventory, 75-pointer scope and 90-path activation seam are unchanged.
+
+Reproduce with the existing read-only extractor:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source 4fca30700dc590f844b1fb866b2459110911a233
+```
+
+The correction PR records validation, parity, exact head/tree and independent
+review externally. No canonical registry, owner envelope or activation output
+is created here. PR #131 and its handoff remain untouched and paused. This
+freeze does not select a later activation base or authorize its ceremony.
+Promotion determination: the existing implementation contract owns this
+sequencing correction; no new architecture or knowledge authority is introduced.
+
+## Historical consumer / seam reconciliation — superseded freeze
 
 The owner-authorized [D7.2b reconciliation](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
 changes four exact inventory dispositions and the matching execution scope,

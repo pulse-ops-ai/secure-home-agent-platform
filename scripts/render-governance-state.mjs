@@ -21,13 +21,27 @@
  * regenerates and therefore a hand-maintained copy wearing a generated label.
  */
 
-import { writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import {
+  accessSync,
+  chmodSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { checkGovernanceState } from './check-governance-state.mjs'
-import { decodeUtf8 } from './governance/model/index.mjs'
-import { readContainedBytes } from './governance/git-tree/contained-read.mjs'
+import { decodeUtf8, projectionPreparationLayoutIdentity } from './governance/model/index.mjs'
+import { containedPath, readContainedBytes } from './governance/git-tree/contained-read.mjs'
+import { evaluateProjectionPreparation } from './governance/genesis/freshness.mjs'
+import { readProjectionPreparationSnapshot } from './governance/genesis/observations.mjs'
 
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DEFAULT_STATE = 'governance/state.json'
@@ -237,10 +251,15 @@ function readTarget(root, target) {
  * Returns `Map<target, { expected, actual }>`. Rendering is pure: this function
  * reads targets and produces bytes, and never writes.
  */
-export function renderProjections({ root, state, derived }) {
+export function renderProjections({
+  root,
+  state,
+  derived,
+  read = (target) => readTarget(root, target),
+}) {
   const results = new Map()
   for (const projection of PROJECTIONS) {
-    const existing = readTarget(root, projection.target)
+    const existing = read(projection.target)
     if (projection.mode === 'whole-file') {
       results.set(projection.target, {
         expected: projection.render(derived, state),
@@ -271,9 +290,9 @@ export function renderProjections({ root, state, derived }) {
  * depth at best — this is the mechanical half, and the contract is explicit
  * that human review owns unregistered prose.
  */
-function unregisteredMarkers(root, problems) {
+function unregisteredMarkers(root, problems, read = (target) => readTarget(root, target)) {
   for (const target of REGISTERED_TARGETS) {
-    const text = readTarget(root, target)
+    const text = read(target)
     if (text === undefined) continue
     for (const region of markersIn(text)) {
       if (REGISTERED_REGIONS.has(region)) continue
@@ -344,6 +363,198 @@ export function renderGovernanceState({
   return { ok: problems.length === 0, wrote, problems }
 }
 
+function fencePreparationLayout(root, evaluation, stagingDirectories = []) {
+  const observed = readProjectionPreparationSnapshot(
+    root,
+    evaluation.preparationRoots,
+    stagingDirectories.map((directory) => relative(root, directory).split('\\').join('/')),
+  )
+  if (projectionPreparationLayoutIdentity(observed) !== evaluation.preparationLayoutIdentity)
+    throw new RenderError(
+      'ADV-G76',
+      '$.preparation.layout',
+      'proven preparation layout changed before application',
+    )
+}
+
+/** Recoverable publication, NOT filesystem-wide/crash atomicity. All originals
+ * and planned outputs come from the proven snapshot. Stage everything, fence
+ * the complete live layout once immediately before publication, then replace.
+ * An application OR cleanup error restores the pre-state before failure is
+ * returned. Keep original bytes in memory until cleanup succeeds, since a late
+ * cleanup error may occur after some on-disk backups have already been removed.
+ * Irrecoverable filesystem failure is fatal, never a normal zero-write refusal.
+ */
+function writePreparedProjections(root, rendered, evaluation, problems) {
+  const staged = []
+  let activeTarget = DEFAULT_STATE
+  const cleanup = () => {
+    const errors = []
+    for (const entry of staged) {
+      try {
+        rmSync(entry.directory, { recursive: true, force: true })
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, 'projection staging cleanup failed')
+  }
+  try {
+    for (const [target, { expected, actual }] of rendered) {
+      if (expected === actual) continue
+      activeTarget = target
+      const original = evaluation.preparationInput(target)
+      const { absolute } = containedPath(root, target)
+      // Renaming could replace a read-only file; do not bypass its protection.
+      if (original) accessSync(absolute, constants.W_OK)
+      const directory = mkdtempSync(resolve(dirname(absolute), '.governance-projection-'))
+      const entry = {
+        target,
+        absolute,
+        original,
+        expected: Buffer.from(expected, 'utf8'),
+        mode: original?.mode ?? 0o666 & ~process.umask(),
+        directory,
+        prepared: resolve(directory, 'prepared'),
+        backup: resolve(directory, 'original'),
+        backedUp: false,
+        installed: false,
+      }
+      staged.push(entry)
+      writeFileSync(entry.prepared, expected, { encoding: 'utf8', flag: 'wx' })
+      chmodSync(entry.prepared, entry.mode)
+    }
+    // No derivation or target-input reread follows proof. This independent
+    // observation is equality only, and excludes exactly our own stage dirs.
+    fencePreparationLayout(
+      root,
+      evaluation,
+      staged.map((entry) => entry.directory),
+    )
+    // Stage directories are omitted from the checkout equality because we
+    // created them ourselves. Their contents are NOT trusted: bind the actual
+    // files about to be renamed to the already computed plan as well.
+    for (const entry of staged) {
+      const bytes = readContainedBytes(root, relative(root, entry.prepared))
+      if (
+        !bytes ||
+        !Buffer.from(bytes).equals(entry.expected) ||
+        (lstatSync(entry.prepared).mode & 0o7777) !== entry.mode ||
+        readdirSync(entry.directory).join(',') !== 'prepared'
+      )
+        throw new RenderError(
+          'ADV-G76',
+          entry.target,
+          'staged projection differs from the bound render plan',
+        )
+    }
+    for (const entry of staged) {
+      activeTarget = entry.target
+      if (entry.original !== undefined) {
+        renameSync(entry.absolute, entry.backup)
+        entry.backedUp = true
+      }
+      renameSync(entry.prepared, entry.absolute)
+      entry.installed = true
+    }
+    cleanup()
+    return staged.map((entry) => entry.target)
+  } catch (error) {
+    problems.push({
+      code: error.code === 'ADV-G76' ? error.code : 'ADV-G36',
+      path: error.path ?? activeTarget,
+      message: 'projection preparation write failed: ' + error.message,
+    })
+    const recoveryErrors = []
+    for (const entry of [...staged].reverse()) {
+      if (!entry.backedUp && !entry.installed) continue
+      try {
+        if (entry.original) {
+          if (existsSync(entry.backup)) renameSync(entry.backup, entry.absolute)
+          else {
+            writeFileSync(entry.absolute, entry.original.bytes)
+            chmodSync(entry.absolute, entry.original.mode)
+          }
+        } else unlinkSync(entry.absolute)
+      } catch (rollbackError) {
+        recoveryErrors.push(
+          new Error(`recovery required for ${entry.target}; backup ${entry.backup}`, {
+            cause: rollbackError,
+          }),
+        )
+      }
+    }
+    // Never delete recovery material or claim restoration when recovery failed.
+    if (recoveryErrors.length)
+      throw new AggregateError(recoveryErrors, 'projection recovery failed')
+    cleanup()
+    return []
+  }
+}
+
+/** Explicit preparation only. Never routes through or weakens ordinary evaluation. */
+export function prepareGovernanceProjections({
+  root = DEFAULT_ROOT,
+  write = false,
+  ...binding
+} = {}) {
+  const resolvedRoot = resolve(root)
+  const evaluation = evaluateProjectionPreparation({ root: resolvedRoot, ...binding })
+  if (!evaluation.ok) return { ok: false, wrote: [], problems: evaluation.problems }
+  const problems = []
+  let rendered
+  const read = (target) => {
+    const input = evaluation.preparationInput(target)
+    return input ? decodeUtf8(input.bytes) : undefined
+  }
+  try {
+    unregisteredMarkers(resolvedRoot, problems, read)
+    rendered = renderProjections({
+      root: resolvedRoot,
+      state: evaluation.state,
+      derived: evaluation.derived,
+      read,
+    })
+  } catch (error) {
+    problems.push({
+      code: error.code ?? 'ADV-G22',
+      path: error.path ?? DEFAULT_STATE,
+      message: error.message,
+    })
+  }
+  if (problems.length) return { ok: false, wrote: [], problems }
+  const wrote = write ? writePreparedProjections(resolvedRoot, rendered, evaluation, problems) : []
+  if (!write) {
+    try {
+      fencePreparationLayout(resolvedRoot, evaluation)
+    } catch (error) {
+      problems.push({
+        code: error.code ?? 'ADV-G76',
+        path: error.path ?? '$.preparation.layout',
+        message: error.message,
+      })
+    }
+  }
+  for (const [target, { expected, actual }] of rendered) {
+    if (expected === actual) continue
+    if (!write) {
+      problems.push({
+        code: 'ADV-G36',
+        path: target,
+        message: 'prepared projection is not a byte-for-byte no-op',
+      })
+    }
+  }
+  return {
+    ok: problems.length === 0,
+    phase: evaluation.phase,
+    freshness: evaluation.freshness,
+    preparationLayoutIdentity: evaluation.preparationLayoutIdentity,
+    wrote,
+    problems,
+  }
+}
+
 function usage() {
   return [
     'Usage: node scripts/render-governance-state.mjs --check [--root ROOT] [--state FILE]',
@@ -359,7 +570,28 @@ function main() {
   const options = { root: DEFAULT_ROOT, state: DEFAULT_STATE, mode: undefined }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
-    if (argument === '--root' || argument === '--state') {
+    if (['--base', '--bundle', '--freshness-digest'].includes(argument)) {
+      if (
+        Object.hasOwn(options, argument.slice(2)) ||
+        !argv[index + 1] ||
+        argv[index + 1].startsWith('--')
+      ) {
+        console.error(
+          '✗ governance projections — missing or repeated preparation binding: ' + argument,
+        )
+        process.exitCode = 2
+        return
+      }
+      options[argument.slice(2)] = argv[index + 1]
+      index += 1
+    } else if (argument === '--prepare') {
+      if (options.prepare) {
+        console.error('✗ governance projections — repeated --prepare')
+        process.exitCode = 2
+        return
+      }
+      options.prepare = true
+    } else if (argument === '--root' || argument === '--state') {
       options[argument.slice(2)] = argv[index + 1]
       index += 1
     } else if (argument === '--check' || argument === '--write') {
@@ -386,11 +618,30 @@ function main() {
     return
   }
 
-  const result = renderGovernanceState({
-    root: options.root,
-    statePath: options.state,
-    write: options.mode === 'write',
-  })
+  if (
+    (options.prepare && options.state !== DEFAULT_STATE) ||
+    (!options.prepare &&
+      ['base', 'bundle', 'freshness-digest'].some((key) => options[key] !== undefined))
+  ) {
+    console.error(
+      '✗ governance projections — preparation requires explicit --prepare and the canonical promoted layout',
+    )
+    process.exitCode = 2
+    return
+  }
+  const result = options.prepare
+    ? prepareGovernanceProjections({
+        root: options.root,
+        write: options.mode === 'write',
+        activationBaseCommit: options.base,
+        candidateBundleSha256: options.bundle,
+        activationFreshnessDigest: options['freshness-digest'],
+      })
+    : renderGovernanceState({
+        root: options.root,
+        statePath: options.state,
+        write: options.mode === 'write',
+      })
   if (!result.ok) {
     console.error('✗ governance projections — ' + result.problems.length + ' refusal(s)')
     for (const problem of result.problems) {
@@ -404,6 +655,13 @@ function main() {
       ? '✓ governance projections — ' + result.wrote.length + ' written'
       : '✓ governance projections — byte-for-byte no-op',
   )
+  if (options.prepare) {
+    console.log(
+      'Preparation only — no attestation or full state validity: ' +
+        JSON.stringify(result.freshness),
+    )
+    console.log('Preparation layout identity: ' + result.preparationLayoutIdentity)
+  }
 }
 
 const invokedDirectly = (() => {

@@ -1855,6 +1855,62 @@ marker is an error. `--check` fails unless the render is a byte-for-byte no-op;
 write mode is a separate invocation, and the scripts documentation records that
 distinction.
 
+**D7.3a — Pre-attestation projection preparation, not state validation.** Task
+8.3 precedes the owner's two envelopes at 8.7. The ordinary renderer deliberately
+refuses the raw seed, so preparation requires an explicit separate interface.
+It composes the complete frozen-candidate validation and activation-base
+freshness chain before exposing shared semantic derivation.
+`validateFrozenSeedStructure()` is one component, not preparation authorization.
+
+The model takes an exact `activationBaseCommit`, expected
+`candidateBundleSha256`, and expected `activationFreshnessDigest`. All are
+required; no aliases, inferred base, optional comparison classes, supplied
+derived values, or trusted caller assertion of equivalence are accepted.
+The offline adapter reads the three frozen candidate members from that exact
+base's Git objects, not from a second mutable candidate directory. The model:
+
+1. Requires the complete canonical bundle at the base, and no current or prior
+   canonical registry in that base's ancestry. Missing history is refusal.
+2. Validates the exact unattested shape (`attestations: {genesis: {}}`, without
+   `genesisCompletion`), source manifest, historical proof and shared structure.
+3. Recomputes all four D8.2a freshness classes against that same base. It requires
+   `equivalent` and equality to both supplied identities. A previously printed
+   receipt is not a substitute for recomputation.
+4. Requires the three promoted canonical members to match those base members
+   byte-for-byte. No candidate source member may remain in the checkout. Checks
+   the live ADR enumeration/bytes and historical evidence structure too; changed
+   source files cannot be hidden behind the historical snapshot.
+5. Only after the complete proof succeeds, exposes the shared questions, nodes,
+   gates, readiness, historical context and inventory counts for those same
+   frozen primitive bytes. No parse/read/validation problem yields derived output.
+
+The renderer's explicit `--prepare --base <B> --bundle <sha256>
+--freshness-digest <sha256>` path accepts only the promoted canonical layout.
+It uses the existing registered projection functions/markers and separate
+`--write` / `--check` operations. Preparation checks all targets before writing;
+refused preparation writes nothing. It reports preparation, never full validity,
+activation, authorization, or human attestation. It cannot write a registry,
+envelope, consumer inventory or source manifest. Live-main selection/freshness
+remains the externally enforced 8.1a/8.5a fence; an offline tool does not certify
+that a supplied commit is still GitHub's live main.
+
+Ordinary renderer invocations, `evaluateState`, current/history checks and query
+semantics remain unchanged. In particular, raw-seed `ADV-G90` / `ADV-G51`
+refusals remain load-bearing; there is no general ignore-code switch. After 8.7,
+ordinary fully attested rendering/checking is mandatory and preparation refuses
+the attested input. Isolated test envelopes prove byte parity only; no test or
+synthetic human act is promoted. Preparation is not a reusable genesis path.
+
+This separately reviewed correction changes proof sequencing, not governance
+facts or architecture. Its planning checkpoint precedes a mechanical refresh
+of the five preparation bindings. Candidate state/inventory bytes, common S,
+archive M, task 8.4's 75 pointers and the 90-path activation seam stay unchanged.
+The checkpoint must survive a merge commit; do not squash or rebase-merge.
+PR #131 remains paused until correction review/merge and refreshed exact-base
+activation authority. No owner ceremony is performed here. Promotion
+determination (ADR-0014): this existing implementation contract owns the missing
+sequencing interface; no new ADR or portable-knowledge authority is needed.
+
 **D7.4 — Migration order.** There is exactly one migration moment. See D11: the
 canonical registry, the generated regions, the pointers, and every gate arrive
 together. There is no interval in which a canonical `state.json` coexists with a
