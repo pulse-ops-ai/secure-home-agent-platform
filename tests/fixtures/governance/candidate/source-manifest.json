@@ -1595,34 +1595,34 @@
   },
   "planningSources": [
     {
-      "blobOid": "af03c32c538d6e2ab21dbeab127d341fc43e9720",
-      "contentSha256": "4b12e49d1b730b8af9822193e93ab0fad82f763e59d91033b0a763e5d65e1d68",
+      "blobOid": "9466a060bfc9a43c61fe6efcc1c507e9f1cde487",
+      "contentSha256": "5a63d214c6e35bf33cd8c3fcbce0ef2e6e7eff37548340acd2dadde0364cba00",
       "path": "openspec/changes/governance-state-substrate/assurance.md",
-      "revision": "4fca30700dc590f844b1fb866b2459110911a233"
+      "revision": "24cd5bc0a901ecf0cdac7273b253cbaa03c348d7"
     },
     {
-      "blobOid": "21c08fd7f045af57148afbab9990ece9b163c47e",
-      "contentSha256": "ec82bd0e3e0ec90f69cd5580946a36eb857b54e1258134979ba4ba7e7839c2d6",
+      "blobOid": "7909594ed5e9114410ea07cfa9ccfe4777990400",
+      "contentSha256": "fbbc3f34cc22a86fd515a35a635d7904072c87118e93aaa3ff46c5a466bd3f16",
       "path": "openspec/changes/governance-state-substrate/design.md",
-      "revision": "4fca30700dc590f844b1fb866b2459110911a233"
+      "revision": "24cd5bc0a901ecf0cdac7273b253cbaa03c348d7"
     },
     {
-      "blobOid": "902b05bfd342fce5b9a3b2589e6a9a8bae416d8d",
-      "contentSha256": "1c9ca61ce0aa1c26954a5a7dc0972984e0970022b046aeb035f610c951c40619",
+      "blobOid": "fcb62ea73a447be7a17f3e2260f9883c5431debe",
+      "contentSha256": "b638e208c574b270d059b8415391706446fc8c05276e382fa083cc5705c5bfc6",
       "path": "openspec/changes/governance-state-substrate/proposal.md",
-      "revision": "4fca30700dc590f844b1fb866b2459110911a233"
+      "revision": "24cd5bc0a901ecf0cdac7273b253cbaa03c348d7"
     },
     {
-      "blobOid": "7a9c7b4db44360d7faf08b097e0bbc9cc06857c2",
-      "contentSha256": "dd81e102ac28020f8ac6a829f3418c8585923882453eacd254867da87b34b9a2",
+      "blobOid": "b902a92be81bdf1c2e155b6ac241dba7ffdae4e2",
+      "contentSha256": "fd27d6183737034b904a6fcf036088668e6d0655a9514bfbd733cb2e4ebcea19",
       "path": "openspec/changes/governance-state-substrate/specs/governance-state/spec.md",
-      "revision": "4fca30700dc590f844b1fb866b2459110911a233"
+      "revision": "24cd5bc0a901ecf0cdac7273b253cbaa03c348d7"
     },
     {
-      "blobOid": "b2eab7b8029810a72c768abd191c3d4279a68166",
-      "contentSha256": "9dcc1167eb7dc9e3dc508486b839d9f0caa31880db8d5a29065c7be0d6587930",
+      "blobOid": "4afa7b1c38c3dff1855cce256a3b9a4aca5a4fbc",
+      "contentSha256": "bef614b3234815d515cbc0f89455d7570898ff9556fde4ccc6257c1eb079d971",
       "path": "openspec/changes/governance-state-substrate/tasks.md",
-      "revision": "4fca30700dc590f844b1fb866b2459110911a233"
+      "revision": "24cd5bc0a901ecf0cdac7273b253cbaa03c348d7"
     },
     {
       "blobOid": "664d4c77b42107e4c009db1f629830462775e147",

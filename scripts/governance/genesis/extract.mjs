@@ -306,7 +306,40 @@ const ACTIVE_SURFACES = new Map([
   ],
 ])
 
+// D7.2c: exact source adjudication, not a path-wide semantic exemption. A later
+// byte change needs a fresh review before this recipe may retain the prose.
+const REVIEWED_SEMANTIC_KNOWLEDGE = new Map([
+  [
+    'knowledge/platform/governance/decisions.md',
+    {
+      digest: '1c56fdffe802c701a558d328cc4cbab0308516759a2dca908b6e7fea99a8191e',
+      explanation: 'Explains how decisions change and explicitly avoids individual decision state.',
+    },
+  ],
+  [
+    'knowledge/platform/governance/precedence.md',
+    {
+      digest: 'e9196782a14c77c69fcec378e11f9e0bb5b9dea6b073b838ba4896b667d29b4e',
+      explanation:
+        'Explains precedence and makes portable knowledge subordinate to governed contracts.',
+    },
+  ],
+  [
+    'knowledge/platform/worker-conventions/placement.md',
+    {
+      digest: '6ea4436479b5c58e5a5d62e80d4f48a23446cacb5240246be644602bb72e4c47',
+      explanation:
+        'Explains durable placement conventions and carries no live worker or program state.',
+    },
+  ],
+])
+
 function inventoryFor(snapshot) {
+  for (const [path, review] of REVIEWED_SEMANTIC_KNOWLEDGE) {
+    const bytes = snapshot.entries.get(path)?.bytes
+    if (!bytes || contentDigest(bytes) !== review.digest)
+      throw new Error('D7.2c: retained knowledge source changed; semantic review required: ' + path)
+  }
   return {
     schemaVersion: 1,
     rows: discoverConsumers(snapshot).map((row) => {
@@ -346,6 +379,15 @@ function inventoryFor(snapshot) {
         disposition = 'not-a-governance-consumer'
         retainedReason =
           'Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state.'
+      } else if (REVIEWED_SEMANTIC_KNOWLEDGE.has(row.path)) {
+        disposition = 'retained-semantic-prose'
+        retainedReason =
+          'Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016. ' +
+          REVIEWED_SEMANTIC_KNOWLEDGE.get(row.path).explanation +
+          ' Contains durable semantic explanation rather than mutable governance state. ' +
+          'After activation it remains subordinate to governance/state.json / the canonical query, ' +
+          'not an independent mutable-current-state authority. PR-3 must leave these bytes unchanged, ' +
+          'not replace a mutable-copy claim this file does not carry.'
       } else if (row.path === 'docs/architecture/agent-triage-and-escalation.md') {
         disposition = 'retained-semantic-prose'
         retainedReason =

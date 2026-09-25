@@ -7353,8 +7353,8 @@ PR3_NON_POINTER_SCOPE = {
     },
 }
 PR3_INVENTORY_COUNTS = {
-    "stable-pointer": 75,
-    "retained-semantic-prose": 7,
+    "stable-pointer": 72,
+    "retained-semantic-prose": 10,
     "generated-region": 2,
     "historical-record": 66,
     "not-a-governance-consumer": 32,
@@ -7367,6 +7367,26 @@ PR3_RETAINED_MEANING = (
     "come only from governance/state.json / the canonical query",
     "PR #101 remains separately governed",
     "cannot be modified until the post-PR-3 handoff",
+)
+PR3_RETAINED_KNOWLEDGE = {
+    "knowledge/platform/governance/decisions.md": (
+        "1c56fdffe802c701a558d328cc4cbab0308516759a2dca908b6e7fea99a8191e"
+    ),
+    "knowledge/platform/governance/precedence.md": (
+        "e9196782a14c77c69fcec378e11f9e0bb5b9dea6b073b838ba4896b667d29b4e"
+    ),
+    "knowledge/platform/worker-conventions/placement.md": (
+        "6ea4436479b5c58e5a5d62e80d4f48a23446cacb5240246be644602bb72e4c47"
+    ),
+}
+PR3_KNOWLEDGE_RETAINED_MEANING = (
+    "Exact-byte-reviewed portable-knowledge source",
+    "governed separately by ADR-0016",
+    "durable semantic explanation rather than mutable governance state",
+    "subordinate to governance/state.json / the canonical query",
+    "not an independent mutable-current-state authority",
+    "PR-3 must leave these bytes unchanged",
+    "not replace a mutable-copy claim this file does not carry",
 )
 
 
@@ -7391,11 +7411,21 @@ def assert_pr3_consumer_scope(scopes: dict[str, list[str]], inventory: dict[str,
     assert len(by_path) == len(rows) == 182
     assert Counter(row["disposition"] for row in rows) == PR3_INVENTORY_COUNTS
     pointers = {row["path"] for row in rows if row["disposition"] == "stable-pointer"}
-    assert len(scopes["8.4"]) == len(set(scopes["8.4"])) == len(pointers) == 75
+    assert len(scopes["8.4"]) == len(set(scopes["8.4"])) == len(pointers) == 72
     assert set(scopes["8.4"]) == pointers, "task 8.4 and stable-pointer rows differ"
     assert "packages/runner-core/README.md" not in scopes["8.4"]
     assert "packages/runner-core/README.md" not in by_path
     assert pointers.isdisjoint(PR3_PROTECTED_CONTEXT)
+    assert pointers.isdisjoint(PR3_RETAINED_KNOWLEDGE)
+    for path in PR3_RETAINED_KNOWLEDGE:
+        row = by_path[path]
+        assert row["disposition"] == "retained-semantic-prose"
+        assert row["generatedRegions"] == []
+        assert row["historicalIdentity"] is None
+        assert row["migrationLanding"] == "PR-3"
+        assert isinstance(row["retainedReason"], str)
+        for meaning in PR3_KNOWLEDGE_RETAINED_MEANING:
+            assert meaning in row["retainedReason"], f"{path}: missing {meaning}"
     for path, fact_classes in PR3_PROTECTED_CONTEXT.items():
         row = by_path[path]
         assert row["disposition"] == "retained-semantic-prose"
@@ -7412,14 +7442,14 @@ def assert_pr3_consumer_scope(scopes: dict[str, list[str]], inventory: dict[str,
     union = set().union(*(scopes[task] for task in ["8.2", "8.2a", "8.3", "8.4", "8.5"]))
     expected_union = pointers.union(*PR3_NON_POINTER_SCOPE.values())
     assert union == expected_union
-    assert len(union) == 90
+    assert len(union) == 87
     assert all(not any(char in path for char in "*?[]") for path in union), "glob scope"
     return union
 
 
 def test_pr3_consumer_scope_matches_real_inventory_and_task_metadata() -> None:
     scopes, inventory = pr3_scope_inputs()
-    assert len(assert_pr3_consumer_scope(scopes, inventory)) == 90
+    assert len(assert_pr3_consumer_scope(scopes, inventory)) == 87
     design = (REPOSITORY_ROOT / "openspec/changes/governance-state-substrate/design.md").read_text()
     table = design.split("<!-- consumer-scope-counts:begin -->", 1)[1].split(
         "<!-- consumer-scope-counts:end -->", 1
@@ -7430,9 +7460,9 @@ def test_pr3_consumer_scope_matches_real_inventory_and_task_metadata() -> None:
         REPOSITORY_ROOT
         / "openspec/changes/governance-state-substrate/specs/governance-state/spec.md"
     ).read_text()
-    assert "75 pointer rows, 7 retained" in spec
+    assert "72 pointer rows, 10 retained" in spec
     assert "2 generated-region rows, 66 historical rows and 32 non-consumers" in spec
-    assert "182 total" in spec and "exactly 90 paths" in spec
+    assert "182 total" in spec and "exactly 87 paths" in spec
 
 
 @pytest.mark.parametrize(
@@ -7516,6 +7546,74 @@ def test_pr3_consumer_scope_each_retention_obligation_is_required(meaning: str) 
     row["retainedReason"] = row["retainedReason"].replace(meaning, "")
     with pytest.raises(AssertionError):
         assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize("case", ["pointer", "historical", "in-task", "no-reason"])
+def test_pr3_consumer_scope_knowledge_retention_cannot_be_bypassed(path: str, case: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] == path)
+    if case == "pointer":
+        row["disposition"] = "stable-pointer"
+        scopes["8.4"].append(path)
+    elif case == "historical":
+        row["disposition"] = "historical-record"
+    elif case == "in-task":
+        scopes["8.4"].append(path)
+    else:
+        row["retainedReason"] = ""
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize("meaning", PR3_KNOWLEDGE_RETAINED_MEANING)
+def test_pr3_consumer_scope_knowledge_reason_is_explicit(path: str, meaning: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] == path)
+    row["retainedReason"] = row["retainedReason"].replace(meaning, "")
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path,digest", PR3_RETAINED_KNOWLEDGE.items())
+def test_pr3_retained_knowledge_semantic_adjudication_is_byte_bound(path: str, digest: str) -> None:
+    # D7.2c records the semantic inspection; a regex cannot prove arbitrary prose
+    # has no mutable fact. This independent pin invalidates that inspection on
+    # ANY byte change, including one which discovery's keyword scan misses.
+    assert hashlib.sha256((REPOSITORY_ROOT / path).read_bytes()).hexdigest() == digest
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize(
+    "claim",
+    ["ADR-0020 is Accepted.", "U4 is resolved.", "GATE-U4 is satisfied; runner/L9 is Ready."],
+)
+def test_pr3_retained_knowledge_cannot_hide_mutable_current_copy(
+    tmp_path: Path, path: str, claim: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    target = root / path
+    target.write_bytes(target.read_bytes() + ("\n" + claim + "\n").encode())
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0 and not result.stdout
+    assert (
+        "D7.2c: retained knowledge source changed; semantic review required: " + path
+        in result.stderr
+    )
 
 
 def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator() -> None:

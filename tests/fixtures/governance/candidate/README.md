@@ -1,6 +1,63 @@
 # Unattested governance candidate
 
-## Projection preparation — current review freeze
+## Retained semantic knowledge — current review freeze
+
+The owner-authorized [D7.2c correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
+retains three exact-byte-reviewed knowledge sources rather than rewriting them
+during PR-3. The semantic adjudication is recorded in D7.2c; these files explain
+decision governance, precedence and placement conventions without independently
+asserting mutable governance state. Source bytes and `knowledge/catalog.json`
+are unchanged. They remain subordinate to canonical state/query after activation.
+
+Exact correction base: `64371d9d97d5d62c749025f8d31e2c70b9bdc94d`.
+Five-artifact planning checkpoint: `24cd5bc0a901ecf0cdac7273b253cbaa03c348d7`.
+Preserve that checkpoint with **merge commit only**, not squash or rebase-merge.
+
+| Member | Prior PR #134 SHA-256 | Refreshed SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `fc031fce6fa534128c622c57f70af6cad9bae31c04cd635cd2c8d9ece606647d` | `ce652efe7c12d7a2fc83e2b4469cbdef89da63db3b51a14a73ceda8146004342` |
+| `consumers.json` | `77b3cd02991ff45693f32488afadfae64a2f6c5b979660142b96dce5bb5a4bcd` | `465de5f1b40ff54998f53049f8b13b8d89f322bdd2c774a914918d2e833a7014` |
+
+Bundle SHA-256 changes from
+`cdcda07102d75e361317428c0777635e599486504c611b9eaf33c4a5431f3a4c` to
+`b19744d28acc7943726fe48882c8e53da18fa3c4a865341f7adb6214d88667ee`.
+Only the three reviewed dispositions/reasons and the five preparation bindings
+change. Every other inventory field and manifest value is preserved. The state
+is byte-identical, including `attestations.genesis = {}`. Primitive digest
+`9ee9dd25177a81af89f199ba3b7b368488763361e7ad0d6227b7d57783d35bf9` and relationship
+digest `80089e507b92330f04971aced8f1abc2ce1fd0e4be62cb19a6a2c3a86ac5464d` are unchanged.
+Common source S remains `c82fda72927464d813ec769aee53f4079ebe3b20`; L4/L5/L7
+archive-stage M remains `83e6cd8fa7d2d05ab246a39de039129b4056966d` at its exact roots.
+
+The real inventory/task regression derives 72 pointer paths and an 87-path
+activation union. Retained semantic rows become 10; generated regions remain 2,
+historical records 66 and non-consumers 32 (182 total). No other disposition
+changes. Existing PR-101 protections remain in force.
+
+Replay with the existing extraction mechanism:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source 24cd5bc0a901ecf0cdac7273b253cbaa03c348d7
+```
+
+The extraction recipe refuses changed adjudicated knowledge bytes. Tests pin
+the semantic review's source identities and unchanged catalog reviews, exercise
+production admission and independently mutate each source to prove refusal.
+This is not a general text-scanning proof or a new knowledge attestation.
+The correction PR records exact head/tree, freshness comparison identities and
+validation externally. Freshness against its head is review evidence only,
+not PR #131's later activation-base selection. No canonical state, activation,
+owner envelope or changes to PR #131, its diagnostic worktree, PR #101 or the
+issue #19 handoff are part of this correction.
+
+Promotion determination: existing ADR-0016/ADR-0021 contracts own the distinction;
+no new architectural decision or portable-knowledge authority is needed.
+
+## Historical projection preparation — superseded review freeze
 
 The owner-authorized [D7.3a correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
 binds pre-attestation rendering to the complete candidate/freshness proof. This
