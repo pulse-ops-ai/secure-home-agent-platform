@@ -1785,8 +1785,8 @@ no authority independently of the rows:
 <!-- consumer-scope-counts:begin -->
 | Disposition | Count |
 | --- | --- |
-| stable-pointer | 75 |
-| retained-semantic-prose | 7 |
+| stable-pointer | 72 |
+| retained-semantic-prose | 10 |
 | generated-region | 2 |
 | historical-record | 66 |
 | not-a-governance-consumer | 32 |
@@ -1794,7 +1794,7 @@ no authority independently of the rows:
 <!-- consumer-scope-counts:end -->
 
 The exact sorted unique union of tasks 8.2, 8.2a, 8.3, 8.4 and 8.5 is currently
-**90 paths**. The same regression proves that cardinality and exact scope
+**87 paths**. The same regression proves that cardinality and exact scope
 membership. Tasks 8.5a/8.6 still demand byte-for-byte set equality with staged
 and committed paths; neither this correction nor a displayed count permits a
 glob, subset, superset or compatibility exception.
@@ -1818,8 +1818,8 @@ A file absent from the inventory is a **migration failure**. Prohibited-copy
 enforcement operates over the enumerated `generated-region` and `stable-pointer`
 rows.
 
-**D7.2b — Exact protected PR-101 disposition.** Only these four rows are
-reclassified from `stable-pointer` to `retained-semantic-prose`:
+**D7.2b — Exact protected PR-101 disposition.** The PR-101 reconciliation
+reclassified only these four rows from `stable-pointer` to `retained-semantic-prose`:
 
 - `openspec/changes/runner-adapter-conformance-seed/assurance.md`
 - `openspec/changes/runner-adapter-conformance-seed/design.md`
@@ -1836,8 +1836,9 @@ separately governed and cannot be modified until the post-PR-3 handoff.
 
 These are not `historical-record` rows: old planning alone does not satisfy
 D7.2a. The other 38 previously out-of-scope pointer rows remain pointers and
-are now explicit task-8.4 targets. No other classification or governance fact
-changes. The existing extraction recipe must reproduce these exact reviewed
+became explicit task-8.4 targets. D7.2c subsequently corrects three knowledge
+source classifications without changing governance facts. The existing
+extraction recipe must reproduce these exact reviewed
 classifications; no validator, digest or authority rule is relaxed.
 
 This D7/D8 implementation-contract reconciliation refines existing ADR-0021
@@ -1848,6 +1849,45 @@ state bytes, common source S or archive-stage M. Merge commit only: squash or
 rebase-merge must not orphan that checkpoint. No PR-101 bytes or PR-3 branch
 are changed by this correction. Promotion determination: no new architectural
 truth; the disposition and exact scope belong in this existing contract.
+
+**D7.2c — Exact-byte-reviewed semantic knowledge is not a mutable copy.** The
+following source inspection distinguishes durable explanation and non-live
+normative conventions from mutable current facts. Discovery fact classes are
+candidate signals, not proof that a semantic explanation asserts live state.
+
+| Exact path under `knowledge/platform/` | Durable semantic explanation | Normative, non-live convention | Mutable lifecycle / question / program, landing or gate facts |
+| --- | --- | --- | --- |
+| `governance/decisions.md` | How decisions change; explicitly does not reproduce or enumerate individual decision state | Accepted decisions are immutable; acceptance is a human act; unresolved questions require an answering ADR | None / none / none |
+| `governance/precedence.md` | Authority hierarchy; portable knowledge is subordinate | Lower-precedence instructions never override governed contracts | None / none / none |
+| `worker-conventions/placement.md` | Deployable units versus libraries and off-request-path workers; explicitly carries no live worker state | Ownership, isolation and resource-limit placement conventions | None / none / none |
+
+Only these three rows change from `stable-pointer` to `retained-semantic-prose`.
+Each reason records exact-byte-reviewed portable-knowledge source, separate
+ADR-0016 governance, durable semantic explanation rather than mutable governance
+state, subordination to canonical `governance/state.json` / query after
+activation, and why PR-3 must not edit a mutable-copy claim the file does not
+carry. Preserve fact classes, empty generated regions, null historical identity
+and migration landing PR-3. The three files and `knowledge/catalog.json` remain
+byte-identical; no content review is renewed or manufactured. ADR-0016's
+`attestation.digest.binding` still refuses any changed module bytes.
+
+The extraction recipe binds this semantic adjudication to the three inspected
+content digests and refuses changed bytes pending new review. Regression proof
+pins those bytes and the existing module content-review records independently,
+checks production admission and mutates each source to prove digest refusal.
+A retained row is not an exemption for a later mutable-current-state copy.
+If source inspection finds such a copy, stop rather than retaining it. Neither
+a path allowlist nor a keyword scan proves the semantics of arbitrary prose.
+
+Reconcile task 8.4 mechanically to all remaining pointer rows; derive the exact
+activation union without widening it. A new reachable five-artifact planning
+checkpoint precedes mechanical candidate refresh. Preserve state bytes,
+primitive/relationship identities, common S and archive M. Preserve PR #131,
+its diagnostic worktree, PR #101 and the issue #19 handoff. Merge commit only
+keeps the checkpoint reachable. This correction performs no activation.
+Promotion determination: existing ADR-0016 review binding and ADR-0021
+primitive/semantic separation already govern this classification; no new
+architecture or portable-knowledge authority is introduced.
 
 **D7.3 — Markers.** Each generated region carries an explicit begin/end marker
 naming target and region, registered by the renderer. An unregistered target or
@@ -1904,7 +1944,8 @@ synthetic human act is promoted. Preparation is not a reusable genesis path.
 This separately reviewed correction changes proof sequencing, not governance
 facts or architecture. Its planning checkpoint precedes a mechanical refresh
 of the five preparation bindings. Candidate state/inventory bytes, common S,
-archive M, task 8.4's 75 pointers and the 90-path activation seam stay unchanged.
+archive M and inventory/seam equality stayed unchanged in that correction
+(75 pointers / 90 paths then; current scope follows D7.2c).
 The checkpoint must survive a merge commit; do not squash or rebase-merge.
 PR #131 remains paused until correction review/merge and refreshed exact-base
 activation authority. No owner ceremony is performed here. Promotion

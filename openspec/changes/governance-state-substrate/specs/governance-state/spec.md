@@ -2127,10 +2127,10 @@ failure. Prohibited-copy enforcement SHALL operate over the enumerated
 Task 8.4's concrete path set SHALL equal exactly the frozen inventory's
 `stable-pointer` paths, with no duplicate, omitted pointer or non-pointer
 addition. The historical 38-path measurement SHALL NOT supply current scope.
-The current mechanically checked projection is 75 pointer rows, 7 retained
+The current mechanically checked projection is 72 pointer rows, 10 retained
 semantic rows, 2 generated-region rows, 66 historical rows and 32 non-consumers:
 182 total. The concrete sorted unique task union for 8.2, 8.2a, 8.3, 8.4 and
-8.5 SHALL contain exactly 90 paths; staged and committed seam paths SHALL still
+8.5 SHALL contain exactly 87 paths; staged and committed seam paths SHALL still
 equal that exact union. No glob or relaxed equality is permitted.
 
 Exactly the four `runner-adapter-conformance-seed` files enumerated in design
@@ -2143,11 +2143,32 @@ until the post-PR-3 handoff. Their bytes SHALL NOT be edited by PR-3; old planni
 SHALL NOT become a historical-record exemption. The runner-core README has no
 discovered claim/row and SHALL NOT remain in task 8.4 through an invented row.
 
+The three exact portable-knowledge source paths adjudicated in D7.2c SHALL use
+`retained-semantic-prose`, not `stable-pointer` or `historical-record`. Each
+retained reason SHALL identify exact-byte review under ADR-0016, semantic rather
+than mutable-current-state content, subordination to canonical state/query and
+PR-3 byte preservation. Their other row fields, source bytes and catalog content
+reviews SHALL remain unchanged. Changed source bytes SHALL refuse the extraction
+recipe's existing semantic adjudication pending review; retaining a path SHALL
+NOT grant an exemption for a mutable current-state claim.
+
+#### Scenario: Reviewed semantic knowledge survives activation unchanged
+
+- **GIVEN** the three exact reviewed source bytes in D7.2c and their unchanged catalog reviews
+- **WHEN** inventory extraction, scope proof and production knowledge admission run
+- **THEN** all three are retained outside task 8.4, admission succeeds, and no knowledge re-attestation or live governance authority is created
+
+#### Scenario: Retention cannot hide changed source or replace its review
+
+- **GIVEN** any one of the three retained sources is changed, including a newly inserted mutable governance-current-state claim
+- **WHEN** the extraction recipe and production knowledge admission are exercised independently
+- **THEN** extraction refuses changed adjudicated bytes and admission refuses with `attestation.digest.binding`; no retained row excuses either failure
+
 #### Scenario: Frozen inventory and concrete activation scope agree
 
 - **GIVEN** the real corrected inventory and real task metadata
 - **WHEN** the permanent scope regression runs with complete tracked-file discovery
-- **THEN** task 8.4 equals all 75 pointer paths, the task union is exactly 90
+- **THEN** task 8.4 equals all 72 pointer paths, the task union is exactly 87
   paths, the four protected rows remain retained semantic prose, and displayed
   counts equal the 182-row inventory
 

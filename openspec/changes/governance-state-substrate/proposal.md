@@ -550,5 +550,9 @@ writing code.
   projection and task 8.4's exact `stable-pointer` path set are mechanically
   checked against it. D7.2b retains exactly four protected PR-101 planning
   surfaces as non-authoritative source-era semantic prose, without editing
-  them or treating old planning as a historical-record exemption. The exact
+  them or treating old planning as a historical-record exemption. D7.2c retains
+  three exact-byte-reviewed knowledge sources containing durable semantics,
+  not live governance facts. It preserves ADR-0016 module review bindings and
+  removes only those three paths from pointer migration; neither module bytes
+  nor catalog reviews change. The exact
   activation task union remains an equality constraint, never a glob.
