@@ -1,6 +1,126 @@
 # Unattested governance candidate
 
-## Projection preparation — current review freeze
+## Retained semantic content witness — current review freeze
+
+The PR #135 P2 correction carries D7.2c byte adjudication through activation
+freshness. The frozen inventory selects the three retained knowledge paths;
+the manifest's existing common source S witnesses their adjudicated bytes.
+The reviewed correction is the semantic adjudication event, not S. No reviewer,
+review time, policy, lifecycle or knowledge-review authority is inferred from S.
+`knowledge/catalog.json` remains the independent ADR-0016 review authority.
+
+Exact correction base: `64371d9d97d5d62c749025f8d31e2c70b9bdc94d`.
+New five-artifact planning checkpoint: `2beff9ce5ede1f5433a24af78376341654e330c0`.
+It supersedes `24cd5bc0a901ecf0cdac7273b253cbaa03c348d7` for the five preparation
+bindings. Preserve both in ancestry: **merge commit only**, no squash/rebase.
+
+| Member | Prior PR #135 SHA-256 | Refreshed SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `consumers.json` | `465de5f1b40ff54998f53049f8b13b8d89f322bdd2c774a914918d2e833a7014` | `465de5f1b40ff54998f53049f8b13b8d89f322bdd2c774a914918d2e833a7014` |
+| `source-manifest.json` | `ce652efe7c12d7a2fc83e2b4469cbdef89da63db3b51a14a73ceda8146004342` | `83f6fa867fb26b6ba5279eebba3c7c95160d7da22dde3847ce33305e024be536` |
+
+Bundle changes from
+`b19744d28acc7943726fe48882c8e53da18fa3c4a865341f7adb6214d88667ee` to
+`9493c85c44e67baa94f55b258888a7990c06782c4e1ebe2b5b01f0e7700d5627`.
+Exactly five preparation rows change; no other manifest field changes. State,
+inventory and empty genesis attestations remain byte-identical. Primitive
+`9ee9dd25177a81af89f199ba3b7b368488763361e7ad0d6227b7d57783d35bf9` and relationship
+`80089e507b92330f04971aced8f1abc2ce1fd0e4be62cb19a6a2c3a86ac5464d` remain unchanged.
+S remains `c82fda72927464d813ec769aee53f4079ebe3b20`; archive-stage M remains
+`83e6cd8fa7d2d05ab246a39de039129b4056966d`. Counts remain 72 pointer, 10 retained,
+2 generated, 66 historical, 32 non-consumer: 182 total and an exact 87-path seam.
+
+Git-object comparison proves S:path equals the reviewed bytes for all three:
+
+| Path under `knowledge/platform/` | SHA-256 at S and reviewed head `10a83a7` |
+| --- | --- |
+| `governance/decisions.md` | `1c56fdffe802c701a558d328cc4cbab0308516759a2dca908b6e7fea99a8191e` |
+| `governance/precedence.md` | `e9196782a14c77c69fcec378e11f9e0bb5b9dea6b073b838ba4896b667d29b4e` |
+| `worker-conventions/placement.md` | `6ea4436479b5c58e5a5d62e80d4f48a23446cacb5240246be644602bb72e4c47` |
+
+These are observed receipt values, not another production pin authority.
+The shared path/explanation definition lives in
+[`consumers.mjs`](../../../../scripts/governance/model/consumers.mjs).
+Extraction compares inventory-source bytes with S before retention. Both
+freshness invocations include derived S/base path hashes in the existing local
+evidence comparison and final digest. A same-fact-class byte change cannot
+inherit retention or return equivalent freshness. Knowledge admission separately
+retains its existing `attestation.digest.binding` refusal.
+
+Reproduce the three candidate members through the existing read-only extractor:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source 2beff9ce5ede1f5433a24af78376341654e330c0
+```
+
+PR metadata records exact-head freshness and validation as correction-review
+evidence only, not a future PR #131 activation-base selection. PR #131 and its
+diagnostic worktree remain paused and untouched. No activation or attestation is
+performed. Promotion determination: this is the existing D7.2c implementation
+contract's content witness, not a new ADR or portable-knowledge authority.
+
+## Retained semantic knowledge — superseded initial review freeze
+
+The owner-authorized [D7.2c correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
+retains three exact-byte-reviewed knowledge sources rather than rewriting them
+during PR-3. The semantic adjudication is recorded in D7.2c; these files explain
+decision governance, precedence and placement conventions without independently
+asserting mutable governance state. Source bytes and `knowledge/catalog.json`
+are unchanged. They remain subordinate to canonical state/query after activation.
+
+Exact correction base: `64371d9d97d5d62c749025f8d31e2c70b9bdc94d`.
+Five-artifact planning checkpoint: `24cd5bc0a901ecf0cdac7273b253cbaa03c348d7`.
+Preserve that checkpoint with **merge commit only**, not squash or rebase-merge.
+
+| Member | Prior PR #134 SHA-256 | Refreshed SHA-256 |
+| --- | --- | --- |
+| `state.json` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` | `d39b932ec88763963536a4ec9137da4ff71a68e561b42c642ad7c1ad2a13d076` |
+| `source-manifest.json` | `fc031fce6fa534128c622c57f70af6cad9bae31c04cd635cd2c8d9ece606647d` | `ce652efe7c12d7a2fc83e2b4469cbdef89da63db3b51a14a73ceda8146004342` |
+| `consumers.json` | `77b3cd02991ff45693f32488afadfae64a2f6c5b979660142b96dce5bb5a4bcd` | `465de5f1b40ff54998f53049f8b13b8d89f322bdd2c774a914918d2e833a7014` |
+
+Bundle SHA-256 changes from
+`cdcda07102d75e361317428c0777635e599486504c611b9eaf33c4a5431f3a4c` to
+`b19744d28acc7943726fe48882c8e53da18fa3c4a865341f7adb6214d88667ee`.
+Only the three reviewed dispositions/reasons and the five preparation bindings
+change. Every other inventory field and manifest value is preserved. The state
+is byte-identical, including `attestations.genesis = {}`. Primitive digest
+`9ee9dd25177a81af89f199ba3b7b368488763361e7ad0d6227b7d57783d35bf9` and relationship
+digest `80089e507b92330f04971aced8f1abc2ce1fd0e4be62cb19a6a2c3a86ac5464d` are unchanged.
+Common source S remains `c82fda72927464d813ec769aee53f4079ebe3b20`; L4/L5/L7
+archive-stage M remains `83e6cd8fa7d2d05ab246a39de039129b4056966d` at its exact roots.
+
+The real inventory/task regression derives 72 pointer paths and an 87-path
+activation union. Retained semantic rows become 10; generated regions remain 2,
+historical records 66 and non-consumers 32 (182 total). No other disposition
+changes. Existing PR-101 protections remain in force.
+
+Replay with the existing extraction mechanism:
+
+```sh
+node scripts/governance/genesis/extract.mjs --root . \
+  --source c82fda72927464d813ec769aee53f4079ebe3b20 \
+  --inventory-source WORKTREE \
+  --planning-source 24cd5bc0a901ecf0cdac7273b253cbaa03c348d7
+```
+
+The extraction recipe refuses changed adjudicated knowledge bytes. Tests pin
+the semantic review's source identities and unchanged catalog reviews, exercise
+production admission and independently mutate each source to prove refusal.
+This is not a general text-scanning proof or a new knowledge attestation.
+The correction PR records exact head/tree, freshness comparison identities and
+validation externally. Freshness against its head is review evidence only,
+not PR #131's later activation-base selection. No canonical state, activation,
+owner envelope or changes to PR #131, its diagnostic worktree, PR #101 or the
+issue #19 handoff are part of this correction.
+
+Promotion determination: existing ADR-0016/ADR-0021 contracts own the distinction;
+no new architectural decision or portable-knowledge authority is needed.
+
+## Historical projection preparation — superseded review freeze
 
 The owner-authorized [D7.3a correction](../../../../openspec/changes/governance-state-substrate/design.md#d7-consumer-inventory-projections-and-migration)
 binds pre-attestation rendering to the complete candidate/freshness proof. This

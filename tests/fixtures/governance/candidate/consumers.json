@@ -680,31 +680,31 @@
       "retainedReason": null
     },
     {
-      "disposition": "stable-pointer",
+      "disposition": "retained-semantic-prose",
       "factClasses": ["decision-lifecycle"],
       "generatedRegions": [],
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "knowledge/platform/governance/decisions.md",
-      "retainedReason": null
+      "retainedReason": "Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016. Explains how decisions change and explicitly avoids individual decision state. Contains durable semantic explanation rather than mutable governance state. After activation it remains subordinate to governance/state.json / the canonical query, not an independent mutable-current-state authority. PR-3 must leave these bytes unchanged, not replace a mutable-copy claim this file does not carry."
     },
     {
-      "disposition": "stable-pointer",
+      "disposition": "retained-semantic-prose",
       "factClasses": ["decision-lifecycle"],
       "generatedRegions": [],
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "knowledge/platform/governance/precedence.md",
-      "retainedReason": null
+      "retainedReason": "Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016. Explains precedence and makes portable knowledge subordinate to governed contracts. Contains durable semantic explanation rather than mutable governance state. After activation it remains subordinate to governance/state.json / the canonical query, not an independent mutable-current-state authority. PR-3 must leave these bytes unchanged, not replace a mutable-copy claim this file does not carry."
     },
     {
-      "disposition": "stable-pointer",
+      "disposition": "retained-semantic-prose",
       "factClasses": ["decision-lifecycle"],
       "generatedRegions": [],
       "historicalIdentity": null,
       "migrationLanding": "PR-3",
       "path": "knowledge/platform/worker-conventions/placement.md",
-      "retainedReason": null
+      "retainedReason": "Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016. Explains durable placement conventions and carries no live worker or program state. Contains durable semantic explanation rather than mutable governance state. After activation it remains subordinate to governance/state.json / the canonical query, not an independent mutable-current-state authority. PR-3 must leave these bytes unchanged, not replace a mutable-copy claim this file does not carry."
     },
     {
       "disposition": "stable-pointer",

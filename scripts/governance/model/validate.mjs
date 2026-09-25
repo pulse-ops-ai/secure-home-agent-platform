@@ -36,7 +36,12 @@ import {
 } from './archived-openspec.mjs'
 import { ABSENT, PRESENT } from '../git-tree/index.mjs'
 import { canonicalPathSetProblems } from './paths.mjs'
-import { consumerCounts, discoverConsumers, validateConsumerInventory } from './consumers.mjs'
+import {
+  consumerCounts,
+  discoverConsumers,
+  validateConsumerInventory,
+  retainedSemanticKnowledgePaths,
+} from './consumers.mjs'
 import {
   ARCHIVE_STAGE,
   BRIDGE_RECORDS,
@@ -2333,6 +2338,10 @@ export function extractFreshnessInputs(frozen, snapshot, context) {
     ...manifest.planningSources.map((source) => source.path),
     manifest.historicalContext.source.path,
     ...manifest.decisionEvidence.flatMap((row) => row.sources.map((source) => source.path)),
+    // D7.2c: the frozen inventory selects the paths. The candidate side reads
+    // manifest-bound S and the activation side the explicit base; their byte
+    // identities participate in the existing local-evidence comparison/digest.
+    ...retainedSemanticKnowledgePaths(inventory),
   ])
   const historical = []
   for (const row of manifest.historicalCompletions) {

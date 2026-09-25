@@ -39,7 +39,12 @@ import {
   absentMinimumArtifacts,
   bundlePreimage,
 } from '../model/archived-openspec.mjs'
-import { discoverConsumers, validateConsumerInventory } from '../model/consumers.mjs'
+import {
+  discoverConsumers,
+  validateConsumerInventory,
+  RETAINED_SEMANTIC_KNOWLEDGE,
+  requireRetainedSemanticKnowledgeBytes,
+} from '../model/consumers.mjs'
 
 // External owner resumption authorization and durable PR-2A merge handoff.
 // A pre-preparation snapshot is not an alternate input to this v1 extraction.
@@ -306,7 +311,9 @@ const ACTIVE_SURFACES = new Map([
   ],
 ])
 
-function inventoryFor(snapshot) {
+function inventoryFor(snapshot, sourceSnapshot) {
+  requireRetainedSemanticKnowledgeBytes(snapshot, sourceSnapshot)
+  const retainedKnowledge = new Map(RETAINED_SEMANTIC_KNOWLEDGE.map((row) => [row.path, row]))
   return {
     schemaVersion: 1,
     rows: discoverConsumers(snapshot).map((row) => {
@@ -346,6 +353,15 @@ function inventoryFor(snapshot) {
         disposition = 'not-a-governance-consumer'
         retainedReason =
           'Executable check, adversarial fixture, or authoring template; its literals exercise a contract rather than assert live governance state.'
+      } else if (retainedKnowledge.has(row.path)) {
+        disposition = 'retained-semantic-prose'
+        retainedReason =
+          'Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016. ' +
+          retainedKnowledge.get(row.path).explanation +
+          ' Contains durable semantic explanation rather than mutable governance state. ' +
+          'After activation it remains subordinate to governance/state.json / the canonical query, ' +
+          'not an independent mutable-current-state authority. PR-3 must leave these bytes unchanged, ' +
+          'not replace a mutable-copy claim this file does not carry.'
       } else if (row.path === 'docs/architecture/agent-triage-and-escalation.md') {
         disposition = 'retained-semantic-prose'
         retainedReason =
@@ -628,7 +644,7 @@ export function extractCandidate({
       ),
     },
   }
-  const inventory = inventoryFor(inventorySnapshot)
+  const inventory = inventoryFor(inventorySnapshot, snapshot)
   const problems = []
   validateGenesisSources(
     state,

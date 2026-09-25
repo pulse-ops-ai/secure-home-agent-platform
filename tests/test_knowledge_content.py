@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import TypedDict
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTENT_CHECK = REPO_ROOT / "scripts" / "check-knowledge-content.mjs"
@@ -1087,3 +1090,67 @@ def test_validated_modules_admit_and_package_nothing() -> None:
     assert reported == REVIEWED_DIGESTS, (
         "the digest admission emitted must be each module's reviewed digest"
     )
+
+
+# D7.2c retains these sources, not an exemption from ADR-0016 admission. Copy
+# existing reviewed records verbatim; these tests author no new attestations.
+RETAINED_KNOWLEDGE_REVIEWS = {
+    "platform/governance": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-18T17:37:10Z",
+        "sourceDigest": "sha256:d5a4c13dab3d6b3eef606b46160bfe54ad0de020534fb537fc566d7a6f125dc5",
+    },
+    "platform/worker-conventions": {
+        "policy": "portable-knowledge-prohibited-content-v1",
+        "by": "human:mikegtech",
+        "at": "2026-08-19T02:01:51Z",
+        "sourceDigest": "sha256:502c3bbd28420d1891e5f0125ad5752db456e39230b6161dd12c07059d311dc7",
+    },
+}
+
+
+def test_pr3_retained_knowledge_catalog_reviews_remain_exact() -> None:
+    catalog = json.loads((REPO_ROOT / "knowledge/catalog.json").read_bytes())
+    actual = {
+        entry["id"]: entry["contentReview"]
+        for entry in catalog["modules"]
+        if entry["id"] in RETAINED_KNOWLEDGE_REVIEWS
+    }
+    assert actual == RETAINED_KNOWLEDGE_REVIEWS
+
+
+@pytest.mark.parametrize(
+    "module_id,member",
+    [
+        ("platform/governance", "decisions.md"),
+        ("platform/governance", "precedence.md"),
+        ("platform/worker-conventions", "placement.md"),
+    ],
+)
+def test_pr3_retained_knowledge_mutation_still_fails_production_admission(
+    tmp_path: Path, module_id: str, member: str
+) -> None:
+    catalog = json.loads((REPO_ROOT / "knowledge/catalog.json").read_bytes())
+    entry = next(entry for entry in catalog["modules"] if entry["id"] == module_id)
+    assert entry["contentReview"] == RETAINED_KNOWLEDGE_REVIEWS[module_id]
+    root = tmp_path / "isolated-retained-knowledge"
+    shutil.copytree(REPO_ROOT / "knowledge" / module_id, root / "knowledge" / module_id)
+    for name in entry["governingSources"]:
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, target)
+    retained_catalog = root / "knowledge/catalog.json"
+    retained_catalog.write_text(json.dumps({"modules": [entry], "sets": []}) + "\n")
+    original_catalog = retained_catalog.read_bytes()
+
+    baseline = _run(root)
+    assert baseline.returncode == 0, _output(baseline)
+    target = root / "knowledge" / module_id / member
+    original = target.read_bytes()
+    target.write_bytes(original + b"\nCurrent governance answers: governance/state.json.\n")
+    mutated = _run(root)
+    assert mutated.returncode != 0
+    assert "attestation.digest.binding" in _output(mutated), _output(mutated)
+    assert retained_catalog.read_bytes() == original_catalog
+    assert (REPO_ROOT / "knowledge" / module_id / member).read_bytes() == original

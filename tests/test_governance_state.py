@@ -7353,8 +7353,8 @@ PR3_NON_POINTER_SCOPE = {
     },
 }
 PR3_INVENTORY_COUNTS = {
-    "stable-pointer": 75,
-    "retained-semantic-prose": 7,
+    "stable-pointer": 72,
+    "retained-semantic-prose": 10,
     "generated-region": 2,
     "historical-record": 66,
     "not-a-governance-consumer": 32,
@@ -7367,6 +7367,26 @@ PR3_RETAINED_MEANING = (
     "come only from governance/state.json / the canonical query",
     "PR #101 remains separately governed",
     "cannot be modified until the post-PR-3 handoff",
+)
+PR3_RETAINED_KNOWLEDGE = {
+    "knowledge/platform/governance/decisions.md": (
+        "1c56fdffe802c701a558d328cc4cbab0308516759a2dca908b6e7fea99a8191e"
+    ),
+    "knowledge/platform/governance/precedence.md": (
+        "e9196782a14c77c69fcec378e11f9e0bb5b9dea6b073b838ba4896b667d29b4e"
+    ),
+    "knowledge/platform/worker-conventions/placement.md": (
+        "6ea4436479b5c58e5a5d62e80d4f48a23446cacb5240246be644602bb72e4c47"
+    ),
+}
+PR3_KNOWLEDGE_RETAINED_MEANING = (
+    "Exact-byte-reviewed portable-knowledge source",
+    "governed separately by ADR-0016",
+    "durable semantic explanation rather than mutable governance state",
+    "subordinate to governance/state.json / the canonical query",
+    "not an independent mutable-current-state authority",
+    "PR-3 must leave these bytes unchanged",
+    "not replace a mutable-copy claim this file does not carry",
 )
 
 
@@ -7391,11 +7411,21 @@ def assert_pr3_consumer_scope(scopes: dict[str, list[str]], inventory: dict[str,
     assert len(by_path) == len(rows) == 182
     assert Counter(row["disposition"] for row in rows) == PR3_INVENTORY_COUNTS
     pointers = {row["path"] for row in rows if row["disposition"] == "stable-pointer"}
-    assert len(scopes["8.4"]) == len(set(scopes["8.4"])) == len(pointers) == 75
+    assert len(scopes["8.4"]) == len(set(scopes["8.4"])) == len(pointers) == 72
     assert set(scopes["8.4"]) == pointers, "task 8.4 and stable-pointer rows differ"
     assert "packages/runner-core/README.md" not in scopes["8.4"]
     assert "packages/runner-core/README.md" not in by_path
     assert pointers.isdisjoint(PR3_PROTECTED_CONTEXT)
+    assert pointers.isdisjoint(PR3_RETAINED_KNOWLEDGE)
+    for path in PR3_RETAINED_KNOWLEDGE:
+        row = by_path[path]
+        assert row["disposition"] == "retained-semantic-prose"
+        assert row["generatedRegions"] == []
+        assert row["historicalIdentity"] is None
+        assert row["migrationLanding"] == "PR-3"
+        assert isinstance(row["retainedReason"], str)
+        for meaning in PR3_KNOWLEDGE_RETAINED_MEANING:
+            assert meaning in row["retainedReason"], f"{path}: missing {meaning}"
     for path, fact_classes in PR3_PROTECTED_CONTEXT.items():
         row = by_path[path]
         assert row["disposition"] == "retained-semantic-prose"
@@ -7412,14 +7442,14 @@ def assert_pr3_consumer_scope(scopes: dict[str, list[str]], inventory: dict[str,
     union = set().union(*(scopes[task] for task in ["8.2", "8.2a", "8.3", "8.4", "8.5"]))
     expected_union = pointers.union(*PR3_NON_POINTER_SCOPE.values())
     assert union == expected_union
-    assert len(union) == 90
+    assert len(union) == 87
     assert all(not any(char in path for char in "*?[]") for path in union), "glob scope"
     return union
 
 
 def test_pr3_consumer_scope_matches_real_inventory_and_task_metadata() -> None:
     scopes, inventory = pr3_scope_inputs()
-    assert len(assert_pr3_consumer_scope(scopes, inventory)) == 90
+    assert len(assert_pr3_consumer_scope(scopes, inventory)) == 87
     design = (REPOSITORY_ROOT / "openspec/changes/governance-state-substrate/design.md").read_text()
     table = design.split("<!-- consumer-scope-counts:begin -->", 1)[1].split(
         "<!-- consumer-scope-counts:end -->", 1
@@ -7430,9 +7460,9 @@ def test_pr3_consumer_scope_matches_real_inventory_and_task_metadata() -> None:
         REPOSITORY_ROOT
         / "openspec/changes/governance-state-substrate/specs/governance-state/spec.md"
     ).read_text()
-    assert "75 pointer rows, 7 retained" in spec
+    assert "72 pointer rows, 10 retained" in spec
     assert "2 generated-region rows, 66 historical rows and 32 non-consumers" in spec
-    assert "182 total" in spec and "exactly 90 paths" in spec
+    assert "182 total" in spec and "exactly 87 paths" in spec
 
 
 @pytest.mark.parametrize(
@@ -7516,6 +7546,324 @@ def test_pr3_consumer_scope_each_retention_obligation_is_required(meaning: str) 
     row["retainedReason"] = row["retainedReason"].replace(meaning, "")
     with pytest.raises(AssertionError):
         assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize("case", ["pointer", "historical", "in-task", "no-reason"])
+def test_pr3_consumer_scope_knowledge_retention_cannot_be_bypassed(path: str, case: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] == path)
+    if case == "pointer":
+        row["disposition"] = "stable-pointer"
+        scopes["8.4"].append(path)
+    elif case == "historical":
+        row["disposition"] = "historical-record"
+    elif case == "in-task":
+        scopes["8.4"].append(path)
+    else:
+        row["retainedReason"] = ""
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize("meaning", PR3_KNOWLEDGE_RETAINED_MEANING)
+def test_pr3_consumer_scope_knowledge_reason_is_explicit(path: str, meaning: str) -> None:
+    scopes, inventory = pr3_scope_inputs()
+    row = next(row for row in inventory["rows"] if row["path"] == path)
+    row["retainedReason"] = row["retainedReason"].replace(meaning, "")
+    with pytest.raises(AssertionError):
+        assert_pr3_consumer_scope(scopes, inventory)
+
+
+@pytest.mark.parametrize("path,digest", PR3_RETAINED_KNOWLEDGE.items())
+def test_pr3_retained_knowledge_semantic_adjudication_is_byte_bound(path: str, digest: str) -> None:
+    # D7.2c records the semantic inspection; a regex cannot prove arbitrary prose
+    # has no mutable fact. This independent pin invalidates that inspection on
+    # ANY byte change, including one which discovery's keyword scan misses.
+    assert hashlib.sha256((REPOSITORY_ROOT / path).read_bytes()).hexdigest() == digest
+    source_bytes = subprocess.run(
+        ["git", "show", POST_BRIDGE_SOURCE + ":" + path],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
+    ).stdout
+    assert source_bytes == (REPOSITORY_ROOT / path).read_bytes()
+
+
+def retained_freshness_inputs(root: Path, revision: str) -> dict[str, Any]:
+    """Observe the real extractor's four inputs, not a Python freshness model."""
+    script = """
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {createGenesisReader,createCommitReader} from './scripts/governance/genesis/observations.mjs'
+import {discoverConsumers,retainedSemanticKnowledgePaths}
+  from './scripts/governance/model/consumers.mjs'
+import {extractFreshnessInputs,digestPreimage,candidateFreezeIdentity,CANDIDATE_PATHS,
+  activationFreshnessPreimage} from './scripts/governance/model/index.mjs'
+const [root,revision]=process.argv.slice(1)
+const bytes=new Map(CANDIDATE_PATHS.map(path=>[path,readFileSync(join(root,path))]))
+const [inventory,manifest,seed]=[...bytes.values()].map(value=>JSON.parse(value))
+const frozen={inventory,manifest,seed,identity:candidateFreezeIdentity(bytes)}
+const readSnapshot=createGenesisReader(root)
+const context={readSnapshot,...createCommitReader(root)}
+const snapshot=readSnapshot(revision)
+const inputs=extractFreshnessInputs(frozen,snapshot,context)
+const paths=retainedSemanticKnowledgePaths(inventory)
+const reference=extractFreshnessInputs(frozen,
+  readSnapshot(manifest.sourceSnapshotIdentity.value),context)
+const select=values=>values.filter(row=>paths.includes(row.path))
+const identity=digestPreimage(inputs.localEvidenceIdentities)
+const digest=digestPreimage(activationFreshnessPreimage(frozen.identity,revision,inputs))
+inputs.localEvidenceIdentities.artifactIdentities=inputs.localEvidenceIdentities.artifactIdentities
+  .filter(row=>!paths.includes(row.path))
+console.log(JSON.stringify({paths,
+  discovered:select(discoverConsumers(snapshot)),
+  reference:select(reference.localEvidenceIdentities.artifactIdentities),
+  observed:select(extractFreshnessInputs(frozen,snapshot,context).localEvidenceIdentities.artifactIdentities),
+  identity,digest,
+  omittedIdentity:digestPreimage(inputs.localEvidenceIdentities),
+  omittedDigest:digestPreimage(activationFreshnessPreimage(frozen.identity,revision,inputs))}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script, str(root), revision],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    return cast(dict[str, Any], json.loads(result.stdout))
+
+
+def test_pr3_retained_knowledge_freshness_binds_candidate_source_witness(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    run, payload = run_freshness(root, base)
+    assert run.returncode == 0 and payload["ok"], (payload, run.stderr)
+    assert payload["result"]["outcome"] == "equivalent"
+    inputs = retained_freshness_inputs(root, base)
+    expected = [
+        {"path": path, "contentSha256": digest}
+        for path, digest in sorted(PR3_RETAINED_KNOWLEDGE.items())
+    ]
+    assert inputs["paths"] == sorted(PR3_RETAINED_KNOWLEDGE)
+    assert inputs["reference"] == inputs["observed"] == expected
+    assert (
+        payload["result"]["comparisonTupleIdentities"]["localEvidenceIdentities"]
+        == inputs["identity"]
+        != inputs["omittedIdentity"]
+    )
+    assert (
+        payload["result"]["activationFreshnessDigest"]
+        == inputs["digest"]
+        != inputs["omittedDigest"]
+    )
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+def test_pr3_retained_knowledge_post_freeze_drift_refuses_same_fact_classes(
+    tmp_path: Path, path: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    baseline_run, baseline = run_freshness(root, base)
+    assert baseline_run.returncode == 0 and baseline["ok"], (baseline, baseline_run.stderr)
+    before = retained_freshness_inputs(root, base)
+    candidate = root / "tests/fixtures/governance/candidate"
+    frozen = {
+        name: (candidate / name).read_bytes()
+        for name in ("state.json", "consumers.json", "source-manifest.json")
+    }
+    target = root / path
+    target.write_bytes(target.read_bytes() + b"\nADR-0020 is Accepted.\n")
+    git(root, "add", path)
+    git(root, "commit", "-qm", "TEST post-freeze retained source drift")
+    changed_base = git(root, "rev-parse", "HEAD")
+    assert git(root, "rev-parse", "HEAD^") == base
+    assert git(root, "diff", "--name-only", base, changed_base) == path
+    after = retained_freshness_inputs(root, changed_base)
+    assert after["paths"] == before["paths"]
+    assert after["discovered"] == before["discovered"]
+    assert after["reference"] == before["reference"]
+    assert after["observed"] != before["observed"]
+    assert after["identity"] != before["identity"]
+    for name, content in frozen.items():
+        assert (candidate / name).read_bytes() == content
+    row = next(row for row in json.loads(frozen["consumers.json"])["rows"] if row["path"] == path)
+    assert row["disposition"] == "retained-semantic-prose"
+    assert row["factClasses"] == next(
+        row["factClasses"] for row in after["discovered"] if row["path"] == path
+    )
+    run, payload = run_freshness(root, changed_base)
+    assert run.returncode == 1 and payload["ok"] is False, (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G73"}, payload
+
+    # Independently kill omission of the byte identity from the real comparison.
+    # This reproduces the former false-equivalent behavior, not a string-only kill.
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/validate.mjs",
+                "    ...retainedSemanticKnowledgePaths(inventory),",
+                "    // MUTANT: omit the frozen retained byte identities",
+            )
+        ],
+    )
+    mutant_run, mutant = run_subject(subject, root, base=changed_base, freshness=True)
+    assert mutant_run.returncode == 0 and mutant["ok"], (mutant, mutant_run.stderr)
+    assert mutant["result"]["outcome"] == "equivalent"
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize(
+    "claim",
+    ["ADR-0020 is Accepted.", "U4 is resolved.", "GATE-U4 is satisfied; runner/L9 is Ready."],
+)
+def test_pr3_retained_knowledge_cannot_hide_mutable_current_copy(
+    tmp_path: Path, path: str, claim: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    target = root / path
+    target.write_bytes(target.read_bytes() + ("\n" + claim + "\n").encode())
+    result = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY_ROOT / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0 and not result.stdout
+    assert (
+        "D7.2c: retained knowledge source changed; semantic review required: " + path
+        in result.stderr
+    )
+
+
+@pytest.mark.parametrize(
+    "case,path",
+    [("remove", path) for path in PR3_RETAINED_KNOWLEDGE]
+    + [("add", "knowledge/unreviewed.md"), ("duplicate", next(iter(PR3_RETAINED_KNOWLEDGE)))],
+)
+def test_pr3_retained_knowledge_model_set_mutants_cannot_narrow_frozen_selector(
+    tmp_path: Path, case: str, path: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    baseline_run, baseline = run_freshness(root, base)
+    assert baseline_run.returncode == 0 and baseline["ok"], (baseline, baseline_run.stderr)
+    before = retained_freshness_inputs(root, base)
+    candidate = root / "tests/fixtures/governance/candidate"
+    frozen = {
+        name: (candidate / name).read_bytes()
+        for name in ("state.json", "consumers.json", "source-manifest.json")
+    }
+    if case == "remove":
+        target = root / path
+        target.write_bytes(target.read_bytes() + b"\nADR-0020 is Accepted.\n")
+        git(root, "add", path)
+        git(root, "commit", "-qm", "TEST selector narrowing with same-class retained drift")
+        changed_base = git(root, "rev-parse", "HEAD")
+        assert git(root, "rev-parse", "HEAD^") == base
+        assert git(root, "diff", "--name-only", base, changed_base) == path
+        after = retained_freshness_inputs(root, changed_base)
+        assert before["discovered"] == after["discovered"]
+        assert before["paths"] == after["paths"]
+        assert before["reference"] == after["reference"]
+        assert before["observed"] != after["observed"]
+    else:
+        changed_base = base
+
+    model = "governance/model/consumers.mjs"
+    if case == "remove":
+        source = (REPOSITORY_ROOT / "scripts" / model).read_text()
+        entries = re.findall(
+            r"  Object\.freeze\(\{\n    path: '" + re.escape(path) + r"',\n[\s\S]*?\n  \}\),\n",
+            source,
+        )
+        assert len(entries) == 1
+        old, new = entries[0], ""
+    else:
+        old = "export const RETAINED_SEMANTIC_KNOWLEDGE = Object.freeze(["
+        new = old + "\n  Object.freeze({path: '" + path + "', explanation: 'TEST model drift'}),"
+    subject = mutant_subject(tmp_path, [(model, old, new)])
+    run, payload = run_subject(subject, root, base=changed_base, freshness=True)
+    assert run.returncode == 1 and payload["ok"] is False, (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    # Refusal must be the set disagreement, not discovery, missing extra bytes,
+    # or even the changed content digest which an omitted selector would miss.
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G74"}, payload
+    assert all(
+        "D7.2c: frozen/model retained path-set mismatch" in problem["message"]
+        for problem in payload["problems"]
+    ), payload
+
+    extraction = subprocess.run(
+        [
+            "node",
+            str(subject / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert extraction.returncode != 0 and not extraction.stdout
+    assert "D7.2c: frozen/model retained path-set mismatch" in extraction.stderr
+    for name, content in frozen.items():
+        assert (candidate / name).read_bytes() == content
+
+
+@pytest.mark.parametrize("case", ["exact", "removed-marker", "added-marker", "duplicate-row"])
+def test_pr3_retained_knowledge_selector_uses_only_frozen_row_marker(case: str) -> None:
+    script = """
+import {readFileSync} from 'node:fs'
+import {retainedSemanticKnowledgePaths} from './scripts/governance/model/consumers.mjs'
+const inventory=JSON.parse(readFileSync('tests/fixtures/governance/candidate/consumers.json'))
+const marker='Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016.'
+const rows=inventory.rows.filter(row=>row.disposition==='retained-semantic-prose')
+const selected=rows.filter(row=>row.retainedReason.startsWith(marker))
+const others=rows.filter(row=>!row.retainedReason.startsWith(marker))
+const kind=process.argv[1]
+if(kind==='removed-marker') selected[0].retainedReason='Unmarked TEST prose'
+if(kind==='added-marker') others[0].retainedReason=selected[0].retainedReason
+if(kind==='duplicate-row') inventory.rows.push({...selected[0]})
+try {
+  console.log(JSON.stringify({paths:retainedSemanticKnowledgePaths(inventory),
+    selected:selected.length,others:others.length}))
+} catch(error) {
+  console.log(JSON.stringify({error:error.message}))
+  process.exitCode=1
+}
+"""
+    run = subprocess.run(
+        ["node", "--input-type=module", "-e", script, case],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(run.stdout)
+    if case == "exact":
+        assert run.returncode == 0, payload
+        assert payload == {"paths": sorted(PR3_RETAINED_KNOWLEDGE), "selected": 3, "others": 7}
+    else:
+        assert run.returncode == 1, payload
+        assert "D7.2c: frozen/model retained path-set mismatch" in payload["error"]
 
 
 def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator() -> None:

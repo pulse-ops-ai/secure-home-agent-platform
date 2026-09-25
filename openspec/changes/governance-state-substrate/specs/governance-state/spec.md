@@ -2127,10 +2127,10 @@ failure. Prohibited-copy enforcement SHALL operate over the enumerated
 Task 8.4's concrete path set SHALL equal exactly the frozen inventory's
 `stable-pointer` paths, with no duplicate, omitted pointer or non-pointer
 addition. The historical 38-path measurement SHALL NOT supply current scope.
-The current mechanically checked projection is 75 pointer rows, 7 retained
+The current mechanically checked projection is 72 pointer rows, 10 retained
 semantic rows, 2 generated-region rows, 66 historical rows and 32 non-consumers:
 182 total. The concrete sorted unique task union for 8.2, 8.2a, 8.3, 8.4 and
-8.5 SHALL contain exactly 90 paths; staged and committed seam paths SHALL still
+8.5 SHALL contain exactly 87 paths; staged and committed seam paths SHALL still
 equal that exact union. No glob or relaxed equality is permitted.
 
 Exactly the four `runner-adapter-conformance-seed` files enumerated in design
@@ -2143,11 +2143,64 @@ until the post-PR-3 handoff. Their bytes SHALL NOT be edited by PR-3; old planni
 SHALL NOT become a historical-record exemption. The runner-core README has no
 discovered claim/row and SHALL NOT remain in task 8.4 through an invented row.
 
+The three exact portable-knowledge source paths adjudicated in D7.2c SHALL use
+`retained-semantic-prose`, not `stable-pointer` or `historical-record`. Each
+retained reason SHALL identify exact-byte review under ADR-0016, semantic rather
+than mutable-current-state content, subordination to canonical state/query and
+PR-3 byte preservation. Their other row fields, source bytes and catalog content
+reviews SHALL remain unchanged. Changed source bytes SHALL refuse the extraction
+recipe's existing semantic adjudication pending review; retaining a path SHALL
+NOT grant an exemption for a mutable current-state claim.
+
+For each exact D7.2c retained path selected by the frozen candidate inventory,
+the manifest's bound `sourceSnapshotIdentity` SHALL be the immutable content
+witness. The reviewed D7.2c correction is the semantic adjudication event; S
+SHALL NOT establish reviewer identity, review time, knowledge policy, knowledge
+lifecycle or new portable-knowledge authority. Git-object comparison SHALL
+first prove that S:path equals the adjudicated source bytes. The retained byte
+identity SHALL be derived as `SHA-256(bytes at S:path)` without a new schema
+field or candidate member. A single shared production path/explanation
+definition SHALL serve extraction and freshness, not independent digest pins.
+
+Extraction SHALL compare inventory-source bytes, including `WORKTREE`, with
+S:path before retaining them. Task 8.1a and the mandatory second freshness
+invocation before 8.5a SHALL compare each frozen retained path at the explicit
+activation base with S:path. These path/content identities SHALL participate in
+the existing `localEvidenceIdentities` canonical comparison and freshness digest.
+Missing or changed bytes SHALL refuse success regardless of unchanged discovery
+fact classes. Activation-base discovery SHALL NOT select the adjudicated paths.
+Catalog content review SHALL remain independently governed by ADR-0016; neither
+successful re-attestation nor a catalog digest SHALL replace the D7.2c witness.
+
+#### Scenario: Reviewed semantic knowledge survives activation unchanged
+
+- **GIVEN** the three exact reviewed source bytes in D7.2c and their unchanged catalog reviews
+- **WHEN** inventory extraction, scope proof and production knowledge admission run
+- **THEN** all three are retained outside task 8.4, admission succeeds, and no knowledge re-attestation or live governance authority is created
+
+#### Scenario: Retention cannot hide changed source or replace its review
+
+- **GIVEN** any one of the three retained sources is changed, including a newly inserted mutable governance-current-state claim
+- **WHEN** the extraction recipe and production knowledge admission are exercised independently
+- **THEN** extraction refuses changed adjudicated bytes and admission refuses with `attestation.digest.binding`; no retained row excuses either failure
+
+#### Scenario: Committed retained-byte drift refuses activation freshness
+
+- **GIVEN** a valid frozen candidate and a descendant activation-base commit changing one D7.2c source, including `ADR-0020 is Accepted.`, without changing detected fact classes or the frozen disposition
+- **WHEN** the real freshness command compares that explicit base with the candidate-bound S
+- **THEN** the local-evidence comparison differs, freshness refuses and returns no usable equivalent result or success digest; extraction and knowledge admission independently refuse the changed bytes
+
+#### Scenario: Unchanged retained bytes preserve equivalent freshness
+
+- **GIVEN** all frozen D7.2c retained paths have identical bytes at S and the explicit activation base and all other freshness classes agree
+- **WHEN** either required freshness invocation runs
+- **THEN** freshness is equivalent and its local-evidence identity and final digest include the derived path/content identities, without adding knowledge-review authority
+
 #### Scenario: Frozen inventory and concrete activation scope agree
 
 - **GIVEN** the real corrected inventory and real task metadata
 - **WHEN** the permanent scope regression runs with complete tracked-file discovery
-- **THEN** task 8.4 equals all 75 pointer paths, the task union is exactly 90
+- **THEN** task 8.4 equals all 72 pointer paths, the task union is exactly 87
   paths, the four protected rows remain retained semantic prose, and displayed
   counts equal the 182-row inventory
 

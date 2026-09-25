@@ -32,8 +32,53 @@ the owner ceremony has happened:
 - Independently remove freshness or promoted-byte binding in isolated mutant
   copies and require the corresponding hostile test to detect the bypass.
 - Re-extraction changes only the five preparation bindings. State and inventory
-  bytes, primitive/relationship digests, S/M, 75-pointer equality and 90-path
-  seam equality remain unchanged. Human authorship remains a manual obligation.
+  bytes, primitive/relationship digests, S/M and inventory/seam equality remained
+  unchanged in that correction (75 pointers / 90 paths then). D7.2c now owns the
+  narrower current scope. Human authorship remains a manual obligation.
+
+## D7.2c correction proof — retained knowledge is semantic, not live state
+
+Inspect each of the three exact sources against D7.2c's semantic table; stop if
+any asserts mutable lifecycle, question-resolution, landing or gate state.
+Pin those inspected source bytes and existing catalog content-review bindings
+independently in tests. The extraction recipe must refuse changed adjudicated
+bytes, including each hostile insertion of a mutable-current-state claim.
+Production knowledge admission must accept the unchanged modules and refuse
+each independently mutated source with `attestation.digest.binding`. Tests use
+isolated copies of existing review records, never newly authored attestations.
+This is byte-bound semantic adjudication, not a claim that a generic text scan
+proves arbitrary prose safe. All three rows must retain explicit ADR-0016,
+semantic/non-authority and PR-3 byte-preservation reasons, and be absent from
+task 8.4. The real inventory/task regression must prove exact pointer equality,
+no duplicates or non-pointers and the derived concrete activation union. All
+other dispositions, state bytes and primitive/relationship identities remain
+unchanged; only consumer metadata and five planning source bindings refresh.
+
+The follow-up byte-witness correction first proves from Git objects that each
+adjudicated path at the candidate's bound `sourceSnapshotIdentity` S equals the
+reviewed bytes. The D7.2c correction is the adjudication event; S witnesses
+content only, not human identity, time, policy or knowledge lifecycle. Freeze a
+new reachable five-artifact planning checkpoint before implementation, then
+mechanically refresh only those planning bindings. Candidate state and inventory
+bytes, S/M, primitive/relationship identities and the 72-pointer / 87-path scope
+remain unchanged.
+
+Prove three independent production surfaces for each source: extraction refuses
+inventory bytes differing from S:path (including `WORKTREE`); unchanged catalog
+review refuses changed module bytes with `attestation.digest.binding`; real
+activation freshness refuses committed post-freeze drift even when discovery
+fact classes and the frozen retained disposition are unchanged. At least one
+mutation appends `ADR-0020 is Accepted.`. Use explicit descendant base commits,
+and require no successful equivalent result or usable freshness digest.
+
+Positive proof requires unchanged retained bytes to permit equivalent freshness.
+Independently verify that the frozen inventory selects the paths and the bound
+manifest selects S; derive path/content identities from Git bytes, never current
+discovery or separate hard-coded digest pins. Verify their inclusion in the
+existing local-evidence identity and final freshness digest at both 8.1a and the
+second invocation before 8.5a. Remove that binding in an isolated mutant and
+require the committed-drift control to detect the bypass. Knowledge re-attestation
+is neither required by nor a substitute for this semantic-byte freshness proof.
 
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
@@ -932,11 +977,11 @@ checker can actually prove it: a one-revision checker cannot detect that a value
 - **ADV-G46** Governance surface absent from the consumer inventory.
 - **ADV-G47** `retained-semantic-prose` row with no recorded reason.
   The permanent D7.2b scope regression reads the real frozen inventory and real
-  task metadata: task 8.4 equals exactly all 75 stable-pointer rows, with no
+  task metadata: task 8.4 equals exactly all 72 stable-pointer rows, with no
   duplicate, omitted pointer, non-pointer addition or stale runner-core README
   entry. Its four protected PR-101 rows retain unchanged fact classes and
   explicit source-era/non-authority/post-PR-3-handoff reasons, never historical
-  exemptions. The concrete union for 8.2/8.2a/8.3/8.4/8.5 is exactly 90 paths;
+  exemptions. The concrete union for 8.2/8.2a/8.3/8.4/8.5 is exactly 87 paths;
   8.5a/8.6 retain exact staged/committed scope equality. Mutated in-memory
   task/inventory inputs must independently demonstrate each refusal. Complete
   tracked-file rediscovery must validate the corrected 182-row inventory and

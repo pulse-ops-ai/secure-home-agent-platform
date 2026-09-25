@@ -1,6 +1,7 @@
 /** The closed PR-2 inventory. Discovery is across all tracked bytes, not a glob. */
-import { canonicalSerialize, decodeUtf8, isObject } from './canonical.mjs'
+import { canonicalSerialize, decodeUtf8, isObject, parseStrictJson } from './canonical.mjs'
 import { BRIDGE_RECORDS } from './decision-evidence.mjs'
+import { CANDIDATE_PATHS } from './digests.mjs'
 
 export const CONSUMER_DISPOSITIONS = Object.freeze([
   'generated-region',
@@ -9,6 +10,80 @@ export const CONSUMER_DISPOSITIONS = Object.freeze([
   'retained-semantic-prose',
   'not-a-governance-consumer',
 ])
+
+// D7.2c owns the path/explanation set, not knowledge-review metadata or byte
+// pins. The frozen inventory selects these paths; its manifest's S witnesses
+// the exact content adjudicated by the reviewed correction.
+export const RETAINED_SEMANTIC_KNOWLEDGE = Object.freeze([
+  Object.freeze({
+    path: 'knowledge/platform/governance/decisions.md',
+    explanation: 'Explains how decisions change and explicitly avoids individual decision state.',
+  }),
+  Object.freeze({
+    path: 'knowledge/platform/governance/precedence.md',
+    explanation:
+      'Explains precedence and makes portable knowledge subordinate to governed contracts.',
+  }),
+  Object.freeze({
+    path: 'knowledge/platform/worker-conventions/placement.md',
+    explanation:
+      'Explains durable placement conventions and carries no live worker or program state.',
+  }),
+])
+
+function retainedModelKnowledgePaths() {
+  const paths = RETAINED_SEMANTIC_KNOWLEDGE.map(({ path }) => path).sort()
+  if (new Set(paths).size !== paths.length)
+    throw new Error('D7.2c: frozen/model retained path-set mismatch: duplicate model path')
+  return paths
+}
+
+/** The existing reason's contract-specific prefix selects from frozen data.
+ * The model is a conformance assertion, never an intersection or discovery filter.
+ */
+export function retainedSemanticKnowledgePaths(inventory) {
+  const frozenPaths = inventory.rows
+    .filter(
+      (row) =>
+        row.disposition === 'retained-semantic-prose' &&
+        typeof row.retainedReason === 'string' &&
+        row.retainedReason.startsWith(
+          'Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016.',
+        ),
+    )
+    .map((row) => row.path)
+    .sort()
+  const modelPaths = retainedModelKnowledgePaths()
+  if (
+    new Set(frozenPaths).size !== frozenPaths.length ||
+    canonicalSerialize(frozenPaths) !== canonicalSerialize(modelPaths)
+  )
+    throw new Error('D7.2c: frozen/model retained path-set mismatch')
+  return frozenPaths
+}
+
+/** Before extraction may retain prose, compare inventory bytes with bound S. */
+export function requireRetainedSemanticKnowledgeBytes(snapshot, sourceSnapshot) {
+  // Once an inventory exists, re-extraction must conform to its frozen set too.
+  // Initial extraction (before a candidate exists) uses the reviewed model set.
+  const [consumerPath] = CANDIDATE_PATHS
+  const frozen = snapshot.entries.get(consumerPath)
+  const paths = frozen
+    ? retainedSemanticKnowledgePaths(parseStrictJson(decodeUtf8(frozen.bytes)))
+    : retainedModelKnowledgePaths()
+  for (const path of paths) {
+    const actual = snapshot.entries.get(path)
+    const witness = sourceSnapshot.entries.get(path)
+    if (
+      actual?.mode !== '100644' ||
+      witness?.mode !== '100644' ||
+      !(actual.bytes instanceof Uint8Array) ||
+      !(witness.bytes instanceof Uint8Array) ||
+      !Buffer.from(actual.bytes).equals(Buffer.from(witness.bytes))
+    )
+      throw new Error('D7.2c: retained knowledge source changed; semantic review required: ' + path)
+  }
+}
 
 const CLAIMS = [
   [
