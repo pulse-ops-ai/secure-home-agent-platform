@@ -10,6 +10,54 @@ export const CONSUMER_DISPOSITIONS = Object.freeze([
   'not-a-governance-consumer',
 ])
 
+// D7.2c owns the path/explanation set, not knowledge-review metadata or byte
+// pins. The frozen inventory selects these paths; its manifest's S witnesses
+// the exact content adjudicated by the reviewed correction.
+export const RETAINED_SEMANTIC_KNOWLEDGE = Object.freeze([
+  Object.freeze({
+    path: 'knowledge/platform/governance/decisions.md',
+    explanation: 'Explains how decisions change and explicitly avoids individual decision state.',
+  }),
+  Object.freeze({
+    path: 'knowledge/platform/governance/precedence.md',
+    explanation:
+      'Explains precedence and makes portable knowledge subordinate to governed contracts.',
+  }),
+  Object.freeze({
+    path: 'knowledge/platform/worker-conventions/placement.md',
+    explanation:
+      'Explains durable placement conventions and carries no live worker or program state.',
+  }),
+])
+
+/** Select from the FROZEN inventory, never discovery of the evaluated base. */
+export function retainedSemanticKnowledgePaths(inventory) {
+  return inventory.rows
+    .filter(
+      (row) =>
+        row.disposition === 'retained-semantic-prose' &&
+        RETAINED_SEMANTIC_KNOWLEDGE.some(({ path }) => path === row.path),
+    )
+    .map((row) => row.path)
+    .sort()
+}
+
+/** Before extraction may retain prose, compare inventory bytes with bound S. */
+export function requireRetainedSemanticKnowledgeBytes(snapshot, sourceSnapshot) {
+  for (const { path } of RETAINED_SEMANTIC_KNOWLEDGE) {
+    const actual = snapshot.entries.get(path)
+    const witness = sourceSnapshot.entries.get(path)
+    if (
+      actual?.mode !== '100644' ||
+      witness?.mode !== '100644' ||
+      !(actual.bytes instanceof Uint8Array) ||
+      !(witness.bytes instanceof Uint8Array) ||
+      !Buffer.from(actual.bytes).equals(Buffer.from(witness.bytes))
+    )
+      throw new Error('D7.2c: retained knowledge source changed; semantic review required: ' + path)
+  }
+}
+
 const CLAIMS = [
   [
     'decision-lifecycle',

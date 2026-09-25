@@ -7582,6 +7582,140 @@ def test_pr3_retained_knowledge_semantic_adjudication_is_byte_bound(path: str, d
     # has no mutable fact. This independent pin invalidates that inspection on
     # ANY byte change, including one which discovery's keyword scan misses.
     assert hashlib.sha256((REPOSITORY_ROOT / path).read_bytes()).hexdigest() == digest
+    source_bytes = subprocess.run(
+        ["git", "show", POST_BRIDGE_SOURCE + ":" + path],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
+    ).stdout
+    assert source_bytes == (REPOSITORY_ROOT / path).read_bytes()
+
+
+def retained_freshness_inputs(root: Path, revision: str) -> dict[str, Any]:
+    """Observe the real extractor's four inputs, not a Python freshness model."""
+    script = """
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {createGenesisReader,createCommitReader} from './scripts/governance/genesis/observations.mjs'
+import {discoverConsumers,retainedSemanticKnowledgePaths}
+  from './scripts/governance/model/consumers.mjs'
+import {extractFreshnessInputs,digestPreimage,candidateFreezeIdentity,CANDIDATE_PATHS,
+  activationFreshnessPreimage} from './scripts/governance/model/index.mjs'
+const [root,revision]=process.argv.slice(1)
+const bytes=new Map(CANDIDATE_PATHS.map(path=>[path,readFileSync(join(root,path))]))
+const [inventory,manifest,seed]=[...bytes.values()].map(value=>JSON.parse(value))
+const frozen={inventory,manifest,seed,identity:candidateFreezeIdentity(bytes)}
+const readSnapshot=createGenesisReader(root)
+const context={readSnapshot,...createCommitReader(root)}
+const snapshot=readSnapshot(revision)
+const inputs=extractFreshnessInputs(frozen,snapshot,context)
+const paths=retainedSemanticKnowledgePaths(inventory)
+const reference=extractFreshnessInputs(frozen,
+  readSnapshot(manifest.sourceSnapshotIdentity.value),context)
+const select=values=>values.filter(row=>paths.includes(row.path))
+const identity=digestPreimage(inputs.localEvidenceIdentities)
+const digest=digestPreimage(activationFreshnessPreimage(frozen.identity,revision,inputs))
+inputs.localEvidenceIdentities.artifactIdentities=inputs.localEvidenceIdentities.artifactIdentities
+  .filter(row=>!paths.includes(row.path))
+console.log(JSON.stringify({paths,
+  discovered:select(discoverConsumers(snapshot)),
+  reference:select(reference.localEvidenceIdentities.artifactIdentities),
+  observed:select(extractFreshnessInputs(frozen,snapshot,context).localEvidenceIdentities.artifactIdentities),
+  identity,digest,
+  omittedIdentity:digestPreimage(inputs.localEvidenceIdentities),
+  omittedDigest:digestPreimage(activationFreshnessPreimage(frozen.identity,revision,inputs))}))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script, str(root), revision],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    return cast(dict[str, Any], json.loads(result.stdout))
+
+
+def test_pr3_retained_knowledge_freshness_binds_candidate_source_witness(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    run, payload = run_freshness(root, base)
+    assert run.returncode == 0 and payload["ok"], (payload, run.stderr)
+    assert payload["result"]["outcome"] == "equivalent"
+    inputs = retained_freshness_inputs(root, base)
+    expected = [
+        {"path": path, "contentSha256": digest}
+        for path, digest in sorted(PR3_RETAINED_KNOWLEDGE.items())
+    ]
+    assert inputs["paths"] == sorted(PR3_RETAINED_KNOWLEDGE)
+    assert inputs["reference"] == inputs["observed"] == expected
+    assert (
+        payload["result"]["comparisonTupleIdentities"]["localEvidenceIdentities"]
+        == inputs["identity"]
+        != inputs["omittedIdentity"]
+    )
+    assert (
+        payload["result"]["activationFreshnessDigest"]
+        == inputs["digest"]
+        != inputs["omittedDigest"]
+    )
+
+
+@pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+def test_pr3_retained_knowledge_post_freeze_drift_refuses_same_fact_classes(
+    tmp_path: Path, path: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    baseline_run, baseline = run_freshness(root, base)
+    assert baseline_run.returncode == 0 and baseline["ok"], (baseline, baseline_run.stderr)
+    before = retained_freshness_inputs(root, base)
+    candidate = root / "tests/fixtures/governance/candidate"
+    frozen = {
+        name: (candidate / name).read_bytes()
+        for name in ("state.json", "consumers.json", "source-manifest.json")
+    }
+    target = root / path
+    target.write_bytes(target.read_bytes() + b"\nADR-0020 is Accepted.\n")
+    git(root, "add", path)
+    git(root, "commit", "-qm", "TEST post-freeze retained source drift")
+    changed_base = git(root, "rev-parse", "HEAD")
+    assert git(root, "rev-parse", "HEAD^") == base
+    assert git(root, "diff", "--name-only", base, changed_base) == path
+    after = retained_freshness_inputs(root, changed_base)
+    assert after["paths"] == before["paths"]
+    assert after["discovered"] == before["discovered"]
+    assert after["reference"] == before["reference"]
+    assert after["observed"] != before["observed"]
+    assert after["identity"] != before["identity"]
+    for name, content in frozen.items():
+        assert (candidate / name).read_bytes() == content
+    row = next(row for row in json.loads(frozen["consumers.json"])["rows"] if row["path"] == path)
+    assert row["disposition"] == "retained-semantic-prose"
+    assert row["factClasses"] == next(
+        row["factClasses"] for row in after["discovered"] if row["path"] == path
+    )
+    run, payload = run_freshness(root, changed_base)
+    assert run.returncode == 1 and payload["ok"] is False, (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G73"}, payload
+
+    # Independently kill omission of the byte identity from the real comparison.
+    # This reproduces the former false-equivalent behavior, not a string-only kill.
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/validate.mjs",
+                "    ...retainedSemanticKnowledgePaths(inventory),",
+                "    // MUTANT: omit the frozen retained byte identities",
+            )
+        ],
+    )
+    mutant_run, mutant = run_subject(subject, root, base=changed_base, freshness=True)
+    assert mutant_run.returncode == 0 and mutant["ok"], (mutant, mutant_run.stderr)
+    assert mutant["result"]["outcome"] == "equivalent"
 
 
 @pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
