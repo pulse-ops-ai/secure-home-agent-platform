@@ -7750,6 +7750,122 @@ def test_pr3_retained_knowledge_cannot_hide_mutable_current_copy(
     )
 
 
+@pytest.mark.parametrize(
+    "case,path",
+    [("remove", path) for path in PR3_RETAINED_KNOWLEDGE]
+    + [("add", "knowledge/unreviewed.md"), ("duplicate", next(iter(PR3_RETAINED_KNOWLEDGE)))],
+)
+def test_pr3_retained_knowledge_model_set_mutants_cannot_narrow_frozen_selector(
+    tmp_path: Path, case: str, path: str
+) -> None:
+    root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    baseline_run, baseline = run_freshness(root, base)
+    assert baseline_run.returncode == 0 and baseline["ok"], (baseline, baseline_run.stderr)
+    before = retained_freshness_inputs(root, base)
+    candidate = root / "tests/fixtures/governance/candidate"
+    frozen = {
+        name: (candidate / name).read_bytes()
+        for name in ("state.json", "consumers.json", "source-manifest.json")
+    }
+    if case == "remove":
+        target = root / path
+        target.write_bytes(target.read_bytes() + b"\nADR-0020 is Accepted.\n")
+        git(root, "add", path)
+        git(root, "commit", "-qm", "TEST selector narrowing with same-class retained drift")
+        changed_base = git(root, "rev-parse", "HEAD")
+        assert git(root, "rev-parse", "HEAD^") == base
+        assert git(root, "diff", "--name-only", base, changed_base) == path
+        after = retained_freshness_inputs(root, changed_base)
+        assert before["discovered"] == after["discovered"]
+        assert before["paths"] == after["paths"]
+        assert before["reference"] == after["reference"]
+        assert before["observed"] != after["observed"]
+    else:
+        changed_base = base
+
+    model = "governance/model/consumers.mjs"
+    if case == "remove":
+        source = (REPOSITORY_ROOT / "scripts" / model).read_text()
+        entries = re.findall(
+            r"  Object\.freeze\(\{\n    path: '" + re.escape(path) + r"',\n[\s\S]*?\n  \}\),\n",
+            source,
+        )
+        assert len(entries) == 1
+        old, new = entries[0], ""
+    else:
+        old = "export const RETAINED_SEMANTIC_KNOWLEDGE = Object.freeze(["
+        new = old + "\n  Object.freeze({path: '" + path + "', explanation: 'TEST model drift'}),"
+    subject = mutant_subject(tmp_path, [(model, old, new)])
+    run, payload = run_subject(subject, root, base=changed_base, freshness=True)
+    assert run.returncode == 1 and payload["ok"] is False, (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    # Refusal must be the set disagreement, not discovery, missing extra bytes,
+    # or even the changed content digest which an omitted selector would miss.
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G74"}, payload
+    assert all(
+        "D7.2c: frozen/model retained path-set mismatch" in problem["message"]
+        for problem in payload["problems"]
+    ), payload
+
+    extraction = subprocess.run(
+        [
+            "node",
+            str(subject / "scripts/governance/genesis/extract.mjs"),
+            "--root",
+            str(root),
+            "--source",
+            POST_BRIDGE_SOURCE,
+            "--inventory-source",
+            "WORKTREE",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert extraction.returncode != 0 and not extraction.stdout
+    assert "D7.2c: frozen/model retained path-set mismatch" in extraction.stderr
+    for name, content in frozen.items():
+        assert (candidate / name).read_bytes() == content
+
+
+@pytest.mark.parametrize("case", ["exact", "removed-marker", "added-marker", "duplicate-row"])
+def test_pr3_retained_knowledge_selector_uses_only_frozen_row_marker(case: str) -> None:
+    script = """
+import {readFileSync} from 'node:fs'
+import {retainedSemanticKnowledgePaths} from './scripts/governance/model/consumers.mjs'
+const inventory=JSON.parse(readFileSync('tests/fixtures/governance/candidate/consumers.json'))
+const marker='Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016.'
+const rows=inventory.rows.filter(row=>row.disposition==='retained-semantic-prose')
+const selected=rows.filter(row=>row.retainedReason.startsWith(marker))
+const others=rows.filter(row=>!row.retainedReason.startsWith(marker))
+const kind=process.argv[1]
+if(kind==='removed-marker') selected[0].retainedReason='Unmarked TEST prose'
+if(kind==='added-marker') others[0].retainedReason=selected[0].retainedReason
+if(kind==='duplicate-row') inventory.rows.push({...selected[0]})
+try {
+  console.log(JSON.stringify({paths:retainedSemanticKnowledgePaths(inventory),
+    selected:selected.length,others:others.length}))
+} catch(error) {
+  console.log(JSON.stringify({error:error.message}))
+  process.exitCode=1
+}
+"""
+    run = subprocess.run(
+        ["node", "--input-type=module", "-e", script, case],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(run.stdout)
+    if case == "exact":
+        assert run.returncode == 0, payload
+        assert payload == {"paths": sorted(PR3_RETAINED_KNOWLEDGE), "selected": 3, "others": 7}
+    else:
+        assert run.returncode == 1, payload
+        assert "D7.2c: frozen/model retained path-set mismatch" in payload["error"]
+
+
 def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator() -> None:
     script = """
 import {readFileSync} from 'node:fs'

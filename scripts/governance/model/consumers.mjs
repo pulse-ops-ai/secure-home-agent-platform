@@ -1,6 +1,7 @@
 /** The closed PR-2 inventory. Discovery is across all tracked bytes, not a glob. */
-import { canonicalSerialize, decodeUtf8, isObject } from './canonical.mjs'
+import { canonicalSerialize, decodeUtf8, isObject, parseStrictJson } from './canonical.mjs'
 import { BRIDGE_RECORDS } from './decision-evidence.mjs'
+import { CANDIDATE_PATHS } from './digests.mjs'
 
 export const CONSUMER_DISPOSITIONS = Object.freeze([
   'generated-region',
@@ -30,21 +31,47 @@ export const RETAINED_SEMANTIC_KNOWLEDGE = Object.freeze([
   }),
 ])
 
-/** Select from the FROZEN inventory, never discovery of the evaluated base. */
+function retainedModelKnowledgePaths() {
+  const paths = RETAINED_SEMANTIC_KNOWLEDGE.map(({ path }) => path).sort()
+  if (new Set(paths).size !== paths.length)
+    throw new Error('D7.2c: frozen/model retained path-set mismatch: duplicate model path')
+  return paths
+}
+
+/** The existing reason's contract-specific prefix selects from frozen data.
+ * The model is a conformance assertion, never an intersection or discovery filter.
+ */
 export function retainedSemanticKnowledgePaths(inventory) {
-  return inventory.rows
+  const frozenPaths = inventory.rows
     .filter(
       (row) =>
         row.disposition === 'retained-semantic-prose' &&
-        RETAINED_SEMANTIC_KNOWLEDGE.some(({ path }) => path === row.path),
+        typeof row.retainedReason === 'string' &&
+        row.retainedReason.startsWith(
+          'Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016.',
+        ),
     )
     .map((row) => row.path)
     .sort()
+  const modelPaths = retainedModelKnowledgePaths()
+  if (
+    new Set(frozenPaths).size !== frozenPaths.length ||
+    canonicalSerialize(frozenPaths) !== canonicalSerialize(modelPaths)
+  )
+    throw new Error('D7.2c: frozen/model retained path-set mismatch')
+  return frozenPaths
 }
 
 /** Before extraction may retain prose, compare inventory bytes with bound S. */
 export function requireRetainedSemanticKnowledgeBytes(snapshot, sourceSnapshot) {
-  for (const { path } of RETAINED_SEMANTIC_KNOWLEDGE) {
+  // Once an inventory exists, re-extraction must conform to its frozen set too.
+  // Initial extraction (before a candidate exists) uses the reviewed model set.
+  const [consumerPath] = CANDIDATE_PATHS
+  const frozen = snapshot.entries.get(consumerPath)
+  const paths = frozen
+    ? retainedSemanticKnowledgePaths(parseStrictJson(decodeUtf8(frozen.bytes)))
+    : retainedModelKnowledgePaths()
+  for (const path of paths) {
     const actual = snapshot.entries.get(path)
     const witness = sourceSnapshot.entries.get(path)
     if (
