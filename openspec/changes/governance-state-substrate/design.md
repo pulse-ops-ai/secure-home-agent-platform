@@ -1871,10 +1871,34 @@ and migration landing PR-3. The three files and `knowledge/catalog.json` remain
 byte-identical; no content review is renewed or manufactured. ADR-0016's
 `attestation.digest.binding` still refuses any changed module bytes.
 
-The extraction recipe binds this semantic adjudication to the three inspected
-content digests and refuses changed bytes pending new review. Regression proof
-pins those bytes and the existing module content-review records independently,
-checks production admission and mutates each source to prove digest refusal.
+For each exact D7.2c knowledge path frozen as `retained-semantic-prose` in the
+candidate inventory, the adjudicated bytes are that path's bytes at the candidate
+manifest's bound `sourceSnapshotIdentity` S. The semantic adjudication event is
+this reviewed D7.2c correction; S is only an immutable content witness. It does
+not establish reviewer identity, review time, knowledge policy or lifecycle, or
+new authority over portable knowledge. Before selecting this witness, compare
+the Git objects at S with the inspected source bytes and require exact equality.
+
+The frozen inventory selects the retained paths; the bound manifest selects S.
+Their byte identities are derived as `SHA-256(bytes at S:path)`, not duplicated
+in the inventory or a fourth candidate member. One shared consumer-model
+definition owns the exact D7.2c paths and semantic explanations, not independent
+mutable digest pins. Extraction compares each inventory-source path, including
+`WORKTREE`, byte-for-byte with S:path before retaining it. Changed or missing
+bytes refuse the existing semantic adjudication regardless of detected fact
+classes. Freshness uses those same frozen inventory paths, not paths selected
+by rediscovering the activation base: compare S:path with
+`activationBaseCommit:path`. Include each `{path, contentSha256}` in the existing
+`localEvidenceIdentities` comparison and thus in `activationFreshnessDigest`.
+Both task 8.1a and the mandatory second invocation before 8.5a must carry this
+proof; changed bytes cannot return `equivalent` or usable success evidence.
+
+This governance-inventory semantic proof is independent of ADR-0016 content
+review. `knowledge/catalog.json` remains the knowledge-review authority; its
+review digests do not supply D7.2c identities, and S does not replace knowledge
+review. Re-attestation cannot make different bytes fresh under D7.2c. Regression
+proof pins the inspected bytes and catalog reviews independently and exercises
+extraction, knowledge admission and committed post-freeze freshness separately.
 A retained row is not an exemption for a later mutable-current-state copy.
 If source inspection finds such a copy, stop rather than retaining it. Neither
 a path allowlist nor a keyword scan proves the semantics of arbitrary prose.
@@ -2137,6 +2161,12 @@ consumerInventory}`. The result object records `candidateFreezeIdentity`,
 `activationBaseCommit`, that digest, and `outcome: "equivalent"`. The genesis
 attestation binds the complete result, including `activationBaseCommit` and the
 freshness digest.
+
+D7.2c retained knowledge contributes exact path/content identities to the local
+evidence collection. The candidate side observes S from the frozen manifest;
+the activation side observes the explicit base, using the same frozen retained
+path set. Unchanged discovery fact classes cannot excuse a byte difference.
+This comparison is required at 8.1a and again immediately before 8.5a.
 
 An invalid or changed base, missing or ambiguous extraction, any tuple or
 inventory difference, a skipped extraction, or a commit-identity-only check

@@ -54,6 +54,32 @@ no duplicates or non-pointers and the derived concrete activation union. All
 other dispositions, state bytes and primitive/relationship identities remain
 unchanged; only consumer metadata and five planning source bindings refresh.
 
+The follow-up byte-witness correction first proves from Git objects that each
+adjudicated path at the candidate's bound `sourceSnapshotIdentity` S equals the
+reviewed bytes. The D7.2c correction is the adjudication event; S witnesses
+content only, not human identity, time, policy or knowledge lifecycle. Freeze a
+new reachable five-artifact planning checkpoint before implementation, then
+mechanically refresh only those planning bindings. Candidate state and inventory
+bytes, S/M, primitive/relationship identities and the 72-pointer / 87-path scope
+remain unchanged.
+
+Prove three independent production surfaces for each source: extraction refuses
+inventory bytes differing from S:path (including `WORKTREE`); unchanged catalog
+review refuses changed module bytes with `attestation.digest.binding`; real
+activation freshness refuses committed post-freeze drift even when discovery
+fact classes and the frozen retained disposition are unchanged. At least one
+mutation appends `ADR-0020 is Accepted.`. Use explicit descendant base commits,
+and require no successful equivalent result or usable freshness digest.
+
+Positive proof requires unchanged retained bytes to permit equivalent freshness.
+Independently verify that the frozen inventory selects the paths and the bound
+manifest selects S; derive path/content identities from Git bytes, never current
+discovery or separate hard-coded digest pins. Verify their inclusion in the
+existing local-evidence identity and final freshness digest at both 8.1a and the
+second invocation before 8.5a. Remove that binding in an isolated mutant and
+require the committed-drift control to detect the bypass. Knowledge re-attestation
+is neither required by nor a substitute for this semantic-byte freshness proof.
+
 Pre-implementation proof and verification plan. Derived from
 `specs/governance-state/spec.md` and `design.md`. It introduces no product
 requirement, and authorizes no implementation.

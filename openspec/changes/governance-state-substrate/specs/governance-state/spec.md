@@ -2152,6 +2152,26 @@ reviews SHALL remain unchanged. Changed source bytes SHALL refuse the extraction
 recipe's existing semantic adjudication pending review; retaining a path SHALL
 NOT grant an exemption for a mutable current-state claim.
 
+For each exact D7.2c retained path selected by the frozen candidate inventory,
+the manifest's bound `sourceSnapshotIdentity` SHALL be the immutable content
+witness. The reviewed D7.2c correction is the semantic adjudication event; S
+SHALL NOT establish reviewer identity, review time, knowledge policy, knowledge
+lifecycle or new portable-knowledge authority. Git-object comparison SHALL
+first prove that S:path equals the adjudicated source bytes. The retained byte
+identity SHALL be derived as `SHA-256(bytes at S:path)` without a new schema
+field or candidate member. A single shared production path/explanation
+definition SHALL serve extraction and freshness, not independent digest pins.
+
+Extraction SHALL compare inventory-source bytes, including `WORKTREE`, with
+S:path before retaining them. Task 8.1a and the mandatory second freshness
+invocation before 8.5a SHALL compare each frozen retained path at the explicit
+activation base with S:path. These path/content identities SHALL participate in
+the existing `localEvidenceIdentities` canonical comparison and freshness digest.
+Missing or changed bytes SHALL refuse success regardless of unchanged discovery
+fact classes. Activation-base discovery SHALL NOT select the adjudicated paths.
+Catalog content review SHALL remain independently governed by ADR-0016; neither
+successful re-attestation nor a catalog digest SHALL replace the D7.2c witness.
+
 #### Scenario: Reviewed semantic knowledge survives activation unchanged
 
 - **GIVEN** the three exact reviewed source bytes in D7.2c and their unchanged catalog reviews
@@ -2163,6 +2183,18 @@ NOT grant an exemption for a mutable current-state claim.
 - **GIVEN** any one of the three retained sources is changed, including a newly inserted mutable governance-current-state claim
 - **WHEN** the extraction recipe and production knowledge admission are exercised independently
 - **THEN** extraction refuses changed adjudicated bytes and admission refuses with `attestation.digest.binding`; no retained row excuses either failure
+
+#### Scenario: Committed retained-byte drift refuses activation freshness
+
+- **GIVEN** a valid frozen candidate and a descendant activation-base commit changing one D7.2c source, including `ADR-0020 is Accepted.`, without changing detected fact classes or the frozen disposition
+- **WHEN** the real freshness command compares that explicit base with the candidate-bound S
+- **THEN** the local-evidence comparison differs, freshness refuses and returns no usable equivalent result or success digest; extraction and knowledge admission independently refuse the changed bytes
+
+#### Scenario: Unchanged retained bytes preserve equivalent freshness
+
+- **GIVEN** all frozen D7.2c retained paths have identical bytes at S and the explicit activation base and all other freshness classes agree
+- **WHEN** either required freshness invocation runs
+- **THEN** freshness is equivalent and its local-evidence identity and final digest include the derived path/content identities, without adding knowledge-review authority
 
 #### Scenario: Frozen inventory and concrete activation scope agree
 

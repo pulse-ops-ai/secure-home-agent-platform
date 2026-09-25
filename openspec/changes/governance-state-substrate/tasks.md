@@ -1632,6 +1632,17 @@ registry appears, and it appears already protected.
   - every relevant locally verifiable delivery and evidence identity; and
   - the complete consumer inventory.
 
+  D7.2c's frozen retained knowledge paths come from the candidate inventory,
+  not current discovery. Their adjudicated bytes come from the candidate
+  manifest's bound `sourceSnapshotIdentity` S, independently proven equal to
+  the reviewed correction's bytes. S witnesses content only, not reviewer,
+  time, policy or knowledge lifecycle. Compare S:path with the exact activation
+  base and include `{path, contentSha256}` in `localEvidenceIdentities` and the
+  freshness digest. Changed bytes refuse even with identical fact classes.
+  Extraction, including `WORKTREE`, must use this same shared path authority
+  and S witness. ADR-0016 catalog review remains an independent proof, not a
+  replacement for the semantic adjudication or its activation freshness.
+
   The task's inputs are the frozen candidate state, source manifest, consumer
   inventory, candidate-freeze identity, extraction rules, and exact base
   commit. Its output is an `equivalent` freshness result containing
@@ -1763,6 +1774,12 @@ registry appears, and it appears already protected.
   service/schema/script, or a broad subtree expansion, fails activation. This
   task does not authorize any path outside that equality check and does not
   tick or author task content.
+
+  Immediately before staging, rerun the complete 8.1a comparison, including
+  D7.2c retained path/content identities from the same frozen inventory and S.
+  Require the same exact base, freeze identity, all four comparison identities
+  and freshness digest. A changed source with unchanged discovery classes still
+  refuses; do not patch provenance or re-attest knowledge to force equivalence.
 
 - [ ] **8.6 Freeze the complete activation seam**
   <!-- agent-task: 8.6 paths=none checks=node,pytest,scaffold risk=trust-critical prerequisites=8.5a -->

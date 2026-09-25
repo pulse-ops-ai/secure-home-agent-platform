@@ -554,5 +554,17 @@ writing code.
   three exact-byte-reviewed knowledge sources containing durable semantics,
   not live governance facts. It preserves ADR-0016 module review bindings and
   removes only those three paths from pointer migration; neither module bytes
-  nor catalog reviews change. The exact
+  nor catalog reviews change. The reviewed D7.2c correction is the semantic
+  adjudication event; candidate-bound `sourceSnapshotIdentity` S is only the
+  immutable witness for the adjudicated bytes, not reviewer/time/policy or
+  knowledge-lifecycle authority. Prove S:path equals the reviewed bytes before
+  selecting that witness. The frozen inventory selects the exact retained
+  paths, one shared consumer-model definition owns their explanations, and
+  extraction (including `WORKTREE`) compares their bytes with S:path. Both
+  activation freshness invocations compare those same S-derived identities
+  with the explicit base in `localEvidenceIdentities`, binding the result into
+  the freshness digest even when discovery fact classes do not change. Catalog
+  review stays independent; no new field, witness artifact or candidate member
+  is introduced. A new five-file planning checkpoint precedes the mechanical
+  binding refresh; state and inventory bytes remain unchanged. The exact
   activation task union remains an equality constraint, never a glob.
