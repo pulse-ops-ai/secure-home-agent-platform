@@ -4,7 +4,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { loadFrozenCandidateForTest } from './frozen.mjs'
 
 const root = resolve(process.argv[2])
 const env = { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' }
@@ -28,8 +28,8 @@ function collect(value) {
   if (typeof value.revision === 'string') identities.add(value.revision)
   for (const item of Object.values(value)) collect(item)
 }
-for (const member of ['state.json', 'source-manifest.json'])
-  collect(JSON.parse(readFileSync(resolve(root, 'tests/fixtures/governance/candidate', member))))
+const frozen = loadFrozenCandidateForTest(root)
+for (const bytes of [frozen.stateBytes, frozen.manifestBytes]) collect(JSON.parse(bytes))
 const missing = []
 for (const identity of [...identities].sort()) {
   if (!/^[0-9a-f]{40}$/u.test(identity)) throw new Error('non-exact historical fixture identity')

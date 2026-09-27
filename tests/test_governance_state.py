@@ -7,12 +7,14 @@ and checks the reported contract; it does not reimplement the model.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -4994,14 +4996,37 @@ def test_authored_text_cannot_forge_a_generated_projection(tmp_path: Path) -> No
 
 # PR-2 resumption: the real post-PR-2A genesis recipe, exercised only in copies.
 DURABLE_PR2A = "83e6cd8fa7d2d05ab246a39de039129b4056966d"
-CANDIDATE_ROOT = REPOSITORY_ROOT / "tests/fixtures/governance/candidate"
 POST_BRIDGE_SOURCE = "c82fda72927464d813ec769aee53f4079ebe3b20"
 TEST_ENVELOPE = REPOSITORY_ROOT / "tests/fixtures/governance/genesis/envelope.mjs"
 FRESHNESS = REPOSITORY_ROOT / "scripts/governance/genesis/freshness.mjs"
+FROZEN_LOADER = TEST_ENVELOPE.with_name("frozen.mjs")
+
+
+def frozen_candidate(root: Path = REPOSITORY_ROOT) -> tuple[dict[str, bytes], str]:
+    """One JS lifecycle loader; Python does not independently select a copy."""
+    result = subprocess.run(
+        ["node", str(FROZEN_LOADER), str(root)], capture_output=True, text=True, check=True
+    )
+    payload = json.loads(result.stdout)
+    return {
+        name: base64.b64decode(payload[key], validate=True)
+        for name, key in [
+            ("state.json", "stateBytes"),
+            ("source-manifest.json", "manifestBytes"),
+            ("consumers.json", "consumersBytes"),
+        ]
+    }, payload["sourceLayout"]
 
 
 def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
-    """Full historical objects, but independent refs, index, and working tree."""
+    """Explicitly reconstruct PRE-activation test history, never real authority.
+
+    After promotion the raw bytes come from the lifecycle loader. A pre-owner
+    fixture uses their bound planning checkpoint for its counterfactual source;
+    an attested fixture uses the exact attested activation base. Neither is an
+    inferred candidate origin or a production activation-base selection.
+    """
+    frozen, layout = frozen_candidate()
     root = tmp_path / name
     subprocess.run(
         ["git", "clone", "--quiet", "--shared", "--no-checkout", str(REPOSITORY_ROOT), str(root)],
@@ -5009,7 +5034,27 @@ def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
         capture_output=True,
         text=True,
     )
-    git(root, "checkout", "--quiet", "--detach", git(REPOSITORY_ROOT, "rev-parse", "HEAD"))
+    revision = git(REPOSITORY_ROOT, "rev-parse", "HEAD")
+    excluded: set[str] = set()
+    if layout != "pre-promotion":
+        if layout == "attested-activation-base":
+            revision = registry(REPOSITORY_ROOT)["attestations"]["genesis"]["activationBaseCommit"]
+        else:
+            manifest = json.loads(frozen["source-manifest.json"])
+            current_planning = [
+                row
+                for row in manifest["planningSources"]
+                if row["contentSha256"]
+                == hashlib.sha256((REPOSITORY_ROOT / row["path"]).read_bytes()).hexdigest()
+                and not row["path"].endswith(("bridge-evidence.json", "bridge-verification.md"))
+            ]
+            assert len(current_planning) == 5
+            checkpoints = {row["revision"] for row in current_planning}
+            assert len(checkpoints) == 1
+            revision = checkpoints.pop()
+        scopes, _ = pr3_scope_inputs()
+        excluded = set().union(*(scopes[key] for key in ["8.2", "8.2a", "8.3", "8.4", "8.5"]))
+    git(root, "checkout", "--quiet", "--detach", revision)
     changed = subprocess.run(
         ["git", "diff", "--name-only", "-z", "HEAD"],
         cwd=REPOSITORY_ROOT,
@@ -5024,13 +5069,21 @@ def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
         capture_output=True,
         text=True,
     ).stdout
-    for name in sorted(set((changed + untracked).split("\0")) - {""}):
+    if layout != "pre-promotion":
+        # Keep current test/production subjects outside the counterfactual seam.
+        changed += git(REPOSITORY_ROOT, "ls-files", "-z")
+    for name in sorted(set((changed + untracked).split("\0")) - {""} - excluded):
         source, target = REPOSITORY_ROOT / name, root / name
         if source.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
         elif target.is_file():
             target.unlink()
+    for name, content in frozen.items():
+        target = root / "tests/fixtures/governance/candidate" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    assert not (root / REGISTRY_PATH).exists()
     git(root, "add", "-A")
     git(root, "commit", "-q", "--allow-empty", "-m", "isolated TEST pre-activation source")
     return root
@@ -5673,18 +5726,19 @@ console.log(JSON.stringify(state))
     assert_history_refused(root, "ADV-G19", base=base)
 
 
-def test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority() -> None:
-    state = load_state(REPOSITORY_ROOT, "tests/fixtures/governance/candidate/state.json")
+def test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority(tmp_path: Path) -> None:
+    root = isolated_genesis(tmp_path)
+    state = load_state(root, "tests/fixtures/governance/candidate/state.json")
     assert state["attestations"] == {"genesis": {}}
-    assert not (REPOSITORY_ROOT / REGISTRY_PATH).exists()
-    result, payload = run_checker(REPOSITORY_ROOT, "tests/fixtures/governance/candidate/state.json")
+    assert not (root / REGISTRY_PATH).exists()
+    result, payload = run_checker(root, "tests/fixtures/governance/candidate/state.json")
     assert result.returncode == 1, result.stderr
     assert {problem["code"] for problem in payload["problems"]} == {"ADV-G90", "ADV-G51"}
 
 
 def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path) -> None:
     root = isolated_genesis(tmp_path)
-    frozen_before = {path.name: path.read_bytes() for path in CANDIDATE_ROOT.glob("*.json")}
+    frozen_before = frozen_candidate()
     state = install_test_genesis(root)
     result, payload = run_checker(root, REGISTRY_PATH)
     assert result.returncode == 0, (payload, result.stderr)
@@ -5700,7 +5754,7 @@ def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path
         f"runner/L{number}" for number in range(2, 8)
     }
     assert state["attestations"]["genesis"]["actor"] == "fixture:genesis-mechanism"
-    assert frozen_before == {path.name: path.read_bytes() for path in CANDIDATE_ROOT.glob("*.json")}
+    assert frozen_before == frozen_candidate()
     for landing in state["landings"]:
         completion = landing["delivery"]["completion"]
         if completion is not None:
@@ -6331,14 +6385,25 @@ def rebind_test_candidate(
         (root / path).write_text(text, encoding="utf-8")
 
 
-def forged_test_genesis(root: Path, *, subject: Path = REPOSITORY_ROOT) -> dict[str, Any]:
+def forged_test_genesis(
+    root: Path, *, subject: Path = REPOSITORY_ROOT, base: str | None = None
+) -> dict[str, Any]:
     """A deliberately unvalidated, fully rehashed claim: the checker must refuse it."""
     assert root.resolve() != REPOSITORY_ROOT.resolve()
-    git(root, "add", "-A")
-    git(
-        root, "commit", "-q", "--allow-empty", "-m", "HOSTILE test candidate, not owner attestation"
-    )
-    base = git(root, "rev-parse", "HEAD")
+    if base is None:
+        git(root, "add", "-A")
+        git(
+            root,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "HOSTILE test candidate, not owner attestation",
+        )
+        base = git(root, "rev-parse", "HEAD")
+    else:
+        assert base == git(root, "rev-parse", "HEAD")
+        assert not git(root, "status", "--porcelain")
     result = subprocess.run(
         [
             "node",
@@ -6982,7 +7047,9 @@ def test_adv_g83_mut_g16_fully_rehashed_genesis_cannot_replace_ordinary_transiti
     write_state(root, inventory, "tests/fixtures/governance/candidate/consumers.json")
     base = commit_registry(root, state, "current-valid ordinary registry without genesis exception")
     assert_valid(root, REGISTRY_PATH)
-    state = install_test_genesis(root, base)
+    # This deliberately mixed ordinary-registry fixture is not a legitimate
+    # promotion layout. Use the explicit hostile forger, never a loader fallback.
+    state = forged_test_genesis(root, base=base)
     commit_registry(root, state, "HOSTILE fully rehashed post-genesis historical fallback")
     assert_valid(root, REGISTRY_PATH)  # No stale digest is responsible for refusal.
     payload = assert_history_refused(root, "ADV-G83", "ADV-G89", base=base)
@@ -7397,10 +7464,8 @@ def pr3_scope_inputs() -> tuple[dict[str, list[str]], dict[str, Any]]:
     for task, paths in re.findall(r"<!-- agent-task: (8\.[\da-z]+) paths=(\S+) checks=", tasks):
         assert task not in scopes, f"duplicate task {task}"
         scopes[task] = paths.split(",")
-    canonical = REPOSITORY_ROOT / "governance/consumers.json"
-    candidate = REPOSITORY_ROOT / "tests/fixtures/governance/candidate/consumers.json"
-    assert not (canonical.exists() and candidate.exists()), "two usable inventories"
-    inventory = load_state(REPOSITORY_ROOT, str(canonical if canonical.exists() else candidate))
+    frozen, _ = frozen_candidate()
+    inventory = json.loads(frozen["consumers.json"])
     return scopes, inventory
 
 
@@ -7832,9 +7897,9 @@ def test_pr3_retained_knowledge_model_set_mutants_cannot_narrow_frozen_selector(
 @pytest.mark.parametrize("case", ["exact", "removed-marker", "added-marker", "duplicate-row"])
 def test_pr3_retained_knowledge_selector_uses_only_frozen_row_marker(case: str) -> None:
     script = """
-import {readFileSync} from 'node:fs'
+import {loadFrozenCandidateForTest} from './tests/fixtures/governance/genesis/frozen.mjs'
 import {retainedSemanticKnowledgePaths} from './scripts/governance/model/consumers.mjs'
-const inventory=JSON.parse(readFileSync('tests/fixtures/governance/candidate/consumers.json'))
+const inventory=JSON.parse(loadFrozenCandidateForTest('.').consumersBytes)
 const marker='Exact-byte-reviewed portable-knowledge source, governed separately by ADR-0016.'
 const rows=inventory.rows.filter(row=>row.disposition==='retained-semantic-prose')
 const selected=rows.filter(row=>row.retainedReason.startsWith(marker))
@@ -7866,22 +7931,25 @@ try {
         assert "D7.2c: frozen/model retained path-set mismatch" in payload["error"]
 
 
-def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator() -> None:
+def test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator(
+    tmp_path: Path,
+) -> None:
+    root = isolated_genesis(tmp_path)
     script = """
-import {readFileSync} from 'node:fs'
+import {loadFrozenCandidateForTest} from './tests/fixtures/governance/genesis/frozen.mjs'
 import {readCheckoutSnapshot,createGenesisReader}
   from './scripts/governance/genesis/observations.mjs'
 import {validateConsumerInventory,discoverConsumers} from './scripts/governance/model/consumers.mjs'
-const inventory=JSON.parse(readFileSync('tests/fixtures/governance/candidate/consumers.json'))
-const snapshot=readCheckoutSnapshot('.')
-const source=createGenesisReader('.')('c82fda72927464d813ec769aee53f4079ebe3b20')
+const inventory=JSON.parse(loadFrozenCandidateForTest(process.argv[1]).consumersBytes)
+const snapshot=readCheckoutSnapshot(process.argv[1])
+const source=createGenesisReader(process.argv[1])('c82fda72927464d813ec769aee53f4079ebe3b20')
 const problems=[]
 validateConsumerInventory(inventory,snapshot,problems,source)
 console.log(JSON.stringify({problems,discovered:discoverConsumers(snapshot).length,rows:inventory.rows.length}))
 process.exitCode=problems.length?1:0
 """
     result = subprocess.run(
-        ["node", "--input-type=module", "-e", script],
+        ["node", "--input-type=module", "-e", script, str(root)],
         cwd=REPOSITORY_ROOT,
         capture_output=True,
         text=True,
@@ -7917,6 +7985,252 @@ def promote_preparation_fixture(root: Path) -> None:
     (root / "governance").mkdir(exist_ok=True)
     for name, target in PROMOTION_MEMBERS.items():
         (root / "tests/fixtures/governance/candidate" / name).replace(root / target)
+
+
+def test_frozen_loader_pre_promotion(fresh_genesis: Path) -> None:
+    members, layout = frozen_candidate(fresh_genesis)
+    assert layout == "pre-promotion"
+    assert members == frozen_candidate()[0]
+    assert json.loads(members["state.json"])["attestations"] == {"genesis": {}}
+
+
+@pytest.mark.parametrize("helper,args", [("envelope.mjs", []), ("rebind.mjs", ["candidate"])])
+def test_synthetic_helpers_refuse_real_repository_and_alias(
+    tmp_path: Path,
+    helper: str,
+    args: list[str],
+) -> None:
+    alias = tmp_path / "not-an-isolated-copy"
+    alias.symlink_to(REPOSITORY_ROOT, target_is_directory=True)
+    for root in [REPOSITORY_ROOT, alias]:
+        result = subprocess.run(
+            ["node", str(TEST_ENVELOPE.with_name(helper)), str(root), *args],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0 and not result.stdout
+        assert "isolated" in result.stderr or "temporary test repository" in result.stderr
+
+
+@pytest.mark.parametrize("attested", [False, True])
+def test_frozen_loader_promoted_lifecycle(fresh_genesis: Path, attested: bool) -> None:
+    root = fresh_genesis
+    before, _ = frozen_candidate(root)
+    base = git(root, "rev-parse", "HEAD")
+    envelope = subprocess.run(
+        ["node", str(TEST_ENVELOPE), str(root), base],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    promote_preparation_fixture(root)
+    if attested:
+        write_state(root, json.loads(envelope), REGISTRY_PATH)
+    original = {path: (root / path).read_bytes() for path in PROMOTION_MEMBERS.values()}
+    recovered, layout = frozen_candidate(root)
+    assert layout == ("attested-activation-base" if attested else "promoted-unattested")
+    assert recovered == before
+    # The same TEST envelope can be constructed after promotion. Freshness runs
+    # only in the helper's disposable base checkout, not a production fallback.
+    rebuilt = subprocess.run(
+        ["node", str(TEST_ENVELOPE), str(root), base],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert rebuilt.stdout == envelope
+    assert {path: (root / path).read_bytes() for path in original} == original
+    for name in PROMOTION_MEMBERS:
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
+    hydrated = subprocess.run(
+        ["node", str(TEST_ENVELOPE.with_name("objects.mjs")), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(hydrated.stdout)["exactHistoricalObjects"] > 0
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "partial-candidate",
+        "surviving-one",
+        "surviving-all",
+        "surviving-unreadable",
+        "missing-canonical",
+        "not-unattested",
+        "consumers-mismatch",
+        "manifest-mismatch",
+        "unrecoverable-base",
+        "missing-base",
+        "state-delta",
+        "freeze-mismatch",
+        "missing-completion",
+        "symlink",
+    ],
+)
+def test_frozen_loader_refuses_ambiguous_or_changed_layout(fresh_genesis: Path, case: str) -> None:
+    root = fresh_genesis
+    members, _ = frozen_candidate(root)
+    candidate = root / "tests/fixtures/governance/candidate"
+    attested_cases = {
+        "consumers-mismatch",
+        "manifest-mismatch",
+        "unrecoverable-base",
+        "missing-base",
+        "state-delta",
+        "freeze-mismatch",
+        "missing-completion",
+    }
+    envelope = None
+    if case in attested_cases:
+        envelope = json.loads(
+            subprocess.run(
+                ["node", str(TEST_ENVELOPE), str(root), git(root, "rev-parse", "HEAD")],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+    if case == "partial-candidate":
+        (candidate / "state.json").unlink()
+    else:
+        promote_preparation_fixture(root)
+        if envelope is not None:
+            write_state(root, envelope, REGISTRY_PATH)
+        if case.startswith("surviving-"):
+            for name in members if case == "surviving-all" else ["state.json"]:
+                (candidate / name).write_bytes(members[name])
+        elif case == "missing-canonical":
+            (root / "governance/consumers.json").unlink()
+        elif case == "not-unattested":
+            state = registry(root)
+            state["attestations"] = {"genesis": {}, "genesisCompletion": {}}
+            write_state(root, state, REGISTRY_PATH)
+        elif case in {"consumers-mismatch", "manifest-mismatch"}:
+            path = (
+                "governance/consumers.json"
+                if case == "consumers-mismatch"
+                else "governance/genesis-source-manifest.json"
+            )
+            value = load_state(root, path)
+            value["rows"].pop()
+            write_state(root, value, path)
+        elif case == "symlink":
+            linked_path = root / "governance/consumers.json"
+            linked_path.unlink()
+            linked_path.symlink_to(root / "governance/genesis-source-manifest.json")
+        else:
+            assert envelope is not None
+            if case == "unrecoverable-base":
+                envelope["attestations"]["genesis"]["activationBaseCommit"] = POST_BRIDGE_SOURCE
+            elif case == "missing-base":
+                del envelope["attestations"]["genesis"]["activationBaseCommit"]
+            elif case == "state-delta":
+                envelope["questions"][0]["severity"] = "medium"
+            elif case == "freeze-mismatch":
+                envelope["attestations"]["genesis"]["candidateFreezeIdentity"]["bundleSha256"] = (
+                    "0" * 64
+                )
+            else:
+                del envelope["attestations"]["genesisCompletion"]
+            # A matching outer hash cannot legalize a different recovery source,
+            # freeze, or primitive delta. Refuse the binding, not a stale digest.
+            rehash_outer(envelope)
+            write_state(root, envelope, REGISTRY_PATH)
+    before = subprocess.run(
+        ["git", "diff", "--binary", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    original_mode = candidate.stat().st_mode
+    try:
+        if case == "surviving-unreadable":
+            candidate.chmod(0)
+        refused = subprocess.run(
+            ["node", str(FROZEN_LOADER), str(root)],
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        if case == "surviving-unreadable":
+            candidate.chmod(original_mode)
+    assert refused.returncode == 1 and not refused.stdout
+    assert "ENOENT" not in refused.stderr
+    expected = {
+        "consumers-mismatch": "promoted consumers differ",
+        "manifest-mismatch": "promoted manifest differs",
+        "freeze-mismatch": "attested freeze identity differs",
+        "state-delta": "changed outside the two task-8.7 envelopes",
+        "unrecoverable-base": "missing or non-regular immutable member",
+    }.get(case)
+    if expected:
+        assert expected in refused.stderr
+    assert (
+        subprocess.run(
+            ["git", "diff", "--binary", "HEAD"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        ).stdout
+        == before
+    )
+
+
+@pytest.mark.parametrize("attested", [False, True])
+def test_promoted_layout_executes_genesis_tests_without_candidate_enoent(
+    fresh_genesis: Path,
+    attested: bool,
+) -> None:
+    """Actual 8.2 deletion + 8.3 preparation; run test bodies, not just hydration."""
+    root = fresh_genesis
+    binding = preparation_binding(root)
+    envelope = subprocess.run(
+        ["node", str(TEST_ENVELOPE), str(root), binding["activationBaseCommit"]],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    assert run_preparation(root, binding)["ok"]
+    assert run_preparation(root, binding, write=False)["ok"]
+    if attested:
+        write_state(root, json.loads(envelope), REGISTRY_PATH)
+    # Commit the simulated seam so the child cannot accidentally depend on a
+    # pre-promotion HEAD (the old uncommitted-only setup masked that boundary).
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "isolated TEST promoted layout, no owner attestation")
+    selection = [
+        "test_pr3_consumer_scope_matches_real_inventory_and_task_metadata",
+        "test_ex_g31_genesis_terminal_records_survive_pairwise_continuation",
+        "test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority",
+        "test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes",
+        "test_pr3_consumer_scope_complete_discovery_uses_production_inventory_validator",
+        "test_pr3_retained_knowledge_selector_uses_only_frozen_row_marker",
+        "test_preparation_parity_with_equivalent_normal_test_attested_state",
+        "test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift",
+    ]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "--tb=short",
+            *["tests/test_governance_state.py::" + name for name in selection],
+            "tests/test_governance_acceptance_audit.py",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "passed" in result.stdout and "ENOENT" not in result.stdout + result.stderr
+    for name in PROMOTION_MEMBERS:
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
 
 
 def add_preparation_markers(root: Path) -> None:

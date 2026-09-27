@@ -1,7 +1,6 @@
 /** TEST-ONLY: print rehashed copies for hostile/alternative-history fixtures.
  * Never writes; never runs against the subject repository; never owner authorship.
  */
-import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,12 +20,21 @@ import { bundleSha256 } from '../../../../scripts/governance/model/archived-open
 import { PREPARED_ARCHIVES } from '../../../../scripts/governance/model/decision-evidence.mjs'
 import { createGenesisReader } from '../../../../scripts/governance/genesis/observations.mjs'
 import { fixtureEnvelopes } from './envelope.mjs'
+import {
+  readRawRebindInputsForTest,
+  candidateByteMapForTest,
+  requireIsolatedTestRepository,
+} from './frozen.mjs'
 
 const root = resolve(process.argv[2])
 if (root === resolve(fileURLToPath(new URL('../../../../', import.meta.url))))
   throw new Error('hostile rebindings require an isolated test repository')
+requireIsolatedTestRepository(root)
 const mode = process.argv[3]
-const read = (path) => readFileSync(resolve(root, path))
+// Deliberately hostile rebindings name raw inputs, not a legitimate lifecycle
+// layout. Never silently fall back from a refused lifecycle load to these bytes.
+const inputBytes = candidateByteMapForTest(readRawRebindInputsForTest(root))
+const read = (path) => inputBytes.get(path)
 const [inventory, manifest, seed] = CANDIDATE_PATHS.map((path) => JSON.parse(read(path)))
 const readSnapshot = createGenesisReader(root)
 
