@@ -3519,9 +3519,10 @@ HISTORY_CHECKER = REPOSITORY_ROOT / "scripts/check-governance-history.mjs"
 RENDERER = REPOSITORY_ROOT / "scripts/render-governance-state.mjs"
 QUERY = REPOSITORY_ROOT / "scripts/query-governance-state.mjs"
 
-#: Inside a throwaway fixture repository only. The prohibition this landing is
-#: under is that the path must not exist in THIS repository's tree, which
-#: `test_pr2_the_canonical_registry_does_not_exist_yet` asserts directly.
+#: Canonical registry path in isolated current/history fixtures. The PR-2
+#: absence obligation is phase-scoped by
+#: `test_pr2_completion_boundary_has_no_canonical_registry`, not imposed on a
+#: live checkout after legitimate PR-3 promotion.
 REGISTRY_PATH = "governance/state.json"
 
 
@@ -3597,21 +3598,25 @@ def two_revisions(tmp_path: Path, mutate: Any, *, name: str = "history") -> tupl
     return root, base, target
 
 
-def test_pr2_the_canonical_registry_does_not_exist_yet() -> None:
-    """The PR-2 completion gate, asserted rather than asserted about.
+def test_pr2_completion_boundary_has_no_canonical_registry(tmp_path: Path) -> None:
+    """Prove the real frozen candidate's PR-2 boundary, even after promotion.
 
-    The canonical authority first appears in PR-3. A fixture path is a
-    candidate; a tracked `governance/state.json` would be the authority itself.
+    Canonical authority first appears in PR-3. Reconstruct the pre-activation
+    fixture through the shared lifecycle loader; do not require a promoted
+    subject checkout to remain forever at its earlier PR-2 phase.
     """
-    tracked = subprocess.run(
-        ["git", "ls-files", "governance"],
-        cwd=REPOSITORY_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
+    root = isolated_genesis(tmp_path, "pr2-completion-boundary")
+    tracked = git(root, "ls-files", "governance").splitlines()
     assert tracked == [], tracked
-    assert not (REPOSITORY_ROOT / "governance").exists()
+    assert not (root / "governance").exists()
+    frozen, layout = frozen_candidate(root)
+    assert layout == "pre-promotion"
+    assert frozen == frozen_candidate()[0]
+    assert set(frozen) == set(PROMOTION_MEMBERS)
+    for name, promoted in PROMOTION_MEMBERS.items():
+        assert (root / "tests/fixtures/governance/candidate" / name).read_bytes() == frozen[name]
+        assert not (root / promoted).exists()
+    assert json.loads(frozen["state.json"])["attestations"] == {"genesis": {}}
 
 
 # --- 4.2 · explicit base selection -----------------------------------------
@@ -8203,7 +8208,14 @@ def test_promoted_layout_executes_genesis_tests_without_candidate_enoent(
     # pre-promotion HEAD (the old uncommitted-only setup masked that boundary).
     git(root, "add", "-A")
     git(root, "commit", "-qm", "isolated TEST promoted layout, no owner attestation")
+    assert (root / REGISTRY_PATH).is_file()
+    if not attested:
+        assert registry(root)["attestations"] == {"genesis": {}}
+    promoted_before = {path: (root / path).read_bytes() for path in PROMOTION_MEMBERS.values()}
+    for name in PROMOTION_MEMBERS:
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
     selection = [
+        "test_pr2_completion_boundary_has_no_canonical_registry",
         "test_pr3_consumer_scope_matches_real_inventory_and_task_metadata",
         "test_ex_g31_genesis_terminal_records_survive_pairwise_continuation",
         "test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority",
@@ -8229,6 +8241,7 @@ def test_promoted_layout_executes_genesis_tests_without_candidate_enoent(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "passed" in result.stdout and "ENOENT" not in result.stdout + result.stderr
+    assert {path: (root / path).read_bytes() for path in promoted_before} == promoted_before
     for name in PROMOTION_MEMBERS:
         assert not (root / "tests/fixtures/governance/candidate" / name).exists()
 
