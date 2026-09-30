@@ -6005,7 +6005,13 @@ def test_genesis_recovery_uses_only_exact_attested_base(
         # Construct an exact hostile Git object without replacing HEAD or
         # resurrecting candidate files in the promoted subject's working tree.
         index = tmp_path / "recovery-test-index"
-        env = {**os.environ, "GIT_INDEX_FILE": str(index), "GIT_NO_REPLACE_OBJECTS": "1"}
+        env = {
+            **GIT_ENV,
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(root),
+            "GIT_INDEX_FILE": str(index),
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
 
         def indexed(*args: str, content: str | None = None) -> str:
             return subprocess.run(
