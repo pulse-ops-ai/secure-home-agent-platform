@@ -2042,9 +2042,27 @@ export function genesisRelationshipRows(manifest) {
   )
 }
 
-function readFrozenCandidate(context, problems) {
+function readFrozenCandidate(context, problems, genesis) {
   try {
-    const bytes = new Map(CANDIDATE_PATHS.map((path) => [path, context.readBytes?.(path)]))
+    let read = (path) => context.readBytes?.(path)
+    if (genesis !== undefined) {
+      // Recovery of immutable genesis evidence, not discovery or a fallback.
+      // The current registry can evolve; the frozen seed cannot. Never strip
+      // envelopes from today's registry and treat it as the original seed.
+      const revision = genesis.activationBaseCommit
+      if (typeof revision !== 'string' || !SHA1_OR_SHA256.test(revision))
+        throw new Error('frozen recovery requires the exact attested activationBaseCommit')
+      const snapshot = context.readSnapshot(revision)
+      if (snapshot.commit !== revision)
+        throw new Error('frozen recovery did not observe the exact attested commit')
+      read = (path) => {
+        const entry = snapshot.entries.get(path)
+        if (entry?.mode !== '100644' || !(entry.bytes instanceof Uint8Array))
+          throw new Error('activation base lacks a readable regular 100644 candidate: ' + path)
+        return entry.bytes
+      }
+    }
+    const bytes = new Map(CANDIDATE_PATHS.map((path) => [path, read(path)]))
     const identity = candidateFreezeIdentity(bytes)
     const values = CANDIDATE_PATHS.map((path) => {
       const text = decodeUtf8(bytes.get(path))
@@ -2504,7 +2522,7 @@ function validateGenesisBindings(state, context, problems) {
     )
     return
   }
-  const frozen = readFrozenCandidate(context, problems)
+  const frozen = readFrozenCandidate(context, problems, hasGenesis ? genesis : undefined)
   if (!frozen) return
   context.genesisInventory = frozen.inventory
   if (canonicalSerialize(context.sourceManifest) !== canonicalSerialize(frozen.manifest))
@@ -2531,6 +2549,23 @@ function validateGenesisBindings(state, context, problems) {
     addProblem(problems, 'ADV-G46', '$.consumers', error.message)
   }
   if (!hasGenesis) return // Completion validation still REFUSES the raw candidate.
+  // Historical recovery does not permit a second live candidate authority or
+  // substitute historical bytes for the required promoted inventory today.
+  for (const path of CANDIDATE_PATHS)
+    if (context.readBytes?.(path) !== undefined)
+      addProblem(problems, 'ADV-G55', path, 'candidate source survives canonical promotion')
+  const consumers = context.readBytes?.('governance/consumers.json')
+  if (
+    !(consumers instanceof Uint8Array) ||
+    contentDigest(consumers) !==
+      contentDigest(frozen.bytes.get('tests/fixtures/governance/candidate/consumers.json'))
+  )
+    addProblem(
+      problems,
+      'ADV-G46',
+      'governance/consumers.json',
+      'the evaluated revision must carry the unchanged frozen consumer inventory',
+    )
   if (
     canonicalSerialize(genesis.candidateFreezeIdentity ?? null) !==
     canonicalSerialize(frozen.identity)
