@@ -5005,6 +5005,64 @@ POST_BRIDGE_SOURCE = "c82fda72927464d813ec769aee53f4079ebe3b20"
 TEST_ENVELOPE = REPOSITORY_ROOT / "tests/fixtures/governance/genesis/envelope.mjs"
 FRESHNESS = REPOSITORY_ROOT / "scripts/governance/genesis/freshness.mjs"
 FROZEN_LOADER = TEST_ENVELOPE.with_name("frozen.mjs")
+HISTORICAL_PLANNING_REVISIONS = {
+    "7a2d731837ea9f14cae09436ddb78e6e47607ee5",
+    "fc1b9f4eef748f7cd0f6af7818bec94d3045f46e",
+    "5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a",
+    POST_BRIDGE_SOURCE,
+}
+PREPARATION_PLANNING_PATHS = {
+    "openspec/changes/governance-state-substrate/" + name
+    for name in [
+        "proposal.md",
+        "design.md",
+        "assurance.md",
+        "tasks.md",
+        "specs/governance-state/spec.md",
+    ]
+}
+
+
+def frozen_preparation_sources(
+    root: Path, manifest: dict[str, Any]
+) -> tuple[str, list[dict[str, Any]]]:
+    """Verify the test fixture's historical source, not current migration bytes.
+
+    Mirror the closed preparation/history distinction already exercised by the
+    temporal mutation tests. This selects no real activation base or authority.
+    """
+    rows = [
+        row
+        for row in manifest["planningSources"]
+        if row["revision"] not in HISTORICAL_PLANNING_REVISIONS
+    ]
+    assert len(rows) == 5, "preparation requires exactly five rows"
+    assert {row["path"] for row in rows} == PREPARATION_PLANNING_PATHS, (
+        "preparation requires exactly the five distinct planning paths"
+    )
+    revisions = {row["revision"] for row in rows}
+    assert len(revisions) == 1, "preparation requires one common revision"
+    revision = revisions.pop()
+    assert re.fullmatch(r"[0-9a-f]{40}", revision), "preparation requires an exact commit"
+    assert git(root, "--no-replace-objects", "cat-file", "-t", revision) == "commit"
+    git(root, "--no-replace-objects", "merge-base", "--is-ancestor", revision, "HEAD")
+    for row in rows:
+        entry = git(root, "--no-replace-objects", "ls-tree", revision, "--", row["path"])
+        assert entry.startswith("100644 blob ") and entry.endswith("\t" + row["path"]), (
+            "preparation requires a regular immutable blob: " + row["path"]
+        )
+        oid = entry.split("\t")[0].split()[2]
+        assert oid == row["blobOid"], "preparation blob OID differs: " + row["path"]
+        content = subprocess.run(
+            ["git", "--no-replace-objects", "cat-file", "blob", oid],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        ).stdout
+        assert hashlib.sha256(content).hexdigest() == row["contentSha256"], (
+            "preparation content SHA-256 differs: " + row["path"]
+        )
+    return revision, rows
 
 
 def frozen_candidate(root: Path = REPOSITORY_ROOT) -> tuple[dict[str, bytes], str]:
@@ -5031,7 +5089,7 @@ def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
     an attested fixture uses the exact attested activation base. Neither is an
     inferred candidate origin or a production activation-base selection.
     """
-    frozen, layout = frozen_candidate()
+    frozen, layout = frozen_candidate(REPOSITORY_ROOT)
     root = tmp_path / name
     subprocess.run(
         ["git", "clone", "--quiet", "--shared", "--no-checkout", str(REPOSITORY_ROOT), str(root)],
@@ -5046,17 +5104,7 @@ def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
             revision = registry(REPOSITORY_ROOT)["attestations"]["genesis"]["activationBaseCommit"]
         else:
             manifest = json.loads(frozen["source-manifest.json"])
-            current_planning = [
-                row
-                for row in manifest["planningSources"]
-                if row["contentSha256"]
-                == hashlib.sha256((REPOSITORY_ROOT / row["path"]).read_bytes()).hexdigest()
-                and not row["path"].endswith(("bridge-evidence.json", "bridge-verification.md"))
-            ]
-            assert len(current_planning) == 5
-            checkpoints = {row["revision"] for row in current_planning}
-            assert len(checkpoints) == 1
-            revision = checkpoints.pop()
+            revision, _ = frozen_preparation_sources(REPOSITORY_ROOT, manifest)
         scopes, _ = pr3_scope_inputs()
         excluded = set().union(*(scopes[key] for key in ["8.2", "8.2a", "8.3", "8.4", "8.5"]))
     git(root, "checkout", "--quiet", "--detach", revision)
@@ -5558,14 +5606,7 @@ def test_temporal_preparation_planning_bindings_refuse_rehashed_drift(
     root = temporal_candidate
     path = "tests/fixtures/governance/candidate/source-manifest.json"
     manifest = load_state(root, path)
-    historic = {
-        "7a2d731837ea9f14cae09436ddb78e6e47607ee5",
-        "fc1b9f4eef748f7cd0f6af7818bec94d3045f46e",
-        "5447e78fa9d63ce2c20ea8de81a1cd321bdf9b6a",
-        POST_BRIDGE_SOURCE,
-    }
-    prepared = [row for row in manifest["planningSources"] if row["revision"] not in historic]
-    assert len(prepared) == 5
+    _, prepared = frozen_preparation_sources(root, manifest)
     if case == "missing":
         manifest["planningSources"].remove(prepared[0])
     elif case == "mixed-revision":
@@ -7469,7 +7510,7 @@ def pr3_scope_inputs() -> tuple[dict[str, list[str]], dict[str, Any]]:
     for task, paths in re.findall(r"<!-- agent-task: (8\.[\da-z]+) paths=(\S+) checks=", tasks):
         assert task not in scopes, f"duplicate task {task}"
         scopes[task] = paths.split(",")
-    frozen, _ = frozen_candidate()
+    frozen, _ = frozen_candidate(REPOSITORY_ROOT)
     inventory = json.loads(frozen["consumers.json"])
     return scopes, inventory
 
@@ -8182,6 +8223,151 @@ def test_frozen_loader_refuses_ambiguous_or_changed_layout(fresh_genesis: Path, 
         ).stdout
         == before
     )
+
+
+@pytest.mark.parametrize("planning_count", [1, 5], ids=["design-migrated", "all-five-migrated"])
+def test_isolated_genesis_uses_frozen_planning_after_pointer_migration(
+    fresh_genesis: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    planning_count: int,
+) -> None:
+    root = fresh_genesis
+    frozen, layout = frozen_candidate(root)
+    assert layout == "pre-promotion"
+    checkpoint, rows = frozen_preparation_sources(root, json.loads(frozen["source-manifest.json"]))
+    # Regression expectation only: selection above is manifest-derived.
+    assert checkpoint == "2beff9ce5ede1f5433a24af78376341654e330c0"
+    binding = preparation_binding(root)
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    prepared = run_preparation(root, binding)
+    assert prepared["ok"], prepared
+    checked = run_preparation(root, binding, write=False)
+    assert checked["ok"] and checked["wrote"] == [], checked
+    assert frozen_candidate(root) == (frozen, "promoted-unattested")
+    assert registry(root)["attestations"] == {"genesis": {}}
+    for name in PROMOTION_MEMBERS:
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
+
+    design = "openspec/changes/governance-state-substrate/design.md"
+    paths = [design, *sorted(PREPARATION_PLANNING_PATHS - {design})][:planning_count]
+    for path in paths:
+        paragraphs = (root / path).read_text().split("\n\n")
+        # Representative task-8.4 migration: replace a live status paragraph
+        # with a canonical pointer, preserving task metadata and other prose.
+        index = next(i for i, text in enumerate(paragraphs) if "PR #124" in text)
+        paragraphs[index] = (
+            "Current governance state: consult `governance/state.json` / the canonical query."
+        )
+        (root / path).write_text("\n\n".join(paragraphs))
+    migrated = {path: (root / path).read_bytes() for path in paths}
+    assert all(
+        hashlib.sha256(migrated[row["path"]]).hexdigest() != row["contentSha256"]
+        for row in rows
+        if row["path"] in migrated
+    )
+    with monkeypatch.context() as patch:
+        patch.setattr(sys.modules[__name__], "REPOSITORY_ROOT", root)
+        reconstructed = isolated_genesis(tmp_path, "after-planning-migration")
+    assert git(reconstructed, "rev-parse", "HEAD^") == checkpoint
+    assert frozen_candidate(reconstructed) == (frozen, "pre-promotion")
+    assert not (reconstructed / "governance").exists()
+    for row in rows:
+        assert (
+            hashlib.sha256((reconstructed / row["path"]).read_bytes()).hexdigest()
+            == row["contentSha256"]
+        )
+    # Current test code is overlaid; every planning/seam path stays historical.
+    assert (reconstructed / "tests/test_governance_state.py").read_bytes() == (
+        root / "tests/test_governance_state.py"
+    ).read_bytes()
+    assert {path: (root / path).read_bytes() for path in paths} == migrated
+    assert frozen_candidate(root) == (frozen, "promoted-unattested")
+
+
+@pytest.mark.parametrize(
+    "case,diagnostic",
+    [
+        ("missing", "exactly five rows"),
+        ("extra", "exactly five rows"),
+        ("dropped-preparation", "exactly five rows"),
+        ("mixed-revision", "one common revision"),
+        ("duplicate-path", "five distinct planning paths"),
+        ("unexpected-path", "five distinct planning paths"),
+        ("missing-commit", None),
+        ("unreachable-commit", None),
+        ("missing-blob", "regular immutable blob"),
+        ("executable-blob", "regular immutable blob"),
+        ("symlink-blob", "regular immutable blob"),
+        ("blob-oid", "blob OID differs"),
+        ("hash", "content SHA-256 differs"),
+    ],
+)
+def test_isolated_genesis_refuses_malformed_frozen_preparation(
+    fresh_genesis: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    diagnostic: str | None,
+) -> None:
+    root = fresh_genesis
+    frozen, _ = frozen_candidate(root)
+    manifest = json.loads(frozen["source-manifest.json"])
+    checkpoint, rows = frozen_preparation_sources(root, manifest)
+    if case == "missing":
+        manifest["planningSources"].remove(rows[0])
+    elif case == "extra":
+        manifest["planningSources"].append(dict(rows[0]))
+    elif case == "dropped-preparation":
+        manifest["planningSources"] = [r for r in manifest["planningSources"] if r not in rows]
+    elif case == "mixed-revision":
+        rows[0]["revision"] = git(root, "rev-parse", "HEAD")
+    elif case == "duplicate-path":
+        rows[0]["path"] = rows[1]["path"]
+    elif case == "unexpected-path":
+        rows[0]["path"] = "tests/README.md"
+    elif case in ["missing-commit", "unreachable-commit"]:
+        revision = "0" * 40
+        if case == "unreachable-commit":
+            # Existing immutable objects with correct bytes, but no ancestry.
+            revision = git(
+                root, "commit-tree", checkpoint + "^{tree}", "-m", "TEST unreachable preparation"
+            )
+            assert git(root, "cat-file", "-t", revision) == "commit"
+        for row in rows:
+            row["revision"] = revision
+    elif case in ["missing-blob", "executable-blob", "symlink-blob"]:
+        path = root / rows[0]["path"]
+        if case == "executable-blob":
+            path.chmod(0o755)
+        else:
+            path.unlink()
+            if case == "symlink-blob":
+                path.symlink_to("README.md")
+        git(root, "add", "--", rows[0]["path"])
+        git(root, "commit", "-qm", "TEST non-regular planning source")
+        for row in rows:
+            row["revision"] = git(root, "rev-parse", "HEAD")
+    elif case == "blob-oid":
+        rows[0]["blobOid"] = "0" * 40
+    else:
+        rows[0]["contentSha256"] = "0" * 64
+
+    # Unlike live migration edits, drift in the frozen manifest must prevent
+    # constructing the counterfactual fixture. Exercise the real call site.
+    promote_preparation_fixture(root)
+    write_state(root, manifest, "governance/genesis-source-manifest.json")
+    with monkeypatch.context() as patch:
+        patch.setattr(sys.modules[__name__], "REPOSITORY_ROOT", root)
+        if diagnostic is None:
+            with pytest.raises(subprocess.CalledProcessError) as failure:
+                isolated_genesis(tmp_path, "invalid-planning")
+            command = failure.value.cmd
+            assert ("cat-file" if case == "missing-commit" else "merge-base") in command
+        else:
+            with pytest.raises(AssertionError, match=diagnostic):
+                isolated_genesis(tmp_path, "invalid-planning")
 
 
 @pytest.mark.parametrize("attested", [False, True])

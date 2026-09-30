@@ -59,9 +59,12 @@ one surviving candidate member cannot be silently preferred over promoted data.
 
 Python delegates byte selection to this loader. Tests that require pre-activation
 history explicitly build a **counterfactual temporary fixture**: before real owner
-attestation, its source is the manifest's unique five-row planning checkpoint
-matching the current planning bytes; after attestation it is the exact attested
-activation base. The frozen input bytes still come from the lifecycle loader,
+attestation, its source is the frozen manifest's unique non-historical five-row
+preparation checkpoint, verified against its immutable Git objects (regular blob,
+OID and content SHA-256). Current activation-seam planning bytes may legitimately
+differ during task 8.4; they do not select that historical checkpoint. After
+attestation the source is the exact attested activation base.
+The frozen input bytes still come from the lifecycle loader,
 not that fixture checkpoint. Current test subjects outside the concrete migration
 scope are copied into the fixture, and the exact three raw members are materialized
 there. This is not the repository's activation-base selection or new freshness
