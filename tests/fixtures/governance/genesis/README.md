@@ -15,11 +15,34 @@ Envelope/rebind entry points require an independent repository under the system
 temporary directory, resolving symlinks before checking isolation. They refuse
 the real checkout and aliases to it.
 
+`install_test_genesis()` creates a positive **post-activation test subject**.
+It generates the synthetic envelope while the raw inputs exist, moves all three
+members using the shared promotion mapping, proves byte equality and candidate
+absence, and replaces only the promoted state's two attestation envelopes.
+The fixture then derives its pointer population from the frozen inventory and
+task metadata, initializes the registered regions, and invokes the real renderer.
+Its deterministic pointer prose is test-only scaffolding, not a production
+migration tool. Retained sources are untouched; task metadata and the required
+question anchors remain available. Positive current/history tests therefore
+exercise the complete activated layout, not coexisting candidate copies.
+
+Ordinary production validation recovers immutable frozen members only from the
+populated genesis envelope's exact activation base. The current registry may
+legally evolve after genesis; only this test loader's activation-layout recovery
+requires the envelope-only state delta described below. An unattested promoted
+state still refuses ordinary validation and uses the dedicated preparation path.
+
 `rebind.mjs` constructs fully rehashed hostile or alternative-history **test**
 copies. It deliberately does not validate those claims; production current and
 history entry points must refuse them. Neither helper writes or accepts the
 real ceremony. `delivery-preimage.json` and `spike-preimage.json` are independent
 literal serialized-byte/SHA-256 vectors, not actual delivery evidence.
+
+Named guard-removal mutation controls may explicitly promote their forged
+inputs with `promote_mutation_control()`. Their forged state bytes remain
+unchanged; the deficient model renders its own claimed projections. This
+isolates the evidence guard being tested from unrelated layout refusals.
+General hostile construction is not automatically normalized or admitted.
 
 `acceptance-audit.json` is a read-only audit receipt for authorized common source
 S, not a freeze member or owner attestation. It records all 23 historical terminal
@@ -92,7 +115,9 @@ No other test module directly loads the three frozen members.
 | `genesis/envelope.mjs`: synthetic envelope inputs and production freshness | Lifecycle loader; promoted inputs use a disposable exact-base clone, not restored real candidate copies. |
 | `genesis/rebind.mjs`: `candidate` and `forged-envelope` hostile rehashing | Explicit raw isolated fixture inputs through the shared byte reader; intentionally invalid claims are still tested by production. |
 | `test_governance_state.py`: `isolated_genesis`, temporal/attested templates, `fresh_genesis`, `registry_less_repository` | Explicit temporary pre-activation reconstruction; no assumption that the subject checkout still has candidate files. |
-| `install_test_genesis`, `activate`, `forged_test_genesis`, `rebind_test_candidate`, historical delivery fixtures | Candidate reads belong to the explicitly materialized isolated layout; preserved. |
+| `install_test_genesis`, positive `activate`, temporal/attested templates, historical delivery positives | Generate envelopes before exact promotion; all candidate copies are then absent, with pointers/regions rendered in the isolated positive subject. |
+| `forged_test_genesis`, `rebind_test_candidate`, deliberate reactivation | Explicit hostile construction remains separate; invalid layouts or bindings are not silently normalized into positive fixtures. |
+| Preparation parity | Restore saved raw state in the already-promoted fixture; never re-promote deleted inputs or resurrect candidate copies. |
 | Raw-seed refusal and real-seed envelope controls | Recovered frozen bytes, never attested state treated as raw; production raw-seed diagnostics retained. |
 | `pr3_scope_inputs`, retained selector, complete discovery | Shared loader for inventory; full pre-activation discovery runs on the isolated fixture. |
 | Freshness/temporal mutation families, `retained_freshness_inputs`, rehashed hostile envelopes | Explicit isolated candidate inputs and explicit base commits; no production fallback. |

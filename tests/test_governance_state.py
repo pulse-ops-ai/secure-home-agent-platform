@@ -4334,6 +4334,7 @@ def test_adv_g41_and_g59_a_replacement_activation_is_not_a_second_genesis(
     """
     root, first_base = registry_less_repository(tmp_path, "reactivation")
     activate(root, first_base)
+    first_state = registry(root)
 
     # Revert: the registry is deleted.
     (root / REGISTRY_PATH).unlink()
@@ -4342,8 +4343,22 @@ def test_adv_g41_and_g59_a_replacement_activation_is_not_a_second_genesis(
     git(root, "commit", "-qm", "revert the activation")
     reverted = git(root, "rev-parse", "HEAD")
 
-    # A second activation, bound to the post-revert base.
-    activate(root, reverted)
+    # Deliberately forge a second activation. This is NOT a positive installer:
+    # the post-revert revision cannot supply a pre-promotion frozen candidate.
+    first_state["attestations"]["genesis"]["activationBaseCommit"] = reverted
+    rehash_outer(first_state)
+    write_state(
+        root,
+        json.loads(
+            git(
+                root,
+                "show",
+                first_base + ":tests/fixtures/governance/candidate/source-manifest.json",
+            )
+        ),
+        "governance/genesis-source-manifest.json",
+    )
+    commit_registry(root, first_state, "HOSTILE second genesis after revert")
 
     payload = assert_history_refused(root, "ADV-G41", "ADV-G59", base=reverted)
     assert any("post-activation" in p["message"] for p in payload["problems"])
@@ -5144,21 +5159,106 @@ def isolated_genesis(tmp_path: Path, name: str = "isolated-genesis") -> Path:
 
 def install_test_genesis(root: Path, base: str | None = None) -> dict[str, Any]:
     """No owner act: the actor and authority explicitly name an isolated fixture."""
+    frozen, layout = frozen_candidate(root)
+    assert layout == "pre-promotion"
+    activation_base = base or git(root, "rev-parse", "HEAD")
     result = subprocess.run(
-        ["node", str(TEST_ENVELOPE), str(root), base or git(root, "rev-parse", "HEAD")],
+        ["node", str(TEST_ENVELOPE), str(root), activation_base],
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
     state = cast(dict[str, Any], json.loads(result.stdout))
-    (root / "governance").mkdir(exist_ok=True)
-    shutil.copyfile(
-        root / "tests/fixtures/governance/candidate/source-manifest.json",
-        root / "governance/genesis-source-manifest.json",
-    )
+    # First model the exact 8.2 promotion, then only the two TEST envelopes.
+    promote_preparation_fixture(root)
+    for name, promoted in PROMOTION_MEMBERS.items():
+        assert (root / promoted).read_bytes() == frozen[name]
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
     write_state(root, state, REGISTRY_PATH)
+    assert {**state, "attestations": {"genesis": {}}} == json.loads(frozen["state.json"])
+    assert state["attestations"]["genesis"]["activationBaseCommit"] == activation_base
+    for envelope in state["attestations"].values():
+        assert envelope["actor"] == "fixture:genesis-mechanism"
+        assert envelope["authority"]["repository"] == "fixture/isolated-repository"
+    assert frozen_candidate(root) == (frozen, "attested-activation-base")
+    migrate_test_activation_surfaces(root, frozen, state)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
     return state
+
+
+def initialize_test_activation_regions(root: Path, state: dict[str, Any]) -> None:
+    """Only isolated positive subjects: authored scaffolding, never generated tables."""
+    assert root.resolve() != REPOSITORY_ROOT.resolve()
+    (root / "docs/decisions/INDEX.md").write_text("# TEST decision index\n")
+    questions = "# TEST question anchors\n\n" + "\n".join(
+        f'<a id="{q["anchor"].split("#")[1]}"></a>\n\n## {q["id"]}\n' for q in state["questions"]
+    )
+    (root / "docs/architecture/unresolved-decisions.md").write_text(questions)
+    add_preparation_markers(root)
+    (root / "governance/STATE.md").unlink(missing_ok=True)
+
+
+def migrate_test_activation_surfaces(
+    root: Path, frozen: dict[str, bytes], state: dict[str, Any]
+) -> None:
+    """Deterministic TEST layout, not a production prose-migration mechanism."""
+    assert root.resolve() != REPOSITORY_ROOT.resolve()
+    inventory = json.loads(frozen["consumers.json"])
+    pointers = sorted(r["path"] for r in inventory["rows"] if r["disposition"] == "stable-pointer")
+    tasks = (root / "openspec/changes/governance-state-substrate/tasks.md").read_text()
+    task_paths = re.findall(r"<!-- agent-task: 8\.4 paths=(\S+) checks=", tasks)
+    assert len(task_paths) == 1
+    assert sorted(task_paths[0].split(",")) == pointers
+    assert len(pointers) == len(set(pointers)) == 72
+    retained = {
+        r["path"]: (root / r["path"]).read_bytes()
+        for r in inventory["rows"]
+        if r["disposition"] == "retained-semantic-prose"
+    }
+    pointer = "TEST fixture: current governance answers come from governance/state.json."
+    for name in pointers:
+        path = root / name
+        text = path.read_text()
+        if path.suffix == ".md":
+            # Keep identity/heading and task-scope structure used by test discovery.
+            # These fixture documents intentionally carry no normative prose copy.
+            headings = re.findall(r"^#{1,6} .*", text, re.MULTILINE)
+            metadata = re.findall(r"<!-- agent-task: [^\n]+ -->", text)
+            path.write_text(
+                (headings[0] if headings else "# TEST pointer")
+                + "\n\n"
+                + pointer
+                + "\n\n"
+                + "\n".join(metadata)
+                + "\n"
+            )
+        elif path.suffix == ".yaml":
+            migrated, count = re.subn(
+                r"^context: \|\n(?:[ \t]+[^\n]*\n|\n)*",
+                "context: |\n  " + pointer + "\n\n",
+                text,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            assert count == 1
+            path.write_text(migrated)
+        else:
+            assert path.name == "Dockerfile"
+            # Only fixture comments change; all executable lines remain exact.
+            lines = text.splitlines(keepends=True)
+            path.write_text(
+                "# "
+                + pointer
+                + "\n"
+                + "".join(line for line in lines if not line.lstrip().startswith("#"))
+            )
+    assert {p: (root / p).read_bytes() for p in retained} == retained
+    (root / "governance/README.md").write_text(
+        "# Isolated TEST subject\n\nSynthetic fixture only; no human authority.\n"
+    )
+    initialize_test_activation_regions(root, state)
 
 
 @pytest.fixture(scope="session")
@@ -5491,7 +5591,6 @@ def test_temporal_mut_g21_independent_manifest_kills(
     write_state(root, manifest, path)
     rebind_test_candidate(root)
     forged_test_genesis(root)
-    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
     subject = mutant_subject(
         tmp_path,
         [
@@ -5502,6 +5601,8 @@ def test_temporal_mut_g21_independent_manifest_kills(
             )
         ],
     )
+    promote_mutation_control(root, subject)
+    assert_refused(root, "ADV-G104", path=REGISTRY_PATH)
     result, payload = run_subject(subject, root)
     assert result.returncode == 0, payload
 
@@ -5554,13 +5655,7 @@ console.log(JSON.stringify({before:values(a),after:values(b),bytesDiffer:m.canon
 
 def test_temporal_projection_and_query_dates(temporal_genesis: Path) -> None:
     root = temporal_genesis
-    for path, regions in [
-        ("docs/decisions/INDEX.md", ["decision-lifecycle"]),
-        ("docs/architecture/unresolved-decisions.md", ["question-summary", "resolution-banners"]),
-    ]:
-        with (root / path).open("a", encoding="utf-8") as stream:
-            for region in regions:
-                stream.write("\n" + BEGIN.format(region) + "\n" + END.format(region) + "\n")
+    # The positive temporal fixture already has exactly the registered regions.
     result = run_renderer(root, "write")
     assert result.returncode == 0, result.stderr
     assert run_renderer(root, "check").returncode == 0
@@ -5784,6 +5879,8 @@ def test_adv_g90_real_candidate_is_unattested_and_not_canonical_authority(tmp_pa
 
 def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path) -> None:
     root = isolated_genesis(tmp_path)
+    base = git(root, "rev-parse", "HEAD")
+    source, _ = frozen_candidate(root)
     frozen_before = frozen_candidate()
     state = install_test_genesis(root)
     result, payload = run_checker(root, REGISTRY_PATH)
@@ -5800,6 +5897,14 @@ def test_ex_g16_g17_g19_g23_g24_g30_real_seed_with_test_envelopes(tmp_path: Path
         f"runner/L{number}" for number in range(2, 8)
     }
     assert state["attestations"]["genesis"]["actor"] == "fixture:genesis-mechanism"
+    assert state["attestations"]["genesis"]["activationBaseCommit"] == base
+    assert frozen_candidate(root) == (source, "attested-activation-base")
+    for name, target in PROMOTION_MEMBERS.items():
+        assert (root / target).is_file()
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
+        if name != "state.json":
+            assert (root / target).read_bytes() == source[name]
+    assert {**state, "attestations": {"genesis": {}}} == json.loads(source["state.json"])
     assert frozen_before == frozen_candidate()
     for landing in state["landings"]:
         completion = landing["delivery"]["completion"]
@@ -5812,11 +5917,25 @@ def test_ex_g31_genesis_terminal_records_survive_pairwise_continuation(tmp_path:
     root = isolated_genesis(tmp_path)
     activation_base = git(root, "rev-parse", "HEAD")
     state = install_test_genesis(root)
+    original_envelopes = json.loads(json.dumps(state["attestations"]))
     base = commit_registry(root, state, "TEST activation only")
     assert_history_clean(root, base=activation_base)
     state["questions"][0]["severity"] = "medium"
+    write_state(root, state, REGISTRY_PATH)
+    assert run_renderer(root, "write").returncode == 0
     commit_registry(root, state, "ordinary severity update after TEST genesis")
+    assert_valid(root, REGISTRY_PATH)
     assert_history_clean(root, base=base)
+    assert registry(root)["attestations"] == original_envelopes
+    assert original_envelopes["genesis"]["activationBaseCommit"] == activation_base
+    raw = json.loads(
+        git(root, "show", activation_base + ":tests/fixtures/governance/candidate/state.json")
+    )
+    assert raw["questions"][0]["severity"] != state["questions"][0]["severity"]
+    assert all(
+        not (root / "tests/fixtures/governance/candidate" / name).exists()
+        for name in PROMOTION_MEMBERS
+    )
 
 
 @pytest.fixture(scope="session")
@@ -5838,6 +5957,162 @@ def attested_genesis(tmp_path: Path, attested_genesis_template: Path) -> Path:
         text=True,
     )
     return root
+
+
+@pytest.mark.parametrize(
+    "case,code",
+    [
+        ("missing-base", "ADV-G76"),
+        ("malformed-base", "ADV-G76"),
+        ("unresolvable-base", "ADV-G76"),
+        ("no-checkout-fallback", "ADV-G76"),
+        ("source-not-base", "ADV-G76"),
+        ("missing-member", "ADV-G76"),
+        ("executable-member", "ADV-G76"),
+        ("symlink-member", "ADV-G76"),
+        ("gitlink-member", "ADV-G76"),
+        ("noncanonical-member", "ADV-G76"),
+        ("duplicate-key", "ADV-G76"),
+        ("attested-seed", "ADV-G76"),
+        ("altered-member", "ADV-G76"),
+        ("wrong-freeze", "ADV-G76"),
+        ("wrong-seed", "ADV-G62"),
+        ("wrong-relationship", "ADV-G20"),
+        ("wrong-source", "ADV-G87"),
+        ("wrong-freshness", "ADV-G74"),
+    ],
+)
+def test_genesis_recovery_uses_only_exact_attested_base(
+    attested_genesis: Path, tmp_path: Path, case: str, code: str
+) -> None:
+    root = attested_genesis
+    state = registry(root)
+    genesis = state["attestations"]["genesis"]
+    original_base = genesis["activationBaseCommit"]
+    if case == "missing-base":
+        del genesis["activationBaseCommit"]
+    elif case == "malformed-base":
+        genesis["activationBaseCommit"] = "HEAD~1"
+    elif case in {"unresolvable-base", "no-checkout-fallback"}:
+        genesis["activationBaseCommit"] = "0" * 40
+        if case == "no-checkout-fallback":
+            # Valid matching copies must not rescue an unobservable bound base.
+            for name, candidate_bytes in frozen_candidate(root)[0].items():
+                (root / "tests/fixtures/governance/candidate" / name).write_bytes(candidate_bytes)
+    elif case == "source-not-base":
+        genesis["activationBaseCommit"] = genesis["sourceSnapshotIdentity"]["value"]
+    elif case.endswith("member") or case in {"duplicate-key", "attested-seed"}:
+        # Construct an exact hostile Git object without replacing HEAD or
+        # resurrecting candidate files in the promoted subject's working tree.
+        index = tmp_path / "recovery-test-index"
+        env = {
+            **GIT_ENV,
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(root),
+            "GIT_INDEX_FILE": str(index),
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
+
+        def indexed(*args: str, content: str | None = None) -> str:
+            return subprocess.run(
+                ["git", *args],
+                cwd=root,
+                env=env,
+                input=content,
+                text=True,
+                capture_output=True,
+                check=True,
+            ).stdout.strip()
+
+        member = "tests/fixtures/governance/candidate/" + (
+            "state.json" if case == "attested-seed" else "consumers.json"
+        )
+        try:
+            indexed("read-tree", original_base)
+            if case == "missing-member":
+                indexed("update-index", "--force-remove", member)
+            else:
+                content = git(root, "show", original_base + ":" + member) + "\n"
+                mode = "100644"
+                if case == "executable-member":
+                    mode = "100755"
+                elif case == "symlink-member":
+                    mode, content = "120000", "state.json"
+                elif case == "noncanonical-member":
+                    content = json.dumps(json.loads(content))
+                elif case == "duplicate-key":
+                    content = content.replace(
+                        '"schemaVersion": 1', '"schemaVersion": 1, "schemaVersion": 1', 1
+                    )
+                elif case == "attested-seed":
+                    content = content.replace(
+                        '"genesis": {}', '"genesis": {"actor": "fixture:hostile"}'
+                    )
+                elif case == "altered-member":
+                    content = content.replace("Frozen pre-activation", "HOSTILE pre-activation", 1)
+                oid = indexed("hash-object", "-w", "--stdin", content=content)
+                if case == "gitlink-member":
+                    mode, oid = "160000", original_base
+                indexed("update-index", "--add", "--cacheinfo", mode, oid, member)
+            tree = indexed("write-tree")
+            genesis["activationBaseCommit"] = indexed(
+                "commit-tree", tree, "-p", original_base, "-m", "HOSTILE exact recovery base"
+            )
+        finally:
+            index.unlink(missing_ok=True)
+    elif case == "wrong-freeze":
+        genesis["candidateFreezeIdentity"]["bundleSha256"] = "0" * 64
+    elif case == "wrong-seed":
+        genesis["seedDigest"] = "0" * 64
+    elif case == "wrong-relationship":
+        genesis["relationshipEquivalenceDigest"] = "0" * 64
+    elif case == "wrong-source":
+        genesis["sourceSnapshotIdentity"]["value"] = "0" * 40
+    else:
+        genesis["activationFreshness"]["digest"] = "0" * 64
+    if case != "missing-base":
+        rehash_outer(state)
+    write_state(root, state, REGISTRY_PATH)
+    payload = assert_refused(root, code, path=REGISTRY_PATH)
+    assert "derived" not in payload
+    # The valid base still exists. It must not be selected in place of the
+    # exact hostile binding by HEAD-parent, matching-content or source guessing.
+    assert git(root, "cat-file", "-t", original_base) == "commit"
+    assert all(
+        (root / "tests/fixtures/governance/candidate" / n).exists()
+        == (case == "no-checkout-fallback")
+        for n in PROMOTION_MEMBERS
+    )
+    commit_registry(root, state, "HOSTILE genesis recovery evidence")
+    assert_history_refused(root, code, base=original_base)
+
+
+@pytest.mark.parametrize(
+    "case", ["surviving-one", "surviving-all", "missing-consumers", "changed-consumers"]
+)
+def test_positive_genesis_promoted_layout_is_load_bearing(
+    attested_genesis: Path, case: str
+) -> None:
+    root = attested_genesis
+    frozen, layout = frozen_candidate(root)
+    assert layout == "attested-activation-base"
+    if case.startswith("surviving"):
+        names = list(PROMOTION_MEMBERS) if case == "surviving-all" else ["state.json"]
+        for name in names:
+            (root / "tests/fixtures/governance/candidate" / name).write_bytes(frozen[name])
+        code = "ADV-G55"
+    else:
+        path = root / "governance/consumers.json"
+        if case == "missing-consumers":
+            path.unlink()
+        else:
+            path.write_bytes(path.read_bytes() + b"\n")
+        code = "ADV-G46"
+    assert_refused(root, code, path=REGISTRY_PATH)
+    refused = subprocess.run(
+        ["node", str(FROZEN_LOADER), str(root)], capture_output=True, text=True
+    )
+    assert refused.returncode != 0 and not refused.stdout
 
 
 @pytest.mark.parametrize(
@@ -6353,6 +6628,8 @@ def test_ex_g31_later_ordinary_completion_keeps_exact_genesis_set(attested_genes
     before_envelopes = json.dumps(state["attestations"], sort_keys=True)
     before_source = (root / "governance/genesis-source-manifest.json").read_bytes()
     ordinary_l8_completion(root, state)
+    write_state(root, state, REGISTRY_PATH)
+    assert run_renderer(root, "write").returncode == 0
     commit_registry(root, state, "isolated ordinary L8 completion after TEST genesis")
     assert_valid(root, REGISTRY_PATH)
     assert_history_clean(root, base=base)
@@ -6471,6 +6748,37 @@ def forged_test_genesis(
         "governance/genesis-source-manifest.json",
     )
     return state
+
+
+def promote_mutation_control(root: Path, subject: Path) -> None:
+    """Explicit opt-in for guard-removal controls, not general hostile cleanup.
+
+    Preserve every forged claim. Remove only unrelated layout failures so the
+    production refusal and mutant acceptance isolate the named evidence guard.
+    The deficient model must render its own claimed projections; neither these
+    bytes nor its result are valid production evidence.
+    """
+    frozen = {
+        name: (root / "tests/fixtures/governance/candidate" / name).read_bytes()
+        for name in PROMOTION_MEMBERS
+    }
+    forged = (root / REGISTRY_PATH).read_bytes()
+    promote_preparation_fixture(root)
+    (root / REGISTRY_PATH).write_bytes(forged)
+    migrate_test_activation_surfaces(root, frozen, json.loads(forged))
+    rendered = subprocess.run(
+        [
+            "node",
+            str(subject / "scripts/render-governance-state.mjs"),
+            "--root",
+            str(root),
+            "--write",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert rendered.returncode == 0, rendered.stderr
+    assert (root / REGISTRY_PATH).read_bytes() == forged
 
 
 def content_backed_historical_candidate(root: Path, **kwargs: Any) -> str:
@@ -6730,9 +7038,10 @@ def test_mut_g16_rehashed_historical_disposition_guards_are_load_bearing(
     write_state(root, manifest, path)
     rebind_test_candidate(root)
     forged_test_genesis(root)
+    subject = mutant_subject(tmp_path, [("governance/model/archived-openspec.mjs", old, new)])
+    promote_mutation_control(root, subject)
     payload = assert_refused(root, "ADV-G86", path=REGISTRY_PATH)
     assert {p["code"] for p in payload["problems"]} == {"ADV-G86"}, payload
-    subject = mutant_subject(tmp_path, [("governance/model/archived-openspec.mjs", old, new)])
     mutated, after = run_subject(subject, root)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
@@ -6905,15 +7214,7 @@ def test_genesis_task_7_2_projection_and_query_use_the_full_validated_seed(
     attested_genesis: Path,
 ) -> None:
     root = attested_genesis
-    for path, regions in [
-        ("docs/decisions/INDEX.md", ["decision-lifecycle"]),
-        ("docs/architecture/unresolved-decisions.md", ["question-summary", "resolution-banners"]),
-    ]:
-        target = root / path
-        text = target.read_text(encoding="utf-8")
-        for region in regions:
-            text += "\n" + BEGIN.format(region) + "\n" + END.format(region) + "\n"
-        target.write_text(text, encoding="utf-8")
+    # Positive installation already owns the registered markers and promotion.
     result = run_renderer(root, "write")
     assert result.returncode == 0, result.stderr
     first = target_bytes(root)
@@ -6925,7 +7226,7 @@ def test_genesis_task_7_2_projection_and_query_use_the_full_validated_seed(
     assert "| ADR-0020 | Proposed | — | U4 |" in rendered
     assert "| runner/GATE-U4 | gate | — | Unsatisfied |" in rendered
     assert "| runner/L9 | implementation-landing | Planned | NotReady |" in rendered
-    inventory = load_state(root, "tests/fixtures/governance/candidate/consumers.json")
+    inventory = load_state(root, "governance/consumers.json")
     for disposition in {row["disposition"] for row in inventory["rows"]}:
         count = sum(row["disposition"] == disposition for row in inventory["rows"])
         assert f"| {disposition} | {count} |" in rendered
@@ -6972,6 +7273,8 @@ def test_ex_g31_terminal_genesis_survives_multilevel_ordinary_replacement(
             ]
             node["replacement"]["attestation"]["actor"] = "fixture:ordinary-replacement"
     state = bind_replacements(root, state)
+    write_state(root, state, REGISTRY_PATH)
+    assert run_renderer(root, "write").returncode == 0
     commit_registry(root, state, "TEST ordinary replacement closure after genesis")
     assert_valid(root, REGISTRY_PATH)
     assert_history_clean(root, base=base)
@@ -7057,6 +7360,7 @@ def test_mut_g16_every_historical_preimage_field_is_load_bearing(
     # Stale outer hashes must not be what makes the production checker refuse it.
     rebind_test_candidate(root, subject=subject)
     forged_test_genesis(root, subject=subject)
+    promote_mutation_control(root, subject)
     assert_refused(root, "ADV-G88", path=REGISTRY_PATH)
     mutated, after = run_subject(subject, root)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
@@ -7096,6 +7400,9 @@ def test_adv_g83_mut_g16_fully_rehashed_genesis_cannot_replace_ordinary_transiti
     # This deliberately mixed ordinary-registry fixture is not a legitimate
     # promotion layout. Use the explicit hostile forger, never a loader fallback.
     state = forged_test_genesis(root, base=base)
+    # Isolate the forbidden history transition, not surviving candidate copies.
+    # The forged historical claim is unchanged; the ordinary base stays exact.
+    promote_preparation_fixture(root)
     commit_registry(root, state, "HOSTILE fully rehashed post-genesis historical fallback")
     assert_valid(root, REGISTRY_PATH)  # No stale digest is responsible for refusal.
     payload = assert_history_refused(root, "ADV-G83", "ADV-G89", base=base)
@@ -8476,18 +8783,21 @@ def run_preparation(
 
 def test_preparation_parity_with_equivalent_normal_test_attested_state(fresh_genesis: Path) -> None:
     root = fresh_genesis
+    frozen, _ = frozen_candidate(root)
     binding = preparation_binding(root)
-    add_preparation_markers(root)
-    initial_targets = target_bytes(root)
     test_state = install_test_genesis(root, binding["activationBaseCommit"])
+    initialize_test_activation_regions(root, test_state)
+    initial_targets = target_bytes(root)
     normal = run_renderer(root, "write")
     assert normal.returncode == 0, normal.stderr
     expected = target_bytes(root)
-    # Restore identical target input bytes, then promote the exact RAW seed.
+    # Restore identical target inputs and the exact RAW seed in the already
+    # promoted isolated subject; never resurrect candidate source copies.
     for path, value in initial_targets.items():
         (root / path).write_bytes(value)
     (root / "governance/STATE.md").unlink()
-    promote_preparation_fixture(root)
+    (root / REGISTRY_PATH).write_bytes(frozen["state.json"])
+    assert frozen_candidate(root) == (frozen, "promoted-unattested")
     raw = registry(root)
     assert {**raw, "attestations": test_state["attestations"]} == test_state
     assert raw["attestations"] == {"genesis": {}}
