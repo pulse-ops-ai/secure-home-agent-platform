@@ -60,6 +60,20 @@ freshness entry point takes an explicit full activation-base SHA:
 node scripts/governance/genesis/freshness.mjs --root . --base <full-commit-sha>
 ```
 
+The same command supports the two structural layouts needed by the activation
+sequence. Before promotion, all three current candidate members must exist and
+the promoted members must be absent; current candidate bytes remain the frozen
+input. After promotion, all three candidate sources must be absent and the three
+unattested canonical members must exist. Only then does the model recover the
+candidate from the exact explicit base and require byte-identical promotion,
+using the same promotion proof as projection preparation. Partial/mixed layouts,
+non-regular members, changed promoted bytes and attested state refuse. No other
+revision, current canonical seed or previous receipt supplies recovery evidence.
+
+Both invocations recompute the complete comparison below. The mandatory second
+invocation must reproduce the first receipt for the same candidate/base pair;
+successful promotion alone is not freshness, full validation or attestation.
+
 An equivalent result compares primitive tuples, relationship tuples, local
 evidence identities (including decision evidence, historical dispositions and
 observed members),

@@ -2140,12 +2140,93 @@ function validateFrozenSeedStructure(
     }
 }
 
+// Corresponds positionally to the one existing CANDIDATE_PATHS definition.
+const PROMOTED_CANDIDATE_PATHS = [
+  'governance/consumers.json',
+  'governance/genesis-source-manifest.json',
+  'governance/state.json',
+]
+
+function snapshotPathPresent(snapshot, path) {
+  return (
+    snapshot.entries.has(path) ||
+    snapshot.layout?.some((entry) => entry.path === path && entry.kind !== 'absent') === true
+  )
+}
+
+/** Only the explicit base can witness deleted frozen members. Shared by
+ * projection preparation and the mandatory post-promotion freshness rerun.
+ */
+function readPreparationBaseCandidate(activationBaseCommit, context, problems) {
+  if (!/^[0-9a-f]{40}$/u.test(activationBaseCommit ?? ''))
+    throw new Error('an explicit full activation-base commit is required')
+  const base = context.readSnapshot(activationBaseCommit)
+  if (base.commit !== activationBaseCommit)
+    throw new Error('candidate snapshot does not equal the exact activation-base commit')
+  if (
+    CANDIDATE_PATHS.some((path) => {
+      const entry = base.entries.get(path)
+      return entry?.mode !== '100644' || !(entry.bytes instanceof Uint8Array)
+    })
+  )
+    throw new Error('the base must carry all three frozen members as regular non-executable blobs')
+  const frozen = readFrozenCandidate(
+    { ...context, readBytes: (path) => base.entries.get(path)?.bytes },
+    problems,
+  )
+  return { base, frozen }
+}
+
+/** One byte-equivalence proof; neither caller can accept a second live copy,
+ * a partial promotion, changed bytes, or a populated owner/test envelope.
+ */
+function validateCandidatePromotion(frozen, checkout, problems) {
+  for (const [index, path] of CANDIDATE_PATHS.entries()) {
+    if (snapshotPathPresent(checkout, path))
+      addProblem(problems, 'ADV-G76', path, 'a candidate source member survives promotion')
+    const target = PROMOTED_CANDIDATE_PATHS[index]
+    const entry = checkout.entries.get(target)
+    if (
+      entry?.mode !== '100644' ||
+      !(entry.bytes instanceof Uint8Array) ||
+      contentDigest(entry.bytes) !== contentDigest(frozen.bytes.get(path))
+    )
+      addProblem(
+        problems,
+        'ADV-G76',
+        target,
+        'promoted bytes differ from the proven unattested bundle',
+      )
+  }
+}
+
 export function checkCandidateFreshness(activationBaseCommit, context) {
   const problems = []
-  const frozen = readFrozenCandidate(context, problems)
   let result
   try {
-    if (frozen) {
+    const checkout = context.readPreparationSnapshot([
+      'governance',
+      'tests/fixtures/governance/candidate',
+    ])
+    const candidates = CANDIDATE_PATHS.filter((path) => snapshotPathPresent(checkout, path))
+    const promoted = PROMOTED_CANDIDATE_PATHS.filter((path) => snapshotPathPresent(checkout, path))
+    let frozen
+    if (candidates.length === CANDIDATE_PATHS.length && promoted.length === 0) {
+      // First invocation: the CURRENT frozen files are load-bearing. Reading
+      // both sides from the base here would hide candidate mutation.
+      if (CANDIDATE_PATHS.some((path) => checkout.entries.get(path)?.mode !== '100644'))
+        throw new Error('current candidate members must be regular non-executable files')
+      frozen = readFrozenCandidate(
+        { ...context, readBytes: (path) => checkout.entries.get(path)?.bytes },
+        problems,
+      )
+    } else if (candidates.length === 0 && promoted.length === PROMOTED_CANDIDATE_PATHS.length) {
+      frozen = readPreparationBaseCandidate(activationBaseCommit, context, problems).frozen
+      if (frozen) validateCandidatePromotion(frozen, checkout, problems)
+    } else {
+      addProblem(problems, 'ADV-G76', '$.candidate', 'partial or mixed candidate/promotion layout')
+    }
+    if (frozen && problems.length === 0) {
       validateFrozenSeedStructure(frozen, context, problems)
       if (problems.length === 0)
         result = compareCandidateFreshness(frozen, activationBaseCommit, context, problems)
@@ -2201,21 +2282,13 @@ export function prepareProjectionState(binding, context) {
     if (problems.length) return { ok: false, problems }
     if (context.hasCompleteHistory?.() !== true)
       throw new Error('complete non-shallow history is required for pre-registry preparation')
-    const base = context.readSnapshot(activationBaseCommit)
-    if (CANDIDATE_PATHS.some((path) => base.entries.get(path)?.mode !== '100644'))
-      throw new Error(
-        'the base must carry all three frozen members as regular non-executable blobs',
-      )
+    const { base, frozen } = readPreparationBaseCandidate(activationBaseCommit, context, problems)
+    if (!frozen) return { ok: false, problems }
     if (
       base.entries.has('governance/state.json') ||
       context.commitsChangingPath(activationBaseCommit, 'governance/state.json').length !== 0
     )
       throw new Error('preparation requires a base with no current or prior canonical registry')
-    const frozen = readFrozenCandidate(
-      { ...context, readBytes: (path) => base.entries.get(path)?.bytes },
-      problems,
-    )
-    if (!frozen) return { ok: false, problems }
     if (frozen.identity.bundleSha256 !== candidateBundleSha256)
       addProblem(
         problems,
@@ -2240,11 +2313,6 @@ export function prepareProjectionState(binding, context) {
       )
     if (problems.length) return { ok: false, problems }
 
-    const promotedPaths = [
-      'governance/consumers.json',
-      'governance/genesis-source-manifest.json',
-      'governance/state.json',
-    ]
     const preparationRoots = [
       ...new Set([
         'governance',
@@ -2257,23 +2325,7 @@ export function prepareProjectionState(binding, context) {
     ].sort(compareText)
     const checkout = context.readPreparationSnapshot(preparationRoots)
     const preparationLayoutIdentity = projectionPreparationLayoutIdentity(checkout)
-    for (const [index, path] of CANDIDATE_PATHS.entries()) {
-      if (checkout.entries.has(path))
-        addProblem(problems, 'ADV-G76', path, 'a candidate source member survives promotion')
-      const target = promotedPaths[index]
-      const entry = checkout.entries.get(target)
-      if (
-        entry?.mode !== '100644' ||
-        !(entry.bytes instanceof Uint8Array) ||
-        contentDigest(entry.bytes) !== contentDigest(frozen.bytes.get(path))
-      )
-        addProblem(
-          problems,
-          'ADV-G76',
-          target,
-          'promoted bytes differ from the proven unattested bundle',
-        )
-    }
+    validateCandidatePromotion(frozen, checkout, problems)
     const adrPaths = (snapshot) =>
       [...snapshot.entries.keys()]
         .filter((path) => /^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(path))

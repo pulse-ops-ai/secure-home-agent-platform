@@ -6360,10 +6360,12 @@ def test_ex_g28_equivalent_different_commit_is_not_commit_only_freshness(
         ("source-artifact", "ADV-G73"),
     ],
 )
+@pytest.mark.parametrize("promoted", [False, True])
 def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
     fresh_genesis: Path,
     case: str,
     code: str,
+    promoted: bool,
 ) -> None:
     root = fresh_genesis
     candidate = root / "tests/fixtures/governance/candidate"
@@ -6394,11 +6396,16 @@ def test_adv_g69_to_g74_unchanged_candidate_cannot_hide_base_drift(
         source.write_bytes(source.read_bytes() + b"\nsource bytes changed, same derived counts\n")
     git(root, "add", "-A")
     git(root, "commit", "-qm", "hostile activation base: " + case)
+    if promoted:
+        promote_preparation_fixture(root)
     result, payload = run_freshness(root, git(root, "rev-parse", "HEAD"))
     assert result.returncode == 1, (payload, result.stderr)
     assert code in {problem["code"] for problem in payload["problems"]}, payload
     assert "result" not in payload, payload
-    assert before == {path.name: path.read_bytes() for path in candidate.glob("*.json")}
+    assert before == {
+        name: (root / target if promoted else candidate / name).read_bytes()
+        for name, target in PROMOTION_MEMBERS.items()
+    }
 
 
 @pytest.mark.parametrize(
@@ -8080,8 +8087,9 @@ def test_pr3_retained_knowledge_freshness_binds_candidate_source_witness(tmp_pat
 
 
 @pytest.mark.parametrize("path", PR3_RETAINED_KNOWLEDGE)
+@pytest.mark.parametrize("promoted", [False, True])
 def test_pr3_retained_knowledge_post_freeze_drift_refuses_same_fact_classes(
-    tmp_path: Path, path: str
+    tmp_path: Path, path: str, promoted: bool
 ) -> None:
     root = isolated_genesis(tmp_path)
     base = git(root, "rev-parse", "HEAD")
@@ -8113,6 +8121,8 @@ def test_pr3_retained_knowledge_post_freeze_drift_refuses_same_fact_classes(
     assert row["factClasses"] == next(
         row["factClasses"] for row in after["discovered"] if row["path"] == path
     )
+    if promoted:
+        promote_preparation_fixture(root)
     run, payload = run_freshness(root, changed_base)
     assert run.returncode == 1 and payload["ok"] is False, (payload, run.stderr)
     assert payload.get("result") is None
@@ -8338,6 +8348,210 @@ def promote_preparation_fixture(root: Path) -> None:
     (root / "governance").mkdir(exist_ok=True)
     for name, target in PROMOTION_MEMBERS.items():
         (root / "tests/fixtures/governance/candidate" / name).replace(root / target)
+
+
+def test_second_freshness_after_promotion_is_the_identical_complete_receipt(
+    fresh_genesis: Path,
+) -> None:
+    root = fresh_genesis
+    base = git(root, "rev-parse", "HEAD")
+    frozen, _ = frozen_candidate(root)
+    first_run, first = run_freshness(root, base)
+    assert first_run.returncode == 0 and first["ok"], (first, first_run.stderr)
+    receipt = first["result"]
+    assert receipt["outcome"] == "equivalent"
+    assert set(receipt["comparisonTupleIdentities"]) == {
+        "primitiveSourceTuples",
+        "relationshipTuples",
+        "localEvidenceIdentities",
+        "consumerInventory",
+    }
+    binding = {
+        "activationBaseCommit": base,
+        "candidateBundleSha256": receipt["candidateFreezeIdentity"]["bundleSha256"],
+        "activationFreshnessDigest": receipt["activationFreshnessDigest"],
+    }
+    promote_preparation_fixture(root)
+    add_preparation_markers(root)
+    prepared = run_preparation(root, binding)
+    assert prepared["ok"] and prepared["freshness"] == receipt, prepared
+    assert run_preparation(root, binding, write=False)["ok"]
+    # Representative authorized migration/enforcement edits are not the frozen
+    # evidence. Neither the second invocation nor preparation uses them as base.
+    (root / "openspec/changes/governance-state-substrate/design.md").write_text(
+        "# Fixture migration\n\nCurrent governance: governance/state.json.\n"
+    )
+    gate = root / "scripts/check-governance-state.mjs"
+    gate.write_bytes(gate.read_bytes() + b"\n// TEST-only enforcement seam observation.\n")
+    targets = target_bytes(root)
+    second_run, second = run_freshness(root, base)
+    assert second_run.returncode == 0 and second == first, (second, second_run.stderr)
+    assert target_bytes(root) == targets
+    for name, target in PROMOTION_MEMBERS.items():
+        assert (root / target).read_bytes() == frozen[name]
+        assert not (root / "tests/fixtures/governance/candidate" / name).exists()
+    assert registry(root)["attestations"] == {"genesis": {}}
+    # Freshness equivalence never substitutes for ordinary owner attestation.
+    assert run_checker(root, REGISTRY_PATH)[0].returncode != 0
+
+
+@pytest.mark.parametrize("name", PROMOTION_MEMBERS)
+@pytest.mark.parametrize("case", ["missing", "changed", "executable", "symlink", "directory"])
+@pytest.mark.parametrize("promoted", [False, True])
+def test_freshness_current_layout_members_are_load_bearing(
+    fresh_genesis: Path, name: str, case: str, promoted: bool
+) -> None:
+    root = fresh_genesis
+    base = git(root, "rev-parse", "HEAD")
+    candidate = "tests/fixtures/governance/candidate/" + name
+    original = (root / candidate).read_bytes()
+    if promoted:
+        promote_preparation_fixture(root)
+    target = root / (PROMOTION_MEMBERS[name] if promoted else candidate)
+    if case == "changed":
+        # Valid JSON but noncanonical bytes: recovery must not hide this change.
+        target.write_bytes(original + b"\n")
+    elif case == "executable":
+        target.chmod(0o755)
+    else:
+        target.unlink()
+        if case == "symlink":
+            target.symlink_to(root / "README.md")
+        elif case == "directory":
+            target.mkdir()
+    run, payload = run_freshness(root, base)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    # The untouched historical member still exists; no fallback can mask the
+    # defective CURRENT candidate or promoted member.
+    assert subprocess.check_output(["git", "show", f"{base}:{candidate}"], cwd=root) == original
+
+
+def test_first_freshness_cannot_replace_current_candidate_with_base_bytes(
+    fresh_genesis: Path, tmp_path: Path
+) -> None:
+    root = fresh_genesis
+    base = git(root, "rev-parse", "HEAD")
+    path = "tests/fixtures/governance/candidate/consumers.json"
+    inventory = load_state(root, path)
+    retained = next(r for r in inventory["rows"] if r["disposition"] == "retained-semantic-prose")
+    retained["retainedReason"] += " TEST-only changed frozen bytes."
+    write_state(root, inventory, path)  # Still canonical and structurally valid.
+    run, payload = run_freshness(root, base)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "ADV-G76" in {p["code"] for p in payload["problems"]}
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/model/validate.mjs",
+                "readBytes: (path) => checkout.entries.get(path)?.bytes",
+                "readBytes: (path) => "
+                "context.readSnapshot(activationBaseCommit).entries.get(path)?.bytes",
+            )
+        ],
+    )
+    mutant_run, mutant = run_subject(subject, root, base=base, freshness=True)
+    assert mutant_run.returncode == 0 and mutant["ok"], (mutant, mutant_run.stderr)
+    assert mutant["result"]["outcome"] == "equivalent"
+
+
+@pytest.mark.parametrize("case", ["one", "all", "directory", "attested"])
+def test_second_freshness_refuses_surviving_sources_or_attestations(
+    fresh_genesis: Path, case: str
+) -> None:
+    root = fresh_genesis
+    base = git(root, "rev-parse", "HEAD")
+    frozen, _ = frozen_candidate(root)
+    promote_preparation_fixture(root)
+    if case == "attested":
+        state = registry(root)
+        state["attestations"]["genesis"] = {"actor": "TEST-ONLY-NOT-OWNER"}
+        write_state(root, state, REGISTRY_PATH)
+    else:
+        names = list(PROMOTION_MEMBERS) if case == "all" else ["state.json"]
+        for name in names:
+            target = root / "tests/fixtures/governance/candidate" / name
+            if case == "directory":
+                target.mkdir()
+            else:
+                target.write_bytes(frozen[name])
+    run, payload = run_freshness(root, base)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+    assert {problem["code"] for problem in payload["problems"]} == {"ADV-G76"}
+
+
+@pytest.mark.parametrize("name", PROMOTION_MEMBERS)
+@pytest.mark.parametrize("case", ["missing", "changed", "executable", "symlink", "directory"])
+def test_second_freshness_recovers_only_regular_exact_base_candidate_members(
+    fresh_genesis: Path, name: str, case: str
+) -> None:
+    root = fresh_genesis
+    original_base = git(root, "rev-parse", "HEAD")
+    frozen, _ = frozen_candidate(root)
+    path = "tests/fixtures/governance/candidate/" + name
+    target = root / path
+    if case == "changed":
+        target.write_bytes(target.read_bytes() + b"\n")
+    elif case == "executable":
+        target.chmod(0o755)
+    else:
+        target.unlink()
+        if case == "symlink":
+            target.symlink_to("README.md")
+        elif case == "directory":
+            target.mkdir()
+            (target / "member").write_text("TEST non-regular candidate\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "TEST defective exact activation base")
+    bad_base = git(root, "rev-parse", "HEAD")
+    # Reconstruct a byte-exact promoted checkout from the GOOD frozen evidence;
+    # the explicitly requested BAD base may not fall back to its good parent.
+    git(root, "checkout", "--detach", original_base)
+    promote_preparation_fixture(root)
+    run, payload = run_freshness(root, bad_base)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+    assert "activationFreshnessDigest" not in json.dumps(payload)
+    assert all((root / target).read_bytes() == frozen[n] for n, target in PROMOTION_MEMBERS.items())
+
+
+@pytest.mark.parametrize("base", ["HEAD", "0" * 40, "c82fda72927464d813ec769aee53f4079ebe3b20"])
+def test_second_freshness_never_infers_a_candidate_bearing_base(
+    fresh_genesis: Path, base: str
+) -> None:
+    promote_preparation_fixture(fresh_genesis)
+    run, payload = run_freshness(fresh_genesis, base)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+
+
+def test_second_freshness_requires_observed_snapshot_identity(
+    fresh_genesis: Path, tmp_path: Path
+) -> None:
+    root = fresh_genesis
+    base = git(root, "rev-parse", "HEAD")
+    promote_preparation_fixture(root)
+    # Deliberately dishonest observation adapter, with identical bytes. The
+    # model must reject the mismatched identity rather than trust the adapter.
+    subject = mutant_subject(
+        tmp_path,
+        [
+            (
+                "governance/genesis/freshness.mjs",
+                "    readSnapshot: createGenesisReader(root),",
+                "    readSnapshot: (revision) => ({...createGenesisReader(root)(revision), "
+                "commit: '0'.repeat(40)}),",
+            )
+        ],
+    )
+    run, payload = run_subject(subject, root, base=base, freshness=True)
+    assert run.returncode == 1 and not payload["ok"], (payload, run.stderr)
+    assert payload.get("result") is None
+    assert any("snapshot does not equal the exact" in p["message"] for p in payload["problems"])
 
 
 def test_frozen_loader_pre_promotion(fresh_genesis: Path) -> None:
