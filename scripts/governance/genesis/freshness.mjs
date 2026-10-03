@@ -18,7 +18,12 @@ import { createHistoryReader, PRESENT } from '../history/index.mjs'
 import { readContainedBytes } from '../git-tree/contained-read.mjs'
 
 export function evaluateCandidateFreshness({ root, activationBaseCommit }) {
-  return checkCandidateFreshness(activationBaseCommit, preparationContext(root))
+  return checkCandidateFreshness(activationBaseCommit, {
+    ...preparationContext(root),
+    // Rules-free presence, modes and bytes, including ignored members under
+    // the model-selected roots. The model alone selects the valid lifecycle.
+    readPreparationSnapshot: (roots) => readProjectionPreparationSnapshot(root, roots),
+  })
 }
 
 /** Offline observations only; the model owns the complete D7.3a proof. */
