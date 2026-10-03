@@ -283,7 +283,7 @@ jobs:
       # semantic proof avoids every container build.
       - name: Set up QEMU (linux/arm64 emulation)
         if: steps.impact.outputs.build_required == 'true'
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
           # qemu-v10.2.3
