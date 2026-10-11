@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zlib
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -3773,13 +3774,17 @@ console.log(JSON.stringify(state))
     assert any(p["path"] == "$.adrs.ADR-0002.lifecycle" for p in payload["problems"])
 
 
-def test_a_target_only_proposed_decision_is_legal(tmp_path: Path) -> None:
-    root = history_repository(tmp_path, "proposed-introduction")
+def test_a_target_only_proposed_decision_is_legal(attested_genesis: Path) -> None:
+    # This positive crosses the canonical surface gate. A genesis-free model
+    # fixture without consumers cannot represent an activated predecessor.
+    root = attested_genesis
     base = git(root, "rev-parse", "HEAD")
-    state = registry(root)
-    introduce_decision(root, state, "Proposed")
+    state = introduce_proposed_consumer(root)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
+    assert_valid(root, REGISTRY_PATH)
     target = commit_registry(root, state, "introduce Proposed decision")
-    assert_history_clean(root, base=base, target=target)
+    assert assert_history_clean(root, base=base, target=target)["comparison"] == "pairwise"
 
 
 @pytest.mark.parametrize("regressed", ["Proposed", "Rejected"])
@@ -6006,6 +6011,442 @@ def introduce_proposed_consumer(root: Path) -> dict[str, Any]:
     write_state(root, inventory, "governance/consumers.json")
     write_state(root, state, REGISTRY_PATH)
     return state
+
+
+PR131_BASE = "c9d2409a20df15e262ac7c8be56eb53379b19f11"
+PR145_REVIEWED_HEAD = "1c72b19ffb5d1aa48ee05e793074ccfe38d2bba8"
+PR131_FIXTURE = REPOSITORY_ROOT / "tests/fixtures/governance/genesis/pr131-stopped.json"
+PR145_REVIEWED_PATHS = [
+    "scripts/governance/genesis/README.md",
+    "scripts/governance/model/README.md",
+    "scripts/governance/model/consumers.mjs",
+    "scripts/governance/model/history.mjs",
+    "scripts/governance/model/validate.mjs",
+    "scripts/render-governance-state.mjs",
+    "tests/fixtures/governance/genesis/README.md",
+    "tests/fixtures/governance/genesis/frozen.mjs",
+    "tests/fixtures/governance/genesis/objects.mjs",
+    "tests/test_governance_state.py",
+]
+
+
+def pr131_bytes(packed: dict[str, Any]) -> bytes:
+    raw = zlib.decompress(base64.b64decode("".join(packed["zlibBase64"]), validate=True))
+    assert hashlib.sha256(raw).hexdigest() == packed["sha256"]
+    return raw
+
+
+def pr131_git_bytes(root: Path, *args: str, data: bytes | None = None) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        input=data,
+        check=True,
+        capture_output=True,
+        env={**os.environ, **GIT_ENV, "GIT_NO_REPLACE_OBJECTS": "1"},
+    ).stdout
+
+
+def pr131_clone(source: Path, root: Path) -> Path:
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", "--no-checkout", str(source), str(root)],
+        check=True,
+        capture_output=True,
+        env={**os.environ, **GIT_ENV, "GIT_NO_REPLACE_OBJECTS": "1"},
+    )
+    git(root, "checkout", "--quiet", "--detach", git(source, "rev-parse", "HEAD"))
+    return root
+
+
+@pytest.fixture(scope="module")
+def pr131_stopped_subject(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any]]:
+    """Exact read-only stop evidence replayed ONLY into a disposable repository.
+
+    The compressed patch/receipts are historical test bytes, not another live
+    governance surface. Their independently recorded hashes are checked before
+    use; no local evidence directory, real activation worktree, or guessed base
+    is consulted. ADR-0014 promotion determination: this adds reproduction
+    evidence for the existing contract, not an architectural or knowledge rule.
+    """
+    data = json.loads(PR131_FIXTURE.read_bytes())
+    proof = data["stopProof"]
+    assert data["sourceBase"] == proof["base"] == PR131_BASE
+    assert data["reviewedOverlay"] == PR145_REVIEWED_HEAD
+    assert data["stopProofBytes"]["sha256"] == (
+        "bb6e7814aaabd8243006d03ef15ea885d9d7d2d51bcc8fd994e148f327f0adff"
+    )
+    assert json.loads(pr131_bytes(data["stopProofBytes"])) == proof
+    assert b"stopped at required ordinary-history regression" in pr131_bytes(data["stopNote"])
+    patch = pr131_bytes(data["completeDiff"])
+    assert (
+        data["completeDiff"]["sha256"]
+        == proof["completeDiffSha256"]
+        == ("f7c80d4a427939c8bd4def9d1e17f036e9b7822c764c99b1cbff73cc400b5469")
+    )
+    assert data["firstFreshness"] == proof["firstFreshness"]
+    assert data["firstFreshness"]["ok"] is True
+    assert data["firstFreshness"]["result"]["activationBaseCommit"] == PR131_BASE
+    root = pr131_clone(REPOSITORY_ROOT, tmp_path_factory.mktemp("pr131-stop") / "subject")
+    git(root, "checkout", "--quiet", "--detach", PR131_BASE)
+    intent = root / data["intentPath"]
+    intent.write_bytes(pr131_bytes(data["intentBytes"]))
+    assert hashlib.sha256(intent.read_bytes()).hexdigest() == proof["intent"]["sha256"]
+    git(root, "add", data["intentPath"])
+    assert git(root, "write-tree") == proof["intent"]["tree"]
+    commit = (
+        pr131_git_bytes(
+            root,
+            "hash-object",
+            "-t",
+            "commit",
+            "-w",
+            "--stdin",
+            data=pr131_bytes(data["intentCommit"]),
+        )
+        .decode()
+        .strip()
+    )
+    assert commit == proof["intent"]["commit"]
+    git(root, "reset", "--hard", commit)
+    assert git(root, "rev-parse", "HEAD^") == PR131_BASE
+    pr131_git_bytes(root, "apply", "--binary", "-", data=patch)
+    for row in proof["files"]:
+        path = root / row["path"]
+        assert path.exists() is row["present"], row["path"]
+        if row["present"]:
+            assert not path.is_symlink() and path.is_file()
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"], row["path"]
+            path.chmod(row["mode"] & 0o777)
+            assert path.stat().st_mode == row["mode"], row["path"]
+    untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0")
+    changed = sorted(set(git(root, "diff", "--name-only").splitlines() + untracked) - {""})
+    assert changed == data["paths"] == proof["changedPaths"] == [r["path"] for r in proof["files"]]
+    assert len(changed) == proof["changedPathCount"] == 87
+    assert pr131_git_bytes(root, "status", "--porcelain=v1").decode() == data["status"]
+    assert git(root, "diff", "--cached") == ""
+    complete = pr131_git_bytes(root, "diff", "--binary", "--full-index", "--no-ext-diff")
+    for path in untracked:
+        result = subprocess.run(
+            ["git", "diff", "--no-index", "--binary", "--full-index", "--", "/dev/null", path],
+            cwd=root,
+            capture_output=True,
+            env={**os.environ, **GIT_ENV, "GIT_NO_REPLACE_OBJECTS": "1"},
+        )
+        assert result.returncode == 1
+        complete += result.stdout
+    assert complete == patch
+    scopes, inventory = pr3_scope_inputs()
+    assert sorted(assert_pr3_consumer_scope(scopes, inventory)) == changed
+    assert (root / "governance/consumers.json").read_bytes() == pr131_git_bytes(
+        root, "show", PR131_BASE + ":tests/fixtures/governance/candidate/consumers.json"
+    )
+    for member in data["firstFreshness"]["result"]["candidateFreezeIdentity"]["members"]:
+        raw = pr131_git_bytes(root, "show", PR131_BASE + ":" + member["path"])
+        assert hashlib.sha256(raw).hexdigest() == member["contentSha256"]
+    # Every shared semantic implementation byte is the old exact-base byte;
+    # the four enforcement entry-point edits are only the recorded stop patch.
+    for path in git(root, "ls-files", "scripts/governance").splitlines():
+        if path.endswith(".mjs"):
+            assert (root / path).read_bytes() == pr131_git_bytes(
+                root, "show", PR131_BASE + ":" + path
+            )
+    git(root, "add", "-A")
+    assert (
+        git(root, "write-tree")
+        == data["reconstructedTree"]
+        == ("c9b7cf1920d86ac11b8f0fac552c92f2801af220")
+    )
+    git(root, "commit", "-qm", "TEST preserved stop; no activation authority")
+    return root, data
+
+
+def pr145_overlay(root: Path) -> None:
+    """Only the reviewed PR delta; the current test file is this evidence correction."""
+    assert git(
+        REPOSITORY_ROOT, "diff", "--name-only", PR131_BASE, PR145_REVIEWED_HEAD
+    ).splitlines() == (PR145_REVIEWED_PATHS)
+    for name in PR145_REVIEWED_PATHS:
+        reviewed = pr131_git_bytes(REPOSITORY_ROOT, "show", PR145_REVIEWED_HEAD + ":" + name)
+        if name != "tests/test_governance_state.py":
+            assert (REPOSITORY_ROOT / name).read_bytes() == reviewed, name
+        target = root / name
+        target.write_bytes(
+            (REPOSITORY_ROOT / name).read_bytes()
+            if name == "tests/test_governance_state.py"
+            else reviewed
+        )
+
+
+def pr131_current(
+    root: Path, implementation: Path
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    result = subprocess.run(
+        [
+            "node",
+            str(implementation / "scripts/check-governance-state.mjs"),
+            "--root",
+            str(root),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result, json.loads(result.stdout)
+
+
+def pr131_render(root: Path, implementation: Path) -> None:
+    result = subprocess.run(
+        [
+            "node",
+            str(implementation / "scripts/render-governance-state.mjs"),
+            "--root",
+            str(root),
+            "--write",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def pr131_row_bytes(raw: bytes) -> dict[str, bytes]:
+    """Slice authored row bytes; equality is not a Python reserialization oracle."""
+    text = raw.decode()
+    cursor = text.index("[", text.index('"rows"')) + 1
+    result: dict[str, bytes] = {}
+    decoder = json.JSONDecoder()
+    while True:
+        while text[cursor].isspace() or text[cursor] == ",":
+            cursor += 1
+        if text[cursor] == "]":
+            return result
+        row, end = decoder.raw_decode(text, cursor)
+        assert row["path"] not in result
+        result[row["path"]] = text[cursor:end].encode()
+        cursor = end
+
+
+def test_pr131_stopped_old_failure_and_exact_inventory_transition(
+    pr131_stopped_subject: tuple[Path, dict[str, Any]], tmp_path: Path
+) -> None:
+    old, evidence = pr131_stopped_subject
+    root = pr131_clone(old, tmp_path / "transition")
+    # First replay the actual stopped positive, using the unchanged old test.
+    failed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-x",
+            "--tb=short",
+            "--basetemp",
+            str(tmp_path / "old-test"),
+            evidence["stopProof"]["failure"]["test"],
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert failed.returncode == 1 and "1 failed" in failed.stdout, failed.stdout + failed.stderr
+    minimal = sorted(
+        {path.resolve() for path in (tmp_path / "old-test").glob("*/proposed-introduction")}
+    )
+    assert len(minimal) == 1
+    run, stopped = run_history(
+        minimal[0],
+        base=git(minimal[0], "rev-parse", "HEAD^"),
+        checker=old / "scripts/check-governance-history.mjs",
+    )
+    assert run.returncode == 1 and stopped["comparison"] == "pairwise"
+    assert stopped["problems"] == evidence["stopProof"]["failure"]["payload"]["problems"]
+
+    # Keep the exact stopped tree, adding only synthetic envelopes/projections.
+    # Do not replace its 72 authored pointers with generic fixture prose.
+    frozen = (root / "governance/consumers.json").read_bytes()
+    generated = subprocess.run(
+        [
+            "node",
+            str(old / "tests/fixtures/governance/genesis/envelope.mjs"),
+            str(root),
+            PR131_BASE,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    state = json.loads(generated.stdout)
+    assert {**state, "attestations": {"genesis": {}}} == registry(root)
+    genesis = state["attestations"]["genesis"]
+    first = evidence["firstFreshness"]["result"]
+    assert genesis["activationBaseCommit"] == PR131_BASE
+    assert genesis["candidateFreezeIdentity"] == first["candidateFreezeIdentity"]
+    assert genesis["activationFreshness"]["digest"] == first["activationFreshnessDigest"]
+    assert all(a["actor"] == "fixture:genesis-mechanism" for a in state["attestations"].values())
+    (root / REGISTRY_PATH).write_text(generated.stdout)
+    pr131_render(root, old)
+    run, predecessor = pr131_current(root, old)
+    assert run.returncode == 0 and predecessor["ok"], (predecessor, run.stderr)
+    base = commit_registry(root, state, "TEST activation of exact stopped subject")
+    continuation = commit_registry(root, state, "TEST unchanged predecessor continuation")
+    run, unchanged = run_history(
+        root, base=base, target=continuation, checker=old / "scripts/check-governance-history.mjs"
+    )
+    assert run.returncode == 0 and unchanged["comparison"] == "pairwise", unchanged
+    assert (root / "governance/consumers.json").read_bytes() == frozen
+    pointers = [
+        r["path"] for r in json.loads(frozen)["rows"] if r["disposition"] == "stable-pointer"
+    ]
+    assert len(pointers) == 72
+    assert all((root / p).read_bytes() == (old / p).read_bytes() for p in pointers)
+
+    proposed = introduce_proposed_consumer(root)
+    extended = (root / "governance/consumers.json").read_bytes()
+    (root / "governance/consumers.json").write_bytes(frozen)
+    pr131_render(root, old)
+    missing = commit_registry(root, proposed, "TEST proposal without its row")
+    run, missing_row = run_history(
+        root, base=base, target=missing, checker=old / "scripts/check-governance-history.mjs"
+    )
+    assert run.returncode == 1 and missing_row["comparison"] == "pairwise"
+    assert {p["code"] for p in missing_row["problems"]} == {"ADV-G46"}, missing_row
+    assert any(
+        p["message"] == "discovered governance surface has no inventory row"
+        for p in missing_row["problems"]
+    )
+    (root / "governance/consumers.json").write_bytes(extended)
+    added = commit_registry(root, proposed, "TEST proposal with its required row")
+    run, equality = run_history(
+        root, base=base, target=added, checker=old / "scripts/check-governance-history.mjs"
+    )
+    assert run.returncode == 1 and equality["comparison"] == "pairwise"
+    # The old model cannot derive target questions after the inventory refusal,
+    # so pairwise history also reports the two missing derived resolutions.
+    assert {p["code"] for p in equality["problems"]} == {"ADV-G46", "ADV-G35"}, equality
+    assert {(p["path"], p["message"]) for p in equality["problems"] if p["code"] == "ADV-G35"} == {
+        ("$.questions.U6", "a resolved question became unresolved"),
+        ("$.questions.U7", "a resolved question became unresolved"),
+    }
+    assert any(
+        p["message"] == "the evaluated revision must carry the unchanged frozen consumer inventory"
+        for p in equality["problems"]
+    )
+
+    pr145_overlay(root)
+    pr131_render(root, root)
+    run, current = pr131_current(root, root)
+    assert run.returncode == 0 and current["ok"], (current, run.stderr)
+    target = commit_registry(root, proposed, "TEST same proposal with reviewed PR-145 overlay")
+    run, history = run_history(
+        root, base=base, target=target, checker=root / "scripts/check-governance-history.mjs"
+    )
+    assert run.returncode == 0 and history["ok"] and history["comparison"] == "pairwise", history
+    after = (root / "governance/consumers.json").read_bytes()
+    assert after == extended
+    before_rows, after_rows = pr131_row_bytes(frozen), pr131_row_bytes(after)
+    assert len(after_rows) == len(before_rows) + 1
+    assert all(after_rows[path] == raw for path, raw in before_rows.items())
+    assert set(after_rows) - set(before_rows) == {proposed["adrs"][-1]["path"]}
+    assert pr131_git_bytes(root, "show", base + ":governance/consumers.json") == frozen
+    assert (
+        pr131_git_bytes(
+            root, "show", PR131_BASE + ":tests/fixtures/governance/candidate/consumers.json"
+        )
+        == frozen
+    )
+    assert registry(root)["attestations"] == state["attestations"]
+    receipt = {
+        "sourceBase": PR131_BASE,
+        "reviewedOverlay": PR145_REVIEWED_HEAD,
+        "stoppedTree": evidence["reconstructedTree"],
+        "stoppedDiffSha256": evidence["completeDiff"]["sha256"],
+        "verifiedChangedPaths": evidence["paths"],
+        "stoppedHistory": stopped,
+        "baselineContinuation": unchanged,
+        "oldMissingRow": missing_row,
+        "oldFrozenEquality": equality,
+        "newCurrent": {"ok": current["ok"], "consumerCounts": current["derived"]["consumerCounts"]},
+        "newHistory": history,
+        "frozenInventorySha256": hashlib.sha256(frozen).hexdigest(),
+        "predecessorRowsByteIdentical": len(before_rows),
+        "currentRows": len(after_rows),
+    }
+    # Outside the subject: a rerunner can inspect the actual CLI receipts without
+    # adding a discovered surface to the repository whose behavior is measured.
+    (tmp_path / "pr131-transition-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+
+
+def test_pr131_stopped_post_enforcement_controls(
+    pr131_stopped_subject: tuple[Path, dict[str, Any]], tmp_path: Path
+) -> None:
+    old, evidence = pr131_stopped_subject
+    root = pr131_clone(old, tmp_path / "controls")
+    _, before = pr131_current(root, old)
+    assert not before["ok"]
+    assert Counter(p["code"] for p in before["problems"]) == {
+        "ADV-G90": 6,
+        "ADV-G51": 7,
+        "ADV-G76": 1,
+    }
+    pr145_overlay(root)
+    _, after = pr131_current(root, root)
+    assert after["problems"] == before["problems"], after
+    collect = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            *evidence["postEnforcementSelection"],
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    nodes = [line for line in collect.stdout.splitlines() if line.startswith("tests/")]
+    assert nodes == evidence["collectedPostEnforcementControls"]
+    assert nodes[:23] == evidence["previouslyPassingControls"]
+    assert evidence["previouslyPassingControlCount"] == 23 and len(nodes) == 28
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-x",
+            "--tb=short",
+            evidence["stopProof"]["failure"]["test"],
+            *evidence["postEnforcementSelection"],
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "29 passed" in result.stdout, result.stdout
+
+
+def test_pr131_portable_evidence_does_not_change_discovery_or_frozen_scope() -> None:
+    script = """
+import {readFileSync} from 'node:fs'
+import {discoverConsumers} from './scripts/governance/model/consumers.mjs'
+const path='tests/fixtures/governance/genesis/pr131-stopped.json'
+const entries=new Map([[path,{bytes:readFileSync(path)}]])
+console.log(JSON.stringify(discoverConsumers({entries})))
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(result.stdout) == []
+    scopes, inventory = pr3_scope_inputs()
+    evidence = json.loads(PR131_FIXTURE.read_bytes())
+    assert sorted(assert_pr3_consumer_scope(scopes, inventory)) == evidence["paths"]
 
 
 def test_post_genesis_new_proposal_preserves_genesis_and_evolves_consumers(
