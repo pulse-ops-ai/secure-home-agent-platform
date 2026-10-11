@@ -7481,10 +7481,26 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
     )
     predicate = "context.checkout.tree(value.archiveRoot)?.size === 0" if empty else "true"
     replacement = f"  if ({predicate}) return true // MUTANT: historical profile bypass\n" + anchor
-    subject = mutant_subject(
-        tmp_path, [("governance/model/archived-openspec.mjs", anchor, replacement)]
-    )
+    archive_change = ("governance/model/archived-openspec.mjs", anchor, replacement)
+    subject = mutant_subject(tmp_path, [archive_change])
     mutated, after = run_subject(subject, root)
+    if empty:
+        # Current inventory membership now independently protects these paths.
+        # Each single guard removal must still refuse; only the explicit double
+        # mutant may admit the empty archive. Production keeps both guards.
+        assert mutated.returncode != 0
+        assert {problem["code"] for problem in after["problems"]} == {"ADV-G46"}, after
+        inventory_change = (
+            "governance/model/consumers.mjs",
+            "    if (!CANDIDATE_PATHS.includes(row.path) && !snapshot.entries.has(row.path))\n",
+            "    if (false) // MUTANT: missing consumer path bypass\n",
+        )
+        membership_subject = mutant_subject(tmp_path / "membership-only", [inventory_change])
+        membership_run, membership = run_subject(membership_subject, root)
+        assert membership_run.returncode != 0
+        assert {problem["code"] for problem in membership["problems"]} == {"ADV-G85"}, membership
+        combined = mutant_subject(tmp_path / "combined", [archive_change, inventory_change])
+        mutated, after = run_subject(combined, root)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
 
