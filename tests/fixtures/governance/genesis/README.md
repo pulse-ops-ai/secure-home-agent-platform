@@ -28,9 +28,10 @@ exercise the complete activated layout, not coexisting candidate copies.
 
 Ordinary production validation recovers immutable frozen members only from the
 populated genesis envelope's exact activation base. The current registry may
-legally evolve after genesis; only this test loader's activation-layout recovery
-requires the envelope-only state delta described below. An unattested promoted
-state still refuses ordinary validation and uses the dedicated preparation path.
+legally evolve after genesis. Repository setup selects the loader's explicit
+historical-evidence mode; its default activation-layout mode retains the
+envelope-only state delta described below. An unattested promoted state still
+refuses ordinary validation and uses the dedicated preparation path.
 
 `rebind.mjs` constructs fully rehashed hostile or alternative-history **test**
 copies. It deliberately does not validate those claims; production current and
@@ -72,13 +73,24 @@ copies, attest anything, or validate activation authority.
 | `promoted-unattested` | All three promoted members, with all candidate members absent and exactly the raw genesis placeholder. |
 | `attested-activation-base` | Git objects at the canonical genesis envelope's exact `activationBaseCommit`, never a guessed predecessor. |
 
-Post-attestation recovery verifies the complete content-bound freeze, unchanged
+Default post-attestation recovery verifies the complete content-bound freeze, unchanged
 promoted manifest/inventory, the two envelope bindings, and byte equality of the
 canonical state with the raw seed after removing **only** those two envelopes.
 It does not strip arbitrary state changes or authenticate the human actor. Full
 production current/history checks and human provenance review remain separate.
 Partial, duplicate, missing, linked, noncanonical and misbound layouts refuse;
 one surviving candidate member cannot be silently preferred over promoted data.
+
+Repository setup (`objects.mjs` and Python's `frozen_candidate`) explicitly selects
+`evidenceOnly: true` / `--evidence-only`. It recovers the same exact historical
+bytes and verifies the same freeze, manifest and envelope bindings, while allowing
+the current registry and inventory to evolve. It validates current inventory
+coverage and preservation through the production consumer model; it does not
+substitute live bytes for frozen evidence or claim transition legality. Full
+current/history validation remains separate. This selection happens before any
+attempt at activation-layout validation, never as a fallback from a refusal.
+Envelope creation keeps the strict default, so an evolved registry cannot be
+used for another synthetic genesis ceremony.
 
 Python delegates byte selection to this loader. Tests that require pre-activation
 history explicitly build a **counterfactual temporary fixture**: before real owner
@@ -89,7 +101,9 @@ differ during task 8.4; they do not select that historical checkpoint. After
 attestation the source is the exact attested activation base.
 The frozen input bytes still come from the lifecycle loader,
 not that fixture checkpoint. Current test subjects outside the concrete migration
-scope are copied into the fixture, and the exact three raw members are materialized
+scope are copied into the fixture; decision documents stay at their source-era
+bytes, and later decisions are not copied into the counterfactual seed. The exact
+three raw members are materialized
 there. This is not the repository's activation-base selection or new freshness
 evidence. All normal freshness, refusal and history tests then use production
 entry points on that isolated fixture.

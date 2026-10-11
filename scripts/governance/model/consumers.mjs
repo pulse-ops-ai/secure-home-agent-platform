@@ -1,7 +1,8 @@
-/** The closed PR-2 inventory. Discovery is across all tracked bytes, not a glob. */
+/** Closed genesis and current inventories. Discovery scans every tracked byte. */
 import { canonicalSerialize, decodeUtf8, isObject, parseStrictJson } from './canonical.mjs'
 import { BRIDGE_RECORDS } from './decision-evidence.mjs'
 import { CANDIDATE_PATHS } from './digests.mjs'
+import { isCanonicalRepoPath } from './paths.mjs'
 
 export const CONSUMER_DISPOSITIONS = Object.freeze([
   'generated-region',
@@ -210,4 +211,123 @@ export function validateConsumerInventory(
     if (!seen.has(path))
       add('ADV-G46', '$.consumers.' + path, 'detected governance surface has no inventory row')
   return problems.length === start
+}
+
+const ROW_FIELDS =
+  'disposition,factClasses,generatedRegions,historicalIdentity,migrationLanding,path,retainedReason'
+const FACT_CLASSES = new Set(CLAIMS.map(([name]) => name))
+
+// These exact artifacts are owned by the registry, genesis proof and renderer.
+// This is not a directory exemption, and does not include governance/README.md.
+const CANONICAL_ARTIFACTS = new Set([
+  'governance/state.json',
+  'governance/consumers.json',
+  'governance/genesis-source-manifest.json',
+  'governance/STATE.md',
+])
+
+function decisionConsumerRow(path, factClasses) {
+  return {
+    path,
+    factClasses,
+    disposition: 'retained-semantic-prose',
+    generatedRegions: [],
+    historicalIdentity: null,
+    migrationLanding: null,
+    retainedReason:
+      'Decision text and its checked lifecycle header remain authored; ' +
+      'the registry owns current lifecycle and terminal bytes remain digest-bound.',
+  }
+}
+
+/** Preserve every predecessor row exactly. No disappearance or reclassification
+ * is implicit in a weaker scan result, a file move, or a lifecycle transition.
+ */
+export function preserveConsumerRows(before, after, problems) {
+  const target = new Map((after?.rows ?? []).map((row) => [row?.path, row]))
+  for (const row of before?.rows ?? [])
+    if (
+      isObject(row) &&
+      canonicalSerialize(row) !== canonicalSerialize(target.get(row.path) ?? null)
+    )
+      problems.push({
+        code: 'ADV-G46',
+        path: '$.consumers.' + row.path,
+        message: 'existing consumer rows cannot be removed or reclassified',
+      })
+}
+
+/** Current coverage is separate from the immutable pre-migration observation.
+ * The only v1 extension is an explicit row for a registered decision. History
+ * proves that row and decision first arrived together in the initial lifecycle.
+ */
+export function validateCurrentConsumerInventory(bytes, frozen, state, snapshot, problems) {
+  const add = (path, message) => problems.push({ code: 'ADV-G46', path, message })
+  let inventory
+  try {
+    const text = decodeUtf8(bytes)
+    inventory = parseStrictJson(text)
+    if (canonicalSerialize(inventory) !== text) throw new Error('noncanonical consumer inventory')
+    if (
+      !isObject(inventory) ||
+      inventory.schemaVersion !== 1 ||
+      !Array.isArray(inventory.rows) ||
+      Object.keys(inventory).sort().join(',') !== 'rows,schemaVersion'
+    )
+      throw new Error('inventory is a closed version-one rows object')
+  } catch (error) {
+    add('governance/consumers.json', error.message)
+    return {}
+  }
+  const rows = new Map()
+  const frozenPaths = new Set(frozen.rows.map((row) => row.path))
+  const adrs = new Map((state.adrs ?? []).map((adr) => [adr.path, adr]))
+  const discovered = discoverConsumers(snapshot)
+  for (const row of inventory.rows) {
+    const path = '$.consumers.' + row?.path
+    if (
+      !isObject(row) ||
+      Object.keys(row).sort().join(',') !== ROW_FIELDS ||
+      !isCanonicalRepoPath(row.path) ||
+      !Array.isArray(row.factClasses) ||
+      row.factClasses.some((name) => !FACT_CLASSES.has(name)) ||
+      new Set(row.factClasses).size !== row.factClasses.length ||
+      row.factClasses.join(',') !== [...row.factClasses].sort().join(',')
+    ) {
+      add(path, 'invalid closed consumer row')
+      continue
+    }
+    if (rows.has(row.path)) add(path, 'duplicate consumer path')
+    rows.set(row.path, row)
+    if (!CANDIDATE_PATHS.includes(row.path) && !snapshot.entries.has(row.path))
+      add(path, 'registered consumer path is absent')
+    if (!frozenPaths.has(row.path)) {
+      const adr = adrs.get(row.path)
+      if (
+        !adr ||
+        !row.path.startsWith('docs/decisions/' + adr.id + '-') ||
+        !row.path.endsWith('.md') ||
+        !row.factClasses.includes('decision-lifecycle') ||
+        canonicalSerialize(row) !==
+          canonicalSerialize(decisionConsumerRow(row.path, row.factClasses))
+      )
+        add(path, 'new consumer rows are limited to explicitly registered decision mirrors')
+    }
+  }
+  preserveConsumerRows(frozen, inventory, problems)
+  for (const { path, factClasses } of discovered) {
+    if (CANONICAL_ARTIFACTS.has(path)) continue
+    const row = rows.get(path)
+    if (!row) add('$.consumers.' + path, 'detected governance surface has no inventory row')
+    else if (factClasses.some((name) => !row.factClasses.includes(name)))
+      add('$.consumers.' + path, 'detected fact class is not covered by the registered row')
+  }
+  // Enumerate files as well as claims: malformed or absent lifecycle prose must
+  // not hide an ADR from the registry/header checks.
+  for (const path of snapshot.entries.keys())
+    if (/^docs\/decisions\/ADR-\d{4}-.+\.md$/u.test(path) && !adrs.has(path))
+      add('$.consumers.' + path, 'decision file has no registry record')
+  for (const path of adrs.keys())
+    if (!rows.has(path)) add('$.consumers.' + path, 'registered decision has no consumer row')
+  return { inventory, discovered }
 }

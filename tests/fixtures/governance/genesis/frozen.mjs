@@ -21,6 +21,8 @@ import {
   containedPath,
   readContainedBytes,
 } from '../../../../scripts/governance/git-tree/contained-read.mjs'
+import { readCheckoutSnapshot } from '../../../../scripts/governance/genesis/observations.mjs'
+import { validateCurrentConsumerInventory } from '../../../../scripts/governance/model/consumers.mjs'
 
 export const PROMOTED_PATHS = [
   'governance/consumers.json',
@@ -128,7 +130,7 @@ export function readRawRebindInputsForTest(root) {
   }
 }
 
-export function loadFrozenCandidateForTest(root) {
+export function loadFrozenCandidateForTest(root, { evidenceOnly = false } = {}) {
   const candidate = CANDIDATE_PATHS.map((path) => memberBytes(root, path))
   const promoted = PROMOTED_PATHS.map((path) => memberBytes(root, path))
   const count = (values) => values.filter((value) => value !== undefined).length
@@ -160,18 +162,33 @@ export function loadFrozenCandidateForTest(root) {
     gitBytesForTest(root, genesis.activationBaseCommit, path),
   )
   const frozen = rawMembers(bytes, 'attested-activation-base')
-  requireFact(
-    Buffer.from(promoted[0]).equals(bytes[0]),
-    'promoted consumers differ from frozen bytes',
-  )
+  if (evidenceOnly) {
+    // Explicit historical-evidence selection for repository test setup. Live
+    // bytes never replace recovered seed/inventory bytes. Use the production
+    // coverage/classification rules; transition legality still needs history.
+    const problems = []
+    validateCurrentConsumerInventory(
+      promoted[0],
+      parsed(bytes[0]),
+      state,
+      readCheckoutSnapshot(root),
+      problems,
+    )
+    requireFact(problems.length === 0, 'invalid current inventory: ' + JSON.stringify(problems))
+  } else
+    requireFact(
+      Buffer.from(promoted[0]).equals(bytes[0]),
+      'promoted consumers differ from frozen bytes',
+    )
   requireFact(
     Buffer.from(promoted[1]).equals(bytes[1]),
     'promoted manifest differs from frozen bytes',
   )
-  requireFact(
-    canonicalSerialize({ ...state, attestations: { genesis: {} } }) === decodeUtf8(bytes[2]),
-    'canonical state changed outside the two task-8.7 envelopes',
-  )
+  if (!evidenceOnly)
+    requireFact(
+      canonicalSerialize({ ...state, attestations: { genesis: {} } }) === decodeUtf8(bytes[2]),
+      'canonical state changed outside the two task-8.7 envelopes',
+    )
   const preimage = genesisAttestationPreimage(genesis)
   const fields = Object.keys(preimage).filter(
     (key) => !['schemaVersion', 'priorStateDigest'].includes(key),
@@ -216,7 +233,11 @@ export function loadFrozenCandidateForTest(root) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const result = loadFrozenCandidateForTest(resolve(process.argv[2]))
+    if (process.argv[3] !== undefined && process.argv[3] !== '--evidence-only')
+      throw new Error('unknown frozen-input selection mode')
+    const result = loadFrozenCandidateForTest(resolve(process.argv[2]), {
+      evidenceOnly: process.argv[3] === '--evidence-only',
+    })
     console.log(
       JSON.stringify({
         ...result,

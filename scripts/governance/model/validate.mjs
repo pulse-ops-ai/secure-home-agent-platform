@@ -40,6 +40,7 @@ import {
   consumerCounts,
   discoverConsumers,
   validateConsumerInventory,
+  validateCurrentConsumerInventory,
   retainedSemanticKnowledgePaths,
 } from './consumers.mjs'
 import {
@@ -2607,17 +2608,27 @@ function validateGenesisBindings(state, context, problems) {
     if (context.readBytes?.(path) !== undefined)
       addProblem(problems, 'ADV-G55', path, 'candidate source survives canonical promotion')
   const consumers = context.readBytes?.('governance/consumers.json')
-  if (
-    !(consumers instanceof Uint8Array) ||
-    contentDigest(consumers) !==
-      contentDigest(frozen.bytes.get('tests/fixtures/governance/candidate/consumers.json'))
-  )
+  if (!(consumers instanceof Uint8Array))
     addProblem(
       problems,
       'ADV-G46',
       'governance/consumers.json',
-      'the evaluated revision must carry the unchanged frozen consumer inventory',
+      'the evaluated revision must carry its current consumer inventory',
     )
+  else {
+    const snapshot = context.evaluatedRevision
+      ? context.readSnapshot(context.evaluatedRevision)
+      : context.readPreparationSnapshot()
+    const { inventory, discovered } = validateCurrentConsumerInventory(
+      consumers,
+      frozen.inventory,
+      state,
+      snapshot,
+      problems,
+    )
+    context.consumerInventory = inventory
+    context.consumerDiscoveries = discovered
+  }
   if (
     canonicalSerialize(genesis.candidateFreezeIdentity ?? null) !==
     canonicalSerialize(frozen.identity)
@@ -3481,6 +3492,9 @@ export function evaluateState(stateText, context = {}) {
       problems,
       state,
       sourceManifest: context.sourceManifest,
+      consumerInventory: context.consumerInventory,
+      consumerDiscoveries: context.consumerDiscoveries,
+      genesisInventory: context.genesisInventory,
       canonical: canonicalSerialize(state),
     }
 
@@ -3531,12 +3545,18 @@ export function evaluateState(stateText, context = {}) {
       ...(context.sourceManifest
         ? { historicalContext: context.sourceManifest.historicalContext }
         : {}),
+      ...((context.consumerInventory ?? context.genesisInventory)
+        ? { consumerCounts: consumerCounts(context.consumerInventory ?? context.genesisInventory) }
+        : {}),
       ...(context.genesisInventory
-        ? { consumerCounts: consumerCounts(context.genesisInventory) }
+        ? { genesisConsumerCounts: consumerCounts(context.genesisInventory) }
         : {}),
     },
     digests,
     sourceManifest: context.sourceManifest,
+    consumerInventory: context.consumerInventory,
+    consumerDiscoveries: context.consumerDiscoveries,
+    genesisInventory: context.genesisInventory,
   }
   return result
 }
