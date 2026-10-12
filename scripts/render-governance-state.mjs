@@ -158,8 +158,26 @@ function renderStateDocument(derived, state) {
   }
   if (derived.consumerCounts) {
     lines.push('', '## Frozen migration inventory', '', '| Disposition | Count |', '| --- | --- |')
-    for (const [disposition, count] of Object.entries(derived.consumerCounts))
+    for (const [disposition, count] of Object.entries(
+      derived.genesisConsumerCounts ?? derived.consumerCounts,
+    ))
       lines.push(`| ${cell(disposition)} | ${count} |`)
+    if (
+      derived.genesisConsumerCounts &&
+      Object.keys(derived.consumerCounts).some(
+        (key) => derived.consumerCounts[key] !== derived.genesisConsumerCounts[key],
+      )
+    ) {
+      lines.push(
+        '',
+        '## Current consumer inventory',
+        '',
+        '| Disposition | Count |',
+        '| --- | --- |',
+      )
+      for (const [disposition, count] of Object.entries(derived.consumerCounts))
+        lines.push(`| ${cell(disposition)} | ${count} |`)
+    }
   }
   lines.push('')
   return lines.join('\n')

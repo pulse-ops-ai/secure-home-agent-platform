@@ -28,7 +28,7 @@ function collect(value) {
   if (typeof value.revision === 'string') identities.add(value.revision)
   for (const item of Object.values(value)) collect(item)
 }
-const frozen = loadFrozenCandidateForTest(root)
+const frozen = loadFrozenCandidateForTest(root, { evidenceOnly: true })
 for (const bytes of [frozen.stateBytes, frozen.manifestBytes]) collect(JSON.parse(bytes))
 const missing = []
 for (const identity of [...identities].sort()) {

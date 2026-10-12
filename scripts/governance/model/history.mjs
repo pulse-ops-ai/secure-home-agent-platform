@@ -18,6 +18,7 @@
  */
 
 import { canonicalSerialize, canonicalizeValue, isObject } from './canonical.mjs'
+import { preserveConsumerRows } from './consumers.mjs'
 import {
   semanticIdentity,
   primitiveDigest,
@@ -185,6 +186,39 @@ function compareGenesisPreservation(base, target, problems) {
         'ADV-G83',
         '$.landings.' + node.id,
         'an ordinary transition or replacement cannot introduce historical genesis completion',
+      )
+  }
+}
+
+function compareConsumers(base, target, problems) {
+  const before = base.evaluation?.consumerInventory
+  const after = target.evaluation?.consumerInventory
+  // Minimal pre-genesis unit fixtures have neither inventory. Once genesis is
+  // present, the current model requires both independently observed inventories.
+  if (!before || !after) return
+  preserveConsumerRows(before, after, problems)
+  const priorPaths = new Set(before.rows.map((row) => row?.path))
+  const priorAdrs = byId(base.evaluation?.state?.adrs)
+  const adrs = new Map((target.evaluation?.state?.adrs ?? []).map((adr) => [adr.path, adr]))
+  const discoveries = new Map(
+    (target.evaluation?.consumerDiscoveries ?? []).map((row) => [row.path, row.factClasses]),
+  )
+  for (const row of after.rows) {
+    if (!isObject(row) || priorPaths.has(row.path)) continue
+    const adr = adrs.get(row.path)
+    if (!adr || priorAdrs.has(adr.id) || adr.lifecycle !== 'Proposed')
+      problem(
+        problems,
+        'ADV-G46',
+        '$.consumers.' + row.path,
+        'a new consumer row must arrive atomically with a new Proposed decision',
+      )
+    if (canonicalText(row.factClasses) !== canonicalText(discoveries.get(row.path)))
+      problem(
+        problems,
+        'ADV-G46',
+        '$.consumers.' + row.path,
+        'new consumer fact classes must equal complete target discovery',
       )
   }
 }
@@ -723,6 +757,17 @@ export function evaluateHistory({
         '$.attestations.genesis.seedDigest',
         'the first registry must contain exactly the attested frozen seed primitives',
       )
+    if (
+      target.evaluation?.genesisInventory &&
+      canonicalText(target.evaluation.consumerInventory) !==
+        canonicalText(target.evaluation.genesisInventory)
+    )
+      problem(
+        problems,
+        'ADV-G46',
+        '$.consumers',
+        'genesis must promote exactly the frozen inventory; evolution requires a registry predecessor',
+      )
     for (const member of stateProblems) problems.push(member)
     return {
       ok: admitted && problems.length === 0,
@@ -737,6 +782,7 @@ export function evaluateHistory({
   compareAuthorizationRecords(baseState, targetState, problems)
   compareRecordSurvival(baseState, targetState, problems)
   compareGenesisPreservation(base, target, problems)
+  compareConsumers(base, target, problems)
   compareDecisions(baseState, targetState, problems)
   compareResolvers(base, target, problems)
   compareRuleInputs(baseState, targetState, problems)

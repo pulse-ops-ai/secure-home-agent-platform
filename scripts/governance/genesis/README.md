@@ -96,3 +96,64 @@ To replay a frozen extraction after later commits, pass
 rows alongside `--inventory-source WORKTREE`. This selects only the recorded
 preparation checkpoint; all five current planning files must still match its
 exact bytes. It never changes common source S, archive-stage M, or authority.
+
+## Consumer inventory after genesis
+
+The frozen inventory is evidence of the genesis source and migration scope.
+Recover its exact bytes only from the attested `activationBaseCommit` and verify
+the existing three-member `candidateFreezeIdentity`. Its source manifest,
+freshness proof and genesis envelopes remain immutable. Preparation and first
+activation still require exact promotion of that inventory. An inventory
+extension cannot be bundled into the genesis exception.
+
+After activation, `governance/consumers.json` is the current closed inventory.
+Version one permits only additive rows for new ADRs. The current checker
+requires canonical closed JSON, unique paths and fact classes, complete
+discovery, and preservation of every frozen row. The history checker requires
+preservation of **every predecessor row**, including rows added after genesis.
+All row fields are protected: path, disposition, fact classes, generated regions,
+historical identity, migration landing and retained reason. A disappearing
+keyword, renamed file, changed lifecycle or rewritten rationale never authorizes
+a deletion or reclassification. Other inventory evolution requires a separately
+reviewed contract and implementation; an unsupported change fails closed.
+
+A new row must name an exact registered ADR path and arrive atomically with that
+decision's first `Proposed` record and checked document. It uses
+`retained-semantic-prose`, empty `generatedRegions`, null `historicalIdentity`
+and null `migrationLanding` (it was not part of the initial migration). Its
+required `retainedReason` is:
+
+> Decision text and its checked lifecycle header remain authored; the registry
+> owns current lifecycle and terminal bytes remain digest-bound.
+
+On introduction, `factClasses` must exactly equal discovery of that document.
+Later discovery may lose a signal, but may not introduce an uncovered class or
+silently change the recorded classification. Acceptance or rejection uses the
+existing lifecycle/evidence rules without reclassifying the row as historical.
+This disposition preserves authored decision rationale and the checked header;
+it does not exempt an ADR from validation or make its prose a second current
+state authority. Human review still owns arbitrary prose semantics.
+
+Discovery continues across every tracked file, including non-Markdown and
+invalid-UTF-8 content. Checkout validation also observes untracked files; history
+uses each explicitly selected commit's tree. Every discovered surface needs an
+inventory row, except the four exact artifacts already owned by the model or
+renderer: `governance/state.json`, `governance/consumers.json`,
+`governance/genesis-source-manifest.json`, and `governance/STATE.md`. Their
+schema, evidence and projection checks remain mandatory. This is no directory
+or extension exemption; even neighboring files under `governance/` need their
+own classification. Every ADR file and registry record must be accounted for
+independently of keyword discovery. Only the three retired candidate paths may
+remain as absent inventory rows after promotion; their bytes remain available
+as immutable genesis evidence. Current projection counts use the current
+inventory; genesis comparison and migration scope continue using the frozen one.
+
+This implements the current/history and evidence distinctions in
+[ADR-0021 §§7–10](../../../docs/decisions/ADR-0021-establish-machine-readable-governance-state.md),
+with the temporal evidence rules of
+[ADR-0023](../../../docs/decisions/ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md).
+It changes no accepted ADR or frozen candidate, and grants no activation or
+decision-acceptance authority. The promotion determination under ADR-0014 is
+negative: this is a phase-binding correction within the existing governance
+contract, documented at its semantic owner; no new architectural invariant or
+portable-knowledge projection is needed.

@@ -21,3 +21,6 @@ still apply. Ordinary completions never inherit that profile.
 the five-disposition inventory; counts are derived, not authored. The
 [extraction entry points](../genesis/README.md) call this model and cannot add an
 activation exception. Candidate/test artifacts are not canonical authority.
+
+The [post-genesis inventory contract](../genesis/README.md#consumer-inventory-after-genesis)
+separates immutable migration evidence from additive current coverage.
