@@ -6458,18 +6458,18 @@ def test_post_genesis_new_proposal_preserves_genesis_and_evolves_consumers(
     manifest = (root / "governance/genesis-source-manifest.json").read_bytes()
     base = git(root, "rev-parse", "HEAD")
     state = introduce_proposed_consumer(root)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
     payload = assert_valid(root, REGISTRY_PATH)
     assert payload["derived"]["consumerCounts"]["retained-semantic-prose"] == 11
     assert payload["derived"]["genesisConsumerCounts"]["retained-semantic-prose"] == 10
-    rendered = run_renderer(root, "write")
-    assert rendered.returncode == 0, rendered.stderr
     assert "| ADR-0025 | Proposed |" in (root / "docs/decisions/INDEX.md").read_text()
     rendered_state = (root / "governance/STATE.md").read_text()
     frozen_table, current_table = rendered_state.split("## Current consumer inventory", 1)
     assert "| retained-semantic-prose | 10 |" in frozen_table
     assert "| retained-semantic-prose | 11 |" in current_table
     commit_registry(root, state, "TEST ordinary proposal and consumer registration")
-    assert_history_clean(root, base=base)
+    assert assert_history_clean(root, base=base)["comparison"] == "pairwise"
     assert run_renderer(root, "check").returncode == 0
     assert run_query(root, json_form=True).returncode == 0
     assert state["attestations"] == before["attestations"]
@@ -6488,6 +6488,57 @@ def test_post_genesis_new_proposal_preserves_genesis_and_evolves_consumers(
     recovered, layout = frozen_candidate(root)
     assert layout == "attested-activation-base"
     assert json.loads(recovered["consumers.json"]) == original_inventory
+
+
+def test_post_genesis_projection_order_under_activation_enforcement(
+    attested_genesis: Path,
+    pr131_stopped_subject: tuple[Path, dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    # The portable stopped subject supplies real task-8.5 entry points, even
+    # while the repository's own main is still pre-activation. No gate mock.
+    stopped, _ = pr131_stopped_subject
+    implementation = pr131_clone(stopped, tmp_path / "enforcement")
+    pr145_overlay(implementation)
+    root = attested_genesis
+    run, predecessor = pr131_current(root, implementation)
+    assert run.returncode == 0 and predecessor["ok"], (predecessor, run.stderr)
+    original_envelopes = registry(root)["attestations"]
+    base = git(root, "rev-parse", "HEAD")
+    state = introduce_proposed_consumer(root)
+    stale_targets = target_bytes(root)
+    run, stale = pr131_current(root, implementation)
+    assert run.returncode == 1 and not stale["ok"], (stale, run.stderr)
+    assert {(p["code"], p["path"]) for p in stale["problems"]} == {
+        ("ADV-G36", "governance/STATE.md"),
+        ("ADV-G36", "docs/decisions/INDEX.md"),
+    }
+    assert target_bytes(root) == stale_targets
+    pr131_render(root, implementation)
+    run, current = pr131_current(root, implementation)
+    assert run.returncode == 0 and current["ok"], (current, run.stderr)
+    assert run_renderer(root, "check").returncode == 0
+    assert registry(root) == state
+    assert state["attestations"] == original_envelopes
+    target = commit_registry(root, state, "TEST render proposal before current/history validation")
+    run, history = run_history(
+        root,
+        base=base,
+        target=target,
+        checker=implementation / "scripts/check-governance-history.mjs",
+    )
+    assert run.returncode == 0 and history["ok"] and history["comparison"] == "pairwise", history
+    (tmp_path / "projection-order-receipt.json").write_text(
+        json.dumps(
+            {
+                "beforeRender": {"ok": stale["ok"], "problems": stale["problems"]},
+                "afterRender": {"ok": current["ok"], "problems": current["problems"]},
+                "history": history,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def test_post_genesis_repository_setup_recovers_only_frozen_evidence(
@@ -6625,6 +6676,9 @@ def test_post_genesis_predecessor_rows_survive_every_revision(
 ) -> None:
     root = attested_genesis
     state = introduce_proposed_consumer(root)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
+    assert_valid(root, REGISTRY_PATH)
     base = commit_registry(root, state, "TEST first proposal registration")
     inventory = load_state(root, "governance/consumers.json")
     new_row = next(r for r in inventory["rows"] if "ADR-0025-" in r["path"])
@@ -6646,6 +6700,8 @@ def test_post_genesis_predecessor_rows_survive_every_revision(
 def test_post_genesis_extension_cannot_use_the_genesis_exception(attested_genesis: Path) -> None:
     root = attested_genesis
     state = introduce_proposed_consumer(root)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
     assert_valid(root, REGISTRY_PATH)
     commit_registry(root, state, "HOSTILE extension disguised as first activation")
     payload = assert_history_refused(
@@ -6663,7 +6719,11 @@ def test_post_genesis_proposal_row_survives_terminal_transition(
     root = attested_genesis
     old_base = git(root, "rev-parse", "HEAD")
     before = introduce_proposed_consumer(root)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
+    assert_valid(root, REGISTRY_PATH)
     base = commit_registry(root, before, "TEST new decision starts as proposal")
+    assert assert_history_clean(root, base=old_base)["comparison"] == "pairwise"
     state = registry(root)
     inventory_bytes = (root / "governance/consumers.json").read_bytes()
     adr = next(adr for adr in state["adrs"] if adr["id"] == "ADR-0025")
@@ -6711,10 +6771,11 @@ console.log(JSON.stringify(state))
     )
     state = json.loads(result.stdout)
     write_state(root, state, REGISTRY_PATH)
+    rendered = run_renderer(root, "write")
+    assert rendered.returncode == 0, rendered.stderr
     assert_valid(root, REGISTRY_PATH)
-    assert run_renderer(root, "write").returncode == 0
     commit_registry(root, state, "TEST ordinary terminal decision")
-    assert_history_clean(root, base=base)
+    assert assert_history_clean(root, base=base)["comparison"] == "pairwise"
     assert (root / "governance/consumers.json").read_bytes() == inventory_bytes
     assert state["attestations"] == before["attestations"]
     # Collapsing introduction and the terminal transition skips the required
