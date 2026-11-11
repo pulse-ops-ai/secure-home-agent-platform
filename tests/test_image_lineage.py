@@ -263,6 +263,47 @@ def test_the_live_repository_passes_its_own_lineage_gate() -> None:
     assert "4 image(s)" in result.stdout
 
 
+def test_gates_package_retrieval_uses_frozen_authenticated_archives() -> None:
+    """Live indexes can drop an exact version even when every byte is pinned.
+
+    The gate build must use historical lookup, retain signature verification,
+    and keep the existing independent artifact checks before installation.
+    """
+    directory = REPO_ROOT / "deploy/images/gates-toolchain"
+    sources = (directory / "debian.sources").read_text()
+    paragraphs = [
+        dict(
+            line.split(": ", 1) for line in block.splitlines() if line and not line.startswith("#")
+        )
+        for block in sources.strip().split("\n\n")
+    ]
+    closure = json.loads((REPO_ROOT / "deploy/images/debian-closure.lock.json").read_text())
+    snapshot = closure["resolved_on"].replace("-", "") + "T000000Z"
+    assert len(paragraphs) == 2
+    for paragraph, archive, suite in zip(
+        paragraphs, ("debian", "debian-security"), ("trixie", "trixie-security"), strict=True
+    ):
+        assert paragraph == {
+            "Types": "deb",
+            "URIs": f"http://snapshot.debian.org/archive/{archive}/{snapshot}/",
+            "Suites": suite,
+            "Components": "main",
+            "Signed-By": "/usr/share/keyrings/debian-archive-keyring.gpg",
+            "Check-Valid-Until": "no",
+        }
+    dockerfile = (directory / "Dockerfile").read_text()
+    assert dockerfile.index("COPY debian.sources /etc/apt/sources.list.d/debian.sources") < (
+        dockerfile.index("apt-get update")
+    )
+    assert "trusted=yes" not in dockerfile
+    assert "AllowUnauthenticated" not in dockerfile
+    assert "--allow-unauthenticated" not in dockerfile
+    # The real gate, independently, still checks the manifest-bound hash,
+    # size, count and install chain. No pin or verification is relaxed here.
+    result = _check(REPO_ROOT)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_the_fixture_control_passes(tmp_path: Path) -> None:
     result = _check(_fixture(tmp_path))
     assert result.returncode == 0, result.stdout + result.stderr

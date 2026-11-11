@@ -52,6 +52,11 @@ ENV UV_PYTHON=/opt/python/bin/python3
 # that set; scripts/check-images.mjs refuses any drift between the two.
 COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 
+# Package versions disappear from the live mirror's indexes and pool. Resolve
+# the unchanged artifact manifest against its frozen archive instead. APT
+# still verifies the archive signatures; the manifest verifies every .deb.
+COPY debian.sources /etc/apt/sources.list.d/debian.sources
+
 RUN set -eux; \
     cd /tmp/pkg; \
     manifest="packages.${TARGETARCH}.manifest"; \

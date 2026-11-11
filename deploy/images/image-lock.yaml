@@ -84,9 +84,9 @@ images:
     external_base:
       reference: docker.io/library/debian:trixie-slim
       digest: sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
-    digest: sha256:70a058fad84b65e587ef3be47b7bcbae3d7cfa00a99499f540ca7fda8b91734f
+    digest: sha256:f5d3e002a7aedba063c5550caef7713848177d09346466f96bfcf92233f870ae
     manifests:
       - platform: linux/amd64
-        digest: sha256:4cf7703cd96a1f17e3304f917b66dbca154bb8577e110f8ae897d1071f0aec2b
+        digest: sha256:94d6783a69669bdc9ed6cbce952af22174aa9b70dd3763364d478b500783e4fc
       - platform: linux/arm64
-        digest: sha256:99bdfc043df70ad3a1881a5488281456114f3cf9624074572c0ef9d9004acb68
+        digest: sha256:f7b15d313d0b05cd1715fcaa974dc603ab14f45348ce8a1ac79c81c43a87c6d1
