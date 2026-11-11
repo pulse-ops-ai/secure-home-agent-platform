@@ -292,9 +292,11 @@ def test_gates_package_retrieval_uses_frozen_authenticated_archives() -> None:
             "Check-Valid-Until": "no",
         }
     dockerfile = (directory / "Dockerfile").read_text()
-    assert dockerfile.index("COPY debian.sources /etc/apt/sources.list.d/debian.sources") < (
-        dockerfile.index("apt-get update")
+    assert (
+        "COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/" in dockerfile
     )
+    source_copy = "COPY --chmod=0644 debian.sources /etc/apt/sources.list.d/debian.sources"
+    assert dockerfile.index(source_copy) < dockerfile.index("apt-get update")
     assert "trusted=yes" not in dockerfile
     assert "AllowUnauthenticated" not in dockerfile
     assert "--allow-unauthenticated" not in dockerfile

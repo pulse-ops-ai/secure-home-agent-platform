@@ -39,6 +39,10 @@ mandatory. HTTP allows bootstrap before the pinned CA package is installed;
 neither unsigned metadata nor an unreviewed package is accepted. There is no
 fallback to the live archive. An unavailable snapshot fails the build.
 
+Both context-copy instructions set mode `0644` explicitly. The image must not
+inherit a developer's checkout umask: identical source bytes checked out as
+`0664` locally or `0644` in CI must produce identical layers.
+
 This repairs retrieval of existing reviewed artifacts; it does not select a
 new package closure or change runner-image definitions. The finding belongs
 to this image's build documentation; no new platform architecture or portable
