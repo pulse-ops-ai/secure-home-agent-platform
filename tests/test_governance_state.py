@@ -8160,12 +8160,112 @@ def test_mut_g16_raw_typed_records_do_not_satisfy_prerequisites_without_envelope
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
 
+MUT_G16_CHECKER_MODES = {
+    "cbdc4eb2eb41fc6289866eacc0fb89d60ac7b26cc6d8ecc7cf1d937177100567": "pre-8.5",
+    "14cda66ce944af9a120adb8168378d8f737e6738619235cd072c9f78dd967a4f": "final-8.5",
+}
+MUT_G16_DELETED_CONSUMERS = (
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/assurance.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/design.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/tasks.md",
+)
+MUT_G16_EMPTY_ARCHIVE_PROBLEM = (
+    "ADV-G85",
+    "$.landings[4].delivery.completion.evidence.archivedOpenSpec",
+    "the current checkout does not match the declared members: observed ",
+)
+MUT_G16_SURFACE_DEFINITION = (
+    "export function checkGovernanceSurfaces({ snapshot, evaluation, readSnapshot, pathExists }) {"
+)
+MUT_G16_SURFACE_INVOCATION = """\
+  const result = checkGovernanceState({ root: options.root, statePath })
+  if (
+    relative(resolve(options.root), safePath(resolve(options.root), statePath)) ===
+    'governance/state.json'
+  ) {
+    try {
+      const surfaces = checkGovernanceSurfaces({
+        snapshot: readCheckoutSnapshot(resolve(options.root)),
+        evaluation: result,
+        readSnapshot: createGenesisReader(resolve(options.root)),
+        pathExists: (path) => checkoutPathExists(resolve(options.root), path),
+      })
+      result.problems.push(...surfaces.problems)
+      result.ok = result.ok && surfaces.ok"""
+
+
+def checker_enforcement_mode(checker_bytes: bytes) -> str:
+    """Closed reviewed subjects; guard removal can never select compatibility."""
+    identity = hashlib.sha256(checker_bytes).hexdigest()
+    assert identity in MUT_G16_CHECKER_MODES, f"unreviewed checker identity: {identity}"
+    return MUT_G16_CHECKER_MODES[identity]
+
+
+def assert_final_8_5_surface_wiring(checker_text: str) -> None:
+    assert checker_text.count(MUT_G16_SURFACE_DEFINITION) == 1
+    assert checker_text.count(MUT_G16_SURFACE_INVOCATION) == 1
+
+
+def problem_multiset(payload: dict[str, Any]) -> Counter[tuple[str, str, str]]:
+    return Counter((p["code"], p["path"], p["message"]) for p in payload["problems"])
+
+
+def mut_g16_membership_problems(mode: str) -> Counter[tuple[str, str, str]]:
+    # Expectations are authored from the reviewed contract, never from output.
+    expected = Counter(
+        ("ADV-G46", f"$.consumers.{path}", "registered consumer path is absent")
+        for path in MUT_G16_DELETED_CONSUMERS
+    )
+    if mode == "final-8.5":
+        expected.update(
+            ("ADV-G46", path, "inventoried consumer is missing")
+            for path in MUT_G16_DELETED_CONSUMERS
+        )
+    else:
+        assert mode == "pre-8.5"
+    return expected
+
+
+def assert_pre_8_5_single_producer_compatibility(
+    checker_bytes: bytes, payload: dict[str, Any]
+) -> None:
+    """Named compatibility proof, run against the exact pre-activation subject."""
+    assert checker_enforcement_mode(checker_bytes) == "pre-8.5"
+    assert problem_multiset(payload) == mut_g16_membership_problems("pre-8.5") + Counter(
+        [MUT_G16_EMPTY_ARCHIVE_PROBLEM]
+    )
+
+
 @pytest.mark.parametrize("empty", [False, True])
 def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
     attested_genesis: Path,
     tmp_path: Path,
     empty: bool,
 ) -> None:
+    checker_bytes = CHECKER.read_bytes()
+    mode = checker_enforcement_mode(checker_bytes)
+    if mode == "final-8.5":
+        checker_text = checker_bytes.decode("utf-8")
+        assert_final_8_5_surface_wiring(checker_text)
+        # Both structural checks are independently load-bearing. Removing one
+        # or both also produces an unknown identity, never pre-8.5 fallback.
+        for removed in (
+            (MUT_G16_SURFACE_DEFINITION,),
+            (MUT_G16_SURFACE_INVOCATION,),
+            (MUT_G16_SURFACE_DEFINITION, MUT_G16_SURFACE_INVOCATION),
+        ):
+            damaged = checker_text
+            for fragment in removed:
+                damaged = damaged.replace(fragment, "", 1)
+            with pytest.raises(AssertionError):
+                assert_final_8_5_surface_wiring(damaged)
+            with pytest.raises(AssertionError, match="unreviewed checker identity"):
+                checker_enforcement_mode(damaged.encode("utf-8"))
+    else:
+        assert mode == "pre-8.5"
+    with pytest.raises(AssertionError, match="unreviewed checker identity"):
+        checker_enforcement_mode(checker_bytes + b"\n")
     root = attested_genesis
     state = registry(root)
     landing = next(node for node in state["landings"] if node["id"] == "runner/L5")
@@ -8178,7 +8278,7 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
     deleted_consumers = sorted(
         row["path"] for row in inventory["rows"] if row["path"].startswith(archive_path + "/")
     )
-    assert len(deleted_consumers) == 4
+    assert deleted_consumers == list(MUT_G16_DELETED_CONSUMERS)
     if empty:
         # Delete fixture members only; keep the empty directory observable.
         for path in archive.rglob("*"):
@@ -8189,12 +8289,12 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         target.write_text("Hostile edit of an existing member.\n", encoding="utf-8")
     control = assert_refused(root, "ADV-G85", path=REGISTRY_PATH)
     if empty:
-        assert {problem["code"] for problem in control["problems"]} == {"ADV-G85", "ADV-G46"}
-        assert {
-            problem["path"].removeprefix("$.consumers.")
-            for problem in control["problems"]
-            if problem["code"] == "ADV-G46"
-        } == set(deleted_consumers)
+        if mode == "pre-8.5":
+            assert_pre_8_5_single_producer_compatibility(checker_bytes, control)
+        else:
+            assert problem_multiset(control) == mut_g16_membership_problems(mode) + Counter(
+                [MUT_G16_EMPTY_ARCHIVE_PROBLEM]
+            )
     anchor = (
         "  const before = problems.length\n"
         "  if (!validateArchive(value, path, problems, context, disposition)"
@@ -8209,7 +8309,7 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         # Each single guard removal must still refuse; only the explicit double
         # mutant may admit the empty archive. Production keeps both guards.
         assert mutated.returncode != 0
-        assert {problem["code"] for problem in after["problems"]} == {"ADV-G46"}, after
+        assert problem_multiset(after) == mut_g16_membership_problems(mode), after
         exempt = json.dumps(deleted_consumers)
         inventory_changes = [
             (
@@ -8222,7 +8322,7 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         # Final 8.5 independently repeats missing-member enforcement at the CLI
         # surface boundary. Isolate the same four paths in BOTH producers;
         # schema, discovery, classification and every other row remain checked.
-        if "export function checkGovernanceSurfaces(" in CHECKER.read_text():
+        if mode == "final-8.5":
             inventory_changes.append(
                 (
                     "check-governance-state.mjs",
@@ -8234,10 +8334,11 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         membership_subject = mutant_subject(tmp_path / "membership-only", inventory_changes)
         membership_run, membership = run_subject(membership_subject, root)
         assert membership_run.returncode != 0
-        assert {problem["code"] for problem in membership["problems"]} == {"ADV-G85"}, membership
+        assert problem_multiset(membership) == Counter([MUT_G16_EMPTY_ARCHIVE_PROBLEM]), membership
         combined = mutant_subject(tmp_path / "combined", [archive_change, *inventory_changes])
         mutated, after = run_subject(combined, root)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+    assert after["problems"] == []
 
 
 def test_mut_g16_historical_row_evidence_must_mirror_the_record(
