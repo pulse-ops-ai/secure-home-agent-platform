@@ -8160,12 +8160,112 @@ def test_mut_g16_raw_typed_records_do_not_satisfy_prerequisites_without_envelope
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
 
 
+MUT_G16_CHECKER_MODES = {
+    "cbdc4eb2eb41fc6289866eacc0fb89d60ac7b26cc6d8ecc7cf1d937177100567": "pre-8.5",
+    "14cda66ce944af9a120adb8168378d8f737e6738619235cd072c9f78dd967a4f": "final-8.5",
+}
+MUT_G16_DELETED_CONSUMERS = (
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/assurance.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/design.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/proposal.md",
+    "openspec/changes/archive/2026-09-13-runner-image-lineage/tasks.md",
+)
+MUT_G16_EMPTY_ARCHIVE_PROBLEM = (
+    "ADV-G85",
+    "$.landings[4].delivery.completion.evidence.archivedOpenSpec",
+    "the current checkout does not match the declared members: observed ",
+)
+MUT_G16_SURFACE_DEFINITION = (
+    "export function checkGovernanceSurfaces({ snapshot, evaluation, readSnapshot, pathExists }) {"
+)
+MUT_G16_SURFACE_INVOCATION = """\
+  const result = checkGovernanceState({ root: options.root, statePath })
+  if (
+    relative(resolve(options.root), safePath(resolve(options.root), statePath)) ===
+    'governance/state.json'
+  ) {
+    try {
+      const surfaces = checkGovernanceSurfaces({
+        snapshot: readCheckoutSnapshot(resolve(options.root)),
+        evaluation: result,
+        readSnapshot: createGenesisReader(resolve(options.root)),
+        pathExists: (path) => checkoutPathExists(resolve(options.root), path),
+      })
+      result.problems.push(...surfaces.problems)
+      result.ok = result.ok && surfaces.ok"""
+
+
+def checker_enforcement_mode(checker_bytes: bytes) -> str:
+    """Closed reviewed subjects; guard removal can never select compatibility."""
+    identity = hashlib.sha256(checker_bytes).hexdigest()
+    assert identity in MUT_G16_CHECKER_MODES, f"unreviewed checker identity: {identity}"
+    return MUT_G16_CHECKER_MODES[identity]
+
+
+def assert_final_8_5_surface_wiring(checker_text: str) -> None:
+    assert checker_text.count(MUT_G16_SURFACE_DEFINITION) == 1
+    assert checker_text.count(MUT_G16_SURFACE_INVOCATION) == 1
+
+
+def problem_multiset(payload: dict[str, Any]) -> Counter[tuple[str, str, str]]:
+    return Counter((p["code"], p["path"], p["message"]) for p in payload["problems"])
+
+
+def mut_g16_membership_problems(mode: str) -> Counter[tuple[str, str, str]]:
+    # Expectations are authored from the reviewed contract, never from output.
+    expected = Counter(
+        ("ADV-G46", f"$.consumers.{path}", "registered consumer path is absent")
+        for path in MUT_G16_DELETED_CONSUMERS
+    )
+    if mode == "final-8.5":
+        expected.update(
+            ("ADV-G46", path, "inventoried consumer is missing")
+            for path in MUT_G16_DELETED_CONSUMERS
+        )
+    else:
+        assert mode == "pre-8.5"
+    return expected
+
+
+def assert_pre_8_5_single_producer_compatibility(
+    checker_bytes: bytes, payload: dict[str, Any]
+) -> None:
+    """Named compatibility proof, run against the exact pre-activation subject."""
+    assert checker_enforcement_mode(checker_bytes) == "pre-8.5"
+    assert problem_multiset(payload) == mut_g16_membership_problems("pre-8.5") + Counter(
+        [MUT_G16_EMPTY_ARCHIVE_PROBLEM]
+    )
+
+
 @pytest.mark.parametrize("empty", [False, True])
 def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
     attested_genesis: Path,
     tmp_path: Path,
     empty: bool,
 ) -> None:
+    checker_bytes = CHECKER.read_bytes()
+    mode = checker_enforcement_mode(checker_bytes)
+    if mode == "final-8.5":
+        checker_text = checker_bytes.decode("utf-8")
+        assert_final_8_5_surface_wiring(checker_text)
+        # Both structural checks are independently load-bearing. Removing one
+        # or both also produces an unknown identity, never pre-8.5 fallback.
+        for removed in (
+            (MUT_G16_SURFACE_DEFINITION,),
+            (MUT_G16_SURFACE_INVOCATION,),
+            (MUT_G16_SURFACE_DEFINITION, MUT_G16_SURFACE_INVOCATION),
+        ):
+            damaged = checker_text
+            for fragment in removed:
+                damaged = damaged.replace(fragment, "", 1)
+            with pytest.raises(AssertionError):
+                assert_final_8_5_surface_wiring(damaged)
+            with pytest.raises(AssertionError, match="unreviewed checker identity"):
+                checker_enforcement_mode(damaged.encode("utf-8"))
+    else:
+        assert mode == "pre-8.5"
+    with pytest.raises(AssertionError, match="unreviewed checker identity"):
+        checker_enforcement_mode(checker_bytes + b"\n")
     root = attested_genesis
     state = registry(root)
     landing = next(node for node in state["landings"] if node["id"] == "runner/L5")
@@ -8173,6 +8273,12 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         root / landing["delivery"]["completion"]["evidence"]["archivedOpenSpec"]["archiveRoot"]
     )
     assert archive.is_relative_to(root) and root.resolve() != REPOSITORY_ROOT.resolve()
+    archive_path = archive.relative_to(root).as_posix()
+    inventory = load_state(root, "governance/consumers.json")
+    deleted_consumers = sorted(
+        row["path"] for row in inventory["rows"] if row["path"].startswith(archive_path + "/")
+    )
+    assert deleted_consumers == list(MUT_G16_DELETED_CONSUMERS)
     if empty:
         # Delete fixture members only; keep the empty directory observable.
         for path in archive.rglob("*"):
@@ -8181,7 +8287,14 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
     else:
         target = archive / "proposal.md"
         target.write_text("Hostile edit of an existing member.\n", encoding="utf-8")
-    assert_refused(root, "ADV-G85", path=REGISTRY_PATH)
+    control = assert_refused(root, "ADV-G85", path=REGISTRY_PATH)
+    if empty:
+        if mode == "pre-8.5":
+            assert_pre_8_5_single_producer_compatibility(checker_bytes, control)
+        else:
+            assert problem_multiset(control) == mut_g16_membership_problems(mode) + Counter(
+                [MUT_G16_EMPTY_ARCHIVE_PROBLEM]
+            )
     anchor = (
         "  const before = problems.length\n"
         "  if (!validateArchive(value, path, problems, context, disposition)"
@@ -8196,19 +8309,36 @@ def test_mut_g16_historical_profile_keeps_existing_members_and_nonvacuity(
         # Each single guard removal must still refuse; only the explicit double
         # mutant may admit the empty archive. Production keeps both guards.
         assert mutated.returncode != 0
-        assert {problem["code"] for problem in after["problems"]} == {"ADV-G46"}, after
-        inventory_change = (
-            "governance/model/consumers.mjs",
-            "    if (!CANDIDATE_PATHS.includes(row.path) && !snapshot.entries.has(row.path))\n",
-            "    if (false) // MUTANT: missing consumer path bypass\n",
-        )
-        membership_subject = mutant_subject(tmp_path / "membership-only", [inventory_change])
+        assert problem_multiset(after) == mut_g16_membership_problems(mode), after
+        exempt = json.dumps(deleted_consumers)
+        inventory_changes = [
+            (
+                "governance/model/consumers.mjs",
+                "    if (!CANDIDATE_PATHS.includes(row.path) && !snapshot.entries.has(row.path))\n",
+                "    if (!CANDIDATE_PATHS.includes(row.path) && !snapshot.entries.has(row.path)"
+                f" && !{exempt}.includes(row.path))\n",
+            ),
+        ]
+        # Final 8.5 independently repeats missing-member enforcement at the CLI
+        # surface boundary. Isolate the same four paths in BOTH producers;
+        # schema, discovery, classification and every other row remain checked.
+        if mode == "final-8.5":
+            inventory_changes.append(
+                (
+                    "check-governance-state.mjs",
+                    "        fail('ADV-G46', row.path, 'inventoried consumer is missing')\n",
+                    f"        if (!{exempt}.includes(row.path))\n"
+                    "          fail('ADV-G46', row.path, 'inventoried consumer is missing')\n",
+                )
+            )
+        membership_subject = mutant_subject(tmp_path / "membership-only", inventory_changes)
         membership_run, membership = run_subject(membership_subject, root)
         assert membership_run.returncode != 0
-        assert {problem["code"] for problem in membership["problems"]} == {"ADV-G85"}, membership
-        combined = mutant_subject(tmp_path / "combined", [archive_change, inventory_change])
+        assert problem_multiset(membership) == Counter([MUT_G16_EMPTY_ARCHIVE_PROBLEM]), membership
+        combined = mutant_subject(tmp_path / "combined", [archive_change, *inventory_changes])
         mutated, after = run_subject(combined, root)
     assert mutated.returncode == 0 and after["ok"] is True, (after, mutated.stderr)
+    assert after["problems"] == []
 
 
 def test_mut_g16_historical_row_evidence_must_mirror_the_record(
@@ -8423,39 +8553,35 @@ def test_adv_g83_mut_g16_fully_rehashed_genesis_cannot_replace_ordinary_transiti
     tmp_path: Path,
 ) -> None:
     root = fresh_genesis
+    frozen, layout = frozen_candidate(root)
+    assert layout == "pre-promotion"
+    activation_base = git(root, "rev-parse", "HEAD")
+    # Preserve a fully rehashed historical claim before deleting its raw inputs.
+    # Its immutable recovery base is distinct from the ordinary history base.
+    forged = forged_test_genesis(root, base=activation_base)
+    promote_preparation_fixture(root)
     # A current-valid registry-bearing base, deliberately with no genesis
     # exception available. Its normal completion transitions need normal proof.
-    state = load_state(root, "tests/fixtures/governance/candidate/state.json")
+    state = json.loads(frozen["state.json"])
     for node in state["landings"]:
         node["delivery"]["lifecycle"] = "Planned"
         node["delivery"]["completion"] = None
-    (root / "governance").mkdir()
     write_state(root, state, REGISTRY_PATH)
-    inventory = load_state(root, "tests/fixtures/governance/candidate/consumers.json")
-    # Isolated-test inventory includes this deliberately pre-existing authority.
-    copied = next(
-        row
-        for row in inventory["rows"]
-        if row["path"] == "tests/fixtures/governance/candidate/state.json"
-    ).copy()
-    copied.update(
-        path=REGISTRY_PATH,
-        disposition="stable-pointer",
-        retainedReason=None,
-        historicalIdentity=None,
-        generatedRegions=[],
+    # No historical completion or genesis envelope exists in the ordinary base;
+    # it must not carry a manifest claiming those absent historical completions.
+    (root / "governance/genesis-source-manifest.json").unlink()
+    migrate_test_activation_surfaces(root, frozen, state)
+    base = commit_registry(
+        root, state, "current-valid ordinary registry without genesis exception", render=True
     )
-    inventory["rows"].append(copied)
-    write_state(root, inventory, "tests/fixtures/governance/candidate/consumers.json")
-    base = commit_registry(root, state, "current-valid ordinary registry without genesis exception")
     assert_valid(root, REGISTRY_PATH)
-    # This deliberately mixed ordinary-registry fixture is not a legitimate
-    # promotion layout. Use the explicit hostile forger, never a loader fallback.
-    state = forged_test_genesis(root, base=base)
-    # Isolate the forbidden history transition, not surviving candidate copies.
-    # The forged historical claim is unchanged; the ordinary base stays exact.
-    promote_preparation_fixture(root)
-    commit_registry(root, state, "HOSTILE fully rehashed post-genesis historical fallback")
+    assert state["attestations"] == {"genesis": {}}
+    assert all(not (root / "tests/fixtures/governance/candidate" / p).exists() for p in frozen)
+    (root / "governance/genesis-source-manifest.json").write_bytes(frozen["source-manifest.json"])
+    commit_registry(
+        root, forged, "HOSTILE fully rehashed post-genesis historical fallback", render=True
+    )
+    assert forged["attestations"]["genesis"]["activationBaseCommit"] == activation_base != base
     assert_valid(root, REGISTRY_PATH)  # No stale digest is responsible for refusal.
     payload = assert_history_refused(root, "ADV-G83", "ADV-G89", base=base)
     assert {p["code"] for p in payload["problems"]} <= {"ADV-G83", "ADV-G89", "ADV-G29"}, payload
