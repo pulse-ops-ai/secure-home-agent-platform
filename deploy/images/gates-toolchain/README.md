@@ -21,8 +21,32 @@ guessed:
 | Gate surface | Carried |
 |---|---|
 | shell gates (scaffold validation, secret scan, aggregate check) | bash, coreutils, `git` |
-| Node-side gates (`check-*.mjs`, pnpm lint/typecheck/test/build) | Node `24.18.1` (SHA-256-verified), pnpm `11.18.0` cached at build time via corepack |
-| Python gates (ruff, mypy, pytest) | `uv 0.12.1` (SHA-256-verified) + its managed CPython 3.13 (the exact patch is uv's deterministic resolution, surfaced in the build log) |
+| Node-side gates (`check-*.mjs`, pnpm lint/typecheck/test/build) | Node `24.18.1` and pnpm `11.18.0`, installed from SHA-256-pinned release artifacts |
+| Python gates (ruff, mypy, pytest) | `uv 0.12.1` and CPython `3.13.15`, installed from SHA-256-pinned release artifacts |
+
+## Frozen package retrieval
+
+[`debian.sources`](debian.sources) selects the Debian and Debian Security
+archives at `20260827T000000Z`, the existing closure's resolution date. All
+39 package hashes and sizes per architecture remain those reviewed in
+[`../debian-closure.lock.json`](../debian-closure.lock.json). The snapshot keeps
+their versions addressable after the live mirror removes them.
+
+APT still verifies signed archive metadata with Debian's archive keyring.
+Only `Check-Valid-Until` is disabled for these two historical sources; signature
+verification and the independent artifact count, size and SHA-256 checks remain
+mandatory. HTTP allows bootstrap before the pinned CA package is installed;
+neither unsigned metadata nor an unreviewed package is accepted. There is no
+fallback to the live archive. An unavailable snapshot fails the build.
+
+Both context-copy instructions set mode `0644` explicitly. The image must not
+inherit a developer's checkout umask: identical source bytes checked out as
+`0664` locally or `0644` in CI must produce identical layers.
+
+This repairs retrieval of existing reviewed artifacts; it does not select a
+new package closure or change runner-image definitions. The finding belongs
+to this image's build documentation; no new platform architecture or portable
+knowledge rule is introduced.
 
 ## Network posture, stated exactly
 

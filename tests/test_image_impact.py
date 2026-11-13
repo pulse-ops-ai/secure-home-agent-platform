@@ -275,6 +275,16 @@ def test_child_change_does_not_select_its_sibling(image_repo: Path) -> None:
     assert CLAUDE not in result["affected"]
 
 
+def test_gates_snapshot_change_selects_only_gates(image_repo: Path) -> None:
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append(root / "deploy/images/gates-toolchain/debian.sources"),
+    )
+    assert result["decision"] == "affected"
+    assert result["direct"] == [GATES]
+    assert result["affected"] == [GATES]
+
+
 def test_gates_change_is_independent_of_runner_lineage(image_repo: Path) -> None:
     result = _mutated_impact(
         image_repo,

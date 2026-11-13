@@ -50,7 +50,13 @@ ENV UV_PYTHON=/opt/python/bin/python3
 # at deploy/images/debian-closure.lock.json — one line per artifact, columns
 # <sha256> <size> <package> <version> <filename>. The build consumes exactly
 # that set; scripts/check-images.mjs refuses any drift between the two.
-COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+# Checkout umasks must not affect layer identities (local 0664 vs CI 0644).
+COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+
+# Package versions disappear from the live mirror's indexes and pool. Resolve
+# the unchanged artifact manifest against its frozen archive instead. APT
+# still verifies the archive signatures; the manifest verifies every .deb.
+COPY --chmod=0644 debian.sources /etc/apt/sources.list.d/debian.sources
 
 RUN set -eux; \
     cd /tmp/pkg; \

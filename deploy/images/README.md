@@ -88,9 +88,12 @@ Debian removes superseded `.deb` files from the pool, so a pinned artifact
 eventually stops being fetchable and the build fails loudly. Taking a security
 update is therefore a **reviewed manifest bump** that moves every digest built
 from it, recorded in `image-lock.yaml` in the same change. Silent pickup is the
-failure mode being removed, not a feature being kept. `snapshot.debian.org`
-refuses the governed builder's address space, so a frozen archive snapshot is
-not available; the manifest is the fallback.
+failure mode being removed, not a feature being kept. The original build could
+not reach `snapshot.debian.org` from its builder. The gates-toolchain now uses
+a reachable, fixed snapshot of the existing closure, as described in
+[its retrieval contract](gates-toolchain/README.md#frozen-package-retrieval).
+The runner definitions retain their existing live-archive retrieval and its
+fail-closed behavior; their package identities are unchanged.
 
 ## Lineage
 
