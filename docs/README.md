@@ -1,5 +1,10 @@
 # docs/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 All governed documentation for this repository.
 
 ## What belongs here
@@ -31,30 +36,22 @@ All governed documentation for this repository.
 - `decisions/` records **why**; `architecture/` records **what follows**. When
   they disagree, the ADR wins and the architecture document is the defect.
 - An accepted ADR is immutable. Reverse it with a superseding ADR.
-- **ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted`** and
-  immutable (foundational set 2026-08-05; ADR-0012 2026-08-06; ADR-0017 and
-  ADR-0018 2026-08-17; ADR-0019 2026-08-21; ADR-0021 2026-08-28; ADR-0022
-  2026-09-01; ADR-0023/ADR-0024 jointly 2026-09-19). ADR-0020 remains `Proposed` and non-operative. A new ADR
-  starts `Proposed`; acceptance is a human decision, never an agent's.
-- **ADR-0023/ADR-0024's atomic acceptance consumes the one-shot bridge.**
-  It grants no implementation authority, leaves PR #124 paused and does not
-  authorize PR-3 or create canonical governance state.
-- **Accepting ADR-0022 authorized no implementation.** TypeScript remains 6.0.3
-  and ESLint remains installed and current. Its parity foundation (PR-B) and
-  TypeScript 7 cutover (PR-C) both remain `NOT_AUTHORIZED`, but on **different**
-  prerequisites — the exact-base rule belongs to PR-B alone:
-  - **PR-B** requires merged PR-A2, the exact post-PR-A2 `main` as its starting
-    base, and a separate Scope-1 implementation authorization.
-  - **PR-C** stays blocked until PR-B is merged and its parity evidence is
-    accepted. It then requires a fresh Scope-2 review epoch and its own
-    authorization, and begins from the exact then-current post-PR-B `main` —
-    never from the post-PR-A2 commit (`INV-TS7-17`).
+- Current decision lifecycle and implementation prerequisites are queried
+  from canonical governance. Historical acceptance records and bridge evidence
+  do not authorize new implementation. A new decision starts as a proposal;
+  the human transition is separate from documentation authoring.
 - Both `architecture/` and `decisions/` are index-validated: every file must be
   in its `INDEX.md`, and every index entry must point at a file that exists.
   [`scripts/validate-scaffold.sh`](../scripts/validate-scaffold.sh) enforces
   this.
 - Nothing in [`architecture/unresolved-decisions.md`](architecture/unresolved-decisions.md)
   may be resolved by a documentation edit. Resolving one requires an ADR.
+
+The tooling scopes have distinct authorization prerequisites (`INV-TS7-17`).
+PR-B requires the exact post-PR-A2 main and a separate Scope-1 task contract.
+PR-C requires PR-B merged with accepted parity evidence, a fresh Scope-2
+review and authorization, and the then-current post-PR-B main, never the PR-B
+base. Query canonical governance for current program answers.
 
 ## Governed by
 

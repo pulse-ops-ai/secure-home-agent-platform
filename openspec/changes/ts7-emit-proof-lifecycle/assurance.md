@@ -1,5 +1,12 @@
 # Assurance: TS7 emit proof lifecycle
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Risk classification
 
 High: an unconditional repository gate changes subject. Incorrect lifecycle
@@ -78,9 +85,9 @@ A reviewed revert restores previous invocation behavior without touching evidenc
 
 ## Assurance completeness
 
-No unresolved design question or implementation prerequisite depends on U1–U11.
-All current-scope proofs ship in this PR. Independent review and any later
-validated canonical spec sync/archive remain pending; they are not self-certified.
+This scope does not depend on a household question answer. Its proof and
+review records concern this change only; query canonical governance for current
+question resolution and program state. No record here self-certifies authority.
 
 ## Related
 

@@ -1,5 +1,10 @@
 # CLAUDE.md — Claude Code adapter
 
+Current governance state is not authored here. Use [the canonical registry](governance/state.json),
+[its generated projection](governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 You are working in **`secure-home-agent-platform`**: a local-first, security-first
 platform for household agents.
 
@@ -96,9 +101,8 @@ After changing files, run what your change touched:
 - **Do not change any ADR's status — ever — without an explicit
   human-acceptance task.** Accepting an ADR is a human decision, made in its own
   reviewed change.
-- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are
-  `Accepted` and **immutable**. ADR-0020 remains `Proposed`. Amend or reverse
-  an accepted ADR only by writing a new ADR that supersedes it.
+- **Do not edit an accepted ADR.** Use canonical governance to determine lifecycle; amend or reverse a
+  terminal decision only by writing a new ADR that supersedes it.
 - **Do not resolve anything in**
   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
 
@@ -142,8 +146,8 @@ no report.
   modules are authored and `Validated` — `knowledge/catalog.json` says which. No governed query
   interface exists at runtime and nothing is packaged or published, so
   `knowledge/` is **not runtime-authoritative**
-  ([U7](docs/architecture/unresolved-decisions.md#u7) is RESOLVED — the format
-  decision is Accepted; readiness was always a different fact). Authoring
+  (the format question [U7](docs/architecture/unresolved-decisions.md#u7) is
+  distinct from readiness; query canonical governance for resolution). Authoring
   requires BOTH gates false: `blockedByRollout` still holds `household/**` and
   every set. Runbook rollout is per module — `knowledge/catalog.json` is
   authoritative for current eligibility.

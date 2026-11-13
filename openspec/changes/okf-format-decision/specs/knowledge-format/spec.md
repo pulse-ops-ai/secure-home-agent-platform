@@ -1,9 +1,16 @@
 # Spec Delta: knowledge-format
 
-> **In force.** ADR-0015 was accepted 2026-08-15. These requirements bind the
-> implementation that discharges the toolchain obligation. **Authoring is still
-> blocked**: none of the behaviour below is implemented yet, which is exactly why
-> `blockedByToolchain` is `true` on every registered entry.
+Current governance state is not authored here. Use [the canonical registry](../../../../../governance/state.json),
+[its generated projection](../../../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
+> This artifact retains its source-era rationale and proof obligations.
+> Current decision lifecycle and question resolution come from canonical
+> governance; knowledge eligibility comes from the catalog/admission contract.
+> Neither this planning record nor its checkboxes supplies a live-state answer.
 
 ## ADDED Requirements
 

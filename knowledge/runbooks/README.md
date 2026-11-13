@@ -1,5 +1,10 @@
 # knowledge/runbooks/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Procedural knowledge modules** — ordered procedures an agent follows, as
 opposed to the domain semantics it reasons over.
 
@@ -13,7 +18,8 @@ opposed to the domain semantics it reasons over.
 > follows lifecycle state. Every directory here is registered in
 > [`../INDEX.md`](../INDEX.md).
 >
-> [U7](../../docs/architecture/unresolved-decisions.md#u7) is **RESOLVED**. Nothing
+> Query canonical governance for
+> [U7](../../docs/architecture/unresolved-decisions.md#u7) resolution. Nothing
 > here is packaged, published, or resolvable by a running profile.
 
 ## Modules

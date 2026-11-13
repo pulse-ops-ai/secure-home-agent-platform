@@ -1,14 +1,18 @@
 # agents/adapters/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Runtime adapters** — thin, replaceable shims between the neutral runner
 substrate and a concrete runtime.
 
-> **Status: the two coding adapters are implemented and unlaunchable.**
-> `coding/claude-code/` and `coding/copilot-cli/` are workspace packages
-> (L7, #55) conforming to the frozen adapter SPI, proven by the shared
-> [`tests/framework-conformance/`](../../tests/framework-conformance/)
-> suite against stub CLIs. Nothing in the platform invokes them — the
-> launcher is L9 (#57). Every other directory is a documented placeholder.
+Current runner landing status and sequencing are not authored here; use the canonical governance query for current governance state.
+
+The coding adapters translate to the SPI; the shared
+[conformance suite](../../tests/framework-conformance/) exercises translation
+against stub CLIs, not physical sandbox enforcement.
 
 ## What an adapter is
 
@@ -68,14 +72,12 @@ substrate's security properties are its own, not the runtime's.
 
 ## The SPI is decided
 
-The adapter SPI — what the substrate passes in, what an adapter returns, how
-failure and cancellation propagate — was decided by
-[ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md) on
-2026-08-12, closing
-[U6](../../docs/architecture/unresolved-decisions.md#u6). As U6 required, it is
-defined against the two most **dissimilar** adapters (a coding CLI and a plain
-deterministic loop), and on the empirical
-[L6 spike evidence](../../docs/spikes/l6-copilot-cli/).
+The adapter SPI — substrate inputs, adapter outputs, failure and cancellation —
+is described in
+[ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md).
+For unresolved-question answers about U6, use canonical governance. The semantic
+design compares dissimilar adapters (a coding CLI and a deterministic loop),
+using the empirical [spike evidence](../../docs/spikes/l6-copilot-cli/).
 
 The load-bearing parts for anyone writing an adapter here: an adapter
 **translates and reports** — it never decides a terminal state, never enforces a

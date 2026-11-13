@@ -1,5 +1,10 @@
 # Contributing
 
+Current governance state is not authored here. Use [the canonical registry](governance/state.json),
+[its generated projection](governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 This repository is governed. Read this file before your first change; read
 [`AGENTS.md`](AGENTS.md) before *any* change, human or automated.
 
@@ -28,13 +33,9 @@ There is intentionally **no deployed or activated runtime**: no launcher, no
 process spawn, no household service running anywhere. Landed code is not a
 running system, and the distinction is the point.
 
-ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are accepted, so implementation
-may proceed against them under an authorizing task contract. **ADR-0020 remains
-Proposed, and acceptance is not authorization to deploy.** Of the tracked set
-U1–U11, [U6](docs/architecture/unresolved-decisions.md#u6) was closed by
-ADR-0013 (2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7)
-by ADR-0015 (2026-08-15); every other item is open, including
-[U11](docs/architecture/unresolved-decisions.md#u11). Do not:
+Implementation requires a bounded external task contract and the applicable
+governed decisions. Consult canonical governance for lifecycle and unresolved
+question answers. Acceptance is not deployment authorization. Do not:
 
 - install or configure Home Assistant,
 - add live Docker services or deploy anything,
@@ -317,10 +318,9 @@ asks for it.
   what belongs there, what does not, the ownership and boundary rules, the
   higher-level document that governs it, and the validation commands it will
   eventually carry.
-- ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted` and **immutable**. Never
-  edit an accepted ADR; supersede it with a new one and update
+- Never edit a terminal decision; supersede it with a new one and update
   [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) in the same change. The
-  index records each acceptance date.
+  index projects lifecycle dates from canonical governance.
 - A new ADR starts `Proposed`. **Do not self-accept it**, and **never change any
   ADR's status without an explicit human-acceptance task**; acceptance is a human
   decision made in its own reviewed change.

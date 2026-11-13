@@ -1,15 +1,19 @@
 # Change Proposal: governance-state-substrate
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Narrow projection-preparation correction
 
-The owner authorizes the D7.3a implementation-contract correction separately
-from paused activation PR #131. It composes complete frozen-candidate validation
-and activation-base freshness before exposing shared derivation, preserving
-ordinary raw-seed refusal and owner attestation requirements. Its design/diff
-and byte-parity proof require independent review before activation resumes.
-Only mechanical planning bindings are refreshed; governance primitives, common
-S, archive M, consumer scope and accepted ADR bytes remain unchanged. This is
-not a new architectural decision, activation, or authorization for PR #101.
+The D7.3a interface composes complete frozen-candidate validation and
+activation-base freshness before exposing shared derivation. Ordinary raw-seed
+refusal and owner attestation requirements remain unchanged. Correction-stage
+review/provenance below is historical; current governance comes from its
+canonical registry/query, never this proposal.
 
 ## Current PR-2 implementation — exact-S owner authorization
 
@@ -21,15 +25,13 @@ retain pre-transition ADR-0021 RFC 3339 evidence from the one joint owner act.
 See the [receipt](bridge-evidence.json), [source/process record](bridge-verification.md)
 and [current authority](tasks.md#current-exact-s-pr-2-implementation-authorization).
 
-D12/T temporal architecture is no longer contingent on ADR acceptance.
-The later exact-S owner instruction now authorizes T.1–T.7 preparation in
-existing draft PR #124. PR #101 remains untouched, ADR-0020 Proposed, U4 open
-and GATE-U4 unsatisfied. Canonical state, real genesis attestation, projection
-activation and PR-3/PR-4 remain excluded.
+The exact-S instruction recorded the historical PR-2 preparation scope.
+It is not current execution authority, nor a lifecycle or question-resolution
+answer. Consult canonical governance and the separately supplied task contract.
 
-Independent PR-2 review is still required; PR #124 stays draft and is not
-merged by this task. Common genesis source is exact S; archive-stage M remains
-`83e6cd8fa7d2d05ab246a39de039129b4056966d` for L4/L5/L7 at their exact roots.
+The PR-2 source records bind common S and archive-stage M
+`83e6cd8fa7d2d05ab246a39de039129b4056966d` at the recorded roots.
+These are immutable extraction provenance, not current program status.
 
 Promotion determination: no new architectural meaning is introduced by this
 implementation. The accepted ADRs own the decisions; planning remains subordinate.

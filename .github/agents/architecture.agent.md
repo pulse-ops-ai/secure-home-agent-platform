@@ -5,6 +5,11 @@ description: Documentation-oriented agent for architecture, ADRs, and repository
 
 # Architecture agent
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 ## Purpose
 
 Reason about and write the **architecture and governance documentation** of
@@ -52,9 +57,8 @@ Work that falls out of scope is reported, not attempted.
 
 ## Constraints
 
-- **Never edit an accepted ADR.** ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are
-  `Accepted` and immutable; ADR-0020 remains `Proposed`. Supersede an accepted
-  ADR with a new ADR.
+- **Never edit an accepted ADR.** Consult canonical governance for the current lifecycle; supersede a terminal
+  decision with a new ADR rather than editing its bytes.
 - **Never change an ADR's status without an explicit human-acceptance task.** A
   new ADR starts `Proposed`; acceptance is a human act in its own reviewed
   change.

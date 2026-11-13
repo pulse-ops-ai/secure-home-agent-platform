@@ -1,5 +1,10 @@
 # Degraded Mode
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 What the house does when parts of the platform are unavailable.
 
 Governed by
@@ -7,14 +12,10 @@ Governed by
 This document holds the **operation classification**, which is part of that
 decision.
 
-> **Status: not implemented.** No mechanism exists. In particular, **no bounded
-> local authority mechanism has been chosen**, so every `BOUNDED` operation
-> below currently behaves as `FAIL CLOSED`.
->
-> [ADR-0009](../decisions/ADR-0009-define-degraded-mode-and-offline-authorization.md)
-> is **accepted**, but acceptance did not close
-> [U1](unresolved-decisions.md#u1). The classification below is the target
-> posture; the `BOUNDED` column is not implementable until U1 has its own ADR.
+The classification below is the target posture. A `BOUNDED` operation must
+fail closed unless its governed local-authority mechanism and required proof
+exist. Consult canonical governance for [U1](unresolved-decisions.md#u1)
+resolution; this document does not author that answer.
 
 ## Two questions, not one
 
@@ -111,10 +112,10 @@ it**. A cell is the response class for that combination.
 | **Presence / occupancy read** | — | **FAIL CLOSED** | **FAIL CLOSED** |
 | **Access-history read** | — | **FAIL CLOSED** | **FAIL CLOSED** |
 
-> **Reminder: BOUNDED behaves as FAIL CLOSED today**, because no bounded-authority
-> mechanism has been chosen ([U1](unresolved-decisions.md#u1)). Every **BOUNDED**
-> cell above is currently refused. The column exists so the *target* posture is
-> written down, not to authorize an implementation.
+A `BOUNDED` classification is not authority. Without the required governed
+local-authority mechanism and proof, each such operation fails closed. Query
+canonical governance for the prerequisite question, never infer permission
+from the target classification.
 
 ### Why each class was assigned
 
@@ -206,11 +207,11 @@ behaviour (refused)**.
 | Durable history / audit persistence | ✗ buffered | ✓ | ✓ | ✓ | ✗ buffered |
 | New token issuance | ✗ | ✓ | ✓ | ✗ | ✓ |
 
-**A WAN outage is currently more restrictive than the target posture**, because
-every `BOUNDED` cell is refused until [U1](unresolved-decisions.md#u1) is
-answered. During a WAN outage today a household member cannot interactively lock
-a door — only a predeclared automation can. That is the conservative starting
-posture, deliberately, and it is the concrete cost of leaving U1 open.
+Without the required local-authority proof, a WAN outage is more restrictive
+than the target posture: interactive bounded operations refuse, while separately
+predeclared local safety automations retain their own boundary. The
+[U1 rationale](unresolved-decisions.md#u1) describes this trade-off; current
+resolution is queried, not maintained here.
 
 **Identity-provider outage is a slow failure.** Existing tokens stay valid until
 expiry, so the household keeps working for one token lifetime and then degrades.

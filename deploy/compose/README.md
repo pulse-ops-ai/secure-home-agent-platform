@@ -1,5 +1,10 @@
 # deploy/compose/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Docker Compose definitions for the Pi control plane.
 
 > **Status: no Compose file exists.** Nothing is defined and nothing is running.
@@ -10,8 +15,9 @@ Docker Compose definitions for the Pi control plane.
   [`../../services/`](../../services/).
 - A Compose definition for Home Assistant Container, once
   [ADR-0002](../../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)
-  is accepted and [U10](../../docs/architecture/unresolved-decisions.md#u10) is
-  answered.
+  and the credential question
+  [U10](../../docs/architecture/unresolved-decisions.md#u10) permit the scope;
+  consult canonical governance for lifecycle and resolution.
 - Network topology documentation: which service reaches which, and why.
 - Resource limits per service.
 - Obviously-fake example environment files.

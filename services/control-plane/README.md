@@ -1,5 +1,10 @@
 # services/control-plane
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Household control plane.
 
 > **Status: package boundary only.** No NestJS module, no Fastify adapter, no HTTP surface, no enforcement path — that is **issue #26**. The manifest, tsconfig, and an empty `src/index.ts` exist so the deployable boundary is discoverable, compiles, and can be depended on.
@@ -19,9 +24,9 @@ Household control plane.
 - **Home Assistant clients or credentials.** Only the action-mediation module,
   and only once [U10](../../docs/architecture/unresolved-decisions.md#u10) is
   decided.
-- **Persistence.** No toolkit is selected
-  ([U11](../../docs/architecture/unresolved-decisions.md#u11)) — no schema, no
-  migration, no repository.
+- **Persistence.** Consult canonical governance for
+  [U11](../../docs/architecture/unresolved-decisions.md#u11); no schema, migration
+  or repository implementation may decide a missing answer.
 - **Contract definitions** — those are [`packages/contracts`](../../packages/contracts/).
 - **The runner substrate** — that is [`../runner-control/`](../runner-control/),
   a separate process on purpose.

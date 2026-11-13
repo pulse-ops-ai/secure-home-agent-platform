@@ -1,5 +1,10 @@
 # openspec/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 The OpenSpec root: spec-driven change planning for this repository.
 
 | Path | Contains |

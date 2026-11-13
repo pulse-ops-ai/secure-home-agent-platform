@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 
 import { decodeUtf8, evaluateState } from './governance/model/index.mjs'
 import { evaluateHistory } from './governance/model/history.mjs'
+import { checkGovernanceSurfaces } from './check-governance-state.mjs'
 import {
   ABSENT,
   OBSERVATION_ERROR,
@@ -132,36 +133,48 @@ function readRevision(reader, root, revision, statePath) {
       reason: 'source manifest could not be read at this revision',
     }
   }
-  return {
-    resolved: true,
-    commit: resolved.oid,
-    present: true,
-    evaluation: evaluateState(text, {
-      stateBytes: read.bytes,
-      evaluatedRevision: resolved.oid,
-      sourceManifestBytes: source.status === PRESENT ? source.bytes : undefined,
-      readSnapshot: createGenesisReader(root),
-      ...createCommitReader(root),
-      readBytes: (repoPath) => {
-        const bytes = reader.readBytesAt(resolved.oid, repoPath)
-        if (bytes.status === PRESENT) return bytes.bytes
-        if (bytes.status === ABSENT) return undefined
-        // An unreadable artifact is not a missing one; throwing keeps the
-        // distinction the model relies on.
-        throw new Error(bytes.reason ?? 'artifact could not be read at this revision')
+  const evaluation = evaluateState(text, {
+    stateBytes: read.bytes,
+    evaluatedRevision: resolved.oid,
+    sourceManifestBytes: source.status === PRESENT ? source.bytes : undefined,
+    readSnapshot: createGenesisReader(root),
+    ...createCommitReader(root),
+    readBytes: (repoPath) => {
+      const bytes = reader.readBytesAt(resolved.oid, repoPath)
+      if (bytes.status === PRESENT) return bytes.bytes
+      if (bytes.status === ABSENT) return undefined
+      // An unreadable artifact is not a missing one; throwing keeps the
+      // distinction the model relies on.
+      throw new Error(bytes.reason ?? 'artifact could not be read at this revision')
+    },
+    observe: observer,
+    // "The checkout", at a historical revision, is that revision's tree.
+    checkout: {
+      tree: (rootPath) => {
+        const tree = observer.treeAt(resolved.oid, rootPath)
+        return tree.status === PRESENT ? tree.entries : undefined
       },
-      observe: observer,
-      // "The checkout", at a historical revision, is that revision's tree.
-      checkout: {
-        tree: (rootPath) => {
-          const tree = observer.treeAt(resolved.oid, rootPath)
-          return tree.status === PRESENT ? tree.entries : undefined
-        },
-        pathExists: (repoPath) => observer.pathExistsAt(resolved.oid, repoPath) === PRESENT,
-      },
-      hasLocalGitObject: (identity) => reader.resolveCommit(identity).status === PRESENT,
-    }),
+      pathExists: (repoPath) => observer.pathExistsAt(resolved.oid, repoPath) === PRESENT,
+    },
+    hasLocalGitObject: (identity) => reader.resolveCommit(identity).status === PRESENT,
+  })
+  if (statePath === DEFAULT_STATE) {
+    try {
+      const readSnapshot = createGenesisReader(root)
+      const surfaces = checkGovernanceSurfaces({
+        snapshot: readSnapshot(resolved.oid),
+        evaluation,
+        readSnapshot,
+        pathExists: (path) => observer.pathExistsAt(resolved.oid, path) === PRESENT,
+      })
+      evaluation.problems.push(...surfaces.problems)
+      evaluation.ok = evaluation.ok && surfaces.ok
+    } catch (error) {
+      evaluation.problems.push({ code: 'ADV-G46', path: '$.revision', message: error.message })
+      evaluation.ok = false
+    }
   }
+  return { resolved: true, commit: resolved.oid, present: true, evaluation }
 }
 
 export function checkGovernanceHistory({

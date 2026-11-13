@@ -1,5 +1,10 @@
 # API Contract Model
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 How a governed API operation is defined once and consumed everywhere: by a
 NestJS controller, OpenAPI, a Next.js client, a generated SDK, the metadata
 routes, and an MCP tool.
@@ -8,14 +13,9 @@ Governed by
 [ADR-0012](../decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md).
 That ADR decides; this document is what follows from it.
 
-> **Status: not implemented.** No package, decorator, pipeline, or route
-> described here exists.
->
-> [ADR-0012](../decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> is **`Accepted`** (2026-08-06), so these conventions are binding on work that is
-> authorized. Building against them still requires **a specific issue or task
-> contract** — acceptance authorizes the *shape* of the work, never the work
-> itself, and never deployment.
+This document defines API contract shape. Consult canonical governance for
+its governing decision's lifecycle; building against the contract still requires
+a specific external task contract, and acceptance never authorizes deployment.
 
 ## The rule everything else follows from
 
@@ -441,8 +441,8 @@ agents. They are generated from the same source, so they cannot disagree.
 
 - The persistence toolkit — [U11](unresolved-decisions.md#u11).
 - The adapter SPI for agent runtimes — decided separately by
-  [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), which
-  closed [U6](unresolved-decisions.md#u6). Nothing here applies to it; runner
+  [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md). Query canonical governance for
+  [U6](unresolved-decisions.md#u6) resolution. Nothing here applies to it; runner
   contracts stay provider-neutral
   ([ADR-0003](../decisions/ADR-0003-use-framework-neutral-runner-profiles.md)).
 - Whether the decorator layer is first-party or built over an existing adapter.

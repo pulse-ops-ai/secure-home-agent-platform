@@ -1,5 +1,10 @@
 # knowledge/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Portable knowledge bundles** — slow-moving, human-authored, reviewable context
 that agents read to *understand* the house.
 
@@ -10,7 +15,7 @@ that agents read to *understand* the house.
 > runbook rollout is per module. A set family carries no rollout gate at all —
 > release eligibility lives on immutable release records. The FORMAT is decided
 > ([ADR-0015](../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
-> which resolved [U7](../docs/architecture/unresolved-decisions.md#u7)); the
+> consult canonical governance for [U7](../docs/architecture/unresolved-decisions.md#u7) resolution); the
 > toolchain and its conformance suite are implemented and are invoked over real
 > content by `scripts/check-knowledge-content.mjs`; and the ADR-0015 §12
 > obligation was **discharged on 2026-08-16** after independent review, so

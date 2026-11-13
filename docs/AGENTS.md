@@ -1,5 +1,10 @@
 # AGENTS.md — `docs/`
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Scoped rules for documentation. Inherits everything from
 [`../AGENTS.md`](../AGENTS.md); this file adds only what is specific to `docs/`.
 
@@ -14,21 +19,11 @@ Scoped rules for documentation. Inherits everything from
 
 - **`decisions/` records why; `architecture/` records what follows.** If they
   disagree, the ADR wins and the architecture document is the defect to fix.
-- **Do not edit an accepted ADR.** ADR-0001 through ADR-0019 and
-  ADR-0021 through ADR-0024 are `Accepted` and immutable. ADR-0020 remains `Proposed` and
-  non-operative. Supersede an accepted ADR with a new ADR; do not "clarify" one
-  in place.
-- **ADR-0023/ADR-0024 acceptance is one atomic, consumed bridge, not
-  implementation authority.** PR #124 stays paused and PR-3 unauthorized.
-- **ADR-0022's acceptance decided the architecture, not the work.** TypeScript
-  remains 6.0.3 and ESLint remains the installed, current lint engine. Its two
-  implementation scopes — the parity foundation (PR-B) and the TypeScript 7
-  cutover (PR-C) — remain `NOT_AUTHORIZED` on **different** prerequisites. PR-B
-  requires the merged acceptance change, the exact post-PR-A2 `main` as its
-  base, and a separate Scope-1 task contract. PR-C additionally requires PR-B
-  merged with its parity evidence accepted, a fresh Scope-2 review epoch, and
-  the then-current post-PR-B `main` as its base — not the post-PR-A2 commit
-  (`INV-TS7-17`).
+- **Do not edit an accepted ADR.** Query canonical governance for current
+  lifecycle. Supersede terminal decisions rather than editing their bodies.
+- **Architecture does not authorize implementation.** The bootstrap bridge
+  evidence is historical, not reusable permission. Compiler/lint work follows
+  its own bounded task contracts and prerequisites, not a status copy here.
 - **Do not change any ADR's status without an explicit human-acceptance task.** A
   new ADR starts `Proposed` and is accepted by a human in its own reviewed
   change. Changing a status line is not a documentation fix.
@@ -54,6 +49,12 @@ Scoped rules for documentation. Inherits everything from
   names** — including in runbooks and examples.
 - **Cross-reference; do not duplicate.** Two copies of a rule become two
   different rules.
+
+The tooling scopes have distinct authorization prerequisites (`INV-TS7-17`).
+PR-B requires the exact post-PR-A2 main and a separate Scope-1 task contract.
+PR-C requires PR-B merged with accepted parity evidence, a fresh Scope-2
+review and authorization, and the then-current post-PR-B main, never the PR-B
+base. Query canonical governance for current program answers.
 
 ## Adding an ADR
 

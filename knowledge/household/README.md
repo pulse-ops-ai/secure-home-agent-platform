@@ -1,11 +1,17 @@
 # knowledge/household/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Household-domain knowledge modules** — what the house *is* and what its signals
 *mean*.
 
-> **Status: specification only.** No module content is authored. Every directory
-> here is registered in [`../INDEX.md`](../INDEX.md) and blocked on
-> [U7](../../docs/architecture/unresolved-decisions.md#u7).
+Module ownership and authoring eligibility are recorded in
+[the catalog](../catalog.json), not inferred from a question-resolution copy.
+Use canonical governance for the format question and the catalog for its
+independent domain-specific gates.
 
 ## Modules
 

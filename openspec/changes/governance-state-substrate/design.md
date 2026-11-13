@@ -1,18 +1,20 @@
 # Design: governance-state-substrate
 
-> **Accepted architecture; PR-2 implementation authorized at exact S:** ADR-0023 and ADR-0024 are
-> accepted together in this bridge target. D12 is no longer contingent on
-> architecture acceptance; both bridge envelopes retain the pre-transition
-> RFC 3339 rule. D13's exception is selected and consumed by this target,
-> permanently expired at durable S `c82fda72927464d813ec769aee53f4079ebe3b20`.
-> The exact-S owner authorization recorded in tasks.md resumes PR #124 only.
-> Canonical state and PR-3 remain excluded. Historical D12/D13 headings remain
-> stable link anchors only; historical bridge evidence is unchanged.
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
+> This design defines implementation contracts, not current governance status.
+> Historical bridge/source records below retain their original epoch; use
+> canonical governance for live lifecycle, question and program answers.
+> An external task contract, not this design, authorizes execution.
 
 Technical design for the ADR-0021 governance-state substrate, partially refined
 by ADR-0023/ADR-0024. This artifact defines **how** accepted behavior is
-implemented; it grants no implementation authority. PR-2 execution is separately
-authorized by the exact-S owner instruction recorded in tasks.md.
+implemented; it grants no implementation authority. The exact-S instruction in tasks.md records its historical preparation epoch.
 
 The historical PR #125 genesis amendment was limited to D6.5–D6.6c and their prerequisite,
 schema, digest, proof, and task references. It preserves the outer

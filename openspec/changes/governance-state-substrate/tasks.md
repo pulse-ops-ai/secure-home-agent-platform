@@ -1,15 +1,20 @@
 # Implementation Tasks: governance-state-substrate
 
-> **Current PR-2 implementation authority:** the owner's exact-S authorization
-> resumes existing draft PR #124 through T.1–T.7 preparation. Implementation is
-> in progress; unchecked tasks are not completion claims. See the current
-> authorization receipt below. PR-3 and PR-4 remain NOT AUTHORIZED.
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
 
-> **Current bridge boundary:** ADR-0024 is Accepted together with ADR-0023;
-> the bridge landed at S `c82fda72927464d813ec769aee53f4079ebe3b20` and is
-> permanently consumed/expired. The original pair-changing commit
-> `fc7d44ff48de015afd14faa7836fe11c58c457aa` remains in durable ancestry.
-> No future manual acceptance is permitted; canonical governance state is absent.
+> Current lifecycle, question resolution and program answers come from
+> canonical governance. The authorization records below describe their exact
+> historical epochs; they do not authorize another execution. Task metadata and
+> checkboxes define scope/progress, never current governance authority.
+
+> The bridge source and original transition are immutable historical evidence.
+> Neither the bridge record nor an earlier task receipt authorizes another
+> manual transition, canonical activation or owner ceremony.
 
 ## Contract
 
@@ -23,9 +28,9 @@ Implementation is governed by:
 These artifacts define the accepted change contract. Task completion does not
 redefine the specification, architecture, or assurance model.
 
-**The original planning landing executed no implementation task.** PR #124
-now implements the separately authorized PR-2 scope below; it creates no
-canonical governance state or activated generated projection.
+**The original planning landing executed no implementation task.** The
+PR-2 records below retain that preparation history; live governance answers
+and an external authorizing task remain separate.
 
 > **Revised again after review 5058723445** — withdrawal and replacement are
 > owned by implementation and verification tasks, PR-3's seam becomes one
@@ -89,10 +94,9 @@ This section RECORDS external authorization. It can never create it.
 
 The PR-1/PR #113 and PR #125 genesis-amendment records below are historical
 authorization provenance for their named epochs, not current execution
-instructions. Their historical "Current" labels do not override the current
-PR-2 boundary below. Task checkboxes are progress records, not authority.
+instructions. Their historical "Current" labels do not define today's execution boundary. Task checkboxes are progress records, not authority.
 
-### Current exact-S PR-2 implementation authorization
+### Historical exact-S PR-2 implementation authorization
 
 External source: the repository owner's **OWNER IMPLEMENTATION AUTHORIZATION —
 GOVERNANCE-STATE PR-2 / PR #124** instruction in the controlling conversation,

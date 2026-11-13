@@ -1,10 +1,14 @@
 # services/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Deployable backend processes.** A directory belongs here when it has its own
 lifecycle, process, and deployment identity, and no human uses it directly —
 regardless of what language it is written in
-([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Accepted`** 2026-08-06).
+([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
 
 These are the **L6 and L7** components this repository owns
 ([ADR-0002](../docs/decisions/ADR-0002-adopt-hybrid-home-deployment-profile.md)).
@@ -22,7 +26,7 @@ These are the **L6 and L7** components this repository owns
 
 > **These placeholders are superseded by TypeScript services.**
 > [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> (**`Accepted`** 2026-08-06) makes the control plane NestJS on Fastify, with this initial
+> makes the control plane NestJS on Fastify, with this initial
 > deployment shape:
 >
 > | Deployable | Contains |
@@ -95,7 +99,7 @@ migration — they describe what the `control-plane` modules must satisfy.
    runner, holds a Home Assistant credential.
    ([ADR-0004](../docs/decisions/ADR-0004-treat-agents-as-clients.md))
 3. **Only L6 mints the envelope; L7 verifies it.** Which service is L6 is
-   [U3](../docs/architecture/unresolved-decisions.md#u3) — unresolved.
+   [U3](../docs/architecture/unresolved-decisions.md#u3) — query canonical governance for resolution.
 4. **Authorization then safety policy, in that order.** Safety policy must be
    able to constrain an authorized principal, and must not leak resource bounds
    to an unauthorized one.

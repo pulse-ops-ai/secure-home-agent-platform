@@ -1,5 +1,10 @@
 # openspec/AGENTS.md — OpenSpec artifact governance
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Scoped rules for everything under `openspec/`. The root
 [`AGENTS.md`](../AGENTS.md) governs everything this file does not say;
 if they conflict, the root file and the accepted ADRs win.

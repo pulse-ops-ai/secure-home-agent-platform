@@ -1,5 +1,10 @@
 # deploy/runtime/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 The repository boundary for **future** host/container/VM execution-runtime
 integration — **taxonomy only**. Established by L5 (issue #53); populated
 only by a later governed landing.
@@ -29,11 +34,10 @@ identity appears in run evidence as **data**.
 
 ## What belongs here — later
 
-Concrete runtime integration authored by its own governed landing:
-runtime configuration, hardening posture, and the documentation of how the
-chosen runtime satisfies the launch contract. That landing is L9 (or an
-explicitly authorized prerequisite), and it requires the accepted U4
-placement ADR first.
+Concrete runtime integration needs its own governed task contract: runtime
+configuration, hardening posture and proof of the launch contract. Query
+canonical governance for the landing's current prerequisites and placement
+question resolution; this directory grants no implementation authority.
 
 ## What does not belong here
 

@@ -1,9 +1,13 @@
 # packages/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Reusable libraries with no runtime identity of their own.** A directory belongs
 here when it is *imported* rather than *deployed*
-([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Accepted`** 2026-08-06). Deployable processes are [`../services/`](../services/);
+([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)). Deployable processes are [`../services/`](../services/);
 human-facing applications are [`../apps/`](../apps/).
 
 All packages are TypeScript. Python is not a package language here — it is
@@ -87,7 +91,7 @@ no deployment identity of its own.
 ## Dependency direction
 
 [ADR-0012 §15](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-(**`Accepted`** 2026-08-06) fixes one direction, to be enforced in CI:
+fixes one direction, to be enforced in CI:
 
 ```
 contracts  ←  domain  ←  application  ←  adapters  ←  apps

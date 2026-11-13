@@ -1,5 +1,10 @@
 # Trust Boundaries
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Every boundary in this system, and the evidence required to cross it.
 
 Inherits the upstream trust-zone model (Z0 public → Z4 internal trusted) and its

@@ -1,5 +1,10 @@
 # AGENTS.md — `agents/`
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Scoped rules for household agents and runtime adapters. Inherits everything from
 [`../AGENTS.md`](../AGENTS.md).
 
@@ -42,12 +47,10 @@ and act on the house. You, the coding agent editing these files, are governed by
 ## Do not
 
 - Implement an agent or an adapter without an authorizing issue or task
-  contract. The adapter SPI is now decided —
-  [ADR-0013](../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md) closed
-  [U6](../docs/architecture/unresolved-decisions.md#u6) on 2026-08-12 — but run
-  credentials are still
-  [U2](../docs/architecture/unresolved-decisions.md#u2), and a decided SPI is
-  still not an authorization to write code.
+  contract. Read the SPI contract in
+  [ADR-0013](../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md),
+  and use canonical governance for question resolution and prerequisites.
+  An architectural decision is not authorization to write code.
 - Add a dependency, a framework, or a provider SDK.
 - Write a stub that appears to work.
 - Decide the workload-identity mechanism —

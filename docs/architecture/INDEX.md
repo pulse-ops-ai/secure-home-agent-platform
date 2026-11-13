@@ -1,5 +1,10 @@
 # docs/architecture/ — Architecture entry point
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 This is the household-specific application of an inherited, implementation-neutral
 architecture. **Read the decisions before the descriptions**:
 [`../decisions/INDEX.md`](../decisions/INDEX.md) records *why*; this folder
@@ -63,10 +68,10 @@ trust zones **Z0** (public) → **Z4** (internal trusted, envelope-carrying).
 **Some of this is implemented; none of it is running.** The distinction matters
 more than either half alone.
 
-| | |
-|---|---|
-| **Landed** | runner domain contracts; the trusted runner core ([`packages/runner-core`](../../packages/runner-core/)); L4 orchestration ([`services/runner-control`](../../services/runner-control/)) — lifecycle, effect boundary, and finalization semantics, behind ports against deterministic reference mechanisms; the knowledge toolchain and repository content admission; the image lineage ([`deploy/images/`](../../deploy/images/)) — digest-locked, machine-validated, inert (L5 base/Claude/gates, L7 Copilot); the L7 coding adapters ([`agents/adapters/coding/`](../../agents/adapters/coding/)) — frozen-SPI translation for Claude Code and GitHub Copilot CLI, conformance-proven against stubs |
-| **Not implemented, or not activated** | no Home Assistant, no live services, no OpenFGA, no Keycloak, no credentials; no published or activated runner image (the image definitions are inert — referenced by no profile, launched by nothing); no launcher or process spawn (the adapters exist; no platform code path invokes them); no deployed process; no L9 physical enforcement of isolation; no durable persistence ([U11](unresolved-decisions.md#u11)) |
+Consult [canonical governance](../../governance/STATE.md) for runner program
+delivery and readiness. The architecture documents below describe component
+responsibilities and proof boundaries, not a second delivery-state table.
+A recorded landing is not evidence of a running service or deployment permission.
 
 Where a document describes something that does not exist, it says so. Where
 something **is** implemented, saying it is not is equally a defect.
