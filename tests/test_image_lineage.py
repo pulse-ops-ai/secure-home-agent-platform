@@ -263,13 +263,8 @@ def test_the_live_repository_passes_its_own_lineage_gate() -> None:
     assert "4 image(s)" in result.stdout
 
 
-def test_gates_package_retrieval_uses_frozen_authenticated_archives() -> None:
-    """Live indexes can drop an exact version even when every byte is pinned.
-
-    The gate build must use historical lookup, retain signature verification,
-    and keep the existing independent artifact checks before installation.
-    """
-    directory = REPO_ROOT / "deploy/images/gates-toolchain"
+def _assert_frozen_package_retrieval(directory: Path) -> None:
+    """Retrieval locates the closure; signed metadata and artifact checks decide."""
     sources = (directory / "debian.sources").read_text()
     paragraphs = [
         dict(
@@ -304,6 +299,56 @@ def test_gates_package_retrieval_uses_frozen_authenticated_archives() -> None:
     # size, count and install chain. No pin or verification is relaxed here.
     result = _check(REPO_ROOT)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_gates_package_retrieval_uses_frozen_authenticated_archives() -> None:
+    _assert_frozen_package_retrieval(REPO_ROOT / "deploy/images/gates-toolchain")
+
+
+def test_runner_package_retrieval_uses_frozen_authenticated_archives() -> None:
+    _assert_frozen_package_retrieval(REPO_ROOT / "deploy/images/runner-base")
+
+
+@pytest.mark.parametrize("image", ["runner-base", "runner-claude", "runner-copilot"])
+def test_runner_manifest_modes_are_normalized_and_sources_are_inherited(image: str) -> None:
+    directory = REPO_ROOT / "deploy/images" / image
+    dockerfile = (directory / "Dockerfile").read_text()
+    # Inspect executed instructions with the real parser, excluding comments.
+    result = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            "import { dockerfileInstructions } from './scripts/check-images.mjs';"
+            "import { readFileSync } from 'node:fs';"
+            "const text = readFileSync(process.argv[1], 'utf8');"
+            "console.log(JSON.stringify(dockerfileInstructions(text)));",
+            str(directory / "Dockerfile"),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    parsed: list[str] = json.loads(result.stdout)
+    instructions = [line.strip() for line in parsed if line.strip() and not line.startswith("#")]
+    assert (
+        instructions.count(
+            "COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/"
+        )
+        == 1
+    )
+    if image != "runner-base":
+        assert instructions[0] == "FROM secure-home-runner-base"
+        assert not (directory / "debian.sources").exists()
+        assert all("sources.list" not in instruction for instruction in instructions)
+    assert "deb.debian.org" not in dockerfile
+    assert "trusted=yes" not in dockerfile
+    assert "AllowUnauthenticated" not in dockerfile
+    assert "--allow-unauthenticated" not in dockerfile
+    # All three real definitions still pass the closure-driven artifact gate.
+    checked = _check(REPO_ROOT)
+    assert checked.returncode == 0, checked.stdout + checked.stderr
 
 
 def test_the_fixture_control_passes(tmp_path: Path) -> None:

@@ -285,6 +285,17 @@ def test_gates_snapshot_change_selects_only_gates(image_repo: Path) -> None:
     assert result["affected"] == [GATES]
 
 
+def test_runner_snapshot_change_selects_lineage_but_not_gates(image_repo: Path) -> None:
+    result = _mutated_impact(
+        image_repo,
+        lambda root: _append(root / "deploy/images/runner-base/debian.sources"),
+    )
+    assert result["decision"] == "affected"
+    assert result["direct"] == [BASE]
+    assert result["affected"] == [BASE, CLAUDE, COPILOT]
+    assert GATES not in result["affected"]
+
+
 def test_gates_change_is_independent_of_runner_lineage(image_repo: Path) -> None:
     result = _mutated_impact(
         image_repo,
@@ -416,7 +427,7 @@ def test_external_base_change_selects_base_closure(image_repo: Path) -> None:
 def test_image_lock_identity_change_selects_owning_leaf(image_repo: Path) -> None:
     def mutate(root: Path) -> None:
         lock = root / "deploy/images/image-lock.yaml"
-        old = "sha256:62b699f72c0fedf832721a8d74e94007f00f359585e606efd352130d5c9c5721"
+        old = "sha256:13f23f03d21499560afed8aaf3db36619aef5164e15f745f5aebd84acffa0212"
         _replace(lock, old, "sha256:" + "2" * 64)
 
     result = _mutated_impact(image_repo, mutate)
@@ -850,7 +861,7 @@ def test_derived_plan_uses_exact_locked_parent_digest(tmp_path: Path) -> None:
     context = plan["derivedBake"]["target"][CLAUDE]["contexts"][BASE]
     assert context.startswith("oci-layout:///")
     assert context.endswith(
-        "@sha256:344b59fa8a1ec66535fea31b44dc3912accdbd68c981982d641a7c753261a1b8"
+        "@sha256:d84e127ebb754b06448e9d7905b79ee41c47ed0afed76fefbb4802d82d6e4a5f"
     )
 
 

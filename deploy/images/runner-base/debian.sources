@@ -1,0 +1,17 @@
+# The archive at the existing closure's resolution date. HTTP bootstraps the
+# pinned ca-certificates package; signed Release metadata and the independent
+# manifest SHA-256/size checks remain mandatory. Only snapshot metadata expiry
+# is disabled: an intentionally frozen Release is necessarily historical.
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian/20260827T000000Z/
+Suites: trixie
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Check-Valid-Until: no
+
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian-security/20260827T000000Z/
+Suites: trixie-security
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Check-Valid-Until: no

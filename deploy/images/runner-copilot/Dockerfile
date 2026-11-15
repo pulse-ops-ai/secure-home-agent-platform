@@ -63,7 +63,7 @@ ARG DETECT_LIBC_SHA512_B64=Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364
 # at deploy/images/debian-closure.lock.json — one line per artifact, columns
 # <sha256> <size> <package> <version> <filename>. The build consumes exactly
 # that set; scripts/check-images.mjs refuses any drift between the two.
-COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 
 USER root
 

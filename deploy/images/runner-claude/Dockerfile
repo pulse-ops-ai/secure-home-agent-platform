@@ -48,7 +48,7 @@ ARG CLAUDE_CODE_SHA512_B64_ARM64=tHsJhjwcoFyKTCQfYCclKjLtbnbbGKvcrzxUhMb6NDlPw9R
 # at deploy/images/debian-closure.lock.json — one line per artifact, columns
 # <sha256> <size> <package> <version> <filename>. The build consumes exactly
 # that set; scripts/check-images.mjs refuses any drift between the two.
-COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
 
 USER root
 
