@@ -48,6 +48,24 @@ None are declared here, deliberately: limits are a **launch** property the
 execution profile declares and L9 enforces per run. Baking a limit into an
 image would misstate where that authority lives.
 
+## Frozen package retrieval
+
+[`debian.sources`](debian.sources) selects the Debian and Debian Security
+snapshots at `20260827T000000Z`, derived from the unchanged shared closure's
+`resolved_on` date. The base installs these sources before its first APT update;
+derived images inherit them for their own exact-version downloads.
+
+HTTP permits bootstrap before the pinned CA package is installed. Debian's
+archive keyring still authenticates signed metadata. Only historical metadata
+expiry is disabled with `Check-Valid-Until: no`; there is no live fallback or
+unauthenticated mode. Package versions, artifact counts, sizes and SHA-256
+checks remain the acceptance authority. Missing or mismatched bytes refuse the
+build. This repairs retrieval availability without updating the package closure.
+
+Source and manifest copies use `--chmod=0644` so checkout umasks cannot change
+image identity. The governed build verifies both architectures and the derived
+images against [`../image-lock.yaml`](../image-lock.yaml).
+
 ## Governed by
 
 [`../README.md`](../README.md) → [`../../AGENTS.md`](../../AGENTS.md) ·

@@ -24,15 +24,12 @@
 # identity gate caught it, which is what it is for. Pinning the named
 # packages alone is insufficient and must not be reintroduced.
 #
-# The snapshot service refuses the governed builder's address space, so a
-# frozen archive snapshot is not an available mechanism; the manifest is the
-# fallback, and the narrowed claim is recorded in the child design.
-#
-# COST, ACCEPTED DELIBERATELY. Debian removes superseded .deb files from the
-# pool, so a pinned artifact eventually stops being fetchable and the build
-# FAILS LOUDLY. Taking a security update therefore becomes a reviewed
-# manifest bump that moves every digest built from it — which is the point.
-# Silent pickup is the failure mode being removed, not a feature being kept.
+# Frozen, authenticated archive indexes locate the existing closure's exact
+# artifacts after live mirrors remove them. The snapshot date is the closure's
+# resolved_on date; signatures remain required. Retrieval supplies no new
+# package authority: version, count, size and SHA-256 checks below still decide
+# acceptance. Unavailable or mismatched artifacts fail, with no live fallback.
+# Security updates require a reviewed closure change and new image identities.
 
 FROM docker.io/library/debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
@@ -45,7 +42,8 @@ ARG SOURCE_DATE_EPOCH=0
 # at deploy/images/debian-closure.lock.json — one line per artifact, columns
 # <sha256> <size> <package> <version> <filename>. The build consumes exactly
 # that set; scripts/check-images.mjs refuses any drift between the two.
-COPY packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+COPY --chmod=0644 packages.amd64.manifest packages.arm64.manifest /tmp/pkg/
+COPY --chmod=0644 debian.sources /etc/apt/sources.list.d/debian.sources
 
 RUN set -eux; \
     cd /tmp/pkg; \
