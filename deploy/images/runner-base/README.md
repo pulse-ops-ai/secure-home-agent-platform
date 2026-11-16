@@ -1,5 +1,10 @@
 # deploy/images/runner-base/
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 `secure-home-runner-base` — the provider-neutral **untrusted workload
 substrate**. Every runner image derives from it
 ([ADR-0011](../../../docs/decisions/ADR-0011-keep-coding-agent-images-provider-specific.md)).
@@ -17,7 +22,7 @@ WHERE a workload executes, and nothing more:
   plumbing at launch).
 
 There is deliberately no `CMD`: this image is inert, and only the platform
-launcher (L9, not yet landed) supplies a command.
+launcher supplies a command. Query canonical governance for its delivery.
 
 ## What it deliberately does not contain
 

@@ -1,11 +1,15 @@
 # governance-state Specification Delta
 
-> **Accepted architecture; PR-2 implementation authorized at exact S.** ADR-0023
-> and ADR-0024 landed together at `c82fda72927464d813ec769aee53f4079ebe3b20`.
-> The later owner authorization recorded in tasks.md resumes PR #124 only.
-> Both historical bridge envelopes retain pre-transition RFC 3339 evidence;
-> the bridge is permanently consumed/expired. Canonical state, real genesis
-> attestations and PR-3 remain excluded. Requirements below are unchanged.
+Current governance state is not authored here. Use [the canonical registry](../../../../../governance/state.json),
+[its generated projection](../../../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
+> These requirements define the governance contract, not current lifecycle or
+> implementation authority. The historical bridge envelopes retain their
+> original evidence; current answers come only from canonical governance.
 
 ## ADDED Requirements
 

@@ -1,5 +1,10 @@
 # knowledge/platform/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Platform self-description** — what an agent needs to understand about the
 system it is running inside.
 
@@ -47,7 +52,7 @@ rest.
 ## Planned bundle: developer-platform conventions
 
 [ADR-0012](../../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-(**`Accepted`** 2026-08-06) specifies a governed bundle so that agents adding API surface
+specifies a governed bundle so that agents adding API surface
 follow the contract-first rules rather than rediscovering them. Content:
 
 - contract-first conventions and the one-authored-source rule;
@@ -64,9 +69,10 @@ Matching skills: **add Zod contract · add API operation · add list route · ad
 projection config · add metadata resource · add MCP tool · add audit event · add
 persistence model.**
 
-**Gated on the OKF validator** ([U7](../../docs/architecture/unresolved-decisions.md#u7)).
-Generated API and operation reference comes from code and the normalized OpenAPI
-document — **never** hand-maintained Markdown.
+Knowledge authoring eligibility is governed by [the catalog](../catalog.json)
+and admission contract; query canonical governance for question resolution.
+Generated API and operation reference comes from code and normalized OpenAPI,
+never hand-maintained Markdown.
 
 This bundle describes *how to build*; it is not agent-readable runtime
 configuration and confers no authority.

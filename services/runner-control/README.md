@@ -1,13 +1,17 @@
 # services/runner-control
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 The runner substrate.
 
-> **Status: orchestration landed; nothing launches yet.** L4 (#27) built the
-> typed run lifecycle, authority acquisition, gate scheduling, evidence
-> finalization, and the port boundary — all behind ports, with **no container
-> launch, no process spawn, and no executed bootstrap**. The concrete launcher
-> is a later landing gated on [U4](../../docs/architecture/unresolved-decisions.md#u4);
-> adapters are L7, after [ADR-0013](../../docs/decisions/ADR-0013-define-the-runner-adapter-spi.md).
+Orchestration owns the typed run lifecycle, authority acquisition, gate
+scheduling, evidence finalization and port boundary. Physical launch and adapter
+translation have separate responsibilities. Query canonical governance for
+runner delivery, readiness and prerequisite question resolution; this README
+does not author program status.
 
 ## What is here
 
@@ -71,7 +75,7 @@ The runner substrate.
 - **Zod.** Contracts are authored once, in
   [`packages/contracts`](../../packages/contracts/), and consumed by instance.
 - **Credentials.** Provisioned per run from the profile, never ambient.
-- **Workload identity** — unresolved, [U2](../../docs/architecture/unresolved-decisions.md#u2).
+- **Workload identity** — consult canonical governance for [U2](../../docs/architecture/unresolved-decisions.md#u2).
 
 ## Governed by
 

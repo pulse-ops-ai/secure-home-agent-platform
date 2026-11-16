@@ -1,8 +1,12 @@
 # apps/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Human-facing applications only.** A directory belongs here when a person opens
-it ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
-**`Accepted`** 2026-08-06).
+it ([ADR-0012 §5](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)).
 
 **Deployable backend processes do not belong here** — `control-plane`,
 `runner-control`, and workers are [`../services/`](../services/). Putting a

@@ -1,5 +1,10 @@
 # secure-home-agent-platform
 
+Current governance state is not authored here. Use [the canonical registry](governance/state.json),
+[its generated projection](governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 A **local-first, security-first platform for household agents.**
 
 Agents that observe a house and act on it — adjusting climate, watching for
@@ -7,39 +12,22 @@ problems, answering questions — running under controls strong enough that they
 can be trusted near a door lock, and local enough that the house keeps working
 when the internet does not.
 
-> ## Status: contracts, core, orchestration, the knowledge toolchain, the image lineage, and the coding adapters are landed — nothing is deployed
+> ## Governance and implementation boundaries
 >
-> **Landed:** the runner domain contracts; the trusted runner core
-> ([`packages/runner-core`](packages/runner-core/)); L4 orchestration
-> ([`services/runner-control`](services/runner-control/)) — the typed run
-> lifecycle, authority acquisition, the effect boundary, and finalization;
-> the knowledge toolchain with repository content admission
-> ([`packages/knowledge-toolchain`](packages/knowledge-toolchain/)); the
-> L5 image lineage ([`deploy/images/`](deploy/images/)) — the digest-locked
-> runner-base, Claude reference, Copilot, and gates-toolchain definitions,
-> inert; and the L7 coding adapters
-> ([`agents/adapters/coding/`](agents/adapters/coding/)) — Claude Code and
-> GitHub Copilot CLI translation to the frozen adapter SPI, conformance-proven
-> against stubs, launched by nothing.
+> Current decision lifecycle, question resolution and runner program answers
+> come from [canonical governance](governance/STATE.md), never this README.
+> Delivery evidence does not imply a deployed system or authorize one.
 >
-> **There is still no deployed or activated runtime**: no Home Assistant, no
-> running service, no OpenFGA, no Keycloak, no published or activated runner
-> image (the image definitions are inert), no launcher or process spawn (the
-> adapters exist; nothing can invoke
-> them), no L9 physical enforcement, no credentials, no database
-> connection, and no durable persistence
-> ([U11](docs/architecture/unresolved-decisions.md#u11)). Landed code is not a
-> running system.
+> Component documentation: [runner core](packages/runner-core/),
+> [orchestration](services/runner-control/),
+> [knowledge toolchain](packages/knowledge-toolchain/),
+> [image definitions](deploy/images/), and [adapters](agents/adapters/coding/).
+> Physical isolation, credentials, runtime integration and persistence each
+> require their own governed scope. No deployment is authorized here.
 >
-> **ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024** are **`Accepted`** and immutable —
-> the foundational set on 2026-08-05, the implementation stack on 2026-08-06,
-> the runner effect-boundary and identity decisions on 2026-08-17, ADR-0019 on
-> 2026-08-21, ADR-0021 on 2026-08-28, ADR-0022 on 2026-09-01, and
-> ADR-0023/ADR-0024 jointly on 2026-09-19. **ADR-0020 remains `Proposed`; the
-> accepted set is intentionally non-contiguous.** Implementation may proceed
-> against accepted ADRs only under an authorizing task contract.
-> The joint acceptance consumes the one-shot bridge; it does not resume
-> PR #124, create canonical state or authorize PR-3.
+> [Decision rationale](docs/decisions/INDEX.md) ·
+> [Question rationale](docs/architecture/unresolved-decisions.md) ·
+> [Domain boundaries](#what-has-not-been-implemented)
 
 > ADR-0021 is accepted as the governance-state authority contract, but its
 > future `governance/` registry, validators, renderer, query interface, and
@@ -332,11 +320,10 @@ ceiling; **who is asking** sets the floor.
 **Nobody gains physical access by causing an outage.** That property is what
 makes the rest defensible.
 
-The hardest open question in this repository is how the local path obtains
-bounded authority when the central decision point is unreachable — a local
-replica, signed capability leases, or a bounded cache. Each trades revocation
-latency for availability. **It is deliberately not decided**
-([U1](docs/architecture/unresolved-decisions.md#u1)).
+Local offline authority trades revocation latency against availability.
+The alternatives and required evidence remain in
+[U1](docs/architecture/unresolved-decisions.md#u1); query canonical governance
+for its resolution. A missing authority proof always fails closed.
 
 ---
 
@@ -423,8 +410,7 @@ a transaction boundary that physical devices cannot honour.
 ├── docs/
 │   ├── architecture/      system context · trust boundaries · runner model ·
 │   │                      identity flow · routing · degraded mode · open questions
-│   ├── decisions/         ADR-0001 … ADR-0019, ADR-0021 … ADR-0024 (Accepted, immutable);
-│   │                       ADR-0020 remains Proposed
+│   ├── decisions/         normative decision records and generated lifecycle index
 │   └── operations/        runbooks — Pi bootstrap
 ├── services/              deployable backend processes — TypeScript
 │   ├── control-plane/     household API · authorization · safety policy ·
@@ -526,12 +512,10 @@ outright rather than leaving that as an unstated assumption.
 
 ## Decisions accepted
 
-All listed decisions are **`Accepted`** and now **immutable** — the foundational
-eleven on 2026-08-05, the implementation stack on 2026-08-06, the later runner
-and knowledge decisions, and ADR-0021 on 2026-08-28. ADR-0020 remains
-`Proposed`. Reverse or amend an accepted decision only by a superseding ADR.
-Acceptance records and the unblocked/still-blocked breakdown:
-[`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
+Decision lifecycle and dates come only from [canonical governance](governance/state.json)
+and its query; [the index](docs/decisions/INDEX.md) projects them alongside
+authored rationale and historical acceptance records. Supersede terminal decisions
+rather than editing their bytes.
 
 | | |
 |---|---|
@@ -564,30 +548,25 @@ Specifically absent, on purpose:
 | Area | State |
 |---|---|
 | Home Assistant | **not installed.** No instance, no credential, no configuration. |
-| Services | `runner-control` carries the landed L4 orchestration behind ports, with **no endpoint served and no process started**; the remaining members are manifests and placeholders. |
+| Services | [Orchestration](services/runner-control/) defines the port boundary; delivery is queried from canonical governance, not this table. |
 | Authorization | **No household model.** The shared coarse model is explicitly not adopted. |
 | Safety policy | **No declaration format, no evaluator.** |
-| Runner substrate | Orchestration semantics are implemented, and the L5 image definitions are landed and inert ([`deploy/images/`](deploy/images/), digest-locked, referenced by no profile); **no published or activated image, no sandbox, no launcher, and no L9 physical enforcement.** |
+| Runner substrate | [Runner model](docs/architecture/runner-model.md) separates orchestration, images, adapters and physical enforcement; query canonical governance for delivery/readiness. |
 | Execution profiles | **Schema landed** ([`schemas/execution-profile/`](schemas/execution-profile/), generated from the Zod contract); **no profile instance exists**, and the image-lineage checker refuses one that references an image. |
-| Schemas | The L2 contract corpus is **generated and identity-ledger-guarded** under [`schemas/`](schemas/) — execution profile, run, run events, evidence, launch assertion, path policy, gate registry, verification packs. |
+| Schemas | [Schemas](schemas/) are generated from authored contracts and guarded by the identity ledger. |
 | Knowledge bundles | **`platform/**` modules are authored** and `Validated` at `1.0.0` against their own human-reviewed bytes — see `knowledge/catalog.json` for which, and for exact status. Three coding set releases are human-reviewed and recorded in `knowledge/set-releases.json`; `household/**` families remain unreleased. Nothing is packaged and nothing is published — publication is unavailable while no governed Proof B producer exists, and a released set is not runtime-resolvable. |
 | Web application | Deliberately not scaffolded — depends on an open decision. |
-| Deployment | **The L5 image Dockerfiles and lineage lock are landed** — built and verified only through the governed CI path, published nowhere; **no Compose file, no proxy or tailnet configuration, no execution runtime selected.** |
+| Deployment | [Deployment assets](deploy/) do not authorize a running system; consult canonical governance for landing state and the external task contract for permission. |
 | Credentials | **None, anywhere.** |
 | Runtime dependencies | Only what the landed packages need. No service dependency is installed for a runtime that does not run. |
-| Governance state | ADR-0021 is accepted as a contract; the future root-level `governance/` registry, validators, renderer, query interface, and generated projection do not yet exist. A separate authorized implementation is required. |
+| Governance state | [Registry ownership and query](governance/README.md); data never authorizes implementation or runtime actions. |
 
 ### Deliberately undecided
 
-Eleven tracked questions are listed in
-[`unresolved-decisions.md`](docs/architecture/unresolved-decisions.md). Each is
-closed by a **new** ADR, never by an implementation.
-[U6](docs/architecture/unresolved-decisions.md#u6) was closed by ADR-0013
-(2026-08-12) and [U7](docs/architecture/unresolved-decisions.md#u7) by ADR-0015
-(2026-08-15) — each by *answering* the question, which is the only mechanism
-that file admits. The other nine items are open, and
-[U11](docs/architecture/unresolved-decisions.md#u11) (persistence toolkit) was
-*added* by ADR-0012 rather than answered by it.
+The tracked [question rationale](docs/architecture/unresolved-decisions.md)
+is preserved independently of its generated resolution. Only an answering ADR
+can settle a question; query canonical governance instead of maintaining counts
+or resolver lists here.
 
 The most consequential is
 [U1](docs/architecture/unresolved-decisions.md#u1): how the local path obtains

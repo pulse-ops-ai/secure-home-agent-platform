@@ -8,26 +8,45 @@ answer to "why is it like this?" eighteen months from now.
 > amend a decision by writing a new ADR that supersedes it — never by editing an
 > accepted file.
 >
-> **Current accepted set:** ADR-0001 through ADR-0019 **and ADR-0021 through
-> ADR-0024** are `Accepted` and immutable. **ADR-0020 remains `Proposed`.**
-> This non-contiguous set must not be rendered as one continuous range:
-> 0001–0019, 0021–0024, with 0020 excluded. ADR-0023 and ADR-0024 are accepted
-> together in one consumed bootstrap bridge; neither authorizes implementation.
->
-> **Neither foundational acceptance resolved anything in
-> [`unresolved-decisions.md`](../architecture/unresolved-decisions.md).** Two
-> items have closed since: **[U6](../architecture/unresolved-decisions.md#u6)**,
-> by [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) on 2026-08-12, and
-> **[U7](../architecture/unresolved-decisions.md#u7)**, by
-> [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) on
-> 2026-08-15 — two of the tracked set **U1–U11**. Every other item still
-> blocks the work that depends on it, and U7's closure decided the knowledge
-> format without opening knowledge authoring. See
-> [What acceptance does and does not unblock](#what-acceptance-does-and-does-not-unblock).
 
 This index is validated by [`scripts/validate-scaffold.sh`](../../scripts/validate-scaffold.sh):
 every ADR file referenced here must exist, and every ADR file present must be
 referenced here.
+
+## Current lifecycle projection
+
+Current lifecycle and question-resolution answers come from
+[`governance/state.json`](../../governance/state.json) and the canonical query,
+not the historical acceptance records below.
+
+<!-- governance:begin decision-lifecycle -->
+| Decision | Lifecycle | Decision date | Resolves |
+| --- | --- | --- | --- |
+| ADR-0001 | Accepted | 2026-08-05 | — |
+| ADR-0002 | Accepted | 2026-08-05 | — |
+| ADR-0003 | Accepted | 2026-08-05 | — |
+| ADR-0004 | Accepted | 2026-08-05 | — |
+| ADR-0005 | Accepted | 2026-08-05 | — |
+| ADR-0006 | Accepted | 2026-08-05 | — |
+| ADR-0007 | Accepted | 2026-08-05 | — |
+| ADR-0008 | Accepted | 2026-08-05 | — |
+| ADR-0009 | Accepted | 2026-08-05 | — |
+| ADR-0010 | Accepted | 2026-08-05 | — |
+| ADR-0011 | Accepted | 2026-08-05 | — |
+| ADR-0012 | Accepted | 2026-08-06 | — |
+| ADR-0013 | Accepted | 2026-08-12 | U6 |
+| ADR-0014 | Accepted | 2026-08-15 | — |
+| ADR-0015 | Accepted | 2026-08-15 | U7 |
+| ADR-0016 | Accepted | 2026-08-16 | — |
+| ADR-0017 | Accepted | 2026-08-17 | — |
+| ADR-0018 | Accepted | 2026-08-17 | — |
+| ADR-0019 | Accepted | 2026-08-21 | — |
+| ADR-0020 | Proposed | — | U4 |
+| ADR-0021 | Accepted | 2026-08-28 | — |
+| ADR-0022 | Accepted | 2026-09-01 | — |
+| ADR-0023 | Accepted | 2026-09-19 | — |
+| ADR-0024 | Accepted | 2026-09-19 | — |
+<!-- governance:end decision-lifecycle -->
 
 ## Conventions
 
@@ -60,45 +79,15 @@ approval, and the degraded-mode classes each assume the other two.
 
 ## What acceptance does and does not unblock
 
-**Now unblocked** — an accepted ADR can be implemented against, once a task
-contract or issue authorizes the specific work
-([`.github/agents/implementation.agent.md`](../../.github/agents/implementation.agent.md)):
+An architectural decision and an external task contract serve different purposes.
+Implementation must respect the decision, and requires its own bounded authority.
+For live lifecycle, question-resolution and prerequisite answers, use
+[`governance/STATE.md`](../../governance/STATE.md) or
+`node scripts/query-governance-state.mjs --json`.
 
-- the execution-profile, run, action, and automation schemas;
-- the runner substrate, and — since **ADR-0013** closed
-  [U6](../architecture/unresolved-decisions.md#u6) on 2026-08-12 — the adapter
-  SPI in full, not only its neutral parts;
-- the household authorization model's structure (types, relations, delegation);
-- the deterministic safety-policy declaration format and evaluator;
-- the knowledge-bundle validator and the four OKF interfaces;
-- the base runner image and the derived per-provider images;
-- conformance and policy-scenario test suites.
-
-**Still blocked** — acceptance changed nothing here, because these depend on
-questions the ADRs deliberately left open:
-
-| Blocked work | Blocked on |
-|---|---|
-| Any offline/bounded local authority mechanism | [U1](../architecture/unresolved-decisions.md#u1) — **BOUNDED still behaves as FAIL CLOSED** |
-| Issuing run credentials to a sandbox | [U2](../architecture/unresolved-decisions.md#u2) |
-| Building the L6 envelope issuer | [U3](../architecture/unresolved-decisions.md#u3) |
-| Deploying `runner-control` to a host | [U4](../architecture/unresolved-decisions.md#u4) |
-| Automation persistence and scheduling | [U5](../architecture/unresolved-decisions.md#u5) |
-| Authoring `household/**` knowledge, or releasing any set | `blockedByRollout` — both remain rollout-blocked (ADR-0016 §7a). Runbooks are allowlisted per module, never by directory; `knowledge/catalog.json` is authoritative for current eligibility |
-| **Publishing** any knowledge bundle | no governed **Proof B** producer exists ([ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) §5a). Discharging readiness did not unblock publication |
-| Deploying an OpenFGA store | [U8](../architecture/unresolved-decisions.md#u8) |
-| Caching an authorization decision | [U9](../architecture/unresolved-decisions.md#u9) |
-| Giving `action-gateway` a Home Assistant credential | [U10](../architecture/unresolved-decisions.md#u10) |
-
-**Knowledge authoring is no longer blocked on the toolchain gate.** The
-[ADR-0015 §12](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
-obligation was **discharged on 2026-08-16** after independent review of the
-toolchain, its conformance suite, and repository content admission, so
-`blockedByToolchain` is `false` on all 23 catalog entries. Authoring the ten
-`platform/**` modules is eligible; everything else is held by `blockedByRollout`,
-and publication is held separately by the absent Proof B producer.
-[U7](../architecture/unresolved-decisions.md#u7) is **RESOLVED** and was never
-this gate.
+Knowledge content eligibility and publication remain separately governed by
+[`knowledge/catalog.json`](../../knowledge/catalog.json) and its admission
+contracts; question resolution is not evidence of toolchain delivery or publication.
 
 **Acceptance is not authorization to deploy.** No runtime service, no
 credential, and no Home Assistant instance is authorized by this change. Those
@@ -116,83 +105,50 @@ combination — in particular
 [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md),
 and [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md).
 
-| ADR | Title | Status | Governs |
-|---|---|---|---|
-| [ADR-0001](ADR-0001-adopt-security-first-architecture.md) | Adopt the security-first platform architecture by pinned reference | Accepted | the whole repository |
-| [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md) | Adopt a hybrid-home deployment profile | Accepted | [`deploy/`](../../deploy/), [`services/`](../../services/) |
-| [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md) | Use framework-neutral runner contracts and execution profiles | Accepted | [`profiles/`](../../profiles/), [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
-| [ADR-0004](ADR-0004-treat-agents-as-clients.md) | Treat agents as clients, not insiders | Accepted | [`agents/`](../../agents/), [`services/`](../../services/) |
-| [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md) | Separate sandbox capability, platform authorization, and safety policy | Accepted | [`services/policy-engine/`](../../services/policy-engine/), [`services/action-gateway/`](../../services/action-gateway/) |
-| [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md) | Separate agent implementation, execution profile, run, and automation | Accepted | [`agents/`](../../agents/), [`profiles/`](../../profiles/), [`schemas/`](../../schemas/), [`services/automation-service/`](../../services/automation-service/) |
-| [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) | Route local, remote, and cloud execution explicitly | Accepted | [`profiles/`](../../profiles/), [`schemas/execution-profile/`](../../schemas/execution-profile/) |
-| [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md) | Use OpenFGA for relationship decisions and deterministic policy for safety | Accepted | [`services/policy-engine/`](../../services/policy-engine/), [`services/pi-api/`](../../services/pi-api/) |
-| [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) | Define degraded mode and offline authorization posture | Accepted | [`services/`](../../services/), [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md) |
-| [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) | Use OKF for portable knowledge only | Accepted | [`knowledge/`](../../knowledge/) |
-| [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) | Keep the base runner provider-neutral and coding-agent images provider-specific | Accepted | [`deploy/images/`](../../deploy/images/), [`agents/adapters/coding/`](../../agents/adapters/coding/) |
+| ADR | Title | Governs |
+|---|---|---|
+| [ADR-0001](ADR-0001-adopt-security-first-architecture.md) | Adopt the security-first platform architecture by pinned reference | the whole repository |
+| [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md) | Adopt a hybrid-home deployment profile | [`deploy/`](../../deploy/), [`services/`](../../services/) |
+| [ADR-0003](ADR-0003-use-framework-neutral-runner-profiles.md) | Use framework-neutral runner contracts and execution profiles | [`profiles/`](../../profiles/), [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
+| [ADR-0004](ADR-0004-treat-agents-as-clients.md) | Treat agents as clients, not insiders | [`agents/`](../../agents/), [`services/`](../../services/) |
+| [ADR-0005](ADR-0005-separate-capability-authorization-and-safety.md) | Separate sandbox capability, platform authorization, and safety policy | [`services/policy-engine/`](../../services/policy-engine/), [`services/action-gateway/`](../../services/action-gateway/) |
+| [ADR-0006](ADR-0006-separate-agent-implementation-profile-run-and-automation.md) | Separate agent implementation, execution profile, run, and automation | [`agents/`](../../agents/), [`profiles/`](../../profiles/), [`schemas/`](../../schemas/), [`services/automation-service/`](../../services/automation-service/) |
+| [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md) | Route local, remote, and cloud execution explicitly | [`profiles/`](../../profiles/), [`schemas/execution-profile/`](../../schemas/execution-profile/) |
+| [ADR-0008](ADR-0008-use-openfga-for-relationships-and-deterministic-policy-for-safety.md) | Use OpenFGA for relationship decisions and deterministic policy for safety | [`services/policy-engine/`](../../services/policy-engine/), [`services/pi-api/`](../../services/pi-api/) |
+| [ADR-0009](ADR-0009-define-degraded-mode-and-offline-authorization.md) | Define degraded mode and offline authorization posture | [`services/`](../../services/), [`docs/architecture/degraded-mode.md`](../architecture/degraded-mode.md) |
+| [ADR-0010](ADR-0010-use-okf-for-portable-knowledge-only.md) | Use OKF for portable knowledge only | [`knowledge/`](../../knowledge/) |
+| [ADR-0011](ADR-0011-keep-coding-agent-images-provider-specific.md) | Keep the base runner provider-neutral and coding-agent images provider-specific | [`deploy/images/`](../../deploy/images/), [`agents/adapters/coding/`](../../agents/adapters/coding/) |
 
 ## Implementation decisions
 
 The foundational set decides the *logical* architecture and is deliberately
 implementation-neutral. These decide how it is built.
 
-| ADR | Title | Status | Governs |
-|---|---|---|---|
-| [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | Accepted | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
-| [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | Accepted | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
-| [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | Accepted | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
-| [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
-| [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | Accepted | [`knowledge/`](../../knowledge/), the knowledge toolchain |
-| [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | Accepted | [`services/runner-control/`](../../services/runner-control/), any port implementation |
-| [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | Accepted | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
-| [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | Accepted | [`knowledge/`](../../knowledge/) set families and releases |
-| [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | Accepted | future root-level `governance/` domain and its validation, history, projection, and query tooling |
-| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | Accepted | the TypeScript compiler/lint/format/architecture tooling program across the pnpm workspace and CI |
-| [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md) | Separate governance decision dates from Git commit timestamps | Accepted | ADR-0021 §7a's ADR acceptance/rejection temporal evidence and directly dependent validation/history/projection/query rules only; no implementation authority |
-| [ADR-0024](ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md) | Permit one atomic pre-registry governance acceptance bridge | Accepted — bridge consumed by this pair | ADR-0021 §12 and directly dependent pre-registry acceptance boundary for this exact pair only; permanently expired on durable landing, no future manual acceptance |
+| ADR | Title | Governs |
+|---|---|---|
+| [ADR-0012](ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md) | Adopt TypeScript, NestJS, and pnpm as the primary implementation stack | [`apps/`](../../apps/), [`packages/`](../../packages/), [`services/`](../../services/), [`schemas/`](../../schemas/) |
+| [ADR-0013](ADR-0013-define-the-runner-adapter-spi.md) | Define the runner adapter SPI | [`agents/adapters/`](../../agents/adapters/), [`services/runner-control/`](../../services/runner-control/) |
+| [ADR-0014](ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md) | Promote durable lessons into canonical architecture and portable knowledge | [`docs/`](../), [`knowledge/`](../../knowledge/), provider instruction files |
+| [ADR-0015](ADR-0015-adopt-okf-v0-2-as-source-representation-only.md) | Adopt OKF v0.2 as the source representation only, and keep packaging, query, and admission ours | [`knowledge/`](../../knowledge/), the knowledge toolchain |
+| [ADR-0016](ADR-0016-hybrid-admission-assurance-for-prohibited-content.md) | Hybrid admission assurance for prohibited content | [`knowledge/`](../../knowledge/), the knowledge toolchain |
+| [ADR-0017](ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md) | Classify asynchronous effects and enforce their semantics at runner boundaries | [`services/runner-control/`](../../services/runner-control/), any port implementation |
+| [ADR-0018](ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md) | Separate orchestration-attempt, durable-fact, and finalization-transaction identity | [`services/runner-control/`](../../services/runner-control/), any finalization participant |
+| [ADR-0019](ADR-0019-version-and-release-knowledge-sets-as-immutable-compositions.md) | Version and release knowledge sets as immutable compositions | [`knowledge/`](../../knowledge/) set families and releases |
+| [ADR-0021](ADR-0021-establish-machine-readable-governance-state.md) | Establish a machine-readable authority for mutable cross-cutting governance state | future root-level `governance/` domain and its validation, history, projection, and query tooling |
+| [ADR-0022](ADR-0022-decouple-typescript-policy-enforcement-from-lint-engine.md) | Decouple TypeScript policy enforcement from the lint engine | the TypeScript compiler/lint/format/architecture tooling program across the pnpm workspace and CI |
+| [ADR-0023](ADR-0023-separate-governance-decision-dates-from-git-commit-timestamps.md) | Separate governance decision dates from Git commit timestamps | ADR-0021 §7a's ADR acceptance/rejection temporal evidence and directly dependent validation/history/projection/query rules only; no implementation authority |
+| [ADR-0024](ADR-0024-permit-one-atomic-pre-registry-governance-acceptance-bridge.md) | Permit one atomic pre-registry governance acceptance bridge | ADR-0021 §12 and directly dependent pre-registry acceptance boundary for this exact pair only; permanently expired on durable landing, no future manual acceptance |
 
-> **ADR-0022 is `Accepted`** (2026-09-01) and **immutable**. See
-> [the ADR-0022 acceptance record](#adr-0022-acceptance-record). It **refines
-> ADR-0012 §§15, 19, and 20 only where they assign enforcement to a selected
-> lint implementation** — without editing it. ADR-0012 remains accepted and
-> immutable, and TypeScript, pnpm/catalog governance, the inward dependency
-> rule, the repository taxonomy, and the CI execution model are all preserved.
->
-> **Acceptance decides the architecture, not the work.** Nothing executable
-> changed: no dependency, lockfile, catalog entry, command, gate, workflow, or
-> source. TypeScript remains 6.0.3, ESLint remains the installed and current
-> lint engine, and no Oxlint, `oxlint-tsgolint`, or `@typescript/typescript6`
-> package was introduced. The two implementation scopes in
-> [`openspec/changes/typescript-7-lint-engine-resilience/`](../../openspec/changes/typescript-7-lint-engine-resilience/)
-> remain **`NOT_AUTHORIZED`**, on **different** prerequisites. **PR-B** begins
-> only from the exact post-PR-A2 `main`, and only under a separate external
-> Scope-1 implementation authorization. **PR-C** is blocked until PR-B is merged
-> and its parity evidence accepted, then needs a fresh Scope-2 review epoch and
-> its own authorization, and begins from the exact **then-current post-PR-B**
-> `main` (`INV-TS7-17`). Acceptance of this ADR supplies neither authorization.
->
-> **ADR-0019 is `Accepted`** (2026-08-21) and **immutable**. See
-> [the ADR-0019 acceptance record](#adr-0019-acceptance-record). It **refines
-> ADR-0016 §7/§7a on the set side only** — the release transition and the
-> representation in which set rollout eligibility lives — **without editing
-> it**; every module and runbook decision there is preserved.
->
-> **Acceptance authorizes the shape of the work, not the work.** No set is
-> versioned or released, no rollout gate has moved, and no release record,
-> resolver, or profile schema exists. Implementing it needs its own task
-> contract.
->
-> **ADR-0017 is `Accepted`** (2026-08-17) and **immutable**. See
-> [the ADR-0017 acceptance record](#adr-0017-acceptance-record).
->
-> **ADR-0018 is `Accepted`** (2026-08-17) and **immutable**. See
-> [the ADR-0018 acceptance record](#adr-0018-acceptance-record). Its dependency
-> on ADR-0017 was satisfied *before* it was accepted, and each was a separate
-> explicit decision — which is what proposing two ADRs was for.
->
-> **ADR-0012 is `Accepted`** (2026-08-06) and **immutable**. It **refines**
-> ADR-0003 and ADR-0006 — deciding how their contracts are authored — without
-> editing or superseding either. See
-> [the ADR-0012 acceptance record](#adr-0012-acceptance-record).
+ADR-0022 refines ADR-0012's lint-implementation assignments without changing
+TypeScript dependency governance, inward dependency rules, taxonomy or CI model.
+Its implementation scopes and prerequisites belong to the
+[tooling change contract](../../openspec/changes/typescript-7-lint-engine-resilience/).
+Acceptance alone supplies neither implementation authorization.
+
+ADR-0019 refines the set-release representation of ADR-0016 without replacing
+module or runbook admission. ADR-0012 refines how the ADR-0003 and ADR-0006
+contracts are authored. The acceptance records below retain the exact historical
+acts and their rationale; live lifecycle comes only from the projection above.
 
 ## Under review
 
@@ -201,17 +157,11 @@ unresolved decision, does not authorize implementation, and does not constrain a
 change that lands before it is accepted. Acceptance is a separate human-reviewed
 action in its own change.
 
-| ADR | Title | Status | Would govern | Would decide |
-|---|---|---|---|---|
-| [ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) | Place runner-control by workload class — household control on the Pi, coding execution off it | **Proposed** | [`services/runner-control/`](../../services/runner-control/), [`deploy/`](../../deploy/) | [U4](../architecture/unresolved-decisions.md#u4) — runner-control placement (issue #9) |
-
-> **ADR-0020 is `Proposed`.** [U4](../architecture/unresolved-decisions.md#u4) is
-> **still open**, and L9 (#57) remains gated. It selects a deployment topology
-> inside the space [ADR-0002](ADR-0002-adopt-hybrid-home-deployment-profile.md)
-> and [ADR-0007](ADR-0007-route-local-remote-and-cloud-execution-explicitly.md)
-> already define — it changes no accepted ADR and no contract. It surfaces one
-> contract question (whether execution-host placement should be a declared
-> profile property) and deliberately does **not** answer it.
+[ADR-0020](ADR-0020-place-runner-control-by-workload-class.md) describes the
+workload-class placement proposal within the topology space of ADR-0002 and
+ADR-0007. It surfaces the question of execution-host placement as a profile
+property without answering it. Consult the generated lifecycle above and the
+[question projection](../architecture/unresolved-decisions.md) for live answers.
 
 ### ADR-0023 acceptance record
 

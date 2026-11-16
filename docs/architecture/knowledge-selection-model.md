@@ -1,5 +1,10 @@
 # Knowledge Selection Model
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 How an execution profile selects knowledge, how a runner resolves that selection,
 and what the run records about it. Governed by
 [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md),
@@ -10,7 +15,7 @@ and [ADR-0011](../decisions/ADR-0011-keep-coding-agent-images-provider-specific.
 > **Status: the toolchain exists; runtime selection does not.** The format is
 > decided
 > ([ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md),
-> which resolved [U7](unresolved-decisions.md#u7)), and compile / validate /
+> consult canonical governance for [U7](unresolved-decisions.md#u7) resolution), and compile / validate /
 > package / query are **implemented** in
 > [`packages/knowledge-toolchain`](../../packages/knowledge-toolchain/) and
 > invoked over real repository content in CI.

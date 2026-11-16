@@ -1,5 +1,10 @@
 # GitHub Copilot instructions
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Repository: **`secure-home-agent-platform`** — a local-first, security-first
 platform for household agents, controlling physical devices in a home.
 
@@ -39,15 +44,9 @@ no platform code path invokes them), no L9 physical
 enforcement, no credentials. Landed code is not a running system, and neither
 half of that sentence may be dropped.
 
-ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted` and **immutable**
-(foundational set 2026-08-05; the implementation stack 2026-08-06; the runner
-effect-boundary and identity decisions 2026-08-17; ADR-0019 2026-08-21; ADR-0021
-2026-08-28; ADR-0022 2026-09-01; ADR-0023/ADR-0024 jointly 2026-09-19).
-ADR-0020 remains `Proposed`, so the accepted set is intentionally
-non-contiguous. Of the tracked set U1–U11, **two** are closed: [U6](../docs/architecture/unresolved-decisions.md#u6)
-by ADR-0013 (2026-08-12) and [U7](../docs/architecture/unresolved-decisions.md#u7)
-by ADR-0015 (2026-08-15). Acceptance is **not** authorization to deploy, and
-ADR-0021's governance-state substrate is not yet implemented.
+Current decision lifecycle, question resolution and program answers come only
+from the canonical governance query. Acceptance never supplies an external
+implementation contract or deployment authority.
 
 Do not suggest application code, service implementations, deployments, or
 dependencies unless the task explicitly authorizes them — and never for work

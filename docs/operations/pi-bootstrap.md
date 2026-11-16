@@ -1,5 +1,10 @@
 # Runbook: Raspberry Pi bootstrap
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Prepares the Raspberry Pi 5 to *become* the household control-plane host.
 
 > **This runbook deliberately stops before installing anything.** It ends where
@@ -130,7 +135,7 @@ The governing ADRs are accepted, but **acceptance is not authorization to
 deploy**. Everything below still needs its own reviewed work, and several steps
 depend on a decision that is still open:
 
-| Step | Blocked on |
+| Step | Required scope / question to consult |
 |---|---|
 | Install Docker and Compose | a deployment task contract |
 | Join the tailnet and configure ACLs | a deployment task contract |

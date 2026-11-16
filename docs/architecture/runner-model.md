@@ -1,5 +1,10 @@
 # Runner Model
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 How agents execute. Governed by
 [ADR-0003](../decisions/ADR-0003-use-framework-neutral-runner-profiles.md),
 [ADR-0006](../decisions/ADR-0006-separate-agent-implementation-profile-run-and-automation.md),
@@ -14,27 +19,18 @@ boundary, and what identities a durable effect carries — are described in
 [`distributed-effect-lifecycle.md`](distributed-effect-lifecycle.md). This page
 is the whole execution model; those two zoom in.
 
-> **Status: contracts, core, orchestration, images, and adapters are landed;
-> nothing executes yet.**
->
-> | | |
-> |---|---|
-> | **Landed** | **L2** runner domain contracts — execution profiles, runs and events, verification, evidence — authored as Zod in [`packages/contracts`](../../packages/contracts/) and [`packages/events`](../../packages/events/), generated under [`schemas/`](../../schemas/) and guarded by an append-only identity ledger. **L3** the trusted runner core, [`packages/runner-core`](../../packages/runner-core/). **L4** orchestration, [`services/runner-control`](../../services/runner-control/) — the typed run lifecycle, authority acquisition, gate scheduling, finalization, and the port boundary. **L5** image lineage, [`deploy/images/`](../../deploy/images/) — the digest-locked base, Claude reference, Copilot, and gates-toolchain definitions, **inert**: no profile references them and nothing launches them (#53, #55). **L7** coding adapters, [`agents/adapters/coding/`](../../agents/adapters/coding/) — Claude Code and GitHub Copilot CLI translation to the frozen adapter SPI, proven by the shared [`tests/framework-conformance/`](../../tests/framework-conformance/) suite against stub CLIs, **unlaunchable**: no platform code path invokes an adapter (#55) |
-> | **Not yet real** | a real launcher or container execution substrate; a deployed `runner-control` process; **L9** physical enforcement of isolation; durable persistence, still open under [U11](unresolved-decisions.md#u11) |
->
-> Orchestration semantics are implemented **behind ports**, against
-> deterministic reference mechanisms. What is absent is the substrate that would
-> make them physically true of a real process.
-> The program is ratified by the `runner-baseline-adoption` constitution
-> (PR #48; canonical spec:
-> [`../../openspec/specs/runner-adoption/spec.md`](../../openspec/specs/runner-adoption/spec.md))
-> — sixteen normative adoption invariants and landings L2–L10, each
-> implemented only through its own externally authorized child change.
-> Canonical capability specs from L2:
-> [`execution-profile`](../../openspec/specs/execution-profile/spec.md) ·
-> [`runner-execution`](../../openspec/specs/runner-execution/spec.md) ·
-> [`runner-verification`](../../openspec/specs/runner-verification/spec.md) ·
-> [`runner-evidence`](../../openspec/specs/runner-evidence/spec.md)
+This document separates runner contracts, trusted orchestration, workload
+images, adapter translation and physical substrate enforcement. Query
+[canonical governance](../../governance/STATE.md) for their delivery and readiness.
+A landed component never implies a running system.
+
+The [runner-adoption constitution](../../openspec/specs/runner-adoption/spec.md)
+owns normative boundaries and the original program plan; each child needs its
+own external authority. Capability contracts remain
+[execution-profile](../../openspec/specs/execution-profile/spec.md),
+[runner-execution](../../openspec/specs/runner-execution/spec.md),
+[runner-verification](../../openspec/specs/runner-verification/spec.md), and
+[runner-evidence](../../openspec/specs/runner-evidence/spec.md).
 
 ## The five concepts, and why they are not the same thing
 
@@ -91,7 +87,7 @@ supplies event/evidence plumbing at launch.
 The substrate-*system* concerns — profile loading and validation, the run
 lifecycle (start, cancel, timeout, teardown), event emission, and evidence
 capture — are owned by trusted platform code **outside** every image:
-[`services/runner-control`](../../services/runner-control/) (L4, landed)
+[`services/runner-control`](../../services/runner-control/) (orchestration)
 decides and records, and the L9 launcher will enforce. ADR-0011's "substrate
 concerns" are these system concerns; where each lives was fixed at L5
 (issue #53): nothing decision-bearing ships inside an image, and the lineage
@@ -254,12 +250,10 @@ records, the closed terminal vocabulary, the closed event vocabulary) and
 [`runner-evidence`](../../openspec/specs/runner-evidence/spec.md) (the evidence
 bundle) — generated under [`schemas/`](../../schemas/).
 
-**What emits them is landed; what makes them durable is not.** L4 orchestration
-produces the journal, the terminal event, and the evidence bundle through its
-port boundary, against **deterministic in-memory reference implementations**.
-Real durable persistence is [U11](unresolved-decisions.md#u11), still open, and
-it inherits the finalization contract rather than choosing it —
-[`distributed-effect-lifecycle.md`](distributed-effect-lifecycle.md).
+Orchestration emits the journal, terminal event and evidence bundle through
+its port boundary. Durable persistence must preserve
+[the finalization contract](distributed-effect-lifecycle.md); consult canonical
+governance for the persistence question and delivery prerequisites.
 
 **How they become visible is a decided architecture, not a write order.**
 Finalization stages every fallible participant invisibly and publishes them in
@@ -268,16 +262,15 @@ exactly one visibility transition; "seal the bundle last" is not the model. See
 
 ## Cancellation, timeout, resources
 
-- Every run has a **wall-clock timeout**. There is no unbounded run. L4 enforces
-  this today as **one absolute governed expiry** that may be narrowed and never
+- Every run has a **wall-clock timeout**. There is no unbounded run. Orchestration enforces
+  this as **one absolute governed expiry** that may be narrowed and never
   restarted, checked at every port boundary —
   [`effect-boundary-model.md`](effect-boundary-model.md).
 - Cancellation is **effective**, and that requirement has two halves at two
-  layers. **L4, landed:** an interrupted continuation unwinds and starts no
+  layers. **Orchestration:** an interrupted continuation unwinds and starts no
   later orchestration effect, so no delayed result can resume a run that has
-  ended. **L9, absent:** terminating the real process tree and tearing down the
-  sandbox. Nothing in this repository kills a process today; when the launcher
-  exists, L9 must prove real termination and isolation. Orchestration bounding
+  ended. **Physical substrate:** terminating the real process tree and tearing down the
+  sandbox. The launcher must prove real termination and isolation. Orchestration bounding
   itself is not the same as a workload being stopped.
 - **Terminal settlement is bounded separately.** When ordinary execution stops,
   recording the intended terminal gets a short, fresh bound. Exhausting it is
@@ -304,14 +297,10 @@ exactly one visibility transition; "seal the bundle last" is not the model. See
 - Durable persistence for the run's facts ([U11](unresolved-decisions.md#u11)),
   which inherits the finalization contract rather than choosing it.
 
-**No longer open.** The adapter SPI — what the substrate passes in, what an
-adapter returns, how failure is reported — was decided by
-[ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md) on
-2026-08-12, closing [U6](unresolved-decisions.md#u6). Asynchronous effect
-semantics at the port boundary were decided by
+The SPI, asynchronous port effects, and run/finalization identity are distinct
+contracts: [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md),
 [ADR-0017](../decisions/ADR-0017-classify-asynchronous-effects-at-runner-boundaries.md),
-and run/finalization identity by
-[ADR-0018](../decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md),
-both on 2026-08-17. Neither closed an unresolved-decision item.
+and [ADR-0018](../decisions/ADR-0018-separate-attempt-durable-fact-and-finalization-identity.md).
+Use canonical governance for their lifecycle and question-resolution answers.
 
 All tracked in [`unresolved-decisions.md`](unresolved-decisions.md).

@@ -1,16 +1,20 @@
 # profiles/household/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Execution profiles for the **household runner class** — runs that observe and
 propose actions on the house.
 
 > **Status: empty.** No profile exists. This directory holds only this README.
 
-> **Blocked:** no household profile may grant a sensitive capability until agent
-> delegation is modelled
-> ([ADR-0004](../../docs/decisions/ADR-0004-treat-agents-as-clients.md) is
-> accepted, but the model is not built) and
-> [U1](../../docs/architecture/unresolved-decisions.md#u1) is resolved — it is
-> not. Until then, household profiles are limited to observation.
+Household profiles may not grant a sensitive capability without the governed
+delegation and local-authority mechanisms required by the agent-as-client
+contract. Consult canonical governance for prerequisite question resolution.
+Until those requirements are met, limit profiles to observation; a pointer
+never grants a capability.
 
 ## What a household profile grants
 

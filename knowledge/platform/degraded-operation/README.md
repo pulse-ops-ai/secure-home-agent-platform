@@ -1,5 +1,10 @@
 # knowledge/platform/degraded-operation/
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 **Module `platform/degraded-operation`** — how the platform behaves when parts of
 it are unreachable.
 
@@ -16,10 +21,9 @@ it are unreachable.
 
 - Degraded behaviour is classified by **(operation × requester)**, not by a
   global switch, into `CONTINUE`, `BOUNDED`, `FAIL CLOSED`, and `EMERGENCY`.
-- **`BOUNDED` currently behaves as `FAIL CLOSED`** because the bounded-authority
-  mechanism is not decided
-  ([U1](../../../docs/architecture/unresolved-decisions.md#u1)). An agent must
-  not treat a `BOUNDED` classification as permission.
+- A `BOUNDED` classification is never permission. Without its governed
+  authority mechanism and proof, the operation fails closed. Consult canonical
+  governance for [U1](../../../docs/architecture/unresolved-decisions.md#u1).
 - A denial during an outage is a **correct** outcome, not a fault to route
   around.
 - Knowledge remains available during an outage precisely because it is not an

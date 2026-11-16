@@ -3,8 +3,8 @@
 Questions this repository has **deliberately not answered**. They are recorded
 here so that nobody silently answers them by writing code.
 
-> **Ten acceptance transitions have happened. Exactly two closed anything in
-> this file.**
+> **Historical acceptance context.** These records describe their original
+> decision events; the generated regions below own current answers.
 >
 > | Accepted | What | Effect here |
 > |---|---|---|
@@ -26,12 +26,6 @@ here so that nobody silently answers them by writing code.
 > implementation; ADR-0013 and ADR-0015 closed U6 and U7 by *answering* them,
 > which is the only mechanism this file admits.
 >
-> The practical consequence: work that depends on an item below is still blocked,
-> **`BOUNDED` still behaves as `FAIL CLOSED`** ([U1](#u1)), and **no persistence
-> toolkit is selected** ([U11](#u11)). See
-> [what acceptance does and does not unblock](../decisions/INDEX.md#what-acceptance-does-and-does-not-unblock)
-> and [the ADR-0012 acceptance record](../decisions/INDEX.md#adr-0012-acceptance-record).
-
 **Rules for this file:**
 
 - An item leaves this file only via a **new** ADR. Not via an implementation,
@@ -47,19 +41,35 @@ here so that nobody silently answers them by writing code.
   *what were we unsure about, and what settled it?* The summary table shows its
   state at a glance.
 
-| # | Question | Blocks | Severity |
-|---|---|---|---|
-| [U1](#u1) | Local OpenFGA replica vs. signed grants vs. bounded cache | any offline household authorization | **critical** |
-| [U2](#u2) | Workload-identity mechanism for runner credentials | any agent that calls a governed API | high |
-| [U3](#u3) | Which service issues the L6 internal identity envelope | all L7 verification | high |
-| [U4](#u4) | `runner-control` placement — Pi vs. VPS | runner substrate implementation | medium |
-| [U5](#u5) | Automation persistence and scheduler | automation service | medium |
-| [U6](#u6) | The framework-adapter SPI | ~~every adapter~~ | **RESOLVED** — [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md), 2026-08-12 |
-| [U7](#u7) | OKF validator and toolchain | ~~any real knowledge bundle~~ — still blocked, by the toolchain gate | **RESOLVED** — [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md), 2026-08-15 |
-| [U8](#u8) | Whether shared and household OpenFGA share a runtime | household authorization deployment | medium |
-| [U9](#u9) | Policy-decision caching semantics | authorization performance and U1 | high |
-| [U10](#u10) | Home Assistant credential strategy | action mediation | high |
-| [U11](#u11) | Persistence toolkit selection | any schema, migration, or repository work | high |
+<!-- governance:begin question-summary -->
+| Question | Title | Severity | State | Resolved by |
+| --- | --- | --- | --- | --- |
+| U1 | Local OpenFGA replica vs. signed grants vs. bounded cache | critical | Open | — |
+| U10 | Home Assistant credential strategy | high | Open | — |
+| U11 | Persistence toolkit selection | high | Open | — |
+| U2 | Workload-identity mechanism for runner credentials | high | Open | — |
+| U3 | Which service issues the L6 internal identity envelope | high | Open | — |
+| U4 | `runner-control` placement — Pi vs. VPS | medium | Open | — |
+| U5 | Automation persistence and scheduler | medium | Open | — |
+| U6 | The framework-adapter SPI | medium | Resolved | ADR-0013 |
+| U7 | OKF validator and toolchain | medium | Resolved | ADR-0015 |
+| U8 | Whether shared and household OpenFGA share a runtime | medium | Open | — |
+| U9 | Policy-decision caching semantics | high | Open | — |
+<!-- governance:end question-summary -->
+
+<!-- governance:begin resolution-banners -->
+- **U1** — open; Local OpenFGA replica vs. signed grants vs. bounded cache
+- **U10** — open; Home Assistant credential strategy
+- **U11** — open; Persistence toolkit selection
+- **U2** — open; Workload-identity mechanism for runner credentials
+- **U3** — open; Which service issues the L6 internal identity envelope
+- **U4** — open; `runner-control` placement — Pi vs. VPS
+- **U5** — open; Automation persistence and scheduler
+- **U6** — resolved on 2026-08-12; The framework-adapter SPI
+- **U7** — resolved on 2026-08-15; OKF validator and toolchain
+- **U8** — open; Whether shared and household OpenFGA share a runtime
+- **U9** — open; Policy-decision caching semantics
+<!-- governance:end resolution-banners -->
 
 ---
 
@@ -163,12 +173,11 @@ the Pi is a genuine risk to the control path.
 **Not blocking the scaffold**, but it must be settled before the substrate is
 built.
 
-> **A Proposed ADR now exists.**
-> [ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md)
-> proposes placement by workload class — household orchestration and execution on
-> the Pi, coding execution on a host that is neither the Pi nor the
-> authoritative-database host. **U4 remains OPEN.** A `Proposed` ADR resolves
-> nothing, and L9 (#57) stays gated until it is accepted.
+[ADR-0020](../decisions/ADR-0020-place-runner-control-by-workload-class.md)
+describes placement by workload class: household orchestration and execution on
+the Pi, coding execution away from the Pi and authoritative-database host.
+For its lifecycle and this question's current resolution, use the generated
+projections and canonical governance query; this rationale supplies neither.
 
 ---
 
@@ -195,13 +204,12 @@ deterministic local behaviour with no dependency on it.
 
 ### The initial framework-adapter SPI
 
-> **RESOLVED 2026-08-12 by
-> [ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md).** The
-> question below is kept as written, because the answer only makes sense
-> against it. Nothing here blocks work any longer; read the ADR for what was
-> decided and the
-> [L6 spike evidence](../spikes/l6-copilot-cli/) for what it was decided on.
->
+The question below is kept as written so that the answer can be understood
+against its original rationale. Read
+[ADR-0013](../decisions/ADR-0013-define-the-runner-adapter-spi.md) and the
+[L6 spike evidence](../spikes/l6-copilot-cli/) for the architectural explanation.
+Current resolution is generated above.
+
 > The short version: adapters translate and report but never decide or enforce;
 > capability narrowing at the adapter and capability enforcement at the
 > substrate are **different layers with different proofs**; and the provider's
@@ -226,30 +234,17 @@ and a plain deterministic loop) rather than against the most convenient one.
 
 ### First OKF validator and toolchain
 
-> **RESOLVED 2026-08-15 by
-> [ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md).**
-> The question below is kept as written, because the answer only makes sense
-> against it.
->
-> U7 asked one thing: **is the knowledge source-format architecture decided?**
-> It is. OKF v0.2 is adopted as the source representation only, pinned rather
-> than floating; packaging, digest identity, query, and admission stay this
-> repository's; OKF trust metadata grants no authority; and execution-bearing
-> content is refused at admission.
->
-> **THIS RESOLUTION IS NOT EVIDENCE THAT THE TOOLCHAIN EXISTS, AND IS NOT
-> PERMISSION TO AUTHOR KNOWLEDGE.** It never was: the two facts were separated
-> deliberately, because one state variable standing for both is how "the
-> question is answered" quietly becomes "the work is done."
->
-> Authoring readiness is recorded independently, as `blockedByToolchain` on
-> every registered module and set, asserted **`true`** by
-> `scripts/check-knowledge.mjs` until ADR-0015 §12 is discharged —
-> compile/validate/package/query behind the ADR-0010 interfaces, plus a
-> conformance suite with a failing negative case per prohibited-content class
-> and per execution-bearing field, and demonstrated digest reproducibility.
-> None of that exists. Opening authoring is an explicit reviewed transition,
-> not a consequence of this item closing.
+The original question concerns the source-format architecture.
+[ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
+explains the OKF source representation, distinct from packaging, digest identity,
+query and admission. Trust metadata grants no authority, and execution-bearing
+content is refused at admission.
+
+Question resolution is not toolchain-delivery evidence or knowledge-authoring
+permission. Readiness and content review remain separately governed by
+[the knowledge catalog](../../knowledge/catalog.json) and its admission contract.
+The source-era problem below is retained as rationale, not a claim about current
+toolchain delivery.
 
 **The problem.** [ADR-0010](../decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
 requires compile, validate, package, and query interfaces and a machine-checked

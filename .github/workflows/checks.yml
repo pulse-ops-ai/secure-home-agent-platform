@@ -91,6 +91,20 @@ jobs:
       # follows the setup step rather than sitting with the shell checks above.
       # NOT content admission — that is a separate step below, which hands real
       # bytes to the package that owns the content rules.
+      - name: Canonical governance state, projections, and consumer migration
+        run: node scripts/check-governance-state.mjs
+
+      - name: Governance history (explicit event base)
+        env:
+          EVENT_BASE: >-
+            ${{ github.event_name == 'pull_request'
+                && github.event.pull_request.base.sha
+                || github.event.before }}
+        run: |
+          set -euo pipefail
+          # Missing, zero, or unresolvable event bases refuse; never infer one.
+          node scripts/check-governance-history.mjs --base "$EVENT_BASE" --target "$GITHUB_SHA"
+
       - name: Knowledge registry
         run: node scripts/check-knowledge.mjs
 

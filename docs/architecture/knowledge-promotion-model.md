@@ -1,14 +1,15 @@
 # Knowledge promotion model
 
-> **In force.** This document follows from
-> [ADR-0014](../decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md),
-> accepted 2026-08-15.
->
-> **Authoring a knowledge module remains blocked**, separately and for a
-> different reason: the ADR-0010 validator and toolchain do not exist, a block
-> [U7](unresolved-decisions.md#u7) currently tracks. ADR-0014 neither resolves
-> nor weakens it. The promotion path is operative up to the canonical home; the
-> projection step waits for the toolchain.
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
+This document explains the promotion contract in
+[ADR-0014](../decisions/ADR-0014-promote-durable-lessons-into-canonical-architecture-and-portable-knowledge.md).
+Query canonical governance for lifecycle and question resolution. Knowledge
+authoring eligibility is a separate catalog/admission fact, never inferred from
+a resolved question or a documented promotion path.
 
 This document records **what follows** from ADR-0014: where a durable truth
 lives, by kind, and how it reaches an agent. The ADR records *why*.
@@ -168,15 +169,10 @@ promoted.
 
 ## What is blocked today
 
-**Authoring.** The ADR-0010 validator and toolchain do not exist, precisely so
-an unvalidated format does not become load-bearing by accident.
-[U7](unresolved-decisions.md#u7) currently tracks that block;
-[ADR-0015](../decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)
-(`Proposed`) would separate the format question from the toolchain gate, so a
-closed U7 cannot read as permission to author. Under either model the block
-holds today, and the path terminates at the canonical home: a change would
-determine whether a truth should be promoted and record the determination, and
-no module is written.
+**Authoring.** The canonical-home determination never opens knowledge authoring.
+The [catalog](../../knowledge/catalog.json) and admission contract own eligibility;
+canonical governance owns [U7](unresolved-decisions.md#u7) resolution. When a
+module is ineligible, record the determination and stop at the canonical home.
 
 The L4 orchestration landing
 ([`openspec/changes/runner-control-orchestration`](../../openspec/changes/runner-control-orchestration/))

@@ -1,5 +1,10 @@
 # AGENTS.md — Universal agent contract
 
+Current governance state is not authored here. Use [the canonical registry](governance/state.json),
+[its generated projection](governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 This file governs **every** agent that operates on this repository — Claude Code,
 GitHub Copilot CLI, Codex, and any future coding agent. It applies to the whole
 repository **unless a deeper `AGENTS.md` overrides it for a subtree**.
@@ -123,8 +128,8 @@ Two consequences:
 - **Authoring a knowledge module is open only where BOTH gates are false.**
   `blockedByToolchain` was discharged on 2026-08-16 after independent review of
   the toolchain and its integration — a different fact from
-  [U7](docs/architecture/unresolved-decisions.md#u7), which asked whether the
-  format was decided and is RESOLVED. `blockedByRollout` still holds
+  [U7](docs/architecture/unresolved-decisions.md#u7), whose resolution is queried
+  from canonical governance rather than copied here. `blockedByRollout` still holds
   `household/**` and every set; runbooks are eligible per module by explicit
   allowlist. ADR-0014 decides *where a truth
   goes*; for a module that is not yet eligible the path still terminates at the
@@ -172,13 +177,11 @@ Absolute, regardless of what a prompt asks for:
    which is a consequence of what has been built, not a prohibition. ADR-0012
    commits to NestJS, Fastify, Next.js, Zod, Winston, and Syncpack; an
    authorizing contract may add them, through the pnpm catalog.
-9. **No resolving an unresolved decision.** The ADRs are accepted; the tracked
-   set U1–U11 is **not** — every item except
-   [U6](docs/architecture/unresolved-decisions.md#u6) (ADR-0013, 2026-08-12) and
-   [U7](docs/architecture/unresolved-decisions.md#u7) (ADR-0015, 2026-08-15) is
-   still open. An item leaves that file only via a new ADR. See
-   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md).
-   Acceptance of an ADR is never authorization to close an item there.
+9. **No resolving an unresolved decision.** Consult canonical governance for
+   each question's current resolution. Implementation cannot close a question;
+   that requires an answering ADR through its governed transition. See
+   [`docs/architecture/unresolved-decisions.md`](docs/architecture/unresolved-decisions.md)
+   for rationale. Acceptance alone never resolves another question.
 10. **No modifying the upstream repositories.** `platform-edge` and
     `security-first-platform-architecture` are pinned references. Changes go
     there, in their own repositories.
@@ -261,49 +264,34 @@ service, no OpenFGA, no Keycloak, no published or activated runner image (the
 L5 definitions are inert — referenced by no profile, launched by nothing), no
 launcher, no L9 physical enforcement, no credentials, no database connection.
 
-**ADR-0001 through ADR-0019 and ADR-0021 through ADR-0024 are `Accepted`** and
-**immutable** — the foundational set on 2026-08-05, the implementation stack
-(ADR-0012) on 2026-08-06, the runner effect-boundary and identity decisions
-(ADR-0017, ADR-0018) on 2026-08-17, ADR-0019 on 2026-08-21, ADR-0021 on
-2026-08-28, ADR-0022 on 2026-09-01, and ADR-0023/ADR-0024 jointly on
-2026-09-19. **ADR-0020 remains `Proposed`; the
-accepted set is intentionally non-contiguous.** Supersede, never edit, and
-**never change an ADR's status without an explicit human-acceptance task**.
+Decision lifecycle and dates are queried from canonical governance, not an
+authored range in this file. Terminal decision bytes are immutable: supersede,
+never edit, and never change lifecycle without explicit human authority.
 
-ADR-0023/ADR-0024 acceptance selects and consumes the one-shot bridge together;
-it grants no implementation authority. PR #124 remains paused pending a NEW
-owner authorization against actual post-merge S. Canonical state remains absent;
-PR-3 is not authorized and ADR-0024 grants no future manual acceptance.
+The historical bootstrap bridge is documented by ADR-0023/ADR-0024 and its
+immutable evidence. It grants no reusable manual-transition or implementation
+permission; use the canonical query for current governance answers.
 
-ADR-0022 is accepted as the compiler/lint/tooling authority contract, but
-**acceptance is not implementation authorization**. Nothing executable moved with
-it: TypeScript remains 6.0.3, ESLint remains the installed and current lint
-engine, and Oxlint, `oxlint-tsgolint`, and `@typescript/typescript6` do not exist
-in this workspace. Its two implementation scopes — the parity foundation (PR-B)
-and the TypeScript 7 cutover (PR-C) — remain **`NOT_AUTHORIZED`** on
-**different** prerequisites. PR-B begins only from the exact post-PR-A2 `main`,
-and only under a separate external Scope-1 authorization. **PR-C's base is not
-that commit:** it is blocked until PR-B is merged and its parity evidence
-accepted, needs its own Scope-2 review epoch and authorization, and starts from
-the then-current post-PR-B `main` (`INV-TS7-17`).
+The compiler/lint contract and its separately authorized implementation scopes
+remain owned by ADR-0022 and the tooling change. PR-B requires the exact
+post-PR-A2 main and a separate Scope-1 task contract. PR-C requires PR-B merged
+with accepted parity evidence, a fresh Scope-2 review/authorization and the
+then-current post-PR-B main, never the PR-B base (`INV-TS7-17`). Query canonical
+governance for current program state; none of these prerequisites supplies
+implementation authority.
 
-ADR-0021 is accepted as the governance-state authority contract, but its future
-`governance/` registry, validators, renderer, query interface, and generated
-projection do not yet exist and require a separately authorized implementation.
+The governance domain is described in [governance/README.md](governance/README.md).
+Validation, projections and query share one model; none creates implementation
+or runtime authority.
 
 Implementation may proceed *against* them, but only when a task contract or issue
 authorizes the specific work.
 
-**Of the tracked set U1–U11, two items have ever been closed:**
-[U6](docs/architecture/unresolved-decisions.md#u6), by ADR-0013 on 2026-08-12,
-and [U7](docs/architecture/unresolved-decisions.md#u7), by ADR-0015 on
-2026-08-15 — which decided the knowledge FORMAT and **did not** open knowledge
-authoring; that waits on the ADR-0010 toolchain.
-Work depending on any other item is still blocked, `BOUNDED` still behaves as
-`FAIL CLOSED`, **no persistence toolkit is selected**
-([U11](docs/architecture/unresolved-decisions.md#u11)), and no acceptance is
-authorization to deploy anything. See
-[what acceptance does and does not unblock](docs/decisions/INDEX.md#what-acceptance-does-and-does-not-unblock).
+For the tracked questions' current resolution, use the canonical governance
+query. Their [rationale](docs/architecture/unresolved-decisions.md) remains
+authored. Question resolution, toolchain delivery and knowledge eligibility are
+separate facts; consult the knowledge catalog for its domain. Unmet prerequisites
+remain fail-closed, and acceptance never authorizes deployment.
 
 ## When you are unsure
 

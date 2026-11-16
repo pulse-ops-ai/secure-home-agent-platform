@@ -1,5 +1,10 @@
 # docs/operations/ — Operational runbooks
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Procedures for the people who run the household platform. Written for a human at
 a terminal, not for a coding agent.
 
@@ -24,7 +29,7 @@ The governing ADRs are now accepted, so what remains is implementation and the
 unresolved decisions — **not** governance. Acceptance is **not** authorization to
 deploy; each runbook below still needs its own reviewed work.
 
-| Runbook | Blocked on |
+| Runbook | Required scope / question to consult |
 |---|---|
 | Home Assistant installation and hardening | [U10](../architecture/unresolved-decisions.md#u10) credential strategy |
 | Deploying the local control plane | service implementations; [U3](../architecture/unresolved-decisions.md#u3), [U4](../architecture/unresolved-decisions.md#u4) |

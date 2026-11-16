@@ -3,12 +3,11 @@ schema: governed-spec-driven-v1
 context: |
   Local-first, security-first platform for household agents. Governance comes
   first: AGENTS.md is the universal agent contract; docs/decisions/INDEX.md is
-  the highest authority. Current governance status is not authored in this
-  configuration: during the ADR-0021 bootstrap, consult
-  docs/decisions/INDEX.md and docs/architecture/unresolved-decisions.md for
-  the manually reconciled state. ADR-0021 is accepted as a contract only; its
-  future governance/state.json and query tooling do not exist yet. Do not infer
-  authorization from this file, an issue reference, or an accepted ADR.
+  the highest authority for normative decision text. Current governance state
+  comes only from governance/state.json and the canonical query:
+  node scripts/query-governance-state.mjs --json. governance/STATE.md and
+  registered index regions are generated projections, never authored copies.
+  Do not infer authorization from this file, an issue reference, or a decision.
   Tech stack (ADR-0012): TypeScript-first pnpm workspace — NestJS 11 on
   Fastify 5, Next.js, Zod-authored contracts; Python only in
   services/workers/python-inference, managed by uv.

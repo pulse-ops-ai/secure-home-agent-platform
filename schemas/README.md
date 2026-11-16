@@ -1,5 +1,10 @@
 # schemas/
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 The **canonical, published** contract definitions for the platform's core
 objects — versioned, language-neutral, and the surface external consumers read.
 
@@ -7,7 +12,7 @@ objects — versioned, language-neutral, and the surface external consumers read
 
 > **These become a generated artifact, not a handwritten one.**
 > [ADR-0012 §16](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md)
-> (**`Accepted`** 2026-08-06) decides that the contracts are **authored in Zod**
+> decides that the contracts are **authored in Zod**
 > and their JSON Schema is **generated** into this directory and verified in CI.
 >
 > What ADR-0003 and ADR-0006 require is unchanged: these contracts remain

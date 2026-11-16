@@ -1,5 +1,10 @@
 # The effect boundary model
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 How runner orchestration crosses an asynchronous effect boundary: what decides
 that an effect may start, and what governs how it executes once it does.
 
@@ -255,7 +260,7 @@ an attempt's ending implies about the logical run is
 - a real container or process launcher;
 - real substrate enforcement of filesystem, network, and process isolation (L9);
 - a deployed `runner-control` runtime;
-- the durable persistence choice, still open under
+- the durable persistence choice tracked under
   [U11](unresolved-decisions.md#u11);
 - provider runtime adapters that have not yet landed.
 

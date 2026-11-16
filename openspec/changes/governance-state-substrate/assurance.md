@@ -1,14 +1,16 @@
 # Assurance: governance-state-substrate
 
-> **Accepted architecture; PR-2 proof in progress under exact-S authority.**
-> ADR-0023 and ADR-0024 landed together at S
-> `c82fda72927464d813ec769aee53f4079ebe3b20`; their original bridge
-> envelopes retain pre-transition RFC 3339 evidence. The current owner release
-> resumes PR #124 and its temporal tests/candidate preparation only.
-> [Bridge verification](bridge-verification.md) records acceptance-stage process
-> proof separately from independent human provenance/final review and future
-> post-merge S/expiry proof. S/expiry is now recorded in tasks.md; historical
-> section headings remain stable anchors.
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
+> This assurance artifact defines proof obligations, not live governance state.
+> The historical bridge verification retains source-era evidence; current
+> lifecycle, question resolution and program answers belong to canonical
+> governance. Execution authority remains the external task contract.
 
 ## D7.3a correction proof — preparation is not activation
 

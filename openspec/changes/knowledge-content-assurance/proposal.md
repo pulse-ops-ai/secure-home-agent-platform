@@ -1,5 +1,12 @@
 # Change Proposal: knowledge-content-assurance
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Why
 
 Implementing the [ADR-0015](../../../docs/decisions/ADR-0015-adopt-okf-v0-2-as-source-representation-only.md)

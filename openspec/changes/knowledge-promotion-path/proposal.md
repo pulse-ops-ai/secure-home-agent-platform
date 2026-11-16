@@ -1,5 +1,12 @@
 # Change Proposal: knowledge-promotion-path
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Why
 
 The repository says where knowledge lives, what it may contain, and that it
@@ -75,11 +82,9 @@ root `AGENTS.md` rule; this change's artifacts.
   [ADR-0006](../../../docs/decisions/ADR-0006-govern-agent-execution-with-versioned-profiles.md)
   — a profile selects a named set.
 
-**Unresolved decisions.** This change **depends on** and does **not** resolve
-[U7](../../../docs/architecture/unresolved-decisions.md#u7). U7 gates the first
-real bundle on the OKF validator existing. Authoring is therefore blocked and is
-explicitly out of scope; what this change lands is the *rule about where a truth
-goes*, which U7 does not gate. No other unresolved item is touched.
+**Unresolved decisions.** The original scope did not settle a question or
+open knowledge authoring. Query canonical governance for resolution; the
+catalog/admission contract independently governs content eligibility.
 
 **ADR status.** This change proposes **no** status change to any existing ADR.
 ADR-0014 was authored as `Proposed` and accepted by the repository owner on

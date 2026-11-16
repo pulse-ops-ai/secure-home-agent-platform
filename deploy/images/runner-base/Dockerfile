@@ -125,5 +125,6 @@ WORKDIR /workspace
 
 # tini as PID 1: signal forwarding and zombie reaping for an arbitrary
 # workload. Deliberately no CMD — this image is inert; only the platform
-# launcher (L9, not yet landed) supplies a command.
+# launcher supplies a command. Current delivery is queried from
+# governance/state.json via scripts/query-governance-state.mjs.
 ENTRYPOINT ["/usr/bin/tini", "--"]

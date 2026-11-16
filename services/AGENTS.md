@@ -1,5 +1,10 @@
 # AGENTS.md — `services/`
 
+Current governance state is not authored here. Use [the canonical registry](../governance/state.json),
+[its generated projection](../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Scoped rules for **deployable backend processes**. Inherits everything from
 [`../AGENTS.md`](../AGENTS.md); this file adds only what is specific to
 `services/`.
@@ -56,10 +61,10 @@ path.
 - Implement a service without an authorizing issue or task contract. The
   governing ADRs — including [ADR-0012](../docs/decisions/ADR-0012-adopt-typescript-nestjs-pnpm-implementation-stack.md),
   which fixes the taxonomy, the NestJS/Fastify shape, and the contract model —
-  are accepted, but acceptance alone authorizes nothing.
-- Write persistence code of any kind. No toolkit is selected
-  ([U11](../docs/architecture/unresolved-decisions.md#u11)); most remaining
-  service work is still blocked on U2–U5, U9, or U10.
+  define the contract, but acceptance alone authorizes nothing.
+- Write persistence code of any kind. Consult canonical governance for
+  [U11](../docs/architecture/unresolved-decisions.md#u11) and other prerequisite
+  questions before dependent work; do not select an answer by implementation.
 - Add a dependency **the task contract does not name**. The workspace is
   dependency-free *today* by default, not by prohibition: ADR-0012 commits to
   NestJS, Fastify, Zod, and Winston, so an authorizing contract may add them.

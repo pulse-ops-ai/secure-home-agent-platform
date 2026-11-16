@@ -1,5 +1,12 @@
 # Change Proposal: TS7 emit proof lifecycle
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Why
 
 After the TypeScript 7 cutover, `check:emit-conformance` still compares the
@@ -38,7 +45,7 @@ the proof. See [design.md](design.md) for the inspection recorded before impleme
 
 ## Non-Goals
 
-PR #126 remains frozen at `7309acb17e8e8d4a855d25c4d24317f621692b82`.
+The original correction recorded PR #126 at `7309acb17e8e8d4a855d25c4d24317f621692b82`.
 Its source and archive paths, PR #124, PR #101, `governance/state.json`, ADR-0020,
 U4, GATE-U4, PR-3, and PR-4 are outside this correction. Frozen TS6 evidence and
 its projections/bindings are never regenerated, rewritten, widened, or rebound.

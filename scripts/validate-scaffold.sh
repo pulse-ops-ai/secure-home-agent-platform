@@ -729,6 +729,28 @@ fi
 
 # ---------------------------------------------------------------------------
 
+# Canonical governance is a domain, not a fixture or an optional feature.
+section "Canonical governance structure"
+for f in governance/README.md governance/state.json governance/genesis-source-manifest.json governance/consumers.json governance/STATE.md; do
+  if [ -f "$f" ] && [ ! -L "$f" ]; then
+    pass "$f is a regular canonical-domain member"
+  else
+    fail "$f is missing or not a regular canonical-domain member"
+  fi
+done
+for f in tests/fixtures/governance/candidate/state.json tests/fixtures/governance/candidate/source-manifest.json tests/fixtures/governance/candidate/consumers.json; do
+  if [ ! -e "$f" ] && [ ! -L "$f" ]; then
+    pass "$f is absent after promotion"
+  else
+    fail "$f survives canonical promotion"
+  fi
+done
+if [ ! -e governance/AGENTS.md ] && [ ! -L governance/AGENTS.md ]; then
+  pass "governance uses the root agent contract"
+else
+  fail "governance/AGENTS.md is outside the version-one domain layout"
+fi
+
 section "Result"
 
 if [ "$FAILURES" -eq 0 ]; then

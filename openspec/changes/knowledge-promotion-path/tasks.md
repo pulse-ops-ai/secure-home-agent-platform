@@ -1,5 +1,12 @@
 # Implementation Tasks: knowledge-promotion-path
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Contract
 
 Establish where a durable architectural truth lives and how it reaches an agent.

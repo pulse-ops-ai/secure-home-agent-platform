@@ -1,5 +1,10 @@
 # deploy/images/
 
+Current governance state is not authored here. Use [the canonical registry](../../governance/state.json),
+[its generated projection](../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Registry data grants no implementation or runtime authority.
+
 Runner **image definitions** and their machine-readable lineage record.
 
 > **Status: the definitions are landed and inert** (L5 #53, L7 #55). Four
@@ -99,9 +104,9 @@ artifact acceptance checks are unchanged; no live-mirror fallback is allowed.
 ## Lineage
 
 ```text
-secure-home-runner-base              provider-neutral substrate (landed, L5)
-├── secure-home-runner-claude        Claude Code, pinned (landed, L5)
-└── secure-home-runner-copilot       GitHub Copilot CLI, pinned (landed, L7)
+secure-home-runner-base              provider-neutral substrate
+├── secure-home-runner-claude        Claude Code, pinned
+└── secure-home-runner-copilot       GitHub Copilot CLI, pinned
 
 secure-home-gates-toolchain          separate lineage; runs gates, not agents
 ```

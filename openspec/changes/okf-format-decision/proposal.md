@@ -1,13 +1,18 @@
 # Change Proposal: okf-format-decision
 
+Current governance state is not authored here. Use [the canonical registry](../../../governance/state.json),
+[its generated projection](../../../governance/STATE.md), or
+`node scripts/query-governance-state.mjs --json` from the repository root.
+Normative requirements, scenarios and source-era review records below retain
+their contract or historical meaning; they are not independent live-state answers.
+Registry data grants no implementation or runtime authority.
+
 ## Why
 
-[U7](../../../docs/architecture/unresolved-decisions.md#u7) gates the first real
-knowledge bundle on a validator existing, because authoring first would make an
-unvalidated format load-bearing by accident.
-[ADR-0010](../../../docs/decisions/ADR-0010-use-okf-for-portable-knowledge-only.md)
-named OKF a **candidate** and explicitly did not choose it. Nothing has decided
-whether OKF is the format, and no toolchain exists.
+The source-era proposal investigated OKF against ADR-0010
+requirements before choosing a representation. Its rationale and evidence are
+retained below. Query canonical governance for the format question's current
+resolution; authoring eligibility is separately governed by the catalog.
 
 This change is the **decision and evidence phase**. It answers *which format*
 and records why, from the current upstream specification read directly rather
@@ -112,9 +117,8 @@ later landing.
 
 ## Success
 
-The format question is answered with cited evidence; the trust/authority
-boundary is stated as a prohibition; U7 remains open with an honest pointer; and
-a reader can tell what still blocks authoring.
+The source-era proof reviewed format evidence, trust/authority separation and
+independent authoring gates. Current question answers are not maintained here.
 
 ## Non-Goals
 
